@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "顯示中" },
     { "key": "trackerLinking.identifyDescription", "value": "在此追蹤器上點亮一顆發光球體，讓你能辨認出它是哪一個實體裝置。再按一次即可關閉。" },
     { "key": "trackerLinking.trackers.title", "value": "已連接的追蹤器" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "信任 SteamVR 追蹤器角色" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "同時依 SteamVR 設定中手動指定的身體部位角色綁定追蹤器。僅在你自己設定過這些角色時啟用。" },
     { "key": "trackerLinking.connectorTrackers", "value": "Show Connector Trackers" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use." },
     { "key": "trackerLinking.advanced", "value": "進階調整" },

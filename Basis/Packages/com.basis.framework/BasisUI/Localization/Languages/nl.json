@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "Wordt getoond" },
     { "key": "trackerLinking.identifyDescription", "value": "Laat een gloeiende bol oplichten op deze tracker zodat je kunt zien welk fysiek apparaat het is. Druk nogmaals om hem uit te zetten." },
     { "key": "trackerLinking.trackers.title", "value": "Verbonden trackers" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "SteamVR-trackerrollen vertrouwen" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "Bindt ook trackers via de lichaamsdeel-rollen die handmatig in de SteamVR-instellingen zijn toegewezen. Alleen inschakelen als je die rollen zelf hebt ingesteld." },
     { "key": "trackerLinking.connectorTrackers", "value": "Show Connector Trackers" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use." },
     { "key": "trackerLinking.advanced", "value": "Geavanceerde afstemming" },

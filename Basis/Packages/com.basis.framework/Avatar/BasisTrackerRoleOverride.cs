@@ -29,6 +29,15 @@ namespace Basis.Scripts.Avatar
             _filePath ??= Path.Combine(Application.persistentDataPath, FileName);
 
         private static readonly Dictionary<string, BasisBoneTrackedRole> _overrides = new();
+
+        /// <summary>
+        /// Session-only forced roles, consulted before the persisted table and never written to
+        /// disk. For sources whose device ids are session-volatile — e.g. SlimeVR's virtual
+        /// SteamVR trackers, whose "{index}|{renderModel}" ids can land on a different tracker
+        /// every session — persisting would let a stale entry force the wrong role onto a reused
+        /// index later.
+        /// </summary>
+        private static readonly Dictionary<string, BasisBoneTrackedRole> _runtimeOverrides = new();
         private static bool _loaded;
 
         public static event Action OnOverridesChanged;
@@ -41,7 +50,39 @@ namespace Basis.Scripts.Avatar
                 role = BasisBoneTrackedRole.CenterEye;
                 return false;
             }
+            if (_runtimeOverrides.TryGetValue(id, out role))
+            {
+                return true;
+            }
             return _overrides.TryGetValue(id, out role);
+        }
+
+        /// <summary>
+        /// Force <paramref name="role"/> on the tracker with id <paramref name="id"/> for this
+        /// session only (not persisted). Replaces any prior runtime override on that tracker and
+        /// shadows a persisted one while set.
+        /// </summary>
+        public static void SetRuntimeOverride(string id, BasisBoneTrackedRole role)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+
+            if (_runtimeOverrides.TryGetValue(id, out BasisBoneTrackedRole existing) && existing == role)
+            {
+                return;
+            }
+            _runtimeOverrides[id] = role;
+            OnOverridesChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Remove any runtime override for <paramref name="id"/>. No-op if there isn't one.
+        /// A persisted override for the same id becomes visible again.
+        /// </summary>
+        public static void ClearRuntimeOverride(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            if (!_runtimeOverrides.Remove(id)) return;
+            OnOverridesChanged?.Invoke();
         }
 
         /// <summary>

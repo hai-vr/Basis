@@ -1,0 +1,27 @@
+{
+    "name": "Basis.Integration.SlimeVR",
+    "rootNamespace": "Basis.Integration.SlimeVR",
+    "references": [
+        "Basis Framework",
+        "BasisSDK",
+        "BasisSettings",
+        "BasisDebug"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "BASIS_FRAMEWORK_EXISTS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.basis.framework",
+            "expression": "",
+            "define": "BASIS_FRAMEWORK_EXISTS"
+        }
+    ],
+    "noEngineReferences": false
+}

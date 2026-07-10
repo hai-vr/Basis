@@ -140,6 +140,18 @@ namespace Basis.Scripts.UI
                             BasisDebug.LogWarning(nameof(BasisUIRaycastProcess) + "Skipping raycast simulate — hit data or ray results missing.");
                         }
                     }
+                    else if (eventData.WasLastDown && eventData.pointerDrag != null &&
+                        TryGetDragCapturePosition(input, eventData, out Vector2 capturePosition))
+                    {
+                        // A held drag (slider/scrollbar/scroll view) whose ray slipped off every
+                        // raycastable graphic: keep driving it from the ray projected onto the
+                        // plane it was pressed on, instead of freezing until release (#869).
+                        eventData.delta = capturePosition - eventData.position;
+                        eventData.position = capturePosition;
+                        eventData.pointerCurrentRaycast = new RaycastResult();
+                        ProcessPointerButtonDrag(eventData, pixelDragThresholdMultiplier: 3.0f);
+                        HasTarget = true;
+                    }
                     else
                     {
                         // Lost UI hit (or moved to non-UI layer): send pointerExit events and clear selection.
@@ -147,6 +159,7 @@ namespace Basis.Scripts.UI
                         {
                             eventData.pointerCurrentRaycast = new RaycastResult();
                             ProcessPointerMovement(eventData);
+                            eventData.HapticHoverTarget = null;
 
                             // Clear EventSystem selection so UI elements (e.g. toggles/buttons)
                             // don't stay stuck in the “Selected” highlight visual state.
@@ -323,6 +336,7 @@ namespace Basis.Scripts.UI
 
             // ---- OTHER POINTER EVENTS ----
             ProcessPointerMovement(currentEventData);
+            UpdateHoverHaptic(currentEventData, BaseInput);
             ProcessScrollWheel(currentEventData);
 
             // VR-friendly: larger drag threshold so tiny jitter isn't a drag.
@@ -387,6 +401,9 @@ namespace Basis.Scripts.UI
 
             if (dragObject != null)
             {
+                Canvas canvas = hit.graphic.canvas;
+                CurrentEventData.DragPlaneTransform = canvas != null ? canvas.transform : hit.graphic.rectTransform;
+                CurrentEventData.DragEventCamera = canvas != null ? canvas.worldCamera : null;
                 ExecuteEvents.Execute(dragObject, CurrentEventData, ExecuteEvents.initializePotentialDrag);
             }
         }
@@ -439,6 +456,59 @@ namespace Basis.Scripts.UI
 
             CurrentEventData.dragging = false;
             CurrentEventData.pointerDrag = null;
+            CurrentEventData.DragPlaneTransform = null;
+            CurrentEventData.DragEventCamera = null;
+        }
+
+        private static bool TryGetDragCapturePosition(BasisInput input, BasisPointerEventData eventData, out Vector2 screenPosition)
+        {
+            screenPosition = default;
+            Transform planeTransform = eventData.DragPlaneTransform;
+            Camera eventCamera = eventData.DragEventCamera;
+            if (planeTransform == null || eventCamera == null)
+            {
+                return false;
+            }
+
+            Ray ray = input.BasisUIRaycast.BasisPointRaycaster.ray;
+            Plane plane = new Plane(planeTransform.forward, planeTransform.position);
+            if (!plane.Raycast(ray, out float enter))
+            {
+                return false;
+            }
+
+            Vector3 projected = eventCamera.WorldToScreenPoint(ray.GetPoint(enter));
+            if (projected.z <= 0f)
+            {
+                return false;
+            }
+
+            screenPosition = projected;
+            return true;
+        }
+
+        private static void UpdateHoverHaptic(BasisPointerEventData eventData, BasisInput input)
+        {
+            GameObject interactiveRoot = null;
+            if (eventData.pointerEnter != null)
+            {
+                interactiveRoot = ExecuteEvents.GetEventHandler<IPointerClickHandler>(eventData.pointerEnter);
+                if (interactiveRoot == null)
+                {
+                    interactiveRoot = ExecuteEvents.GetEventHandler<IDragHandler>(eventData.pointerEnter);
+                }
+            }
+
+            if (interactiveRoot == eventData.HapticHoverTarget)
+            {
+                return;
+            }
+
+            eventData.HapticHoverTarget = interactiveRoot;
+            if (interactiveRoot != null && !eventData.WasLastDown)
+            {
+                input.PlayHaptic(0.02f, 0.25f, 0.5f);
+            }
         }
 
         public bool SendUpdateEventToSelectedObject(BasisPointerEventData CurrentEventData)

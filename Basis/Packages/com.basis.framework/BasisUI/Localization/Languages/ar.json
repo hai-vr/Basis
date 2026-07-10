@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "ظاهر" },
     { "key": "trackerLinking.identifyDescription", "value": "أضِئ كرة متوهجة على هذا المتتبع لتعرف أي جهاز فيزيائي هو. اضغط مرة أخرى لإطفائها." },
     { "key": "trackerLinking.trackers.title", "value": "المتتبعات المتصلة" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "الوثوق بأدوار متتبعات SteamVR" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "يربط المتتبعات أيضًا وفق أدوار أجزاء الجسم المعيّنة يدويًا في إعدادات SteamVR. فعّله فقط إذا كنت قد عيّنت هذه الأدوار بنفسك." },
     { "key": "trackerLinking.connectorTrackers", "value": "Show Connector Trackers" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use." },
     { "key": "trackerLinking.advanced", "value": "ضبط متقدم" },

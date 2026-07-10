@@ -1967,6 +1967,14 @@
       "value": "Connected Trackers"
     },
     {
+      "key": "trackerLinking.trustSteamVRRoles",
+      "value": "Trust SteamVR Tracker Roles"
+    },
+    {
+      "key": "trackerLinking.trustSteamVRRoles.tooltip",
+      "value": "Also bind trackers using the body-part roles assigned by hand in SteamVR settings. Only enable this if you actually set those roles yourself."
+    },
+    {
       "key": "trackerLinking.connectorTrackers",
       "value": "Show Connector Trackers"
     },

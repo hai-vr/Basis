@@ -1329,6 +1329,10 @@ namespace Basis.BasisUI
         // for setup; routine open/close shouldn't have to scroll past the
         // full device list.
         public static BasisSettingsBinding<bool> TrackerLinkingConnectorVisible = new("trackerlinking_connectorvisible", new BasisPlatformDefault<bool>(false));
+        // Honor body-part roles assigned to trackers by hand in SteamVR settings
+        // ("vive_tracker_waist", ...). Off by default: most people never set those roles (or
+        // leave stale ones), and a wrong announced role is forced with no geometric check.
+        public static BasisSettingsBinding<bool> TrustSteamVRRoles = new("trackerlinking_truststeamvrroles", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1993,6 +1997,7 @@ namespace Basis.BasisUI
             // Tracker pairing
             TrackerLinkingAdvancedVisible.LoadBindingValue();
             TrackerLinkingConnectorVisible.LoadBindingValue();
+            TrustSteamVRRoles.LoadBindingValue();
             PairingSurprisePenalty.LoadBindingValue();
             PairingSurpriseClamp.LoadBindingValue();
             PairingEmaFloor.LoadBindingValue();

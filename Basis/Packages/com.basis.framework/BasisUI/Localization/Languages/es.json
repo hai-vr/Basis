@@ -570,6 +570,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "Mostrando" },
     { "key": "trackerLinking.identifyDescription", "value": "Enciende una esfera brillante en este tracker para que puedas localizar qué dispositivo físico es. Pulsa de nuevo para apagarla." },
     { "key": "trackerLinking.trackers.title", "value": "Trackers conectados" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "Confiar en los roles de tracker de SteamVR" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "Vincula también los trackers usando los roles de parte del cuerpo asignados a mano en los ajustes de SteamVR. Actívalo solo si configuraste esos roles tú mismo." },
     { "key": "trackerLinking.connectorTrackers", "value": "Mostrar trackers conectores" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Muestra la lista de vinculación y de anulación de roles por tracker. Ocúltala una vez que tus trackers estén emparejados y con su rol asignado — la pestaña queda compacta para el uso habitual." },
     { "key": "trackerLinking.advanced", "value": "Ajustes avanzados" },

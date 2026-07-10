@@ -312,12 +312,65 @@ namespace Basis.Scripts.UI
 
         private void HandleNoHit()
         {
-            ResetRenderers();
+            if (!TryRenderCapturedDrag())
+            {
+                ResetRenderers();
+            }
             ResetCursorType();
             RaycastResult = new RaycastResult();
             PhysicHit = new RaycastHit();
             DidPhysicHit = false;
             HitCollider = null;
+        }
+
+        private bool TryRenderCapturedDrag()
+        {
+            BasisPointerEventData eventData = CurrentEventData;
+            if (eventData == null || !eventData.WasLastDown || eventData.pointerDrag == null)
+            {
+                return false;
+            }
+            Transform planeTransform = eventData.DragPlaneTransform;
+            if (planeTransform == null)
+            {
+                return false;
+            }
+            Plane plane = new Plane(planeTransform.forward, planeTransform.position);
+            if (!plane.Raycast(BasisPointRaycaster.ray, out float enter))
+            {
+                return false;
+            }
+
+            Vector3 point = BasisPointRaycaster.ray.GetPoint(enter);
+            Vector3 normal = -planeTransform.forward;
+
+            if (HasLineRenderer)
+            {
+                if (!CachedLinerRenderState)
+                {
+                    LineRenderer.enabled = true;
+                    CachedLinerRenderState = true;
+                }
+                float endOffset = BasisPlayerInteract.AvatarScaledRange(0.01f);
+                LineRenderer.SetPosition(0, BasisPointRaycaster.ray.origin);
+                LineRenderer.SetPosition(1, point + normal * endOffset);
+            }
+
+            if (HasRedicalRenderer)
+            {
+                bool show = !(BasisDeviceManagement.IsUserInDesktop() && BasisCursorManagement.ActiveLockState() != CursorLockMode.Locked);
+                if (show)
+                {
+                    HighlightState = ActiveStateOfHightlight.On;
+                    highlightQuadInstance.transform.SetPositionAndRotation(point, Quaternion.LookRotation(normal));
+                }
+                else
+                {
+                    HighlightState = ActiveStateOfHightlight.Off;
+                }
+            }
+
+            return true;
         }
 
         bool ContainsLayer(LayerMask mask, int layer)
@@ -337,7 +390,10 @@ namespace Basis.Scripts.UI
             }
             else
             {
-                ResetRenderers();
+                if (!TryRenderCapturedDrag())
+                {
+                    ResetRenderers();
+                }
                 ResetCursorType();
             }
         }

@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "দেখানো হচ্ছে" },
     { "key": "trackerLinking.identifyDescription", "value": "এই ট্র্যাকারে একটি উজ্জ্বল গোলক জ্বালান যাতে আপনি বুঝতে পারেন এটি কোন ভৌত ডিভাইস। বন্ধ করতে আবার চাপুন।" },
     { "key": "trackerLinking.trackers.title", "value": "সংযুক্ত ট্র্যাকার" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "SteamVR ট্র্যাকার রোলে ভরসা করুন" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "SteamVR সেটিংসে হাতে দেওয়া শরীর-অঙ্গ রোল দিয়েও ট্র্যাকার বাইন্ড করে। শুধু তখনই চালু করুন যখন আপনি নিজে সেই রোলগুলো সেট করেছেন।" },
     { "key": "trackerLinking.connectorTrackers", "value": "Show Connector Trackers" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use." },
     { "key": "trackerLinking.advanced", "value": "উন্নত টিউনিং" },
