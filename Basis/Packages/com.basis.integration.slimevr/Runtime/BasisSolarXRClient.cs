@@ -28,6 +28,16 @@ namespace Basis.Integration.SlimeVR
         public bool TryGet(SkeletonBone bone, out float meters) => Parts.TryGetValue(bone, out meters);
     }
 
+    /// <summary>
+    /// A SlimeVR quaternion (x, y, z, w) in SlimeVR's own coordinate frame. Kept deliberately
+    /// frame-agnostic: it is only ever compared against other SlimeVR quaternions (an angular
+    /// delta), never mixed into Unity space, so no handedness conversion is needed or implied.
+    /// </summary>
+    public struct SlimeVRQuat
+    {
+        public float X, Y, Z, W;
+    }
+
     /// <summary>One SlimeVR tracker flattened together with its owning device's hardware status.</summary>
     public sealed class SlimeVRTrackerSnapshot
     {
@@ -49,6 +59,40 @@ namespace Basis.Integration.SlimeVR
         public byte DeviceId;
         /// <summary>True for entries from the synthetic (solved/computed) tracker list.</summary>
         public bool IsSynthetic;
+
+        /// <summary>True when this tracker is IMU-based — the trackers whose mounting orientation matters.</summary>
+        public bool IsImu;
+
+        /// <summary>SlimeVR's persisted mounting orientation (the tracker's rotation as worn on the body).</summary>
+        public bool HasMountingOrientation;
+        public SlimeVRQuat MountingOrientation;
+
+        /// <summary>
+        /// Live mounting-reset orientation. SlimeVR recomputes this each run and it overrides
+        /// <see cref="MountingOrientation"/> while present, so it is the value to trust.
+        /// </summary>
+        public bool HasMountingResetOrientation;
+        public SlimeVRQuat MountingResetOrientation;
+
+        /// <summary>
+        /// The mounting orientation currently in effect (reset overrides persisted). Returns false
+        /// when neither is known (non-IMU trackers, HMD).
+        /// </summary>
+        public bool TryGetEffectiveMounting(out SlimeVRQuat mounting)
+        {
+            if (HasMountingResetOrientation)
+            {
+                mounting = MountingResetOrientation;
+                return true;
+            }
+            if (HasMountingOrientation)
+            {
+                mounting = MountingOrientation;
+                return true;
+            }
+            mounting = default;
+            return false;
+        }
     }
 
     /// <summary>
@@ -459,6 +503,34 @@ namespace Basis.Integration.SlimeVR
                 snapshot.CustomName = info.Value.CustomName;
                 snapshot.IsHmd = info.Value.IsHmd;
                 snapshot.IsComputed = info.Value.IsComputed;
+                snapshot.IsImu = info.Value.IsImu;
+
+                // Mounting orientation rides along in TrackerInfo (the `info` mask we already request),
+                // so this needs no extra datafeed fields — it was simply being dropped before.
+                var mounting = info.Value.MountingOrientation;
+                if (mounting.HasValue)
+                {
+                    snapshot.HasMountingOrientation = true;
+                    snapshot.MountingOrientation = new SlimeVRQuat
+                    {
+                        X = mounting.Value.X,
+                        Y = mounting.Value.Y,
+                        Z = mounting.Value.Z,
+                        W = mounting.Value.W
+                    };
+                }
+                var mountingReset = info.Value.MountingResetOrientation;
+                if (mountingReset.HasValue)
+                {
+                    snapshot.HasMountingResetOrientation = true;
+                    snapshot.MountingResetOrientation = new SlimeVRQuat
+                    {
+                        X = mountingReset.Value.X,
+                        Y = mountingReset.Value.Y,
+                        Z = mountingReset.Value.Z,
+                        W = mountingReset.Value.W
+                    };
+                }
             }
             return snapshot;
         }

@@ -67,6 +67,12 @@ namespace Basis.Integration.SlimeVR
             autoBindToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoBindSlimeVRTrackers.RawValue);
             autoBindToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoBindSlimeVRTrackers.SetValue(value);
 
+            PanelToggle recalToggle = PanelToggle.CreateNewEntry(content);
+            recalToggle.Descriptor.SetTitle("Recalibrate On Reset");
+            recalToggle.Descriptor.SetDescription("When a SlimeVR mounting or full reset changes how your trackers sit, re-run full-body calibration automatically so your tracker offsets stay correct.");
+            recalToggle.SetValueWithoutNotify(BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue);
+            recalToggle.OnValueChanged += value => BasisSlimeVRSettings.RecalibrateOnMountingChange.SetValue(value);
+
             PanelButton yawReset = PanelButton.CreateNew(content);
             yawReset.Descriptor.SetTitle("Yaw Reset");
             yawReset.Descriptor.SetDescription("Straighten the SlimeVR trackers (same as the SlimeVR yaw reset).");
@@ -76,6 +82,11 @@ namespace Basis.Integration.SlimeVR
             fullReset.Descriptor.SetTitle("Full Reset");
             fullReset.Descriptor.SetDescription("Full SlimeVR tracker reset (stand straight while using it).");
             fullReset.OnClicked += BasisSlimeVRBridge.TriggerFullReset;
+
+            PanelButton recalibrate = PanelButton.CreateNew(content);
+            recalibrate.Descriptor.SetTitle("Recalibrate Full Body");
+            recalibrate.Descriptor.SetDescription("Recapture full-body tracker offsets from your current SlimeVR poses (stand straight while using it).");
+            recalibrate.OnClicked += () => BasisSlimeVRBridge.RecaptureFbtOffsets("manual (settings)");
 
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
@@ -154,6 +165,10 @@ namespace Basis.Integration.SlimeVR
                     text.Append($", lowest battery {lowestBattery:F0}%");
                 }
                 text.Append('.');
+            }
+            if (BasisSlimeVRBridge.OffsetsStale)
+            {
+                text.Append($" Tracker mounting changed ({BasisSlimeVRBridge.MountingDriftDegrees:F0}°) — refreshing full-body offsets.");
             }
             return text.ToString();
         }

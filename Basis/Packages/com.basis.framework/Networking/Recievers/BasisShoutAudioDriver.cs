@@ -203,7 +203,12 @@ namespace Basis.Scripts.Networking.Receivers
         {
             foreach (var kvp in _entries)
             {
-                kvp.Value.Receiver.DrainAndDecode();
+                var receiver = kvp.Value.Receiver;
+                if (!receiver.IsAudioActive || receiver.VoiceBuffer.DecodedFrameCount == 0)
+                {
+                    receiver.DrainAndDecodeThreadSafe();
+                }
+                receiver.ApplyAudioState();
             }
         }
 

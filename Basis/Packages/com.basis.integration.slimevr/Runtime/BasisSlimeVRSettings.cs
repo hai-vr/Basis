@@ -25,6 +25,15 @@ namespace Basis.Integration.SlimeVR
         public static readonly BasisSettingsBinding<bool> AutoBindSlimeVRTrackers =
             new BasisSettingsBinding<bool>("slimevr_autobind", new BasisPlatformDefault<bool>(true));
 
+        /// <summary>
+        /// Automatically re-run full-body calibration when SlimeVR's tracker mounting orientation
+        /// changes (i.e. after a mounting or full reset). Basis captures each FBT offset relative to
+        /// the tracker's reported orientation, so a reset silently invalidates every offset until the
+        /// next calibration; this heals it without a manual recalibration.
+        /// </summary>
+        public static readonly BasisSettingsBinding<bool> RecalibrateOnMountingChange =
+            new BasisSettingsBinding<bool>("slimevr_recalibrate_on_reset", new BasisPlatformDefault<bool>(true));
+
         public const string TransportWebSocket = "websocket";
         public const string TransportPipe = "pipe";
 

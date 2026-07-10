@@ -748,7 +748,27 @@ namespace Basis.Scripts.Networking.Receivers
         {
             // Top up the decoded queue on the audio clock (not only the per-frame network pass)
             // so a render-frame hitch can't starve this read and underrun into the fade-to-silence.
-            DrainAndDecodeThreadSafe();
+            int spins = 0;
+            while (System.Threading.Interlocked.CompareExchange(ref _decoding, 1, 0) != 0)
+            {
+                if (++spins > 256)
+                {
+                    spins = -1;
+                    break;
+                }
+                System.Threading.Thread.SpinWait(32);
+            }
+            if (spins >= 0)
+            {
+                try
+                {
+                    DrainAndDecodeLocked();
+                }
+                finally
+                {
+                    System.Threading.Volatile.Write(ref _decoding, 0);
+                }
+            }
 
             int frames = length / channels;
             double msThisCallback = 1000.0 * frames / outputSampleRate;
@@ -758,6 +778,11 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 // No signal this callback — bleed the level meter toward silence.
                 SourcePeak *= MeterReleaseFactor;
+
+                if (_fadeEnvelope > 0f)
+                {
+                    VoiceBuffer.NoteUnderrun();
+                }
 
                 // Fade the last produced sample down toward zero over ~2 ms instead
                 // of an abrupt step to silence. Once the envelope hits 0 the output
@@ -845,6 +870,7 @@ namespace Basis.Scripts.Networking.Receivers
                 // Faded out mid-callback to silence; restart the envelope so the
                 // next callback with real audio fades back in instead of stepping
                 // up from 0 to full amplitude.
+                VoiceBuffer.NoteUnderrun();
                 _fadeEnvelope = 0f;
                 _lastOutputSample = 0f;
             }
@@ -973,6 +999,7 @@ namespace Basis.Scripts.Networking.Receivers
             // 3) Smooth the boundary to silence if the queue underran.
             if (produced < frames)
             {
+                underrun = true;
                 FadeFillUnderrun(resampled, produced, frames);
             }
 
@@ -980,6 +1007,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (underrun)
             {
+                VoiceBuffer.NoteUnderrun();
                 _fadeEnvelope = 0f;
                 _lastOutputSample = 0f;
             }

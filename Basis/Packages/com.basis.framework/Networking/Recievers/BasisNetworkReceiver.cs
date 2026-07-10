@@ -292,7 +292,10 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.BeginSample("ComputeData.AudioDecode");
 #endif
-            AudioReceiverModule.DrainAndDecodeThreadSafe();
+            if (!AudioReceiverModule.IsAudioActive || AudioReceiverModule.VoiceBuffer.DecodedFrameCount == 0)
+            {
+                AudioReceiverModule.DrainAndDecodeThreadSafe();
+            }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.EndSample();
 #endif
