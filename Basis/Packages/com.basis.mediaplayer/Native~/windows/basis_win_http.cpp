@@ -90,10 +90,12 @@ extern "C" void* basis_win_http_open(const char* url) {
     }
     h->range_ok = (code == 206);
 
-    /* Seekability (for live-vs-VOD auto-detection): a known Content-Length plus
-     * Accept-Ranges: bytes means a finite, range-fetchable body — on-demand content.
-     * Live streams are chunked / open-ended, so they report neither. Both required so
-     * an open-ended stream is never mistaken for VOD (which would mis-pace it). */
+    /* Seekability (for live-vs-VOD auto-detection): a finite, range-fetchable
+     * body — on-demand content. Range support is proven either by the probe
+     * answering 206 (nginx omits Accept-Ranges on 206 responses, so the status
+     * is the only signal there) or by an Accept-Ranges: bytes advertisement.
+     * A known Content-Length is required either way so a chunked / open-ended
+     * live stream is never mistaken for VOD (which would mis-pace it). */
     {
         DWORD64 clen = 0; DWORD clsz = sizeof(clen);
         BOOL haveLen = WinHttpQueryHeaders(h->request,
@@ -102,7 +104,8 @@ extern "C" void* basis_win_http_open(const char* url) {
         wchar_t ranges[64] = {0}; DWORD rsz = sizeof(ranges);
         BOOL haveRanges = WinHttpQueryHeaders(h->request, WINHTTP_QUERY_ACCEPT_RANGES,
             WINHTTP_HEADER_NAME_BY_INDEX, ranges, &rsz, WINHTTP_NO_HEADER_INDEX);
-        h->seekable = (haveLen && clen > 0 && haveRanges && _wcsicmp(ranges, L"bytes") == 0) ? 1 : 0;
+        int rangeable = h->range_ok || (haveRanges && _wcsicmp(ranges, L"bytes") == 0);
+        h->seekable = (haveLen && clen > 0 && rangeable) ? 1 : 0;
     }
     return h;
 }
