@@ -19,17 +19,14 @@ has about your body, so you don't have to calibrate your size in Basis at all.
   and signal strength (`BasisSlimeVRBridge.Trackers` + `OnTrackersUpdated`) for HUDs and menus.
 - **Resets**: SlimeVR's yaw / full / mounting resets can be triggered from inside Basis
   (`BasisSlimeVRBridge.TriggerYawReset()` etc., also exposed in Settings > Tracker Settings).
-- **Auto tracker roles (no calibration step)**: SlimeVR's virtual SteamVR trackers carry their
-  body part in their serial (`human://WAIST`, `human://LEFT_FOOT`, ...), and SteamVR encodes any
-  tracker's user-assigned role in its controller type (`vive_tracker_waist`, ... — works for every
-  tracker brand). When such trackers appear, `BasisSlimeVRTrackerRoles` forces the matching Basis
-  role through a session-only tracker-role override and runs the standard full-body calibration
-  pass automatically — roles, tracker-to-bone offsets, rotation calibration and bend hints, no
-  T-pose ceremony. Knee/elbow map to the LowerLeg/LowerArm roles; head/hands stay with the HMD and
-  controllers; SteamVR's wrist/ankle/camera/keyboard/handed roles are left to the geometric
-  classifier. Mixed setups keep working: trackers announcing nothing still classify geometrically
-  in the same pass. (`BasisInput.DeviceSerial` / `DeviceControllerType` are filled by the OpenVR
-  backend, and OpenXR fills serials for trackers and controllers.)
+- **Auto tracker roles (no calibration step)**: `BasisSlimeVRTrackerRoles` registers SlimeVR's
+  convention — virtual SteamVR trackers carry their body part in their serial (`human://WAIST`,
+  `human://LEFT_FOOT`, ...) — with the framework's announced-role scanner
+  (`BasisAnnouncedTrackerRoles`), which forces the matching role and runs the automatic full-body
+  calibration. Gated by **Auto Bind SlimeVR Trackers** in this package's settings section
+  (default on); works off the SteamVR serials alone, so it functions even when the SolarXR
+  connection is off. The framework's own opt-in **Trust SteamVR Tracker Roles** (off by default)
+  covers roles assigned by hand in SteamVR settings for any tracker brand.
 
 ## How it connects
 
@@ -65,8 +62,10 @@ Settings > Tracker Settings > SlimeVR:
 - **Connection Method** (`slimevr_transport`, `"websocket"` default / `"pipe"`) — applied live;
   changing it reconnects.
 - **Auto Apply Body Measurements** (`slimevr_applybodymeasurements`, default on)
-- **Auto Assign Tracker Roles** (`slimevr_autoassignroles`, default on) — works off the SteamVR
-  serials alone, so it functions even when the SolarXR connection is off.
+- **Auto Bind SlimeVR Trackers** (`slimevr_autobind`, default on) — see auto tracker roles above.
+
+**Trust SteamVR Tracker Roles** on the same tab is a core framework setting, not part of this
+package.
 
 Seated mode is respected: measurements received while seated are held and applied when you stand.
 Manual calibration still works and simply overwrites the SlimeVR values until the next config poll.

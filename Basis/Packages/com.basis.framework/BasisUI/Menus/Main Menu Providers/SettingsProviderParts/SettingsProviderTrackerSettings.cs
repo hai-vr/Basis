@@ -101,6 +101,15 @@ namespace Basis.BasisUI
 
             RectTransform tabRoot = tabDesc.ContentParent;
 
+            // Announced-role trust switch, consumed every scan by
+            // BasisAnnouncedTrackerRoles. Opt-in because most setups leave the
+            // SteamVR-assigned roles unset or stale. (Vendor conventions like
+            // SlimeVR's serials ship their own toggle in their own package.)
+            PanelToggle trustSteamVRToggle = PanelToggle.CreateNewEntry(tabRoot);
+            trustSteamVRToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.trustSteamVRRoles"));
+            trustSteamVRToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.trustSteamVRRoles.tooltip"));
+            trustSteamVRToggle.AssignBinding(BasisSettingsDefaults.TrustSteamVRRoles);
+
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as
@@ -684,6 +693,7 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
             BasisSettingsDefaults.TrackerLinkingConnectorVisible.ResetToDefault();
+            BasisSettingsDefaults.TrustSteamVRRoles.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();

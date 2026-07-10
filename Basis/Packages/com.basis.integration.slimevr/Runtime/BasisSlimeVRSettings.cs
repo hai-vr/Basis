@@ -18,11 +18,12 @@ namespace Basis.Integration.SlimeVR
             new BasisSettingsBinding<bool>("slimevr_applybodymeasurements", new BasisPlatformDefault<bool>(true));
 
         /// <summary>
-        /// Automatically give SlimeVR's SteamVR trackers their body-part roles (and capture their
-        /// offsets) the moment they appear, instead of requiring the manual tracker calibration.
+        /// SlimeVR trackers announce their body part in their serial and bind to it automatically
+        /// (registered with the framework's BasisAnnouncedTrackerRoles scanner). Switch off to run
+        /// them through the normal manual/geometric calibration instead.
         /// </summary>
-        public static readonly BasisSettingsBinding<bool> AutoAssignRoles =
-            new BasisSettingsBinding<bool>("slimevr_autoassignroles", new BasisPlatformDefault<bool>(true));
+        public static readonly BasisSettingsBinding<bool> AutoBindSlimeVRTrackers =
+            new BasisSettingsBinding<bool>("slimevr_autobind", new BasisPlatformDefault<bool>(true));
 
         public const string TransportWebSocket = "websocket";
         public const string TransportPipe = "pipe";

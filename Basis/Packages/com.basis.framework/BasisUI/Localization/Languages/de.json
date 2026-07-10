@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "Wird angezeigt" },
     { "key": "trackerLinking.identifyDescription", "value": "Lässt eine leuchtende Kugel auf diesem Tracker aufleuchten, damit du erkennst, welches physische Gerät es ist. Erneut drücken zum Ausschalten." },
     { "key": "trackerLinking.trackers.title", "value": "Verbundene Tracker" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "SteamVR-Tracker-Rollen vertrauen" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "Bindet zusätzlich Tracker über die in den SteamVR-Einstellungen von Hand zugewiesenen Körperteil-Rollen. Nur aktivieren, wenn du diese Rollen selbst gesetzt hast." },
     { "key": "trackerLinking.connectorTrackers", "value": "Verbinder-Tracker anzeigen" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Blendet die Liste für Tracker-Verknüpfung und Rollen-Override pro Tracker ein. Blende sie aus, sobald deine Tracker gepaart und mit Rollen versehen sind — der Tab bleibt für den Routinebetrieb kompakt." },
     { "key": "trackerLinking.advanced", "value": "Erweiterte Abstimmung" },

@@ -48,7 +48,7 @@ namespace Basis.Integration.SlimeVR
 
             PanelDropdown transportDropdown = PanelDropdown.CreateNewEntry(content);
             transportDropdown.Descriptor.SetTitle("Connection Method");
-            transportDropdown.Descriptor.SetDescription("WebSocket works with every SlimeVR server today. Pipe is SlimeVR's newer native connection (the one that stays when websockets are deprecated) and needs a server build whose pipe works.");
+            transportDropdown.Descriptor.SetDescription("WebSocket works with every SlimeVR server today. Pipe is SlimeVR's newer native connection and needs a server build whose pipe works.");
             transportDropdown.AssignEntries(
                 new List<string> { BasisSlimeVRSettings.TransportWebSocket, BasisSlimeVRSettings.TransportPipe },
                 new List<string> { "WebSocket", "Pipe" });
@@ -61,11 +61,11 @@ namespace Basis.Integration.SlimeVR
             applyToggle.SetValueWithoutNotify(BasisSlimeVRSettings.ApplyBodyMeasurements.RawValue);
             applyToggle.OnValueChanged += value => BasisSlimeVRSettings.ApplyBodyMeasurements.SetValue(value);
 
-            PanelToggle rolesToggle = PanelToggle.CreateNewEntry(content);
-            rolesToggle.Descriptor.SetTitle("Auto Assign Tracker Roles");
-            rolesToggle.Descriptor.SetDescription("Trackers that already know which body part they are (SlimeVR trackers, or any tracker given a role in SteamVR settings) get their roles and offsets automatically instead of asking you to calibrate.");
-            rolesToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoAssignRoles.RawValue);
-            rolesToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoAssignRoles.SetValue(value);
+            PanelToggle autoBindToggle = PanelToggle.CreateNewEntry(content);
+            autoBindToggle.Descriptor.SetTitle("Auto Bind SlimeVR Trackers");
+            autoBindToggle.Descriptor.SetDescription("SlimeVR trackers announce which body part they are and bind automatically. Turn off to calibrate them by hand instead.");
+            autoBindToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoBindSlimeVRTrackers.RawValue);
+            autoBindToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoBindSlimeVRTrackers.SetValue(value);
 
             PanelButton yawReset = PanelButton.CreateNew(content);
             yawReset.Descriptor.SetTitle("Yaw Reset");

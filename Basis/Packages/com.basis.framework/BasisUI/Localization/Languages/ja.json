@@ -572,6 +572,8 @@
     { "key": "trackerLinking.identifyShowing", "value": "表示中" },
     { "key": "trackerLinking.identifyDescription", "value": "このトラッカー上に光る球を点灯させ、どの実機デバイスかを見分けられるようにします。もう一度押すと消灯します。" },
     { "key": "trackerLinking.trackers.title", "value": "接続済みトラッカー" },
+    { "key": "trackerLinking.trustSteamVRRoles", "value": "SteamVRのトラッカーロールを信頼" },
+    { "key": "trackerLinking.trustSteamVRRoles.tooltip", "value": "SteamVR設定で手動割り当てされた部位ロールでもトラッカーをバインドします。自分でロールを設定した場合のみオンにしてください。" },
     { "key": "trackerLinking.connectorTrackers", "value": "Show Connector Trackers" },
     { "key": "trackerLinking.connectorTrackers.description", "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use." },
     { "key": "trackerLinking.advanced", "value": "詳細チューニング" },

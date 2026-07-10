@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using solarxr_protocol.rpc;
 using UnityEngine;
 
@@ -254,6 +255,18 @@ namespace Basis.Integration.SlimeVR
                 return;
             }
 
+            // SlimeVR's user height is the raw HMD height above the SteamVR floor — the same
+            // device origin the live capture samples — so the eye-mode denominator still needs
+            // the backend's device-origin->eye lift. CalculatePlayerEyeHeight is the only other
+            // writer of that lift, and a genuine SlimeVR height suppresses that capture on avatar
+            // loads; without this refresh the applied scale would depend on whether a manual
+            // calibration happened to run first this session.
+            var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
+            if (headInput != null)
+            {
+                BasisHeightDriver.PlayerCenterEyeVerticalOffset = headInput.CenterEyeVerticalOffset;
+            }
+
             bool changed = false;
 
             float eyeHeight = metrics.EyeHeightMeters;
@@ -270,6 +283,14 @@ namespace Basis.Integration.SlimeVR
             }
 
             float armSpan = metrics.ControllerSpanMeters;
+            if (Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue)
+            {
+                // The arm-height-ratio override owns the span (CapturePlayerHeight derives it
+                // from the eye height); keep that invariant against the just-applied eye instead
+                // of stomping the override with the measured controller span every config poll.
+                armSpan = BasisHeightDriver.PlayerEyeHeight
+                    * Mathf.Max(0.1f, Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatio.RawValue);
+            }
             bool spanPlausible = armSpan >= BasisHeightDriver.MinPlausibleBodyMeasure
                 && armSpan <= BasisHeightDriver.MaxPlausibleBodyMeasure;
             if (spanPlausible && Mathf.Abs(BasisHeightDriver.PlayerArmSpan - armSpan) > 0.005f)
