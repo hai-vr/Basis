@@ -63,7 +63,7 @@ namespace Basis.Integration.SlimeVR
 
             PanelToggle rolesToggle = PanelToggle.CreateNewEntry(content);
             rolesToggle.Descriptor.SetTitle("Auto Assign Tracker Roles");
-            rolesToggle.Descriptor.SetDescription("SlimeVR's SteamVR trackers already know which body part they are, so assign roles and offsets automatically instead of asking you to calibrate.");
+            rolesToggle.Descriptor.SetDescription("Trackers that already know which body part they are (SlimeVR trackers, or any tracker given a role in SteamVR settings) get their roles and offsets automatically instead of asking you to calibrate.");
             rolesToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoAssignRoles.RawValue);
             rolesToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoAssignRoles.SetValue(value);
 

@@ -11,18 +11,21 @@ using UnityEngine;
 namespace Basis.Integration.SlimeVR
 {
     /// <summary>
-    /// Bypasses the manual tracker calibration for SlimeVR users. SlimeVR's virtual SteamVR
-    /// trackers carry their body part in their serial ("human://WAIST", "human://LEFT_FOOT", ...),
-    /// so when they appear this forces the matching Basis role through a runtime tracker-role
-    /// override and runs the standard FullBodyCalibration pass once the set has settled — the
-    /// classifier binds the forced roles without scoring while the pass still captures the
-    /// tracker-to-bone offsets, per-effector rotation calibration and bend hints, exactly like a
-    /// menu-triggered calibration. Any non-SlimeVR trackers present keep going through the normal
-    /// geometric classification in the same pass.
+    /// Bypasses the manual tracker calibration for trackers that already announce their body part.
+    /// Two conventions are honored: SlimeVR's virtual SteamVR trackers carry it in their serial
+    /// ("human://WAIST", "human://LEFT_FOOT", ...), and SteamVR encodes any tracker's user-assigned
+    /// role — whatever the brand — in its controller type ("vive_tracker_waist", ...). When such
+    /// trackers appear this forces the matching Basis role through a runtime tracker-role override
+    /// and runs the standard FullBodyCalibration pass once the set has settled — the classifier
+    /// binds the forced roles without scoring while the pass still captures the tracker-to-bone
+    /// offsets, per-effector rotation calibration and bend hints, exactly like a menu-triggered
+    /// calibration. Trackers announcing nothing keep going through the normal geometric
+    /// classification in the same pass.
     /// </summary>
     public static class BasisSlimeVRTrackerRoles
     {
         private const string SerialPrefix = "human://";
+        private const string ControllerTypePrefix = "vive_tracker_";
         private const float ScanIntervalSeconds = 2f;
         private const float CalibrationCooldownSeconds = 10f;
 
@@ -42,6 +45,27 @@ namespace Basis.Integration.SlimeVR
             { "RIGHT_KNEE", BasisBoneTrackedRole.RightLowerLeg },
             { "LEFT_ELBOW", BasisBoneTrackedRole.LeftLowerArm },
             { "RIGHT_ELBOW", BasisBoneTrackedRole.RightLowerArm },
+        };
+
+        /// <summary>
+        /// SteamVR controller-type role token to Basis role, the generic path for any tracker
+        /// whose role was assigned in SteamVR settings. handed/camera/keyboard are intentionally
+        /// absent (not body parts), and so are wrist/ankle: Basis's LowerArm/LowerLeg roles expect
+        /// elbow/knee placement, so those are safer left to the geometric classifier.
+        /// </summary>
+        private static readonly Dictionary<string, BasisBoneTrackedRole> RolesByControllerType =
+            new Dictionary<string, BasisBoneTrackedRole>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "waist", BasisBoneTrackedRole.Hips },
+            { "chest", BasisBoneTrackedRole.Chest },
+            { "left_foot", BasisBoneTrackedRole.LeftFoot },
+            { "right_foot", BasisBoneTrackedRole.RightFoot },
+            { "left_knee", BasisBoneTrackedRole.LeftLowerLeg },
+            { "right_knee", BasisBoneTrackedRole.RightLowerLeg },
+            { "left_elbow", BasisBoneTrackedRole.LeftLowerArm },
+            { "right_elbow", BasisBoneTrackedRole.RightLowerArm },
+            { "left_shoulder", BasisBoneTrackedRole.LeftShoulder },
+            { "right_shoulder", BasisBoneTrackedRole.RightShoulder },
         };
 
         private static readonly HashSet<string> _ownedOverrideIds = new HashSet<string>();
@@ -106,7 +130,7 @@ namespace Basis.Integration.SlimeVR
             for (int Index = 0; Index < count; Index++)
             {
                 BasisInput input = management.AllInputDevices[Index];
-                if (input == null || input.IsLinked || !TryMapSerial(input.DeviceSerial, out BasisBoneTrackedRole role))
+                if (input == null || input.IsLinked || !TryMapInput(input, out BasisBoneTrackedRole role))
                 {
                     continue;
                 }
@@ -171,14 +195,24 @@ namespace Basis.Integration.SlimeVR
             _pendingSince = -1f;
         }
 
-        private static bool TryMapSerial(string serial, out BasisBoneTrackedRole role)
+        private static bool TryMapInput(BasisInput input, out BasisBoneTrackedRole role)
         {
-            role = BasisBoneTrackedRole.CenterEye;
-            if (string.IsNullOrEmpty(serial) || !serial.StartsWith(SerialPrefix, StringComparison.OrdinalIgnoreCase))
+            // SlimeVR's serial convention is the most specific claim, so it wins over the
+            // SteamVR role (they agree on SlimeVR trackers anyway — SlimeVR sets both).
+            string serial = input.DeviceSerial;
+            if (!string.IsNullOrEmpty(serial) && serial.StartsWith(SerialPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                return RolesBySerialPart.TryGetValue(serial.Substring(SerialPrefix.Length).Trim(), out role);
             }
-            return RolesBySerialPart.TryGetValue(serial.Substring(SerialPrefix.Length).Trim(), out role);
+
+            string controllerType = input.DeviceControllerType;
+            if (!string.IsNullOrEmpty(controllerType) && controllerType.StartsWith(ControllerTypePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return RolesByControllerType.TryGetValue(controllerType.Substring(ControllerTypePrefix.Length).Trim(), out role);
+            }
+
+            role = BasisBoneTrackedRole.CenterEye;
+            return false;
         }
     }
 }

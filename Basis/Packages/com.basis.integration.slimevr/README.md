@@ -20,12 +20,16 @@ has about your body, so you don't have to calibrate your size in Basis at all.
 - **Resets**: SlimeVR's yaw / full / mounting resets can be triggered from inside Basis
   (`BasisSlimeVRBridge.TriggerYawReset()` etc., also exposed in Settings > Tracker Settings).
 - **Auto tracker roles (no calibration step)**: SlimeVR's virtual SteamVR trackers carry their
-  body part in their serial (`human://WAIST`, `human://LEFT_FOOT`, ...). When they appear,
-  `BasisSlimeVRTrackerRoles` forces the matching Basis role through a session-only tracker-role
-  override and runs the standard full-body calibration pass automatically — roles, tracker-to-bone
-  offsets, rotation calibration and bend hints, no T-pose ceremony. Knee/elbow serials map to the
-  LowerLeg/LowerArm roles; `human://HEAD` and the hands stay with the HMD and controllers. Mixed
-  setups keep working: non-SlimeVR trackers in the same pass still classify geometrically.
+  body part in their serial (`human://WAIST`, `human://LEFT_FOOT`, ...), and SteamVR encodes any
+  tracker's user-assigned role in its controller type (`vive_tracker_waist`, ... — works for every
+  tracker brand). When such trackers appear, `BasisSlimeVRTrackerRoles` forces the matching Basis
+  role through a session-only tracker-role override and runs the standard full-body calibration
+  pass automatically — roles, tracker-to-bone offsets, rotation calibration and bend hints, no
+  T-pose ceremony. Knee/elbow map to the LowerLeg/LowerArm roles; head/hands stay with the HMD and
+  controllers; SteamVR's wrist/ankle/camera/keyboard/handed roles are left to the geometric
+  classifier. Mixed setups keep working: trackers announcing nothing still classify geometrically
+  in the same pass. (`BasisInput.DeviceSerial` / `DeviceControllerType` are filled by the OpenVR
+  backend, and OpenXR fills serials for trackers and controllers.)
 
 ## How it connects
 

@@ -194,6 +194,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
 
             var basisXRInput = gameObject.AddComponent<BasisOpenXRTracker>();
             basisXRInput.ClassName = nameof(BasisOpenXRTracker);
+            basisXRInput.DeviceSerial = Device.description.serial ?? string.Empty;
             basisXRInput.Initialize(Device, usage, uniqueDeviceIdentifier, generalisedDeviceName, nameof(BasisOpenXRManagement));
 
             BasisDeviceManagement.Instance.TryAdd(basisXRInput);
@@ -229,6 +230,38 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
                 TryAddTracker(internaldevice);
             }
             trackerscount = Trackers.Count;
+            RefreshHandSerials();
+        }
+
+        /// <summary>
+        /// The hand inputs are created action-based before any controller connects, so their
+        /// serials can't be captured at creation — pick them up from the InputSystem device
+        /// carrying the matching hand usage whenever the device set changes.
+        /// </summary>
+        private void RefreshHandSerials()
+        {
+            int count = InputSystem.devices.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                InputDevice inputDevice = InputSystem.devices[Index];
+                string serial = inputDevice.description.serial;
+                if (string.IsNullOrEmpty(serial))
+                {
+                    continue;
+                }
+                foreach (UnityEngine.InputSystem.Utilities.InternedString usage in inputDevice.usages)
+                {
+                    string name = usage.ToString();
+                    if (name == "LeftHand" && LeftHand != null)
+                    {
+                        LeftHand.DeviceSerial = serial;
+                    }
+                    else if (name == "RightHand" && RightHand != null)
+                    {
+                        RightHand.DeviceSerial = serial;
+                    }
+                }
+            }
         }
         public int trackerscount;
         public void CheckTrackersPulse()
