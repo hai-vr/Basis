@@ -73,6 +73,7 @@ struct PcmRing {
     struct Chunk { int64_t pts; int floats; };
     Chunk chunks[CHUNKS] = {};
     int chead = 0, ccount = 0;
+    long trims = 0;  /* clock-gated trims fired (diagnostics) */
 
     /* Serving is sequential and never blocks on future timestamps — the
      * consumer's own prefetch owns short-term timing. The clock is only used
@@ -145,6 +146,7 @@ struct PcmRing {
             int64_t late = now_us - chunks[chead].pts;
             if (late > TRIM_LATE_US) {
                 drop_oldest((int)((late + CONSUMER_LEAD_US) * srr / 1000000LL) * frame);
+                trims++;
             }
         }
         int got = 0;
@@ -207,9 +209,11 @@ struct basis_decoder {
     /* present clock (render thread) */
     LARGE_INTEGER qpcFreq = {};
     bool clockStarted = false;
+    LONGLONG primeStartQpc = 0;          /* first render tick with a frame (VOD prime window) */
     LONGLONG wallStartQpc = 0;
     LONGLONG lastRenderQpc = 0;
     int64_t mediaStartUs = 0;
+    int64_t renderTickUs = 16667;        /* EMA of the render callback period (display refresh when vsync'd) */
     int64_t lastPresentedPts = INT64_MIN;
     /* Stable presentation position for get_position_us: unlike lastPresentedPts
      * it survives the resync sentinel resets, and unlike lastPtsUs (decode-side)
@@ -401,6 +405,7 @@ static void release_shared_locked(basis_decoder* d) {
     d->d12OpenFail = 0;   /* new handle on the next build — don't carry the old retry count */
     d->writeSeq = 0;
     d->clockStarted = false;
+    d->primeStartQpc = 0;
     d->lastPresentedPts = INT64_MIN;
 }
 
@@ -1034,62 +1039,48 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     for (int i = 0; i < basis_decoder::RING; ++i) if (d->ringPts[i] > newest) newest = d->ringPts[i];
     if (newest == INT64_MIN) { LeaveCriticalSection(&d->presentLock); return 0; }
 
-    /* Presentation clock, locked to the live decode edge. The wall clock (QPC)
-     * gives smooth, monotonic advance at real rate; a low-pass correction
-     * (~0.25s) pulls it toward `newest` (freshest decoded PTS) every render. This
-     * fixes the one-shot anchor's drift: that version let the clock run ahead of
-     * the frames actually arriving, so almost nothing was ever "due" (nodue spikes,
-     * present rate collapsed to ~60% of decode). The correction is fast enough to
-     * track bursty live sources without chasing single-frame jitter (the jitter
-     * buffer below absorbs those). Large gaps (startup, rebuffer, discontinuity)
-     * hard-resync. */
+    /* Presentation clock: wall-rate (QPC) advance, slewed toward the live decode
+     * edge with a capped correction rate — 50% during the first ~1.2s after an
+     * anchor (startup pipeline-fill converges quickly), ~2% after. The cap keeps
+     * the present cadence steady when the decode edge moves in bursts (muxed
+     * demux clumps, network jitter): burst error is absorbed by the jitter
+     * buffer instead of being chased, so frames keep crossing the present point
+     * at 1x rather than in slow/fast swings that hold a frame long and then
+     * skip one to catch up. The clock is also clamped at edge + buffer so a
+     * delivery stall can't run it ahead — presents freeze at the buffer edge
+     * and resume without a skip burst. Large gaps (startup, rebuffer,
+     * discontinuity) hard-resync. */
     int64_t freq = d->qpcFreq.QuadPart ? d->qpcFreq.QuadPart : 1;
     bool paced = basis_engine_is_paced(d->engine) != 0;
     int64_t nowMedia;
+    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
 
-    if (paced) {
-        /* Paced (VOD) clock: a SMOOTH wall clock, gently low-passed toward the decode
-         * edge, presenting a fixed buffer behind it. The wall base gives steady,
-         * monotonic advance so the present point crosses one frame per frame-interval
-         * and every frame is shown (slaving nowMedia directly to `newest` instead makes
-         * it jump in the decoder's output bursts, and "present newest due" then skips
-         * the frames in between — full 1x position but a low visible framerate). The
-         * low-pass also absorbs the startup pipeline-fill offset so the clock settles
-         * ~buffer behind the edge rather than a whole ring behind it.
-         *
-         * This reuses the live clock's wall+low-pass smoothing but tuned for VOD: a
-         * fixed small buffer (no 460ms floor / dynamic sizing) and the audio gate
-         * published directly (no 2s EMA). Delivery is throttled to ~1x upstream, so the
-         * edge never leaps and the hard-resync below only fires on a real discontinuity
-         * (loop/seek/long stall), never the per-segment wobble that destabilises live. */
-        const int64_t PACED_BUFFER_US = 250000;
-        if (!d->clockStarted) {
-            d->clockStarted = true;
-            d->wallStartQpc = nowq.QuadPart;
-            d->lastRenderQpc = nowq.QuadPart;
-            d->mediaStartUs = newest;
-            d->lastPresentedPts = INT64_MIN;
+    /* Paced hold: covers the audio consumer's pipeline depth (streaming-clip
+     * prefetch + DSP latency, ~400ms) just like the live floor when audio is
+     * configured, or video presents that far ahead of what's audible. Capped
+     * to the ring's frame span so the decoder can't lap the presenter. */
+    int64_t pacedBuf = d->aconfigured ? 460000 : 250000;
+    {
+        int64_t ringSpanCap = (int64_t)(basis_decoder::RING - 6) * interval;
+        if (pacedBuf > ringSpanCap) pacedBuf = ringSpanCap;
+    }
+
+    /* VOD prime: hold presentation until the ring has banked a hold's worth
+     * of frames (3s fallback for sources that can't fill it), so a start
+     * against struggling delivery buffers first instead of presenting the
+     * first frame, starving, and churning through resyncs. Live starts at
+     * the edge immediately — its fast-start ramp owns that experience. */
+    if (paced && !d->clockStarted) {
+        if (!d->primeStartQpc) d->primeStartQpc = nowq.QuadPart;
+        int held = 0;
+        for (int i = 0; i < basis_decoder::RING; ++i) if (d->ringPts[i] != INT64_MIN) held++;
+        int64_t waitedUs = (nowq.QuadPart - d->primeStartQpc) * 1000000LL / freq;
+        if ((int64_t)held * interval < pacedBuf + 2 * interval && waitedUs < 3000000) {
+            LeaveCriticalSection(&d->presentLock);
+            return 0;
         }
-        int64_t dtUs = (nowq.QuadPart - d->lastRenderQpc) * 1000000LL / freq;
-        d->lastRenderQpc = nowq.QuadPart;
-        if (dtUs < 0) dtUs = 0; else if (dtUs > 1000000) dtUs = 1000000;
-        int64_t clk = d->mediaStartUs + (nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq;
-        int64_t err = newest - clk;
-        if (err > 1000000 || err < -1000000) {        /* discontinuity / long stall: resync */
-            d->wallStartQpc = nowq.QuadPart;
-            d->mediaStartUs = newest;
-            d->lastPresentedPts = INT64_MIN;
-            clk = newest;
-        } else {
-            int64_t corr = err * dtUs / 250000;        /* ~0.25s lock toward the edge */
-            d->mediaStartUs += corr;
-            clk += corr;
-        }
-        nowMedia = clk - PACED_BUFFER_US;
-        d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
-        int64_t qpcUs = (nowq.QuadPart - d->createQpc.QuadPart) * 1000000LL / freq;
-        InterlockedExchange64(&d->audClockOffsetUs, nowMedia - qpcUs);
-    } else {
+    }
+
     if (!d->clockStarted) {
         d->clockStarted = true;
         d->wallStartQpc = nowq.QuadPart;
@@ -1100,19 +1091,71 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     int64_t dtUs = (nowq.QuadPart - d->lastRenderQpc) * 1000000LL / freq;
     d->lastRenderQpc = nowq.QuadPart;
     if (dtUs < 0) dtUs = 0; else if (dtUs > 1000000) dtUs = 1000000;
+    if (dtUs > 1000 && dtUs < 100000) d->renderTickUs += (dtUs - d->renderTickUs) / 8;
+    int64_t wallElapsed = (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
 
-    int64_t liveClock = d->mediaStartUs + (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
+    if (paced) {
+        /* Paced (VOD) clock: same wall-rate slew, tuned for VOD — a fixed
+         * buffer (no dynamic sizing) and the audio gate published directly
+         * (no 2s EMA). Delivery is throttled to ~1x upstream, so the edge
+         * never leaps and the hard-resync below only fires on a real
+         * discontinuity (loop/seek), never the per-segment wobble that
+         * destabilises live. */
+        int64_t clk = d->mediaStartUs + wallElapsed;
+        int64_t err = newest - clk;
+        /* Positive error up to the ring span is normal here — startup pipeline
+         * fill and post-stall delivery catch-up both push the edge ahead of
+         * the clock in bulk — and VOD has nowhere it needs to hurry back to,
+         * so it is slewed away at the capped rate rather than snapped or
+         * chased (a snap skips seconds of content; a fast chase plays visibly
+         * sped-up). Resync only when the writer is about to lap the ring
+         * (a stall so long that holding 1x would present overwritten slots)
+         * or on a backward jump (loop seam). */
+        int64_t posLimit = (int64_t)(basis_decoder::RING - 4) * interval;
+        if (posLimit < 1000000) posLimit = 1000000;
+        if (err > posLimit || err < -1000000) {
+            d->wallStartQpc = nowq.QuadPart;
+            d->mediaStartUs = newest;
+            d->lastPresentedPts = INT64_MIN;
+            clk = newest;
+            wallElapsed = 0;
+        } else {
+            int64_t corr = err * dtUs / 250000;        /* ~0.25s lock toward the edge */
+            int64_t cap = dtUs / 50;
+            if (corr > cap) corr = cap; else if (corr < -cap) corr = -cap;
+            d->mediaStartUs += corr;
+            clk += corr;
+        }
+        /* Stall guard: clamp at edge + buffer, the point past which nothing is
+         * due anyway, so a delivery stall can't run the clock ahead of the
+         * frames (resume would then dump the backlog in a skip burst). */
+        int64_t edgeMax = newest + pacedBuf;
+        if (clk > edgeMax) { d->mediaStartUs -= clk - edgeMax; clk = edgeMax; }
+        nowMedia = clk - pacedBuf;
+        d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
+        int64_t qpcUs = (nowq.QuadPart - d->createQpc.QuadPart) * 1000000LL / freq;
+        InterlockedExchange64(&d->audClockOffsetUs, nowMedia - qpcUs);
+    } else {
+    int64_t liveClock = d->mediaStartUs + wallElapsed;
     int64_t err = newest - liveClock;            /* >0: clock behind the live edge */
     if (err > 700000 || err < -700000) {
         d->wallStartQpc = nowq.QuadPart;
         d->mediaStartUs = newest;
         d->lastPresentedPts = INT64_MIN;
         liveClock = newest;
+        wallElapsed = 0;
     } else {
         int64_t corr = err * dtUs / 250000;      /* TAU ~0.25s lock toward live */
+        int64_t cap = (wallElapsed < 1200000) ? dtUs / 2 : dtUs / 50;
+        if (corr > cap) corr = cap; else if (corr < -cap) corr = -cap;
         d->mediaStartUs += corr;
         liveClock += corr;
     }
+    /* Stall guard: clamp at edge + buffer, the point past which nothing is due
+     * anyway, so a delivery stall can't run the clock ahead of the frames
+     * (resume would then dump the backlog in a skip burst). */
+    int64_t edgeMax = newest + d->bufferUs;
+    if (liveClock > edgeMax) { d->mediaStartUs -= liveClock - edgeMax; liveClock = edgeMax; }
 
     /* Jitter buffer: present this far behind the live edge. Capped to the ring's
      * frame span so the decoder can't lap the presenter — a fixed-ms buffer would
@@ -1120,7 +1163,6 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
      * frame period (e.g. 120ms is fine at 60fps but clamps near 100ms at 250fps).
      * Dynamic mode grows fast on underrun risk and shrinks symmetrically when
      * over-buffered, with a 200ms hysteresis to avoid grow/shrink fighting. */
-    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
     int64_t maxBuf = (int64_t)(basis_decoder::RING - 6) * interval;
     if (maxBuf < 60000) maxBuf = 60000;
     int64_t buf = d->bufferUs;
@@ -1142,7 +1184,6 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
      * first ~1.2s, so the first decoded frame is presented almost immediately
      * instead of waiting a full buffer behind live, then settle into the full
      * buffer. wallElapsed resets on a hard resync, so a rebuffer re-primes too. */
-    int64_t wallElapsed = (int64_t)((nowq.QuadPart - d->wallStartQpc) * 1000000LL / freq);
     int64_t effBuf = (wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
     nowMedia = liveClock - effBuf;
     d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
@@ -1165,12 +1206,22 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     /* recover from non-monotonic/bogus PTS (lastPresentedPts stuck above the ring) */
     if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
 
-    /* Present the latest frame that is due (PTS <= now) and newer than the last shown. */
+    /* Present the latest frame that is due and newer than the last shown. The
+     * due check looks ahead half a render tick so a frame lands on the tick
+     * nearest its due time, not the tick after it: due times drift through the
+     * tick phase whenever the source rate doesn't divide the refresh rate
+     * (23.976fps against 60Hz), and always latching a full tick late turns
+     * that drift into an extra-tick hold followed by a visible skip. Capped at
+     * half the source frame period so a high-rate source can't be shown a
+     * whole frame early. */
+    int64_t lookahead = d->renderTickUs / 2;
+    if (lookahead > interval / 2) lookahead = interval / 2;
+    int64_t dueBy = nowMedia + lookahead;
     int best = -1; int64_t bestPts = d->lastPresentedPts;
     for (int i = 0; i < basis_decoder::RING; ++i) {
         int64_t p = d->ringPts[i];
         if (p == INT64_MIN) continue;
-        if (p > bestPts && p <= nowMedia) { best = i; bestPts = p; }
+        if (p > bestPts && p <= dueBy) { best = i; bestPts = p; }
     }
     if (best < 0) { InterlockedIncrement(&d->dbg_nodue); LeaveCriticalSection(&d->presentLock); return 0; }
 
@@ -1322,9 +1373,25 @@ extern "C" void basis_decoder_set_output_texture(basis_decoder_t* d, void* nativ
 
 extern "C" int basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) {
     if (!d || !buf || size <= 0) return 0;
+    /* vq = ring frames newer than the presented one; aq = audio queued (ms);
+     * atrim = clock-gated trims fired. Same keys as the Android backend so the
+     * diagnostics CSV columns line up across platforms. */
+    int vq = 0;
+    int64_t presented = InterlockedCompareExchange64(&d->presentedPosUs, 0, 0);
+    EnterCriticalSection(&d->presentLock);
+    for (int i = 0; i < basis_decoder::RING; ++i)
+        if (d->ringPts[i] != INT64_MIN && d->ringPts[i] > presented) vq++;
+    LeaveCriticalSection(&d->presentLock);
+    EnterCriticalSection(&d->pcm.cs);
+    int aFill = d->pcm.fill();
+    int aFrame = d->pcm.frame > 0 ? d->pcm.frame : 2;
+    int aSr = d->pcm.sr > 0 ? d->pcm.sr : 48000;
+    long aTrims = d->pcm.trims;
+    LeaveCriticalSection(&d->pcm.cs);
+    int aq = (int)((int64_t)(aFill / aFrame) * 1000 / aSr);
     return snprintf(buf, (size_t)size,
-                    "blit=%ld copy=%ld render=%ld nodue=%ld acq=%ld lag=%ldms buf=%ldms mode=%d ttff=%ldms | acfg=%d aout=%ld asr=%d",
+                    "blit=%ld copy=%ld render=%ld nodue=%ld acq=%ld lag=%ldms buf=%ldms mode=%d vq=%d aq=%dms atrim=%ld ttff=%ldms | acfg=%d aout=%ld asr=%d",
                     (long)d->dbg_blit, (long)d->dbg_copy, (long)d->dbg_render, (long)d->dbg_nodue, (long)d->dbg_acqfail,
-                    (long)d->dbg_lagms, (long)(d->bufferUs / 1000), (int)d->bufferMode, (long)d->ttffMs,
+                    (long)d->dbg_lagms, (long)(d->bufferUs / 1000), (int)d->bufferMode, vq, aq, aTrims, (long)d->ttffMs,
                     d->aconfigured ? 1 : 0, (long)d->dbg_aout, d->asr);
 }
