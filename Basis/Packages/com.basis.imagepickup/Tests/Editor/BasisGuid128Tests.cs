@@ -32,6 +32,18 @@ namespace Basis.ImagePickup.Tests
 		}
 
 		[Test]
+		public void ManagedSpanReadWriteMatchesGuidByteLayout()
+		{
+			byte[] expected = TestGuid.ToByteArray();
+			BasisGuid128 native = BasisGuid128.ReadFrom(expected);
+			byte[] actual = new byte[BasisGuid128.SerializedSize];
+
+			native.WriteTo(actual);
+
+			Assert.That(actual, Is.EqualTo(expected));
+		}
+
+		[Test]
 		public void NativeWriteMatchesExistingGuidPacketLayout()
 		{
 			byte[] expected = TestGuid.ToByteArray();

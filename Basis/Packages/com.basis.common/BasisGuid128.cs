@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace Basis.Scripts.Common
@@ -34,13 +35,10 @@ namespace Basis.Scripts.Common
 			if (bytes.Length < SerializedSize)
 				throw new ArgumentException("A GUID requires 16 bytes.", nameof(bytes));
 
-			ulong low = 0;
-			ulong high = 0;
-			for (int i = 0; i < 8; i++)
-				low |= (ulong)bytes[i] << (i * 8);
-			for (int i = 0; i < 8; i++)
-				high |= (ulong)bytes[i + 8] << (i * 8);
-			return new BasisGuid128(low, high);
+			return new BasisGuid128(
+				BinaryPrimitives.ReadUInt64LittleEndian(bytes),
+				BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(sizeof(ulong)))
+			);
 		}
 
 		public Guid ToGuid()
@@ -58,10 +56,11 @@ namespace Basis.Scripts.Common
 					nameof(destination)
 				);
 
-			for (int i = 0; i < 8; i++)
-				destination[i] = (byte)(Low >> (i * 8));
-			for (int i = 0; i < 8; i++)
-				destination[i + 8] = (byte)(High >> (i * 8));
+			BinaryPrimitives.WriteUInt64LittleEndian(destination, Low);
+			BinaryPrimitives.WriteUInt64LittleEndian(
+				destination.Slice(sizeof(ulong)),
+				High
+			);
 		}
 
 		public bool Equals(BasisGuid128 other)
