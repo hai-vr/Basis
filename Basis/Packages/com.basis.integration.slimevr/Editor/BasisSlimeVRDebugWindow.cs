@@ -117,6 +117,11 @@ namespace Basis.Integration.SlimeVR.Editor
             }
 
             EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Server Tracker Source (Experimental)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Mode", BasisSlimeVRSettings.TrackerSource.RawValue);
+            EditorGUILayout.LabelField("Sourced From Server", BasisSlimeVRTrackerSource.SourcedCount.ToString());
+
+            EditorGUILayout.Space();
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Refresh Config"))
             {

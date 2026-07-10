@@ -219,6 +219,10 @@ namespace Basis.Network.Core
         public const byte P2PSub_LinkLost = 4;
         public const byte P2PSub_ServerArmed = 5;
         public const byte P2PSub_LinkUp = 6;
+        // Server → both peers once both sides reported LinkUp and it began offloading the
+        // pair. Positive confirmation the direct link is fully up; a client that stays
+        // Connected without ever seeing this treats its link as partial (server fallback).
+        public const byte P2PSub_Offloaded = 7;
 
         // ── Direct-connect custom data (P2P-first, server fallback) ──────────
         /// <summary>P2P world/prop direct custom data. Frame: [messageIndex:2][payload].</summary>

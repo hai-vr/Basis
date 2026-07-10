@@ -398,7 +398,17 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             if (pendingStealRequest != null)
             {
                 SetIsKinematicOnPickup(false);
-                BasisPlayerInteract.Instance.ForceSetInteracting(BasisPickupInteractable, pendingStealRequest);
+                if (BasisPickupInteractable != null)
+                {
+                    if (BasisPickupInteractable.KinematicWhileInteracting)
+                    {
+                        BasisPickupInteractable._previousKinematicValue = false;
+                    }
+                    if (!BasisPickupInteractable.IsInteractingWith(pendingStealRequest))
+                    {
+                        BasisPlayerInteract.Instance.ForceSetInteracting(BasisPickupInteractable, pendingStealRequest);
+                    }
+                }
                 pendingStealRequest = null;
             }
             else if (BasisPickupInteractable != null

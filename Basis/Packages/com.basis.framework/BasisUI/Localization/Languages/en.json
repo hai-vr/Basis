@@ -43,6 +43,14 @@
       "value": "How many times per second your avatar pose is sent to peers."
     },
     {
+      "key": "settings.general.networking.p2pVoiceBitrateOverride.tooltip",
+      "value": "Use a custom voice bitrate while a direct connection is active."
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate.tooltip",
+      "value": "Higher = better voice quality and more bandwidth."
+    },
+    {
       "key": "settings.audio.masterVolume.tooltip",
       "value": "Overall loudness of all sound in the app."
     },
@@ -1567,6 +1575,14 @@
       "value": "How much extra voice data is sent to recover from packet loss."
     },
     {
+      "key": "settings.admin.opusBitrate.override.tooltip",
+      "value": "Force a voice bitrate on every player's encoder."
+    },
+    {
+      "key": "settings.admin.opusBitrate.tooltip",
+      "value": "Voice bitrate every player transmits with while the override is on."
+    },
+    {
       "key": "settings.admin.maxMicrophoneRange.tooltip",
       "value": "Cap how far any player's voice can transmit, in metres."
     },
@@ -2541,6 +2557,18 @@
     {
       "key": "menu.individualPlayer.directConnection.failed",
       "value": "<color=#ff5252>Direct Connection Failed</color>"
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.partial",
+      "value": "Direct Connection: <color=#ff9100>Partial</color> <size=55%>(using server)</size>"
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.partial.description",
+      "value": "The direct link degraded or one side couldn't connect. Voice and avatar are going through the server for now — tap Try Again to re-establish the direct link."
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.tryAgain",
+      "value": "Try Again"
     },
     {
       "key": "menu.individualPlayer.directConnection.playerDisconnected",
@@ -3773,6 +3801,18 @@
     {
       "key": "settings.general.networking.p2pAvatarRate.description",
       "value": "Updates per second to direct peers - capped by your framerate."
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrateOverride",
+      "value": "Override Voice Bitrate"
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate",
+      "value": "Voice Bitrate"
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate.description",
+      "value": "Voice bitrate (bps) used while a direct connection is active. Server overrides still win."
     },
     {
       "key": "settings.general.networking.p2pAvatarRate.fpsWarning",
@@ -7741,6 +7781,14 @@
     {
       "key": "settings.admin.opusFecLoss",
       "value": "Opus FEC loss %"
+    },
+    {
+      "key": "settings.admin.opusBitrate.override",
+      "value": "Override Voice Bitrate"
+    },
+    {
+      "key": "settings.admin.opusBitrate",
+      "value": "Voice Bitrate (bps)"
     },
     {
       "key": "settings.admin.maxMicrophoneRange",

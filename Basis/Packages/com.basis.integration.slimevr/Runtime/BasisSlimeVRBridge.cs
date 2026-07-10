@@ -86,6 +86,7 @@ namespace Basis.Integration.SlimeVR
                 BasisSlimeVRSettings.Enable.OnChanged += OnEnableSettingChanged;
                 BasisSlimeVRSettings.ApplyBodyMeasurements.OnChanged += OnApplySettingChanged;
                 BasisSlimeVRSettings.Transport.OnChanged += OnTransportSettingChanged;
+                BasisSlimeVRSettings.TrackerSource.OnChanged += OnTrackerSourceChanged;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChanged;
                 // Every calibration (menu, auto-bind, or our own recapture) becomes the new mounting
                 // reference the drift check compares against.
@@ -107,6 +108,7 @@ namespace Basis.Integration.SlimeVR
             _client = new BasisSolarXRClient
             {
                 Transport = SelectedTransport,
+                EnablePoseFeed = BasisSlimeVRTrackerSource.WantsPoseFeed(),
                 Log = message => BasisDebug.Log(message, BasisDebug.LogTag.Device),
                 LogError = message => BasisDebug.LogError(message, BasisDebug.LogTag.Device),
                 ConnectionChanged = connected => RunOnMainThread(() => HandleConnectionChanged(connected)),
@@ -383,6 +385,19 @@ namespace Basis.Integration.SlimeVR
 
         private static void OnTransportSettingChanged(string _)
         {
+            if (_client == null)
+            {
+                return;
+            }
+            StopClient();
+            StartClient();
+        }
+
+        private static void OnTrackerSourceChanged(string _)
+        {
+            // Toggling server sourcing changes whether the datafeed carries poses (and its rate), so the
+            // client reconnects with the right feed. BasisSlimeVRTrackerSource reconciles devices on its
+            // own loop from BasisSlimeVRTrackerSource.WantsPoseFeed().
             if (_client == null)
             {
                 return;

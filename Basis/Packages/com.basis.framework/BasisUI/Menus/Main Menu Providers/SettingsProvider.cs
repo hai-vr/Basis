@@ -766,6 +766,21 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.P2PAvatarSyncRate);
             sliderP2PRate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pAvatarRate.tooltip"));
 
+            PanelToggle toggleP2PVoiceBitrateOverride = PanelToggle.CreateNewEntry(container);
+            toggleP2PVoiceBitrateOverride.AssignBinding(BasisSettingsDefaults.P2PVoiceBitrateOverride);
+            toggleP2PVoiceBitrateOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.general.networking.p2pVoiceBitrateOverride"));
+            toggleP2PVoiceBitrateOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pVoiceBitrateOverride.tooltip"));
+
+            PanelSlider sliderP2PVoiceBitrate = PanelSlider.CreateEntryAndBind(
+                container,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.general.networking.p2pVoiceBitrate"),
+                    BasisLocalization.Get("settings.general.networking.p2pVoiceBitrate.description"),
+                    6000f, 128000f, true, 0, ValueDisplayMode.Compact),
+                BasisSettingsDefaults.P2PVoiceBitrate);
+            sliderP2PVoiceBitrate.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.networking.p2pVoiceBitrate.tooltip"));
+            sliderP2PVoiceBitrate.OnValueChanged += _ => LocalOpusSettings.ReevaluateEffectiveBitrate();
+
             // Live encryption/avatar-rate status shown as its own row (the bar header
             // carries no description, so the status moves to a dedicated element).
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
@@ -786,6 +801,8 @@ namespace Basis.BasisUI
             void RefreshDirectConnectionVisibility(bool directOn)
             {
                 sliderP2PRate.Descriptor.SetActive(directOn);
+                toggleP2PVoiceBitrateOverride.Descriptor.SetActive(directOn);
+                sliderP2PVoiceBitrate.Descriptor.SetActive(directOn && toggleP2PVoiceBitrateOverride.Value);
                 if (!directOn)
                 {
                     _avatarRateWarnShown = false;
@@ -798,6 +815,11 @@ namespace Basis.BasisUI
             {
                 BasisSettingsDefaults.DisableDirectConnections.SetValue(!directOn);
                 RefreshDirectConnectionVisibility(directOn);
+            };
+            toggleP2PVoiceBitrateOverride.OnValueChanged += _ =>
+            {
+                LocalOpusSettings.ReevaluateEffectiveBitrate();
+                RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             };
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(networkingToggle, container, networkingStart, directConnected, visible =>
@@ -845,6 +867,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
             BasisSettingsDefaults.AudioListenerFollowsHead.ResetToDefault();
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
+            BasisSettingsDefaults.P2PVoiceBitrateOverride.ResetToDefault();
+            BasisSettingsDefaults.P2PVoiceBitrate.ResetToDefault();
             BasisSettingsDefaults.RememberMenuState.ResetToDefault();
         }
 

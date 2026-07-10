@@ -616,13 +616,31 @@ namespace Basis.BasisUI
 
             PanelButton directConnBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
 
+            // Shown only while the direct link is degraded (PartialConnection): states the
+            // issue — the server is carrying this player and Try Again re-establishes the link.
+            var directConnStatus = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
+            directConnStatus.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.partial.description"));
+            directConnStatus.SetActive(false);
+
+            // "Try Again" — visible only when the link is partial or failed. Re-punches the
+            // existing session, or re-requests if it was already torn down.
+            PanelButton directConnRetryBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
+            directConnRetryBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.tryAgain"));
+            directConnRetryBtn.Descriptor.SetActive(false);
+            directConnRetryBtn.OnClicked += () =>
+            {
+                if (!hasDirectConnTarget) return;
+                Basis.Scripts.Networking.BasisP2PManager.RetryDirect(directConnPlayerId);
+            };
+
             string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
             {
                 bool blockedByPolicy = BasisSettingsDefaults.DisableDirectConnections.RawValue ||
                     (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass());
                 if (blockedByPolicy &&
                     st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
-                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting)
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection)
                 {
                     return "menu.individualPlayer.directConnection.disabled";
                 }
@@ -641,6 +659,8 @@ namespace Basis.BasisUI
                             : "menu.individualPlayer.directConnection.connected";
                     case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting:
                         return "menu.individualPlayer.directConnection.reconnecting";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection:
+                        return "menu.individualPlayer.directConnection.partial";
                     case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed:
                         return "menu.individualPlayer.directConnection.failed";
                     default:
@@ -653,6 +673,14 @@ namespace Basis.BasisUI
                 if (directConnBtn == null || directConnBtn.Descriptor == null) return;
                 var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
                 directConnBtn.Descriptor.SetTitle(BasisLocalization.Get(DirectConnLabelKey(st)));
+
+                // Partial: show the "using server" explanation. Partial/Failed: offer Try Again.
+                bool partial = st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection;
+                bool canRetry = partial || st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed;
+                if (directConnStatus != null) directConnStatus.SetActive(partial);
+                if (directConnRetryBtn != null && directConnRetryBtn.Descriptor != null)
+                    directConnRetryBtn.Descriptor.SetActive(canRetry);
+                p2pGroup.ForceRebuild();
             }
             RefreshDirectConnLabel();
 

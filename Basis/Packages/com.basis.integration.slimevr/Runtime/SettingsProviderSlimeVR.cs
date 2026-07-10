@@ -73,6 +73,15 @@ namespace Basis.Integration.SlimeVR
             recalToggle.SetValueWithoutNotify(BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue);
             recalToggle.OnValueChanged += value => BasisSlimeVRSettings.RecalibrateOnMountingChange.SetValue(value);
 
+            PanelDropdown trackerSourceDropdown = PanelDropdown.CreateNewEntry(content);
+            trackerSourceDropdown.Descriptor.SetTitle("Tracker Source (Experimental)");
+            trackerSourceDropdown.Descriptor.SetDescription("Where SlimeVR trackers come from. Off: through SteamVR/OpenVR as usual. Auto: pull them from the SlimeVR server only when the runtime doesn't provide them (e.g. an OpenXR session). Force: always drive them from the server. Auto/Force need SlimeVR to have an HMD reference (SteamVR running in the background).");
+            trackerSourceDropdown.AssignEntries(
+                new List<string> { BasisSlimeVRSettings.TrackerSourceOff, BasisSlimeVRSettings.TrackerSourceAuto, BasisSlimeVRSettings.TrackerSourceForce },
+                new List<string> { "Off", "Auto (fallback)", "Force (override)" });
+            trackerSourceDropdown.SetValueWithoutNotify(BasisSlimeVRSettings.TrackerSource.RawValue);
+            trackerSourceDropdown.OnValueChanged += value => BasisSlimeVRSettings.TrackerSource.SetValue(value);
+
             PanelButton yawReset = PanelButton.CreateNew(content);
             yawReset.Descriptor.SetTitle("Yaw Reset");
             yawReset.Descriptor.SetDescription("Straighten the SlimeVR trackers (same as the SlimeVR yaw reset).");
