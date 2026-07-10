@@ -115,6 +115,15 @@ namespace Basis.Scripts.Device_Management.Devices
         public string CommonDeviceIdentifier;
 
         /// <summary>
+        /// The device's hardware serial as reported by its runtime (OpenVR Prop_SerialNumber_String),
+        /// empty when the backend doesn't expose one. Unlike <see cref="UniqueDeviceIdentifier"/> this
+        /// carries no session-volatile device index, so integrations can recognize a specific physical
+        /// or virtual device across reconnects (e.g. SlimeVR's virtual trackers serialize their body
+        /// part as "human://WAIST").
+        /// </summary>
+        public string DeviceSerial = string.Empty;
+
+        /// <summary>
         /// Optional visible device model attached to this input.
         /// </summary>
         public BasisVisualTracker BasisVisualTracker;

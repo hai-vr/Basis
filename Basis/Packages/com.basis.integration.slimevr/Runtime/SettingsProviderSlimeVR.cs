@@ -61,6 +61,12 @@ namespace Basis.Integration.SlimeVR
             applyToggle.SetValueWithoutNotify(BasisSlimeVRSettings.ApplyBodyMeasurements.RawValue);
             applyToggle.OnValueChanged += value => BasisSlimeVRSettings.ApplyBodyMeasurements.SetValue(value);
 
+            PanelToggle rolesToggle = PanelToggle.CreateNewEntry(content);
+            rolesToggle.Descriptor.SetTitle("Auto Assign Tracker Roles");
+            rolesToggle.Descriptor.SetDescription("SlimeVR's SteamVR trackers already know which body part they are, so assign roles and offsets automatically instead of asking you to calibrate.");
+            rolesToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoAssignRoles.RawValue);
+            rolesToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoAssignRoles.SetValue(value);
+
             PanelButton yawReset = PanelButton.CreateNew(content);
             yawReset.Descriptor.SetTitle("Yaw Reset");
             yawReset.Descriptor.SetDescription("Straighten the SlimeVR trackers (same as the SlimeVR yaw reset).");

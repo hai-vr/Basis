@@ -70,6 +70,15 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 64,
                 ref error);
 
+            var serialBuilder = new StringBuilder(64);
+            Valve.VR.OpenVR.System.GetStringTrackedDeviceProperty(
+                deviceIndex,
+                ETrackedDeviceProperty.Prop_SerialNumber_String,
+                serialBuilder,
+                64,
+                ref error);
+            string deviceSerial = serialBuilder.ToString();
+
             ETrackedDeviceClass deviceClass = Valve.VR.OpenVR.System.GetTrackedDeviceClass(deviceIndex);
             string uniqueID = $"{deviceIndex}|{id}";
             string notUnique = id.ToString();
@@ -79,7 +88,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 // Remember the id this index was created with so teardown can find it even after the
                 // device goes dark and its render-model property can no longer be read.
                 ConnectedIndexToUniqueID[deviceIndex] = uniqueID;
-                CreateTrackerDevice(deviceIndex, deviceClass, uniqueID, notUnique);
+                CreateTrackerDevice(deviceIndex, deviceClass, uniqueID, notUnique, deviceSerial);
             }
             else
             {
@@ -100,7 +109,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
-        private void CreateTrackerDevice(uint deviceIndex, ETrackedDeviceClass deviceClass, string uniqueID, string notUniqueID)
+        private void CreateTrackerDevice(uint deviceIndex, ETrackedDeviceClass deviceClass, string uniqueID, string notUniqueID, string deviceSerial = "")
         {
             OpenVRDevice openVRDevice = new OpenVRDevice
             {
@@ -112,10 +121,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             switch (deviceClass)
             {
                 case ETrackedDeviceClass.HMD:
-                    CreateHMD(openVRDevice, uniqueID, notUniqueID);
+                    CreateHMD(openVRDevice, uniqueID, notUniqueID, deviceSerial);
                     break;
                 case ETrackedDeviceClass.Controller:
-                    CreateController(openVRDevice, uniqueID, notUniqueID);
+                    CreateController(openVRDevice, uniqueID, notUniqueID, deviceSerial);
                     break;
                 case ETrackedDeviceClass.TrackingReference:
                     BasisDebug.Log("Was TrackingReference Device");
@@ -126,17 +135,17 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     break;
                 case ETrackedDeviceClass.GenericTracker:
                     BasisDebug.Log("Was GenericTracker Device");
-                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye);
+                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye, deviceSerial);
                     break;
                 case ETrackedDeviceClass.DisplayRedirect:
                     BasisDebug.Log("Was DisplayRedirect Device");
                     break;
                 case ETrackedDeviceClass.Max:
                     BasisDebug.Log("Was Max Device");
-                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye);
+                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye, deviceSerial);
                     break;
                 default:
-                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye);
+                    CreateTracker(openVRDevice, uniqueID, notUniqueID, false, BasisBoneTrackedRole.CenterEye, deviceSerial);
                     break;
             }
         }
@@ -148,13 +157,14 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             };
             return gameObject;
         }
-        private void CreateHMD(OpenVRDevice device, string uniqueID, string notUniqueID)
+        private void CreateHMD(OpenVRDevice device, string uniqueID, string notUniqueID, string deviceSerial = "")
         {
             if (!TypicalDevices.ContainsKey(uniqueID))
             {
                 GameObject Output = GenerateGameobject(uniqueID);
                 var spatial = Output.AddComponent<BasisOpenVRInputSpatial>();
                 spatial.ClassName = nameof(BasisOpenVRInputSpatial);
+                spatial.DeviceSerial = deviceSerial;
                 bool foundRole = TryAssignRole(device.deviceClass, device.deviceIndex, notUniqueID, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source);
                 spatial.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role);
 
@@ -163,16 +173,17 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
             else
             {
-                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputSpatial), device);
+                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputSpatial), device, deviceSerial);
             }
         }
-        public void CreateController(OpenVRDevice device, string uniqueID, string notUniqueID)
+        public void CreateController(OpenVRDevice device, string uniqueID, string notUniqueID, string deviceSerial = "")
         {
             if (!TypicalDevices.ContainsKey(uniqueID))
             {
                 GameObject Output = GenerateGameobject(uniqueID);
                 var controller = Output.AddComponent<BasisOpenVRInputController>();
                 controller.ClassName = nameof(BasisOpenVRInputController);
+                controller.DeviceSerial = deviceSerial;
                 bool foundRole = TryAssignRole(device.deviceClass, device.deviceIndex, notUniqueID, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source);
                 controller.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role, source);
                 BasisDeviceManagement.Instance.TryAdd(controller);
@@ -180,23 +191,24 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
             else
             {
-                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputController), device);
+                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputController), device, deviceSerial);
             }
         }
-        public void CreateTracker(OpenVRDevice device, string uniqueID, string notUniqueID, bool autoAssignRole, BasisBoneTrackedRole role)
+        public void CreateTracker(OpenVRDevice device, string uniqueID, string notUniqueID, bool autoAssignRole, BasisBoneTrackedRole role, string deviceSerial = "")
         {
             if (!TypicalDevices.ContainsKey(uniqueID))
             {
                 GameObject Output = GenerateGameobject(uniqueID);
                 var input = Output.AddComponent<BasisOpenVRInput>();
                 input.ClassName = nameof(BasisOpenVRInput);
-                 input.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), autoAssignRole, role);
+                input.DeviceSerial = deviceSerial;
+                input.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), autoAssignRole, role);
                 BasisDeviceManagement.Instance.TryAdd(input);
                 TypicalDevices.TryAdd(uniqueID, device);
             }
             else
             {
-                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInput), device);
+                HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInput), device, deviceSerial);
             }
         }
         public bool TryAssignRole(ETrackedDeviceClass deviceClass, uint deviceIndex, string NameInCaseFallback, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source)
@@ -273,7 +285,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             TypicalDevices.Remove(id);
             BasisDeviceManagement.Instance.RemoveDevicesFrom(nameof(BasisOpenVRManagement), id);
         }
-        private void HandleExistingDevice(string uniqueID, string notUniqueID, string className, OpenVRDevice device)
+        private void HandleExistingDevice(string uniqueID, string notUniqueID, string className, OpenVRDevice device, string deviceSerial = "")
         {
             string subsystem = nameof(BasisOpenVRManagement);
 
@@ -282,6 +294,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 // NOTE: Fixed SubSystemIdentifier check (was comparing to uniqueID)
                 if (input.UniqueDeviceIdentifier == uniqueID && input.SubSystemIdentifier == subsystem)
                 {
+                    if (!string.IsNullOrEmpty(deviceSerial))
+                    {
+                        input.DeviceSerial = deviceSerial;
+                    }
                     if (input.ClassName == className)
                     {
                         // Compute role once for all relevant branches

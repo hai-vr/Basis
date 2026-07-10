@@ -19,6 +19,13 @@ has about your body, so you don't have to calibrate your size in Basis at all.
   and signal strength (`BasisSlimeVRBridge.Trackers` + `OnTrackersUpdated`) for HUDs and menus.
 - **Resets**: SlimeVR's yaw / full / mounting resets can be triggered from inside Basis
   (`BasisSlimeVRBridge.TriggerYawReset()` etc., also exposed in Settings > Tracker Settings).
+- **Auto tracker roles (no calibration step)**: SlimeVR's virtual SteamVR trackers carry their
+  body part in their serial (`human://WAIST`, `human://LEFT_FOOT`, ...). When they appear,
+  `BasisSlimeVRTrackerRoles` forces the matching Basis role through a session-only tracker-role
+  override and runs the standard full-body calibration pass automatically — roles, tracker-to-bone
+  offsets, rotation calibration and bend hints, no T-pose ceremony. Knee/elbow serials map to the
+  LowerLeg/LowerArm roles; `human://HEAD` and the hands stay with the HMD and controllers. Mixed
+  setups keep working: non-SlimeVR trackers in the same pass still classify geometrically.
 
 ## How it connects
 
@@ -54,6 +61,8 @@ Settings > Tracker Settings > SlimeVR:
 - **Connection Method** (`slimevr_transport`, `"websocket"` default / `"pipe"`) — applied live;
   changing it reconnects.
 - **Auto Apply Body Measurements** (`slimevr_applybodymeasurements`, default on)
+- **Auto Assign Tracker Roles** (`slimevr_autoassignroles`, default on) — works off the SteamVR
+  serials alone, so it functions even when the SolarXR connection is off.
 
 Seated mode is respected: measurements received while seated are held and applied when you stand.
 Manual calibration still works and simply overwrites the SlimeVR values until the next config poll.
