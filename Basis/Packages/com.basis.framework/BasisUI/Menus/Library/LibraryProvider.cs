@@ -2041,43 +2041,68 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
-            // Optional secondary action (registered by the entry's provider —
-            // e.g. a Share/Unshare toggle): a labeled button beside the trash,
-            // with an optional consent-style yes/no dialog in front of it.
-            if (!string.IsNullOrEmpty(entry.ActionLabel))
+            // Buttons registered by the entry's provider, rendered in order — e.g. a
+            // Share/Unshare toggle followed by a remove button. Removal is just a
+            // Destructive action; the Library has no dedicated remove path.
+            if (entry.Actions != null)
             {
-                PanelButton actionItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
-                actionItem.Descriptor.SetTitle(entry.ActionLabel);
-                actionItem.SetSize(new Vector2(180, 80));
-                actionItem.OnClicked += async () =>
+                foreach (BasisShareableAction action in entry.Actions)
                 {
-                    if (!string.IsNullOrEmpty(entry.ActionConfirmTitle))
-                    {
-                        DialogBox<bool> confirmDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
-                            entry.ActionConfirmTitle,
-                            entry.ActionConfirmBody ?? string.Empty,
-                            AddressableAssets.Sprites.Information,
-                            true
-                        );
-                        LibraryProviderDialogRemove.BuildDialogButtons(confirmDialog);
-                        if (!await confirmDialog.WaitAsync()) return;
-                    }
-                    entry.Action?.Invoke();
-                };
+                    if (action == null || action.Invoke == null) continue;
+                    CreateShareableActionButton(entry, itemListPanel, action);
+                }
+            }
+        }
+
+        private static void CreateShareableActionButton(BasisShareableEntry entry, PanelTabGroup itemListPanel, BasisShareableAction action)
+        {
+            bool destructive = action.Style == BasisShareableActionStyle.Destructive;
+            PanelButton actionItem = PanelButton.CreateNew(destructive ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
+
+            if (destructive && string.IsNullOrEmpty(action.Label))
+            {
+                // Icon-only trash button (the standard remove affordance).
+                actionItem.Descriptor.SetTitle(string.Empty);
+                actionItem.SetIcon(AddressableAssets.Sprites.Trash);
+                actionItem.SetSize(new Vector2(80, 80));
+                actionItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
+                actionItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.remove.tooltip"));
+            }
+            else
+            {
+                actionItem.Descriptor.SetTitle(action.Label ?? string.Empty);
+                actionItem.SetSize(new Vector2(180, 80));
             }
 
-            PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
-            removeItem.Descriptor.SetTitle(string.Empty);
-            removeItem.SetIcon(AddressableAssets.Sprites.Trash);
-            removeItem.SetSize(new Vector2(80, 80));
-            removeItem.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
-            removeItem.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.remove.tooltip"));
-            removeItem.OnClicked += async () =>
+            actionItem.OnClicked += async () =>
             {
-                bool confirmed = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, ShareableDisplayName(entry), ShareableKindLabel(entry.Kind));
-                if (!confirmed) return;
-                entry.Remove?.Invoke();
+                if (!await ConfirmShareableAction(entry, action)) return;
+                action.Invoke?.Invoke();
             };
+        }
+
+        // Returns true if the action should proceed. Explicit confirm text wins; otherwise
+        // a Destructive action falls back to the Library's standard "remove {name}?" prompt.
+        private static async Task<bool> ConfirmShareableAction(BasisShareableEntry entry, BasisShareableAction action)
+        {
+            if (!string.IsNullOrEmpty(action.ConfirmTitle))
+            {
+                DialogBox<bool> confirmDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
+                    action.ConfirmTitle,
+                    action.ConfirmBody ?? string.Empty,
+                    AddressableAssets.Sprites.Information,
+                    true
+                );
+                LibraryProviderDialogRemove.BuildDialogButtons(confirmDialog);
+                return await confirmDialog.WaitAsync();
+            }
+
+            if (action.Style == BasisShareableActionStyle.Destructive)
+            {
+                return await LibraryProviderDialogRemove.PromptUserForRemoval(panel, ShareableDisplayName(entry), ShareableKindLabel(entry.Kind));
+            }
+
+            return true;
         }
 
         private static string ShareableIcon(BasisShareableKind kind)

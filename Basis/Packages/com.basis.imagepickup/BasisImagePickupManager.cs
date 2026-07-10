@@ -127,7 +127,14 @@ namespace Basis.ImagePickup
                 Kind = BasisShareableKind.Image,
                 Title = $"{result.Width}x{result.Height}",
                 SharerName = ownerName,
-                Remove = () => { if (Instance != null) Instance.RequestDespawn(id); },
+                Actions = new List<BasisShareableAction>
+                {
+                    new BasisShareableAction
+                    {
+                        Style = BasisShareableActionStyle.Destructive,
+                        Invoke = () => { if (Instance != null) Instance.RequestDespawn(id); },
+                    },
+                },
             });
 
             if (HasNetworkID)
@@ -345,7 +352,14 @@ namespace Basis.ImagePickup
                 Kind = BasisShareableKind.Image,
                 Title = $"{transfer.Width}x{transfer.Height}",
                 SharerName = transfer.OwnerName,
-                Remove = () => { if (Instance != null) Instance.RequestDespawn(imageId); },
+                Actions = new List<BasisShareableAction>
+                {
+                    new BasisShareableAction
+                    {
+                        Style = BasisShareableActionStyle.Destructive,
+                        Invoke = () => { if (Instance != null) Instance.RequestDespawn(imageId); },
+                    },
+                },
             });
         }
 

@@ -7,6 +7,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -299,7 +300,14 @@ public static class BasisContentShareManager
                     Kind = ToShareableKind(msg.ContentType),
                     Title = shareDetail,
                     SharerName = serverMsg.SharerDisplayName,
-                    Remove = () => RequestRemoveSphere(sphereId),
+                    Actions = new List<BasisShareableAction>
+                    {
+                        new BasisShareableAction
+                        {
+                            Style = BasisShareableActionStyle.Destructive,
+                            Invoke = () => RequestRemoveSphere(sphereId),
+                        },
+                    },
                 });
             }
         }
