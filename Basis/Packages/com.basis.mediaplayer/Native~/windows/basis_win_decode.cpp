@@ -1067,16 +1067,34 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
 
     if (paced) {
-        /* Paced (VOD) clock: same wall-rate slew, tuned for VOD — a fixed small
-         * buffer (no 460ms floor / dynamic sizing) and the audio gate published
-         * directly (no 2s EMA). Delivery is throttled to ~1x upstream, so the
-         * edge never leaps and the hard-resync below only fires on a real
-         * discontinuity (loop/seek/long stall), never the per-segment wobble
-         * that destabilises live. */
-        const int64_t PACED_BUFFER_US = 250000;
+        /* Paced (VOD) clock: same wall-rate slew, tuned for VOD — a fixed
+         * buffer (no dynamic sizing) and the audio gate published directly
+         * (no 2s EMA). Delivery is throttled to ~1x upstream, so the edge
+         * never leaps and the hard-resync below only fires on a real
+         * discontinuity (loop/seek), never the per-segment wobble that
+         * destabilises live.
+         *
+         * With audio configured the hold must cover the audio consumer's
+         * pipeline depth (streaming-clip prefetch + DSP latency, ~400ms) just
+         * like the live floor, or video presents that much ahead of what's
+         * audible. Capped to the ring's frame span so the decoder can't lap
+         * the presenter. */
+        int64_t pacedBuf = d->aconfigured ? 460000 : 250000;
+        int64_t ringSpanCap = (int64_t)(basis_decoder::RING - 6) * interval;
+        if (pacedBuf > ringSpanCap) pacedBuf = ringSpanCap;
         int64_t clk = d->mediaStartUs + wallElapsed;
         int64_t err = newest - clk;
-        if (err > 1000000 || err < -1000000) {        /* discontinuity / long stall: resync */
+        /* Positive error up to the ring span is normal here — startup pipeline
+         * fill and post-stall delivery catch-up both push the edge ahead of
+         * the clock in bulk — and VOD has nowhere it needs to hurry back to,
+         * so it is slewed away at the capped rate rather than snapped or
+         * chased (a snap skips seconds of content; a fast chase plays visibly
+         * sped-up). Resync only when the writer is about to lap the ring
+         * (a stall so long that holding 1x would present overwritten slots)
+         * or on a backward jump (loop seam). */
+        int64_t posLimit = (int64_t)(basis_decoder::RING - 4) * interval;
+        if (posLimit < 1000000) posLimit = 1000000;
+        if (err > posLimit || err < -1000000) {
             d->wallStartQpc = nowq.QuadPart;
             d->mediaStartUs = newest;
             d->lastPresentedPts = INT64_MIN;
@@ -1084,7 +1102,7 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
             wallElapsed = 0;
         } else {
             int64_t corr = err * dtUs / 250000;        /* ~0.25s lock toward the edge */
-            int64_t cap = (wallElapsed < 1200000) ? dtUs / 2 : dtUs / 50;
+            int64_t cap = dtUs / 50;
             if (corr > cap) corr = cap; else if (corr < -cap) corr = -cap;
             d->mediaStartUs += corr;
             clk += corr;
@@ -1092,9 +1110,9 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
         /* Stall guard: clamp at edge + buffer, the point past which nothing is
          * due anyway, so a delivery stall can't run the clock ahead of the
          * frames (resume would then dump the backlog in a skip burst). */
-        int64_t edgeMax = newest + PACED_BUFFER_US;
+        int64_t edgeMax = newest + pacedBuf;
         if (clk > edgeMax) { d->mediaStartUs -= clk - edgeMax; clk = edgeMax; }
-        nowMedia = clk - PACED_BUFFER_US;
+        nowMedia = clk - pacedBuf;
         d->dbg_lagms = (LONG)((newest - nowMedia) / 1000);
         int64_t qpcUs = (nowq.QuadPart - d->createQpc.QuadPart) * 1000000LL / freq;
         InterlockedExchange64(&d->audClockOffsetUs, nowMedia - qpcUs);
