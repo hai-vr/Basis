@@ -97,6 +97,19 @@ struct PcmRing {
 
     int fill() const { return (tail - head + cap) % cap; }
 
+    /* PTS just past the newest queued sample — the audio delivery edge.
+     * INT64_MIN when empty. */
+    int64_t newest_pts() {
+        EnterCriticalSection(&cs);
+        int64_t r = INT64_MIN;
+        if (ccount > 0) {
+            Chunk& c = chunks[(chead + ccount - 1) % CHUNKS];
+            r = c.pts + (int64_t)(c.floats / (frame > 0 ? frame : 1)) * 1000000LL / (sr > 0 ? sr : 48000);
+        }
+        LeaveCriticalSection(&cs);
+        return r;
+    }
+
     /* Drops the oldest `n` floats (rounded down to whole frames) from the float
      * ring and the chunk metadata together. Caller holds cs. */
     void drop_oldest(int n) {
@@ -1053,7 +1066,19 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
     /* newest available PTS in the ring */
     int64_t newest = INT64_MIN;
     for (int i = 0; i < basis_decoder::RING; ++i) if (d->ringPts[i] > newest) newest = d->ringPts[i];
-    if (newest == INT64_MIN) { LeaveCriticalSection(&d->presentLock); return 0; }
+    /* Audio-first start (live): with no decodable video yet — a mid-GOP join
+     * waits for the next IDR, up to a full GOP — run the presentation clock
+     * from the audio delivery edge instead, so audio plays immediately and
+     * video joins the already-running clock when its first frame decodes
+     * (both tracks share a timeline, so joining needs no re-anchor). The
+     * audio edge stands in for `newest` below; the present loop no-ops on an
+     * empty frame ring. VOD keeps the primed, synchronised start. */
+    int noVideoYet = (newest == INT64_MIN);
+    if (noVideoYet) {
+        if (!d->aconfigured || basis_engine_is_paced(d->engine)) { LeaveCriticalSection(&d->presentLock); return 0; }
+        newest = d->pcm.newest_pts();
+        if (newest == INT64_MIN) { LeaveCriticalSection(&d->presentLock); return 0; }
+    }
 
     /* Presentation clock: wall-rate (QPC) advance, slewed toward the live decode
      * edge with a capped correction rate — 50% during the first ~1.2s after an
@@ -1368,10 +1393,11 @@ extern "C" int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max_
     if (basis_engine_is_paused(d->engine)) return 0;
     /* Reconstruct the presentation clock from the published offset and serve
      * against it, biased forward by the sink's output latency so release-now
-     * lands on the clock at the speaker. Before the clock starts, a stream
-     * with video holds audio (synchronised start: neither stream runs during
-     * the buffering hold, so a slow first video frame can't leave the clock
-     * anchored ahead of audio playout). Audio-only streams read ungated. */
+     * lands on the clock at the speaker. Before the clock exists, a stream
+     * with video holds audio — on live that is only until the next render
+     * tick bootstraps the clock from the audio edge (audio-first start; on
+     * VOD, until the prime releases), so playout can never free-run on a
+     * timeline the clock won't match. Audio-only streams read ungated. */
     int64_t target = INT64_MIN;
     LONGLONG off = InterlockedCompareExchange64(&d->audClockOffsetUs, 0, 0);
     if (off != INT64_MIN) {
