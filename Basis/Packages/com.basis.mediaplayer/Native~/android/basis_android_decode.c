@@ -30,39 +30,165 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <time.h>
+
+/* ---- monotonic clock ---------------------------------------------------- */
+
+static int64_t now_monotonic_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000LL + ts.tv_nsec / 1000;
+}
 
 /* ---- PCM ring ----------------------------------------------------------- */
 
-/* Interleaved float FIFO. Same alignment contract as the Windows ring: drops
- * are always whole-frame counts, so the surviving stream keeps its channel
- * phase; reads may return partial frames — the managed splitter carries
- * sub-frame remainders across pulls. Neither end anchors head/tail to an
- * absolute frame boundary. */
+/* Interleaved float FIFO with per-chunk PTS metadata, mirroring the Windows
+ * PcmRing (basis_win_decode.cpp): the decode thread writes chunks tagged with
+ * their media timestamps; the audio thread reads gated against the presentation
+ * clock, so a connect burst or post-stall backlog is trimmed rather than served
+ * out forever behind the video. Drops are always whole-frame counts, so the
+ * surviving stream keeps its channel phase; reads may return partial frames —
+ * the managed splitter carries sub-frame remainders across pulls. */
+#define PCM_CHUNKS 1024
+typedef struct { int64_t pts; int floats; } pcm_chunk;
 typedef struct {
     float* buf; int cap, head, tail;
     int frame; /* floats per interleaved frame (channel count) */
+    int sr;    /* sample rate, for chunk durations */
+    int leadUs; /* forward-bias applied on a trim (= the sink's output latency) */
+    pcm_chunk chunks[PCM_CHUNKS];
+    int chead, ccount;
+    long trims;          /* diagnostics: clock-gated trims fired */
+    int lastTrimFloats;  /* diagnostics: floats dropped by the last trim */
     pthread_mutex_t m;
 } pcm_ring;
 
-static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; pthread_mutex_init(&r->m, NULL); }
+/* When the oldest queued audio falls more than TRIM_LATE behind the presentation
+ * clock (connect burst, post-stall backlog), the queue is trimmed so the head
+ * sits leadUs ahead of it. The lead compensates the consumer-side pipeline (Unity
+ * streaming-clip buffer + DSP output latency): samples handed over now become
+ * audible roughly that much later, so a future-biased head lands on the clock at
+ * the speaker. leadUs is reported by the managed sink (set_audio_latency) so it
+ * tracks the real output latency rather than a fixed platform guess. */
+#define PCM_TRIM_LATE_US     150000LL
+#define PCM_DEFAULT_LEAD_US  380000  /* until the managed sink reports its latency */
+#define PCM_MIN_BUFFER_US    200000  /* jitter-buffer floor the trim must leave for the steady per-block consumer */
+#define PCM_MAX_BUFFER_US    450000  /* hard ceiling: bound audio latency even if the present clock stalls (no unbounded balloon) */
+
+static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->leadUs = PCM_DEFAULT_LEAD_US; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; pthread_mutex_init(&r->m, NULL); }
 static void ring_free(pcm_ring* r) { free(r->buf); r->buf = NULL; pthread_mutex_destroy(&r->m); }
-static void ring_set_frame(pcm_ring* r, int frame) {
+static void ring_set_frame(pcm_ring* r, int frame, int sr) {
     pthread_mutex_lock(&r->m);
     r->frame = frame > 0 ? frame : 1;
-    r->head = r->tail = 0; /* buffered floats are in the old framing */
+    if (sr > 0) r->sr = sr;
+    r->head = r->tail = 0;   /* buffered floats are in the old framing */
+    r->chead = r->ccount = 0;
     pthread_mutex_unlock(&r->m);
 }
-static void ring_write(pcm_ring* r, const float* s, int n) {
+
+static int ring_fill(const pcm_ring* r) { return (r->tail - r->head + r->cap) % r->cap; }
+
+/* Drops the oldest `n` floats (rounded down to whole frames) from the float ring
+ * and the chunk metadata together. Caller holds r->m. */
+static void ring_drop_oldest(pcm_ring* r, int n) {
+    n -= n % r->frame;
+    int avail = ring_fill(r);
+    if (n > avail) n = avail - (avail % r->frame);
+    if (n <= 0) return;
+    r->head = (r->head + n) % r->cap;
+    int srr = r->sr > 0 ? r->sr : 48000;
+    while (n > 0 && r->ccount > 0) {
+        pcm_chunk* c = &r->chunks[r->chead];
+        if (c->floats <= n) { n -= c->floats; r->chead = (r->chead + 1) % PCM_CHUNKS; r->ccount--; }
+        else { c->floats -= n; c->pts += (int64_t)(n / r->frame) * 1000000LL / srr; n = 0; }
+    }
+}
+
+static void ring_write(pcm_ring* r, const float* s, int n, int64_t pts) {
+    if (n <= 0) return;
     pthread_mutex_lock(&r->m);
-    for (int i = 0; i < n; ++i) { int nt = (r->tail + 1) % r->cap; if (nt == r->head) r->head = (r->head + r->frame) % r->cap; r->buf[r->tail] = s[i]; r->tail = nt; }
+    int srr = r->sr > 0 ? r->sr : 48000;
+    if (n > r->cap - 1) {
+        /* Over-capacity write: drop the oldest whole frames and carry the PTS
+         * forward so the retained tail keeps a correct timestamp. */
+        int keep = (r->cap - 1) - ((r->cap - 1) % r->frame);
+        int drop = n - keep;
+        s += drop;
+        pts += (int64_t)(drop / r->frame) * 1000000LL / srr;
+        n = keep;
+    }
+    int space = r->cap - 1 - ring_fill(r);
+    if (n > space) {
+        int need = (n - space) + r->frame - 1;
+        ring_drop_oldest(r, need - need % r->frame);
+    }
+    for (int i = 0; i < n; ++i) { r->buf[r->tail] = s[i]; r->tail = (r->tail + 1) % r->cap; }
+    if (r->ccount == PCM_CHUNKS) {
+        r->chunks[(r->chead + r->ccount - 1) % PCM_CHUNKS].floats += n;   /* metadata full: coalesce into the tail chunk */
+    } else {
+        pcm_chunk* c = &r->chunks[(r->chead + r->ccount) % PCM_CHUNKS];
+        c->pts = pts; c->floats = n; r->ccount++;
+    }
     pthread_mutex_unlock(&r->m);
 }
-static int ring_read(pcm_ring* r, float* out, int n) {
+
+/* now_us = INT64_MIN reads ungated (no presentation clock yet). */
+static int ring_read(pcm_ring* r, float* out, int n, int64_t now_us) {
     pthread_mutex_lock(&r->m);
-    int got = 0; while (got < n && r->head != r->tail) { out[got++] = r->buf[r->head]; r->head = (r->head + 1) % r->cap; }
+    int srr = r->sr > 0 ? r->sr : 48000;
+    /* Hard ceiling on the buffer, independent of the clock: bound audio latency even
+     * if the present clock stalls. A frozen clock stops the trim firing, which let
+     * the ring balloon to ~1 s and made playback erratic — this always applies. */
+    int maxFill = (int)((int64_t)PCM_MAX_BUFFER_US * srr / 1000000LL) * r->frame;
+    int fillNow = ring_fill(r);
+    if (fillNow > maxFill) { ring_drop_oldest(r, fillNow - maxFill); r->trims++; }
+    if (now_us != INT64_MIN && r->ccount > 0) {
+        int64_t late = now_us - r->chunks[r->chead].pts;
+        if (late > PCM_TRIM_LATE_US) {
+            int drop = (int)((late + r->leadUs) * srr / 1000000LL) * r->frame;
+            /* Never drain below the jitter-buffer floor: chasing the video clock can
+             * outpace bursty decode delivery and starve the steady per-block consumer
+             * (OnAudioFilterRead) into silence — the choppiness the streaming clip's
+             * large buffer used to hide. Cap the drop so a cushion always remains. */
+            int minFill = (int)((int64_t)PCM_MIN_BUFFER_US * srr / 1000000LL) * r->frame;
+            int maxDrop = ring_fill(r) - minFill;
+            if (drop > maxDrop) drop = maxDrop;
+            if (drop > 0) { ring_drop_oldest(r, drop); r->trims++; r->lastTrimFloats = drop; }
+        }
+    }
+    int got = 0;
+    while (got < n && r->ccount > 0) {
+        pcm_chunk* c = &r->chunks[r->chead];
+        int take = c->floats < n - got ? c->floats : n - got;
+        for (int i = 0; i < take; ++i) { out[got + i] = r->buf[r->head]; r->head = (r->head + 1) % r->cap; }
+        got += take;
+        if (take == c->floats) { r->chead = (r->chead + 1) % PCM_CHUNKS; r->ccount--; }
+        else { c->floats -= take; c->pts += (int64_t)take * 1000000LL / ((int64_t)r->frame * srr); }
+    }
     pthread_mutex_unlock(&r->m);
     return got;
 }
+
+/* Diagnostics: currently-queued audio, in milliseconds. */
+static int ring_fill_ms(pcm_ring* r) {
+    pthread_mutex_lock(&r->m);
+    int frames = r->frame > 0 ? ring_fill(r) / r->frame : 0;
+    int srr = r->sr > 0 ? r->sr : 48000;
+    pthread_mutex_unlock(&r->m);
+    return (int)((int64_t)frames * 1000 / srr);
+}
+
+/* ---- video frame ring --------------------------------------------------- */
+
+/* Decoded frames are held as acquired AImages (each owning an AHardwareBuffer),
+ * tagged with their presentation PTS, so render_update can present the frame due
+ * on the presentation clock instead of always the newest — the Android mirror of
+ * the Windows frame ring. Sized to span the jitter buffer plus a few slots of
+ * decode headroom (the codec needs free buffers to render into); each slot is a
+ * full-resolution hardware buffer, so it's kept modest — but large enough that
+ * maxBuf ((VRING-6) * frame-period) comfortably exceeds the sync hold at 24-30fps
+ * (26 usable frames = ~1.08s @24fps, ~867ms @30fps). */
+#define VRING 32
 
 /* ---- decoder ------------------------------------------------------------ */
 
@@ -95,33 +221,90 @@ struct basis_decoder {
     pthread_t worker;
     int worker_started;
 
-    int64_t lastPtsUs;
+    int64_t lastPtsUs;      /* decode edge: PTS of the newest frame written to the ring */
     pcm_ring pcm;
+
+    /* video frame ring (parallel arrays; img==NULL marks an empty slot) */
+    AImage* vimg[VRING];
+    int64_t vpts[VRING];
+    int vfw[VRING], vfh[VRING];
+    pthread_mutex_t vm;
+
+    /* presentation clock (render thread), mirroring basis_win_decode.cpp */
+    int clockStarted;
+    int64_t wallStartUs;      /* monotonic-us origin of the current clock lock */
+    int64_t lastRenderUs;
+    int64_t mediaStartUs;
+    int64_t lastPresentedPts; /* PTS of the frame currently shown; INT64_MIN = none */
+    int64_t presentedPosUs;   /* stable position for get_position_us; -1 until first present */
+    int64_t frameIntervalUs;  /* EMA of inter-frame PTS delta (source frame period) */
+    int64_t prevWritePts;     /* last frame PTS enqueued (for the interval EMA) */
+    int64_t audClockOffsetUs; /* published media-time offset from the monotonic clock; INT64_MIN = not started */
+    int bufferUs;             /* jitter buffer: how far behind live we present */
+    int bufferMode;           /* 0 = fixed, 1 = dynamic */
+    int audioLatencyUs;       /* managed sink's reported output latency; drives the video hold + audio lead */
+
+    /* debug counters */
+    long dbg_render, dbg_nodue, dbg_acqfail, dbg_drop, dbg_lagms;
 };
 
-/* ---- AImageReader callback: capture the decoded AHardwareBuffer ---------- */
+/* ---- AImageReader callback: enqueue decoded frames into the video ring --- */
+
+/* Deletes the oldest frame in the ring (freeing its reader slot). Caller holds
+ * d->vm. */
+static void vring_drop_oldest_locked(basis_decoder_t* d) {
+    int oldest = -1; int64_t best = INT64_MAX;
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i] && d->vpts[i] < best) { best = d->vpts[i]; oldest = i; }
+    if (oldest >= 0) { AImage_delete(d->vimg[oldest]); d->vimg[oldest] = NULL; d->dbg_drop++; }
+}
 
 static void on_image(void* ctx, AImageReader* reader) {
     basis_decoder_t* d = (basis_decoder_t*)ctx;
-    AImage* img = NULL;
-    if (AImageReader_acquireLatestImage(reader, &img) != AMEDIA_OK || !img) return;
+    for (;;) {
+        /* Can't hold more than the reader's maxImages at once, so free the oldest
+         * slot before acquiring when the ring is full (drops the least useful
+         * frame rather than stalling the decoder). */
+        pthread_mutex_lock(&d->vm);
+        int held = 0; for (int i = 0; i < VRING; ++i) if (d->vimg[i]) held++;
+        if (held >= VRING) vring_drop_oldest_locked(d);
+        pthread_mutex_unlock(&d->vm);
 
-    AHardwareBuffer* ahb = NULL;
-    if (AImage_getHardwareBuffer(img, &ahb) == AMEDIA_OK && ahb) {
-        int w = d->vw, h = d->vh;
+        AImage* img = NULL;
+        if (AImageReader_acquireNextImage(reader, &img) != AMEDIA_OK || !img) break;
+
+        int64_t ts_ns = 0;
+        AImage_getTimestamp(img, &ts_ns);       /* MediaCodec propagates the input PTS (ns) */
+        int64_t pts = ts_ns / 1000;
         int32_t aw = 0, ah = 0;
         AImage_getWidth(img, &aw); AImage_getHeight(img, &ah);
-        if (aw > 0) w = aw; if (ah > 0) h = ah;
-        if (d->vk) basis_vk_set_hardware_buffer(d->vk, ahb, w, h); /* present acquires its own ref */
+
+        pthread_mutex_lock(&d->vm);
+        int slot = -1; for (int i = 0; i < VRING; ++i) if (!d->vimg[i]) { slot = i; break; }
+        if (slot >= 0) {
+            d->vimg[slot] = img;
+            d->vpts[slot] = pts;
+            d->vfw[slot] = aw > 0 ? aw : d->vw;
+            d->vfh[slot] = ah > 0 ? ah : d->vh;
+            /* frame-period EMA, for the jitter-buffer ceiling */
+            if (d->prevWritePts != INT64_MIN) {
+                int64_t dpts = pts - d->prevWritePts;
+                if (dpts > 0 && dpts < 1000000)
+                    d->frameIntervalUs = d->frameIntervalUs > 0 ? (d->frameIntervalUs * 7 + dpts) / 8 : dpts;
+            }
+            d->prevWritePts = pts;
+            img = NULL;
+        }
+        pthread_mutex_unlock(&d->vm);
+
+        if (img) AImage_delete(img); /* ring still full after a drop: shouldn't happen */
     }
-    AImage_delete(img);
 }
 
 static int ensure_reader(basis_decoder_t* d, int w, int h) {
     if (d->reader) return 0;
     media_status_t st = AImageReader_newWithUsage(
         w, h, AIMAGE_FORMAT_PRIVATE,
-        AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE, 4, &d->reader);
+        AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE, VRING, &d->reader);
     if (st != AMEDIA_OK || !d->reader) { basis_engine_set_error(d->engine, "AImageReader_newWithUsage failed"); return -1; }
 
     AImageReader_ImageListener listener = { d, on_image };
@@ -164,8 +347,11 @@ static void drain_audio_output(basis_decoder_t* d) {
             size_t cap = 0;
             uint8_t* buf = AMediaCodec_getOutputBuffer(d->acodec, oi, &cap);
             if (buf && info.size >= 2) {
+                int64_t pts = info.presentationTimeUs;
+                int frame = d->ach > 0 ? d->ach : (d->pcm.frame > 0 ? d->pcm.frame : 2);
+                int srr = d->asr > 0 ? d->asr : 48000;
                 if (d->apcm_float) {
-                    ring_write(&d->pcm, (const float*)(buf + info.offset), (int)(info.size / 4));
+                    ring_write(&d->pcm, (const float*)(buf + info.offset), (int)(info.size / 4), pts);
                 } else {
                     int n = info.size / 2; /* 16-bit PCM */
                     float tmp[4096];
@@ -174,7 +360,7 @@ static void drain_audio_output(basis_decoder_t* d) {
                     while (off < n) {
                         int chunk = n - off; if (chunk > 4096) chunk = 4096;
                         for (int i = 0; i < chunk; ++i) tmp[i] = s16[off + i] / 32768.0f;
-                        ring_write(&d->pcm, tmp, chunk);
+                        ring_write(&d->pcm, tmp, chunk, pts + (int64_t)(off / frame) * 1000000LL / srr);
                         off += chunk;
                     }
                 }
@@ -187,7 +373,7 @@ static void drain_audio_output(basis_decoder_t* d) {
             int32_t enc = 2; /* android.media.AudioFormat.ENCODING_PCM_*: 2 = 16-bit (the default when the key is absent), 4 = float */
             AMediaFormat_getInt32(f, "pcm-encoding", &enc);
             d->apcm_float = (enc == 4);
-            if (d->ach > 0 && d->ach != d->pcm.frame) ring_set_frame(&d->pcm, d->ach);
+            if (d->ach > 0 && d->ach != d->pcm.frame) ring_set_frame(&d->pcm, d->ach, d->asr);
             __android_log_print(ANDROID_LOG_INFO, "basis_media",
                 "audio output format: %d Hz, %d ch, pcm-encoding %d", d->asr, d->ach, (int)enc);
             AMediaFormat_delete(f);
@@ -269,6 +455,15 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     d->lastPtsUs = -1;
     d->vk = basis_vk_create();
     ring_init(&d->pcm, 48000 * 2 * 4);
+
+    pthread_mutex_init(&d->vm, NULL);
+    d->lastPresentedPts = INT64_MIN;
+    d->presentedPosUs = -1;
+    d->prevWritePts = INT64_MIN;
+    d->audClockOffsetUs = INT64_MIN;
+    d->bufferUs = 120000;
+    d->bufferMode = 1;
+    d->audioLatencyUs = PCM_DEFAULT_LEAD_US;
     return d;
 }
 
@@ -279,8 +474,12 @@ void basis_decoder_destroy(basis_decoder_t* d) {
     if (d->vcodec) { AMediaCodec_stop(d->vcodec); AMediaCodec_delete(d->vcodec); }
     if (d->acodec) { AMediaCodec_stop(d->acodec); AMediaCodec_delete(d->acodec); }
     if (d->extractor) AMediaExtractor_delete(d->extractor);
+    /* Release any frames still held in the video ring before the reader they
+     * belong to (the worker is already joined, so nothing enqueues concurrently). */
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
     if (d->reader) AImageReader_delete(d->reader);
     if (d->vk) basis_vk_destroy(d->vk);
+    pthread_mutex_destroy(&d->vm);
     ring_free(&d->pcm);
     free(d->lpcmBuf);
     free(d);
@@ -312,7 +511,7 @@ int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
             AMediaExtractor_selectTrack(d->extractor, i);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_SAMPLE_RATE, &d->asr);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &d->ach);
-            if (d->ach > 0) ring_set_frame(&d->pcm, d->ach);
+            if (d->ach > 0) ring_set_frame(&d->pcm, d->ach, d->asr);
             d->acodec = create_codec_for_track(d, f, 0);
             d->aconfigured = 1;
         }
@@ -373,7 +572,7 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
         d->asr = sample_rate; d->ach = channels;
         d->aLpcmAssign = asc[0];
         d->aLpcmBits = bits;
-        ring_set_frame(&d->pcm, channels);
+        ring_set_frame(&d->pcm, channels, sample_rate);
         d->aconfigured = 1;
         return 0;
     }
@@ -381,7 +580,7 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
     if (codec != BASIS_CODEC_AAC) return 0;
     d->ac = BASIS_CODEC_AAC;
     d->asr = sample_rate; d->ach = channels;
-    ring_set_frame(&d->pcm, channels ? channels : 2);
+    ring_set_frame(&d->pcm, channels ? channels : 2, sample_rate);
     AMediaFormat* fmt = AMediaFormat_new();
     AMediaFormat_setString(fmt, AMEDIAFORMAT_KEY_MIME, "audio/mp4a-latm");
     AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_SAMPLE_RATE, sample_rate ? sample_rate : 48000);
@@ -441,7 +640,7 @@ static const int* lpcm_remap(int assign) {
 /* LPCM bypass: big-endian 16/24-bit Blu-ray-order PCM -> interleaved WAVE-order
  * float, straight into the ring. Whole frames only, so the ring keeps its
  * channel phase (the alignment contract in the ring comment above). */
-static void submit_lpcm(basis_decoder_t* d, const uint8_t* p, int len) {
+static void submit_lpcm(basis_decoder_t* d, const uint8_t* p, int len, int64_t pts_us) {
     int ch = d->ach;
     int bytes = d->aLpcmBits / 8;
     int frame_bytes = ch * bytes;
@@ -469,12 +668,12 @@ static void submit_lpcm(basis_decoder_t* d, const uint8_t* p, int len) {
             }
         }
     }
-    ring_write(&d->pcm, d->lpcmBuf, floats);
+    ring_write(&d->pcm, d->lpcmBuf, floats, pts_us);
 }
 
 int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len, int64_t pts_us) {
     if (!d || !data || len <= 0) return -1;
-    if (d->ac == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len); return 0; }
+    if (d->ac == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (!d->acodec) return -1;
     ssize_t ii = AMediaCodec_dequeueInputBuffer(d->acodec, 2000);
     if (ii >= 0) {
@@ -495,9 +694,156 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
 
 /* ---- render thread + accessors ----------------------------------------- */
 
+/* Runs the presentation clock and hands the due frame's hardware buffer to the
+ * Vulkan present. Mirrors the render-thread clock in basis_win_decode.cpp: a
+ * monotonic wall clock locked to the live decode edge (low-pass ~0.25s), a
+ * jitter buffer behind it, and the audio-gate offset published for the PCM ring.
+ * The buffer covers the audio consumer's pipeline (~460ms) so audio — which
+ * can't be released ahead of the decode edge — lands with video. Render thread. */
+static void present_select(basis_decoder_t* d) {
+    pthread_mutex_lock(&d->vm);
+
+    int64_t newest = INT64_MIN;
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i] && d->vpts[i] > newest) newest = d->vpts[i];
+    if (newest == INT64_MIN) { pthread_mutex_unlock(&d->vm); return; }
+
+    int64_t nowq = now_monotonic_us();
+    int paced = basis_engine_is_paced(d->engine) != 0;
+
+    if (!d->clockStarted) {
+        d->clockStarted = 1;
+        d->wallStartUs = nowq;
+        d->lastRenderUs = nowq;
+        d->mediaStartUs = newest;
+        d->lastPresentedPts = INT64_MIN;
+    }
+    int64_t dtUs = nowq - d->lastRenderUs;
+    d->lastRenderUs = nowq;
+    if (dtUs < 0) dtUs = 0; else if (dtUs > 1000000) dtUs = 1000000;
+
+    /* Wall clock locked to the live edge: smooth monotonic advance, low-passed
+     * toward the freshest decoded PTS each render. Large gaps (startup, rebuffer,
+     * discontinuity) hard-resync. */
+    int64_t clk = d->mediaStartUs + (nowq - d->wallStartUs);
+    int64_t err = newest - clk;
+    int64_t resync = paced ? 1000000 : 700000;
+    if (err > resync || err < -resync) {
+        d->wallStartUs = nowq; d->mediaStartUs = newest; d->lastPresentedPts = INT64_MIN; clk = newest;
+    } else {
+        int64_t corr = err * dtUs / 250000;   /* ~0.25s lock toward the edge */
+        d->mediaStartUs += corr; clk += corr;
+    }
+
+    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
+    /* Sync floor: video must be held at least the audio output latency behind the
+     * live edge, so the audio gate (which serves that far ahead of the clock) has
+     * decoded samples to hand over — otherwise audio would land late. Driven by
+     * the managed sink's reported latency, so it shrinks as the audio path does. */
+    int64_t syncFloor = d->aconfigured ? d->audioLatencyUs + 125000 : 40000;
+    int64_t buf;
+    if (paced) {
+        int64_t pacedFloor = syncFloor > 200000 ? syncFloor : 200000;  /* VOD smoothness floor */
+        buf = pacedFloor;
+    } else {
+        /* Capped to the ring's frame span so the decoder can't lap the presenter;
+         * dynamic mode grows on underrun risk, shrinks when over-buffered. */
+        int64_t maxBuf = (int64_t)(VRING - 6) * interval; if (maxBuf < 60000) maxBuf = 60000;
+        buf = d->bufferUs;
+        int64_t fillUs = newest - (clk - buf);
+        if (d->bufferMode == 1) {
+            if (fillUs < 2 * interval) buf += interval;
+            else if (fillUs > buf + 200000) buf -= 10000;
+        }
+        if (buf < syncFloor) buf = syncFloor;
+        if (buf > maxBuf) buf = maxBuf;
+        d->bufferUs = (int)buf;
+    }
+
+    /* Cap the audio gate's forward-bias well inside the decoded range. On a trim
+     * the ring head is snapped to nowMedia + leadUs; if that reaches the live edge
+     * (== the ring tail) the consumer is starved to silence (the stutter/dropout
+     * seen when leadUs tracked the full hold). Half the hold leaves a healthy span
+     * of decoded audio to serve while still biasing playout forward. */
+    {
+        int64_t lead = d->audioLatencyUs;
+        int64_t leadCap = buf - 125000;   /* keep served audio ~125ms inside the decode edge */
+        if (lead > leadCap) lead = leadCap;
+        if (lead < 40000) lead = 40000;
+        d->pcm.leadUs = (int)lead;
+    }
+
+    /* Fast start: ramp the cushion from ~0 to target over the first ~1.2s so the
+     * first frame shows almost immediately instead of a full buffer behind. */
+    int64_t wallElapsed = nowq - d->wallStartUs;
+    int64_t effBuf = (wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
+    int64_t nowMedia = clk - effBuf;
+    d->dbg_lagms = (long)((newest - nowMedia) / 1000);
+
+    /* Publish the audio-gate clock as an offset from the monotonic clock. Live
+     * low-passes (~2s) to absorb the segment-cadence wobble of the edge lock;
+     * paced publishes directly. Large jumps snap so the gate follows resyncs. */
+    {
+        int64_t off = nowMedia - nowq;
+        int64_t prev = __atomic_load_n(&d->audClockOffsetUs, __ATOMIC_RELAXED);
+        if (paced || prev == INT64_MIN || off - prev > 700000 || off - prev < -700000)
+            __atomic_store_n(&d->audClockOffsetUs, off, __ATOMIC_RELAXED);
+        else
+            __atomic_store_n(&d->audClockOffsetUs, prev + (off - prev) * dtUs / 2000000, __ATOMIC_RELAXED);
+    }
+
+    /* recover from a non-monotonic/bogus PTS leaving lastPresentedPts stuck */
+    if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
+
+    /* Present the latest frame that is due (PTS <= nowMedia) and newer than the
+     * last shown; then delete every frame at or before it (consumed), keeping the
+     * future ones queued. */
+    int best = -1; int64_t bestPts = d->lastPresentedPts;
+    for (int i = 0; i < VRING; ++i)
+        if (d->vimg[i] && d->vpts[i] <= nowMedia && d->vpts[i] > bestPts) { bestPts = d->vpts[i]; best = i; }
+
+    if (best < 0) {
+        d->dbg_nodue++;
+        /* Deadlock guard: nothing is due-and-newer, but the ring is backing up — a
+         * stall left the present clock stuck behind the frames (or frames older than
+         * lastPresentedPts jammed the queue). If we never present, on_image can't
+         * acquire, the codec backpressures and video freezes (observed after a
+         * mid-stream rebuffer). Force progress: present the newest frame, re-anchor
+         * the wall clock to it, and drain the queue so decode resumes. */
+        int held = 0, newestIdx = -1; int64_t np = INT64_MIN;
+        for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { held++; if (d->vpts[i] > np) { np = d->vpts[i]; newestIdx = i; } }
+        if (held >= VRING - 4 && newestIdx >= 0) {
+            AHardwareBuffer* ahb = NULL;
+            if (AImage_getHardwareBuffer(d->vimg[newestIdx], &ahb) == AMEDIA_OK && ahb && d->vk)
+                basis_vk_set_hardware_buffer(d->vk, ahb, d->vfw[newestIdx], d->vfh[newestIdx]);
+            d->wallStartUs = nowq; d->mediaStartUs = np;   /* re-anchor to the newest frame */
+            d->lastPresentedPts = np;
+            __atomic_store_n(&d->presentedPosUs, np, __ATOMIC_RELAXED);
+            d->dbg_render++;
+            for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
+        }
+        pthread_mutex_unlock(&d->vm);
+        return;
+    }
+
+    AHardwareBuffer* ahb = NULL;
+    int fw = d->vfw[best], fh = d->vfh[best];
+    if (AImage_getHardwareBuffer(d->vimg[best], &ahb) == AMEDIA_OK && ahb && d->vk)
+        basis_vk_set_hardware_buffer(d->vk, ahb, fw, fh); /* present acquires its own ref */
+
+    d->lastPresentedPts = bestPts;
+    __atomic_store_n(&d->presentedPosUs, bestPts, __ATOMIC_RELAXED);
+    d->dbg_render++;
+
+    for (int i = 0; i < VRING; ++i)
+        if (d->vimg[i] && d->vpts[i] <= bestPts) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
+
+    pthread_mutex_unlock(&d->vm);
+}
+
 int basis_decoder_render_update(basis_decoder_t* d) {
     if (!d || !d->vk) return -1;
     if (basis_engine_is_paused(d->engine)) return 0;
+    present_select(d);
     return basis_vk_render_update(d->vk);
 }
 void basis_decoder_render_release(basis_decoder_t* d) { if (d && d->vk) basis_vk_release(d->vk); }
@@ -514,19 +860,62 @@ int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
 /* The Vulkan resolve always flips to upright via a negative-height viewport, so
  * the published frame is bottom-left origin on every Android GPU. */
 int basis_decoder_get_frame_origin(basis_decoder_t* d) { (void)d; return 0; }
-int64_t basis_decoder_get_position_us(basis_decoder_t* d) { return d ? d->lastPtsUs : -1; }
+/* Presentation position once a frame has shown; decode edge before that
+ * (start-up, audio-only) so early consumers still see the clock move. */
+int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
+    if (!d) return -1;
+    int64_t presented = __atomic_load_n(&d->presentedPosUs, __ATOMIC_RELAXED);
+    return presented >= 0 ? presented : d->lastPtsUs;
+}
 int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
     if (!d || !d->aconfigured) return -1; if (r) *r = d->asr ? d->asr : 48000; if (c) *c = d->ach ? d->ach : 2; return 0;
 }
-int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max) { return d ? ring_read(&d->pcm, out, max) : 0; }
+int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max) {
+    if (!d) return 0;
+    if (basis_engine_is_paused(d->engine)) return 0;
+    /* Reconstruct the presentation clock from the published offset so audio
+     * release is paced to the timeline video presents on. No offset yet (no
+     * frame presented, or an audio-only stream) reads ungated. */
+    int64_t now = INT64_MIN;
+    int64_t off = __atomic_load_n(&d->audClockOffsetUs, __ATOMIC_RELAXED);
+    if (off != INT64_MIN) now = now_monotonic_us() + off;
+    return ring_read(&d->pcm, out, max, now);
+}
 int basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) {
     if (!d || !buf || size <= 0) return 0;
-    return snprintf(buf, (size_t)size, "vw=%d vh=%d", d->vw, d->vh);
+    int vq = 0;
+    pthread_mutex_lock(&d->vm);
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i]) vq++;
+    pthread_mutex_unlock(&d->vm);
+    int aq = ring_fill_ms(&d->pcm);
+    int srr = d->pcm.sr > 0 ? d->pcm.sr : 48000;
+    int frm = d->pcm.frame > 0 ? d->pcm.frame : 2;
+    int atrimms = (int)((int64_t)(d->pcm.lastTrimFloats / frm) * 1000 / srr);
+    /* vq = video frames held; aq = audio queued (ms); atrim = clock-gated trims
+     * fired; lag = live edge minus present clock. Video keys (render/nodue/lag/
+     * buf/mode/acq) are also parsed into the diagnostics CSV. */
+    return snprintf(buf, (size_t)size,
+                    "render=%ld nodue=%ld acq=%ld drop=%ld lag=%ldms buf=%dms mode=%d vq=%d aq=%dms atrim=%ld atrimms=%d alat=%dms | acfg=%d asr=%d ach=%d vw=%d vh=%d",
+                    d->dbg_render, d->dbg_nodue, d->dbg_acqfail, d->dbg_drop, d->dbg_lagms,
+                    d->bufferUs / 1000, d->bufferMode, vq, aq, d->pcm.trims, atrimms, d->audioLatencyUs / 1000,
+                    d->aconfigured, d->asr, d->ach, d->vw, d->vh);
 }
 void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int ms) {
-    /* Present pacing on the Android/Vulkan path is TODO (see basis_android_vk.c);
-     * accept the call so the ABI is uniform. */
-    (void)d; (void)mode; (void)ms;
+    if (!d) return;
+    d->bufferMode = (mode != 0) ? 1 : 0;
+    if (ms > 0) d->bufferUs = ms * 1000;
+}
+
+/* The managed audio sink reports its measured output latency; the present clock
+ * holds video this far behind live and the PCM gate serves audio this far ahead,
+ * so the two land together. Clamped to a sane range. */
+void basis_decoder_set_audio_latency(basis_decoder_t* d, int latency_us) {
+    if (!d) return;
+    if (latency_us < 60000) latency_us = 60000;
+    else if (latency_us > 2000000) latency_us = 2000000;
+    d->audioLatencyUs = latency_us;
+    /* pcm.leadUs is derived from the video hold in present_select (capped to stay
+     * inside the decoded range), so it isn't set directly here. */
 }
 
 void basis_decoder_set_output_texture(basis_decoder_t* d, void* native_texture, int w, int h) {
