@@ -381,15 +381,30 @@ static void install_audio_sink(basis_media_engine_t* e) {
 
 /* ---- demux thread ------------------------------------------------------- */
 
+static int char_eq_ci(char a, char b) {
+    if (a >= 'A' && a <= 'Z') a += 32;
+    if (b >= 'A' && b <= 'Z') b += 32;
+    return a == b;
+}
+
+/* Case-insensitive substring search (strcasestr is not portable). */
+static int contains_ci(const char* hay, const char* needle) {
+    size_t ln = strlen(needle);
+    if (!ln) return 1;
+    for (; *hay; ++hay) {
+        size_t i = 0;
+        while (i < ln && hay[i] && char_eq_ci(hay[i], needle[i])) i++;
+        if (i == ln) return 1;
+    }
+    return 0;
+}
+
 static int ends_with_ci(const char* s, const char* suffix) {
     size_t ls = strlen(s), lf = strlen(suffix);
     if (lf > ls) return 0;
     const char* p = s + (ls - lf);
     for (size_t i = 0; i < lf; ++i) {
-        char a = p[i], b = suffix[i];
-        if (a >= 'A' && a <= 'Z') a += 32;
-        if (b >= 'A' && b <= 'Z') b += 32;
-        if (a != b) return 0;
+        if (!char_eq_ci(p[i], suffix[i])) return 0;
     }
     return 1;
 }
@@ -670,7 +685,7 @@ static void run_http_like(demux_ctx_t* c) {
     /* HLS playlists are not a single continuous stream — hand off to the HLS
      * source before the OS-extractor attempt (which can't stitch segments) and
      * the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
-    if (strstr(c->parts->path, ".m3u8")) {
+    if (contains_ci(c->parts->path, ".m3u8")) {
         run_hls(c);
         return;
     }
