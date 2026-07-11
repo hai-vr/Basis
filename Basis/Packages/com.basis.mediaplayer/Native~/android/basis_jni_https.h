@@ -25,6 +25,11 @@ void* basis_jni_https_open(const char* url, int timeout_ms);
 int   basis_jni_https_read(void* ctx, uint8_t* buf, int len);
 void  basis_jni_https_close(void* ctx);
 
+/* Non-zero when the response proved a finite, byte-range-fetchable body
+ * (Range probe answered 206, or Accept-Ranges: bytes with a known
+ * Content-Length) — the live-vs-VOD delivery auto-detect signal. */
+int   basis_jni_https_is_seekable(void* ctx);
+
 #ifdef __cplusplus
 }
 #endif

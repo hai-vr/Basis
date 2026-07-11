@@ -15,6 +15,7 @@
 #include <android/log.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 
 #define LOG_TAG "basis_media"
@@ -34,6 +35,7 @@ static struct {
     jmethodID conn_set_req;     /* setRequestProperty(String, String)            */
     jmethodID conn_connect;     /* connect()                                     */
     jmethodID conn_get_is;      /* getInputStream() -> InputStream               */
+    jmethodID conn_get_hdr;     /* getHeaderField(String) -> String              */
 
     jclass  http_conn_cls;      /* java/net/HttpURLConnection                    */
     jmethodID http_set_follow;  /* setInstanceFollowRedirects(boolean)           */
@@ -75,6 +77,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     g_ids.conn_set_req   = (*env)->GetMethodID(env, g_ids.conn_cls, "setRequestProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
     g_ids.conn_connect   = (*env)->GetMethodID(env, g_ids.conn_cls, "connect", "()V");
     g_ids.conn_get_is    = (*env)->GetMethodID(env, g_ids.conn_cls, "getInputStream", "()Ljava/io/InputStream;");
+    g_ids.conn_get_hdr   = (*env)->GetMethodID(env, g_ids.conn_cls, "getHeaderField", "(Ljava/lang/String;)Ljava/lang/String;");
     g_ids.http_set_follow= (*env)->GetMethodID(env, g_ids.http_conn_cls, "setInstanceFollowRedirects", "(Z)V");
     g_ids.http_get_code  = (*env)->GetMethodID(env, g_ids.http_conn_cls, "getResponseCode", "()I");
     g_ids.http_disconnect= (*env)->GetMethodID(env, g_ids.http_conn_cls, "disconnect", "()V");
@@ -131,8 +134,23 @@ typedef struct {
     jbyteArray scratch; /* global ref: reusable byte[scratch_cap]           */
     int scratch_cap;
     int eof;
+    int seekable;       /* finite, byte-range-fetchable body (VOD detect)   */
     long long total_bytes;
 } https_ctx;
+
+/* Reads a response header into buf; returns 0 when absent. */
+static int get_header(JNIEnv* env, jobject conn, const char* name, char* buf, int cap) {
+    jstring key = (*env)->NewStringUTF(env, name);
+    jstring val = (jstring)(*env)->CallObjectMethod(env, conn, g_ids.conn_get_hdr, key);
+    (*env)->DeleteLocalRef(env, key);
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return 0; }
+    if (!val) return 0;
+    const char* c = (*env)->GetStringUTFChars(env, val, NULL);
+    int ok = 0;
+    if (c) { snprintf(buf, (size_t)cap, "%s", c); ok = 1; (*env)->ReleaseStringUTFChars(env, val, c); }
+    (*env)->DeleteLocalRef(env, val);
+    return ok;
+}
 
 void* basis_jni_https_open(const char* url, int timeout_ms) {
     if (!url) return NULL;
@@ -170,6 +188,16 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
     (*env)->DeleteLocalRef(env, agent_key);
     (*env)->DeleteLocalRef(env, agent_val);
 
+    /* The bytes=0- probe: identical body, but a server that really implements
+     * ranges answers 206 — the seekability signal the live-vs-VOD delivery
+     * auto-detect needs (mirrors the WinHTTP source; nginx omits Accept-Ranges
+     * on 206 responses, so the status is the only proof there). */
+    jstring range_key = (*env)->NewStringUTF(env, "Range");
+    jstring range_val = (*env)->NewStringUTF(env, "bytes=0-");
+    (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, range_key, range_val);
+    (*env)->DeleteLocalRef(env, range_key);
+    (*env)->DeleteLocalRef(env, range_val);
+
     /* HttpURLConnection (and its HttpsURLConnection subclass) gets redirect + status APIs. */
     if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls)) {
         (*env)->CallVoidMethod(env, conn, g_ids.http_set_follow, JNI_TRUE);
@@ -195,6 +223,21 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
             (*env)->DeleteLocalRef(env, urlObj);
             (*env)->DeleteLocalRef(env, jurl);
             free(h); jenv_release(&L); return NULL;
+        }
+        /* Seekability (live-vs-VOD auto-detect): a finite, range-fetchable body
+         * is on-demand. Range support is proven by the probe answering 206 or
+         * by an Accept-Ranges: bytes advertisement; a known Content-Length is
+         * required either way so a chunked / open-ended live stream is never
+         * mistaken for VOD (which would mis-pace it). */
+        {
+            char ranges[64], clen[32];
+            int rangeable = (code == 206);
+            if (!rangeable && get_header(env, conn, "Accept-Ranges", ranges, sizeof(ranges)))
+                rangeable = strcasecmp(ranges, "bytes") == 0;
+            long long len = 0;
+            if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
+                len = atoll(clen);
+            h->seekable = (rangeable && len > 0) ? 1 : 0;
         }
     }
 
@@ -239,6 +282,11 @@ static int ensure_scratch(JNIEnv* env, https_ctx* h, int want) {
     return h->scratch ? 0 : -1;
 }
 
+int basis_jni_https_is_seekable(void* ctx) {
+    https_ctx* h = (https_ctx*)ctx;
+    return h ? h->seekable : 0;
+}
+
 int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
     https_ctx* h = (https_ctx*)ctx;
     if (!h || h->eof || !buf || len <= 0) return 0;
@@ -249,22 +297,35 @@ int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
     if (ensure_scratch(env, h, len) != 0) { jenv_release(&L); return -1; }
 
     int want = len < h->scratch_cap ? len : h->scratch_cap;
-    jint n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
-    if ((*env)->ExceptionCheck(env)) {
-        log_and_clear_pending(env, "InputStream.read");
-        LOGE("basis_jni_https: read exception after %lld bytes", h->total_bytes);
-        h->eof = 1;
-        jenv_release(&L);
-        return -1;
+    jint n = 0;
+    int zero_reads = 0;
+    for (;;) {
+        n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
+        if ((*env)->ExceptionCheck(env)) {
+            log_and_clear_pending(env, "InputStream.read");
+            LOGE("basis_jni_https: read exception after %lld bytes", h->total_bytes);
+            h->eof = 1;
+            jenv_release(&L);
+            return -1;
+        }
+        if (n != 0) break;
+        /* Java's read(byte[], 0, len>0) contract is to block until data, EOF or
+         * error — a 0 return is a stack bug. The byte-source contract has no
+         * retry signal (0 means EOF and would end the stream), so absorb the
+         * anomaly here and read again — bounded, because a stream that keeps
+         * returning 0 without blocking would otherwise spin this thread
+         * forever; past the bound it is broken, and a terminal error routes it
+         * to the engine's error path rather than a fake clean EOF. */
+        if (++zero_reads >= 1000) {
+            LOGE("basis_jni_https: persistent zero-byte reads after %lld bytes", h->total_bytes);
+            h->eof = 1;
+            jenv_release(&L);
+            return -1;
+        }
     }
     if (n < 0) {
         LOGI("basis_jni_https: clean EOF after %lld bytes", h->total_bytes);
         h->eof = 1; jenv_release(&L); return 0;
-    }
-    if (n == 0) {
-        /* Java contract says read(byte[], 0, n>0) should not return 0, but some
-         * stacks have bugs. Treat as a transient and ask the caller to retry. */
-        jenv_release(&L); return 0;
     }
     (*env)->GetByteArrayRegion(env, h->scratch, 0, n, (jbyte*)buf);
     h->total_bytes += n;

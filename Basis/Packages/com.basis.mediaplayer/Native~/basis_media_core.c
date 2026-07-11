@@ -381,15 +381,30 @@ static void install_audio_sink(basis_media_engine_t* e) {
 
 /* ---- demux thread ------------------------------------------------------- */
 
+static int char_eq_ci(char a, char b) {
+    if (a >= 'A' && a <= 'Z') a += 32;
+    if (b >= 'A' && b <= 'Z') b += 32;
+    return a == b;
+}
+
+/* Case-insensitive substring search (strcasestr is not portable). */
+static int contains_ci(const char* hay, const char* needle) {
+    size_t ln = strlen(needle);
+    if (!ln) return 1;
+    for (; *hay; ++hay) {
+        size_t i = 0;
+        while (i < ln && hay[i] && char_eq_ci(hay[i], needle[i])) i++;
+        if (i == ln) return 1;
+    }
+    return 0;
+}
+
 static int ends_with_ci(const char* s, const char* suffix) {
     size_t ls = strlen(s), lf = strlen(suffix);
     if (lf > ls) return 0;
     const char* p = s + (ls - lf);
     for (size_t i = 0; i < lf; ++i) {
-        char a = p[i], b = suffix[i];
-        if (a >= 'A' && a <= 'Z') a += 32;
-        if (b >= 'A' && b <= 'Z') b += 32;
-        if (a != b) return 0;
+        if (!char_eq_ci(p[i], suffix[i])) return 0;
     }
     return 1;
 }
@@ -602,13 +617,26 @@ static int http_reseek(void* ctx, int64_t abs_offset) {
 
 /* HLS / LL-HLS: the URL is a playlist, not a continuous byte stream. The HLS
  * source fetches+parses the M3U8, stitches segments (and LL-HLS parts) into one
- * byte stream, and the existing TS/fMP4 demuxers consume it. Windows fetches via
- * WinHTTP; Android/Quest support is planned. */
+ * byte stream, and the existing TS/fMP4 demuxers consume it. Playlist and
+ * segment fetches ride the platform HTTP byte source: WinHTTP on Windows, the
+ * JNI HttpsURLConnection bridge on Android. */
+#if defined(__ANDROID__)
+/* Binds the provider's open(url) to basis_jni_https_open's (url, timeout).
+ * 60s read timeout: LL-HLS blocking playlist reloads hold the response open
+ * for up to a few target durations, well past a connect-scale timeout. */
+static void* hls_jni_https_open(const char* url) { return basis_jni_https_open(url, 60000); }
+#endif
 static void run_hls(demux_ctx_t* c) {
+#if defined(_WIN32) || defined(__ANDROID__)
 #if defined(_WIN32)
     basis_http_provider_t provider = {
         basis_win_http_open, basis_win_http_read, basis_win_http_close
     };
+#else
+    basis_http_provider_t provider = {
+        hls_jni_https_open, basis_jni_https_read, basis_jni_https_close
+    };
+#endif
     int is_fmp4 = 0;
     void* hls = basis_hls_open(c->url, &provider, c->sink->is_running, c->sink->user, &is_fmp4);
     if (!hls) {
@@ -649,24 +677,31 @@ static void run_hls(demux_ctx_t* c) {
     mutex_unlock(&c->e->lock);
     basis_hls_close(hls);
 #else
-    c->sink->on_error(c->sink->user, "HLS playback currently requires the Windows backend.");
+    c->sink->on_error(c->sink->user, "HLS playback requires the Windows or Android backend.");
 #endif
 }
 
 static void run_http_like(demux_ctx_t* c) {
-    /* Android: the OS extractor can demux the URL itself (TLS included). Primary
-     * leg only — an audio-only leg must feed the shared decoder's audio path, not
-     * hand a whole muxed file to the OS extractor. */
-    if (c->allow_os_demux && basis_decoder_try_open_url(c->e->decoder, c->url)) {
-        c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
-        while (c->e->running) sleep_ms(20);
+    /* HLS playlists are not a single continuous stream — hand off to the HLS
+     * source before the OS-extractor attempt (which can't stitch segments) and
+     * the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
+    if (contains_ci(c->parts->path, ".m3u8")) {
+        run_hls(c);
         return;
     }
 
-    /* HLS playlists are not a single continuous stream — hand off to the HLS
-     * source before the plain TS/fMP4 byte-source path. (.m3u8 may carry a query.) */
-    if (strstr(c->parts->path, ".m3u8")) {
-        run_hls(c);
+    /* Android: the OS extractor can demux the URL itself (TLS included). Primary
+     * leg only — an audio-only leg must feed the shared decoder's audio path, not
+     * hand a whole muxed file to the OS extractor. m2ts is also kept away from
+     * it: that container exists here to carry HDMV LPCM (stream_type 0x80),
+     * which the extractor doesn't surface — it would play the video with the
+     * audio silently missing, where the portable TS demuxer + LPCM bypass play
+     * both. */
+    int os_demux = c->allow_os_demux &&
+                   !ends_with_ci(c->parts->path, ".m2ts") && !ends_with_ci(c->parts->path, ".mts");
+    if (os_demux && basis_decoder_try_open_url(c->e->decoder, c->url)) {
+        c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
+        while (c->e->running) sleep_ms(20);
         return;
     }
 
@@ -702,12 +737,19 @@ static void run_http_like(demux_ctx_t* c) {
         return;
     }
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__ANDROID__)
     /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
-     * Content-Length + Accept-Ranges) is on-demand and arrives faster than real time,
-     * so pace it; an open-ended response is live. Set before the read-ahead gate and
-     * the first AU, so pacing is in force from the start. A forced hint skips this. */
-    if (c->e->paced_hint == 0 && basis_win_http_is_seekable(src))
+     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
+     * arrives faster than real time, so pace it; an open-ended response is
+     * live. Set before the read-ahead gate and the first AU, so pacing is in
+     * force from the start. A forced hint skips this. Without the detection a
+     * VOD file plays at delivery speed — synchronised fast-forward. */
+#if defined(_WIN32)
+    int http_seekable = basis_win_http_is_seekable(src);
+#else
+    int http_seekable = basis_jni_https_is_seekable(src);
+#endif
+    if (c->e->paced_hint == 0 && http_seekable)
         c->e->paced = 1;
     c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
 #endif
