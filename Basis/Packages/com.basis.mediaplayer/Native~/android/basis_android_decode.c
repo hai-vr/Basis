@@ -55,7 +55,6 @@ typedef struct {
     float* buf; int cap, head, tail;
     int frame; /* floats per interleaved frame (channel count) */
     int sr;    /* sample rate, for chunk durations */
-    int leadUs; /* forward-bias applied on a trim (= the sink's output latency) */
     pcm_chunk chunks[PCM_CHUNKS];
     int chead, ccount;
     long trims;          /* diagnostics: clock-gated trims fired */
@@ -63,19 +62,18 @@ typedef struct {
     pthread_mutex_t m;
 } pcm_ring;
 
-/* When the oldest queued audio falls more than TRIM_LATE behind the presentation
- * clock (connect burst, post-stall backlog), the queue is trimmed so the head
- * sits leadUs ahead of it. The lead compensates the consumer-side pipeline (Unity
- * streaming-clip buffer + DSP output latency): samples handed over now become
- * audible roughly that much later, so a future-biased head lands on the clock at
- * the speaker. leadUs is reported by the managed sink (set_audio_latency) so it
- * tracks the real output latency rather than a fixed platform guess. */
+/* Serving is gated on media time (mirroring the Windows PcmRing): a sample is
+ * released when its PTS comes due against the serve target (presentation clock
+ * + the sink's output latency, so alignment lands at the speaker). Surplus the
+ * mux delivered early waits in the ring instead of becoming output latency,
+ * and just-in-time delivery banks a cushion behind the video hold instead of
+ * running dry. The caller's early-hold is serve hysteresis sized above the
+ * sink's pull-batch depth. A head further than TRIM_LATE overdue (connect
+ * burst, post-stall backlog, PTS jump) is trimmed to the target — re-anchoring
+ * on the discontinuity rather than discarding real-time delivery forever. */
 #define PCM_TRIM_LATE_US     150000LL
-#define PCM_DEFAULT_LEAD_US  380000  /* until the managed sink reports its latency */
-#define PCM_MIN_BUFFER_US    200000  /* jitter-buffer floor the trim must leave for the steady per-block consumer */
-#define PCM_MAX_BUFFER_US    450000  /* hard ceiling: bound audio latency even if the present clock stalls (no unbounded balloon) */
 
-static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->leadUs = PCM_DEFAULT_LEAD_US; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; pthread_mutex_init(&r->m, NULL); }
+static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; pthread_mutex_init(&r->m, NULL); }
 static void ring_free(pcm_ring* r) { free(r->buf); r->buf = NULL; pthread_mutex_destroy(&r->m); }
 static void ring_set_frame(pcm_ring* r, int frame, int sr) {
     pthread_mutex_lock(&r->m);
@@ -132,33 +130,22 @@ static void ring_write(pcm_ring* r, const float* s, int n, int64_t pts) {
     pthread_mutex_unlock(&r->m);
 }
 
-/* now_us = INT64_MIN reads ungated (no presentation clock yet). */
-static int ring_read(pcm_ring* r, float* out, int n, int64_t now_us) {
+/* target_us = INT64_MIN reads ungated (audio-only stream, no clock). */
+static int ring_read(pcm_ring* r, float* out, int n, int64_t target_us, int64_t early_hold_us) {
     pthread_mutex_lock(&r->m);
     int srr = r->sr > 0 ? r->sr : 48000;
-    /* Hard ceiling on the buffer, independent of the clock: bound audio latency even
-     * if the present clock stalls. A frozen clock stops the trim firing, which let
-     * the ring balloon to ~1 s and made playback erratic — this always applies. */
-    int maxFill = (int)((int64_t)PCM_MAX_BUFFER_US * srr / 1000000LL) * r->frame;
-    int fillNow = ring_fill(r);
-    if (fillNow > maxFill) { ring_drop_oldest(r, fillNow - maxFill); r->trims++; }
-    if (now_us != INT64_MIN && r->ccount > 0) {
-        int64_t late = now_us - r->chunks[r->chead].pts;
+    if (target_us != INT64_MIN && r->ccount > 0) {
+        int64_t late = target_us - r->chunks[r->chead].pts;
         if (late > PCM_TRIM_LATE_US) {
-            int drop = (int)((late + r->leadUs) * srr / 1000000LL) * r->frame;
-            /* Never drain below the jitter-buffer floor: chasing the video clock can
-             * outpace bursty decode delivery and starve the steady per-block consumer
-             * (OnAudioFilterRead) into silence — the choppiness the streaming clip's
-             * large buffer used to hide. Cap the drop so a cushion always remains. */
-            int minFill = (int)((int64_t)PCM_MIN_BUFFER_US * srr / 1000000LL) * r->frame;
-            int maxDrop = ring_fill(r) - minFill;
-            if (drop > maxDrop) drop = maxDrop;
-            if (drop > 0) { ring_drop_oldest(r, drop); r->trims++; r->lastTrimFloats = drop; }
+            int drop = (int)(late * srr / 1000000LL) * r->frame;
+            ring_drop_oldest(r, drop);
+            r->trims++; r->lastTrimFloats = drop;
         }
     }
     int got = 0;
     while (got < n && r->ccount > 0) {
         pcm_chunk* c = &r->chunks[r->chead];
+        if (target_us != INT64_MIN && c->pts > target_us + early_hold_us) break;
         int take = c->floats < n - got ? c->floats : n - got;
         for (int i = 0; i < take; ++i) { out[got + i] = r->buf[r->head]; r->head = (r->head + 1) % r->cap; }
         got += take;
@@ -167,6 +154,19 @@ static int ring_read(pcm_ring* r, float* out, int n, int64_t now_us) {
     }
     pthread_mutex_unlock(&r->m);
     return got;
+}
+
+/* PTS just past the newest queued sample — the audio delivery edge.
+ * INT64_MIN when empty. */
+static int64_t ring_newest_pts(pcm_ring* r) {
+    pthread_mutex_lock(&r->m);
+    int64_t v = INT64_MIN;
+    if (r->ccount > 0) {
+        pcm_chunk* c = &r->chunks[(r->chead + r->ccount - 1) % PCM_CHUNKS];
+        v = c->pts + (int64_t)(c->floats / (r->frame > 0 ? r->frame : 1)) * 1000000LL / (r->sr > 0 ? r->sr : 48000);
+    }
+    pthread_mutex_unlock(&r->m);
+    return v;
 }
 
 /* Diagnostics: currently-queued audio, in milliseconds. */
@@ -234,6 +234,8 @@ struct basis_decoder {
     int clockStarted;
     int64_t wallStartUs;      /* monotonic-us origin of the current clock lock */
     int64_t lastRenderUs;
+    int64_t renderTickUs;     /* EMA of the render-callback period (due-check lookahead) */
+    int64_t primeStartUs;     /* first render tick with a frame (VOD prime window) */
     int64_t mediaStartUs;
     int64_t lastPresentedPts; /* PTS of the frame currently shown; INT64_MIN = none */
     int64_t presentedPosUs;   /* stable position for get_position_us; -1 until first present */
@@ -454,7 +456,10 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     d->video_track = d->audio_track = -1;
     d->lastPtsUs = -1;
     d->vk = basis_vk_create();
-    ring_init(&d->pcm, 48000 * 2 * 4);
+    ring_init(&d->pcm, 48000 * 8 * 4); /* ~4s at 8ch — the PTS-gated serve banks
+                                        * mux lead + the jitter cushion in the
+                                        * ring, so capacity holds both at full
+                                        * width */
 
     pthread_mutex_init(&d->vm, NULL);
     d->lastPresentedPts = INT64_MIN;
@@ -463,7 +468,7 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     d->audClockOffsetUs = INT64_MIN;
     d->bufferUs = 120000;
     d->bufferMode = 1;
-    d->audioLatencyUs = PCM_DEFAULT_LEAD_US;
+    d->audioLatencyUs = 60000; /* ~the tap's DSP-buffer figure until the sink reports */
     return d;
 }
 
@@ -696,19 +701,60 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
 
 /* Runs the presentation clock and hands the due frame's hardware buffer to the
  * Vulkan present. Mirrors the render-thread clock in basis_win_decode.cpp: a
- * monotonic wall clock locked to the live decode edge (low-pass ~0.25s), a
- * jitter buffer behind it, and the audio-gate offset published for the PCM ring.
- * The buffer covers the audio consumer's pipeline (~460ms) so audio — which
- * can't be released ahead of the decode edge — lands with video. Render thread. */
+ * wall-rate clock slewed toward the decode edge with a capped correction rate,
+ * clamped at edge + buffer so a stall can't run it ahead, a jitter buffer
+ * behind the edge that doubles as the audio bank (the PCM serve is gated to
+ * this same clock), and the audio-gate offset published for the ring. Render
+ * thread. */
 static void present_select(basis_decoder_t* d) {
     pthread_mutex_lock(&d->vm);
 
     int64_t newest = INT64_MIN;
     for (int i = 0; i < VRING; ++i) if (d->vimg[i] && d->vpts[i] > newest) newest = d->vpts[i];
-    if (newest == INT64_MIN) { pthread_mutex_unlock(&d->vm); return; }
+
+    int paced = basis_engine_is_paced(d->engine) != 0;
+
+    /* Audio-first start (live): with no decodable video yet — a mid-GOP join
+     * waits for the next IDR, up to a full GOP — run the presentation clock
+     * from the audio delivery edge instead, so audio plays immediately and
+     * video joins the already-running clock when its first frame decodes
+     * (both tracks share a timeline, so joining needs no re-anchor). The
+     * audio edge stands in for `newest` below; the present loop no-ops on an
+     * empty frame ring. VOD keeps the primed, synchronised start, and an
+     * audio-only stream (video never configured) keeps its ungated serve. */
+    int noVideoYet = (newest == INT64_MIN);
+    if (noVideoYet) {
+        if (!d->vconfigured || !d->aconfigured || paced) { pthread_mutex_unlock(&d->vm); return; }
+        newest = ring_newest_pts(&d->pcm);
+        if (newest == INT64_MIN) { pthread_mutex_unlock(&d->vm); return; }
+    }
 
     int64_t nowq = now_monotonic_us();
-    int paced = basis_engine_is_paced(d->engine) != 0;
+    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
+
+    /* Hold sizes: with audio, the jitter cushion both streams play behind —
+     * the audio serve is gated to the same clock, so the video hold is also
+     * the audio bank that absorbs delivery burst/starve cycles. Capped to the
+     * ring's frame span so the decoder can't lap the presenter. */
+    int64_t pacedBuf = d->aconfigured ? 460000 : 250000;
+    {
+        int64_t ringSpanCap = (int64_t)(VRING - 6) * interval;
+        if (pacedBuf > ringSpanCap) pacedBuf = ringSpanCap;
+    }
+
+    /* VOD prime: hold presentation until the ring has banked a hold's worth
+     * of frames (3s fallback), so a start against struggling delivery buffers
+     * first instead of presenting the first frame, starving, and churning
+     * through resyncs. */
+    if (paced && !d->clockStarted) {
+        if (!d->primeStartUs) d->primeStartUs = nowq;
+        int held = 0;
+        for (int i = 0; i < VRING; ++i) if (d->vimg[i]) held++;
+        if ((int64_t)held * interval < pacedBuf + 2 * interval && nowq - d->primeStartUs < 3000000) {
+            pthread_mutex_unlock(&d->vm);
+            return;
+        }
+    }
 
     if (!d->clockStarted) {
         d->clockStarted = 1;
@@ -720,63 +766,69 @@ static void present_select(basis_decoder_t* d) {
     int64_t dtUs = nowq - d->lastRenderUs;
     d->lastRenderUs = nowq;
     if (dtUs < 0) dtUs = 0; else if (dtUs > 1000000) dtUs = 1000000;
+    if (dtUs > 1000 && dtUs < 100000) d->renderTickUs += (dtUs - d->renderTickUs) / 8;
+    int64_t wallElapsed = nowq - d->wallStartUs;
 
-    /* Wall clock locked to the live edge: smooth monotonic advance, low-passed
-     * toward the freshest decoded PTS each render. Large gaps (startup, rebuffer,
-     * discontinuity) hard-resync. */
-    int64_t clk = d->mediaStartUs + (nowq - d->wallStartUs);
+    /* Presentation clock: wall-rate advance, slewed toward the decode edge
+     * with a capped correction rate — 50% during the first ~1.2s after an
+     * anchor, ~2% after — so burst error is absorbed by the jitter buffer
+     * instead of being chased in slow/fast swings. Clamped at edge + buffer
+     * so a delivery stall can't run it ahead (resume would dump the backlog
+     * in a skip burst). Large gaps hard-resync; the paced forward threshold
+     * scales with the ring span so startup fill is slewed away, not chased. */
+    int64_t nowMedia;
+    int64_t clk = d->mediaStartUs + wallElapsed;
     int64_t err = newest - clk;
-    int64_t resync = paced ? 1000000 : 700000;
-    if (err > resync || err < -resync) {
-        d->wallStartUs = nowq; d->mediaStartUs = newest; d->lastPresentedPts = INT64_MIN; clk = newest;
-    } else {
-        int64_t corr = err * dtUs / 250000;   /* ~0.25s lock toward the edge */
-        d->mediaStartUs += corr; clk += corr;
-    }
-
-    int64_t interval = d->frameIntervalUs > 0 ? d->frameIntervalUs : 16666;
-    /* Sync floor: video must be held at least the audio output latency behind the
-     * live edge, so the audio gate (which serves that far ahead of the clock) has
-     * decoded samples to hand over — otherwise audio would land late. Driven by
-     * the managed sink's reported latency, so it shrinks as the audio path does. */
-    int64_t syncFloor = d->aconfigured ? d->audioLatencyUs + 125000 : 40000;
-    int64_t buf;
     if (paced) {
-        int64_t pacedFloor = syncFloor > 200000 ? syncFloor : 200000;  /* VOD smoothness floor */
-        buf = pacedFloor;
+        int64_t posLimit = (int64_t)(VRING - 4) * interval;
+        if (posLimit < 1000000) posLimit = 1000000;
+        if (err > posLimit || err < -1000000) {
+            d->wallStartUs = nowq; d->mediaStartUs = newest; d->lastPresentedPts = INT64_MIN;
+            clk = newest; wallElapsed = 0;
+        } else {
+            int64_t corr = err * dtUs / 250000;
+            int64_t cap = dtUs / 50;
+            if (corr > cap) corr = cap; else if (corr < -cap) corr = -cap;
+            d->mediaStartUs += corr; clk += corr;
+        }
+        int64_t edgeMax = newest + pacedBuf;
+        if (clk > edgeMax) { d->mediaStartUs -= clk - edgeMax; clk = edgeMax; }
+        nowMedia = clk - pacedBuf;
     } else {
-        /* Capped to the ring's frame span so the decoder can't lap the presenter;
-         * dynamic mode grows on underrun risk, shrinks when over-buffered. */
+        if (err > 700000 || err < -700000) {
+            d->wallStartUs = nowq; d->mediaStartUs = newest; d->lastPresentedPts = INT64_MIN;
+            clk = newest; wallElapsed = 0;
+        } else {
+            int64_t corr = err * dtUs / 250000;
+            int64_t cap = (wallElapsed < 1200000) ? dtUs / 2 : dtUs / 50;
+            if (corr > cap) corr = cap; else if (corr < -cap) corr = -cap;
+            d->mediaStartUs += corr; clk += corr;
+        }
+        int64_t edgeMax = newest + d->bufferUs;
+        if (clk > edgeMax) { d->mediaStartUs -= clk - edgeMax; clk = edgeMax; }
+
+        /* Jitter buffer: capped to the ring span; dynamic mode grows on
+         * underrun risk and shrinks when over-buffered. With audio the floor
+         * is the shared cushion that banks audio in the ring. */
         int64_t maxBuf = (int64_t)(VRING - 6) * interval; if (maxBuf < 60000) maxBuf = 60000;
-        buf = d->bufferUs;
+        int64_t buf = d->bufferUs;
         int64_t fillUs = newest - (clk - buf);
         if (d->bufferMode == 1) {
             if (fillUs < 2 * interval) buf += interval;
             else if (fillUs > buf + 200000) buf -= 10000;
         }
-        if (buf < syncFloor) buf = syncFloor;
+        int64_t minBuf = d->aconfigured ? 460000 : 40000;
+        if (buf < minBuf) buf = minBuf;
         if (buf > maxBuf) buf = maxBuf;
         d->bufferUs = (int)buf;
-    }
 
-    /* Cap the audio gate's forward-bias well inside the decoded range. On a trim
-     * the ring head is snapped to nowMedia + leadUs; if that reaches the live edge
-     * (== the ring tail) the consumer is starved to silence (the stutter/dropout
-     * seen when leadUs tracked the full hold). Half the hold leaves a healthy span
-     * of decoded audio to serve while still biasing playout forward. */
-    {
-        int64_t lead = d->audioLatencyUs;
-        int64_t leadCap = buf - 125000;   /* keep served audio ~125ms inside the decode edge */
-        if (lead > leadCap) lead = leadCap;
-        if (lead < 40000) lead = 40000;
-        d->pcm.leadUs = (int)lead;
+        /* Fast start (video-only): ramp the cushion so the first frame shows
+         * almost immediately. With audio the start is synchronised on the
+         * full buffer instead — a sub-1x clock during the ramp would force
+         * the PTS-gated audio serve to under-fill every block. */
+        int64_t effBuf = (!d->aconfigured && wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
+        nowMedia = clk - effBuf;
     }
-
-    /* Fast start: ramp the cushion from ~0 to target over the first ~1.2s so the
-     * first frame shows almost immediately instead of a full buffer behind. */
-    int64_t wallElapsed = nowq - d->wallStartUs;
-    int64_t effBuf = (wallElapsed < 1200000) ? (buf * wallElapsed / 1200000) : buf;
-    int64_t nowMedia = clk - effBuf;
     d->dbg_lagms = (long)((newest - nowMedia) / 1000);
 
     /* Publish the audio-gate clock as an offset from the monotonic clock. Live
@@ -794,33 +846,25 @@ static void present_select(basis_decoder_t* d) {
     /* recover from a non-monotonic/bogus PTS leaving lastPresentedPts stuck */
     if (d->lastPresentedPts != INT64_MIN && d->lastPresentedPts > newest) d->lastPresentedPts = INT64_MIN;
 
-    /* Present the latest frame that is due (PTS <= nowMedia) and newer than the
-     * last shown; then delete every frame at or before it (consumed), keeping the
-     * future ones queued. */
+    /* Present the latest frame that is due and newer than the last shown; then
+     * delete every frame at or before it (consumed), keeping the future ones
+     * queued. The due check looks ahead half a render tick so a frame lands on
+     * the tick nearest its due time, not the tick after it (due times drift
+     * through the tick phase whenever the source rate doesn't divide the
+     * refresh rate); capped at half the source frame period so a high-rate
+     * source can't be shown a whole frame early. The edge clamp above makes a
+     * stalled clock impossible, so no forced-present guard is needed: the ring
+     * drains through normal due presents as the clock reaches them. */
+    int64_t lookahead = d->renderTickUs / 2;
+    if (lookahead > interval / 2) lookahead = interval / 2;
+    int64_t dueBy = nowMedia + lookahead;
+
     int best = -1; int64_t bestPts = d->lastPresentedPts;
     for (int i = 0; i < VRING; ++i)
-        if (d->vimg[i] && d->vpts[i] <= nowMedia && d->vpts[i] > bestPts) { bestPts = d->vpts[i]; best = i; }
+        if (d->vimg[i] && d->vpts[i] <= dueBy && d->vpts[i] > bestPts) { bestPts = d->vpts[i]; best = i; }
 
     if (best < 0) {
         d->dbg_nodue++;
-        /* Deadlock guard: nothing is due-and-newer, but the ring is backing up — a
-         * stall left the present clock stuck behind the frames (or frames older than
-         * lastPresentedPts jammed the queue). If we never present, on_image can't
-         * acquire, the codec backpressures and video freezes (observed after a
-         * mid-stream rebuffer). Force progress: present the newest frame, re-anchor
-         * the wall clock to it, and drain the queue so decode resumes. */
-        int held = 0, newestIdx = -1; int64_t np = INT64_MIN;
-        for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { held++; if (d->vpts[i] > np) { np = d->vpts[i]; newestIdx = i; } }
-        if (held >= VRING - 4 && newestIdx >= 0) {
-            AHardwareBuffer* ahb = NULL;
-            if (AImage_getHardwareBuffer(d->vimg[newestIdx], &ahb) == AMEDIA_OK && ahb && d->vk)
-                basis_vk_set_hardware_buffer(d->vk, ahb, d->vfw[newestIdx], d->vfh[newestIdx]);
-            d->wallStartUs = nowq; d->mediaStartUs = np;   /* re-anchor to the newest frame */
-            d->lastPresentedPts = np;
-            __atomic_store_n(&d->presentedPosUs, np, __ATOMIC_RELAXED);
-            d->dbg_render++;
-            for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
-        }
         pthread_mutex_unlock(&d->vm);
         return;
     }
@@ -873,13 +917,25 @@ int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
 int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max) {
     if (!d) return 0;
     if (basis_engine_is_paused(d->engine)) return 0;
-    /* Reconstruct the presentation clock from the published offset so audio
-     * release is paced to the timeline video presents on. No offset yet (no
-     * frame presented, or an audio-only stream) reads ungated. */
-    int64_t now = INT64_MIN;
+    /* Reconstruct the presentation clock from the published offset and serve
+     * against it, biased forward by the sink's output latency so release-now
+     * lands on the clock at the speaker. Before the clock exists, a stream
+     * with video holds audio — on live that is only until the next render
+     * tick bootstraps the clock from the audio edge (audio-first start; on
+     * VOD, until the prime releases), so playout can never free-run on a
+     * timeline the clock won't match. Audio-only streams read ungated. */
+    int64_t target = INT64_MIN;
     int64_t off = __atomic_load_n(&d->audClockOffsetUs, __ATOMIC_RELAXED);
-    if (off != INT64_MIN) now = now_monotonic_us() + off;
-    return ring_read(&d->pcm, out, max, now);
+    if (off != INT64_MIN) {
+        target = now_monotonic_us() + off + d->audioLatencyUs;
+    } else if (d->vconfigured) {
+        return 0;
+    }
+    /* Hysteresis must exceed the sink's pull depth (it drains several DSP
+     * blocks back-to-back); the reported output latency is that depth plus
+     * headroom, so size the hold from it. */
+    int64_t hold = 60000 + d->audioLatencyUs;
+    return ring_read(&d->pcm, out, max, target, hold);
 }
 int basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) {
     if (!d || !buf || size <= 0) return 0;
@@ -906,16 +962,14 @@ void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int ms) {
     if (ms > 0) d->bufferUs = ms * 1000;
 }
 
-/* The managed audio sink reports its measured output latency; the present clock
- * holds video this far behind live and the PCM gate serves audio this far ahead,
- * so the two land together. Clamped to a sane range. */
+/* The managed audio sink reports its measured output latency; it biases the
+ * audio serve target forward so samples released now come due exactly when
+ * they reach the speaker. Clamped to a sane range. */
 void basis_decoder_set_audio_latency(basis_decoder_t* d, int latency_us) {
     if (!d) return;
-    if (latency_us < 60000) latency_us = 60000;
-    else if (latency_us > 2000000) latency_us = 2000000;
+    if (latency_us < 0) latency_us = 0;
+    else if (latency_us > 500000) latency_us = 500000;
     d->audioLatencyUs = latency_us;
-    /* pcm.leadUs is derived from the video hold in present_select (capped to stay
-     * inside the decoded range), so it isn't set directly here. */
 }
 
 void basis_decoder_set_output_texture(basis_decoder_t* d, void* native_texture, int w, int h) {
