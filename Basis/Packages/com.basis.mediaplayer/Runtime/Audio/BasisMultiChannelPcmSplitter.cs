@@ -208,7 +208,7 @@ public sealed class BasisMultiChannelPcmSplitter
         lock (gate)
         {
             carryLen = 0;
-            foreach (var r in readers) r.pos = writePos;
+            foreach (var r in readers) { r.pos = writePos; r.frac = 0; }
         }
     }
 }
