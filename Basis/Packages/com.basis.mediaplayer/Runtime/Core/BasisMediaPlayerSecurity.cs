@@ -33,7 +33,7 @@ public static class BasisMediaPlayerSecurity
         // Live-streaming schemes handled by the OS-codec engine (basis_media_native):
         //   rtsp/rtspt  RTSP over UDP/TCP (rtspt = interleaved over TCP, low latency)
         //   rtmp/rtmps  RTMP / RTMP-over-TLS
-        //   http/https  fragmented MP4 (.mp4) and MPEG-TS (.ts) over HTTP(S)
+        //   http/https  fragmented MP4 (.mp4), MPEG-TS (.ts) and WAV (.wav) over HTTP(S)
         //   rist        RIST live ingest (MPEG-TS over UDP; requires a BASIS_WITH_RIST build)
         if (scheme != "http" && scheme != "https" &&
             scheme != "rtsp" && scheme != "rtspt" &&
@@ -81,7 +81,10 @@ public static class BasisMediaPlayerSecurity
 
     // DNS layer: resolves a real host name off the main thread and blocks it if any
     // resolved address is non-global. Closes the name-that-points-at-a-private-IP
-    // bypass that the literal-only IsBlockedHost can't see. null = allowed.
+    // bypass that the literal-only IsBlockedHost can't see. null = allowed. Fails
+    // closed: a resolver the check can't get an answer from could serve the
+    // engine's own lookup a private address moments later, so an unvalidatable
+    // host is a blocked host (a genuinely dead name couldn't be played anyway).
     public static async Task<string> ValidateResolvedHostAsync(string url)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
@@ -93,8 +96,9 @@ public static class BasisMediaPlayerSecurity
         bool allowLoopback = Application.isEditor;
         IPAddress[] addresses;
         try { addresses = await Dns.GetHostAddressesAsync(host); }
-        catch { return null; }
-        if (addresses == null) return null;
+        catch (Exception ex) { return $"host '{host}' could not be validated (DNS lookup failed: {ex.Message})."; }
+        if (addresses == null || addresses.Length == 0)
+            return $"host '{host}' could not be validated (DNS returned no addresses).";
 
         foreach (IPAddress ip in addresses)
             if (IsBlockedAddress(ip, allowLoopback, out string reason))

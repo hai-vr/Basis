@@ -105,7 +105,7 @@ public static class BasisMediaUrlRouter
     /// True if the player can open <paramref name="url"/> directly, without a resolver:
     /// any non-HTTP scheme (transport like rtsp/rtmp/rist, or a local file), or an
     /// http(s) URL whose path ends in a media-container extension
-    /// (.mp4/.m4s/.ts/.m2ts/.mts/.m3u8). An http(s) URL with no media extension is a page URL
+    /// (.mp4/.m4s/.ts/.m2ts/.mts/.m3u8/.wav). An http(s) URL with no media extension is a page URL
     /// (e.g. a YouTube/Twitch watch page) and needs a resolver. This is the single
     /// source of truth for the live-vs-resolve steering; resolvers and callers both
     /// consult it. It classifies only — it never blocks (host trust is separate).
@@ -118,10 +118,20 @@ public static class BasisMediaUrlRouter
                    || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         if (!isHttp) return true; // transport scheme or local file — opened directly
 
-        // Strip query/fragment so "…/stream.m3u8?token=…" still matches by extension.
-        string path = url;
-        int cut = path.IndexOfAny(PathEnd);
-        if (cut >= 0) path = path.Substring(0, cut);
+        // Match against the URI path only — a host that happens to end in a media
+        // extension (https://example.wav) is not a media URL. The manual
+        // query/fragment strip is the fallback for anything System.Uri can't parse.
+        string path;
+        if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
+        {
+            path = uri.AbsolutePath;
+        }
+        else
+        {
+            path = url;
+            int cut = path.IndexOfAny(PathEnd);
+            if (cut >= 0) path = path.Substring(0, cut);
+        }
 
         // No .mpd — there is no DASH demuxer in the native engine, so a raw MPD must go
         // through a resolver (yt-dlp) rather than being treated as directly playable.
@@ -130,7 +140,8 @@ public static class BasisMediaUrlRouter
             || path.EndsWith(".ts", StringComparison.OrdinalIgnoreCase)
             || path.EndsWith(".m2ts", StringComparison.OrdinalIgnoreCase)   // Blu-ray-flavour MPEG-TS
             || path.EndsWith(".mts", StringComparison.OrdinalIgnoreCase)    // AVCHD-flavour MPEG-TS
-            || path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase);
+            || path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

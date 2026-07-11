@@ -20,6 +20,7 @@
 #include "protocol/basis_rtmp.h"
 #include "protocol/basis_ts.h"
 #include "protocol/basis_mp4.h"
+#include "protocol/basis_wav.h"
 #include "protocol/basis_http.h"
 #include "protocol/basis_hls.h"
 #include "protocol/basis_rist.h"
@@ -166,6 +167,11 @@ struct basis_media_engine {
     basis_caption_ctx_t* captions;
     int video_hevc;
 
+    /* Set on the first on_video_format announce. Every demuxer announces its
+     * track formats before payload, so audio frames arriving with this still
+     * clear mean the source has no video track (audio-only). */
+    int video_format_seen;
+
     /* diagnostics (demux thread writes, main thread reads; minor races OK) */
     volatile long video_au_count;
     volatile long audio_frame_count;
@@ -258,6 +264,7 @@ static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
 static void sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed, int ed_len, int w, int h) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     e->video_hevc = (codec == BASIS_CODEC_H265);
+    e->video_format_seen = 1;
     mutex_lock(&e->submit_lock);
     basis_decoder_set_video_format(e->decoder, codec, ed, ed_len, w, h);
     mutex_unlock(&e->submit_lock);
@@ -298,6 +305,22 @@ static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t p
     mutex_lock(&e->submit_lock);
     basis_decoder_submit_audio(e->decoder, data, len, pts);
     mutex_unlock(&e->submit_lock);
+    /* Audio-only sources never run sink_video_au's PLAYING flip; once audio
+     * frames are flowing on a stream that announced no video track, it is
+     * playing — unless the decoder rejected the format at announce, in which
+     * case the whole source is unplayable and silence would just look like a
+     * hang: surface a hard error instead. (Muxed sources keep the fail-silent
+     * audio contract — video still plays.) Split-stream (url_audio set) always
+     * has a video leg, whose format may announce after this leg's first
+     * frames — skip it here. */
+    if ((e->state == BASIS_MEDIA_STATE_CONNECTING || e->state == BASIS_MEDIA_STATE_BUFFERING) &&
+        !e->video_format_seen && !e->url_audio[0] && e->audio_frame_count >= 4) {
+        int r = 0, ch = 0;
+        if (basis_decoder_get_audio_format(e->decoder, &r, &ch) == 0)
+            basis_engine_set_state(e, BASIS_MEDIA_STATE_PLAYING);
+        else
+            basis_engine_set_error(e, "audio-only source: audio format not supported by this platform's decoder");
+    }
 }
 static void sink_state(void* user, basis_media_state_t s) { basis_engine_set_state((basis_media_engine_t*)user, s); }
 static void sink_error(void* user, const char* m) { basis_engine_set_error((basis_media_engine_t*)user, m); }
@@ -771,9 +794,12 @@ static void run_http_like(demux_ctx_t* c) {
     prefix_src_t ps = { head, head_len, 0, rd, src };
 
     int is_mp4 = looks_like_mp4(head, head_len);
+    int is_wav = head_len >= 12 && memcmp(head, "RIFF", 4) == 0 && memcmp(head + 8, "WAVE", 4) == 0;
     int is_ts  = (head_len >= 1 && head[0] == 0x47);
-    if (!is_mp4 && !is_ts)
+    if (!is_mp4 && !is_wav && !is_ts) {
         is_mp4 = ends_with_ci(c->parts->path, ".mp4") || ends_with_ci(c->parts->path, ".m4s");
+        is_wav = ends_with_ci(c->parts->path, ".wav");
+    }
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
      * demux from the ring at the paced rate, so bursty CDN delivery doesn't starve
@@ -812,6 +838,8 @@ static void run_http_like(demux_ctx_t* c) {
 
     if (is_mp4)
         basis_mp4_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
+    else if (is_wav)
+        basis_wav_run(c->sink, demux_read, demux_ctx);
     else
         basis_ts_run(c->sink, demux_read, demux_ctx); /* default to MPEG-TS */
 

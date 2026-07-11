@@ -213,6 +213,7 @@ struct basis_decoder {
     basis_codec_t ac;       /* audio lane: AAC (MediaCodec) or LPCM (direct convert) */
     int aLpcmAssign;        /* Blu-ray channel_assignment (from the format's config blob) */
     int aLpcmBits;          /* 16 or 24 */
+    int aLpcmLE;            /* 1 = little-endian samples (RIFF/WAV lane) */
     float* lpcmBuf;         /* conversion scratch, grown to the largest frame batch */
     int lpcmBufCap;
 
@@ -522,7 +523,21 @@ int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
         }
         AMediaFormat_delete(f);
     }
-    if (!d->vcodec) { basis_engine_set_error(d->engine, "Android: no decodable video track"); return 1; }
+    if (!d->vcodec) {
+        /* No decodable video: audio-only containers (WAV, audio-only MP4) go to
+         * the portable demuxers instead, which share the audio-only state
+         * handling (PLAYING / unsupported-format error) with the other
+         * platforms. Undo whatever the track scan configured and decline the
+         * URL so the core falls back. */
+        __android_log_print(ANDROID_LOG_INFO, "basis_media",
+            "AMediaExtractor found no decodable video track; falling back to JNI HTTPS + portable demuxers");
+        if (d->acodec) { AMediaCodec_delete(d->acodec); d->acodec = NULL; }
+        d->aconfigured = 0;
+        d->asr = 0; d->ach = 0;
+        d->video_track = d->audio_track = -1;
+        AMediaExtractor_delete(d->extractor); d->extractor = NULL;
+        return 0;
+    }
     d->vconfigured = 1;
 
     pthread_create(&d->worker, NULL, url_worker, d);
@@ -566,17 +581,22 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
 
     if (codec == BASIS_CODEC_LPCM) {
         /* Decoder bypass, mirroring the Windows lane: no MediaCodec involved —
-         * submit_audio converts straight into the ring. 48 kHz / 16- or 24-bit
-         * only; the TS demuxer filters to these before announcing, this is the
-         * matching backstop. The config blob carries the Blu-ray
-         * channel_assignment + bits code. */
-        if (sample_rate != 48000 || channels < 1 || channels > 8 || !asc || asc_len < 2) return 0;
+         * submit_audio converts straight into the ring. The config blob carries
+         * the channel-assignment + bits codes, plus an optional flags byte:
+         * bit0 = little-endian WAVE-order samples (the RIFF/WAV lane, played at
+         * the file rate — the splitter resamples). Blu-ray TS (2-byte config,
+         * big-endian) stays 48 kHz only; the TS demuxer pre-filters, this is
+         * the matching backstop. 16- or 24-bit only either way. */
+        if (channels < 1 || channels > 8 || !asc || asc_len < 2) return 0;
+        int le = asc_len >= 3 && (asc[2] & 1);
+        if (le ? (sample_rate < 8000 || sample_rate > 96000) : (sample_rate != 48000)) return 0;
         int bits = asc[1] == 1 ? 16 : asc[1] == 3 ? 24 : 0;
         if (!bits) return 0; /* 20-bit unsupported */
         d->ac = BASIS_CODEC_LPCM;
         d->asr = sample_rate; d->ach = channels;
         d->aLpcmAssign = asc[0];
         d->aLpcmBits = bits;
+        d->aLpcmLE = le;
         ring_set_frame(&d->pcm, channels, sample_rate);
         d->aconfigured = 1;
         return 0;
@@ -664,10 +684,12 @@ static void submit_lpcm(basis_decoder_t* d, const uint8_t* p, int len, int64_t p
         for (int c = 0; c < ch; ++c) {
             int oc = map ? map[c] : c;
             if (bytes == 2) {
-                int v = (int16_t)((s[c * 2] << 8) | s[c * 2 + 1]);
+                int v = d->aLpcmLE ? (int16_t)(s[c * 2] | (s[c * 2 + 1] << 8))
+                                   : (int16_t)((s[c * 2] << 8) | s[c * 2 + 1]);
                 o[oc] = v / 32768.0f;
             } else {
-                int v = (s[c * 3] << 16) | (s[c * 3 + 1] << 8) | s[c * 3 + 2];
+                int v = d->aLpcmLE ? ((s[c * 3 + 2] << 16) | (s[c * 3 + 1] << 8) | s[c * 3])
+                                   : ((s[c * 3] << 16) | (s[c * 3 + 1] << 8) | s[c * 3 + 2]);
                 if (v & 0x800000) v -= 0x1000000;
                 o[oc] = v / 8388608.0f;
             }

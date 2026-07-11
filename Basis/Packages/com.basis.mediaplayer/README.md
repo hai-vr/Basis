@@ -1,7 +1,7 @@
 # Basis Media Player
 
-Live and on-demand video for Basis, decoded with the **operating-system hardware
-codecs** and presented **zero-copy** into a Unity texture. No transcode server, no
+Live and on-demand video — and audio-only media — for Basis, decoded with the
+**operating-system hardware codecs** and presented **zero-copy** into a Unity texture. No transcode server, no
 VP9, no `UnityEngine.Video.MediaPlayer`.
 
 - **Windows (PC / VR)** — Media Foundation H.264/H.265 + AAC on a DXVA D3D11
@@ -20,9 +20,10 @@ VP9, no `UnityEngine.Video.MediaPlayer`.
 | `https://…​.mp4` | fragmented MP4 over HTTPS | `https://stream.vrcdn.live/live/vrcdn.live.mp4` |
 | `https://…​.ts`  | MPEG-TS over HTTPS (Quest) | `https://stream.vrcdn.live/live/vrcdn.live.ts` |
 | `https://…​.m3u8` | HLS / Low-Latency HLS | `https://stream.example/live/index.m3u8` |
+| `https://….wav` | WAV audio (integer PCM, mono up to 7.1) | `https://stream.example/audio/track.wav` |
 
-The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4) is portable C; the OS
-backends only decode + present.
+The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4, RIFF/WAV) is portable C;
+the OS backends only decode + present.
 
 ### HLS / Low-Latency HLS
 
@@ -152,7 +153,7 @@ Basis ships a yt-dlp-based resolver as that package, but any
 `BasisMediaPlayerStreaming.StreamUrl` steers each URL automatically:
 
 - A **directly-playable** URL — a transport scheme, or an HTTP URL whose path ends in a
-  media extension (`.mp4`/`.m4s`/`.ts`/`.m2ts`/`.mts`/`.m3u8`) — loads directly.
+  media extension (`.mp4`/`.m4s`/`.ts`/`.m2ts`/`.mts`/`.m3u8`/`.wav`) — loads directly.
 - **Anything else** (an HTTP page URL with no media extension) is handed to the
   resolver, which turns it into the playable stream endpoint(s) and loads them.
 
@@ -249,9 +250,14 @@ prefab); for surround, one `Output` per channel so a 5.1 / 7.1 mix (up to 8
 channels) can be positioned speaker-by-speaker in the world (the
 `Prefabs/MediaPlayerMultiChannelStreaming` prefab).
 
-Channel ceiling depends on the source: **LPCM over MPEG-TS** carries a full 7.1
-(8 channels); **AAC on Windows** decodes up to 5.1 (the Media Foundation
-decoder's limit).
+Channel ceiling depends on the source: **LPCM** — Blu-ray-style over MPEG-TS, or a
+**WAV** file — carries a full 7.1 (8 channels); **AAC on Windows** decodes up to 5.1
+(the Media Foundation decoder's limit — wider or PCE-signalled AAC layouts play muted
+rather than failing the stream; Android decodes what the device's codec supports).
+
+Audio-only sources — a WAV, or an MP4 with no video track — play through the same
+outputs with no video output. If an audio-only source's format can't be decoded on
+the platform, the load reports an error rather than playing silence.
 
 ## Networked sync
 
@@ -303,18 +309,9 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
 `Texture2D.CreateExternalTexture` format follows `SystemInfo.graphicsDeviceType`
 (BGRA32 on D3D11/D3D12, RGBA32 on Vulkan) — handled in `BasisNativeVideoSource`.
 
-## Status / iterate-here
+## Known limits
 
-This is a large native change validated only by build structure. Most likely to
-need on-device iteration:
-
-- **Android Vulkan** — the YCbCr→RGBA resolve pass (sampler ycbcr-conversion +
-  fullscreen pipeline + Unity-queue coordination via `IUnityGraphicsVulkan`) is
-  scaffolded but not finished; see the `TODO(on-device)` in
-  `Native~/android/basis_android_vk.c`. The AHB import is implemented.
-- **D3D12** — present opens the shared BGRA as an `ID3D12Resource`; cross-API GPU
-  sync between the D3D11 video processor and the D3D12 sampler should use a shared
-  fence — validate for tearing (see notes in `Native~/windows/basis_win_decode.cpp`).
 - **RTMP** — handshake/AMF is minimal (simple handshake, no Digest auth, no rtmps).
   RTSPT and MPEG-TS are the primary, more-complete paths.
 - **HEVC on Windows** needs the system HEVC decoder MFT (HEVC Video Extensions).
+- **WAV** — 16/24-bit integer PCM only (no float or 20-bit), 1–8 channels, 8–96 kHz.
