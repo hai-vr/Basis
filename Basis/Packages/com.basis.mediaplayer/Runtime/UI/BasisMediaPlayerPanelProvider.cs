@@ -127,6 +127,25 @@ namespace Basis.BasisUI.MediaPlayer
                 PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
             _scrollContent = scroll.ContentParent;
 
+            // The shared scroll-view prefab ships a bare, zero-anchored viewport
+            // with no mask, so content taller than the panel draws straight past
+            // its bounds (Page-style panels have no panel-level mask to catch
+            // it). Bound the viewport to the scroll rect and mask it — the
+            // standard scroll-view construction — so this panel's content clips
+            // and scrolls like the settings pages.
+            if (scroll.TryGetComponent(out ScrollRect scrollRect) && scrollRect.viewport != null)
+            {
+                RectTransform viewport = scrollRect.viewport;
+                viewport.anchorMin = Vector2.zero;
+                viewport.anchorMax = Vector2.one;
+                viewport.offsetMin = Vector2.zero;
+                viewport.offsetMax = new Vector2(-25f, 0f); // clear of the vertical scrollbar
+                if (!viewport.TryGetComponent(out RectMask2D _))
+                {
+                    viewport.gameObject.AddComponent<RectMask2D>();
+                }
+            }
+
             _selector = PanelDropdown.CreateNewEntry(_scrollContent);
             _selector.Descriptor.SetTitle("Player");
             _selector.OnValueChanged = _ => OnSelectionChanged();
