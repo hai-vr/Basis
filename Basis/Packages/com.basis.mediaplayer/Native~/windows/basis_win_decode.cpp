@@ -286,6 +286,8 @@ struct basis_decoder {
     IMFTransform* adec = nullptr;
     basis_codec_t acodec = BASIS_CODEC_NONE;
     int asr = 0, ach = 0, aobj = 2;
+    int achSrc = 0;                 /* source-declared channel count; the repick
+                                     * target (ach tracks the *chosen* output) */
     int aBits = 32;                 /* output sample bits: 32=float, 16=PCM int */
     bool aconfigured = false;
 
@@ -697,6 +699,59 @@ static void drain_video(basis_decoder* d) {
 
 /* ---- audio MFT (AAC -> float PCM) -------------------------------------- */
 
+/* Pick the output type the decoder offers, set it, and refresh the derived
+ * format state (asr/ach/aBits + the PCM ring's frame width and rate). Prefer
+ * a channel count matching the input, then the stereo fold-down, then IEEE
+ * float. For >2-channel AAC the decoder also offers a stereo fold-down, so
+ * matching the input channel count is what keeps the discrete surround
+ * channels (e.g. 5.1); when nothing matches the input (unexpected layout) the
+ * fold-down is the predictable fallback every consumer handles. Types wider
+ * than 8 channels never rank — the splitter downstream maps at most 8 lanes.
+ * Float vs 16-bit PCM only changes the conversion in drain_audio. Shared by
+ * the initial configure and the drain's stream-change renegotiation (HE-AAC
+ * raises one when the SBR-doubled rate replaces the core rate). */
+static bool pick_audio_output(basis_decoder* d) {
+    IMFMediaType* chosen = nullptr; int bits = 0; int chosenRank = -1;
+    int target = d->achSrc ? d->achSrc : (d->ach ? d->ach : 2);
+    for (DWORD i = 0; ; ++i) {
+        IMFMediaType* t = nullptr;
+        if (FAILED(d->adec->GetOutputAvailableType(0, i, &t))) break;
+        GUID sub; t->GetGUID(MF_MT_SUBTYPE, &sub);
+        UINT32 b = 0, tch = 0;
+        t->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &b);
+        t->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &tch);
+        bool isFloat = (sub == MFAudioFormat_Float);
+        bool isPcm = (sub == MFAudioFormat_PCM);
+        if (!isFloat && !isPcm) { t->Release(); continue; }
+        if (tch > 8) { t->Release(); continue; }
+        int rank = ((int)tch == target ? 10000 : 0) + ((int)tch == 2 ? 1000 : 0) + (isFloat ? 100 : 0) + (int)tch;
+        if (rank > chosenRank) {
+            if (chosen) chosen->Release();
+            chosen = t; chosenRank = rank;
+            bits = isFloat ? 32 : (int)(b ? b : 16);
+        } else {
+            t->Release();
+        }
+    }
+    if (!chosen) return false;
+
+    UINT32 sr = 0, ch = 0;
+    chosen->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sr);
+    chosen->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &ch);
+    HRESULT hr = d->adec->SetOutputType(0, chosen, 0);
+    chosen->Release();
+    if (FAILED(hr)) return false;
+
+    if (sr) d->asr = (int)sr;
+    if (ch) d->ach = (int)ch;
+    d->aBits = (bits == 16) ? 16 : 32;
+    EnterCriticalSection(&d->pcm.cs);
+    d->pcm.frame = d->ach > 0 ? d->ach : 1;
+    d->pcm.sr = d->asr > 0 ? d->asr : 48000;
+    LeaveCriticalSection(&d->pcm.cs);
+    return true;
+}
+
 /* Configures the in-box AAC decoder MFT. Fails silently (audio stays muted, video
  * unaffected) — never errors the engine. aconfigured/aout in the debug string say
  * whether it worked. */
@@ -722,44 +777,7 @@ static bool configure_audio_mft(basis_decoder* d, const uint8_t* asc, int asc_le
     in->Release();
     if (FAILED(hr)) { SAFE_RELEASE(d->adec); return false; }
 
-    /* Pick the output type the decoder offers. Prefer a channel count matching
-     * the input, then IEEE float, then more channels. For >2-channel AAC the
-     * decoder also offers a stereo fold-down, so matching the input channel
-     * count is what keeps the discrete surround channels (e.g. 5.1); float vs
-     * 16-bit PCM only changes the conversion in drain_audio. */
-    IMFMediaType* chosen = nullptr; int bits = 0; int chosenRank = -1;
-    int target = d->ach ? d->ach : 2;
-    for (DWORD i = 0; ; ++i) {
-        IMFMediaType* t = nullptr;
-        if (FAILED(d->adec->GetOutputAvailableType(0, i, &t))) break;
-        GUID sub; t->GetGUID(MF_MT_SUBTYPE, &sub);
-        UINT32 b = 0, tch = 0;
-        t->GetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, &b);
-        t->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &tch);
-        bool isFloat = (sub == MFAudioFormat_Float);
-        bool isPcm = (sub == MFAudioFormat_PCM);
-        if (!isFloat && !isPcm) { t->Release(); continue; }
-        int rank = ((int)tch == target ? 10000 : 0) + (isFloat ? 1000 : 0) + (int)tch;
-        if (rank > chosenRank) {
-            if (chosen) chosen->Release();
-            chosen = t; chosenRank = rank;
-            bits = isFloat ? 32 : (int)(b ? b : 16);
-        } else {
-            t->Release();
-        }
-    }
-    if (!chosen) { SAFE_RELEASE(d->adec); return false; }
-
-    UINT32 sr = 0, ch = 0;
-    chosen->GetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, &sr);
-    chosen->GetUINT32(MF_MT_AUDIO_NUM_CHANNELS, &ch);
-    if (sr) d->asr = (int)sr;
-    if (ch) d->ach = (int)ch;
-    d->aBits = (bits == 16) ? 16 : 32;
-
-    hr = d->adec->SetOutputType(0, chosen, 0);
-    chosen->Release();
-    if (FAILED(hr)) { SAFE_RELEASE(d->adec); return false; }
+    if (!pick_audio_output(d)) { SAFE_RELEASE(d->adec); return false; }
 
     d->adec->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
     d->adec->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
@@ -777,6 +795,15 @@ static void drain_audio(basis_decoder* d) {
 
         MFT_OUTPUT_DATA_BUFFER ob = {}; ob.pSample = sample; DWORD status = 0;
         HRESULT hr = d->adec->ProcessOutput(0, 1, &ob, &status);
+        if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
+            /* The decoder renegotiates its output mid-stream — HE-AAC does this
+             * when in-band SBR doubles the rate past what configure saw. Repick
+             * and keep draining; giving up here mutes audio for good. */
+            mb->Release(); sample->Release();
+            if (ob.pEvents) ob.pEvents->Release();
+            if (!pick_audio_output(d)) break;
+            continue;
+        }
         if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT || FAILED(hr)) { mb->Release(); sample->Release(); break; }
 
         /* The decoder propagates input sample times to its outputs; fall back
@@ -902,7 +929,30 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
     }
 
     if (codec != BASIS_CODEC_AAC) return 0;
-    d->asr = sample_rate; d->ach = channels;
+
+    /* The in-box AAC decoder (CLSID_CMSAACDecMFT) handles at most 6 channels
+     * (5.1) and only explicitly-signalled layouts. Fed anything wider it
+     * accepts the input type and then AVs inside CAACDec::CheckModeChange
+     * decoding the first frame (rather than erroring), so screen the layout
+     * before configuring — the ASC channelConfiguration where present, since
+     * containers misreport, plus the container channel count as backstop.
+     * channelConfiguration 0 (layout defined by an in-band PCE) and reserved
+     * values leave the real width unknown; treat those as unsupported too.
+     * Rejected audio follows the configure_audio_mft failure path: muted
+     * (acfg=0 in the debug string), video unaffected. */
+    int eff = channels;
+    if (asc && asc_len >= 2 && (asc[0] >> 3) != 31 /* AOT escape */) {
+        int freqIdx = ((asc[0] & 7) << 1) | (asc[1] >> 7);
+        if (freqIdx != 15 /* explicit-rate escape shifts the field */) {
+            int cc = (asc[1] >> 3) & 0xF;
+            if (cc < 1 || cc > 6) return 0;
+            if (cc > eff) eff = cc; /* containers under-report; the ASC is what
+                                     * the decoder parses, so target its width */
+        }
+    }
+    if (eff > 6) return 0;
+
+    d->asr = sample_rate; d->ach = eff; d->achSrc = eff;
     if (configure_audio_mft(d, asc, asc_len)) {
         d->acodec = BASIS_CODEC_AAC;
         d->aconfigured = true;
