@@ -523,7 +523,21 @@ int basis_decoder_try_open_url(basis_decoder_t* d, const char* url) {
         }
         AMediaFormat_delete(f);
     }
-    if (!d->vcodec) { basis_engine_set_error(d->engine, "Android: no decodable video track"); return 1; }
+    if (!d->vcodec) {
+        /* No decodable video: audio-only containers (WAV, audio-only MP4) go to
+         * the portable demuxers instead, which share the audio-only state
+         * handling (PLAYING / unsupported-format error) with the other
+         * platforms. Undo whatever the track scan configured and decline the
+         * URL so the core falls back. */
+        __android_log_print(ANDROID_LOG_INFO, "basis_media",
+            "AMediaExtractor found no decodable video track; falling back to JNI HTTPS + portable demuxers");
+        if (d->acodec) { AMediaCodec_delete(d->acodec); d->acodec = NULL; }
+        d->aconfigured = 0;
+        d->asr = 0; d->ach = 0;
+        d->video_track = d->audio_track = -1;
+        AMediaExtractor_delete(d->extractor); d->extractor = NULL;
+        return 0;
+    }
     d->vconfigured = 1;
 
     pthread_create(&d->worker, NULL, url_worker, d);
