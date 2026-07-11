@@ -37,18 +37,18 @@ namespace Basis.Integration.SlimeVR
 
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
-            group.SetDescription("Pulls your real body proportions from a running SlimeVR server, so your height and arm span are set automatically without calibrating.");
+            group.SetDescription("Sets your height and arm span automatically from a running SlimeVR server.");
             var content = group.ContentParent;
 
             PanelToggle enableToggle = PanelToggle.CreateNewEntry(content);
             enableToggle.Descriptor.SetTitle("Connect To SlimeVR");
-            enableToggle.Descriptor.SetDescription("Look for a local SlimeVR server and stay connected to it.");
+            enableToggle.Descriptor.SetDescription("Stay connected to a local SlimeVR server.");
             enableToggle.SetValueWithoutNotify(BasisSlimeVRSettings.Enable.RawValue);
             enableToggle.OnValueChanged += value => BasisSlimeVRSettings.Enable.SetValue(value);
 
             PanelDropdown transportDropdown = PanelDropdown.CreateNewEntry(content);
             transportDropdown.Descriptor.SetTitle("Connection Method");
-            transportDropdown.Descriptor.SetDescription("WebSocket works with every SlimeVR server today. Pipe is SlimeVR's newer native connection and needs a server build whose pipe works.");
+            transportDropdown.Descriptor.SetDescription("WebSocket suits every server; Pipe is SlimeVR's native transport.");
             transportDropdown.AssignEntries(
                 new List<string> { BasisSlimeVRSettings.TransportWebSocket, BasisSlimeVRSettings.TransportPipe },
                 new List<string> { "WebSocket", "Pipe" });
@@ -57,25 +57,25 @@ namespace Basis.Integration.SlimeVR
 
             PanelToggle applyToggle = PanelToggle.CreateNewEntry(content);
             applyToggle.Descriptor.SetTitle("Auto Apply Body Measurements");
-            applyToggle.Descriptor.SetDescription("Use SlimeVR's measured eye height and arm span as your calibrated body size.");
+            applyToggle.Descriptor.SetDescription("Use SlimeVR's eye height and arm span as your body size.");
             applyToggle.SetValueWithoutNotify(BasisSlimeVRSettings.ApplyBodyMeasurements.RawValue);
             applyToggle.OnValueChanged += value => BasisSlimeVRSettings.ApplyBodyMeasurements.SetValue(value);
 
             PanelToggle autoBindToggle = PanelToggle.CreateNewEntry(content);
             autoBindToggle.Descriptor.SetTitle("Auto Bind SlimeVR Trackers");
-            autoBindToggle.Descriptor.SetDescription("SlimeVR trackers announce which body part they are and bind automatically. Turn off to calibrate them by hand instead.");
+            autoBindToggle.Descriptor.SetDescription("Bind trackers to their announced body part automatically.");
             autoBindToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoBindSlimeVRTrackers.RawValue);
             autoBindToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoBindSlimeVRTrackers.SetValue(value);
 
             PanelToggle recalToggle = PanelToggle.CreateNewEntry(content);
             recalToggle.Descriptor.SetTitle("Recalibrate On Reset");
-            recalToggle.Descriptor.SetDescription("When a SlimeVR mounting or full reset changes how your trackers sit, re-run full-body calibration automatically so your tracker offsets stay correct.");
+            recalToggle.Descriptor.SetDescription("Re-run calibration after a SlimeVR mounting or full reset.");
             recalToggle.SetValueWithoutNotify(BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue);
             recalToggle.OnValueChanged += value => BasisSlimeVRSettings.RecalibrateOnMountingChange.SetValue(value);
 
             PanelDropdown trackerSourceDropdown = PanelDropdown.CreateNewEntry(content);
             trackerSourceDropdown.Descriptor.SetTitle("Tracker Source (Experimental)");
-            trackerSourceDropdown.Descriptor.SetDescription("Where SlimeVR trackers come from. Off: through SteamVR/OpenVR as usual. Auto: pull them from the SlimeVR server only when the runtime doesn't provide them (e.g. an OpenXR session). Force: always drive them from the server. Auto/Force need SlimeVR to have an HMD reference (SteamVR running in the background).");
+            trackerSourceDropdown.Descriptor.SetDescription("Get trackers from the SlimeVR server instead of OpenVR/OpenXR. Needs SteamVR in the background.");
             trackerSourceDropdown.AssignEntries(
                 new List<string> { BasisSlimeVRSettings.TrackerSourceOff, BasisSlimeVRSettings.TrackerSourceAuto, BasisSlimeVRSettings.TrackerSourceForce },
                 new List<string> { "Off", "Auto (fallback)", "Force (override)" });
@@ -84,17 +84,17 @@ namespace Basis.Integration.SlimeVR
 
             PanelButton yawReset = PanelButton.CreateNew(content);
             yawReset.Descriptor.SetTitle("Yaw Reset");
-            yawReset.Descriptor.SetDescription("Straighten the SlimeVR trackers (same as the SlimeVR yaw reset).");
+            yawReset.Descriptor.SetDescription("Straighten the trackers.");
             yawReset.OnClicked += BasisSlimeVRBridge.TriggerYawReset;
 
             PanelButton fullReset = PanelButton.CreateNew(content);
             fullReset.Descriptor.SetTitle("Full Reset");
-            fullReset.Descriptor.SetDescription("Full SlimeVR tracker reset (stand straight while using it).");
+            fullReset.Descriptor.SetDescription("Full reset — stand straight.");
             fullReset.OnClicked += BasisSlimeVRBridge.TriggerFullReset;
 
             PanelButton recalibrate = PanelButton.CreateNew(content);
             recalibrate.Descriptor.SetTitle("Recalibrate Full Body");
-            recalibrate.Descriptor.SetDescription("Recapture full-body tracker offsets from your current SlimeVR poses (stand straight while using it).");
+            recalibrate.Descriptor.SetDescription("Recapture tracker offsets — stand straight.");
             recalibrate.OnClicked += () => BasisSlimeVRBridge.RecaptureFbtOffsets("manual (settings)");
 
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
@@ -104,7 +104,7 @@ namespace Basis.Integration.SlimeVR
 
             PanelButton refresh = PanelButton.CreateNew(content);
             refresh.Descriptor.SetTitle("Refresh");
-            refresh.Descriptor.SetDescription("Re-read the body measurements and status from SlimeVR.");
+            refresh.Descriptor.SetDescription("Re-read measurements and status.");
             refresh.OnClicked += () =>
             {
                 BasisSlimeVRBridge.RefreshBodyMeasurements();
