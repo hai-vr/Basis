@@ -297,22 +297,25 @@ int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
     if (ensure_scratch(env, h, len) != 0) { jenv_release(&L); return -1; }
 
     int want = len < h->scratch_cap ? len : h->scratch_cap;
-    jint n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
-    if ((*env)->ExceptionCheck(env)) {
-        log_and_clear_pending(env, "InputStream.read");
-        LOGE("basis_jni_https: read exception after %lld bytes", h->total_bytes);
-        h->eof = 1;
-        jenv_release(&L);
-        return -1;
+    jint n = 0;
+    for (;;) {
+        n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
+        if ((*env)->ExceptionCheck(env)) {
+            log_and_clear_pending(env, "InputStream.read");
+            LOGE("basis_jni_https: read exception after %lld bytes", h->total_bytes);
+            h->eof = 1;
+            jenv_release(&L);
+            return -1;
+        }
+        if (n != 0) break;
+        /* Java's read(byte[], 0, len>0) contract is to block until data, EOF or
+         * error — a 0 return is a stack bug. The byte-source contract has no
+         * retry signal (0 means EOF and would end the stream), so absorb the
+         * anomaly here and read again. */
     }
     if (n < 0) {
         LOGI("basis_jni_https: clean EOF after %lld bytes", h->total_bytes);
         h->eof = 1; jenv_release(&L); return 0;
-    }
-    if (n == 0) {
-        /* Java contract says read(byte[], 0, n>0) should not return 0, but some
-         * stacks have bugs. Treat as a transient and ask the caller to retry. */
-        jenv_release(&L); return 0;
     }
     (*env)->GetByteArrayRegion(env, h->scratch, 0, n, (jbyte*)buf);
     h->total_bytes += n;
