@@ -142,6 +142,7 @@ int      basis_decoder_get_audio_format(basis_decoder_t* dec, int* out_rate, int
 int      basis_decoder_read_audio(basis_decoder_t* dec, float* out, int max_floats); /* audio thread */
 int      basis_decoder_get_debug(basis_decoder_t* dec, char* buf, int size); /* diagnostics */
 void     basis_decoder_set_buffer(basis_decoder_t* dec, int mode, int buffer_ms); /* 0=fixed,1=dynamic */
+void     basis_decoder_set_audio_latency(basis_decoder_t* dec, int latency_us);   /* managed sink output latency, for A/V pacing */
 void     basis_decoder_set_output_texture(basis_decoder_t* dec, void* native_texture, int w, int h); /* Android: Unity-owned dst */
 
 /* ---- Engine internals shared with the platform backend ------------------ */

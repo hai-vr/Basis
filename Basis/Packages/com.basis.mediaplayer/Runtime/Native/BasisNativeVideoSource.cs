@@ -187,6 +187,14 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         if (handle != IntPtr.Zero) BasisNativeMedia.SetBuffer(handle, bufferMode, bufferMs);
     }
 
+    // Reports the audio sink's measured output latency so the native backend paces
+    // video to match it (the low-latency A/V sync path; desktop self-times and
+    // ignores it). Called each frame by the player from the audio component.
+    public void SetAudioLatencyUs(long latencyUs)
+    {
+        if (handle != IntPtr.Zero) BasisNativeMedia.SetAudioLatencyUs(handle, (int)latencyUs);
+    }
+
     public void Play() { if (handle != IntPtr.Zero) BasisNativeMedia.Play(handle); }
     public void Pause() { if (handle != IntPtr.Zero) BasisNativeMedia.Pause(handle); }
 

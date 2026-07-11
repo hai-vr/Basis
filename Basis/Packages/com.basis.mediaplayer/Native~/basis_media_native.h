@@ -157,6 +157,12 @@ BASIS_API int BASIS_CALL basis_media_get_debug(basis_media_engine_t* engine, cha
  * presented (latency vs smoothness). Safe to call any time after open. */
 BASIS_API void BASIS_CALL basis_media_set_buffer(basis_media_engine_t* engine, int mode, int buffer_ms);
 
+/* Reports the managed audio sink's measured output latency (microseconds). The
+ * backend paces video presentation this far behind live so audio and video land
+ * together; smaller values mean lower end-to-end latency. Backends that time
+ * audio internally (desktop) ignore it. Safe to call any time after open. */
+BASIS_API void BASIS_CALL basis_media_set_audio_latency(basis_media_engine_t* engine, int latency_us);
+
 /* ---- Zero-copy video ---------------------------------------------------- */
 
 /* Native handle for the Unity-visible output texture, to wrap with

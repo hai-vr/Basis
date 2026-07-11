@@ -57,6 +57,7 @@ typedef struct {
     char last_status[160]; /* last response status line, for diagnostics */
     char www_auth[256];    /* last WWW-Authenticate header value, if any */
     char location[1024];   /* last Location header (redirects) */
+    char rtp_info[1024];   /* last RTP-Info header (PLAY: per-track rtptime) */
 } rtsp_t;
 
 static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
@@ -111,6 +112,11 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
             const char* s = line + 8; while (*s == ' ') s++;
             int j = 0; while (s[j] && s[j] != ';' && j < (int)sizeof(r->session) - 1) { r->session[j] = s[j]; j++; }
             r->session[j] = 0;
+        }
+        else if (strncasecmp(line, "RTP-Info:", 9) == 0) {
+            const char* v = line + 9; while (*v == ' ') v++;
+            strncpy(r->rtp_info, v, sizeof(r->rtp_info) - 1);
+            r->rtp_info[sizeof(r->rtp_info) - 1] = 0;
         }
     }
     if (bodylen) *bodylen = 0;
@@ -239,10 +245,35 @@ typedef struct {
     int v_channel, a_channel;
 
     uint8_t* au; int au_len, au_cap;     /* current video access unit (Annex B) */
-    int64_t au_ts;                       /* RTP ts of current AU */
+    int64_t au_ts;                       /* extended RTP ts of current AU */
     int have_au_ts;
     int video_announced;
     int audio_announced;
+
+    /* Shared-timeline PTS. Each RTP stream starts at a random timestamp
+     * (RFC 3550), so raw per-track timestamps are unrelated; RTP-Info's
+     * rtptime is each track's timestamp at the shared PLAY point, and
+     * subtracting it puts both tracks on one timeline (audio release is
+     * PTS-gated against the video presentation clock, so the tracks MUST
+     * agree on a base). Without RTP-Info a track zero-bases at its first
+     * packet. The extended counters unwrap the 32-bit timestamp (~13h at
+     * 90kHz). */
+    int64_t v_base, a_base; int have_v_base, have_a_base;
+    int64_t v_ext, a_ext;   int have_v_ext, have_a_ext;
+
+    /* AAC AU fragment reassembly (RFC 3640): an AU larger than the RTP
+     * payload arrives as several packets — high-bitrate multichannel AAC
+     * exceeds the ~1440-byte payload routinely (a 384kbps 5.1 frame averages
+     * ~1.5KB), so without reassembly most frames of such a stream arrive
+     * truncated and decode as noise. Reassembly keys on the RTP marker bit
+     * (0 = a slice, 1 = the slice completing the AU): senders disagree on
+     * whether a fragment's AU-header carries the full AU size (the RFC) or
+     * the slice size (gortsplib/mediamtx), so the header size can't signal
+     * fragmentation, but the marker semantics are common to both. Fragments
+     * of one AU share an RTP timestamp. */
+    uint8_t* afrag; int afrag_len, afrag_cap;
+    int afrag_active;      /* a reassembly is in flight */
+    int64_t afrag_rel;     /* base-relative extended ts of the AU */
 
     uint8_t* fu; int fu_len, fu_cap;     /* FU reassembly */
     int fu_active;
@@ -269,6 +300,35 @@ static void au_append_nal(depkt_t* d, const uint8_t* nal, int len) {
 
 static int64_t rtp_ts_to_us(int64_t ts, int clock) { return clock > 0 ? ts * 1000000 / clock : ts; }
 
+/* True when one URL is a full suffix of the other (handles relative vs
+ * absolute control URLs without prefix-collision false positives, e.g.
+ * trackID=1 vs trackID=11). */
+static int url_suffix_match(const char* a, const char* b) {
+    size_t la = strlen(a), lb = strlen(b);
+    if (!la || !lb) return 0;
+    const char* lo = (la >= lb) ? a : b;
+    size_t      ll = (la >= lb) ? la : lb;
+    const char* sh = (la >= lb) ? b : a;
+    size_t      sl = (la >= lb) ? lb : la;
+    return strcmp(lo + (ll - sl), sh) == 0;
+}
+
+/* Extends a 32-bit RTP timestamp into the track's running 64-bit counter.
+ * The first packet anchors near the base (RTP-Info rtptime when the server
+ * sent one, else itself); after that each packet moves the counter by the
+ * signed 32-bit delta, which survives wrap and tolerates reordering. */
+static int64_t rtp_ts_extend(uint32_t ts, int64_t* ext, int* have_ext,
+                             int64_t* base, int* have_base) {
+    if (!*have_ext) {
+        if (!*have_base) { *base = (int64_t)ts; *have_base = 1; }
+        *ext = *base + (int32_t)(ts - (uint32_t)*base);
+        *have_ext = 1;
+    } else {
+        *ext += (int32_t)(ts - (uint32_t)*ext);
+    }
+    return *ext - *base;
+}
+
 static void deliver_au(depkt_t* d) {
     if (d->au_len <= 0) return;
     if (!d->video_announced) {
@@ -283,7 +343,7 @@ static void deliver_au(depkt_t* d) {
     }
     int key = d->video->codec == BASIS_CODEC_H265 ? basis_h265_is_keyframe(d->au, d->au_len)
                                                   : basis_h264_is_keyframe(d->au, d->au_len);
-    int64_t pts = rtp_ts_to_us(d->au_ts, d->video->clock);
+    int64_t pts = rtp_ts_to_us(d->au_ts - d->v_base, d->video->clock);
     d->sink->on_video_au(d->sink->user, d->au, d->au_len, pts, pts, key);
     d->au_len = 0;
 }
@@ -303,8 +363,9 @@ static void depkt_video(depkt_t* d, const uint8_t* rtp, int len) {
     const uint8_t* p = rtp + hdr;
     int plen = len - hdr;
 
-    if (d->have_au_ts && (int64_t)ts != d->au_ts) { deliver_au(d); }
-    d->au_ts = (int64_t)ts; d->have_au_ts = 1;
+    rtp_ts_extend(ts, &d->v_ext, &d->have_v_ext, &d->v_base, &d->have_v_base);
+    if (d->have_au_ts && d->v_ext != d->au_ts) { deliver_au(d); }
+    d->au_ts = d->v_ext; d->have_au_ts = 1;
 
     int is_h265 = d->video->codec == BASIS_CODEC_H265;
     if (!is_h265) {
@@ -397,6 +458,33 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
         d->audio_announced = 1;
     }
 
+    int64_t rel = rtp_ts_extend(ts, &d->a_ext, &d->have_a_ext, &d->a_base, &d->have_a_base);
+
+    /* A different timestamp while a reassembly is in flight means the tail
+     * fragments were lost — drop the partial AU rather than deliver a
+     * truncated frame. */
+    if (d->afrag_active && rel != d->afrag_rel) { d->afrag_active = 0; d->afrag_len = 0; }
+
+    int marker = (rtp[1] >> 7) & 1;
+    if (!marker || d->afrag_active) {
+        /* A slice of a fragmented AU (fragments never aggregate: a marker=0
+         * packet is always one slice). Accumulate; the marker=1 slice
+         * completes the AU. */
+        int avail = plen - dpos;
+        if (avail <= 0) return;
+        if (!d->afrag_active) { d->afrag_active = 1; d->afrag_len = 0; d->afrag_rel = rel; }
+        if (grow(&d->afrag, &d->afrag_cap, d->afrag_len + avail)) {
+            memcpy(d->afrag + d->afrag_len, p + dpos, avail);
+            d->afrag_len += avail;
+        }
+        if (marker && d->afrag_len > 0) {
+            int64_t pts = rtp_ts_to_us(d->afrag_rel, d->audio->clock ? d->audio->clock : 48000);
+            d->sink->on_audio_frame(d->sink->user, d->afrag, d->afrag_len, pts);
+            d->afrag_active = 0; d->afrag_len = 0;
+        }
+        return;
+    }
+
     int off = dpos;
     for (int i = 0; i < num; ++i) {
         int sz;
@@ -404,7 +492,10 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
         else sz = ((p[2 + i * 2] << 8) | p[2 + i * 2 + 1]) >> 3;
         if (off + sz > plen) sz = plen - off;
         if (sz <= 0) break;
-        int64_t pts = rtp_ts_to_us((int64_t)ts, d->audio->clock ? d->audio->clock : 48000);
+        /* The packet timestamp covers its first AU; each further aggregated
+         * AU advances by one AAC frame (1024 samples; the RTP clock is the
+         * sample rate). */
+        int64_t pts = rtp_ts_to_us(rel + (int64_t)i * 1024, d->audio->clock ? d->audio->clock : 48000);
         d->sink->on_audio_frame(d->sink->user, p + off, sz, pts);
         off += sz;
     }
@@ -479,25 +570,27 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     /* SETUP video on interleaved channels 0-1 */
     int interleave = 0;
     int v_channel = -1, a_channel = -1;
+    char v_url[1024] = {0}, a_url[1024] = {0};
     {
-        char setup_url[1024], extra[128];
-        build_control_url(base_url, video.control, setup_url, sizeof(setup_url));
+        char extra[128];
+        build_control_url(base_url, video.control, v_url, sizeof(v_url));
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-        rtsp_send(&r, "SETUP", setup_url, extra);
+        rtsp_send(&r, "SETUP", v_url, extra);
         if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
-            char e[360]; snprintf(e, sizeof(e), "RTSP: SETUP video failed (status='%s' url=%s)", r.last_status, setup_url);
+            char e[360]; snprintf(e, sizeof(e), "RTSP: SETUP video failed (status='%s' url=%s)", r.last_status, v_url);
             sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
         }
         v_channel = interleave; interleave += 2;
     }
     if (audio.pt >= 0) {
-        char setup_url[1024], extra[128];
-        build_control_url(base_url, audio.control, setup_url, sizeof(setup_url));
+        char extra[128];
+        build_control_url(base_url, audio.control, a_url, sizeof(a_url));
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-        rtsp_send(&r, "SETUP", setup_url, extra);
+        rtsp_send(&r, "SETUP", a_url, extra);
         if (rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
     }
 
+    r.rtp_info[0] = 0;
     rtsp_send(&r, "PLAY", base_url, "Range: npt=0.000-\r\n");
     if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
         char e[320]; snprintf(e, sizeof(e), "RTSP: PLAY failed (status='%s')", r.last_status);
@@ -510,6 +603,37 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     depkt_t d; memset(&d, 0, sizeof(d));
     d.sink = sink; d.video = &video; d.audio = audio.pt >= 0 ? &audio : NULL;
     d.v_channel = v_channel; d.a_channel = a_channel;
+
+    /* RTP-Info from the PLAY response: each entry's rtptime is that track's
+     * RTP timestamp at the shared play point — the per-track PTS base that
+     * puts video and audio on one timeline. Entries are matched to tracks by
+     * their control URL, falling back to SETUP order. A track the header
+     * doesn't cover zero-bases at its first packet. */
+    {
+        const char* s = r.rtp_info;
+        int idx = 0;
+        while (s && *s) {
+            const char* e = strchr(s, ',');
+            size_t n = e ? (size_t)(e - s) : strlen(s);
+            char entry[600];
+            if (n >= sizeof(entry)) n = sizeof(entry) - 1;
+            memcpy(entry, s, n); entry[n] = 0;
+            const char* t = strstr(entry, "rtptime=");
+            if (t) {
+                int64_t base = (int64_t)(uint32_t)strtoul(t + 8, NULL, 10);
+                char u[560] = {0};
+                const char* up = strstr(entry, "url=");
+                if (up) { up += 4; size_t m = strcspn(up, ";"); if (m >= sizeof(u)) m = sizeof(u) - 1; memcpy(u, up, m); u[m] = 0; }
+                int is_audio = u[0] && a_url[0] && url_suffix_match(u, a_url);
+                int is_video = !is_audio && u[0] && url_suffix_match(u, v_url);
+                if (!is_audio && !is_video) { is_video = idx == 0; is_audio = idx == 1; }
+                if (is_video && !d.have_v_base) { d.v_base = base; d.have_v_base = 1; }
+                else if (is_audio && !d.have_a_base) { d.a_base = base; d.have_a_base = 1; }
+            }
+            s = e ? e + 1 : NULL;
+            idx++;
+        }
+    }
 
     /* interleaved frame: '$' <channel:1> <len:2> <RTP...> */
     uint8_t* pkt = NULL; int pkt_cap = 0;
@@ -539,7 +663,7 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     /* TEARDOWN best-effort */
     rtsp_send(&r, "TEARDOWN", base_url, NULL);
 
-    free(pkt); free(d.au); free(d.fu);
+    free(pkt); free(d.au); free(d.fu); free(d.afrag);
     basis_io_close(r.io);
     return rc;
 }
