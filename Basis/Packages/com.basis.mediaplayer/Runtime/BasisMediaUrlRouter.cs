@@ -118,10 +118,20 @@ public static class BasisMediaUrlRouter
                    || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         if (!isHttp) return true; // transport scheme or local file — opened directly
 
-        // Strip query/fragment so "…/stream.m3u8?token=…" still matches by extension.
-        string path = url;
-        int cut = path.IndexOfAny(PathEnd);
-        if (cut >= 0) path = path.Substring(0, cut);
+        // Match against the URI path only — a host that happens to end in a media
+        // extension (https://example.wav) is not a media URL. The manual
+        // query/fragment strip is the fallback for anything System.Uri can't parse.
+        string path;
+        if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
+        {
+            path = uri.AbsolutePath;
+        }
+        else
+        {
+            path = url;
+            int cut = path.IndexOfAny(PathEnd);
+            if (cut >= 0) path = path.Substring(0, cut);
+        }
 
         // No .mpd — there is no DASH demuxer in the native engine, so a raw MPD must go
         // through a resolver (yt-dlp) rather than being treated as directly playable.
