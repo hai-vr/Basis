@@ -38,7 +38,14 @@ namespace Basis.Scripts.Networking
         {
             foreach (KeyValuePair<ushort, BasisNetworkPlayer> BasisNetworkPlayer in Players)
             {
-                BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(BasisNetworkPlayer.Key);
+                try
+                {
+                    BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(BasisNetworkPlayer.Key);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError($"ClearAllRegistries teardown failed for {BasisNetworkPlayer.Key}: {ex}");
+                }
             }
             Players.Clear();
             RemotePlayerReceivers.Clear();
@@ -156,11 +163,11 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
-            Players.TryRemove(netId, out player);
+            bool removed = Players.TryRemove(netId, out player);
             RemotePlayerReceivers.TryRemove(netId, out _);
             RemotePlayers.TryRemove(netId, out _);
             _snapshotDirty = true;
-            return true;
+            return removed;
         }
 
         public static bool GetPlayerById(ushort playerId, out BasisNetworkPlayer player) =>

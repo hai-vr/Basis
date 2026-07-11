@@ -72,14 +72,8 @@ public static class BasisNetworkHandleRemoval
         }
 
         // Remove from network manager
-        if (BasisNetworkPlayers.RemovePlayer(disconnectedID, out BasisNetworkPlayer network))
+        if (BasisNetworkPlayers.RemovePlayer(disconnectedID, out BasisNetworkPlayer network) && network != null)
         {
-            if (network == null)
-            {
-                BasisDebug.LogError($"Missing Networked Player for removing ID {disconnectedID}");
-                return;
-            }
-
             // Notify scripts about remote player leaving
             if (network.Player != null)
             {
@@ -128,7 +122,7 @@ public static class BasisNetworkHandleRemoval
         }
         else
         {
-            BasisDebug.LogError($"C Missing Player for removing ID {disconnectedID}");
+            BasisDebug.LogErrorOnce($"Disconnect for unregistered player id {disconnectedID} (duplicate, late, or never joined); skipping teardown.", BasisDebug.LogTag.Networking);
         }
     }
 }

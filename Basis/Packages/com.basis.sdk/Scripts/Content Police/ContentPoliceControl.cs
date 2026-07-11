@@ -59,6 +59,11 @@ public static class ContentPoliceControl
         state.HarvestedHeadChop = HarvestedHeadChop;
         if (ChecksRequired.UseContentRemoval)
         {
+            if (DisabledGameobject == null)
+            {
+                BasisDebug.LogErrorOnce("Content host was destroyed before instantiation; load was torn down (shutdown or device-management teardown).", BasisDebug.LogTag.Event);
+                return state;
+            }
             SearchAndDestroy = GameObject.Instantiate(SearchAndDestroy, Position, Rotation, DisabledGameobject.transform);
             if (ModifyScale)
             {
