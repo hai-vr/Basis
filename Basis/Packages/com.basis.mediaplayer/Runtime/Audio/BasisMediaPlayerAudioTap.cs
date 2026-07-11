@@ -64,14 +64,20 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     // so the mix is what Steam Audio / Unity 3D then position, occlude and transmit.
     private void OnAudioFilterRead(float[] data, int channels)
     {
+        // Snapshot the binding so this block reads a consistent set even if a
+        // main-thread Unbind()/Bind() (Rebuild on a format change) interleaves
+        // mid-flight. A torn set would not crash (ReadMixed null-guards), but a
+        // fresh reader against the previous splitter would mix one stale block.
         var s = splitter;
-        if (!active || s == null || taps == null || channels < 1) return; // leave the source silent
+        var r = reader;
+        var t = taps;
+        if (!active || s == null || r == null || t == null || channels < 1) return; // leave the source silent
 
         observedChannels = channels;
         int frames = data.Length / channels;
         float gain = gainProvider != null ? gainProvider() : 1f;
         Array.Clear(data, 0, data.Length);
-        s.ReadMixed(reader, data, frames, channels, taps, gain);
+        s.ReadMixed(r, data, frames, channels, t, gain);
 
         // A positioned single channel is mixed into out-channel 0 by its tap; spread
         // it across the DSP width so the spatialiser receives a proper mono signal.
