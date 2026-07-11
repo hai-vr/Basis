@@ -917,7 +917,7 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
          * only — the TS demuxer pre-filters, this is the matching backstop.
          * The WAV lane plays at the file rate: the splitter downstream
          * resamples source rate to DSP rate. 16- or 24-bit only either way. */
-        if (channels < 1 || channels > 8 || asc_len < 2) return 0;
+        if (channels < 1 || channels > 8 || !asc || asc_len < 2) return 0;
         int le = asc_len >= 3 && (asc[2] & 1);
         if (le ? (sample_rate < 8000 || sample_rate > 96000) : (sample_rate != 48000)) return 0;
         int bits = asc[1] == 1 ? 16 : asc[1] == 3 ? 24 : 0;
