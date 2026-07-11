@@ -76,15 +76,18 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
     // paces video presentation to match. The tap delivers audio per DSP block, so
     // latency is ~the DSP output buffer plus a block of headroom — a fraction of the
     // old streaming-clip buffer, which is what keeps A/V sync tight at low latency.
-    public long EstimatedOutputLatencyUs
+    // Cached because it's read per frame: the figure only changes with the DSP
+    // configuration, which triggers an output rebuild that recomputes it.
+    public long EstimatedOutputLatencyUs => estimatedOutputLatencyUs > 0 ? estimatedOutputLatencyUs : RecomputeOutputLatencyUs();
+    private long estimatedOutputLatencyUs;
+
+    private long RecomputeOutputLatencyUs()
     {
-        get
-        {
-            AudioSettings.GetDSPBufferSize(out int dspLen, out int dspCount);
-            int outRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000;
-            double bufSecs = dspLen > 0 ? (double)dspLen * Mathf.Max(1, dspCount) / outRate : 0.02;
-            return (long)((bufSecs + 0.02) * 1_000_000.0);
-        }
+        AudioSettings.GetDSPBufferSize(out int dspLen, out int dspCount);
+        int outRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000;
+        double bufSecs = dspLen > 0 ? (double)dspLen * Mathf.Max(1, dspCount) / outRate : 0.02;
+        estimatedOutputLatencyUs = (long)((bufSecs + 0.02) * 1_000_000.0);
+        return estimatedOutputLatencyUs;
     }
 
     private IBasisPcmSource nativePcmSource;
@@ -188,6 +191,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         int windowSamples = Mathf.RoundToInt(rate * Mathf.Min(ClipLengthSeconds, BasisMediaPlayerSecurity.ClipLengthSecondsCap));
 
         splitter = new BasisMultiChannelPcmSplitter(nativePcmSource, channels, windowSamples);
+        RecomputeOutputLatencyUs();
         builtRate = rate;
         builtChannels = channels;
         System.Threading.Interlocked.Exchange(ref consumedSamples, 0);
