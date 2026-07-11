@@ -80,14 +80,17 @@ struct PcmRing {
      * latency, so alignment lands at the speaker). Surplus the mux delivered
      * early waits in the ring instead of becoming output latency, and a source
      * that delivers just-in-time banks a cushion behind the video hold instead
-     * of running dry. EARLY_HOLD is serve hysteresis: chunks up to that far
-     * ahead of the target still release, so consumer pull jitter is absorbed
-     * without gaps and steady-state serve stays sequential. A head further
-     * than TRIM_LATE overdue (connect burst, post-stall backlog, PTS jump) is
+     * of running dry. early_hold_us is serve hysteresis: chunks up to that
+     * far ahead of the target still release, so consumer pull batching is
+     * absorbed without gaps and steady-state serve stays sequential. The
+     * caller sizes it above the sink's pull depth — Unity's audio thread
+     * pulls several DSP blocks back-to-back, and a hysteresis smaller than
+     * that batch leaves the batch's last block with nothing due (a one-block
+     * silent pop on an otherwise healthy queue). A head further than
+     * TRIM_LATE overdue (connect burst, post-stall backlog, PTS jump) is
      * trimmed to the target — re-anchoring on the discontinuity rather than
      * discarding real-time delivery forever. */
     static const int64_t TRIM_LATE_US = 150000;
-    static const int64_t EARLY_HOLD_US = 80000;
 
     void init(int floats) { cap = floats; buf = (float*)malloc(sizeof(float) * cap); InitializeCriticalSection(&cs); }
     void destroy() { free(buf); buf = nullptr; DeleteCriticalSection(&cs); }
@@ -142,7 +145,7 @@ struct PcmRing {
     }
 
     /* target_us = INT64_MIN reads ungated (audio-only stream, no clock). */
-    int read(float* out, int n, int64_t target_us) {
+    int read(float* out, int n, int64_t target_us, int64_t early_hold_us) {
         EnterCriticalSection(&cs);
         int64_t srr = sr > 0 ? sr : 48000;
         if (target_us != INT64_MIN && ccount > 0) {
@@ -155,7 +158,7 @@ struct PcmRing {
         int got = 0;
         while (got < n && ccount > 0) {
             Chunk& c = chunks[chead];
-            if (target_us != INT64_MIN && c.pts > target_us + EARLY_HOLD_US) break;
+            if (target_us != INT64_MIN && c.pts > target_us + early_hold_us) break;
             int take = c.floats < n - got ? c.floats : n - got;
             for (int i = 0; i < take; ++i) { out[got + i] = buf[head]; head = (head + 1) % cap; }
             got += take;
@@ -1378,7 +1381,11 @@ extern "C" int basis_decoder_read_audio(basis_decoder_t* d, float* out, int max_
     } else if (d->vconfigured) {
         return 0;
     }
-    int n = d->pcm.read(out, max_floats, target);
+    /* Hysteresis must exceed the sink's pull depth (it drains several DSP
+     * blocks back-to-back); the reported output latency is that depth plus
+     * headroom, so size the hold from it. */
+    int64_t hold = 60000 + (int64_t)d->audLatencyUs;
+    int n = d->pcm.read(out, max_floats, target, hold);
     if (n > 0 && d->ach > 0) InterlockedAdd64(&d->audioSamplesRead, (LONGLONG)(n / d->ach));
     return n;
 }

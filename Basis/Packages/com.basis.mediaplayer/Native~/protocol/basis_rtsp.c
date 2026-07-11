@@ -439,7 +439,10 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
         else sz = ((p[2 + i * 2] << 8) | p[2 + i * 2 + 1]) >> 3;
         if (off + sz > plen) sz = plen - off;
         if (sz <= 0) break;
-        int64_t pts = rtp_ts_to_us(rel, d->audio->clock ? d->audio->clock : 48000);
+        /* The packet timestamp covers its first AU; each further aggregated
+         * AU advances by one AAC frame (1024 samples; the RTP clock is the
+         * sample rate). */
+        int64_t pts = rtp_ts_to_us(rel + (int64_t)i * 1024, d->audio->clock ? d->audio->clock : 48000);
         d->sink->on_audio_frame(d->sink->user, p + off, sz, pts);
         off += sz;
     }
