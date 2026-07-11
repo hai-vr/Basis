@@ -30,7 +30,9 @@ typedef enum basis_codec {
     BASIS_CODEC_H264 = 1,
     BASIS_CODEC_H265 = 2,
     BASIS_CODEC_AAC  = 10,
-    BASIS_CODEC_LPCM = 11   /* Blu-ray HDMV LPCM (TS stream_type 0x80) */
+    BASIS_CODEC_LPCM = 11   /* raw integer PCM: Blu-ray HDMV LPCM (TS stream_type
+                             * 0x80, big-endian) or RIFF/WAV (little-endian —
+                             * flags byte 3 of the announce config blob) */
 } basis_codec_t;
 
 /* Sink the demuxers push into. All callbacks are invoked from the demux thread.

@@ -294,6 +294,7 @@ struct basis_decoder {
     /* LPCM bypass (no decoder): convert/reorder straight into the PCM ring. */
     int aLpcmAssign = 0;            /* Blu-ray channel_assignment */
     int aLpcmBits = 16;
+    int aLpcmLE = 0;                /* 1 = little-endian samples (RIFF/WAV lane) */
     float* aLpcmBuf = nullptr;      /* reusable convert buffer */
     int aLpcmBufCap = 0;            /* in floats */
     volatile LONG dbg_aout = 0;     /* AAC PCM outputs produced */
@@ -910,18 +911,22 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
 
     if (codec == BASIS_CODEC_LPCM) {
         /* No decoder involved — submit_audio converts straight into the ring.
-         * 48 kHz / 16- or 24-bit only (the streaming-clip consumer plays at the
-         * clip rate, so 96/192 kHz needs a resampler this player doesn't have
-         * yet). The TS demuxer already filters to these formats before
-         * announcing; this guard is the matching backstop. The config blob
-         * carries the Blu-ray channel_assignment + bits code. */
-        if (sample_rate != 48000 || channels < 1 || channels > 8 || asc_len < 2) return 0;
+         * The config blob carries the channel-assignment + bits codes, plus an
+         * optional flags byte: bit0 = little-endian WAVE-order samples (the
+         * RIFF/WAV lane). Blu-ray TS (2-byte config, big-endian) stays 48 kHz
+         * only — the TS demuxer pre-filters, this is the matching backstop.
+         * The WAV lane plays at the file rate: the splitter downstream
+         * resamples source rate to DSP rate. 16- or 24-bit only either way. */
+        if (channels < 1 || channels > 8 || asc_len < 2) return 0;
+        int le = asc_len >= 3 && (asc[2] & 1);
+        if (le ? (sample_rate < 8000 || sample_rate > 96000) : (sample_rate != 48000)) return 0;
         int bits = asc[1] == 1 ? 16 : asc[1] == 3 ? 24 : 0;
         if (!bits) return 0; /* 20-bit unsupported */
         d->acodec = BASIS_CODEC_LPCM;
         d->asr = sample_rate; d->ach = channels;
         d->aLpcmAssign = asc[0];
         d->aLpcmBits = bits;
+        d->aLpcmLE = le;
         d->aconfigured = true;
         d->pcm.frame = channels;
         d->pcm.sr = sample_rate;
@@ -1042,10 +1047,12 @@ static void submit_lpcm(basis_decoder* d, const uint8_t* p, int len, int64_t pts
         for (int c = 0; c < ch; ++c) {
             int oc = map ? map[c] : c;
             if (bytes == 2) {
-                int v = (int16_t)((s[c * 2] << 8) | s[c * 2 + 1]);
+                int v = d->aLpcmLE ? (int16_t)(s[c * 2] | (s[c * 2 + 1] << 8))
+                                   : (int16_t)((s[c * 2] << 8) | s[c * 2 + 1]);
                 o[oc] = v / 32768.0f;
             } else {
-                int v = (s[c * 3] << 16) | (s[c * 3 + 1] << 8) | s[c * 3 + 2];
+                int v = d->aLpcmLE ? ((s[c * 3 + 2] << 16) | (s[c * 3 + 1] << 8) | s[c * 3])
+                                   : ((s[c * 3] << 16) | (s[c * 3 + 1] << 8) | s[c * 3 + 2]);
                 if (v & 0x800000) v -= 0x1000000;
                 o[oc] = v / 8388608.0f;
             }
