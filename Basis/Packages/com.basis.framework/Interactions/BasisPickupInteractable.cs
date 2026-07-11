@@ -44,6 +44,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public bool LerpToHandOnPickup = true;
 
         /// <summary>
+        /// VR only: while a hand holds the object, follow the avatar's final IK-solved hand bone instead of the
+        /// pre-IK hand target, so the object stays welded to the rendered hand and does not slide in the grip.
+        /// </summary>
+        [Tooltip("VR: weld the held object to the avatar's final IK-solved hand so it doesn't slide in the grip")]
+        public bool WeldToHand = true;
+
+        /// <summary>
         /// Show Highlight on haver. does not effect on hover exit.
         /// </summary>
         public bool ShowHighlightOnHover = true;
@@ -506,6 +513,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     Vector3 inPos = wrapper.BoneControl.OutgoingWorldData.position;
                     Quaternion inRot = wrapper.BoneControl.OutgoingWorldData.rotation;
+                    if (TryGetWeldHandPose(wrapper, out Vector3 weldHandPos, out Quaternion weldHandRot))
+                    {
+                        inPos = weldHandPos;
+                        inRot = weldHandRot;
+                    }
                     input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
                     if (RigidRef != null)
                     {
@@ -775,6 +787,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 inPos = interactingInput.BoneControl.OutgoingWorldData.position;
             }
 
+            if (TryGetWeldHandPose(interactingInput, out Vector3 weldHandPos, out Quaternion weldHandRot))
+            {
+                inPos = weldHandPos;
+                inRot = weldHandRot;
+            }
+
             if (inDesktop)
             {
                 if (pollControls)
@@ -942,6 +960,35 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 CalculateVelocity(pos, rot);
             }
+        }
+
+        /// <summary>
+        /// VR weld source: when <see cref="WeldToHand"/> is enabled and a hand holds the object, returns that
+        /// hand's post-IK world pose (<see cref="BasisLocalBoneControl.IKWorldData"/>, the rendered hand) to
+        /// follow in place of the pre-IK hand target. False for desktop (center-eye) holds or before the first solve.
+        /// </summary>
+        private bool TryGetWeldHandPose(BasisInputWrapper wrapper, out Vector3 position, out Quaternion rotation)
+        {
+            position = default;
+            rotation = default;
+            BasisBoneTrackedRole role = wrapper.Role;
+            if (!WeldToHand || (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand))
+            {
+                return false;
+            }
+            BasisLocalBoneControl bone = wrapper.BoneControl;
+            if (bone == null)
+            {
+                return false;
+            }
+            var ik = bone.IKWorldData;
+            if (ik.rotation.x == 0f && ik.rotation.y == 0f && ik.rotation.z == 0f && ik.rotation.w == 0f)
+            {
+                return false;
+            }
+            position = ik.position;
+            rotation = ik.rotation;
+            return true;
         }
 
         /// <summary>

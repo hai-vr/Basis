@@ -2,6 +2,7 @@ namespace Basis.Network.Core
 {
     public class BasisNetworkVersion
     {
-        public static ushort ServerVersion = 38;
+        // 39: avatar delta compression (DeltaAvatarChannel, ContentShare channel merge).
+        public static ushort ServerVersion = 39;
     }
 }

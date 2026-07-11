@@ -760,6 +760,20 @@ namespace Basis.Scripts.Drivers
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
 
+            // Publish the post-IK hand poses (the rendered hands) so held pickups can weld to the solved hand
+            // rather than the pre-IK target. Hands only for now.
+            var ikMap = BasisLocalAvatarDriver.Mapping;
+            if (ikMap.leftHand != null)
+            {
+                ikMap.leftHand.GetPositionAndRotation(out Vector3 ikLeftPos, out Quaternion ikLeftRot);
+                BasisLocalBoneDriver.LeftHandControl?.SetIKWorldData(ikLeftPos, ikLeftRot);
+            }
+            if (ikMap.rightHand != null)
+            {
+                ikMap.rightHand.GetPositionAndRotation(out Vector3 ikRightPos, out Quaternion ikRightRot);
+                BasisLocalBoneDriver.RightHandControl?.SetIKWorldData(ikRightPos, ikRightRot);
+            }
+
             // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
             // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
             // live avatar roots, so the runtime flip can be observed rather than only predicted.

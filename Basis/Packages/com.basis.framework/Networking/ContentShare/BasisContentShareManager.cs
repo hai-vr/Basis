@@ -94,6 +94,7 @@ public static class BasisContentShareManager
         };
 
         NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.ContentShareSub_Drop);
         msg.Serialize(writer);
 
         BasisDebug.Log($"Dropping content sphere: {msg.SphereNetID} type={contentType}", BasisDebug.LogTag.Networking);
@@ -170,6 +171,7 @@ public static class BasisContentShareManager
         };
 
         NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.ContentShareSub_Drop);
         msg.Serialize(writer);
 
         BasisDebug.Log($"Sharing server entry sphere: {connectionString}", BasisDebug.LogTag.Networking);
@@ -198,11 +200,12 @@ public static class BasisContentShareManager
         };
 
         NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.ContentShareSub_Cleanup);
         msg.Serialize(writer);
 
         BasisNetworkConnection.LocalPlayerPeer?.Send(
             writer,
-            BasisNetworkCommons.ContentShareCleanupChannel,
+            BasisNetworkCommons.ContentShareChannel,
             DeliveryMethod.ReliableOrdered
         );
     }

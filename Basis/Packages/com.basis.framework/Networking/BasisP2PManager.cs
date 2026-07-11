@@ -1,6 +1,7 @@
 using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
@@ -135,6 +136,19 @@ namespace Basis.Scripts.Networking
             ServerHost = host;
             ServerPort = port;
             BasisNetworkProfiler.ConnectedSessionsProvider = GetConnectedSessionCount;
+
+            BasisNetworkPlayer.OnRemotePlayerLeft -= HandleRemotePlayerLeft;
+            BasisNetworkPlayer.OnRemotePlayerLeft += HandleRemotePlayerLeft;
+        }
+
+        private static void HandleRemotePlayerLeft(BasisNetworkPlayer player, Basis.Scripts.BasisSdk.Players.BasisRemotePlayer remotePlayer)
+        {
+            if (player == null) return;
+            if (_sessionsByOtherId.TryGetValue(player.playerId, out Session s))
+            {
+                BasisDebug.Log($"[P2P] Player {player.playerId} left the server; dropping direct session (state {s.State}, token {Preview(s.Token)}).");
+                DropSession(s, P2PSessionState.Idle);
+            }
         }
 
         public static int GetConnectedSessionCount()
@@ -144,6 +158,8 @@ namespace Basis.Scripts.Networking
 
         public static void Shutdown()
         {
+            BasisNetworkPlayer.OnRemotePlayerLeft -= HandleRemotePlayerLeft;
+
             foreach (var kvp in _sessionsByOtherId)
             {
                 ApplyState(kvp.Value, P2PSessionState.Idle);
@@ -1154,7 +1170,8 @@ namespace Basis.Scripts.Networking
             ApplyState(s, finalState);
             RemoveSessionKeys(s);
             _sessionsByToken.TryRemove(s.Token, out _);
-            _sessionsByOtherId.TryRemove(s.OtherPlayerId, out _);
+            System.Collections.Generic.ICollection<System.Collections.Generic.KeyValuePair<ushort, Session>> byId = _sessionsByOtherId;
+            byId.Remove(new System.Collections.Generic.KeyValuePair<ushort, Session>(s.OtherPlayerId, s));
             if (s.P2PPeer != null)
             {
                 try { s.P2PPeer.Disconnect(); } catch { }

@@ -127,7 +127,11 @@ public static partial class SerializableBasis
             DeserializeAdditionalData(reader);
         }
 
-        private void DeserializeAdditionalData(NetDataReader reader)
+        /// <summary>
+        /// Reads the additional-data section [size:1][linkedIndex:1][entries...]. Public so the
+        /// avatar delta receive path can attach blendshape data after reconstructing the pose payload.
+        /// </summary>
+        public void DeserializeAdditionalData(NetDataReader reader)
         {
             if (!reader.TryGetByte(out AdditionalAvatarDataSize))
             {

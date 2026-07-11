@@ -110,11 +110,23 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte ModifyResourceChannel = 55;
 
-        // ── Content sharing ──────────────────────────────────────────────────
-        /// <summary>Drop content spheres</summary>
+        // ── Content sharing (multiplexed: first payload byte = ContentShareSub_*) ──
+        /// <summary>Content share operations. First payload byte selects a ContentShareSub_* sub-type.</summary>
         public const byte ContentShareChannel = 29;
-        /// <summary>Remove content spheres</summary>
-        public const byte ContentShareCleanupChannel = 30;
+        /// <summary>ContentShareChannel sub-type: drop a content sphere.</summary>
+        public const byte ContentShareSub_Drop = 0;
+        /// <summary>ContentShareChannel sub-type: remove/cleanup content spheres.</summary>
+        public const byte ContentShareSub_Cleanup = 1;
+
+        // ── Avatar delta (server → client only) ──────────────────────────────
+        /// <summary>
+        /// Server→client avatar delta frames (reclaimed from the former ContentShareCleanupChannel).
+        /// Keyframes stay on the per-quality avatar channels (6-13 / 41-48) unchanged; this channel
+        /// carries only deltas against each sender's last keyframe. Wire:
+        ///   [header:1][playerId:1|2][interval:1][sequence:1][baseSeq:1][delta body]
+        /// header bits: quality(2) | hasAdditional&lt;&lt;2 | largeId&lt;&lt;3. Unreliable, server-only.
+        /// </summary>
+        public const byte DeltaAvatarChannel = 30;
 
         // ── Server-bound ─────────────────────────────────────────────────────
         /// <summary>Developer hook — data only delivered to the server</summary>
@@ -363,6 +375,21 @@ namespace Basis.Network.Core
                 return ((channel - PlayerAvatarVeryLowLargeChannel) & 1) == 1;
             return ((channel - PlayerAvatarVeryLowChannel) & 1) == 1;
         }
+
+        // ── DeltaAvatarChannel header helpers ────────────────────────────────
+        // The delta channel is a single channel for all quality/id-width/additional combinations;
+        // that metadata (which is channel-encoded for keyframes) lives in a 1-byte header instead.
+        /// <summary>Packs quality(0-3) + additional + large-id into the DeltaAvatarChannel header byte.</summary>
+        public static byte BuildDeltaHeader(int qualityIndex, bool hasAdditionalData, bool largeId)
+        {
+            return (byte)((qualityIndex & 0x3) | (hasAdditionalData ? 0x4 : 0) | (largeId ? 0x8 : 0));
+        }
+        /// <summary>Quality index (0-3) from a DeltaAvatarChannel header byte.</summary>
+        public static byte DeltaHeaderQuality(byte header) => (byte)(header & 0x3);
+        /// <summary>Additional-data flag from a DeltaAvatarChannel header byte.</summary>
+        public static bool DeltaHeaderHasAdditionalData(byte header) => (header & 0x4) != 0;
+        /// <summary>Large (ushort) player-id flag from a DeltaAvatarChannel header byte.</summary>
+        public static bool DeltaHeaderLargeId(byte header) => (header & 0x8) != 0;
 
         /// <summary>
         /// All 16 per-quality avatar channels (byte-ID + ushort-ID) for aggregate congestion checks.

@@ -268,6 +268,19 @@ public static class BasisNetworkEvents
             Reader.Recycle();
         });
 
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.DeltaAvatarChannel, (peer, Reader, channel, deliveryMethod) =>
+        {
+            if (ValidateSize(Reader, peer, channel) == false)
+            {
+                Reader.Recycle();
+                return;
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+            BasisNetworkHandleAvatarDelta.Handle(Reader);
+            Reader.Recycle();
+        });
+
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.SceneChannel, (peer, Reader, channel, deliveryMethod) =>
         {
             if (ValidateSize(Reader, peer, channel) == false)
@@ -442,23 +455,20 @@ public static class BasisNetworkEvents
             }
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShare, Reader.AvailableBytes);
-                BasisContentShareManager.HandleContentShareMessage(Reader);
-                Reader.Recycle();
-            });
-        });
-
-        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ContentShareCleanupChannel, (peer, Reader, channel, deliveryMethod) =>
-        {
-            if (ValidateSize(Reader, peer, channel) == false)
-            {
-                Reader.Recycle();
-                return;
-            }
-            BasisDeviceManagement.EnqueueOnMainThread(() =>
-            {
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShareCleanup, Reader.AvailableBytes);
-                BasisContentShareManager.HandleContentShareCleanup(Reader);
+                // Multiplexed: first byte selects drop vs cleanup (ContentShareSub_*).
+                if (Reader.TryGetByte(out byte sub))
+                {
+                    if (sub == BasisNetworkCommons.ContentShareSub_Cleanup)
+                    {
+                        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShareCleanup, Reader.AvailableBytes);
+                        BasisContentShareManager.HandleContentShareCleanup(Reader);
+                    }
+                    else
+                    {
+                        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ContentShare, Reader.AvailableBytes);
+                        BasisContentShareManager.HandleContentShareMessage(Reader);
+                    }
+                }
                 Reader.Recycle();
             });
         });
