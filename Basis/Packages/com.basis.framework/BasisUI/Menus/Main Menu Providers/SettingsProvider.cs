@@ -460,6 +460,11 @@ namespace Basis.BasisUI
                 toggleDisableVRAutoHold.AssignBinding(BasisSettingsDefaults.DisableVRAutoHold);
                 toggleDisableVRAutoHold.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableVRAutoHold"));
                 toggleDisableVRAutoHold.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableVRAutoHold.tooltip"));
+
+                PanelToggle toggleUIHaptics = PanelToggle.CreateNewEntry(container);
+                toggleUIHaptics.AssignBinding(BasisSettingsDefaults.UIHaptics);
+                toggleUIHaptics.Descriptor.SetTitle(BasisLocalization.Get("settings.general.uiHaptics"));
+                toggleUIHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.uiHaptics.tooltip"));
             }, false, _ => descriptor.ForceRebuild());
 
             // VR finger touch — direct fingertip presses on menus (BasisDirectTouch).
@@ -851,6 +856,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
+            BasisSettingsDefaults.UIHaptics.ResetToDefault();
             BasisSettingsDefaults.DisableVRFingerTouch.ResetToDefault();
             BasisSettingsDefaults.FingerTouchFinger.ResetToDefault();
             BasisSettingsDefaults.FingerTouchHands.ResetToDefault();

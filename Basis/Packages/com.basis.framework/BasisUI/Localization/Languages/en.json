@@ -3643,6 +3643,14 @@
       "value": "Ignore VR auto-hold on pickups, so you must keep holding the grab button to carry them."
     },
     {
+      "key": "settings.general.uiHaptics",
+      "value": "UI Haptics"
+    },
+    {
+      "key": "settings.general.uiHaptics.tooltip",
+      "value": "Vibrate the controller when the pointer hovers over and clicks menu elements."
+    },
+    {
       "key": "settings.general.disableVRFingerTouch",
       "value": "Disable VR Finger Touch"
     },

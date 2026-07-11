@@ -436,7 +436,10 @@ namespace Basis.Scripts.UI
 
             if (pressClickHandler != null && CurrentEventData.eligibleForClick)
             {
-                BaseInput.PlayHaptic(0.1f, 1f, 0.5f);
+                if (BasisSettingsDefaults.UIHaptics.RawValue)
+                {
+                    BaseInput.PlayHaptic(0.1f, 0.1f, 0.5f);
+                }
                 // BaseInput.PlaySoundEffect("press", SMModuleAudio.ActiveMenusVolume / 80);
                 ExecuteEvents.Execute(pressClickHandler, CurrentEventData, ExecuteEvents.pointerClickHandler);
             }
@@ -505,7 +508,7 @@ namespace Basis.Scripts.UI
             }
 
             eventData.HapticHoverTarget = interactiveRoot;
-            if (interactiveRoot != null && !eventData.WasLastDown)
+            if (interactiveRoot != null && !eventData.WasLastDown && BasisSettingsDefaults.UIHaptics.RawValue)
             {
                 input.PlayHaptic(0.02f, 0.25f, 0.5f);
             }

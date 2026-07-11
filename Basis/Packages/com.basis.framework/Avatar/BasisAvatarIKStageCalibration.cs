@@ -372,7 +372,15 @@ namespace Basis.Scripts.Avatar
                 rootRot = Mapping.HasAnimatorRoot ? Mapping.AnimatorRoot.rotation : Quaternion.identity;
             }
 
-            s_refHead = CaptureCalibrationReference(BasisLocalBoneDriver.HeadControl, rootRot);
+            // The head is driven straight from the HMD with no tracker mounting offset, so its calibrated
+            // reference is pose-independent: the head effector offset is purely the avatar's head bind.
+            // Capturing it like a tracker — against the LIVE head rotation — baked the head's
+            // calibration-time pitch/roll into the offset. That's harmless for a level manual calibration
+            // (get-ready pose), but automatic calibration fires whenever the trackers announce or a
+            // SlimeVR reset lands — usually while you're looking down at the trackers — so the head sat
+            // rotated wrong afterward. An identity reference makes the head offset the bind exactly, which
+            // is what a perfectly level manual calibration already yields (so no manual regression).
+            s_refHead = Quaternion.identity;
             s_refHips = CaptureCalibrationReference(BasisLocalBoneDriver.HipsControl, rootRot);
             s_refChest = CaptureCalibrationReference(BasisLocalBoneDriver.ChestControl, rootRot);
             s_refLeftFoot = CaptureCalibrationReference(BasisLocalBoneDriver.LeftFootControl, rootRot);

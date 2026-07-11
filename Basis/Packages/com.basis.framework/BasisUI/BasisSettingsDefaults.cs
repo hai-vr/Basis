@@ -713,6 +713,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> UIHaptics = new("uihaptics", new BasisPlatformDefault<bool>(false));
 
         // ---------------- VR FINGER TOUCH ----------------
         // Direct fingertip presses on world-space UI in VR (BasisDirectTouch).
@@ -1764,6 +1765,7 @@ namespace Basis.BasisUI
             DisableSeats.LoadBindingValue();
             DisablePropPickup.LoadBindingValue();
             DisableVRAutoHold.LoadBindingValue();
+            UIHaptics.LoadBindingValue();
             DisableVRFingerTouch.LoadBindingValue();
             FingerTouchFinger.LoadBindingValue();
             FingerTouchHands.LoadBindingValue();
