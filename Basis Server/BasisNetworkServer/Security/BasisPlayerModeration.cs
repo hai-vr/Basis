@@ -439,6 +439,11 @@ namespace BasisNetworkServer.Security
                         HandleOpusFrameDurationSet(peer, reader));
                     break;
 
+                case AdminRequestMode.SetGlobalOpusBitrate:
+                    Require(peer, PermNodes.ModerationOpusBitrate, () =>
+                        HandleGlobalOpusBitrateSet(peer, reader));
+                    break;
+
                 // ===== PERMISSION EDIT =====
                 case AdminRequestMode.SetUserGroup:
                 case AdminRequestMode.SetUserNode:
@@ -1012,7 +1017,7 @@ namespace BasisNetworkServer.Security
 
             if (NetworkServer.AuthenticatedPeers.TryGetValue(targetId, out var targetPeer))
             {
-                BasisUserOpusBitrateStateManager.SendOverrideToPeer(targetPeer, applied);
+                BasisUserOpusBitrateStateManager.SendOverrideToPeer(targetPeer, BasisUserOpusBitrateStateManager.EffectiveBitrateFor(targetId));
             }
 
             string notification = applied == 0
@@ -1021,6 +1026,27 @@ namespace BasisNetworkServer.Security
 
             BNL.Log(notification);
             SendBackMessage(peer, notification);
+        }
+
+        private static void HandleGlobalOpusBitrateSet(NetPeer peer, NetPacketReader reader)
+        {
+            if (reader.AvailableBytes < 4)
+            {
+                SendBackMessage(peer, "Failed to set global Opus bitrate: missing payload.");
+                return;
+            }
+
+            int requested = reader.GetInt();
+            int applied = BasisUserOpusBitrateStateManager.SetGlobalBitrate(requested);
+
+            string notification = applied == 0
+                ? "Cleared the global Opus bitrate; clients use their default (or their per-user override)."
+                : $"Global Opus bitrate is now {applied} bps (per-user overrides still win).";
+
+            BNL.Log(notification);
+            SendBackMessage(peer, notification);
+            BasisUserOpusBitrateStateManager.PushEffectiveToAllPeers();
+            BasisUserOpusBitrateStateManager.BroadcastGlobalState();
         }
 
         private static void HandleOpusFrameDurationSet(NetPeer peer, NetPacketReader reader)

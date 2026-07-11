@@ -61,9 +61,41 @@ public static class LocalOpusSettings
     public static int BitrateOverride = 0;
 
     /// <summary>
-    /// Effective bitrate that should currently be applied to the encoder.
+    /// User-chosen voice bitrate (bps) for direct (P2P) connections, from the
+    /// Networking section of general settings. 0 when the override toggle is off.
     /// </summary>
-    public static int EffectiveBitrate => BitrateOverride > 0 ? BitrateOverride : DefaultBitrate;
+    public static int UserDirectConnectBitrate =>
+        Basis.BasisUI.BasisSettingsDefaults.P2PVoiceBitrateOverride != null
+        && Basis.BasisUI.BasisSettingsDefaults.P2PVoiceBitrateOverride.RawValue
+        && Basis.BasisUI.BasisSettingsDefaults.P2PVoiceBitrate != null
+            ? Mathf.RoundToInt(Basis.BasisUI.BasisSettingsDefaults.P2PVoiceBitrate.RawValue)
+            : 0;
+
+    /// <summary>
+    /// Effective bitrate that should currently be applied to the encoder.
+    /// Server override > user direct-connect preference (only while a direct
+    /// connection is live) > default.
+    /// </summary>
+    public static int EffectiveBitrate
+    {
+        get
+        {
+            if (BitrateOverride > 0) return BitrateOverride;
+            int userDirect = UserDirectConnectBitrate;
+            if (userDirect > 0 && Basis.Scripts.Networking.BasisP2PManager.HasAnyConnectedSession()) return userDirect;
+            return DefaultBitrate;
+        }
+    }
+
+    /// <summary>
+    /// Re-pushes <see cref="EffectiveBitrate"/> to live encoders. Call when an input
+    /// to the effective value changes outside <see cref="SetBitrateOverride"/> — the
+    /// user direct-connect setting, or a P2P session connecting/disconnecting.
+    /// </summary>
+    public static void ReevaluateEffectiveBitrate()
+    {
+        OnBitrateChanged?.Invoke(EffectiveBitrate);
+    }
 
     /// <summary>Fired whenever the effective bitrate changes.</summary>
     public static event Action<int> OnBitrateChanged;

@@ -128,7 +128,7 @@ namespace Basis.Scripts.Networking.Sync
 
         public void OnPacket(byte[] payload, int length)
         {
-            if (payload == null || length < BasisSyncCodec.HeaderSize) return;
+            if (payload == null || length < BasisSyncCodec.HeaderSize || length > payload.Length || length > _maxPacket) return;
             // Bytes on the wire for this object — counted before any drop, so it reflects what arrived.
             _bwBytes += length;
             _bwPackets++;

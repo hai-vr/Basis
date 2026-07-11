@@ -357,6 +357,11 @@ namespace Basis.Scripts.Avatar
         /// <param name="LoadingAvatarToUse">The address of the fallback avatar.</param>
         public static void RemoveOldAvatarAndLoadFallback(IBasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
+            if (CachedLoadingAvatarPrefab == null)
+            {
+                BasisDebug.LogError("Cannot spawn fallback avatar: loading avatar prefab is null (factory not initialized, or de-initialized during teardown).");
+                return;
+            }
             var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.AvatarParent);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
@@ -378,6 +383,10 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static void InitializePlayerAvatar(IBasisPlayer Player, GameObject Output, List<BasisHeadChop.HeadChopTarget> headChop)
         {
+            if (Output == null)
+            {
+                throw new InvalidOperationException("Avatar content load returned no GameObject.");
+            }
             if (Output.TryGetComponent(out BasisAvatar avatar))
             {
                 if (!Player.IsLocal)
@@ -469,6 +478,12 @@ namespace Basis.Scripts.Avatar
             // MissingReferenceException while we're already handling the first one.
             if (Player == null || Player.IsDestroyed)
             {
+                return;
+            }
+
+            if (CachedLoadingAvatarPrefab == null)
+            {
+                BasisDebug.LogError("Cannot recover with fallback avatar: loading avatar prefab is null (factory not initialized, or de-initialized during teardown).");
                 return;
             }
 

@@ -60,6 +60,11 @@ public class BasisVoiceBuffer
     private long _lateSinceAdjust;
     private int _lastDepthAdjustTick;
     private const int DepthAdjustIntervalMs = 1500;
+    private bool _underrunPending;
+    private int _underrunsSinceAdjust;
+    private int _cleanIntervals;
+    private const int CleanIntervalsBeforeShrink = 4;
+    public int GenuineUnderruns;
     // Pre-roll cap (packets). 10 ≈ 200 ms max startup buffering on a bad network.
     private const int MaxPrerollDepth = 10;
     // Running-grace cap (packets). Kept well below the decoded PCM queue (8 frames /
@@ -89,12 +94,30 @@ public class BasisVoiceBuffer
         if (elapsed >= 0 && elapsed < DepthAdjustIntervalMs) return;
         _lastDepthAdjustTick = now;
 
-        if (_arrivalsSinceAdjust >= 20)
+        bool enoughTraffic = _arrivalsSinceAdjust >= 20;
+        if (enoughTraffic || _underrunsSinceAdjust > 0)
         {
-            float lateRatio = (float)_lateSinceAdjust / _arrivalsSinceAdjust;
-            if (lateRatio > 0.05f) _adaptiveExtraDepth += 2;
-            else if (lateRatio > 0.01f) _adaptiveExtraDepth += 1;
-            else if (lateRatio < 0.002f) _adaptiveExtraDepth -= 1;
+            float lateRatio = _arrivalsSinceAdjust > 0 ? (float)_lateSinceAdjust / _arrivalsSinceAdjust : 0f;
+
+            int grow = 0;
+            if (enoughTraffic && lateRatio > 0.05f) grow = 2;
+            else if (enoughTraffic && lateRatio > 0.01f) grow = 1;
+            if (_underrunsSinceAdjust >= 2 && grow < 2) grow = 2;
+            else if (_underrunsSinceAdjust >= 1 && grow < 1) grow = 1;
+
+            if (grow > 0)
+            {
+                _adaptiveExtraDepth += grow;
+                _cleanIntervals = 0;
+            }
+            else if (enoughTraffic && lateRatio < 0.002f)
+            {
+                if (++_cleanIntervals >= CleanIntervalsBeforeShrink)
+                {
+                    _cleanIntervals = 0;
+                    _adaptiveExtraDepth -= 1;
+                }
+            }
 
             int maxExtra = MaxPrerollDepth - RemoteOpusSettings.JitterBufferSize;
             if (maxExtra < 0) maxExtra = 0;
@@ -103,6 +126,18 @@ public class BasisVoiceBuffer
         }
         _arrivalsSinceAdjust = 0;
         _lateSinceAdjust = 0;
+        _underrunsSinceAdjust = 0;
+    }
+
+    public void NoteUnderrun()
+    {
+        lock (_encodedLock)
+        {
+            if (_started && _receivedSinceStart >= TargetDepthLocked())
+            {
+                _underrunPending = true;
+            }
+        }
     }
 
     // ==================== Decoded PCM frame queue ====================
@@ -216,6 +251,16 @@ public class BasisVoiceBuffer
             }
 
             int distance = SeqDist(sequenceNumber, _nextPlaybackSeq);
+
+            if (_underrunPending)
+            {
+                _underrunPending = false;
+                if (silenceUnits == 0)
+                {
+                    _underrunsSinceAdjust++;
+                    GenuineUnderruns++;
+                }
+            }
 
             // Adaptive-depth telemetry: every packet is an arrival; a negative distance
             // means its playback slot already passed, i.e. it arrived too late for the
@@ -468,6 +513,7 @@ public class BasisVoiceBuffer
         lock (_encodedLock)
         {
             _receivedSinceStart = 0;
+            _underrunPending = false;
         }
     }
 
@@ -479,6 +525,7 @@ public class BasisVoiceBuffer
         _hasHighest = false;
         _encodedCount = 0;
         _receivedSinceStart = 0;
+        _underrunPending = false;
     }
 
     private static int SeqDist(byte target, byte baseSeq) => (sbyte)(target - baseSeq);

@@ -561,6 +561,69 @@ namespace Basis.BasisUI
                 volumeSlider.SetValueWithoutNotify(refreshed.VolumeLevel);
             };
 
+            // ---- Voice recording (consent-gated capture / re-route) ----
+            var voiceRecGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            voiceRecGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.voiceRecording"));
+            voiceRecGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.voiceRecording.description"));
+
+            ushort voiceRecPlayerId = 0;
+            bool hasVoiceRecTarget = Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                remotePlayer, out BasisNetworkPlayer voiceRecNet);
+            if (hasVoiceRecTarget) voiceRecPlayerId = voiceRecNet.playerId;
+
+            Basis.Scripts.Networking.VoiceRecording.BasisRecordingHandle voiceRecHandle = null;
+            PanelButton recordBtn = PanelButton.CreateNew(voiceRecGroup.ContentParent);
+            recordBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                hasVoiceRecTarget && Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.IsRecording(voiceRecPlayerId)
+                    ? "menu.individualPlayer.voiceRecording.stop"
+                    : "menu.individualPlayer.voiceRecording.start"));
+            recordBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.voiceRecording.start.description"));
+            recordBtn.OnClicked += async () =>
+            {
+                if (!hasVoiceRecTarget) return;
+                if (Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.IsRecording(voiceRecPlayerId))
+                {
+                    Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.StopRecording(voiceRecPlayerId);
+                    voiceRecHandle = null;
+                    recordBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.voiceRecording.start"));
+                    return;
+                }
+                recordBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.voiceRecording.requesting"));
+                voiceRecHandle = await Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.StartRecording(
+                    remotePlayer, Basis.Scripts.Networking.VoiceRecording.BasisRecordingOptions.Default);
+                recordBtn.Descriptor.SetTitle(BasisLocalization.Get(
+                    voiceRecHandle != null
+                        ? "menu.individualPlayer.voiceRecording.stop"
+                        : "menu.individualPlayer.voiceRecording.start"));
+            };
+
+            if (!string.IsNullOrEmpty(remotePlayer.UUID))
+            {
+                PanelDropdown recordPolicy = PanelDropdown.CreateNewEntry(voiceRecGroup.ContentParent);
+                recordPolicy.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy"));
+                recordPolicy.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.description"));
+
+                // Order must match BasisRecordingConsentPolicy (Ask, AlwaysAllow, AlwaysDeny).
+                List<string> recordPolicyOptions = new List<string>
+                {
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.ask"),
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.allow"),
+                    BasisLocalization.Get("menu.individualPlayer.voiceRecording.policy.deny"),
+                };
+                recordPolicy.AssignEntries(recordPolicyOptions);
+                recordPolicy.SetValueWithoutNotify(recordPolicyOptions[(int)BasisRecordingConsent.GetPolicy(remotePlayer.UUID)]);
+                recordPolicy.OnValueChanged = selected =>
+                {
+                    int idx = recordPolicyOptions.IndexOf(selected);
+                    if (idx < 0) idx = 0;
+                    BasisRecordingConsent.SetPolicy(remotePlayer.UUID, (BasisRecordingConsentPolicy)idx);
+                    if ((BasisRecordingConsentPolicy)idx == BasisRecordingConsentPolicy.AlwaysDeny && hasVoiceRecTarget)
+                    {
+                        Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.RevokeConsentToRecorder(voiceRecPlayerId);
+                    }
+                };
+            }
+
             // ---- Private chat (who can hear me) ----
             var privateChatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             privateChatGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.privateChat"));
@@ -616,13 +679,31 @@ namespace Basis.BasisUI
 
             PanelButton directConnBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
 
+            // Shown only while the direct link is degraded (PartialConnection): states the
+            // issue — the server is carrying this player and Try Again re-establishes the link.
+            var directConnStatus = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
+            directConnStatus.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.partial.description"));
+            directConnStatus.SetActive(false);
+
+            // "Try Again" — visible only when the link is partial or failed. Re-punches the
+            // existing session, or re-requests if it was already torn down.
+            PanelButton directConnRetryBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
+            directConnRetryBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.tryAgain"));
+            directConnRetryBtn.Descriptor.SetActive(false);
+            directConnRetryBtn.OnClicked += () =>
+            {
+                if (!hasDirectConnTarget) return;
+                Basis.Scripts.Networking.BasisP2PManager.RetryDirect(directConnPlayerId);
+            };
+
             string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
             {
                 bool blockedByPolicy = BasisSettingsDefaults.DisableDirectConnections.RawValue ||
                     (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass());
                 if (blockedByPolicy &&
                     st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
-                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting)
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting &&
+                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection)
                 {
                     return "menu.individualPlayer.directConnection.disabled";
                 }
@@ -641,6 +722,8 @@ namespace Basis.BasisUI
                             : "menu.individualPlayer.directConnection.connected";
                     case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting:
                         return "menu.individualPlayer.directConnection.reconnecting";
+                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection:
+                        return "menu.individualPlayer.directConnection.partial";
                     case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed:
                         return "menu.individualPlayer.directConnection.failed";
                     default:
@@ -653,6 +736,14 @@ namespace Basis.BasisUI
                 if (directConnBtn == null || directConnBtn.Descriptor == null) return;
                 var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
                 directConnBtn.Descriptor.SetTitle(BasisLocalization.Get(DirectConnLabelKey(st)));
+
+                // Partial: show the "using server" explanation. Partial/Failed: offer Try Again.
+                bool partial = st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection;
+                bool canRetry = partial || st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed;
+                if (directConnStatus != null) directConnStatus.SetActive(partial);
+                if (directConnRetryBtn != null && directConnRetryBtn.Descriptor != null)
+                    directConnRetryBtn.Descriptor.SetActive(canRetry);
+                p2pGroup.ForceRebuild();
             }
             RefreshDirectConnLabel();
 

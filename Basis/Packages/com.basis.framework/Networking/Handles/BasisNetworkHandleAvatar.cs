@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -28,6 +29,16 @@ public static class BasisNetworkHandleAvatar
         if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver player))
         {
             player.AccountReceivedBytes(wireBytes);
+            // Capture this full keyframe as the delta baseline (used to reconstruct later deltas on
+            // DeltaAvatarChannel). Cheap copy; harmless when the server isn't sending deltas, and it
+            // also captures P2P full frames — which is fine since those senders never send deltas.
+            byte[] arr = ssm.avatarSerialization.array;
+            if (arr != null)
+            {
+                int payloadSize = BasisAvatarBitPacking.ConvertToSize((BasisAvatarBitPacking.BitQuality)quality);
+                if (arr.Length >= payloadSize)
+                    player.CaptureKeyframeBaseline(quality, ssm.sequence, arr, payloadSize);
+            }
             BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, ssm);
         }
 

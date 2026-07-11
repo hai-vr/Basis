@@ -274,7 +274,7 @@ namespace Basis.Scripts.Networking
             try
             {
 #if UNITY_STANDALONE_WIN
-                // Application.dataPath = "C:\path\to\Basis Unity_Data" — strip suffix, add .exe
+                // Application.dataPath = "C:\path\to\BasisVR_Data" — strip suffix, add .exe
                 string dataPath = Application.dataPath.Replace('/', '\\');
                 if (!dataPath.EndsWith("_Data", StringComparison.OrdinalIgnoreCase)) return;
                 string exePath = dataPath.Substring(0, dataPath.Length - 5) + ".exe";

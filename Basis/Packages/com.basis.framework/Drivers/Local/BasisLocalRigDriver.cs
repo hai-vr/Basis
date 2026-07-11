@@ -11,6 +11,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
+using UnityEngine.Jobs;
 using UnityEngine.Playables;
 using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;
 using static BasisHeightDriver;
@@ -161,6 +162,13 @@ namespace Basis.Scripts.Drivers
         private NativeArray<quaternion> _fallbackRotStates;
         private NativeArray<BasisEuroVec3State> _euroPosStates;
         private NativeArray<BasisEuroQuatState> _euroRotStates;
+
+        // Post-IK world-pose publish: solved bones read via IJobParallelForTransform, rest via _ikFallbackControls.
+        private TransformAccessArray _ikPublishTransforms;
+        private BasisLocalBoneControl[] _ikPublishControls;
+        private BasisLocalBoneControl[] _ikFallbackControls;
+        private NativeArray<float3> _ikPublishPositions;
+        private NativeArray<quaternion> _ikPublishRotations;
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -193,11 +201,14 @@ namespace Basis.Scripts.Drivers
             // Keep FBT rotation calibration across avatar swaps: re-derive this avatar's per-effector offsets
             // from the stored calibration reference. No-op until the user has calibrated.
             ApplyCalibrationToCurrentAvatar();
+
+            BuildIKPublishArrays();
         }
 
         public void CleanupBeforeContinue()
         {
             DisposeFilterArrays();
+            DisposeIKPublishArrays();
 
             if (MainRig == null)
             {
@@ -760,6 +771,11 @@ namespace Basis.Scripts.Drivers
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
 
+            // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
+            // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
+            // OutgoingWorldData.
+            PublishIKWorldData();
+
             // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
             // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
             // live avatar roots, so the runtime flip can be observed rather than only predicted.
@@ -795,6 +811,156 @@ namespace Basis.Scripts.Drivers
             }
 
             return rawPos;
+        }
+
+        private void PublishIKWorldData()
+        {
+            if (!_ikPublishTransforms.isCreated || _ikPublishControls == null
+                || _ikPublishTransforms.length != _ikPublishControls.Length)
+            {
+                PublishIKWorldDataMainThread();
+                return;
+            }
+
+            if (_ikPublishControls.Length > 0)
+            {
+                new BasisReadBoneWorldPoseJob
+                {
+                    Positions = _ikPublishPositions,
+                    Rotations = _ikPublishRotations,
+                }.Schedule(_ikPublishTransforms).Complete();
+
+                for (int i = 0; i < _ikPublishControls.Length; i++)
+                {
+                    _ikPublishControls[i].SetIKWorldData(_ikPublishPositions[i], _ikPublishRotations[i]);
+                }
+            }
+
+            var fallback = _ikFallbackControls;
+            for (int i = 0; i < fallback.Length; i++)
+            {
+                var world = fallback[i].OutgoingWorldData;
+                fallback[i].SetIKWorldData(world.position, world.rotation);
+            }
+        }
+
+        private void BuildIKPublishArrays()
+        {
+            DisposeIKPublishArrays();
+
+            var m = BasisLocalAvatarDriver.Mapping;
+            if (m == null) return;
+
+            (BasisLocalBoneControl control, Transform bone, bool has)[] entries =
+            {
+                (BasisLocalBoneDriver.HeadControl, m.head, m.Hashead),
+                (BasisLocalBoneDriver.NeckControl, m.neck, m.Hasneck),
+                (BasisLocalBoneDriver.ChestControl, m.chest, m.Haschest),
+                (BasisLocalBoneDriver.SpineControl, m.spine, m.Hasspine),
+                (BasisLocalBoneDriver.HipsControl, m.Hips, m.HasHips),
+
+                (BasisLocalBoneDriver.LeftShoulderControl, m.leftShoulder, m.HasleftShoulder),
+                (BasisLocalBoneDriver.LeftLowerArmControl, m.leftLowerArm, m.HasleftLowerArm),
+                (BasisLocalBoneDriver.LeftHandControl, m.leftHand, m.HasleftHand),
+                (BasisLocalBoneDriver.RightShoulderControl, m.RightShoulder, m.HasRightShoulder),
+                (BasisLocalBoneDriver.RightLowerArmControl, m.RightLowerArm, m.HasRightLowerArm),
+                (BasisLocalBoneDriver.RightHandControl, m.rightHand, m.HasrightHand),
+
+                (BasisLocalBoneDriver.LeftUpperLegControl, m.LeftUpperLeg, m.HasLeftUpperLeg),
+                (BasisLocalBoneDriver.LeftLowerLegControl, m.LeftLowerLeg, m.HasLeftLowerLeg),
+                (BasisLocalBoneDriver.LeftFootControl, m.leftFoot, m.HasleftFoot),
+                (BasisLocalBoneDriver.LeftToeControl, m.leftToe, m.HasleftToes),
+                (BasisLocalBoneDriver.RightUpperLegControl, m.RightUpperLeg, m.HasRightUpperLeg),
+                (BasisLocalBoneDriver.RightLowerLegControl, m.RightLowerLeg, m.HasRightLowerLeg),
+                (BasisLocalBoneDriver.RightFootControl, m.rightFoot, m.HasrightFoot),
+                (BasisLocalBoneDriver.RightToeControl, m.rightToe, m.HasrightToes),
+
+                (BasisLocalBoneDriver.EyeControl, null, false),
+                (BasisLocalBoneDriver.MouthControl, null, false),
+            };
+
+            var solvedTransforms = new List<Transform>(entries.Length);
+            var solvedControls = new List<BasisLocalBoneControl>(entries.Length);
+            var fallbackControls = new List<BasisLocalBoneControl>(4);
+
+            foreach (var e in entries)
+            {
+                if (e.control == null) continue;
+                if (e.has && e.bone != null)
+                {
+                    solvedTransforms.Add(e.bone);
+                    solvedControls.Add(e.control);
+                }
+                else
+                {
+                    fallbackControls.Add(e.control);
+                }
+            }
+
+            _ikPublishControls = solvedControls.ToArray();
+            _ikFallbackControls = fallbackControls.ToArray();
+            _ikPublishTransforms = new TransformAccessArray(solvedTransforms.ToArray());
+            _ikPublishPositions = new NativeArray<float3>(_ikPublishControls.Length, Allocator.Persistent);
+            _ikPublishRotations = new NativeArray<quaternion>(_ikPublishControls.Length, Allocator.Persistent);
+        }
+
+        private void DisposeIKPublishArrays()
+        {
+            if (_ikPublishTransforms.isCreated) _ikPublishTransforms.Dispose();
+            if (_ikPublishPositions.IsCreated) _ikPublishPositions.Dispose();
+            if (_ikPublishRotations.IsCreated) _ikPublishRotations.Dispose();
+            _ikPublishControls = null;
+            _ikFallbackControls = null;
+        }
+
+        // Publishes every bone control's post-IK world pose (the rendered bone) into IKWorldData. Uses the solved
+        // animator transform when the avatar has that bone; otherwise falls back to the pre-IK OutgoingWorldData
+        // (center-eye, mouth, or any bone the avatar lacks).
+        private static void PublishIKWorldDataMainThread()
+        {
+            var m = BasisLocalAvatarDriver.Mapping;
+            if (m == null) return;
+
+            PublishBoneIK(BasisLocalBoneDriver.HeadControl, m.head, m.Hashead);
+            PublishBoneIK(BasisLocalBoneDriver.NeckControl, m.neck, m.Hasneck);
+            PublishBoneIK(BasisLocalBoneDriver.ChestControl, m.chest, m.Haschest);
+            PublishBoneIK(BasisLocalBoneDriver.SpineControl, m.spine, m.Hasspine);
+            PublishBoneIK(BasisLocalBoneDriver.HipsControl, m.Hips, m.HasHips);
+
+            PublishBoneIK(BasisLocalBoneDriver.LeftShoulderControl, m.leftShoulder, m.HasleftShoulder);
+            PublishBoneIK(BasisLocalBoneDriver.LeftLowerArmControl, m.leftLowerArm, m.HasleftLowerArm);
+            PublishBoneIK(BasisLocalBoneDriver.LeftHandControl, m.leftHand, m.HasleftHand);
+            PublishBoneIK(BasisLocalBoneDriver.RightShoulderControl, m.RightShoulder, m.HasRightShoulder);
+            PublishBoneIK(BasisLocalBoneDriver.RightLowerArmControl, m.RightLowerArm, m.HasRightLowerArm);
+            PublishBoneIK(BasisLocalBoneDriver.RightHandControl, m.rightHand, m.HasrightHand);
+
+            PublishBoneIK(BasisLocalBoneDriver.LeftUpperLegControl, m.LeftUpperLeg, m.HasLeftUpperLeg);
+            PublishBoneIK(BasisLocalBoneDriver.LeftLowerLegControl, m.LeftLowerLeg, m.HasLeftLowerLeg);
+            PublishBoneIK(BasisLocalBoneDriver.LeftFootControl, m.leftFoot, m.HasleftFoot);
+            PublishBoneIK(BasisLocalBoneDriver.LeftToeControl, m.leftToe, m.HasleftToes);
+            PublishBoneIK(BasisLocalBoneDriver.RightUpperLegControl, m.RightUpperLeg, m.HasRightUpperLeg);
+            PublishBoneIK(BasisLocalBoneDriver.RightLowerLegControl, m.RightLowerLeg, m.HasRightLowerLeg);
+            PublishBoneIK(BasisLocalBoneDriver.RightFootControl, m.rightFoot, m.HasrightFoot);
+            PublishBoneIK(BasisLocalBoneDriver.RightToeControl, m.rightToe, m.HasrightToes);
+
+            // No humanoid transform for these — publish the pre-IK world pose so IKWorldData is still valid.
+            PublishBoneIK(BasisLocalBoneDriver.EyeControl, null, false);
+            PublishBoneIK(BasisLocalBoneDriver.MouthControl, null, false);
+        }
+
+        private static void PublishBoneIK(BasisLocalBoneControl control, Transform bone, bool has)
+        {
+            if (control == null) return;
+            if (has && bone != null)
+            {
+                bone.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+                control.SetIKWorldData(position, rotation);
+            }
+            else
+            {
+                var world = control.OutgoingWorldData;
+                control.SetIKWorldData(world.position, world.rotation);
+            }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float ExpAlpha(float hz, float dt)

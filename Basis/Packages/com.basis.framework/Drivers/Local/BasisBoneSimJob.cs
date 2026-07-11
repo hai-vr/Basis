@@ -43,6 +43,9 @@ namespace Basis.Scripts.Drivers
 
         public float3 OutgoingWorldPosition;
         public quaternion OutgoingWorldRotation;
+
+        public float3 IKWorldPosition;
+        public quaternion IKWorldRotation;
     }
 
     /// <summary>

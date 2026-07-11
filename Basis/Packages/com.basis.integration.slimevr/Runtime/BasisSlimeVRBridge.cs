@@ -1,9 +1,11 @@
 #if BASIS_FRAMEWORK_EXISTS
 using System;
 using System.Collections.Generic;
+using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using solarxr_protocol.datatypes;
 using solarxr_protocol.rpc;
 using UnityEngine;
 
@@ -35,6 +37,27 @@ namespace Basis.Integration.SlimeVR
         private static bool _hooked;
         private static bool _pendingSeatedApply;
 
+        // ---- FBT offset freshness ----
+        // SlimeVR's mounting orientation is a static per-tracker calibration value that only moves when
+        // the user runs a mounting/full reset. Basis captures each tracker's bone offset RELATIVE to the
+        // tracker's reported orientation, so a reset silently invalidates every FBT offset until the next
+        // calibration. We snapshot the mounting orientations at each calibration and re-run
+        // FullBodyCalibration when they drift, so a SlimeVR reset self-heals with no manual recalibration.
+        private const float MountingChangeThresholdDegrees = 4f;
+        private const float RecaptureCooldownSeconds = 6f;
+        private static readonly Dictionary<BodyPart, Quaternion> _mountingBaseline = new Dictionary<BodyPart, Quaternion>();
+        private static bool _hasMountingBaseline;
+        private static float _lastRecaptureRealtime = float.NegativeInfinity;
+
+        /// <summary>Largest mounting-orientation drift (degrees) from the last calibration across bound trackers.</summary>
+        public static float MountingDriftDegrees { get; private set; }
+        /// <summary>A mounting change was detected but not yet recaptured (seated, cooling down, or setting off).</summary>
+        public static bool OffsetsStale { get; private set; }
+        /// <summary>Why the last FBT offset recapture ran (for the debug window / status text).</summary>
+        public static string LastRecaptureReason { get; private set; }
+        /// <summary><see cref="Time.realtimeSinceStartup"/> at the last recapture.</summary>
+        public static float LastRecaptureRealtime { get; private set; } = float.NegativeInfinity;
+
         private static readonly object _trackerSwapLock = new object();
         private static List<SlimeVRTrackerSnapshot> _incomingTrackers;
         private static bool _trackerFlushQueued;
@@ -63,7 +86,11 @@ namespace Basis.Integration.SlimeVR
                 BasisSlimeVRSettings.Enable.OnChanged += OnEnableSettingChanged;
                 BasisSlimeVRSettings.ApplyBodyMeasurements.OnChanged += OnApplySettingChanged;
                 BasisSlimeVRSettings.Transport.OnChanged += OnTransportSettingChanged;
+                BasisSlimeVRSettings.TrackerSource.OnChanged += OnTrackerSourceChanged;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChanged;
+                // Every calibration (menu, auto-bind, or our own recapture) becomes the new mounting
+                // reference the drift check compares against.
+                BasisAvatarIKStageCalibration.OnFullBodyCalibrated += SnapshotMountingBaseline;
             }
 
             if (BasisSlimeVRSettings.Enable.RawValue)
@@ -81,6 +108,7 @@ namespace Basis.Integration.SlimeVR
             _client = new BasisSolarXRClient
             {
                 Transport = SelectedTransport,
+                EnablePoseFeed = BasisSlimeVRTrackerSource.WantsPoseFeed(),
                 Log = message => BasisDebug.Log(message, BasisDebug.LogTag.Device),
                 LogError = message => BasisDebug.LogError(message, BasisDebug.LogTag.Device),
                 ConnectionChanged = connected => RunOnMainThread(() => HandleConnectionChanged(connected)),
@@ -127,6 +155,41 @@ namespace Basis.Integration.SlimeVR
         /// <summary>SlimeVR mounting reset.</summary>
         public static void TriggerMountingReset() => _client?.RequestReset(ResetType.Mounting);
 
+        /// <summary>
+        /// Re-runs the standard full-body calibration so every FBT tracker recaptures its bone offset
+        /// against the current tracker orientations. Safe to call by hand (menu / debug button); the
+        /// automatic mounting-drift path routes through here too. Roles pinned by the announced-role
+        /// scanner rebind without scoring, so this is effectively a pure offset/rotation recapture.
+        /// </summary>
+        public static void RecaptureFbtOffsets(string reason)
+        {
+            _lastRecaptureRealtime = Time.realtimeSinceStartup;
+            LastRecaptureRealtime = _lastRecaptureRealtime;
+            LastRecaptureReason = reason;
+            OffsetsStale = false;
+            BasisDebug.Log($"Recapturing SlimeVR FBT offsets: {reason}", BasisDebug.LogTag.Device);
+            // Fires OnFullBodyCalibrated -> SnapshotMountingBaseline, which resets the drift reference.
+            BasisAvatarIKStageCalibration.FullBodyCalibration();
+        }
+
+        /// <summary>Per-part mounting drift from the last calibration (degrees), or 0 if unknown.</summary>
+        public static float GetMountingDriftDegrees(BodyPart part)
+        {
+            if (!_hasMountingBaseline || !_mountingBaseline.TryGetValue(part, out Quaternion baseline))
+            {
+                return 0f;
+            }
+            for (int i = 0; i < Trackers.Count; i++)
+            {
+                SlimeVRTrackerSnapshot t = Trackers[i];
+                if (t.BodyPart == part && t.TryGetEffectiveMounting(out SlimeVRQuat mounting))
+                {
+                    return RawQuatAngleDegrees(baseline, ToQuat(mounting));
+                }
+            }
+            return 0f;
+        }
+
         // ---- Worker-to-main-thread plumbing ----
 
         private static void RunOnMainThread(Action action)
@@ -166,6 +229,7 @@ namespace Basis.Integration.SlimeVR
             Trackers.Clear();
             Trackers.AddRange(latest);
             OnTrackersUpdated?.Invoke();
+            EvaluateMountingFreshness();
         }
 
         private static void HandleConnectionChanged(bool connected)
@@ -186,6 +250,110 @@ namespace Basis.Integration.SlimeVR
             HasBodyMetrics = true;
             OnBodyMetricsChanged?.Invoke(LastBodyMetrics);
             TryApplyBodyMeasurements(LastBodyMetrics);
+        }
+
+        // ---- FBT offset freshness ----
+
+        /// <summary>
+        /// Records each bound tracker's current mounting orientation as the reference the live offsets
+        /// were captured against. Runs after every FullBodyCalibration, so the drift check only fires
+        /// on a genuine post-calibration change.
+        /// </summary>
+        private static void SnapshotMountingBaseline()
+        {
+            _mountingBaseline.Clear();
+            for (int i = 0; i < Trackers.Count; i++)
+            {
+                SlimeVRTrackerSnapshot t = Trackers[i];
+                if (t.IsSynthetic || t.IsHmd)
+                {
+                    continue;
+                }
+                if (t.TryGetEffectiveMounting(out SlimeVRQuat mounting))
+                {
+                    _mountingBaseline[t.BodyPart] = ToQuat(mounting);
+                }
+            }
+            _hasMountingBaseline = true;
+            MountingDriftDegrees = 0f;
+            OffsetsStale = false;
+        }
+
+        /// <summary>
+        /// Compares each tracker's live mounting orientation against the last-calibration baseline and,
+        /// when it has drifted past the threshold, re-runs full-body calibration to recapture offsets.
+        /// Runs on every datafeed flush and on standing up. No-op until a calibration has established a
+        /// baseline and SlimeVR trackers are actually driving the rig.
+        /// </summary>
+        private static void EvaluateMountingFreshness()
+        {
+            if (!BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue
+                || !IsConnected
+                || !_hasMountingBaseline
+                || !BasisAvatarIKStageCalibration.HasFBIKTrackers)
+            {
+                OffsetsStale = false;
+                MountingDriftDegrees = 0f;
+                return;
+            }
+
+            float maxDrift = 0f;
+            for (int i = 0; i < Trackers.Count; i++)
+            {
+                SlimeVRTrackerSnapshot t = Trackers[i];
+                if (t.IsSynthetic || t.IsHmd || !t.TryGetEffectiveMounting(out SlimeVRQuat mounting))
+                {
+                    continue;
+                }
+                Quaternion live = ToQuat(mounting);
+                if (!_mountingBaseline.TryGetValue(t.BodyPart, out Quaternion baseline))
+                {
+                    // A tracker absent at the last calibration has no captured offset to invalidate;
+                    // adopt its current orientation as its own baseline (announced-role binding will
+                    // recalibrate if it actually takes a role).
+                    _mountingBaseline[t.BodyPart] = live;
+                    continue;
+                }
+                float drift = RawQuatAngleDegrees(baseline, live);
+                if (drift > maxDrift)
+                {
+                    maxDrift = drift;
+                }
+            }
+
+            MountingDriftDegrees = maxDrift;
+            if (maxDrift <= MountingChangeThresholdDegrees)
+            {
+                OffsetsStale = false;
+                return;
+            }
+
+            OffsetsStale = true;
+
+            // Seated defers (recapture needs the standing pose; OnPlayersHeightChanged re-checks on
+            // stand). The cooldown stops a still-settling reset from firing a burst of recaptures.
+            if (SMModuleSitStand.IsSteatedMode
+                || Time.realtimeSinceStartup - _lastRecaptureRealtime < RecaptureCooldownSeconds)
+            {
+                return;
+            }
+
+            RecaptureFbtOffsets($"SlimeVR mounting changed ({maxDrift:F0}°)");
+        }
+
+        private static Quaternion ToQuat(SlimeVRQuat q) => new Quaternion(q.X, q.Y, q.Z, q.W);
+
+        // Geodesic angle between two SlimeVR quaternions, compared in SlimeVR's own frame. Both operands
+        // are SlimeVR-space so no handedness conversion is needed — a same-frame delta is all the
+        // mounting-drift check requires.
+        private static float RawQuatAngleDegrees(Quaternion a, Quaternion b)
+        {
+            float dot = Mathf.Abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w);
+            if (dot > 1f)
+            {
+                dot = 1f;
+            }
+            return 2f * Mathf.Acos(dot) * Mathf.Rad2Deg;
         }
 
         // ---- Applying measurements to the Basis height system ----
@@ -225,6 +393,19 @@ namespace Basis.Integration.SlimeVR
             StartClient();
         }
 
+        private static void OnTrackerSourceChanged(string _)
+        {
+            // Toggling server sourcing changes whether the datafeed carries poses (and its rate), so the
+            // client reconnects with the right feed. BasisSlimeVRTrackerSource reconciles devices on its
+            // own loop from BasisSlimeVRTrackerSource.WantsPoseFeed().
+            if (_client == null)
+            {
+                return;
+            }
+            StopClient();
+            StartClient();
+        }
+
         private static void OnPlayersHeightChanged(BasisHeightDriver.HeightModeChange mode)
         {
             // A seated stint blocks applying (seated mode swaps in a virtual standing eye height);
@@ -236,6 +417,13 @@ namespace Basis.Integration.SlimeVR
             {
                 _pendingSeatedApply = false;
                 TryApplyBodyMeasurements(LastBodyMetrics);
+            }
+
+            // A mounting change detected while seated defers its recapture (it needs the standing
+            // pose); re-check the moment the player stands rather than waiting for the next flush.
+            if (mode == BasisHeightDriver.HeightModeChange.OnSitStandChanged && !SMModuleSitStand.IsSteatedMode)
+            {
+                EvaluateMountingFreshness();
             }
         }
 

@@ -23,7 +23,7 @@ namespace Basis.Scripts.Networking.Receivers
     [Serializable]
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
-        public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 54
+        public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51
 
         // Cached delegates — created once, avoids per-frame Action/Comparison heap allocations.
         private static readonly Action<BasisAvatarBuffer> s_releaseBuffer = BasisAvatarBufferPool.Release;
@@ -292,7 +292,10 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.BeginSample("ComputeData.AudioDecode");
 #endif
-            AudioReceiverModule.DrainAndDecodeThreadSafe();
+            if (!AudioReceiverModule.IsAudioActive || AudioReceiverModule.VoiceBuffer.DecodedFrameCount == 0)
+            {
+                AudioReceiverModule.DrainAndDecodeThreadSafe();
+            }
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.EndSample();
 #endif
@@ -551,6 +554,38 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public bool IsDataReady = false;
 
+        // ── Avatar delta baseline (last full keyframe payload received for this player) ──
+        // Deltas on DeltaAvatarChannel reconstruct against this. Touched only on the network
+        // receive thread (BasisNetworkHandleAvatar / BasisNetworkHandleAvatarDelta), no locking.
+        private byte[] _keyframeBaseline;
+        private byte _keyframeBaselineQuality;
+        private byte _keyframeBaselineSequence;
+        private bool _hasKeyframeBaseline;
+
+        /// <summary>Stores the last full keyframe payload as the delta baseline for this player.</summary>
+        public void CaptureKeyframeBaseline(byte quality, byte sequence, byte[] payload, int length)
+        {
+            if (payload == null || length <= 0) return;
+            if (_keyframeBaseline == null || _keyframeBaseline.Length < length)
+                _keyframeBaseline = new byte[length];
+            Buffer.BlockCopy(payload, 0, _keyframeBaseline, 0, length);
+            _keyframeBaselineQuality = quality;
+            _keyframeBaselineSequence = sequence;
+            _hasKeyframeBaseline = true;
+        }
+
+        /// <summary>Returns the baseline payload if one is held at the given quality and base sequence.</summary>
+        public bool TryGetKeyframeBaseline(byte quality, byte baseSequence, out byte[] baseline)
+        {
+            if (_hasKeyframeBaseline && _keyframeBaselineQuality == quality && _keyframeBaselineSequence == baseSequence)
+            {
+                baseline = _keyframeBaseline;
+                return true;
+            }
+            baseline = null;
+            return false;
+        }
+
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
             Interlocked.Increment(ref _poseVersion);
@@ -569,6 +604,7 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
+            _hasKeyframeBaseline = false;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -666,6 +702,7 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
+            _hasKeyframeBaseline = false;
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))

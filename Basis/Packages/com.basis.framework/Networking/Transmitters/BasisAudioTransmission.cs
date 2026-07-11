@@ -263,34 +263,46 @@ namespace Basis.Scripts.Networking.Transmitters
 #if !UNITY_SERVER
         private void EncodeAndSend(float[] pcm, int sampleCount)
         {
-            writer.Reset();
-            lock (_encoderLock)
+            try
             {
-                if (encoder == null) return;
-                Segment.LengthUsed = encoder.Encode(pcm, sampleCount, Segment.buffer, Segment.TotalLength);
-            }
-            Segment.SequenceNumber = _sequenceNumber++;
+                writer.Reset();
+                lock (_encoderLock)
+                {
+                    if (encoder == null) return;
+                    Segment.LengthUsed = encoder.Encode(pcm, sampleCount, Segment.buffer, Segment.TotalLength);
+                }
+                Segment.SequenceNumber = _sequenceNumber++;
 
-            if (SilentForHowLong > 256)
-            {
-                Segment.TotalPlayedInSilence = 0;
-            }
-            else
-            {
-                Segment.TotalPlayedInSilence = (byte)SilentForHowLong;
-            }
-            Segment.Serialize(writer);
+                if (SilentForHowLong > 256)
+                {
+                    Segment.TotalPlayedInSilence = 0;
+                }
+                else
+                {
+                    Segment.TotalPlayedInSilence = (byte)SilentForHowLong;
+                }
+                Segment.Serialize(writer);
 
-            byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
-            BasisNetworkConnection.LocalPlayerPeer.Send(writer, channel, DeliveryMethod.Unreliable);
-            if (!IsInShoutMode)
-            {
-                BasisP2PManager.BroadcastVoiceViaP2P(writer);
+                var peer = BasisNetworkConnection.LocalPlayerPeer;
+                if (peer == null)
+                {
+                    return;
+                }
+                byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
+                peer.Send(writer, channel, DeliveryMethod.Unreliable);
+                if (!IsInShoutMode)
+                {
+                    BasisP2PManager.BroadcastVoiceViaP2P(writer);
+                }
+                if (BasisLocalPlayer.Instance != null)
+                {
+                    BasisLocalPlayer.Instance.AudioReceived?.Invoke();
+                }
             }
-            if (BasisLocalPlayer.Instance != null)
+            catch (Exception ex)
             {
-                BasisLocalPlayer.Instance.AudioReceived?.Invoke();
+                BasisDebug.LogErrorOnce($"Voice encode/send failed: {ex}", BasisDebug.LogTag.Voice);
             }
         }
 #endif

@@ -167,7 +167,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BasisNetworkAvatarBehaviour behaviour = NetworkBehaviours[Index];
                 if (behaviour != null)
                 {
-                    behaviour.OnNetworkUnassign();
+                    try
+                    {
+                        behaviour.OnNetworkUnassign();
+                    }
+                    catch (System.Exception ex)
+                    {
+                        BasisDebug.LogError($"OnNetworkUnassign threw during teardown: {ex}");
+                    }
                 }
             }
             NetworkBehaviours = null;

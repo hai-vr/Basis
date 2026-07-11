@@ -21,6 +21,7 @@ namespace Basis.ImagePickup
         public static BasisImagePickupManager Instance { get; private set; }
 
         private const string FixedNetworkIdentifier = "BasisImagePickupManager";
+        private const int MaxIgnoredOwnerNameBytes = 1024;
 
         private const byte OpSpawn = 1;
         private const byte OpChunk = 2;
@@ -264,8 +265,8 @@ namespace Basis.ImagePickup
         private void HandleSpawn(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
-            ushort ownerId = reader.ReadUInt16();
-            string ownerName = reader.ReadString();
+            reader.ReadUInt16();
+            if (!TrySkipWireString(reader, MaxIgnoredOwnerNameBytes)) return;
             int width = reader.ReadInt32();
             int height = reader.ReadInt32();
             int totalBytes = reader.ReadInt32();
@@ -292,8 +293,8 @@ namespace Basis.ImagePickup
                 TotalChunks = totalChunks,
                 Width = width,
                 Height = height,
-                OwnerId = ownerId,
-                OwnerName = ownerName,
+                OwnerId = senderId,
+                OwnerName = ResolveOwnerName(senderId),
                 Deadline = Time.unscaledTime + BasisImagePickupSettings.InboundTransferTimeoutSeconds,
                 Position = position,
                 Rotation = rotation,
@@ -305,15 +306,23 @@ namespace Basis.ImagePickup
             Guid id = new Guid(reader.ReadBytes(16));
             int chunkIndex = reader.ReadInt32();
             int length = reader.ReadInt32();
-            byte[] data = reader.ReadBytes(length);
 
             if (!_inbound.TryGetValue(id, out InboundTransfer transfer)) return;
             if (transfer.Sender != senderId) return;
             if (chunkIndex < 0 || chunkIndex >= transfer.TotalChunks) return;
-            if (data.Length != length) return;
+            if (length < 0 || length > BasisImagePickupSettings.ChunkPayloadBytes) return;
 
             int offset = chunkIndex * BasisImagePickupSettings.ChunkPayloadBytes;
-            if (offset < 0 || offset + length > transfer.Buffer.Length) return;
+            if (offset < 0 || offset >= transfer.Buffer.Length) return;
+
+            int expectedLength = Mathf.Min(BasisImagePickupSettings.ChunkPayloadBytes, transfer.Buffer.Length - offset);
+            if (length != expectedLength) return;
+
+            long remainingBytes = reader.BaseStream.Length - reader.BaseStream.Position;
+            if (remainingBytes < length) return;
+
+            byte[] data = reader.ReadBytes(length);
+            if (data.Length != length) return;
 
             if (!transfer.Received[chunkIndex])
             {
@@ -447,6 +456,45 @@ namespace Basis.ImagePickup
         {
             _imageCountBySender.TryGetValue(sender, out int count);
             _imageCountBySender[sender] = count + 1;
+        }
+
+        private static string ResolveOwnerName(ushort senderId)
+        {
+            if (BasisNetworkPlayer.GetPlayerById(senderId, out BasisNetworkPlayer player))
+            {
+                string name = player.SafeDisplayName;
+                if (string.IsNullOrEmpty(name)) name = player.displayName;
+                if (!string.IsNullOrEmpty(name)) return name;
+            }
+            return $"Player {senderId}";
+        }
+
+        private static bool TrySkipWireString(BinaryReader reader, int maxByteLength)
+        {
+            if (!TryRead7BitEncodedInt(reader, out int byteLength)) return false;
+            if (byteLength < 0 || byteLength > maxByteLength) return false;
+
+            long remainingBytes = reader.BaseStream.Length - reader.BaseStream.Position;
+            if (remainingBytes < byteLength) return false;
+
+            reader.BaseStream.Position += byteLength;
+            return true;
+        }
+
+        private static bool TryRead7BitEncodedInt(BinaryReader reader, out int value)
+        {
+            value = 0;
+            for (int shift = 0; shift < 35; shift += 7)
+            {
+                if (reader.BaseStream.Length - reader.BaseStream.Position < 1) return false;
+
+                byte b = reader.ReadByte();
+                if (shift == 28 && (b & 0xF0) != 0) return false;
+
+                value |= (b & 0x7F) << shift;
+                if ((b & 0x80) == 0) return true;
+            }
+            return false;
         }
 
         private void DecrementSenderCount(ushort sender)

@@ -109,6 +109,32 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             }
         }
 
+        /// <summary>
+        /// World-space pose of this bone AFTER the full-body IK solve (the rendered bone), published by
+        /// <see cref="BasisLocalRigDriver"/> once the rig evaluates. Unlike <see cref="OutgoingWorldData"/>
+        /// (the pre-IK target the solver aims at), this is where the bone actually ended up. Published for every
+        /// bone control after the rig evaluates; bones with no solved transform (center-eye, mouth, or a bone the
+        /// avatar lacks) fall back to <see cref="OutgoingWorldData"/>. Zero/identity rotation until the first solve.
+        /// </summary>
+        public unsafe BasisCalibratedCoords IKWorldData
+        {
+            get
+            {
+                if (Owner == null) return BasisCalibratedCoords.Identity;
+                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                return new BasisCalibratedCoords(s.IKWorldPosition, s.IKWorldRotation);
+            }
+        }
+
+        /// <summary>Publishes the post-IK world pose into the native store; call on the main thread after the rig evaluates.</summary>
+        public unsafe void SetIKWorldData(Vector3 position, Quaternion rotation)
+        {
+            if (Owner == null) return;
+            ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+            s.IKWorldPosition = position;
+            s.IKWorldRotation = rotation;
+        }
+
         /// <summary>Pose from the previous compute step (local space).</summary>
         public unsafe BasisCalibratedCoords LastRunData
         {

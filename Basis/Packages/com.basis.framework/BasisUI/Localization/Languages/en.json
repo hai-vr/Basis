@@ -43,6 +43,14 @@
       "value": "How many times per second your avatar pose is sent to peers."
     },
     {
+      "key": "settings.general.networking.p2pVoiceBitrateOverride.tooltip",
+      "value": "Use a custom voice bitrate while a direct connection is active."
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate.tooltip",
+      "value": "Higher = better voice quality and more bandwidth."
+    },
+    {
       "key": "settings.audio.masterVolume.tooltip",
       "value": "Overall loudness of all sound in the app."
     },
@@ -1567,6 +1575,14 @@
       "value": "How much extra voice data is sent to recover from packet loss."
     },
     {
+      "key": "settings.admin.opusBitrate.override.tooltip",
+      "value": "Force a voice bitrate on every player's encoder."
+    },
+    {
+      "key": "settings.admin.opusBitrate.tooltip",
+      "value": "Voice bitrate every player transmits with while the override is on."
+    },
+    {
       "key": "settings.admin.maxMicrophoneRange.tooltip",
       "value": "Cap how far any player's voice can transmit, in metres."
     },
@@ -2427,6 +2443,70 @@
       "value": "Always render this player's avatar, even when distance, the max visible avatar cap, or the view cone filter would normally replace it with the loading avatar. Blocking and the performance filter still apply."
     },
     {
+      "key": "menu.individualPlayer.voiceRecording",
+      "value": "Voice Recording"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.description",
+      "value": "Record or re-route this player's voice. They are asked for permission and can revoke it at any time."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.start",
+      "value": "Record Voice"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.start.description",
+      "value": "Ask this player for permission, then record their voice to a clip on your device."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.stop",
+      "value": "Stop Recording"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.requesting",
+      "value": "Requesting…"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy",
+      "value": "Let them record my voice"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.description",
+      "value": "Whether this player is allowed to record your voice. \"Ask each time\" prompts you on every request."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.ask",
+      "value": "Ask each time"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.allow",
+      "value": "Always allow"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.deny",
+      "value": "Always deny"
+    },
+    {
+      "key": "menu.voiceRecording.consent.title",
+      "value": "Voice Recording Request"
+    },
+    {
+      "key": "menu.voiceRecording.consent.body",
+      "value": "{0} wants to record your voice. They will be able to capture and re-play it while you allow this. Allow?"
+    },
+    {
+      "key": "menu.voiceRecording.consent.body.route",
+      "value": "A world in this instance (via {0}) wants to play your voice from an object so people nearby hear it come from there. Allow?"
+    },
+    {
+      "key": "menu.voiceRecording.consent.allow",
+      "value": "Allow"
+    },
+    {
+      "key": "menu.voiceRecording.consent.deny",
+      "value": "Deny"
+    },
+    {
       "key": "menu.individualPlayer.enableInteractions",
       "value": "Enable Interactions"
     },
@@ -2541,6 +2621,18 @@
     {
       "key": "menu.individualPlayer.directConnection.failed",
       "value": "<color=#ff5252>Direct Connection Failed</color>"
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.partial",
+      "value": "Direct Connection: <color=#ff9100>Partial</color> <size=55%>(using server)</size>"
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.partial.description",
+      "value": "The direct link degraded or one side couldn't connect. Voice and avatar are going through the server for now — tap Try Again to re-establish the direct link."
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.tryAgain",
+      "value": "Try Again"
     },
     {
       "key": "menu.individualPlayer.directConnection.playerDisconnected",
@@ -3773,6 +3865,18 @@
     {
       "key": "settings.general.networking.p2pAvatarRate.description",
       "value": "Updates per second to direct peers - capped by your framerate."
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrateOverride",
+      "value": "Override Voice Bitrate"
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate",
+      "value": "Voice Bitrate"
+    },
+    {
+      "key": "settings.general.networking.p2pVoiceBitrate.description",
+      "value": "Voice bitrate (bps) used while a direct connection is active. Server overrides still win."
     },
     {
       "key": "settings.general.networking.p2pAvatarRate.fpsWarning",
@@ -7741,6 +7845,14 @@
     {
       "key": "settings.admin.opusFecLoss",
       "value": "Opus FEC loss %"
+    },
+    {
+      "key": "settings.admin.opusBitrate.override",
+      "value": "Override Voice Bitrate"
+    },
+    {
+      "key": "settings.admin.opusBitrate",
+      "value": "Voice Bitrate (bps)"
     },
     {
       "key": "settings.admin.maxMicrophoneRange",

@@ -118,6 +118,14 @@ namespace BasisNetworkServer
             {
                 _offloadedPairs[PackPair(s.InitiatorPeerId, s.TargetPeerId)] = 0;
                 BNL.Log($"[P2P] OFFLOADED pair ({s.InitiatorPeerId},{s.TargetPeerId}) — server will skip relaying voice + avatar between them.");
+
+                // Positive confirmation to BOTH peers that the pair is fully direct now. A
+                // client that reached Connected but never sees this treats its link as partial
+                // and falls back to the server relay (see BasisP2PManager confirm-timeout).
+                if (NetworkServer.AuthenticatedPeers.TryGetValue(s.InitiatorPeerId, out NetPeer initiatorPeer))
+                    SendSub(initiatorPeer, BasisNetworkCommons.P2PSub_Offloaded, s.Token, (ushort)s.TargetPeerId);
+                if (NetworkServer.AuthenticatedPeers.TryGetValue(s.TargetPeerId, out NetPeer targetPeer))
+                    SendSub(targetPeer, BasisNetworkCommons.P2PSub_Offloaded, s.Token, (ushort)s.InitiatorPeerId);
             }
         }
 

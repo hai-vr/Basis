@@ -94,8 +94,32 @@ namespace Basis.Integration.SlimeVR.Editor
                 {
                     details += $" | {tracker.RssiDbm} dBm";
                 }
+                if (tracker.IsImu)
+                {
+                    details += " | IMU";
+                }
+                if (tracker.HasMountingOrientation || tracker.HasMountingResetOrientation)
+                {
+                    details += $" | mount drift {BasisSlimeVRBridge.GetMountingDriftDegrees(tracker.BodyPart):F1}°";
+                }
                 EditorGUILayout.LabelField(name, details);
             }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("FBT Offset Freshness", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Auto Recalibrate On Reset", BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue ? "Yes" : "No");
+            EditorGUILayout.LabelField("Max Mounting Drift", $"{BasisSlimeVRBridge.MountingDriftDegrees:F1}°");
+            EditorGUILayout.LabelField("Offsets Stale", BasisSlimeVRBridge.OffsetsStale ? "Yes — refreshing" : "No");
+            if (!string.IsNullOrEmpty(BasisSlimeVRBridge.LastRecaptureReason))
+            {
+                float ago = Time.realtimeSinceStartup - BasisSlimeVRBridge.LastRecaptureRealtime;
+                EditorGUILayout.LabelField("Last Recapture", $"{BasisSlimeVRBridge.LastRecaptureReason} ({ago:F0}s ago)");
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Server Tracker Source (Experimental)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Mode", BasisSlimeVRSettings.TrackerSource.RawValue);
+            EditorGUILayout.LabelField("Sourced From Server", BasisSlimeVRTrackerSource.SourcedCount.ToString());
 
             EditorGUILayout.Space();
             EditorGUILayout.BeginHorizontal();
@@ -116,6 +140,11 @@ namespace Basis.Integration.SlimeVR.Editor
                 BasisSlimeVRBridge.TriggerMountingReset();
             }
             EditorGUILayout.EndHorizontal();
+
+            if (GUILayout.Button("Recalibrate Full Body From SlimeVR"))
+            {
+                BasisSlimeVRBridge.RecaptureFbtOffsets("manual (debug window)");
+            }
 
             EditorGUILayout.EndScrollView();
         }

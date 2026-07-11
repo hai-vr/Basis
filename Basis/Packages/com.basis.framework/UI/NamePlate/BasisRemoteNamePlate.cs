@@ -182,6 +182,11 @@ namespace Basis.Scripts.UI.NamePlate
 
         private void HandlePlayerDestroying()
         {
+            if (this == null)
+            {
+                BasisDebug.LogErrorOnce("Nameplate was already destroyed when its player tore down (expected during app/scene shutdown).");
+                return;
+            }
             DeInitialize();
             AddressableResourceProcess.ReleaseGameobject(gameObject);
         }
@@ -720,6 +725,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
+                if (this == null || !isActiveAndEnabled) return;
                 if (progress == 100)
                 {
                     LoadingText.gameObject.SetActive(false);

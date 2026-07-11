@@ -340,6 +340,10 @@ public static class BasisNetworkModeration
                 HandleGlobalOpusFrameDurationState(reader);
                 break;
 
+            case AdminRequestMode.GlobalGetOpusBitrateState:
+                HandleGlobalOpusBitrateState(reader);
+                break;
+
             case AdminRequestMode.GlobalGetAudioRangeLimits:
                 HandleAudioRangeLimits(reader);
                 break;
@@ -1291,6 +1295,41 @@ public static class BasisNetworkModeration
         SendAdminRequest(
             AdminRequestMode.SetUserOpusBitrate,
             w => w.Put(targetPlayerId),
+            w => w.Put(bitrateBps));
+    }
+
+    /// <summary>
+    /// Last global Opus bitrate (bps) received from the server. 0 means no global
+    /// override — clients use their default. Display-only: the encoder value each
+    /// client applies arrives per-peer via <see cref="AdminRequestMode.UserOpusBitrateOverride"/>,
+    /// where a per-user override wins over this global.
+    /// </summary>
+    public static int GlobalOpusBitrate { get; private set; }
+
+    /// <summary>Fired when the server-pushed global Opus bitrate changes.</summary>
+    public static event Action<int> OnGlobalOpusBitrateChanged;
+
+    private static void HandleGlobalOpusBitrateState(NetDataReader reader)
+    {
+        int bps = reader.GetInt();
+        GlobalOpusBitrate = bps;
+        BasisDebug.Log(
+            bps > 0
+                ? $"Global Opus bitrate updated → {bps} bps"
+                : "Global Opus bitrate cleared (clients use their default)",
+            BasisDebug.LogTag.Networking);
+        OnGlobalOpusBitrateChanged?.Invoke(bps);
+    }
+
+    /// <summary>
+    /// Admin: Set (or clear with 0) the Opus encoder bitrate every client transmits with.
+    /// Per-user overrides set via <see cref="SetUserOpusBitrate"/> still win over this.
+    /// </summary>
+    public static void SetGlobalOpusBitrate(int bitrateBps)
+    {
+        if (bitrateBps < 0) bitrateBps = 0;
+        SendAdminRequest(
+            AdminRequestMode.SetGlobalOpusBitrate,
             w => w.Put(bitrateBps));
     }
 

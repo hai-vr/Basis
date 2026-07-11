@@ -146,6 +146,26 @@ namespace Basis.BasisUI
             opusPacketLossSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusPacketLossPercent);
             opusPacketLossSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusPacketLoss(Mathf.RoundToInt(value));
 
+            PanelToggle opusBitrateOverrideToggle = PanelToggle.CreateNewEntry(container);
+            opusBitrateOverrideToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusBitrate.override"));
+            opusBitrateOverrideToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusBitrate.override.tooltip"));
+            opusBitrateOverrideToggle.Descriptor.SetDescription("Forces a specific Opus voice bitrate on every client's encoder. Off = clients use their default (32k). Per-user bitrate overrides still win.");
+            opusBitrateOverrideToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0);
+
+            PanelSlider opusBitrateSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
+            opusBitrateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.opusBitrate"), 6000f, 128000f, true, 0, ValueDisplayMode.Compact));
+            opusBitrateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusBitrate.tooltip"));
+            opusBitrateSlider.Descriptor.SetDescription("Bitrate (bits per second) every client encodes voice with while the override is on.");
+            opusBitrateSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0 ? BasisNetworkModeration.GlobalOpusBitrate : 32000);
+            opusBitrateSlider.Descriptor.SetActive(BasisNetworkModeration.GlobalOpusBitrate > 0);
+            opusBitrateSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusBitrate(Mathf.RoundToInt(value));
+            opusBitrateOverrideToggle.OnValueChanged += on =>
+            {
+                opusBitrateSlider.Descriptor.SetActive(on);
+                BasisNetworkModeration.SetGlobalOpusBitrate(on ? Mathf.RoundToInt(opusBitrateSlider.Value) : 0);
+                descriptor.ForceRebuild();
+            };
+
             PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             maxMicrophoneRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxMicrophoneRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
             maxMicrophoneRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxMicrophoneRange.tooltip"));
@@ -179,6 +199,8 @@ namespace Basis.BasisUI
             controller.HeadlessAudioToggle = headlessAudioToggle;
             controller.HeadlessDisallowToggle = disallowHeadlessToggle;
             controller.OpusPacketLossSlider = opusPacketLossSlider;
+            controller.OpusBitrateOverrideToggle = opusBitrateOverrideToggle;
+            controller.OpusBitrateSlider = opusBitrateSlider;
             controller.MaxMicrophoneRangeSlider = maxMicrophoneRangeSlider;
             controller.MaxHearingRangeSlider = maxHearingRangeSlider;
             controller.MaxMicrophoneRangeMeters = BasisNetworkModeration.ServerMaxMicrophoneRangeMeters;
@@ -213,7 +235,14 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
             };
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(lockToggle, container, lockStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(lockToggle, container, lockStart, false, visible =>
+            {
+                if (visible)
+                {
+                    opusBitrateSlider.Descriptor.SetActive(opusBitrateOverrideToggle.Value);
+                }
+                descriptor.ForceRebuild();
+            });
 
             // --- Resource limits (per-player DoS caps; persisted to config.xml) ---
             PanelSectionToggle resourceLimitsToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -748,6 +777,8 @@ namespace Basis.BasisUI
             public PanelToggle AllowlistToggle;
             public PanelToggle RejoinLockToggle;
             public PanelSlider OpusPacketLossSlider;
+            public PanelToggle OpusBitrateOverrideToggle;
+            public PanelSlider OpusBitrateSlider;
             public PanelSlider MaxMicrophoneRangeSlider;
             public PanelSlider MaxHearingRangeSlider;
             public float MaxMicrophoneRangeMeters;
@@ -795,6 +826,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged += OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged += OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
+                BasisNetworkModeration.OnGlobalOpusBitrateChanged += OnGlobalOpusBitrateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged += OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
@@ -827,6 +860,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
@@ -847,6 +881,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
+                BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
@@ -890,6 +925,16 @@ namespace Basis.BasisUI
             private void OnGlobalOpusPacketLossChanged(int percent)
             {
                 if (OpusPacketLossSlider != null) OpusPacketLossSlider.SetValueWithoutNotify(percent);
+            }
+
+            private void OnGlobalOpusBitrateChanged(int bps)
+            {
+                if (OpusBitrateOverrideToggle != null) OpusBitrateOverrideToggle.SetValueWithoutNotify(bps > 0);
+                if (OpusBitrateSlider != null)
+                {
+                    if (bps > 0) OpusBitrateSlider.SetValueWithoutNotify(bps);
+                    OpusBitrateSlider.Descriptor.SetActive(bps > 0);
+                }
             }
 
             private void OnAudioRangeLimitsChanged(float microphoneMeters, float hearingMeters)

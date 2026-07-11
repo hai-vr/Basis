@@ -3,6 +3,8 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
+using UnityEngine.Jobs;
 
 namespace Basis.Scripts.Drivers
 {
@@ -127,6 +129,21 @@ namespace Basis.Scripts.Drivers
             ref BasisEuroQuatState st = ref UnsafeUtility.ArrayElementAsRef<BasisEuroQuatState>(euroStates.GetUnsafePtr(), i);
             quaternion result = BasisFilterMath.EuroQuat(ref st, q, math.max(dt, 1e-6f), minCutoff, beta, dCutoff);
             UnsafeUtility.WriteArrayElement(outPtr, i, result);
+        }
+    }
+
+    /// <summary>IJobParallelForTransform that batch-reads each bone's solved world pose into parallel arrays.</summary>
+    [BurstCompile]
+    public struct BasisReadBoneWorldPoseJob : IJobParallelForTransform
+    {
+        public NativeArray<float3> Positions;
+        public NativeArray<quaternion> Rotations;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+            Positions[index] = position;
+            Rotations[index] = rotation;
         }
     }
 
