@@ -262,13 +262,17 @@ typedef struct {
     int64_t v_ext, a_ext;   int have_v_ext, have_a_ext;
 
     /* AAC AU fragment reassembly (RFC 3640): an AU larger than the RTP
-     * payload arrives as several packets, each repeating the AU-header with
-     * the FULL AU size and carrying a slice of the data. High-bitrate
-     * multichannel AAC exceeds the ~1440-byte payload routinely (a 384kbps
-     * 5.1 frame averages ~1.5KB), so without reassembly most frames would be
-     * delivered truncated. Fragments of one AU share an RTP timestamp. */
+     * payload arrives as several packets — high-bitrate multichannel AAC
+     * exceeds the ~1440-byte payload routinely (a 384kbps 5.1 frame averages
+     * ~1.5KB), so without reassembly most frames of such a stream arrive
+     * truncated and decode as noise. Reassembly keys on the RTP marker bit
+     * (0 = a slice, 1 = the slice completing the AU): senders disagree on
+     * whether a fragment's AU-header carries the full AU size (the RFC) or
+     * the slice size (gortsplib/mediamtx), so the header size can't signal
+     * fragmentation, but the marker semantics are common to both. Fragments
+     * of one AU share an RTP timestamp. */
     uint8_t* afrag; int afrag_len, afrag_cap;
-    int afrag_need;        /* declared AU size; 0 = no reassembly in flight */
+    int afrag_active;      /* a reassembly is in flight */
     int64_t afrag_rel;     /* base-relative extended ts of the AU */
 
     uint8_t* fu; int fu_len, fu_cap;     /* FU reassembly */
@@ -459,31 +463,34 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
     /* A different timestamp while a reassembly is in flight means the tail
      * fragments were lost — drop the partial AU rather than deliver a
      * truncated frame. */
-    if (d->afrag_need && rel != d->afrag_rel) { d->afrag_need = 0; d->afrag_len = 0; }
+    if (d->afrag_active && rel != d->afrag_rel) { d->afrag_active = 0; d->afrag_len = 0; }
+
+    int marker = (rtp[1] >> 7) & 1;
+    if (!marker || d->afrag_active) {
+        /* A slice of a fragmented AU (fragments never aggregate: a marker=0
+         * packet is always one slice). Accumulate; the marker=1 slice
+         * completes the AU. */
+        int avail = plen - dpos;
+        if (avail <= 0) return;
+        if (!d->afrag_active) { d->afrag_active = 1; d->afrag_len = 0; d->afrag_rel = rel; }
+        if (grow(&d->afrag, &d->afrag_cap, d->afrag_len + avail)) {
+            memcpy(d->afrag + d->afrag_len, p + dpos, avail);
+            d->afrag_len += avail;
+        }
+        if (marker && d->afrag_len > 0) {
+            int64_t pts = rtp_ts_to_us(d->afrag_rel, d->audio->clock ? d->audio->clock : 48000);
+            d->sink->on_audio_frame(d->sink->user, d->afrag, d->afrag_len, pts);
+            d->afrag_active = 0; d->afrag_len = 0;
+        }
+        return;
+    }
 
     int off = dpos;
     for (int i = 0; i < num; ++i) {
         int sz;
         if (dpos == 0) sz = plen; /* whole payload */
         else sz = ((p[2 + i * 2] << 8) | p[2 + i * 2 + 1]) >> 3;
-        int avail = plen - off;
-        if (avail <= 0) break;
-        if (num == 1 && (d->afrag_need || sz > avail)) {
-            /* Fragmented AU: accumulate slices until the declared size is
-             * banked, then deliver whole. */
-            if (!d->afrag_need) { d->afrag_need = sz; d->afrag_len = 0; d->afrag_rel = rel; }
-            if (grow(&d->afrag, &d->afrag_cap, d->afrag_len + avail)) {
-                memcpy(d->afrag + d->afrag_len, p + off, avail);
-                d->afrag_len += avail;
-            }
-            if (d->afrag_len >= d->afrag_need) {
-                int64_t pts = rtp_ts_to_us(d->afrag_rel, d->audio->clock ? d->audio->clock : 48000);
-                d->sink->on_audio_frame(d->sink->user, d->afrag, d->afrag_need, pts);
-                d->afrag_need = 0; d->afrag_len = 0;
-            }
-            return;
-        }
-        if (sz > avail) sz = avail;
+        if (off + sz > plen) sz = plen - off;
         if (sz <= 0) break;
         /* The packet timestamp covers its first AU; each further aggregated
          * AU advances by one AAC frame (1024 samples; the RTP clock is the
