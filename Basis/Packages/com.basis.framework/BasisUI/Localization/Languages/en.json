@@ -2443,6 +2443,70 @@
       "value": "Always render this player's avatar, even when distance, the max visible avatar cap, or the view cone filter would normally replace it with the loading avatar. Blocking and the performance filter still apply."
     },
     {
+      "key": "menu.individualPlayer.voiceRecording",
+      "value": "Voice Recording"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.description",
+      "value": "Record or re-route this player's voice. They are asked for permission and can revoke it at any time."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.start",
+      "value": "Record Voice"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.start.description",
+      "value": "Ask this player for permission, then record their voice to a clip on your device."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.stop",
+      "value": "Stop Recording"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.requesting",
+      "value": "Requesting…"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy",
+      "value": "Let them record my voice"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.description",
+      "value": "Whether this player is allowed to record your voice. \"Ask each time\" prompts you on every request."
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.ask",
+      "value": "Ask each time"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.allow",
+      "value": "Always allow"
+    },
+    {
+      "key": "menu.individualPlayer.voiceRecording.policy.deny",
+      "value": "Always deny"
+    },
+    {
+      "key": "menu.voiceRecording.consent.title",
+      "value": "Voice Recording Request"
+    },
+    {
+      "key": "menu.voiceRecording.consent.body",
+      "value": "{0} wants to record your voice. They will be able to capture and re-play it while you allow this. Allow?"
+    },
+    {
+      "key": "menu.voiceRecording.consent.body.route",
+      "value": "A world in this instance (via {0}) wants to play your voice from an object so people nearby hear it come from there. Allow?"
+    },
+    {
+      "key": "menu.voiceRecording.consent.allow",
+      "value": "Allow"
+    },
+    {
+      "key": "menu.voiceRecording.consent.deny",
+      "value": "Deny"
+    },
+    {
       "key": "menu.individualPlayer.enableInteractions",
       "value": "Enable Interactions"
     },

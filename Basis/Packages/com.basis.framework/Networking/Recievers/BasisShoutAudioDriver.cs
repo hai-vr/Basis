@@ -3,6 +3,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.VoiceRecording;
 #if !UNITY_SERVER
 #endif
 using System.Collections.Generic;
@@ -120,6 +121,7 @@ namespace Basis.Scripts.Networking.Receivers
             entry.AudioSource.Play();
 
             _entries[playerId] = entry;
+            BasisVoiceRecording.OnShoutReceiverCreated(playerId, entry.Receiver);
             BasisDebug.Log($"Shout audio enabled for player {playerId}");
 #endif
         }
@@ -178,6 +180,21 @@ namespace Basis.Scripts.Networking.Receivers
         public static bool IsInShoutMode(ushort playerId)
         {
             return _entries.ContainsKey(playerId);
+        }
+
+        /// <summary>
+        /// Exposes a shouting player's receiver so the voice-recording tap can follow the
+        /// shout audio path. Returns false when the player is not currently shouting.
+        /// </summary>
+        internal static bool TryGetReceiver(ushort playerId, out BasisAudioReceiver receiver)
+        {
+            if (_entries.TryGetValue(playerId, out ShoutAudioEntry entry))
+            {
+                receiver = entry.Receiver;
+                return true;
+            }
+            receiver = null;
+            return false;
         }
 
         /// <summary>

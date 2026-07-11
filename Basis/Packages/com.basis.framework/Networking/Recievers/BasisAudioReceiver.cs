@@ -46,6 +46,21 @@ namespace Basis.Scripts.Networking.Receivers
         private const float MeterReleaseFactor = 0.90f;
 
         [System.NonSerialized] public BasisNetworkReceiver BasisNetworkReceiver;
+
+        /// <summary>
+        /// Optional decoded-PCM tap used by the voice-recording system. Invoked on the
+        /// decode thread with the freshly decoded mono frame; the callback MUST copy the
+        /// samples out because <see cref="pcmBuffer"/> is reused. Null when nobody records.
+        /// </summary>
+        public volatile System.Action<float[], int> OnDecodedFrame;
+
+        /// <summary>
+        /// Optional encoded-frame tap used to feed a spatialized voice re-emit source.
+        /// Invoked with the inbound segment as it is inserted; the handler must consume it
+        /// synchronously (the segment buffer is reused). Null when not routed to an object.
+        /// </summary>
+        public volatile System.Action<AudioSegmentDataMessage> OnEncodedFrame;
+
         public static float[] silentData;
         public static int outputSampleRate;
         private static bool _loggedOutputRate;
@@ -142,6 +157,7 @@ namespace Basis.Scripts.Networking.Receivers
         public void Insert(AudioSegmentDataMessage msg)
         {
             VoiceBuffer.InsertEncoded(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
+            OnEncodedFrame?.Invoke(msg);
         }
 
         // ==================== Decode pipeline ====================
@@ -161,6 +177,7 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.MaxFrameSize, false);
                     VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+                    OnDecodedFrame?.Invoke(pcmBuffer, pcmLength);
                 }
                 catch
                 {
@@ -181,6 +198,7 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     pcmLength = decoder.Decode(null, 0, pcmBuffer, RemoteOpusSettings.FrameSize, false);
                     VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+                    OnDecodedFrame?.Invoke(pcmBuffer, pcmLength);
                 }
                 catch
                 {
@@ -206,6 +224,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, true);
                 VoiceBuffer.PushDecoded(pcmBuffer, pcmLength, true);
+                OnDecodedFrame?.Invoke(pcmBuffer, pcmLength);
             }
             catch
             {

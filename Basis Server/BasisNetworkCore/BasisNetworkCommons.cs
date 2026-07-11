@@ -183,6 +183,21 @@ namespace Basis.Network.Core
         /// Wire: [eventType:1][severity:1][lenPrefixed PermissionCompression blob of (system, message, stack)]
         /// </summary>
         public const byte EventType_ErrorReport = 7;
+        /// <summary>
+        /// Recorder→recordee request to record the recordee's voice. Forwarded to the
+        /// target peer only, stamped with the requester's peer id.
+        /// </summary>
+        // Wire (client→server): [eventType:1][targetId:2]
+        // Wire (server→target): [eventType:1][requesterId:2]
+        public const byte EventType_VoiceRecordRequest = 8;
+        /// <summary>
+        /// Recordee→recorder consent decision for a voice-record request
+        /// (0 = denied, 1 = granted, 2 = revoked). Forwarded to the target peer only,
+        /// stamped with the responder's peer id.
+        /// </summary>
+        // Wire (client→server): [eventType:1][targetId:2][state:1]
+        // Wire (server→target): [eventType:1][responderId:2][state:1]
+        public const byte EventType_VoiceRecordConsent = 9;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional
@@ -327,6 +342,21 @@ namespace Basis.Network.Core
         /// (full-length name + MOTD), so 384 keeps the amp ratio &lt; 1.
         /// </summary>
         public const int ServerInfoMinRequestBytes = 384;
+
+        // ── Structured connection-reject payload ─────────────────────────────
+        // Attached by the server to ConnectionRequest.Reject so the client can react specifically
+        // (e.g. an "Update Required" screen, a "Server Full" notice) instead of printing a bare reason
+        // string. A 4-byte magic distinguishes a structured reject from a plain reason string — older
+        // servers send a bare string (no magic), which the client still surfaces via the legacy path.
+        // Wire: [magic:uint][kind:byte][aux0:ushort][aux1:ushort][message:string]
+        //   VersionMismatch → aux0 = server protocol version, aux1 = client protocol version.
+        //   ServerFull      → aux0/aux1 unused (0); any counts are in the message.
+        /// <summary>Marker for a structured reject payload. "BA51 5CE1" ≈ "Basis reject".</summary>
+        public const uint RejectMagic = 0xBA515CE1u;
+        /// <summary>RejectKind: the client's protocol version does not match the server's.</summary>
+        public const byte RejectKind_VersionMismatch = 1;
+        /// <summary>RejectKind: the server has reached its player limit.</summary>
+        public const byte RejectKind_ServerFull = 2;
 
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → byte-ID channel.

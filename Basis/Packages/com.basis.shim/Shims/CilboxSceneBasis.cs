@@ -294,6 +294,15 @@ namespace Cilbox
 				$"get_{nameof(BasisMediaPlayer.OutputTexture)}",
 				$"get_{nameof(BasisMediaPlayer.OutputFrameIsTopLeftOrigin)}",
 				} },
+			// Cilbox-facing voice routing (issue #911). Pinned to the safe route API only: no PCM
+			// access, no disk output, no consent bypass (see BasisVoiceRoutingShim). Basis.Shims.* is
+			// type-whitelisted, so this restriction is what keeps the callable surface to these four.
+			{ typeof(Basis.Shims.BasisVoiceRoutingShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisVoiceRoutingShim.HasConsent),
+				nameof(Basis.Shims.BasisVoiceRoutingShim.RouteVoiceToObject),
+				nameof(Basis.Shims.BasisVoiceRoutingShim.StopVoiceRoute),
+				nameof(Basis.Shims.BasisVoiceRoutingShim.StopAllRoutesFor),
+				} },
 			// Restrict BasisDeviceManagement to the single mode query the menu uses.
 			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
 			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.

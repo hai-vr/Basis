@@ -24,7 +24,7 @@ namespace Basis.Config
         public static string ResolveDefaultPath()
         {
             string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            return Path.Combine(userProfile, "AppData", "LocalLow", "Basis Unity", "Basis Unity", "ItemKeyStore.json");
+            return Path.Combine(userProfile, "AppData", "LocalLow", "BasisVR", "BasisVR", "ItemKeyStore.json");
         }
 
         public static List<Entry> Load(string configuredPath, byte fallbackLoadMode)

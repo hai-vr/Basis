@@ -152,6 +152,34 @@ namespace BasisServerHandle
             NetworkServer.ReturnWriter(writer);
             BNL.LogError($"Rejected for reason: {reason}");
         }
+
+        /// <summary>
+        /// Rejects a pending connection with a structured payload the client can branch on
+        /// (see BasisNetworkCommons.RejectKind_*), e.g. to show a dedicated "Update Required" or
+        /// "Server Full" screen. Older clients read it defensively as an (empty) string and fall back
+        /// to a generic message, so this stays backward compatible.
+        /// </summary>
+        public static void RejectStructured(ConnectionRequest request, byte kind, ushort aux0, ushort aux1, string message)
+        {
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(BasisNetworkCommons.RejectMagic);
+            writer.Put(kind);
+            writer.Put(aux0);
+            writer.Put(aux1);
+            writer.Put(message ?? string.Empty);
+            request.Reject(writer);
+            NetworkServer.ReturnWriter(writer);
+            BNL.LogError($"Rejected (kind {kind}): {message}");
+        }
+
+        public static void RejectVersionMismatch(ConnectionRequest request, ushort serverVersion, ushort clientVersion)
+        {
+            string guidance = clientVersion < serverVersion
+                ? "Update your Basis client to match the server."
+                : "This server is running an older Basis build than your client.";
+            RejectStructured(request, BasisNetworkCommons.RejectKind_VersionMismatch, serverVersion, clientVersion,
+                $"This server needs client protocol v{serverVersion}; your client is v{clientVersion}. {guidance}");
+        }
         public static void RejectWithReason(NetPeer request, string reason)
         {
             int id = request.Id;
@@ -200,7 +228,8 @@ namespace BasisServerHandle
 
                 if (ServerCount >= NetworkServer.Configuration.PeerLimit)
                 {
-                    RejectWithReason(ConReq, "Server is full! Rejected.");
+                    RejectStructured(ConReq, BasisNetworkCommons.RejectKind_ServerFull, 0, 0,
+                        $"This server is full ({ServerCount}/{NetworkServer.Configuration.PeerLimit}). Please try again later.");
                     return;
                 }
 
@@ -212,7 +241,7 @@ namespace BasisServerHandle
 
                 if (ClientVersion != BasisNetworkVersion.ServerVersion)
                 {
-                    RejectWithReason(ConReq, "Client version does not match server.");
+                    RejectVersionMismatch(ConReq, BasisNetworkVersion.ServerVersion, ClientVersion);
                     return;
                 }
                 if (NetworkServer.Configuration.UseAuth)

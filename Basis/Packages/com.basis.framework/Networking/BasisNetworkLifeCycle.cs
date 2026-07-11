@@ -82,6 +82,7 @@ public static class BasisNetworkLifeCycle
 #endif
             BasisNetworkPlayers.ClearAllRegistries();//remove players
             Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
+            Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
             await BasisNetworkSpawnItem.Reset();//remove items
             BasisNetworkPreloadManager.Reset();//remove preloaded resources
             BasisContentShareManager.Reset();//remove content spheres
@@ -128,6 +129,7 @@ public static class BasisNetworkLifeCycle
         BasisRemoteNetworkDriver.Shutdown();//complete in-flight jobs before disposing anything
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
+        Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.DeInitialize();//remove voice recordings
         await BasisNetworkSpawnItem.Reset();//remove items
         BasisNetworkPreloadManager.Reset();//remove preloaded resources
         BasisContentShareManager.Reset();//remove content spheres

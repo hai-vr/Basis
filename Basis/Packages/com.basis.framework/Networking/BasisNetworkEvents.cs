@@ -670,6 +670,25 @@ public static class BasisNetworkEvents
                             Basis.Scripts.Networking.BasisTalkModeManager.OnRemoteMuteReceived(muteSenderId, muteValue != 0);
                         });
                         break;
+                    case BasisNetworkCommons.EventType_VoiceRecordRequest:
+                        ushort voiceRecRequesterId = Reader.GetUShort();
+                        byte voiceRecReqPurpose = Reader.GetByte();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkHandleVoiceRecord.OnRemoteRecordRequestReceived(voiceRecRequesterId, voiceRecReqPurpose);
+                        });
+                        break;
+                    case BasisNetworkCommons.EventType_VoiceRecordConsent:
+                        ushort voiceRecResponderId = Reader.GetUShort();
+                        byte voiceRecState = Reader.GetByte();
+                        byte voiceRecConsentPurpose = Reader.GetByte();
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkHandleVoiceRecord.OnRemoteConsentReceived(voiceRecResponderId, voiceRecState, voiceRecConsentPurpose);
+                        });
+                        break;
                     default:
                         BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                         Reader.Recycle();
@@ -815,6 +834,36 @@ public static class BasisNetworkEvents
         }
         return true;
     }
+    /// <summary>
+    /// Reads a structured, kind-tagged reject payload (see BasisNetworkCommons.RejectKind_*) that a
+    /// current server attaches to a rejected connection. Non-consuming on failure so the caller can
+    /// fall back to PeekString for older servers that send a bare reason string.
+    /// </summary>
+    private static bool TryReadStructuredReject(NetDataReader data, out byte kind, out ushort aux0, out ushort aux1, out string message)
+    {
+        kind = 0; aux0 = 0; aux1 = 0; message = null;
+        if (data == null) return false;
+        byte[] raw = data.RawData;
+        int p = data.Position;
+        if (raw == null || data.AvailableBytes < 9) return false; // magic(4)+kind(1)+aux0(2)+aux1(2)
+        uint magic = (uint)(raw[p] | (raw[p + 1] << 8) | (raw[p + 2] << 16) | (raw[p + 3] << 24));
+        if (magic != BasisNetworkCommons.RejectMagic) return false;
+        try
+        {
+            data.GetUInt();            // magic
+            kind = data.GetByte();
+            aux0 = data.GetUShort();
+            aux1 = data.GetUShort();
+            message = data.AvailableBytes > 0 ? data.GetString() : null;
+            return true;
+        }
+        catch
+        {
+            message = null;
+            return false;
+        }
+    }
+
     public static void HandleDisconnectionReason(DisconnectInfo disconnectInfo)
     {
         if (disconnectInfo.Reason == DisconnectReason.DisconnectPeerCalled)
@@ -874,30 +923,61 @@ public static class BasisNetworkEvents
         }
         else
         {
+            bool rejected = disconnectInfo.Reason == DisconnectReason.ConnectionRejected;
+            NetDataReader extra = disconnectInfo.AdditionalData;
+
+            string title;
+            string body;
+
+            // A current server attaches a structured, kind-tagged reject payload (version mismatch,
+            // server full, ...). Older servers send a bare reason string, handled by the else path.
+            if (rejected && TryReadStructuredReject(extra, out byte kind, out ushort aux0, out ushort aux1, out string structuredMsg))
+            {
+                switch (kind)
+                {
+                    case BasisNetworkCommons.RejectKind_VersionMismatch:
+                        title = "Update Required";
+                        body = !string.IsNullOrEmpty(structuredMsg)
+                            ? structuredMsg
+                            : $"This server requires Basis protocol v{aux0}; your client is v{aux1}. Please update.";
+                        break;
+                    case BasisNetworkCommons.RejectKind_ServerFull:
+                        title = "Server Full";
+                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : "This server is full. Please try again later.";
+                        break;
+                    default:
+                        title = "Connection Rejected";
+                        body = !string.IsNullOrEmpty(structuredMsg) ? structuredMsg : "The server rejected the connection.";
+                        break;
+                }
+            }
+            else
+            {
+                // Legacy bare-string reject, or a non-rejection disconnect (timeout, etc.). PeekString
+                // is defensive: an empty/malformed payload yields "".
+                string reason = extra?.PeekString();
+                title = rejected ? "Connection Rejected" : "Server Disconnected";
+                body = !string.IsNullOrEmpty(reason)
+                    ? reason
+                    : (rejected
+                        ? "The server rejected the connection. It may be full, running a different Basis version, or you may not be authorized."
+                        : disconnectInfo.Reason.ToString());
+            }
+
 #if UNITY_SERVER
             if (canShowMenu)
+#endif
             {
                 BasisMainMenu.Open();
                 if (BasisMainMenu.Instance != null)
                 {
-                    BasisMainMenu.Instance.OpenDialogue("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
+                    BasisMainMenu.Instance.OpenDialogue(title, body, "ok", value =>
                     {
                     });
                 }
             }
 
-            BasisDebug.LogError(disconnectInfo.Reason.ToString());
-#else
-            BasisMainMenu.Open();
-            if (BasisMainMenu.Instance != null)
-            {
-                BasisMainMenu.Instance.OpenDialogue("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
-                {
-                });
-            }
-
-            BasisDebug.LogError(disconnectInfo.Reason.ToString());
-#endif
+            BasisDebug.LogError($"{title}: {body}");
         }
     }
 }
