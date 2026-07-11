@@ -1072,10 +1072,13 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
      * video joins the already-running clock when its first frame decodes
      * (both tracks share a timeline, so joining needs no re-anchor). The
      * audio edge stands in for `newest` below; the present loop no-ops on an
-     * empty frame ring. VOD keeps the primed, synchronised start. */
+     * empty frame ring. VOD keeps the primed, synchronised start, and an
+     * audio-only stream (video never configured) keeps its ungated serve —
+     * seeding a clock for it would silently convert that documented path
+     * into gated playback. */
     int noVideoYet = (newest == INT64_MIN);
     if (noVideoYet) {
-        if (!d->aconfigured || basis_engine_is_paced(d->engine)) { LeaveCriticalSection(&d->presentLock); return 0; }
+        if (!d->vconfigured || !d->aconfigured || basis_engine_is_paced(d->engine)) { LeaveCriticalSection(&d->presentLock); return 0; }
         newest = d->pcm.newest_pts();
         if (newest == INT64_MIN) { LeaveCriticalSection(&d->presentLock); return 0; }
     }
