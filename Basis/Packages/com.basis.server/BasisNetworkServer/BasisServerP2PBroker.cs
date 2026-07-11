@@ -274,14 +274,33 @@ namespace BasisNetworkServer
                     // internal punch already handles it.
                     int spray = (firstFire && !sameNat) ? GetPredictionRange() : 0;
 
-                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {s.EndpointA_Internal}), B={s.EndpointB_External} (int {s.EndpointB_Internal}). Firing NatIntroduce (spray={spray}).{lanTag}");
+                    // Two clients on the SAME host advertise the SAME internal (LAN) IP.
+                    // Punching/connecting to a machine's own external-facing LAN IP is often
+                    // dropped by the OS/NIC (weak-host-model / firewall), so two same-PC clients
+                    // never establish a direct link even though their internal endpoints look
+                    // correct. Loopback (127.0.0.1) always routes locally, so rewrite the
+                    // internal endpoints to it for a same-host pair. Gated on the same external
+                    // IP too, so two different machines that merely share a private IP behind
+                    // separate NATs are never rewritten (they keep the real internal punch).
+                    IPEndPoint aInternal = s.EndpointA_Internal;
+                    IPEndPoint bInternal = s.EndpointB_Internal;
+                    bool sameHost = sameNat && aInternal != null && bInternal != null &&
+                                    aInternal.Address.Equals(bInternal.Address);
+                    if (sameHost)
+                    {
+                        aInternal = new IPEndPoint(IPAddress.Loopback, aInternal.Port);
+                        bInternal = new IPEndPoint(IPAddress.Loopback, bInternal.Port);
+                        BNL.Log($"[P2P] SAME-HOST pair for token {Preview(token)} — rewriting internal endpoints to loopback ({aInternal}, {bInternal}) so the local punch lands.");
+                    }
+
+                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {aInternal}), B={s.EndpointB_External} (int {bInternal}). Firing NatIntroduce (spray={spray}).{lanTag}");
                     LiteNetLib.NetManager lnlManager = (NetworkServer.Server as LNLNetManager)?.manager;
                     if (lnlManager == null) return;
                     lnlManager.NatPunchModule.NatIntroduce(
-                        s.EndpointA_Internal,
+                        aInternal,
                         s.EndpointA_External,
                         spray,
-                        s.EndpointB_Internal,
+                        bInternal,
                         s.EndpointB_External,
                         spray,
                         token);
