@@ -298,6 +298,7 @@ int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
 
     int want = len < h->scratch_cap ? len : h->scratch_cap;
     jint n = 0;
+    int zero_reads = 0;
     for (;;) {
         n = (*env)->CallIntMethod(env, h->is, g_ids.is_read, h->scratch, 0, want);
         if ((*env)->ExceptionCheck(env)) {
@@ -311,7 +312,16 @@ int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
         /* Java's read(byte[], 0, len>0) contract is to block until data, EOF or
          * error — a 0 return is a stack bug. The byte-source contract has no
          * retry signal (0 means EOF and would end the stream), so absorb the
-         * anomaly here and read again. */
+         * anomaly here and read again — bounded, because a stream that keeps
+         * returning 0 without blocking would otherwise spin this thread
+         * forever; past the bound it is broken, and a terminal error routes it
+         * to the engine's error path rather than a fake clean EOF. */
+        if (++zero_reads >= 1000) {
+            LOGE("basis_jni_https: persistent zero-byte reads after %lld bytes", h->total_bytes);
+            h->eof = 1;
+            jenv_release(&L);
+            return -1;
+        }
     }
     if (n < 0) {
         LOGI("basis_jni_https: clean EOF after %lld bytes", h->total_bytes);
