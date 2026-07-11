@@ -286,6 +286,19 @@ static void au_append_nal(depkt_t* d, const uint8_t* nal, int len) {
 
 static int64_t rtp_ts_to_us(int64_t ts, int clock) { return clock > 0 ? ts * 1000000 / clock : ts; }
 
+/* True when one URL is a full suffix of the other (handles relative vs
+ * absolute control URLs without prefix-collision false positives, e.g.
+ * trackID=1 vs trackID=11). */
+static int url_suffix_match(const char* a, const char* b) {
+    size_t la = strlen(a), lb = strlen(b);
+    if (!la || !lb) return 0;
+    const char* lo = (la >= lb) ? a : b;
+    size_t      ll = (la >= lb) ? la : lb;
+    const char* sh = (la >= lb) ? b : a;
+    size_t      sl = (la >= lb) ? lb : la;
+    return strcmp(lo + (ll - sl), sh) == 0;
+}
+
 /* Extends a 32-bit RTP timestamp into the track's running 64-bit counter.
  * The first packet anchors near the base (RTP-Info rtptime when the server
  * sent one, else itself); after that each packet moves the counter by the
@@ -571,8 +584,8 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
                 char u[560] = {0};
                 const char* up = strstr(entry, "url=");
                 if (up) { up += 4; size_t m = strcspn(up, ";"); if (m >= sizeof(u)) m = sizeof(u) - 1; memcpy(u, up, m); u[m] = 0; }
-                int is_audio = u[0] && a_url[0] && (strstr(u, a_url) || strstr(a_url, u));
-                int is_video = !is_audio && u[0] && (strstr(u, v_url) || strstr(v_url, u));
+                int is_audio = u[0] && a_url[0] && url_suffix_match(u, a_url);
+                int is_video = !is_audio && u[0] && url_suffix_match(u, v_url);
                 if (!is_audio && !is_video) { is_video = idx == 0; is_audio = idx == 1; }
                 if (is_video && !d.have_v_base) { d.v_base = base; d.have_v_base = 1; }
                 else if (is_audio && !d.have_a_base) { d.a_base = base; d.have_a_base = 1; }
