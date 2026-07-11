@@ -246,9 +246,14 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             if (!src.TryGetComponent(out BasisMediaPlayerAudioTap tap)) tap = src.gameObject.AddComponent<BasisMediaPlayerAudioTap>();
             b.FilterTap = tap;
             bool primary = b.Primary;
+            // Source frames per output frame: the tap renders straight into DSP
+            // blocks, so rate conversion happens in the splitter read (Quest runs
+            // the DSP at 24kHz against 48kHz sources; desktop is typically 1:1).
+            int dspRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : rate;
             tap.Bind(splitter, taps, spreadMonoAcrossChannels: outChannels == 1,
                      gain: () => Mute ? 0f : Mathf.Clamp(VolumeGain, 0f, 2f),
-                     metrics: primary ? (Action<float[], int>)TrackPrimaryMetrics : null);
+                     metrics: primary ? (Action<float[], int>)TrackPrimaryMetrics : null,
+                     sourceFramesPerOutputFrame: (double)rate / dspRate);
             built.Add(b);
         }
         bindings = built.ToArray();

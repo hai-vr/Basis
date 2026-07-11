@@ -26,6 +26,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     private Func<float> gainProvider;
     private Action<float[], int> onMixedBlock;   // null unless this is the primary output
     private bool spreadMono;                      // replicate ch0 across the DSP width (positioned mono sources)
+    private double sourceStep = 1.0;              // source frames per output frame (source rate / DSP rate)
     private volatile bool active;
     private volatile int observedChannels;        // DSP width seen on the audio thread; read on the main thread
 
@@ -38,7 +39,8 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     // plays a single decoded channel that should present as a mono point source
     // (so the spatialiser positions it), false for a stereo downmix.
     public void Bind(BasisMultiChannelPcmSplitter s, BasisMultiChannelPcmSplitter.Tap[] t,
-                     bool spreadMonoAcrossChannels, Func<float> gain, Action<float[], int> metrics)
+                     bool spreadMonoAcrossChannels, Func<float> gain, Action<float[], int> metrics,
+                     double sourceFramesPerOutputFrame)
     {
         splitter = s;
         reader = s?.CreateReader();
@@ -46,6 +48,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
         spreadMono = spreadMonoAcrossChannels;
         gainProvider = gain;
         onMixedBlock = metrics;
+        sourceStep = sourceFramesPerOutputFrame > 0 ? sourceFramesPerOutputFrame : 1.0;
         observedChannels = 0;
         active = s != null && t != null && reader != null;
     }
@@ -77,7 +80,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
         int frames = data.Length / channels;
         float gain = gainProvider != null ? gainProvider() : 1f;
         Array.Clear(data, 0, data.Length);
-        s.ReadMixed(r, data, frames, channels, t, gain);
+        s.ReadMixed(r, data, frames, channels, t, gain, sourceStep);
 
         // A positioned single channel is mixed into out-channel 0 by its tap; spread
         // it across the DSP width so the spatialiser receives a proper mono signal.
