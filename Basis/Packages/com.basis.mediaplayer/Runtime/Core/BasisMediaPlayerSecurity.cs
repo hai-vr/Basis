@@ -33,7 +33,7 @@ public static class BasisMediaPlayerSecurity
         // Live-streaming schemes handled by the OS-codec engine (basis_media_native):
         //   rtsp/rtspt  RTSP over UDP/TCP (rtspt = interleaved over TCP, low latency)
         //   rtmp/rtmps  RTMP / RTMP-over-TLS
-        //   http/https  fragmented MP4 (.mp4) and MPEG-TS (.ts) over HTTP(S)
+        //   http/https  fragmented MP4 (.mp4), MPEG-TS (.ts) and WAV (.wav) over HTTP(S)
         //   rist        RIST live ingest (MPEG-TS over UDP; requires a BASIS_WITH_RIST build)
         if (scheme != "http" && scheme != "https" &&
             scheme != "rtsp" && scheme != "rtspt" &&

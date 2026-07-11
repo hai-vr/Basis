@@ -67,7 +67,8 @@ typedef enum basis_render_op {
  * Returns NULL only on allocation failure or an unrecognised scheme; transport
  * failures surface asynchronously via basis_media_get_state / get_last_error.
  * Supported schemes: rtsp://, rtspt://, rtmp://, rtmps://, http://, https://
- * (the last two are demuxed by extension: .ts = MPEG-TS, .mp4 = fragmented MP4). */
+ * (the last two pick a demuxer by content sniff — MPEG-TS, fMP4/progressive MP4
+ * or RIFF/WAV — with the URL extension as fallback). */
 BASIS_API basis_media_engine_t* BASIS_CALL basis_media_open(const char* url);
 
 /* Split-stream / paced open. video_url carries video (e.g. an H.264-only fMP4);
