@@ -737,12 +737,19 @@ static void run_http_like(demux_ctx_t* c) {
         return;
     }
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__ANDROID__)
     /* Auto delivery (hint 0): a finite, byte-range-seekable HTTP body (known
-     * Content-Length + Accept-Ranges) is on-demand and arrives faster than real time,
-     * so pace it; an open-ended response is live. Set before the read-ahead gate and
-     * the first AU, so pacing is in force from the start. A forced hint skips this. */
-    if (c->e->paced_hint == 0 && basis_win_http_is_seekable(src))
+     * Content-Length + Accept-Ranges, or a 206 probe answer) is on-demand and
+     * arrives faster than real time, so pace it; an open-ended response is
+     * live. Set before the read-ahead gate and the first AU, so pacing is in
+     * force from the start. A forced hint skips this. Without the detection a
+     * VOD file plays at delivery speed — synchronised fast-forward. */
+#if defined(_WIN32)
+    int http_seekable = basis_win_http_is_seekable(src);
+#else
+    int http_seekable = basis_jni_https_is_seekable(src);
+#endif
+    if (c->e->paced_hint == 0 && http_seekable)
         c->e->paced = 1;
     c->e->pace_delivery = c->e->paced; /* VOD over HTTP paces delivery; open-ended live doesn't */
 #endif
