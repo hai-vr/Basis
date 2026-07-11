@@ -29,7 +29,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
     [Range(1, 8)] public int ChannelCount = 6;
 
     [Header("Buffering")]
-    [Tooltip("Length of each streaming AudioClip in seconds, and the depth of the broadcast window. Larger values are steadier but add latency.")]
+    [Tooltip("Depth of the splitter's broadcast window in seconds — how much decoded audio is retained for the per-output taps. Larger is steadier under jitter; it does not add output latency (the taps read the live edge each DSP block).")]
     [Min(0.1f)] public float ClipLengthSeconds = 0.5f;
 
     [Header("Playback")]
@@ -72,6 +72,21 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
     public float RepresentativeVolume => bindings != null && bindings.Length > 0 && bindings[0].Source != null ? bindings[0].Source.volume : 0f;
     public float RepresentativeSpatialBlend => bindings != null && bindings.Length > 0 && bindings[0].Source != null ? bindings[0].Source.spatialBlend : 0f;
 
+    // End-to-end audio output latency (µs) reported to the native backend so it
+    // paces video presentation to match. The tap delivers audio per DSP block, so
+    // latency is ~the DSP output buffer plus a block of headroom — a fraction of the
+    // old streaming-clip buffer, which is what keeps A/V sync tight at low latency.
+    public long EstimatedOutputLatencyUs
+    {
+        get
+        {
+            AudioSettings.GetDSPBufferSize(out int dspLen, out int dspCount);
+            int outRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000;
+            double bufSecs = dspLen > 0 ? (double)dspLen * Mathf.Max(1, dspCount) / outRate : 0.02;
+            return (long)((bufSecs + 0.02) * 1_000_000.0);
+        }
+    }
+
     private IBasisPcmSource nativePcmSource;
     public IBasisPcmSource NativePcmSource
     {
@@ -84,10 +99,10 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         public AudioSource Source;
         public AudioClip Clip;
         public BasisMultiChannelPcmSplitter Splitter;
-        public BasisMultiChannelPcmSplitter.Reader Reader;
         public BasisMultiChannelPcmSplitter.Tap[] Taps;
         public int OutChannels;
         public bool Primary;
+        public BasisMediaPlayerAudioTap FilterTap;   // per-output OnAudioFilterRead tap
     }
 
     private BasisMultiChannelPcmSplitter splitter;
@@ -179,7 +194,6 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         lastPcmPeak = 0f;
         lastPcmRms = 0f;
 
-        int clipLenSamples = Mathf.Max(rate, windowSamples);
         var built = new List<Binding>(outputs.Length);
         for (int i = 0; i < outputs.Length; i++)
         {
@@ -218,17 +232,23 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
                 taps = new[] { new BasisMultiChannelPcmSplitter.Tap(monoChannel, 0, 1f) };
             }
 
-            var b = new Binding { Source = src, Splitter = splitter, Reader = splitter.CreateReader(), OutChannels = outChannels, Taps = taps };
-            b.Clip = AudioClip.Create(
-                name: $"BasisMediaPlayerAudio_{i}",
-                lengthSamples: clipLenSamples,
-                channels: b.OutChannels,
-                frequency: rate,
-                stream: true,
-                pcmreadercallback: data => OnPcmRead(b, data));
+            var b = new Binding { Source = src, Splitter = splitter, OutChannels = outChannels, Taps = taps };
+            b.Primary = built.Count == 0;
+            // A short silent looping clip keeps the source's DSP chain active; the tap
+            // overwrites each block from the splitter each DSP block (~tens of ms of
+            // latency vs a streaming clip's ~half-second buffer). SpatializePostEffects
+            // makes any spatialiser (Steam Audio) run AFTER the tap, so the generated
+            // audio is spatialised / occluded / transmitted normally.
+            b.Clip = AudioClip.Create($"BasisMediaPlayerAudio_{i}_keepalive", Mathf.Max(256, rate / 10), 1, rate, false);
             src.clip = b.Clip;
             src.loop = true;
-            b.Primary = built.Count == 0;
+            src.spatializePostEffects = true;
+            if (!src.TryGetComponent(out BasisMediaPlayerAudioTap tap)) tap = src.gameObject.AddComponent<BasisMediaPlayerAudioTap>();
+            b.FilterTap = tap;
+            bool primary = b.Primary;
+            tap.Bind(splitter, taps, spreadMonoAcrossChannels: outChannels == 1,
+                     gain: () => Mute ? 0f : Mathf.Clamp(VolumeGain, 0f, 2f),
+                     metrics: primary ? (Action<float[], int>)TrackPrimaryMetrics : null);
             built.Add(b);
         }
         bindings = built.ToArray();
@@ -304,6 +324,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         {
             foreach (var b in bindings)
             {
+                if (b.FilterTap != null) b.FilterTap.Unbind();
                 if (b.Source != null && b.Source.clip == b.Clip) { b.Source.Stop(); b.Source.clip = null; }
                 if (b.Clip != null) Destroy(b.Clip);
             }
@@ -331,28 +352,17 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             if (b.Source != null) b.Source.Stop();
     }
 
-    // Runs on the audio thread. Mixes this output's channel(s) from the shared
-    // broadcast window; the splitter handles the source ring and de-interleave.
-    private void OnPcmRead(Binding b, float[] data)
+    // Peak / RMS / consumed-frame metrics from the primary output's mixed block,
+    // invoked by the primary tap. Runs on the audio thread. Counts sample-frames,
+    // not interleaved floats, so the metric is the same whether the primary output
+    // is mono or stereo.
+    private void TrackPrimaryMetrics(float[] data, int outChannels)
     {
-        var s = b.Splitter;
-        Array.Clear(data, 0, data.Length);
-        if (s != null)
-        {
-            float gain = Mute ? 0f : Mathf.Clamp(VolumeGain, 0f, 2f);
-            s.ReadMixed(b.Reader, data, data.Length / b.OutChannels, b.OutChannels, b.Taps, gain);
-        }
-
-        if (b.Primary)
-        {
-            int n = data.Length;
-            float peak = 0f; double sumSq = 0;
-            for (int i = 0; i < n; i++) { float v = data[i]; float a = v < 0f ? -v : v; if (a > peak) peak = a; sumSq += v * v; }
-            lastPcmPeak = peak;
-            lastPcmRms = n > 0 ? (float)Math.Sqrt(sumSq / n) : 0f;
-            // Count sample-frames, not interleaved floats, so the metric is the
-            // same whether the primary output is mono (per-channel) or stereo.
-            System.Threading.Interlocked.Add(ref consumedSamples, n / Mathf.Max(1, b.OutChannels));
-        }
+        int n = data.Length;
+        float peak = 0f; double sumSq = 0;
+        for (int i = 0; i < n; i++) { float v = data[i]; float a = v < 0f ? -v : v; if (a > peak) peak = a; sumSq += v * v; }
+        lastPcmPeak = peak;
+        lastPcmRms = n > 0 ? (float)Math.Sqrt(sumSq / n) : 0f;
+        System.Threading.Interlocked.Add(ref consumedSamples, n / Mathf.Max(1, outChannels));
     }
 }

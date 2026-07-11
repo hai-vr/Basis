@@ -1365,6 +1365,13 @@ extern "C" void basis_decoder_set_buffer(basis_decoder_t* d, int mode, int buffe
     if (buffer_ms > 0) d->bufferUs = (LONG)(buffer_ms * 1000);
 }
 
+extern "C" void basis_decoder_set_audio_latency(basis_decoder_t* d, int latency_us) {
+    /* The desktop backend derives the audio-gate lead from its own present clock
+     * (audClockOffsetUs), so it doesn't need the managed sink's estimate. Accept
+     * the call for ABI uniformity. */
+    (void)d; (void)latency_us;
+}
+
 extern "C" void basis_decoder_set_output_texture(basis_decoder_t* d, void* native_texture, int w, int h) {
     /* Windows uses D3D11/12 CreateExternalTexture (no Mali crash there), so the
      * AccessTexture path is not needed. Accept the call for ABI uniformity. */

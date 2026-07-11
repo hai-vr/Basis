@@ -45,6 +45,7 @@ int      basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) { (v
 int      basis_decoder_read_audio(basis_decoder_t* d, float* o, int m) { (void)d;(void)o;(void)m; return 0; }
 int      basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) { (void)d; if (buf && size > 0) buf[0] = 0; return 0; }
 void     basis_decoder_set_buffer(basis_decoder_t* d, int mode, int ms) { (void)d;(void)mode;(void)ms; }
+void     basis_decoder_set_audio_latency(basis_decoder_t* d, int latency_us) { (void)d;(void)latency_us; }
 void     basis_decoder_set_output_texture(basis_decoder_t* d, void* nt, int w, int h) { (void)d;(void)nt;(void)w;(void)h; }
 
 /* graphics stubs */

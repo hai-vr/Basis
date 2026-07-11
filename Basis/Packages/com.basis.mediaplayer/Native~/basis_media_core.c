@@ -1187,6 +1187,10 @@ BASIS_API void BASIS_CALL basis_media_set_buffer(basis_media_engine_t* e, int mo
     if (e && e->decoder) basis_decoder_set_buffer(e->decoder, mode, buffer_ms);
 }
 
+BASIS_API void BASIS_CALL basis_media_set_audio_latency(basis_media_engine_t* e, int latency_us) {
+    if (e && e->decoder) basis_decoder_set_audio_latency(e->decoder, latency_us);
+}
+
 BASIS_API void BASIS_CALL basis_media_set_output_texture(basis_media_engine_t* e, void* native_texture, int w, int h) {
     if (e && e->decoder) basis_decoder_set_output_texture(e->decoder, native_texture, w, h);
 }

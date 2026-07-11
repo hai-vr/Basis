@@ -79,6 +79,9 @@ internal static class BasisNativeMedia
     private static extern void basis_media_set_buffer(IntPtr engine, int mode, int bufferMs);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern void basis_media_set_audio_latency(IntPtr engine, int latencyUs);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern void basis_media_set_output_texture(IntPtr engine, IntPtr nativeTexture, int w, int h);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
@@ -227,6 +230,16 @@ internal static class BasisNativeMedia
     public static void SetBuffer(IntPtr e, int mode, int bufferMs)
     {
         if (e != IntPtr.Zero) basis_media_set_buffer(e, mode, bufferMs);
+    }
+
+    // Reports the managed audio sink's measured output latency (µs) so the backend
+    // paces video to match. Old libraries without the export (the desktop DLL,
+    // which self-times) no-op — they keep their own A/V timing.
+    public static void SetAudioLatencyUs(IntPtr e, int latencyUs)
+    {
+        if (e == IntPtr.Zero) return;
+        try { basis_media_set_audio_latency(e, latencyUs); }
+        catch (EntryPointNotFoundException) { }
     }
 
     // Register a Unity-allocated RenderTexture as the engine's render target.

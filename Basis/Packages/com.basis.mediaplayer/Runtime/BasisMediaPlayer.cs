@@ -1219,6 +1219,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         // ready/size/EOS/error events, then mirror status. No CPU frame queue.
         if (nativeEngine != null)
         {
+            // Feed the audio sink's measured output latency to the backend so it
+            // paces video to match (low-latency A/V sync; desktop ignores it).
+            if (audioComponent != null) nativeEngine.SetAudioLatencyUs(audioComponent.EstimatedOutputLatencyUs);
             nativeEngine.Pump(VerboseLogging);
             DrainPendingEvents();
             PollNativeEngineStatus();
