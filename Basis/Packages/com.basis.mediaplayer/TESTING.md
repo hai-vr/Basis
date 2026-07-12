@@ -82,6 +82,14 @@ fine for interactive test sessions, not for soak loops.
 > Live endpoints join mid-GOP like any live stream — audio-before-video on join is expected
 > behaviour, not a regression, unless the gap exceeds the stream's GOP length.
 
+**Page URLs (YouTube, Twitch, …) are deliberately absent from this guide.** They only work
+through an optional resolver integration, so the base package can't assume they're testable.
+Everything in this document uses direct stream URLs; resolver-dependent testing lives in the
+integration package that provides it — e.g.
+[`com.basis.integration.ytdlp/TESTING.md`](../com.basis.integration.ytdlp/TESTING.md).
+The same split applies to any future integration: endpoints that need an integration package
+to function are tested in that package's own TESTING.md.
+
 ## What the public internet can't give you: the test-stream stack
 
 Some lanes have no reliable public endpoint. [`tools/media-test-streams/`](../../../tools/media-test-streams/)
@@ -109,12 +117,12 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 | Lane | Source | Verify additionally |
 | --- | --- | --- |
-| RTSPT live | VRCDN or stack `rtspt://…:8554/main` | Join latency ≈ GOP-bound; pause/resume returns to live edge |
-| RTSPT adversarial join | stack `…/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
+| RTSPT live | VRCDN or stack `rtspt://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly |
+| RTSPT adversarial join | stack `rtspt://<host>:8554/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
 | HTTP-TS live | VRCDN `.live.ts` or stack | Same checks over plain TS; on Quest use the https lane |
 | HLS VOD | Mux master or stack packaging | Variant switch via panel bitrate dropdown mid-play |
 | Progressive/fMP4 MP4 | Big Buck Bunny | `Delivery=Auto` detects OnDemand (needs the 206); seek slider works |
-| RTMP | stack | Minimal client — plain `rtmp://` pull only |
+| RTMP | stack `rtmp://<host>:1935/main` | Minimal client — plain `rtmp://` pull only |
 | RIST plain + AES | stack (RIST profile) | Requires RIST-enabled plugin build; loss recovery under induced packet loss |
 | WAV audio-only | stack VOD | 16/24-bit, up to 8 ch; no video track is not an error |
 | Split-stream | stack pair | Windows-only today; `AudioUri` lane syncs to video |
