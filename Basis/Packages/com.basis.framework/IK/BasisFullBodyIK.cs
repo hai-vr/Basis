@@ -203,7 +203,6 @@ namespace UnityEngine.Animations.Rigging
 
         [SyncSceneToStream, SerializeField] public Quaternion LeftShoulderRotation;
         [SyncSceneToStream, SerializeField] public Quaternion RightShoulderRotation;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationNeck;
 
         // Hips
         [SyncSceneToStream, SerializeField] public Vector3 PositionHips;
@@ -214,20 +213,16 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 LeftFootPosition;
         [SyncSceneToStream, SerializeField] public Quaternion LeftFootRotation;
         [SyncSceneToStream, SerializeField] public Vector3 PositionLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion RotationLeftLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion M_CalibrationLeftFootRotation;
 
         // Right Leg
         [SyncSceneToStream, SerializeField] public Vector3 RightFootPosition;
         [SyncSceneToStream, SerializeField] public Quaternion RightFootRotation;
         [SyncSceneToStream, SerializeField] public Vector3 PositionRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion RotationRightLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion M_CalibrationRightFootRotation;
 
         // Toes
-        [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
         [SyncSceneToStream, SerializeField] public Quaternion OutGoingLeftToeRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 OutGoingRightToePosition;
         [SyncSceneToStream, SerializeField] public Quaternion OutGoingRightToeRotation;
 
         // Left Hand
@@ -245,14 +240,12 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightHand;
 
         // Misc
-        [SyncSceneToStream, SerializeField] public Vector3 SpineBendNormal;
         [SyncSceneToStream, SerializeField] public Vector3 PlayerUp;
 
         [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefLeft;
         [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefRight;
 
         [SyncSceneToStream, SerializeField] public float m_HandSkin;
-        [SyncSceneToStream, SerializeField] public bool m_UseHandCapsule;
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_HandRadius;
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_ChestRadius;
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_CollisionSkin;
@@ -297,10 +290,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float m_MaxBendDeg;
         [SyncSceneToStream, SerializeField] public float m_MinFactor;
         [SyncSceneToStream, SerializeField] public float m_MaxFactor;
-        [SyncSceneToStream, SerializeField] public float m_StruggleStart;
-        [SyncSceneToStream, SerializeField] public float m_StruggleEnd;
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
-        [SyncSceneToStream, SerializeField] public float m_MaxHipDeltaDeg;
 
         // Shoulder pre-solve: raises/protracts shoulders based on hand target
         [SyncSceneToStream, SerializeField] bool m_ShoulderSolveEnabled;
@@ -439,7 +429,6 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string PropertyChestPosition => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
         public string PropertyChestRotation => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestRotation));
-        public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(SpineBendNormal));
         public string PlayerUpProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PlayerUp));
         public string KneeBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefLeft));
         public string KneeBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefRight));
@@ -448,13 +437,11 @@ namespace UnityEngine.Animations.Rigging
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootPosition));
         public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootRotation));
         public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionLeftLowerLeg));
-        public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationLeftLowerLeg));
         public string EnabledPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightLowerLegEnabled));
         public string HintWeightBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintRightLowerLegEnabled));
         public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootPosition));
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootRotation));
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionRightLowerLeg));
-        public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationRightLowerLeg));
         public string HintIsTrackerBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegHintIsTracker));
         public string HintIsTrackerBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightLowerLegHintIsTracker));
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
@@ -472,9 +459,7 @@ namespace UnityEngine.Animations.Rigging
         public string OffsetRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CalibratedRotationRightHand));
         public string LeftToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftToeEnabled));
         public string RightToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightToeEnabled));
-        public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
         public string LeftDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToeRotation));
-        public string RightDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToePosition));
         public string RightDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToeRotation));
         public string HintWeightBoolPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftHandEnabled));
         public string TargetPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionLeftHand));
@@ -493,7 +478,6 @@ namespace UnityEngine.Animations.Rigging
         public string CollisionsEnabledBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabled));
         public string HandRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandRadius));
         public string HandSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkin));
-        public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
         public string CollideTrackedElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollideTrackedElbow));
         public string EnabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
@@ -504,9 +488,6 @@ namespace UnityEngine.Animations.Rigging
         public string MaxBendDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxBendDeg));
         public string MinFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinFactor));
         public string MaxFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxFactor));
-        public string StruggleStartFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleStart));
-        public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
-        public string MaxHipDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxHipDeltaDeg));
         public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
         public bool WeightChest { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
