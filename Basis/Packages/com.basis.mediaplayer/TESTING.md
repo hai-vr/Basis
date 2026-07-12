@@ -167,8 +167,11 @@ divergence is not).
 
 **Panel UI** ("Media Players" panel, `Runtime/UI/BasisMediaPlayerPanelProvider.cs`) — URL
 load, transport buttons, seek slider (VOD only), volume, bitrate dropdown (HLS multi-variant),
-audio-track dropdown (multi-audio content), captions toggle + opacity sliders. Controls that
-don't apply to the loaded media should be absent or inert, not broken.
+audio-track dropdown (multi-audio content), captions toggle + opacity sliders, subtitles
+dropdown (only when the loaded media offers sidecar subtitle tracks — resolver-supplied, so
+the scenarios live in the resolver package's guide; with plain stream URLs the dropdown must
+be entirely absent). Controls that don't apply to the loaded media should be absent or inert,
+not broken.
 
 **Security gates** — negative tests matter: `http://192.168.1.10/x.ts` must refuse with a
 clear reason on every platform; `localhost` must refuse **in a build** (and work in the
