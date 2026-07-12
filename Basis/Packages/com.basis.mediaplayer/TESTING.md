@@ -61,7 +61,7 @@ Practical consequences:
 - **Quest/Android:** the OS cleartext policy blocks plain `http://` on the JNI fetch path —
   HTTP-TS and HLS lanes need `https://` with a certificate chain the device actually trusts
   (serve the full chain; standalone headsets are missing more roots than desktop browsers).
-  `rtspt://` is unaffected.
+  `rtsp://` is unaffected.
 - The separate world-content trust allowlist (`BasisDefaultTrustedUrls`, https-only) gates the
   sandboxed `VideoPlayer` shim path, not this package — but streams hosted on already-trusted
   domains spare testers a consent prompt when worlds use the same URL.
@@ -73,7 +73,7 @@ fine for interactive test sessions, not for soak loops.
 
 | URL | Exercises | Notes |
 | --- | --- | --- |
-| `rtspt://stream.vrcdn.live/live/vrcdn` | RTSPT live, H.264 720p + AAC 2.0 @ 48 kHz | VRCDN's own 24/7 channel; the primary PC low-latency lane; host is on the default trust list |
+| `rtsp://stream.vrcdn.live/live/vrcdn` | RTSP live, H.264 720p + AAC 2.0 @ 48 kHz | VRCDN's own 24/7 channel; the primary PC low-latency lane; host is on the default trust list. `rtspt://` works identically (both schemes take the TCP-interleaved path) |
 | `https://stream.vrcdn.live/live/vrcdn.live.ts` | MPEG-TS over HTTPS, live | Same channel, the standalone-friendly lane (https, so Quest-safe) |
 | `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4` | Progressive MP4 VOD, range/`206` | Also good for seek/pause and delivery auto-detect testing |
 | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS VOD, multi-variant master | Exercises the panel's bitrate dropdown |
@@ -117,8 +117,8 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 | Lane | Source | Verify additionally |
 | --- | --- | --- |
-| RTSPT live | VRCDN or stack `rtspt://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly |
-| RTSPT adversarial join | stack `rtspt://<host>:8554/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
+| RTSP live | VRCDN or stack `rtsp://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly |
+| RTSP adversarial join | stack `rtsp://<host>:8554/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
 | HTTP-TS live | VRCDN `.live.ts` or stack | Same checks over plain TS; on Quest use the https lane |
 | HLS VOD | Mux master or stack packaging | Variant switch via panel bitrate dropdown mid-play |
 | Progressive/fMP4 MP4 | Big Buck Bunny | `Delivery=Auto` detects OnDemand (needs the 206); seek slider works |
