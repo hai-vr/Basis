@@ -570,7 +570,7 @@ namespace Basis.Scripts.Drivers
                     case BasisBoneTrackedRole.CenterEye:
                         {
                             // Convert avatar-local eye position to world and apply
-                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarEyePosition), RootPosition, out float3 world);
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarEyePosition), RootPosition, RootRotation, out float3 world);
                             SetInitialData(rootTransform, control, role, world, RootRotation);
                             break;
                         }
@@ -578,7 +578,7 @@ namespace Basis.Scripts.Drivers
                     case BasisBoneTrackedRole.Mouth:
                         {
                             // Convert avatar-local mouth position to world and apply
-                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarMouthPosition), RootPosition, out float3 world);
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarMouthPosition), RootPosition, RootRotation, out float3 world);
                             SetInitialData(rootTransform, control, role, world, RootRotation);
                             break;
                         }
@@ -610,14 +610,15 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Converts a local avatar-space position to world space based on animator position.
+        /// Converts a local avatar-space position to world space based on animator position and rotation.
         /// </summary>
         /// <param name="localAvatarSpace">Point in avatar-local coordinates.</param>
         /// <param name="AnimatorPosition">Animator world position used as origin.</param>
+        /// <param name="AnimatorRotation">Animator world rotation used as the basis.</param>
         /// <param name="position">Out: computed world position.</param>
-        public void GetWorldSpacePos(Vector3 localAvatarSpace, Vector3 AnimatorPosition, out float3 position)
+        public void GetWorldSpacePos(Vector3 localAvatarSpace, Vector3 AnimatorPosition, Quaternion AnimatorRotation, out float3 position)
         {
-            position = BasisHelpers.ConvertFromLocalSpace(localAvatarSpace, AnimatorPosition);
+            position = BasisHelpers.ConvertFromLocalSpace(localAvatarSpace, AnimatorPosition, AnimatorRotation);
         }
 
         /// <summary>

@@ -59,21 +59,43 @@ namespace UnityEngine.Animations.Rigging
         {
             r = default;
 
+            // The pitch clamp is measured against ReferenceUp (the chest up), NOT world up. It used to build
+            // the horizontal plane out of world XZ and the yaw axis out of Vector3.up, while everything below
+            // this block already used ReferenceUp -- so the core disagreed with itself the moment the torso
+            // was not upright. Bent over or prone, the clamp fired against the wrong horizon and dragged the
+            // head off the HMD. Identical to the old code when ReferenceUp is world up.
+            Vector3 up = i.ReferenceUp.sqrMagnitude > k_SqrEpsilon ? i.ReferenceUp.normalized : Vector3.up;
+
             Quaternion headRot = i.HeadTargetRot;
             Vector3 hf = headRot * Vector3.forward;
-            float horizMag = Mathf.Sqrt(hf.x * hf.x + hf.z * hf.z);
-            float pitchDeg = (horizMag > 1e-6f) ? Mathf.Atan2(-hf.y, horizMag) * Mathf.Rad2Deg : (hf.y < 0f ? 90f : -90f);
+            float upComp = Vector3.Dot(hf, up);
+            Vector3 horiz = hf - up * upComp;
+            float horizMag = horiz.magnitude;
+            float pitchDeg = (horizMag > 1e-6f) ? Mathf.Atan2(-upComp, horizMag) * Mathf.Rad2Deg : (upComp < 0f ? 90f : -90f);
             float clampedDeg = Mathf.Clamp(pitchDeg, -i.MaxHeadPitchDeg, i.MaxHeadPitchDeg);
             if (clampedDeg != pitchDeg)
             {
-                Vector3 yawForward = (horizMag > 1e-6f) ? new Vector3(hf.x, 0f, hf.z) / horizMag : Vector3.forward;
-                Vector3 yawRight = Vector3.Cross(Vector3.up, yawForward);
+                Vector3 yawForward;
+                if (horizMag > 1e-6f)
+                {
+                    yawForward = horiz / horizMag;
+                }
+                else
+                {
+                    // Gaze is along the torso axis, so head-forward gives no yaw. Head-up is orthogonal to
+                    // head-forward by construction, so it always survives the projection -- use it, and stay
+                    // in the body frame rather than falling back to a world axis.
+                    Vector3 alt = headRot * Vector3.up;
+                    Vector3 altH = alt - up * Vector3.Dot(alt, up);
+                    yawForward = altH.sqrMagnitude > k_SqrEpsilon ? altH.normalized : Vector3.Cross(up, Vector3.right).normalized;
+                }
+                Vector3 yawRight = Vector3.Cross(up, yawForward);
                 Quaternion correction = Quaternion.AngleAxis(-(pitchDeg - clampedDeg), yawRight);
                 headRot = correction * headRot;
             }
 
             Vector3 headForward = headRot * Vector3.forward;
-            float pitchSigned = Vector3.Dot(headForward, i.ReferenceUp);
+            float pitchSigned = Vector3.Dot(headForward, up);
             float lookUpFrac = Mathf.Clamp01(pitchSigned);
             float lookDownFrac = Mathf.Clamp01(-pitchSigned);
 

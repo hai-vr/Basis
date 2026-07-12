@@ -1270,13 +1270,20 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>
         /// Converts a world-space point to the avatar's local space, using <paramref name="Transform"/> as the origin.
+        /// Rotation-aware: the caller stores the result as a root-LOCAL offset (TposeLocal) and everything
+        /// downstream -- the bone sim's ParentMatrix, CreateRotationalLock's Offset, DriveTpose,
+        /// ComputeTposeAnchor -- rotates it back by the root. Subtracting the origin without also undoing the
+        /// root rotation leaves the offset in WORLD axes, so the root rotation gets applied to it twice: an
+        /// error that is exactly zero when the avatar is loaded facing world-forward and grows with whatever
+        /// yaw the player happened to be at, which is why it hid.
         /// </summary>
         /// <param name="Transform">Avatar root transform.</param>
         /// <param name="WorldSpace">World-space point to convert.</param>
         /// <returns>Point expressed in avatar-local coordinates.</returns>
         public static Vector3 ConvertToAvatarSpaceInitial(Transform Transform, Vector3 WorldSpace)
         {
-            return BasisHelpers.ConvertToLocalSpace(WorldSpace, Transform.position);
+            Transform.GetPositionAndRotation(out Vector3 origin, out Quaternion rotation);
+            return BasisHelpers.ConvertToLocalSpace(WorldSpace, origin, rotation);
         }
         /// <summary>
         /// One per-role calibration region. Position/rotation/scale are all derived

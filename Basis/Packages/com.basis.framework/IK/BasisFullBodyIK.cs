@@ -2474,47 +2474,44 @@ w20, w54;
         // FIRST, so frame-to-frame jitter (zero-mean swivel velocity) leaves the cutoff at its floor (heavy
         // smoothing -> the solve's amplification of tiny input noise is killed), while a real reach (sustained
         // swivel velocity) opens the cutoff so the elbow tracks with no lag. Per swing slot.
+        // No hips handle means no body frame, and the swivel smoothers measure against the body frame. Skipping
+        // is the only correct answer: substituting identity would put a world-locked reference back into the
+        // measurement, which is the exact defect BasisSwivelSmootherCore exists to remove.
         void SmoothElbowSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
         {
-            if (!armLookupInit.IsCreated || slot < 0 || slot >= armLookupInit.Length || dt <= 1e-6f)
+            if (!armLookupInit.IsCreated || slot < 0 || slot >= armLookupInit.Length || !HandleHips.IsValid(stream))
             {
                 return;
             }
-            Vector3 a = root.GetPosition(stream), b = mid.GetPosition(stream), c = tip.GetPosition(stream);
-            Vector3 ac = c - a;
-            float acSqr = ac.sqrMagnitude;
-            if (acSqr < k_SqrEpsilon) return;
-            Vector3 axis = ac / Mathf.Sqrt(acSqr);
-            Vector3 refDir = Vector3.ProjectOnPlane(Vector3.down, axis);
-            Vector3 pole = Vector3.ProjectOnPlane(b - a, axis);
-            if (refDir.sqrMagnitude < k_SqrEpsilon || pole.sqrMagnitude < k_SqrEpsilon) return;
-            refDir.Normalize();
-            float curSwivel = Vector3.SignedAngle(refDir, pole, axis);
+            BasisSwivelSmootherInput input = default;
+            input.Root = root.GetPosition(stream);
+            input.Mid = mid.GetPosition(stream);
+            input.Tip = tip.GetPosition(stream);
+            input.BodyRotation = HandleHips.GetRotation(stream);
+            input.ReferenceLocal = Vector3.down;
+            input.FallbackLocal = Vector3.zero;
+            input.Dt = dt;
+            input.MinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+            input.Beta = BasisSwivelFilterCore.Beta;
+            input.DerivCutoffHz = BasisSwivelFilterCore.DerivCutoffHz;
+            input.State = new BasisSwivelFilterState { Raw = armLookupRaw[slot].x, Vel = armLookupRaw[slot].y, Smooth = armLookupSmooth[slot].x };
+            input.Seeded = armLookupInit[slot] != 0;
 
-            if (armLookupInit[slot] == 0)
+            BasisSwivelSmootherCore.Solve(input, out BasisSwivelSmootherResult result);
+            if (result.WriteState)
             {
-                BasisSwivelFilterState seed = BasisSwivelFilterCore.Seed(curSwivel);
-                armLookupRaw[slot] = new Vector3(seed.Raw, seed.Vel, 0f);
-                armLookupSmooth[slot] = new Vector3(seed.Smooth, 0f, 0f);
+                armLookupRaw[slot] = new Vector3(result.State.Raw, result.State.Vel, 0f);
+                armLookupSmooth[slot] = new Vector3(result.State.Smooth, 0f, 0f);
                 armLookupInit[slot] = 1;
+            }
+            if (!result.Valid)
+            {
                 return;
             }
-            BasisSwivelFilterState swivelState;
-            swivelState.Raw = armLookupRaw[slot].x;
-            swivelState.Vel = armLookupRaw[slot].y;
-            swivelState.Smooth = armLookupSmooth[slot].x;
-            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt);
-            float smooth = swivelState.Smooth;
-            armLookupRaw[slot] = new Vector3(swivelState.Raw, swivelState.Vel, 0f);
-            armLookupSmooth[slot] = new Vector3(swivelState.Smooth, 0f, 0f);
 
-            Vector3 center = a + axis * Vector3.Dot(b - a, axis);
-            float radius = (b - center).magnitude;
-            if (radius < k_Epsilon) return;
-            Vector3 desiredElbow = center + (Quaternion.AngleAxis(smooth, axis) * refDir) * radius;
-            Vector3 preHand = c;
+            Vector3 preHand = input.Tip;
             Quaternion preHandRot = tip.GetRotation(stream);
-            SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
+            SwingElbowAroundAC(stream, root, mid, tip, result.DesiredMid);
             tip.SetPosition(stream, preHand);
             tip.SetRotation(stream, preHandRot);
         }
@@ -2534,48 +2531,41 @@ w20, w54;
         // caller passes the appropriate One-Euro cutoffs. Per-leg slot.
         void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz)
         {
-            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || dt <= 1e-6f)
+            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !HandleHips.IsValid(stream))
             {
                 return;
             }
-            Vector3 a = root.GetPosition(stream), b = mid.GetPosition(stream), c = tip.GetPosition(stream);
-            Vector3 ac = c - a;
-            float acSqr = ac.sqrMagnitude;
-            if (acSqr < k_SqrEpsilon) return;
-            Vector3 axis = ac / Mathf.Sqrt(acSqr);
+            BasisSwivelSmootherInput input = default;
+            input.Root = root.GetPosition(stream);
+            input.Mid = mid.GetPosition(stream);
+            input.Tip = tip.GetPosition(stream);
+            input.BodyRotation = HandleHips.GetRotation(stream);
             // A standing leg hangs along the AC axis, so Vector3.down (the arm's ref) is colinear and
-            // degenerate here. Reference off forward (the knee bulges forward); right as the fallback.
-            Vector3 refDir = Vector3.forward - axis * Vector3.Dot(Vector3.forward, axis);
-            if (refDir.sqrMagnitude < k_SqrEpsilon) refDir = Vector3.right - axis * Vector3.Dot(Vector3.right, axis);
-            Vector3 pole = (b - a) - axis * Vector3.Dot(b - a, axis);
-            if (refDir.sqrMagnitude < k_SqrEpsilon || pole.sqrMagnitude < k_SqrEpsilon) return;
-            refDir.Normalize();
-            float curSwivel = Vector3.SignedAngle(refDir, pole, axis);
+            // degenerate here. Reference off body forward (the knee bulges forward); body right as the fallback.
+            input.ReferenceLocal = Vector3.forward;
+            input.FallbackLocal = Vector3.right;
+            input.Dt = dt;
+            input.MinCutoffHz = minCutoffHz;
+            input.Beta = beta;
+            input.DerivCutoffHz = derivCutoffHz;
+            input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
+            input.Seeded = legSwivelInit[slot] != 0;
 
-            if (legSwivelInit[slot] == 0)
+            BasisSwivelSmootherCore.Solve(input, out BasisSwivelSmootherResult result);
+            if (result.WriteState)
             {
-                BasisSwivelFilterState seed = BasisSwivelFilterCore.Seed(curSwivel);
-                legSwivelRaw[slot] = new Vector3(seed.Raw, seed.Vel, 0f);
-                legSwivelSmooth[slot] = new Vector3(seed.Smooth, 0f, 0f);
+                legSwivelRaw[slot] = new Vector3(result.State.Raw, result.State.Vel, 0f);
+                legSwivelSmooth[slot] = new Vector3(result.State.Smooth, 0f, 0f);
                 legSwivelInit[slot] = 1;
+            }
+            if (!result.Valid)
+            {
                 return;
             }
-            BasisSwivelFilterState swivelState;
-            swivelState.Raw = legSwivelRaw[slot].x;
-            swivelState.Vel = legSwivelRaw[slot].y;
-            swivelState.Smooth = legSwivelSmooth[slot].x;
-            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt, minCutoffHz, beta, derivCutoffHz);
-            float smooth = swivelState.Smooth;
-            legSwivelRaw[slot] = new Vector3(swivelState.Raw, swivelState.Vel, 0f);
-            legSwivelSmooth[slot] = new Vector3(swivelState.Smooth, 0f, 0f);
 
-            Vector3 center = a + axis * Vector3.Dot(b - a, axis);
-            float radius = (b - center).magnitude;
-            if (radius < k_Epsilon) return;
-            Vector3 desiredKnee = center + (Quaternion.AngleAxis(smooth, axis) * refDir) * radius;
-            Vector3 preFoot = c;
+            Vector3 preFoot = input.Tip;
             Quaternion preFootRot = tip.GetRotation(stream);
-            SwingElbowAroundAC(stream, root, mid, tip, desiredKnee);
+            SwingElbowAroundAC(stream, root, mid, tip, result.DesiredMid);
             tip.SetPosition(stream, preFoot);
             tip.SetRotation(stream, preFootRot);
         }

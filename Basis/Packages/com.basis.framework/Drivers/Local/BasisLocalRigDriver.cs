@@ -1208,6 +1208,12 @@ namespace Basis.Scripts.Drivers
 
         private static void ApplyTuningSettings(ref BasisFullBodyData data)
         {
+            // The IK job reads PlayerUp for the hip hinge, crouch offset, arm solve and elbow protect.
+            // Nothing ever assigned it, so it sat at the SetDefaultValues world up while the foot driver
+            // used the real root up -- the two halves of the solve disagreed whenever the root was tilted
+            // (play-space flip, seats/vehicles). Identical to Vector3.up for an upright root.
+            Vector3 rootUp = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up);
+            data.PlayerUp = rootUp.sqrMagnitude > 1e-8f ? rootUp.normalized : Vector3.up;
             data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
             data.StruggleStart = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleStart.RawValue;
             data.StruggleEnd = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleEnd.RawValue;
