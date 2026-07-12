@@ -1,13 +1,20 @@
 /*
- * basis_rtsp.c — RTSP client with RTP interleaved over the TCP control channel
- * (the "rtspt" transport: Transport: RTP/AVP/TCP;interleaved=0-1).
+ * basis_rtsp.c — RTSP client with negotiated transport: rtsp:// attempts UDP
+ * (Transport: RTP/AVP;unicast;client_port=N-N+1) and falls back to RTP
+ * interleaved over the TCP control channel on refusal, socket error, or a
+ * no-data timer; rtspt:// pins the TCP-interleaved transport and never
+ * probes UDP.
  *
- * Flow: OPTIONS -> DESCRIBE (parse SDP) -> SETUP (per media) -> PLAY, then read
- * interleaved RTP. Video is depacketized (H.264 single/STAP-A/FU-A, H.265
- * single/AP/FU) into Annex B access units; AAC (MPEG4-GENERIC) into raw frames.
+ * Flow: DESCRIBE (parse SDP) -> SETUP (per media) -> PLAY, then read RTP.
+ * Video is depacketized (H.264 single/STAP-A/FU-A, H.265 single/AP/FU) into
+ * Annex B access units; AAC (MPEG4-GENERIC) into raw frames. UDP sessions add
+ * a small reorder hold-back, sequence-gap access-unit drops, RTCP receiver
+ * reports, and GET_PARAMETER keepalive; a host that fails UDP is remembered
+ * for a few minutes so later loads go straight to TCP.
  *
- * Scope notes: Basic auth only (no Digest); one video + one audio media. These
- * cover VRCDN-style public endpoints; Digest/auth-heavy servers need a follow-up.
+ * Scope notes: Basic auth only (no Digest); one video + one audio media;
+ * unicast only (multicast SDPs take the TCP path). These cover VRCDN-style
+ * public endpoints; Digest/auth-heavy servers need a follow-up.
  */
 
 #include "basis_rtsp.h"
@@ -21,9 +28,28 @@
 
 #if defined(_WIN32)
   #define strncasecmp _strnicmp
+  #define WIN32_LEAN_AND_MEAN
+  #include <windows.h>
 #else
   #include <strings.h>
+  #include <time.h>
 #endif
+
+/* UDP transport tuning. The no-data deadlines are deliberately snappy: a
+ * false fallback lands on TCP-interleaved, which works wherever UDP does, so
+ * over-triggering costs nothing observable while under-triggering stalls the
+ * user. */
+#define RTSP_UDP_START_TIMEOUT_MS 3000   /* PLAY ok but nothing at all yet */
+#define RTSP_UDP_MEDIA_TIMEOUT_MS 15000  /* RTCP alive but RTP never arrives (asymmetric
+                                          * filtering; also covers long-GOP servers that
+                                          * hold media until the next keyframe) */
+#define RTSP_UDP_STALL_TIMEOUT_MS 5000   /* media stopped mid-play (RTP only — RTCP
+                                          * flowing without media is not playback) */
+#define RTSP_UDP_RR_INTERVAL_MS   5000   /* RTCP receiver-report cadence */
+#define RTSP_UDP_NEG_TTL_MS       (10 * 60 * 1000) /* per-host "UDP failed" memory */
+#define RTSP_REORDER_SLOTS        16     /* held-back out-of-order packets per track */
+#define RTSP_REORDER_HOLD_MS      40     /* how long a hole may stall delivery */
+#define RTSP_REORDER_PKT_MAX      4096   /* one UDP RTP datagram (MTU-bound) */
 
 /* ---- base64 ------------------------------------------------------------- */
 
@@ -58,6 +84,8 @@ typedef struct {
     char www_auth[256];    /* last WWW-Authenticate header value, if any */
     char location[1024];   /* last Location header (redirects) */
     char rtp_info[1024];   /* last RTP-Info header (PLAY: per-track rtptime) */
+    char transport[512];   /* last Transport header (SETUP: server_port/source) */
+    int  sess_timeout_s;   /* Session header timeout= (0 = server sent none) */
 } rtsp_t;
 
 static int rtsp_send(rtsp_t* r, const char* method, const char* url, const char* extra) {
@@ -81,6 +109,7 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
     r->last_status[0] = 0;
     r->www_auth[0] = 0;
     r->location[0] = 0;
+    r->transport[0] = 0;
     /* header lines until blank */
     for (;;) {
         li = 0;
@@ -112,6 +141,13 @@ static int rtsp_recv(rtsp_t* r, char* body, int bodycap, int* bodylen) {
             const char* s = line + 8; while (*s == ' ') s++;
             int j = 0; while (s[j] && s[j] != ';' && j < (int)sizeof(r->session) - 1) { r->session[j] = s[j]; j++; }
             r->session[j] = 0;
+            const char* to = strstr(s, "timeout=");
+            if (to) { int t = atoi(to + 8); if (t > 0) r->sess_timeout_s = t; }
+        }
+        else if (strncasecmp(line, "Transport:", 10) == 0) {
+            const char* v = line + 10; while (*v == ' ') v++;
+            strncpy(r->transport, v, sizeof(r->transport) - 1);
+            r->transport[sizeof(r->transport) - 1] = 0;
         }
         else if (strncasecmp(line, "RTP-Info:", 9) == 0) {
             const char* v = line + 9; while (*v == ' ') v++;
@@ -279,6 +315,11 @@ typedef struct {
     int fu_active;
     uint8_t fu_nal_header0, fu_nal_header1; /* reconstructed NAL header (1 byte h264 / 2 bytes h265) */
     int fu_is_h265;
+
+    /* UDP loss handling: a sequence gap taints the access unit under
+     * assembly — it's discarded at its boundary instead of delivered with
+     * missing slices. */
+    int v_drop;
 } depkt_t;
 
 static const uint8_t SC4[4] = {0,0,0,1};
@@ -330,6 +371,7 @@ static int64_t rtp_ts_extend(uint32_t ts, int64_t* ext, int* have_ext,
 }
 
 static void deliver_au(depkt_t* d) {
+    if (d->v_drop) { d->au_len = 0; d->v_drop = 0; return; }
     if (d->au_len <= 0) return;
     if (!d->video_announced) {
         int w = 0, h = 0;
@@ -501,9 +543,332 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
     }
 }
 
+/* ---- UDP transport helpers ---------------------------------------------- */
+
+static int64_t now_ms(void) {
+#if defined(_WIN32)
+    return (int64_t)GetTickCount64();
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
+
+/* Hosts where UDP recently failed: later loads skip the probe and go straight
+ * to TCP, so a blackholed network pays the no-data deadline once per host, not
+ * on every URL change. Process-global and unsynchronised by design — a racing
+ * writer costs at most one extra or one skipped probe, both benign. */
+static struct { char host[256]; int port; int64_t expires; } udp_neg[8];
+
+static int udp_neg_blocked(const char* host, int port) {
+    int64_t now = now_ms();
+    for (int i = 0; i < 8; ++i)
+        if (udp_neg[i].expires > now && udp_neg[i].port == port &&
+            strncmp(udp_neg[i].host, host, sizeof(udp_neg[i].host)) == 0)
+            return 1;
+    return 0;
+}
+
+static void udp_neg_add(const char* host, int port) {
+    int64_t now = now_ms();
+    int slot = 0;
+    for (int i = 0; i < 8; ++i) {
+        if (udp_neg[i].expires <= now) { slot = i; break; }
+        if (udp_neg[i].expires < udp_neg[slot].expires) slot = i;
+    }
+    strncpy(udp_neg[slot].host, host, sizeof(udp_neg[slot].host) - 1);
+    udp_neg[slot].host[sizeof(udp_neg[slot].host) - 1] = 0;
+    udp_neg[slot].port = port;
+    udp_neg[slot].expires = now + RTSP_UDP_NEG_TTL_MS;
+}
+
+/* Small per-track reorder hold-back. UDP delivers out of order on real
+ * networks; without a hold-back every swap would read as loss and drop an
+ * access unit. Packets ahead of the expected sequence wait in slots until the
+ * hole fills, the window overflows, or the hole has stalled delivery for
+ * RTSP_REORDER_HOLD_MS — the latter two declare a gap. Anything worse than
+ * mild reordering is the TCP fallback's job, so the window stays small. */
+typedef void (*rtp_pkt_fn)(void* ctx, const uint8_t* pkt, int len);
+typedef void (*rtp_gap_fn)(void* ctx);
+
+typedef struct {
+    struct {
+        uint16_t seq;
+        int used, len;
+        int64_t arrived;
+        uint8_t buf[RTSP_REORDER_PKT_MAX];
+    } slot[RTSP_REORDER_SLOTS];
+    uint16_t expected;
+    int have_expected;
+    int nqueued;
+} rtp_reorder_t;
+
+static uint16_t rtp_seq_of(const uint8_t* pkt) { return (uint16_t)((pkt[2] << 8) | pkt[3]); }
+
+/* Delivers every queued packet that is now in order. */
+static void reorder_drain(rtp_reorder_t* rb, rtp_pkt_fn deliver, void* ctx) {
+    int progressed = 1;
+    while (progressed && rb->nqueued > 0) {
+        progressed = 0;
+        for (int i = 0; i < RTSP_REORDER_SLOTS; ++i) {
+            if (rb->slot[i].used && rb->slot[i].seq == rb->expected) {
+                deliver(ctx, rb->slot[i].buf, rb->slot[i].len);
+                rb->slot[i].used = 0;
+                rb->nqueued--;
+                rb->expected++;
+                progressed = 1;
+            }
+        }
+    }
+}
+
+/* Advances past a hole: marks the gap, then resumes from the lowest queued
+ * sequence (or `resume` when the queue is empty). */
+static void reorder_skip(rtp_reorder_t* rb, uint16_t resume,
+                         rtp_pkt_fn deliver, rtp_gap_fn gap, void* ctx) {
+    gap(ctx);
+    uint16_t lowest = resume;
+    int have = 0;
+    for (int i = 0; i < RTSP_REORDER_SLOTS; ++i) {
+        if (!rb->slot[i].used) continue;
+        if (!have || (int16_t)(rb->slot[i].seq - lowest) < 0) { lowest = rb->slot[i].seq; have = 1; }
+    }
+    rb->expected = lowest;
+    reorder_drain(rb, deliver, ctx);
+}
+
+static void reorder_push(rtp_reorder_t* rb, const uint8_t* pkt, int len, int64_t now,
+                         rtp_pkt_fn deliver, rtp_gap_fn gap, void* ctx) {
+    if (len < 12 || len > RTSP_REORDER_PKT_MAX) return;
+    uint16_t seq = rtp_seq_of(pkt);
+    if (!rb->have_expected) { rb->have_expected = 1; rb->expected = seq; }
+
+    int16_t delta = (int16_t)(seq - rb->expected);
+    if (delta < 0) return;                 /* duplicate or too late — drop */
+    if (delta == 0) {
+        deliver(ctx, pkt, len);
+        rb->expected++;
+        reorder_drain(rb, deliver, ctx);
+        return;
+    }
+    if (delta > RTSP_REORDER_SLOTS) {      /* hole too wide for the window */
+        reorder_skip(rb, seq, deliver, gap, ctx);
+        if (seq == rb->expected) { deliver(ctx, pkt, len); rb->expected++; reorder_drain(rb, deliver, ctx); }
+        else reorder_push(rb, pkt, len, now, deliver, gap, ctx);
+        return;
+    }
+    int free_i = -1;
+    for (int i = 0; i < RTSP_REORDER_SLOTS; ++i) {
+        if (rb->slot[i].used) { if (rb->slot[i].seq == seq) return; /* dup */ }
+        else if (free_i < 0) free_i = i;
+    }
+    if (free_i < 0) {
+        /* Full window. Unreachable while the invariants hold (16 slots over a
+         * 16-value in-window range with duplicates dropped above), but if it
+         * ever happens, skip the hole and re-evaluate rather than clobbering a
+         * live slot. */
+        reorder_skip(rb, seq, deliver, gap, ctx);
+        int16_t d2 = (int16_t)(seq - rb->expected);
+        if (d2 < 0) return;                        /* now stale — drop */
+        if (d2 == 0) { deliver(ctx, pkt, len); rb->expected++; reorder_drain(rb, deliver, ctx); return; }
+        for (int i = 0; i < RTSP_REORDER_SLOTS; ++i)
+            if (!rb->slot[i].used) { free_i = i; break; }
+        if (free_i < 0) return;                    /* window still full — drop */
+    }
+    rb->slot[free_i].used = 1;
+    rb->slot[free_i].seq = seq;
+    rb->slot[free_i].len = len;
+    rb->slot[free_i].arrived = now;
+    memcpy(rb->slot[free_i].buf, pkt, (size_t)len);
+    rb->nqueued++;
+}
+
+/* Called on the poll tick: a hole that has stalled queued packets past the
+ * hold window is declared lost. */
+static void reorder_tick(rtp_reorder_t* rb, int64_t now,
+                         rtp_pkt_fn deliver, rtp_gap_fn gap, void* ctx) {
+    if (rb->nqueued == 0) return;
+    int64_t oldest = now;
+    for (int i = 0; i < RTSP_REORDER_SLOTS; ++i)
+        if (rb->slot[i].used && rb->slot[i].arrived < oldest) oldest = rb->slot[i].arrived;
+    if (now - oldest >= RTSP_REORDER_HOLD_MS)
+        reorder_skip(rb, rb->expected, deliver, gap, ctx);
+}
+
+/* Minimal RTCP receiver report (no report blocks): keeps servers that expect
+ * receiver liveness from tearing the session down, and doubles as the NAT
+ * keepalive on the RTCP pinhole. */
+static void send_rtcp_rr(basis_io_t* io) {
+    static const uint8_t rr[8] = { 0x80, 0xC9, 0x00, 0x01, 'B', 'A', 'S', 'I' };
+    if (io) basis_io_send(io, rr, (int)sizeof(rr));
+}
+
+/* Opens the client-side NAT pinholes before the server starts sending: a
+ * throwaway datagram on the RTP port (version bits invalid, receivers drop
+ * it) and a receiver report on the RTCP port. */
+static void hole_punch(basis_io_t* rtp, basis_io_t* rtcp) {
+    static const uint8_t nul[4] = { 0, 0, 0, 0 };
+    for (int i = 0; i < 2; ++i) {
+        if (rtp) basis_io_send(rtp, nul, (int)sizeof(nul));
+        send_rtcp_rr(rtcp);
+    }
+}
+
+/* Parses server_port=a-b and source=<host> from a SETUP Transport header. */
+static int parse_transport_udp(const char* t, int* rtp_port, int* rtcp_port,
+                               char* source, int source_cap) {
+    if (source_cap > 0) source[0] = 0;
+    if (!t || strstr(t, "multicast")) return -1;   /* unicast only */
+    const char* sp = strstr(t, "server_port=");
+    if (!sp) return -1;
+    int a = 0, b = 0;
+    if (sscanf(sp + 12, "%d-%d", &a, &b) < 1 || a <= 0) return -1;
+    *rtp_port = a;
+    *rtcp_port = b > 0 ? b : a + 1;
+    const char* src = strstr(t, "source=");
+    if (src) {
+        src += 7;
+        int j = 0;
+        while (src[j] && src[j] != ';' && src[j] != ' ' && j < source_cap - 1) { source[j] = src[j]; j++; }
+        if (source_cap > 0) source[j] = 0;
+    }
+    return 0;
+}
+
+/* True when the SDP pins media to a multicast group (c= line, 224-239). */
+static int sdp_is_multicast(const char* sdp) {
+    const char* c = sdp;
+    while ((c = strstr(c, "c=IN IP4 ")) != NULL) {
+        int o = atoi(c + 9);
+        if (o >= 224 && o <= 239) return 1;
+        c += 9;
+    }
+    return 0;
+}
+
+/* Everything one UDP media session owns beyond the control connection. */
+typedef struct {
+    basis_io_t *v_rtp, *v_rtcp, *a_rtp, *a_rtcp;
+    rtp_reorder_t *v_rb, *a_rb;
+} udp_state_t;
+
+static void udp_state_close(udp_state_t* u) {
+    if (u->v_rtp)  basis_io_close(u->v_rtp);
+    if (u->v_rtcp) basis_io_close(u->v_rtcp);
+    if (u->a_rtp)  basis_io_close(u->a_rtp);
+    if (u->a_rtcp) basis_io_close(u->a_rtcp);
+    free(u->v_rb);
+    free(u->a_rb);
+    memset(u, 0, sizeof(*u));
+}
+
+/* Reorder-buffer callbacks: deliver feeds the depacketizers unchanged; a gap
+ * taints whatever is mid-assembly so it dies at its boundary instead of
+ * reaching the decoder truncated. */
+static void udp_deliver_video(void* ctx, const uint8_t* pkt, int len) { depkt_video((depkt_t*)ctx, pkt, len); }
+static void udp_deliver_audio(void* ctx, const uint8_t* pkt, int len) { depkt_audio((depkt_t*)ctx, pkt, len); }
+static void udp_gap_video(void* ctx) {
+    depkt_t* d = (depkt_t*)ctx;
+    d->fu_active = 0;
+    d->v_drop = 1;
+}
+static void udp_gap_audio(void* ctx) {
+    depkt_t* d = (depkt_t*)ctx;
+    d->afrag_active = 0;
+    d->afrag_len = 0;
+}
+
 /* ---- main run ----------------------------------------------------------- */
 
-int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
+/* Poll-driven UDP session loop: RTP datagrams reach the depacketizers through
+ * the reorder hold-back, RTCP counts as liveness, control-channel bytes are
+ * drained (keepalive replies, server notices). Enforces the no-data deadlines
+ * from the top of the file. Returns 0 on clean stop, -1 when the control
+ * connection ends, 1 to fall back to TCP. */
+static int udp_read_loop(rtsp_t* r, depkt_t* d, udp_state_t* u, const char* base_url) {
+    int64_t start = now_ms();
+    int64_t last_rtp = 0;     /* 0 = no media yet */
+    int64_t last_any = 0;     /* RTP or RTCP; 0 = nothing at all yet */
+    int64_t last_rr = start;
+    int64_t last_ka = start;
+    int64_t ka_interval = (int64_t)(r->sess_timeout_s > 0 ? r->sess_timeout_s : 60) * 1000 / 2;
+    if (ka_interval < 5000)  ka_interval = 5000;
+    if (ka_interval > 30000) ka_interval = 30000;
+
+    uint8_t pkt[RTSP_REORDER_PKT_MAX];
+
+    while (d->sink->is_running(d->sink->user)) {
+        basis_io_t* ios[5];
+        ios[0] = r->io;
+        ios[1] = u->v_rtp;  ios[2] = u->v_rtcp;
+        ios[3] = u->a_rtp;  ios[4] = u->a_rtcp;
+        int mask = basis_io_poll_read(ios, 5, 100);
+        int64_t now = now_ms();
+        if (mask < 0) return 1;
+
+        if (mask & (1 << 1)) {
+            int n = basis_io_read(u->v_rtp, pkt, (int)sizeof(pkt));
+            if (n <= 0) return 1;   /* ICMP refusal / socket error: instant fallback */
+            last_rtp = last_any = now;
+            reorder_push(u->v_rb, pkt, n, now, udp_deliver_video, udp_gap_video, d);
+        }
+        if ((mask & (1 << 3)) && u->a_rtp) {
+            int n = basis_io_read(u->a_rtp, pkt, (int)sizeof(pkt));
+            if (n <= 0) return 1;
+            last_rtp = last_any = now;
+            reorder_push(u->a_rb, pkt, n, now, udp_deliver_audio, udp_gap_audio, d);
+        }
+        if (mask & (1 << 2)) {
+            int n = basis_io_read(u->v_rtcp, pkt, (int)sizeof(pkt));
+            if (n <= 0) return 1;
+            last_any = now;   /* sender reports prove the path before media flows */
+        }
+        if ((mask & (1 << 4)) && u->a_rtcp) {
+            int n = basis_io_read(u->a_rtcp, pkt, (int)sizeof(pkt));
+            if (n <= 0) return 1;
+            last_any = now;
+        }
+        if (mask & 1) {
+            int n = basis_io_read(r->io, pkt, (int)sizeof(pkt));
+            /* Control connection gone. Before any media that usually means the
+             * server aborted the UDP session (e.g. its own UDP egress is
+             * filtered — mediamtx tears down readers on a failed send), so a
+             * TCP retry is worth one attempt. Once media has flowed it's the
+             * stream ending, which no transport change fixes. */
+            if (n <= 0) return last_rtp ? -1 : 1;
+        }
+
+        reorder_tick(u->v_rb, now, udp_deliver_video, udp_gap_video, d);
+        if (u->a_rtp) reorder_tick(u->a_rb, now, udp_deliver_audio, udp_gap_audio, d);
+
+        /* Three arms, all falling back to TCP: dead silence after PLAY; RTCP
+         * alive but media never starting; and media that started then stopped
+         * (RTCP deliberately doesn't reset this one — a path that still
+         * carries reports but no longer carries media is not playback). */
+        if (!last_any && now - start > RTSP_UDP_START_TIMEOUT_MS) return 1;
+        if (!last_rtp && now - start > RTSP_UDP_MEDIA_TIMEOUT_MS) return 1;
+        if (last_rtp && now - last_rtp > RTSP_UDP_STALL_TIMEOUT_MS) return 1;
+
+        if (now - last_rr >= RTSP_UDP_RR_INTERVAL_MS) {
+            send_rtcp_rr(u->v_rtcp);
+            if (u->a_rtcp) send_rtcp_rr(u->a_rtcp);
+            last_rr = now;
+        }
+        if (now - last_ka >= ka_interval) {
+            /* the session would otherwise idle out server-side: RTP no longer
+             * rides the control connection */
+            rtsp_send(r, "GET_PARAMETER", base_url, NULL);
+            last_ka = now;
+        }
+    }
+    return 0;
+}
+
+/* One RTSP session over one transport. Returns 0 on clean stop, -1 after a
+ * reported error or stream end, and 1 (UDP sessions only) when the caller
+ * should retry the whole session over TCP-interleaved. */
+static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use_udp) {
     rtsp_t r; memset(&r, 0, sizeof(r));
     char base_url[1024];
     snprintf(base_url, sizeof(base_url), "rtsp://%s:%d%s", url->host, url->port, url->path);
@@ -567,13 +932,75 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     nmedia = parse_sdp(body, blen, &video, &audio);
     if (nmedia == 0 || video.pt < 0) { sink->on_error(sink->user, "RTSP: no usable media in SDP"); basis_io_close(r.io); return -1; }
 
-    /* SETUP video on interleaved channels 0-1 */
+    /* Multicast media can't ride the unicast UDP path; downgrade in place
+     * (nothing transport-specific has happened yet, so no restart needed). */
+    if (use_udp && sdp_is_multicast(body)) use_udp = 0;
+
+    udp_state_t u; memset(&u, 0, sizeof(u));
+    char udp_host[256] = {0};
+    if (use_udp) {
+        /* The data path must reuse the control connection's validated peer
+         * address — resolving the hostname again could land elsewhere. */
+        if (basis_io_peer_addr(r.io, udp_host, sizeof(udp_host)) != 0) use_udp = 0;
+    }
+
     int interleave = 0;
     int v_channel = -1, a_channel = -1;
     char v_url[1024] = {0}, a_url[1024] = {0};
-    {
+    build_control_url(base_url, video.control, v_url, sizeof(v_url));
+    if (audio.pt >= 0) build_control_url(base_url, audio.control, a_url, sizeof(a_url));
+
+    if (use_udp) {
+        /* UDP SETUP. Any refusal (461 and friends), missing server_port, or
+         * socket failure falls the WHOLE session back to TCP — no mixed
+         * transports, and no on_error: the fallback is expected behaviour. */
+        char extra[160], source[256];
+        int lp = 0, sp_rtp = 0, sp_rtcp = 0;
+        int fell = 0;
+
+        do {
+            if (basis_io_udp_open_pair(udp_host, &u.v_rtp, &u.v_rtcp, &lp) != 0) { fell = 1; break; }
+            snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
+            rtsp_send(&r, "SETUP", v_url, extra);
+            if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
+                parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
+            {
+                /* source= may name a different sender; it passes the same
+                 * address guard inside udp_connect before anything binds to it */
+                const char* dst = source[0] ? source : udp_host;
+                if (basis_io_udp_connect(u.v_rtp, dst, sp_rtp) != 0 ||
+                    basis_io_udp_connect(u.v_rtcp, dst, sp_rtcp) != 0) { fell = 1; break; }
+            }
+            hole_punch(u.v_rtp, u.v_rtcp);
+
+            if (audio.pt >= 0) {
+                if (basis_io_udp_open_pair(udp_host, &u.a_rtp, &u.a_rtcp, &lp) != 0) { fell = 1; break; }
+                snprintf(extra, sizeof(extra), "Transport: RTP/AVP;unicast;client_port=%d-%d\r\n", lp, lp + 1);
+                rtsp_send(&r, "SETUP", a_url, extra);
+                if (rtsp_recv(&r, NULL, 0, NULL) != 200 ||
+                    parse_transport_udp(r.transport, &sp_rtp, &sp_rtcp, source, sizeof(source)) != 0) { fell = 1; break; }
+                {
+                    const char* dst = source[0] ? source : udp_host;
+                    if (basis_io_udp_connect(u.a_rtp, dst, sp_rtp) != 0 ||
+                        basis_io_udp_connect(u.a_rtcp, dst, sp_rtcp) != 0) { fell = 1; break; }
+                }
+                hole_punch(u.a_rtp, u.a_rtcp);
+            }
+
+            u.v_rb = (rtp_reorder_t*)calloc(1, sizeof(*u.v_rb));
+            u.a_rb = (rtp_reorder_t*)calloc(1, sizeof(*u.a_rb));
+            if (!u.v_rb || !u.a_rb) { fell = 1; break; }
+        } while (0);
+
+        if (fell) {
+            rtsp_send(&r, "TEARDOWN", base_url, NULL);
+            udp_state_close(&u);
+            basis_io_close(r.io);
+            return 1;
+        }
+    } else {
+        /* SETUP video on interleaved channels 0-1 */
         char extra[128];
-        build_control_url(base_url, video.control, v_url, sizeof(v_url));
         snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
         rtsp_send(&r, "SETUP", v_url, extra);
         if (rtsp_recv(&r, NULL, 0, NULL) != 200) {
@@ -581,13 +1008,12 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
             sink->on_error(sink->user, e); basis_io_close(r.io); return -1;
         }
         v_channel = interleave; interleave += 2;
-    }
-    if (audio.pt >= 0) {
-        char extra[128];
-        build_control_url(base_url, audio.control, a_url, sizeof(a_url));
-        snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
-        rtsp_send(&r, "SETUP", a_url, extra);
-        if (rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
+
+        if (audio.pt >= 0) {
+            snprintf(extra, sizeof(extra), "Transport: RTP/AVP/TCP;unicast;interleaved=%d-%d\r\n", interleave, interleave + 1);
+            rtsp_send(&r, "SETUP", a_url, extra);
+            if (rtsp_recv(&r, NULL, 0, NULL) == 200) { a_channel = interleave; interleave += 2; }
+        }
     }
 
     r.rtp_info[0] = 0;
@@ -598,6 +1024,11 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
     }
 
     basis_io_set_read_timeout(r.io, 10000);
+    if (sink->on_transport)
+        sink->on_transport(sink->user,
+            use_udp        ? "RTSP over UDP" :
+            url->force_tcp ? "RTSP over TCP" :
+                             "RTSP over TCP (UDP unavailable)");
     sink->on_state(sink->user, BASIS_MEDIA_STATE_BUFFERING);
 
     depkt_t d; memset(&d, 0, sizeof(d));
@@ -635,35 +1066,56 @@ int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
         }
     }
 
-    /* interleaved frame: '$' <channel:1> <len:2> <RTP...> */
     uint8_t* pkt = NULL; int pkt_cap = 0;
     int rc = 0;
-    while (sink->is_running(sink->user)) {
-        uint8_t magic;
-        if (basis_io_read_full(r.io, &magic, 1) != 1) { rc = -1; break; }
-        if (magic != '$') {
-            /* Could be an interim RTSP response (e.g., keepalive). Skip the line. */
-            continue;
-        }
-        uint8_t hdr[3];
-        if (basis_io_read_full(r.io, hdr, 3) != 3) { rc = -1; break; }
-        int channel = hdr[0];
-        int plen = (hdr[1] << 8) | hdr[2];
-        if (plen <= 0 || plen > 4 * 1024 * 1024) { rc = -1; break; }
-        if (!grow(&pkt, &pkt_cap, plen)) { rc = -1; break; }
-        if (basis_io_read_full(r.io, pkt, plen) != plen) { rc = -1; break; }
+    if (use_udp) {
+        rc = udp_read_loop(&r, &d, &u, base_url);
+    } else {
+        /* interleaved frame: '$' <channel:1> <len:2> <RTP...> */
+        while (sink->is_running(sink->user)) {
+            uint8_t magic;
+            if (basis_io_read_full(r.io, &magic, 1) != 1) { rc = -1; break; }
+            if (magic != '$') {
+                /* Could be an interim RTSP response (e.g., keepalive). Skip the line. */
+                continue;
+            }
+            uint8_t hdr[3];
+            if (basis_io_read_full(r.io, hdr, 3) != 3) { rc = -1; break; }
+            int channel = hdr[0];
+            int plen = (hdr[1] << 8) | hdr[2];
+            if (plen <= 0 || plen > 4 * 1024 * 1024) { rc = -1; break; }
+            if (!grow(&pkt, &pkt_cap, plen)) { rc = -1; break; }
+            if (basis_io_read_full(r.io, pkt, plen) != plen) { rc = -1; break; }
 
-        if (channel == d.v_channel) depkt_video(&d, pkt, plen);
-        else if (channel == d.a_channel) depkt_audio(&d, pkt, plen);
-        /* RTCP channels (odd) are ignored */
+            if (channel == d.v_channel) depkt_video(&d, pkt, plen);
+            else if (channel == d.a_channel) depkt_audio(&d, pkt, plen);
+            /* RTCP channels (odd) are ignored */
+        }
     }
 
-    if (d.au_len > 0) deliver_au(&d);
+    if (rc != 1 && d.au_len > 0) deliver_au(&d);
 
     /* TEARDOWN best-effort */
     rtsp_send(&r, "TEARDOWN", base_url, NULL);
 
     free(pkt); free(d.au); free(d.fu); free(d.afrag);
+    udp_state_close(&u);
     basis_io_close(r.io);
     return rc;
+}
+
+int basis_rtsp_run(basis_media_sink_t* sink, const basis_url_t* url) {
+    /* rtsp:// negotiates UDP first and falls back to TCP-interleaved on a
+     * refusal, socket error, or the serial no-data timer — the same shape
+     * FFmpeg's and VLC's clients use, with a shorter deadline (a false
+     * fallback lands on TCP, which works wherever UDP does, so the timer can
+     * afford to be snappy). rtspt:// pins TCP and never probes, as does any
+     * host that failed UDP within the negative-cache window. */
+    if (!url->force_tcp && !udp_neg_blocked(url->host, url->port)) {
+        int rc = run_session(sink, url, 1);
+        if (rc != 1) return rc;
+        udp_neg_add(url->host, url->port);
+        if (!sink->is_running(sink->user)) return 0;
+    }
+    return run_session(sink, url, 0);
 }
