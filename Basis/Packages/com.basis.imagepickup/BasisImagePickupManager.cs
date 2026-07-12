@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -94,6 +95,7 @@ namespace Basis.ImagePickup
             if (BasisNetworkModeration.GlobalImagesLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
             {
                 BasisDebug.LogWarning("Image pickup blocked: an admin has locked shared images on this server.");
+                NotifySpawnFailure(path, "An admin has locked shared images on this server.");
                 return false;
             }
 
@@ -101,6 +103,7 @@ namespace Basis.ImagePickup
             if (!result.Ok)
             {
                 BasisDebug.LogWarning($"Image pickup rejected: {result.Error}");
+                NotifySpawnFailure(path, result.Error);
                 return false;
             }
 
@@ -148,6 +151,14 @@ namespace Basis.ImagePickup
                 BasisDebug.Log($"Image pickup spawned locally; not connected, so it will not replicate yet ({result.Width}x{result.Height}).");
             }
             return true;
+        }
+
+        private static void NotifySpawnFailure(string path, string reason)
+        {
+            string fileName = Path.GetFileName(path);
+            string body = string.IsNullOrEmpty(fileName) ? reason : $"Could not share {fileName}.\n{reason}";
+            if (!BasisMainMenu.Instance) BasisMainMenu.Open();
+            BasisMainMenu.Instance.OpenDialogue("Image Share Failed", body, "OK", _ => { });
         }
 
         /// <summary>Removes an image for everyone. Any client may call this for any image.</summary>

@@ -1991,6 +1991,14 @@
       "value": "Also bind trackers using the body-part roles assigned by hand in SteamVR settings. Only enable this if you actually set those roles yourself."
     },
     {
+      "key": "trackerLinking.continuousCalibration",
+      "value": "Continuous Calibration"
+    },
+    {
+      "key": "trackerLinking.continuousCalibration.tooltip",
+      "value": "While you stand still in your calibration pose, small tracker strap slips are slowly absorbed into the current calibration (position only, capped at 5 cm). Large drift is never auto-corrected — recalibrate instead."
+    },
+    {
       "key": "trackerLinking.connectorTrackers",
       "value": "Show Connector Trackers"
     },

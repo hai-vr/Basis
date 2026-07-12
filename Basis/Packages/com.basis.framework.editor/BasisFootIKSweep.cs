@@ -703,7 +703,6 @@ namespace Basis.IK.Debugging
                 plantedRot = FootRotation(fwd, gn, p),
                 stepStartPos = planted,
                 stepTargetPos = planted,
-                stepTargetRot = FootRotation(fwd, gn, p),
                 stepTimer = 0f,
                 stepDur = p.stepDurSlow,
                 idealPos = planted,
@@ -737,7 +736,7 @@ namespace Basis.IK.Debugging
             else
             {
                 float hipsUpComp = math.dot(hips, Up);
-                float targetUpComp = hipsUpComp - p.hipToFoot;
+                float targetUpComp = hipsUpComp - p.hipToFoot - p.ankleHeight + p.footHeightOffset;
                 f.stepTargetPos = ProjectFlat(targetXZ) + Up * targetUpComp;
             }
 
@@ -750,7 +749,6 @@ namespace Basis.IK.Debugging
             float3 hGround = ProjectFlat(hips) + Up * stpUpComp;
             EnforceSide(ref stp, hGround, rawR, f.sideSign, p.stanceWidth * p.stepTargetSideFraction);
             f.stepTargetPos = stp;
-            f.stepTargetRot = FootRotation(bodyFwd, f.filteredNormal, p);
         }
 
         static void EnforceSide(ref float3 pos, float3 center, float3 bodyRight, int sideSign, float minDist)

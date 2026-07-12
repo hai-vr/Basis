@@ -190,7 +190,14 @@ namespace UnityEngine.Animations.Rigging
                     // on ahProj (shoulder/hand/hint positions), so unlike a tracker-LOCAL offset it does NOT
                     // swing with forearm pronation. Below a small floor the tracker is essentially on the bone
                     // line (direction is noise) so it still fades. Lookup (no-tracker) path is untouched.
-                    if (i.HintIsTracker && projNorm > 0.05f) projNorm = Mathf.Max(projNorm, 0.30f);
+                    // The floor blends in over [0.05, 0.10] rather than gating at 0.05: a hard gate is a
+                    // one-frame 0<->0.30 cliff in tracker influence (nothing rate-limits the live tracker
+                    // path), so a tracker orbiting the bone line made the elbow snap between follow/ignore.
+                    if (i.HintIsTracker)
+                    {
+                        float floorBlend = Mathf.Clamp01((projNorm - 0.05f) / 0.05f);
+                        projNorm = Mathf.Lerp(projNorm, Mathf.Max(projNorm, 0.30f), floorBlend);
+                    }
                     hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
                     if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
@@ -272,7 +279,13 @@ namespace UnityEngine.Animations.Rigging
                 // real out-direction, so re-condition it (positions only -> pronation-safe) and the world-down
                 // stabilizer backs off, letting the elbow follow the tracker. Lookup path keeps the wider window
                 // (the backward full-stretch flip fix). Below the floor (tracker on the bone line) it still acts.
-                if (i.HintIsTracker && poleCond > 0.05f) poleCond = Mathf.Max(poleCond, 0.30f);
+                // Blended over [0.05, 0.10] like the hintFade floor — a hard gate flipped the stabilizer's
+                // collapse weight 1<->0 in a single frame at the same crossing.
+                if (i.HintIsTracker)
+                {
+                    float floorBlend = Mathf.Clamp01((poleCond - 0.05f) / 0.05f);
+                    poleCond = Mathf.Lerp(poleCond, Mathf.Max(poleCond, 0.30f), floorBlend);
+                }
                 float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
                 Vector3 acStab = cPosition - aPosition;
                 if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)

@@ -53,17 +53,20 @@ public struct BasisFootSimulateJob : IJob
         sim.smoothedYawRateDeg = math.lerp(sim.smoothedYawRateDeg, bodyYawRate, 1f - math.exp(-p.bodyFwdRateMoving * dt));
         float fwdRate = speed > 0.1f ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
         float fwdAlpha = 1f - math.exp(-fwdRate * dt);
-        sim.smoothedBodyFwd = math.normalize(Slerp3(sim.smoothedBodyFwd, rawFwd, fwdAlpha));
-        if (math.lengthsq(sim.smoothedBodyFwd) < 0.001f) sim.smoothedBodyFwd = rawFwd;
+        // Degeneracy checks run BEFORE normalize: normalizing a near-zero vector yields NaN, and
+        // a NaN never compares < epsilon — with smoothedBodyFwd self-feeding, one bad frame would
+        // otherwise corrupt the sim permanently.
+        float3 blendedFwd = Slerp3(sim.smoothedBodyFwd, rawFwd, fwdAlpha);
+        sim.smoothedBodyFwd = math.lengthsq(blendedFwd) < 0.001f ? rawFwd : math.normalize(blendedFwd);
 
-        sim.smoothedBodyRight = math.normalize(math.cross(up, sim.smoothedBodyFwd));
-        if (math.lengthsq(sim.smoothedBodyRight) < 0.001f) sim.smoothedBodyRight = inp.avatarRight;
+        float3 rightCross = math.cross(up, sim.smoothedBodyFwd);
+        sim.smoothedBodyRight = math.lengthsq(rightCross) < 0.001f ? inp.avatarRight : math.normalize(rightCross);
 
         float3 bodyFwd = sim.smoothedBodyFwd;
         float3 bodyRight = sim.smoothedBodyRight;
 
-        float3 rawRight = math.normalize(math.cross(up, rawFwd));
-        if (math.lengthsq(rawRight) < 0.001f) rawRight = bodyRight;
+        float3 rawRightCross = math.cross(up, rawFwd);
+        float3 rawRight = math.lengthsq(rawRightCross) < 0.001f ? bodyRight : math.normalize(rawRightCross);
 
         // ── Ground ──
         // Project hips onto the horizontal plane (perpendicular to player up)
@@ -75,7 +78,9 @@ public struct BasisFootSimulateJob : IJob
         bool airborne;
         if (inp.groundHit)
         {
-            groundUpComponent = math.dot(inp.groundPoint, up);
+            // Planted feet carry hit.point + footHeightOffset; the ideal/vertical-snap level must
+            // share that convention or the drift snap buries a planted foot by the offset.
+            groundUpComponent = math.dot(inp.groundPoint, up) + p.footHeightOffset;
             airborne = false;
         }
         else
@@ -170,8 +175,8 @@ public struct BasisFootSimulateJob : IJob
         }
 
         // ── Update feet ──
-        UpdateFoot(ref left, ref right, rawFwd, speed, threshold, stepDur, dt, up);
-        UpdateFoot(ref right, ref left, rawFwd, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -232,7 +237,7 @@ public struct BasisFootSimulateJob : IJob
     }
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
-        float3 rawFwd, float speed, float threshold, float stepDur, float dt, float3 up)
+        float3 rawFwd, float3 smoothedVelocity, float speed, float threshold, float stepDur, float dt, float3 up)
     {
         if (f.phase == 0) // Planted
         {
@@ -258,7 +263,7 @@ public struct BasisFootSimulateJob : IJob
             if ((dist > threshold || yawTrigger) && other.phase == 0)
             {
                 f.wantsStep = true;
-                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, speed, stepDur, up);
+                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up);
             }
             else
             {
@@ -299,12 +304,12 @@ public struct BasisFootSimulateJob : IJob
         }
     }
 
-    private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float speed, float stepDur, float3 up)
+    private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float3 smoothedVelocity, float speed, float stepDur, float3 up)
     {
-        var sim = simState[0];
+        // Uses the caller's live sim state — simState[0] still holds last frame's values here
+        // (Execute writes back only at its end).
         float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
-        float3 sv = sim.smoothedVelocity;
-        float3 svFlat = sv - up * math.dot(sv, up);
+        float3 svFlat = smoothedVelocity - up * math.dot(smoothedVelocity, up);
         float3 moveDir = math.lengthsq(svFlat) > 0.01f
             ? math.normalize(svFlat)
             : bodyFwd;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Basis.BTween;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Virtual_keyboard;
 using TMPro;
 using UnityEngine;
@@ -57,6 +58,9 @@ namespace Basis.BasisUI
         public const float FunctionRowHeight = 90f;
         public const float KeySpacing = 6f;
         public const float RowSpacing = 6f;
+
+        public const float DeleteRepeatDelay = 0.5f;
+        public const float DeleteRepeatInterval = 0.1f;
 
         // Shifted variants for non-letter keys — the number row swaps to
         // symbols when Caps is on, matching a physical QWERTY shift behavior.
@@ -129,6 +133,10 @@ namespace Basis.BasisUI
         private GameObject _headerRow;
         private GameObject _functionRow;
 
+        private bool _deleteHeld;
+        private float _deleteNextRepeatTime;
+        private bool _deleteRepeatFired;
+
         private struct KeyEntry
         {
             public PanelButton Button;
@@ -145,6 +153,7 @@ namespace Basis.BasisUI
 
         private void HandleReleased()
         {
+            StopDeleteHold();
             if (Instance == this) Instance = null;
             BasisLocalization.OnLanguageChanged -= HandleLocaleChanged;
             BasisCursorManagement.LockCursor(nameof(BasisMenuVirtualKeyboardPanel));
@@ -319,6 +328,8 @@ namespace Basis.BasisUI
 
         private void ClearKeyboardArea()
         {
+            StopDeleteHold();
+
             for (int i = 0; i < _keys.Count; i++)
             {
                 PanelButton button = _keys[i].Button;
@@ -605,6 +616,12 @@ namespace Basis.BasisUI
             int captured = _keys.Count;
             button.OnClicked += () => OnKeyPressed(captured);
 
+            if (special == BasisVirtualKeyboardSpecialKey.IsDeleteKey)
+            {
+                button.OnPressed += OnDeletePressed;
+                button.OnReleased += OnDeleteReleased;
+            }
+
             _keys.Add(new KeyEntry
             {
                 Button = button,
@@ -708,6 +725,11 @@ namespace Basis.BasisUI
                     return;
 
                 case BasisVirtualKeyboardSpecialKey.IsDeleteKey:
+                    if (_deleteRepeatFired)
+                    {
+                        _deleteRepeatFired = false;
+                        return;
+                    }
                     DeleteCharacter();
                     UpdateDisplay();
                     return;
@@ -788,6 +810,43 @@ namespace Basis.BasisUI
             {
                 InputField.text = InputField.text.Substring(0, InputField.text.Length - 1);
             }
+        }
+
+        private void OnDeletePressed()
+        {
+            _deleteRepeatFired = false;
+            if (_deleteHeld) return;
+            _deleteHeld = true;
+            _deleteNextRepeatTime = Time.unscaledTime + DeleteRepeatDelay;
+            BasisFrameClock.AddRequest();
+            BasisFrameClock.OnTick += TickDeleteRepeat;
+        }
+
+        private void OnDeleteReleased()
+        {
+            StopDeleteHold();
+        }
+
+        private void StopDeleteHold()
+        {
+            if (!_deleteHeld) return;
+            _deleteHeld = false;
+            BasisFrameClock.OnTick -= TickDeleteRepeat;
+            BasisFrameClock.RemoveRequest();
+        }
+
+        private void TickDeleteRepeat()
+        {
+            if (!this)
+            {
+                StopDeleteHold();
+                return;
+            }
+            if (Time.unscaledTime < _deleteNextRepeatTime) return;
+            _deleteNextRepeatTime = Time.unscaledTime + DeleteRepeatInterval;
+            _deleteRepeatFired = true;
+            DeleteCharacter();
+            UpdateDisplay();
         }
     }
 }

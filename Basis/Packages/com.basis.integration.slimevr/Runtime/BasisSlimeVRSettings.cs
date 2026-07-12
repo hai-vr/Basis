@@ -4,11 +4,18 @@ using Basis.Scripts.Settings;
 namespace Basis.Integration.SlimeVR
 {
     /// <summary>
-    /// Persistent settings for the SlimeVR integration. Bindings self-load on construction,
-    /// so nothing needs registering in the framework's LoadAll.
+    /// Persistent settings for the SlimeVR integration. Bindings self-load on construction, but
+    /// this class is first touched from RuntimeInitializeOnLoadMethod hooks — before
+    /// BasisSettingsSystem has read the settings file — so the post-load registration below
+    /// re-loads them once the store is populated (otherwise saved values never restore).
     /// </summary>
     public static class BasisSlimeVRSettings
     {
+        static BasisSlimeVRSettings()
+        {
+            BasisSettingsBindingPostLoad.Register(typeof(BasisSlimeVRSettings));
+        }
+
         /// <summary>Run the SlimeVR client at all. Connection attempts are cheap while no server is running.</summary>
         public static readonly BasisSettingsBinding<bool> Enable =
             new BasisSettingsBinding<bool>("slimevr_enable", new BasisPlatformDefault<bool>(true));
@@ -44,6 +51,13 @@ namespace Basis.Integration.SlimeVR
         /// </summary>
         public static readonly BasisSettingsBinding<bool> SkeletonSeeding =
             new BasisSettingsBinding<bool>("slimevr_skeleton_seeding", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Seconds the reset/recalibrate buttons wait before firing, giving time to get into pose.
+        /// 0 fires instantly. Whole seconds; read at countdown start.
+        /// </summary>
+        public static readonly BasisSettingsBinding<float> PoseCountdownSeconds =
+            new BasisSettingsBinding<float>("slimevr_pose_countdown_seconds", new BasisPlatformDefault<float>(4f));
 
         public const string TrackerSourceOff = "off";
         public const string TrackerSourceAuto = "auto";

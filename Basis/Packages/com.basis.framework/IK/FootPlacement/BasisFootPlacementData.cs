@@ -10,7 +10,6 @@ public struct BasisFootNativeState
     public float3 plantedPos;
     public quaternion plantedRot;
     public float3 stepStartPos, stepTargetPos;
-    public quaternion stepTargetRot;
     public float stepTimer, stepDur;
 
     public float3 idealPos, filteredNormal;

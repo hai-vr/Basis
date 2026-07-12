@@ -127,26 +127,36 @@ namespace Basis.Integration.SlimeVR.Editor
             {
                 BasisSlimeVRBridge.RefreshBodyMeasurements();
             }
-            if (GUILayout.Button("Yaw Reset"))
-            {
-                BasisSlimeVRBridge.TriggerYawReset();
-            }
-            if (GUILayout.Button("Full Reset"))
-            {
-                BasisSlimeVRBridge.TriggerFullReset();
-            }
-            if (GUILayout.Button("Mounting Reset"))
-            {
-                BasisSlimeVRBridge.TriggerMountingReset();
-            }
+            PoseCountdownButton("Yaw Reset", BasisSlimeVRPoseAction.YawReset);
+            PoseCountdownButton("Full Reset", BasisSlimeVRPoseAction.FullReset);
+            PoseCountdownButton("Mounting Reset", BasisSlimeVRPoseAction.MountingReset);
             EditorGUILayout.EndHorizontal();
 
-            if (GUILayout.Button("Recalibrate Full Body From SlimeVR"))
-            {
-                BasisSlimeVRBridge.RecaptureFbtOffsets("manual (debug window)");
-            }
+            PoseCountdownButton("Recalibrate Full Body From SlimeVR", BasisSlimeVRPoseAction.RecalibrateFbt, "manual (debug window)");
 
             EditorGUILayout.EndScrollView();
+        }
+
+        /// <summary>
+        /// Pose-sampling actions fire through the bridge's shared countdown so there is time to get
+        /// into pose after clicking; the label ticks down (the window repaints every editor update)
+        /// and clicking again cancels.
+        /// </summary>
+        private static void PoseCountdownButton(string label, BasisSlimeVRPoseAction action, string recaptureReason = null)
+        {
+            bool counting = BasisSlimeVRBridge.HasPoseCountdown && BasisSlimeVRBridge.PoseCountdownAction == action;
+            string text = counting ? $"{label} ({BasisSlimeVRBridge.PoseCountdownSecondsRemaining})" : label;
+            if (GUILayout.Button(text))
+            {
+                if (counting)
+                {
+                    BasisSlimeVRBridge.CancelPoseCountdown();
+                }
+                else
+                {
+                    BasisSlimeVRBridge.StartPoseCountdown(action, recaptureReason);
+                }
+            }
         }
     }
 }

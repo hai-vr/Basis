@@ -40,7 +40,7 @@ namespace Basis.ImagePickup
 
             foreach (string path in DragAndDrop.paths)
             {
-                if (BasisImageSecurity.HasPngExtension(path)) manager.SpawnFromFile(path);
+                if (!string.IsNullOrEmpty(path)) manager.SpawnFromFile(path);
             }
         }
 

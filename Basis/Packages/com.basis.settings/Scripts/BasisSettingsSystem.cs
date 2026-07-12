@@ -67,6 +67,12 @@ public static class BasisSettingsSystem
     // private static readonly string currentVersion = "2.0.5";
     private static SettingsData settingsData = new SettingsData();
     private static bool _settingsLoaded = false;
+    /// <summary>
+    /// True once LoadAllSettings has read the settings file. Bindings constructed earlier (static
+    /// init in a RuntimeInitializeOnLoadMethod runs before Initialize, which is called from a
+    /// Start hook) only saw defaults and must re-load after the store is populated.
+    /// </summary>
+    public static bool SettingsLoaded => _settingsLoaded;
 
     /// <summary>
     /// UniqueName, OptionValue

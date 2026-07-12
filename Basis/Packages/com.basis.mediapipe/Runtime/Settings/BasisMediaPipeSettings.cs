@@ -5,6 +5,14 @@ namespace Basis.MediaPipe
     /// <summary>Persistent settings for webcam tracking, surfaced in the Settings "Webcam Tracking" tab.</summary>
     public static class BasisMediaPipeSettings
     {
+        // First touch can precede BasisSettingsSystem reading the settings file (static init via
+        // RuntimeInitializeOnLoadMethod); re-load the bindings once the store is populated or
+        // saved values never restore into RawValue.
+        static BasisMediaPipeSettings()
+        {
+            BasisSettingsBindingPostLoad.Register(typeof(BasisMediaPipeSettings));
+        }
+
         public static readonly BasisSettingsBinding<bool> Enable =
             new BasisSettingsBinding<bool>("mediapipe_enable", new BasisPlatformDefault<bool>(false));
 

@@ -9,8 +9,9 @@ namespace Basis.ImagePickup
 {
     /// <summary>
     /// Windows-only OS file-drop bridge. Subclasses the player window to intercept WM_DROPFILES and forwards
-    /// dropped .png paths to the image pickup manager on the Unity main thread. The native callbacks are static
-    /// (IL2CPP cannot marshal instance-method delegates) and reach instance state through <see cref="_instance"/>.
+    /// dropped file paths to the image pickup manager on the Unity main thread, which validates them and
+    /// surfaces failures to the user. The native callbacks are static (IL2CPP cannot marshal instance-method
+    /// delegates) and reach instance state through <see cref="_instance"/>.
     /// </summary>
     public class BasisDesktopImageDropHook : MonoBehaviour
     {
@@ -145,7 +146,7 @@ namespace Basis.ImagePickup
                     var builder = new StringBuilder(1024);
                     DragQueryFile(hDrop, i, builder, (uint)builder.Capacity);
                     string path = builder.ToString();
-                    if (BasisImageSecurity.HasPngExtension(path))
+                    if (!string.IsNullOrEmpty(path))
                     {
                         lock (_pendingLock) _pending.Add(path);
                     }

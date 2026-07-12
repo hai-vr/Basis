@@ -1,6 +1,8 @@
 #if BASIS_FRAMEWORK_EXISTS
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using Basis.Scripts.Audio;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -11,6 +13,15 @@ using UnityEngine;
 
 namespace Basis.Integration.SlimeVR
 {
+    /// <summary>Actions that sample the user's current pose, so UI routes them through the pose countdown.</summary>
+    public enum BasisSlimeVRPoseAction
+    {
+        YawReset,
+        FullReset,
+        MountingReset,
+        RecalibrateFbt,
+    }
+
     /// <summary>
     /// Runtime hub for the SlimeVR integration. Boots itself, keeps a background SolarXR client
     /// connected to any local SlimeVR server, and applies the reported body proportions to the
@@ -138,6 +149,7 @@ namespace Basis.Integration.SlimeVR
 
         private static void Shutdown()
         {
+            CancelPoseCountdown();
             StopClient();
         }
 
@@ -170,6 +182,113 @@ namespace Basis.Integration.SlimeVR
             BasisDebug.Log($"Recapturing SlimeVR FBT offsets: {reason}", BasisDebug.LogTag.Device);
             // Fires OnFullBodyCalibrated -> SnapshotMountingBaseline, which resets the drift reference.
             BasisAvatarIKStageCalibration.FullBodyCalibration();
+        }
+
+        // ---- Pose countdowns ----
+        // SlimeVR's resets and the FBT offset recapture all sample the user's current pose, so firing
+        // them the instant a menu button is pressed captures a hand-on-the-menu stance. Buttons route
+        // through this shared countdown so the user has a few seconds to get into pose first.
+
+        /// <summary>Seconds a pose countdown waits before firing its action (user setting, whole seconds, 0 = instant).</summary>
+        public static int PoseCountdownSeconds => Mathf.Max(0, Mathf.RoundToInt(BasisSlimeVRSettings.PoseCountdownSeconds.RawValue));
+
+        /// <summary>A pose countdown is currently running.</summary>
+        public static bool HasPoseCountdown { get; private set; }
+
+        /// <summary>The action the running countdown will fire. Only meaningful while <see cref="HasPoseCountdown"/>.</summary>
+        public static BasisSlimeVRPoseAction PoseCountdownAction { get; private set; }
+
+        /// <summary>Whole seconds left on the running countdown.</summary>
+        public static int PoseCountdownSecondsRemaining { get; private set; }
+
+        /// <summary>Fired each countdown second with the seconds remaining (starts at <see cref="PoseCountdownSeconds"/>).</summary>
+        public static event Action<BasisSlimeVRPoseAction, int> OnPoseCountdownTick;
+
+        /// <summary>Countdown over; true means the action fired, false means it was cancelled or replaced.</summary>
+        public static event Action<BasisSlimeVRPoseAction, bool> OnPoseCountdownEnded;
+
+        private static Coroutine _poseCountdownRoutine;
+        private static string _poseRecaptureReason;
+
+        /// <summary>
+        /// Runs <paramref name="action"/> after <see cref="PoseCountdownSeconds"/> so the user can get
+        /// into pose. Replaces any countdown already running. The countdown lives on
+        /// <see cref="BasisDeviceManagement"/>, so it still fires if the menu that started it closes.
+        /// </summary>
+        public static void StartPoseCountdown(BasisSlimeVRPoseAction action, string recaptureReason = null)
+        {
+            CancelPoseCountdown();
+            _poseRecaptureReason = recaptureReason;
+            int seconds = PoseCountdownSeconds;
+            if (seconds <= 0 || BasisDeviceManagement.Instance == null)
+            {
+                ExecutePoseAction(action);
+                return;
+            }
+            HasPoseCountdown = true;
+            PoseCountdownAction = action;
+            PoseCountdownSecondsRemaining = seconds;
+            _poseCountdownRoutine = BasisDeviceManagement.Instance.StartCoroutine(PoseCountdownRoutine(action, seconds));
+        }
+
+        /// <summary>Stops the running pose countdown without firing its action.</summary>
+        public static void CancelPoseCountdown()
+        {
+            if (!HasPoseCountdown)
+            {
+                return;
+            }
+            if (_poseCountdownRoutine != null && BasisDeviceManagement.Instance != null)
+            {
+                BasisDeviceManagement.Instance.StopCoroutine(_poseCountdownRoutine);
+            }
+            _poseCountdownRoutine = null;
+            HasPoseCountdown = false;
+            OnPoseCountdownEnded?.Invoke(PoseCountdownAction, false);
+        }
+
+        private static IEnumerator PoseCountdownRoutine(BasisSlimeVRPoseAction action, int totalSeconds)
+        {
+            for (int seconds = totalSeconds; seconds > 0; seconds--)
+            {
+                PoseCountdownSecondsRemaining = seconds;
+                OnPoseCountdownTick?.Invoke(action, seconds);
+                PlayPoseCountdownSound(BasisUISoundEvent.CameraCountdownTick, BasisDeviceManagement.Instance.CameraCountdownTickSound);
+                yield return new WaitForSecondsRealtime(1f);
+            }
+            _poseCountdownRoutine = null;
+            HasPoseCountdown = false;
+            PoseCountdownSecondsRemaining = 0;
+            PlayPoseCountdownSound(BasisUISoundEvent.Press, BasisDeviceManagement.Instance.pressUI);
+            OnPoseCountdownEnded?.Invoke(action, true);
+            ExecutePoseAction(action);
+        }
+
+        private static void PlayPoseCountdownSound(BasisUISoundEvent soundEvent, AudioClip clip)
+        {
+            if (clip != null)
+            {
+                BasisUISounds.PlayAt(soundEvent, clip, BasisLocalCameraDriver.HeadPosition, SMModuleAudio.ActiveMenusVolume);
+            }
+        }
+
+        private static void ExecutePoseAction(BasisSlimeVRPoseAction action)
+        {
+            switch (action)
+            {
+                case BasisSlimeVRPoseAction.YawReset:
+                    TriggerYawReset();
+                    break;
+                case BasisSlimeVRPoseAction.FullReset:
+                    TriggerFullReset();
+                    break;
+                case BasisSlimeVRPoseAction.MountingReset:
+                    TriggerMountingReset();
+                    break;
+                case BasisSlimeVRPoseAction.RecalibrateFbt:
+                    RecaptureFbtOffsets(_poseRecaptureReason ?? "manual (pose countdown)");
+                    break;
+            }
         }
 
         /// <summary>Per-part mounting drift from the last calibration (degrees), or 0 if unknown.</summary>

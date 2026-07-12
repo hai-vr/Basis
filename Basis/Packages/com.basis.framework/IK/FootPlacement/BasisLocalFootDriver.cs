@@ -241,6 +241,52 @@ public partial class BasisLocalFootDriver
             _nativeFeet[1] = FootStateToNative(right);
         }
     }
+    /// <summary>
+    /// Shifts all world-anchored simulation state by a teleport delta so the feet arrive with the
+    /// player instead of stretching back toward — then visibly stepping across from — the old
+    /// location. Mirror of BasisJiggleRig.Teleport. prevHeadPos is rebased (not zeroed) so the
+    /// head's teleport jump doesn't register as a one-frame velocity spike.
+    /// </summary>
+    public void Teleport(Vector3 delta)
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+        if (_jobScheduled)
+        {
+            _jobHandle.Complete();
+            _jobScheduled = false;
+        }
+
+        ShiftFoot(left, delta);
+        ShiftFoot(right, delta);
+
+        if (_nativeFeet.IsCreated)
+        {
+            // Rebuilding from managed state also clears any pending wantsStep/predictedTargetXZ,
+            // which pointed at pre-teleport ground.
+            _nativeFeet[0] = FootStateToNative(left);
+            _nativeFeet[1] = FootStateToNative(right);
+        }
+        if (_nativeSimState.IsCreated)
+        {
+            var sim = _nativeSimState[0];
+            sim.prevHeadPos += (float3)delta;
+            _nativeSimState[0] = sim;
+        }
+    }
+
+    private static void ShiftFoot(BasisFootState f, Vector3 delta)
+    {
+        f.plantedPos += delta;
+        f.currentPos += delta;
+        f.idealPos += delta;
+        f.stepStartPos += delta;
+        f.stepTargetPos += delta;
+        f.kneeHint += delta;
+    }
+
     public Vector3 LeftFootPosition => left.currentPos;
     public Quaternion LeftFootRotation => left.currentRot;
     public Vector3 RightFootPosition => right.currentPos;
@@ -381,7 +427,6 @@ public partial class BasisLocalFootDriver
             plantedRot = f.plantedRot,
             stepStartPos = f.stepStartPos,
             stepTargetPos = f.stepTargetPos,
-            stepTargetRot = f.stepTargetRot,
             stepTimer = f.stepTimer,
             stepDur = f.stepDur,
             idealPos = f.idealPos,
@@ -398,7 +443,6 @@ public partial class BasisLocalFootDriver
         f.plantedRot = n.plantedRot;
         f.stepStartPos = n.stepStartPos;
         f.stepTargetPos = n.stepTargetPos;
-        f.stepTargetRot = n.stepTargetRot;
         f.stepTimer = n.stepTimer;
         f.stepDur = n.stepDur;
         f.idealPos = n.idealPos;
@@ -869,9 +913,12 @@ public partial class BasisLocalFootDriver
         }
         else
         {
-            // Fallback: place foot below hips along player's down direction
+            // Fallback: place foot below hips along player's down direction, at the same level a
+            // successful raycast would produce (hipToFoot is the Hips→Foot bone, the ground sits
+            // ankleHeight below that, and raycasted plants carry footHeightOffset) — matching the
+            // sim job's missed-ray fallback so the stepped foot doesn't plant ankleHeight high.
             float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
-            float targetUpComp = hipsUpComp - hipToFoot;
+            float targetUpComp = hipsUpComp - hipToFoot - ankleHeight + footHeightOffset;
             Vector3 targetFlat = ProjectHorizontal(targetXZ);
             f.stepTargetPos = targetFlat + cachedPlayerUp * targetUpComp;
         }
@@ -888,7 +935,6 @@ public partial class BasisLocalFootDriver
         Vector3 hGround = hipsFlat + cachedPlayerUp * stpUpComp;
         EnforceSide(ref stp, hGround, rawR, f.sideSign, stanceWidth * stepTargetSideFraction);
         f.stepTargetPos = stp;
-        f.stepTargetRot = FootRotation((Vector3)(float3)bodyFwd, (Vector3)(float3)f.filteredNormal);
     }
     /// <summary>Projects a vector onto the player's horizontal plane (removes up component).</summary>
     private Vector3 ProjectHorizontal(Vector3 v)

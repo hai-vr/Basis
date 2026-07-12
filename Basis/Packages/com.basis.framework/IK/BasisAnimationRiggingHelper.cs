@@ -70,8 +70,8 @@ public static class BasisAnimationRiggingHelper
         Quaternion avatarRootInv = Quaternion.Inverse(player.AvatarTransform.rotation);
         data.m_CalibratedRotationHead = Mapping.Hashead ? avatarRootInv * Mapping.head.rotation : Quaternion.identity;
         // Feet
-        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
-        data.M_CalibrationRightFootRotation = Mapping.Hashead ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
+        data.M_CalibrationLeftFootRotation = Mapping.HasleftFoot ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftFootControl, Mapping.AnimatorRoot, Mapping.leftFoot) : Quaternion.identity;
+        data.M_CalibrationRightFootRotation = Mapping.HasrightFoot ? CalibratedRotationOffset(BasisLocalBoneDriver.RightFootControl, Mapping.AnimatorRoot, Mapping.rightFoot) : Quaternion.identity;
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
@@ -103,7 +103,6 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
         data.m_CalibratedRotationChest = Mapping.Haschest ? avatarRootInv * Mapping.chest.rotation : Quaternion.identity;
-        data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
         data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? CalibratedRotationOffset(BasisLocalBoneDriver.LeftToeControl, Mapping.AnimatorRoot, Mapping.leftToe) : Quaternion.identity;
         data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? CalibratedRotationOffset(BasisLocalBoneDriver.RightToeControl, Mapping.AnimatorRoot, Mapping.rightToe) : Quaternion.identity;
 
@@ -162,9 +161,7 @@ public static class BasisAnimationRiggingHelper
 
         // --- Legs ---
         data.PositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
-        data.RotationLeftLowerLeg = leftLowerLeg.rotation;
         data.PositionRightLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.position, rightLowerLeg.rotation);
-        data.RotationRightLowerLeg = rightLowerLeg.rotation;
 
         // --- Chest ---
         data.ChestPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
@@ -181,7 +178,6 @@ public static class BasisAnimationRiggingHelper
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibrationLeftFootRotation", "offset", data.M_CalibrationLeftFootRotation);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibrationRightFootRotation", "offset", data.M_CalibrationRightFootRotation);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationChest", "offset", data.m_CalibratedRotationChest);
-            BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationNeck", "offset", data.m_CalibratedRotationNeck);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationLeftToe", "offset", data.m_CalibratedRotationLeftToe);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationRightToe", "offset", data.m_CalibratedRotationRightToe);
             BasisCalibrationDebugRecorder.Rotation("Offsets", "CalibratedRotationLeftShoulder", "offset", data.m_CalibratedRotationLeftShoulder);
@@ -207,7 +203,6 @@ public static class BasisAnimationRiggingHelper
         }
 
         data.CollisionsEnabled = true;
-        data.UseHandCapsule = true;
         data.ProtectElbow = true;
         data.CollideTrackedElbow = false;
         data.EnabledSpineIK = true;
@@ -335,7 +330,7 @@ public static class BasisAnimationRiggingHelper
         Transform[] Children = parent.transform.GetComponentsInChildren<Transform>();
         foreach (Transform child in Children)
         {
-            if (child.name == $"Bone Role {name}")
+            if (child.name == name)
             {
                 return child.gameObject;
             }

@@ -1334,6 +1334,11 @@ namespace Basis.BasisUI
         // ("vive_tracker_waist", ...). Off by default: most people never set those roles (or
         // leave stale ones), and a wrong announced role is forced with no geometric check.
         public static BasisSettingsBinding<bool> TrustSteamVRRoles = new("trackerlinking_truststeamvrroles", new BasisPlatformDefault<bool>(false));
+        // Standing-idle continuous FBT refresh (BasisContinuousCalibration): slowly absorbs
+        // small strap slips into the calibration snapshots while the player stands in their
+        // calibration pose. Off by default — it rewrites calibration data at runtime, so
+        // users opt in explicitly.
+        public static BasisSettingsBinding<bool> ContinuousCalibration = new("trackerlinking_continuouscalibration", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1998,6 +2003,7 @@ namespace Basis.BasisUI
             TrackerLinkingAdvancedVisible.LoadBindingValue();
             TrackerLinkingConnectorVisible.LoadBindingValue();
             TrustSteamVRRoles.LoadBindingValue();
+            ContinuousCalibration.LoadBindingValue();
             PairingSurprisePenalty.LoadBindingValue();
             PairingSurpriseClamp.LoadBindingValue();
             PairingEmaFloor.LoadBindingValue();

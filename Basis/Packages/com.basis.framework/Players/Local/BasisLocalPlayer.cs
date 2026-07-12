@@ -352,6 +352,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 jiggleRigs[i].Teleport(deltaPosition);
             }
+            BasisLocalFootDriver?.Teleport(deltaPosition);
             OnTeleportEvent?.Invoke();
         }
         private Vector3 GetFeetAlignedRoot(Vector3 targetPosition, Quaternion targetRotation)

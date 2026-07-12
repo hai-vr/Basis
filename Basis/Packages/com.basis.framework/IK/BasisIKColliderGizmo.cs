@@ -93,21 +93,8 @@ namespace Basis.Scripts.Debugging
 
             float handR = Mathf.Max(0f, data.HandRadius + data.HandSkin);
 
-            if (data.UseHandCapsule)
-            {
-                UpdateHandCapsule(LeftHandBase, data.LeftHand, data.leftLowerArm, handR, playerUp, _pointSphereIds[0]);
-                UpdateHandCapsule(RightHandBase, data.RightHand, data.RightLowerArm, handR, playerUp, _pointSphereIds[1]);
-            }
-            else
-            {
-                SetCapsuleActive(LeftHandBase, false);
-                SetCapsuleActive(RightHandBase, false);
-                Vector3 sphereSize = Vector3.one * (handR * 2f);
-                BasisGizmoManager.UpdateSphereGizmo(_pointSphereIds[0], data.PositionLeftHand, sphereSize);
-                BasisGizmoManager.UpdateSphereGizmo(_pointSphereIds[1], data.PositionRightHand, sphereSize);
-                BasisGizmoManager.SetGizmoActive(_pointSphereIds[0], true);
-                BasisGizmoManager.SetGizmoActive(_pointSphereIds[1], true);
-            }
+            UpdateHandCapsule(LeftHandBase, data.LeftHand, data.leftLowerArm, handR, playerUp, _pointSphereIds[0]);
+            UpdateHandCapsule(RightHandBase, data.RightHand, data.RightLowerArm, handR, playerUp, _pointSphereIds[1]);
 
             // Upper-arm capsules (shoulder→elbow) are slightly wider than the
             // hand/forearm capsule; matches the multiplier SolveHand uses for the

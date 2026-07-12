@@ -221,6 +221,8 @@ namespace Basis.Scripts.Avatar
                 // master toggle is off; the toggle path rebuilds when it flips on.
                 BasisLocalPlayer.Instance.LocalBoneDriver.RebuildCalibrationSpheres();
 
+                BasisContinuousCalibration.CaptureBaseline();
+
                 OnFullBodyCalibrated?.Invoke();
             }
             finally
@@ -283,6 +285,18 @@ namespace Basis.Scripts.Avatar
         public static bool HasCalibrationHeadSnapshot;
         private static Vector3 s_calibHeadUnscaledPos;
         private static Quaternion s_calibHeadUnscaledRot = Quaternion.identity;
+
+        /// <summary>
+        /// The scale-free head anchor the tracker snapshots were captured against. Consumers
+        /// (BasisContinuousCalibration) must express any snapshot edit in this frame so
+        /// <see cref="ReprojectTrackerOffsetsForCurrentAvatar"/> keeps rebuilding a consistent geometry.
+        /// </summary>
+        public static bool TryGetCalibrationHeadSnapshot(out Vector3 unscaledPosition, out Quaternion unscaledRotation)
+        {
+            unscaledPosition = s_calibHeadUnscaledPos;
+            unscaledRotation = s_calibHeadUnscaledRot;
+            return HasCalibrationHeadSnapshot;
+        }
 
         /// <summary>
         /// Re-derives every calibrated FBT tracker's POSITION inverse offset for the CURRENT avatar and
@@ -522,7 +536,18 @@ namespace Basis.Scripts.Avatar
             // player should be looking straight ahead, so the projection is well defined.
             Vector3 hmdFwdHoriz = hmdUnscaledRot * Vector3.forward;
             hmdFwdHoriz.y = 0f;
-            if (hmdFwdHoriz.sqrMagnitude < 1e-4f) hmdFwdHoriz = BasisLocalPlayer.Instance.transform.forward;
+            if (hmdFwdHoriz.sqrMagnitude < 1e-4f)
+            {
+                // Near-vertical gaze (looking down at the trackers is the common calibration pose):
+                // recover the facing from the head's up axis, which tips toward the body's forward as
+                // the head pitches down (and away from it pitching up). Must stay in the unscaled
+                // playspace frame — the player transform's forward is world-space and disagrees after
+                // any snap-turn/teleport, flipping LateralRatio signs (left/right role swaps).
+                Vector3 headUpHoriz = hmdUnscaledRot * Vector3.up;
+                headUpHoriz.y = 0f;
+                hmdFwdHoriz = (hmdUnscaledRot * Vector3.forward).y < 0f ? headUpHoriz : -headUpHoriz;
+                if (hmdFwdHoriz.sqrMagnitude < 1e-4f) hmdFwdHoriz = Vector3.forward;
+            }
             hmdFwdHoriz.Normalize();
 
             Quaternion bodyRot = Quaternion.LookRotation(hmdFwdHoriz, Vector3.up);

@@ -82,20 +82,26 @@ namespace Basis.Integration.SlimeVR
             trackerSourceDropdown.SetValueWithoutNotify(BasisSlimeVRSettings.TrackerSource.RawValue);
             trackerSourceDropdown.OnValueChanged += value => BasisSlimeVRSettings.TrackerSource.SetValue(value);
 
+            PanelSlider.CreateAndBind(content,
+                new PanelSlider.SliderSettings("Pose Countdown",
+                    "Seconds the buttons below give you to get into pose before they fire. 0 fires instantly.",
+                    0f, 10f, true, 0, ValueDisplayMode.Raw),
+                BasisSlimeVRSettings.PoseCountdownSeconds);
+
             PanelButton yawReset = PanelButton.CreateNew(content);
-            yawReset.Descriptor.SetTitle("Yaw Reset");
-            yawReset.Descriptor.SetDescription("Straighten the trackers.");
-            yawReset.OnClicked += BasisSlimeVRBridge.TriggerYawReset;
+            WirePoseCountdownButton(yawReset, "Yaw Reset",
+                "Straighten the trackers. Fires after the pose countdown.",
+                BasisSlimeVRPoseAction.YawReset);
 
             PanelButton fullReset = PanelButton.CreateNew(content);
-            fullReset.Descriptor.SetTitle("Full Reset");
-            fullReset.Descriptor.SetDescription("Full reset — stand straight.");
-            fullReset.OnClicked += BasisSlimeVRBridge.TriggerFullReset;
+            WirePoseCountdownButton(fullReset, "Full Reset",
+                "Full reset — stand straight during the countdown.",
+                BasisSlimeVRPoseAction.FullReset);
 
             PanelButton recalibrate = PanelButton.CreateNew(content);
-            recalibrate.Descriptor.SetTitle("Recalibrate Full Body");
-            recalibrate.Descriptor.SetDescription("Recapture tracker offsets — stand straight.");
-            recalibrate.OnClicked += () => BasisSlimeVRBridge.RecaptureFbtOffsets("manual (settings)");
+            WirePoseCountdownButton(recalibrate, "Recalibrate Full Body",
+                "Recapture tracker offsets — stand straight during the countdown.",
+                BasisSlimeVRPoseAction.RecalibrateFbt, "manual (settings)");
 
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
@@ -132,6 +138,71 @@ namespace Basis.Integration.SlimeVR
             {
                 tabDescriptor?.ForceRebuild();
             });
+        }
+
+        /// <summary>
+        /// Routes a button through the bridge's pose countdown: pressing starts the countdown (the
+        /// title ticks down), pressing again cancels. The countdown itself runs on
+        /// <see cref="BasisSlimeVRBridge"/>, so closing the menu mid-count still fires the action.
+        /// </summary>
+        private static void WirePoseCountdownButton(PanelButton button, string title, string description,
+            BasisSlimeVRPoseAction action, string recaptureReason = null)
+        {
+            button.Descriptor.SetTitle(title);
+            button.Descriptor.SetDescription(description);
+
+            button.OnClicked += () =>
+            {
+                if (BasisSlimeVRBridge.HasPoseCountdown && BasisSlimeVRBridge.PoseCountdownAction == action)
+                {
+                    BasisSlimeVRBridge.CancelPoseCountdown();
+                }
+                else
+                {
+                    BasisSlimeVRBridge.StartPoseCountdown(action, recaptureReason);
+                }
+            };
+
+            void OnTick(BasisSlimeVRPoseAction tickAction, int secondsRemaining)
+            {
+                if (button == null)
+                {
+                    BasisSlimeVRBridge.OnPoseCountdownTick -= OnTick;
+                    BasisSlimeVRBridge.OnPoseCountdownEnded -= OnEnded;
+                    return;
+                }
+                if (tickAction != action)
+                {
+                    return;
+                }
+                button.Descriptor.SetTitle($"{title} ({secondsRemaining})");
+                button.Descriptor.SetDescription("Get into pose — press again to cancel.");
+            }
+
+            void OnEnded(BasisSlimeVRPoseAction endedAction, bool _)
+            {
+                if (button == null)
+                {
+                    BasisSlimeVRBridge.OnPoseCountdownTick -= OnTick;
+                    BasisSlimeVRBridge.OnPoseCountdownEnded -= OnEnded;
+                    return;
+                }
+                if (endedAction != action)
+                {
+                    return;
+                }
+                button.Descriptor.SetTitle(title);
+                button.Descriptor.SetDescription(description);
+            }
+
+            BasisSlimeVRBridge.OnPoseCountdownTick += OnTick;
+            BasisSlimeVRBridge.OnPoseCountdownEnded += OnEnded;
+
+            // A rebuilt panel (tab reopened mid-count) picks the running countdown back up.
+            if (BasisSlimeVRBridge.HasPoseCountdown && BasisSlimeVRBridge.PoseCountdownAction == action)
+            {
+                OnTick(action, BasisSlimeVRBridge.PoseCountdownSecondsRemaining);
+            }
         }
 
         private static string DescribeStatus()
