@@ -484,7 +484,8 @@ namespace Basis.ImagePickup
             _displayTextureBound = true;
         }
 
-        private void OnDestroy()
+        /// <summary>Synchronously releases every native resource owned by this player.</summary>
+        internal void DisposeOwnedResources()
         {
             if (_destroying)
                 return;
@@ -494,11 +495,20 @@ namespace Basis.ImagePickup
             ReleaseReloadDecodeSlot();
             if (_scheduler != null)
                 _scheduler.Unregister(this);
+            _scheduler = null;
+            _pickup?.SetPosterDisplayTexture();
+            _displayTextureBound = false;
             DisposeCanvases();
             _data?.Dispose();
             _data = null;
             _reloadPayload = null;
+            _pickup = null;
             _initialized = false;
+        }
+
+        private void OnDestroy()
+        {
+            DisposeOwnedResources();
         }
 
         private void DisposeCanvases()

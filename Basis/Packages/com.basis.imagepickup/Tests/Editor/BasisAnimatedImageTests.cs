@@ -1,4 +1,6 @@
+using System.Collections;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using NUnit.Framework;
@@ -1094,6 +1096,200 @@ namespace Basis.ImagePickup.Tests
                 data.Dispose();
             }
             Assert.That(BasisAnimatedImageData.TotalResidentNativeBytes, Is.EqualTo(before));
+        }
+
+        [Test]
+        public void AnimatedPlayerReleasesNativeDataSynchronously()
+        {
+            long before = BasisAnimatedImageData.TotalResidentNativeBytes;
+            var host = new GameObject("BasisAnimatedImageDisposeTest");
+            var pickup = host.AddComponent<BasisImagePickupObject>();
+            var player = host.AddComponent<BasisAnimatedImagePlayer>();
+            BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                )
+            );
+            bool initialized = false;
+            try
+            {
+                initialized = player.Initialize(data, pickup, 1, true);
+                Assert.That(initialized, Is.True);
+                Assert.That(BasisAnimatedImageData.TotalResidentNativeBytes, Is.GreaterThan(before));
+
+                player.DisposeOwnedResources();
+                Assert.That(BasisAnimatedImageData.TotalResidentNativeBytes, Is.EqualTo(before));
+                Assert.That(player.IsInitialized, Is.False);
+                Assert.DoesNotThrow(player.DisposeOwnedResources);
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                if (!initialized)
+                    data.Dispose();
+                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
+                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
+                    Object.DestroyImmediate(scheduler.gameObject);
+            }
+        }
+
+        [Test]
+        public void AnimatedPlayerDisposalCompletesPendingReloadDecode()
+        {
+            long before = BasisAnimatedImageData.TotalResidentNativeBytes;
+            var host = new GameObject("BasisAnimatedImagePendingReloadDisposeTest");
+            var pickup = host.AddComponent<BasisImagePickupObject>();
+            var player = host.AddComponent<BasisAnimatedImagePlayer>();
+            BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                )
+            );
+            BasisNativeAnimationPayload payload = null;
+            var commands = new CommandBuffer();
+            bool initialized = false;
+            try
+            {
+                using var encode = new BasisBurstAnimationEncodeRequest(data);
+                BasisBurstAnimationEncodeResult encoded = encode.Complete();
+                Assert.That(encoded.Ok, Is.True, encoded.Error);
+                payload = encoded.TakePayload();
+                Assert.That(payload, Is.Not.Null);
+
+                initialized = player.Initialize(data, pickup, 1, true, payload);
+                Assert.That(initialized, Is.True);
+                player.ReleaseDecodedDataForMemoryPressure();
+                Assert.That(player.Data, Is.Null);
+                Assert.That(BasisAnimatedImageData.TotalResidentNativeBytes, Is.EqualTo(before));
+
+                int transitionsRemaining = 1;
+                long pixelsRemaining = 1;
+                bool gpuCommandsAdded = false;
+                player.Schedule(
+                    commands,
+                    1,
+                    ref transitionsRemaining,
+                    ref pixelsRemaining,
+                    true,
+                    ref gpuCommandsAdded
+                );
+
+                FieldInfo reloadRequestField = typeof(BasisAnimatedImagePlayer).GetField(
+                    "_reloadRequest",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(reloadRequestField, Is.Not.Null);
+                Assert.That(reloadRequestField.GetValue(player), Is.Not.Null);
+
+                player.DisposeOwnedResources();
+                Assert.That(reloadRequestField.GetValue(player), Is.Null);
+                Assert.That(BasisAnimatedImageData.TotalResidentNativeBytes, Is.EqualTo(before));
+                Assert.That(payload.IsCreated, Is.True);
+            }
+            finally
+            {
+                commands.Release();
+                payload?.Dispose();
+                Object.DestroyImmediate(host);
+                if (!initialized)
+                    data.Dispose();
+                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
+                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
+                    Object.DestroyImmediate(scheduler.gameObject);
+            }
+        }
+
+        [Test]
+        public void DestroyedPickupReleasesManagerOwnedAnimationPayload()
+        {
+            long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
+            var managerHost = new GameObject("BasisImagePickupManagerDisposeTest");
+            var pickupHost = new GameObject("BasisImagePickupDisposeTest");
+            BasisImagePickupManager manager = null;
+            BasisNativeAnimationPayload payload = null;
+            try
+            {
+                Assert.That(BasisImagePickupManager.Instance, Is.Null);
+                using BasisAnimatedImageData data = Create(
+                    new BasisAnimatedImageFrameSource(
+                        new RectInt(0, 0, 1, 1),
+                        50000,
+                        BasisAnimationBlend.Source,
+                        BasisAnimationDisposal.None,
+                        new[] { Red }
+                    )
+                );
+                using var encode = new BasisBurstAnimationEncodeRequest(data);
+                BasisBurstAnimationEncodeResult encoded = encode.Complete();
+                Assert.That(encoded.Ok, Is.True, encoded.Error);
+                payload = encoded.TakePayload();
+                Assert.That(payload, Is.Not.Null);
+                Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.GreaterThan(payloadBytesBefore));
+
+                manager = managerHost.AddComponent<BasisImagePickupManager>();
+                var pickup = pickupHost.AddComponent<BasisImagePickupObject>();
+                System.Guid id = System.Guid.NewGuid();
+                pickup.ImageId = id;
+
+                FieldInfo managerField = typeof(BasisImagePickupObject).GetField(
+                    "_manager",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(managerField, Is.Not.Null);
+                managerField.SetValue(pickup, manager);
+
+                FieldInfo imagesField = typeof(BasisImagePickupManager).GetField(
+                    "_images",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(imagesField, Is.Not.Null);
+                var images = (IDictionary)imagesField.GetValue(manager);
+                images.Add(id, pickup);
+
+                System.Type ownedImageType = typeof(BasisImagePickupManager).GetNestedType(
+                    "OwnedImage",
+                    BindingFlags.NonPublic
+                );
+                Assert.That(ownedImageType, Is.Not.Null);
+                object ownedImage = System.Activator.CreateInstance(ownedImageType);
+                FieldInfo ownedObjectField = ownedImageType.GetField("Object");
+                FieldInfo ownedPayloadField = ownedImageType.GetField("AnimationPayload");
+                Assert.That(ownedObjectField, Is.Not.Null);
+                Assert.That(ownedPayloadField, Is.Not.Null);
+                ownedObjectField.SetValue(ownedImage, pickup);
+                ownedPayloadField.SetValue(ownedImage, payload);
+
+                FieldInfo ownedField = typeof(BasisImagePickupManager).GetField(
+                    "_owned",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(ownedField, Is.Not.Null);
+                var ownedImages = (IDictionary)ownedField.GetValue(manager);
+                ownedImages.Add(id, ownedImage);
+
+                Object.DestroyImmediate(pickupHost);
+                Assert.That(images.Contains(id), Is.False);
+                Assert.That(ownedImages.Contains(id), Is.False);
+                Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.EqualTo(payloadBytesBefore));
+            }
+            finally
+            {
+                payload?.Dispose();
+                if (pickupHost != null)
+                    Object.DestroyImmediate(pickupHost);
+                if (managerHost != null)
+                    Object.DestroyImmediate(managerHost);
+                if (BasisImagePickupManager.Instance == manager)
+                    BasisImagePickupManager.Instance = null;
+            }
         }
 
         [Test]

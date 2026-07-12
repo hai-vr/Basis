@@ -483,9 +483,28 @@ namespace Basis.ImagePickup
 
         private void OnDestroy()
         {
+            if (_manager != null)
+                _manager.OnPickupDestroyed(this);
+            _manager = null;
             UnregisterCollider(_ownCollider);
-            if (_material != null) Destroy(_material);
-            if (_posterTexture != null) Destroy(_posterTexture);
+            if (_material != null)
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    DestroyImmediate(_material);
+                else
+#endif
+                    Destroy(_material);
+            }
+            if (_posterTexture != null)
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    DestroyImmediate(_posterTexture);
+                else
+#endif
+                    Destroy(_posterTexture);
+            }
         }
     }
 }

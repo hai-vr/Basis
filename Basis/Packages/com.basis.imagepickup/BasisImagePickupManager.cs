@@ -169,6 +169,7 @@ namespace Basis.ImagePickup
         private readonly HashSet<Guid> _animationAttempted = new();
         private long _reservedInboundTransferBytes;
         private bool _gifDecodePausedForMemory;
+        private bool _destroying;
         private readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender =
             new();
         private readonly List<Guid> _scratchIds = new();
@@ -187,14 +188,25 @@ namespace Basis.ImagePickup
             }
             Instance = this;
             BasisEventDriver.OnUpdate += Simulate;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying)
+                DontDestroyOnLoad(gameObject);
         }
 
         public override void OnDestroy()
         {
+            _destroying = true;
             BasisEventDriver.OnUpdate -= Simulate;
             if (Instance == this)
                 Instance = null;
+
+            // Release player-owned native buffers before Unity's shutdown leak validation runs.
+            _scratchIds.Clear();
+            foreach (Guid id in _images.Keys)
+                _scratchIds.Add(id);
+            int trackedImageCount = _scratchIds.Count;
+            for (int i = 0; i < trackedImageCount; i++)
+                RemoveImage(_scratchIds[i]);
+            _scratchIds.Clear();
 
             int pendingGifSpawnCount = _pendingGifSpawns.Count;
             for (int i = 0; i < pendingGifSpawnCount; i++)
@@ -777,6 +789,7 @@ namespace Basis.ImagePickup
 
         private void SimulateBody()
         {
+            CleanupDestroyedImages();
             ProcessCompletedGifSpawns();
             ProcessCompletedInboundAnimationDecodes();
             StartQueuedInboundAnimationDecodes();
@@ -2023,17 +2036,48 @@ namespace Basis.ImagePickup
             transfer.ReservedBytes = 0;
         }
 
-        private void RemoveImage(Guid id)
+        /// <summary>Cleans manager-owned state when a scene unload destroys a pickup directly.</summary>
+        internal void OnPickupDestroyed(BasisImagePickupObject pickup)
         {
-            if (_images.TryGetValue(id, out BasisImagePickupObject pickup))
+            if (_destroying || ReferenceEquals(pickup, null))
+                return;
+            if (
+                !_images.TryGetValue(pickup.ImageId, out BasisImagePickupObject tracked)
+                || !ReferenceEquals(tracked, pickup)
+            )
+                return;
+            RemoveImage(pickup.ImageId, false);
+        }
+
+        private void CleanupDestroyedImages()
+        {
+            _scratchIds.Clear();
+            foreach (KeyValuePair<Guid, BasisImagePickupObject> entry in _images)
             {
-                if (pickup != null)
-                {
-                    pickup.AnimatedImagePlayer?.ClearReloadPayload();
-                    Destroy(pickup.gameObject);
-                }
-                _images.Remove(id);
+                if (entry.Value == null)
+                    _scratchIds.Add(entry.Key);
             }
+            int destroyedImageCount = _scratchIds.Count;
+            for (int i = 0; i < destroyedImageCount; i++)
+                RemoveImage(_scratchIds[i], false);
+            _scratchIds.Clear();
+        }
+
+        private void RemoveImage(Guid id, bool destroyPickup = true)
+        {
+            _images.TryGetValue(id, out BasisImagePickupObject pickup);
+            _images.Remove(id);
+
+            if (pickup != null)
+            {
+                BasisAnimatedImagePlayer player = pickup.AnimatedImagePlayer;
+                if (player != null)
+                {
+                    player.ClearReloadPayload();
+                    player.DisposeOwnedResources();
+                }
+            }
+
             RemoveOutboundImageTransfers(id);
             RemoveOutboundAnimationTransfers(id);
             if (_owned.TryGetValue(id, out OwnedImage owned))
@@ -2053,9 +2097,7 @@ namespace Basis.ImagePickup
             {
                 if (_pendingInboundAnimationDecodes[i].Id != id)
                     continue;
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    i
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 pending.Job?.Dispose();
                 ReleaseInboundTransferBytes(pending.ReservedBytes);
                 pending.ReservedBytes = 0;
@@ -2063,6 +2105,15 @@ namespace Basis.ImagePickup
             }
             _animationAttempted.Remove(id);
             BasisShareableRegistry.Unregister(id.ToString());
+
+            if (!destroyPickup || pickup == null)
+                return;
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+                DestroyImmediate(pickup.gameObject);
+            else
+#endif
+                Destroy(pickup.gameObject);
         }
 
         private void SendSpawn(
