@@ -75,7 +75,7 @@ fine for interactive test sessions, not for soak loops.
 | --- | --- | --- |
 | `rtsp://stream.vrcdn.live/live/vrcdn` | RTSP live, H.264 720p + AAC 2.0 @ 48 kHz | VRCDN's own 24/7 channel; the primary PC low-latency lane; host is on the default trust list |
 | `https://stream.vrcdn.live/live/vrcdn.live.ts` | MPEG-TS over HTTPS, live | Same channel, the standalone-friendly lane (https, so Quest-safe) |
-| `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4` | Progressive MP4 VOD, range/`206` | Also good for seek/pause and delivery auto-detect testing |
+| `https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v` | Progressive MP4 VOD, range/`206` | Official Blender hosting of the full 10-minute film, H.264 + AAC (the `.m4v` extension is fine — the player sniffs the container). Good for seek/pause and delivery auto-detect testing |
 | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS VOD, multi-variant master | Exercises the panel's bitrate dropdown |
 | [Fraunhofer AAC multichannel page](https://www2.iis.fraunhofer.de/AAC/multichannel.html) | AAC 5.1/7.1 VOD fixtures | Includes adversarial layouts: PCE-signalled 7.1 must fail **gracefully** on Windows (muted audio or a clean error — never a crash) |
 
