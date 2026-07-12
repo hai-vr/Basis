@@ -686,6 +686,12 @@ namespace Basis.Scripts.Drivers
                     data.EnableRightLowerLeg = 0f;
                 }
 
+                // Tell the leg solve which knee poles are physical trackers (jittery, and pole-amplified by
+                // the solve) so it applies the responsive output-swivel smoothing on that path. Computed hints
+                // (foot driver / butterfly) are already smooth and stay untouched.
+                data.LeftLowerLegHintIsTracker = leftLLHasTracker;
+                data.RightLowerLegHintIsTracker = rightLLHasTracker;
+
                 if (BasisLegCrouchDebug.Enabled)
                 {
                     if (data.LeftUpperLeg != null && data.LeftLowerLeg != null && data.leftFoot != null)

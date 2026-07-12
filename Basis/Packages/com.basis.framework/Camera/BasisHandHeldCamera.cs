@@ -1,5 +1,6 @@
 using Basis;
 using Basis.BasisUI;
+using Basis.Scripts.Audio;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
@@ -510,7 +511,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
             if (BasisDeviceManagement.Instance.CameraCountdownTickSound != null)
             {
-                AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraCountdownTickSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
+                BasisUISounds.PlayAt(BasisUISoundEvent.CameraCountdownTick, BasisDeviceManagement.Instance.CameraCountdownTickSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
             }
 
             yield return new WaitForSeconds(1f);
@@ -536,7 +537,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Play shutter sound locally (network was already notified via SendCountdown)
         if (BasisDeviceManagement.Instance.CameraShutterSound != null)
         {
-            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
+            BasisUISounds.PlayAt(BasisUISoundEvent.CameraShutter, BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
         }
 
         if (capture360Enabled)
@@ -583,7 +584,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Play shutter sound locally at the camera position
         if (BasisDeviceManagement.Instance.CameraShutterSound != null)
         {
-            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
+            BasisUISounds.PlayAt(BasisUISoundEvent.CameraShutter, BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
         }
 
         // Send shutter sound event over the network

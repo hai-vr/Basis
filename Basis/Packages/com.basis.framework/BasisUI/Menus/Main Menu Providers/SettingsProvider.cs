@@ -467,137 +467,6 @@ namespace Basis.BasisUI
                 toggleUIHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.uiHaptics.tooltip"));
             }, false, _ => descriptor.ForceRebuild());
 
-            // VR finger touch — direct fingertip presses on menus (BasisDirectTouch).
-            // Tuning controls only show while the feature is enabled.
-            List<PanelElementDescriptor> fingerTouchTuning = new List<PanelElementDescriptor>();
-            void ApplyFingerTouchTuningVisibility()
-            {
-                bool tuningVisible = !BasisSettingsDefaults.DisableVRFingerTouch.RawValue;
-                for (int i = 0; i < fingerTouchTuning.Count; i++)
-                {
-                    fingerTouchTuning[i].SetActive(tuningVisible);
-                }
-            }
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
-                BasisLocalization.Get("settings.general.fingerTouch.title"), () =>
-            {
-                PanelToggle toggleDisableVRFingerTouch = PanelToggle.CreateNewEntry(container);
-                toggleDisableVRFingerTouch.AssignBinding(BasisSettingsDefaults.DisableVRFingerTouch);
-                toggleDisableVRFingerTouch.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableVRFingerTouch"));
-                toggleDisableVRFingerTouch.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableVRFingerTouch.tooltip"));
-
-                PanelDropdown dropdownTouchFinger = PanelDropdown.CreateNewEntry(container);
-                dropdownTouchFinger.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.finger"));
-                dropdownTouchFinger.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.finger.tooltip"));
-                dropdownTouchFinger.AssignLocalizedEntries(
-                    new List<string>
-                    {
-                        BasisSettingsDefaults.FingerTouchFinger_Index,
-                        BasisSettingsDefaults.FingerTouchFinger_Thumb,
-                        BasisSettingsDefaults.FingerTouchFinger_Middle,
-                        BasisSettingsDefaults.FingerTouchFinger_Ring,
-                        BasisSettingsDefaults.FingerTouchFinger_Little,
-                    },
-                    new List<string>
-                    {
-                        "settings.general.fingerTouch.finger.index",
-                        "settings.general.fingerTouch.finger.thumb",
-                        "settings.general.fingerTouch.finger.middle",
-                        "settings.general.fingerTouch.finger.ring",
-                        "settings.general.fingerTouch.finger.little",
-                    });
-                dropdownTouchFinger.AssignBinding(BasisSettingsDefaults.FingerTouchFinger);
-                fingerTouchTuning.Add(dropdownTouchFinger.Descriptor);
-
-                PanelDropdown dropdownTouchHands = PanelDropdown.CreateNewEntry(container);
-                dropdownTouchHands.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.hands"));
-                dropdownTouchHands.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.hands.tooltip"));
-                dropdownTouchHands.AssignLocalizedEntries(
-                    new List<string>
-                    {
-                        BasisSettingsDefaults.FingerTouchHands_Both,
-                        BasisSettingsDefaults.FingerTouchHands_Left,
-                        BasisSettingsDefaults.FingerTouchHands_Right,
-                    },
-                    new List<string>
-                    {
-                        "settings.general.fingerTouch.hands.both",
-                        "settings.general.fingerTouch.hands.left",
-                        "settings.general.fingerTouch.hands.right",
-                    });
-                dropdownTouchHands.AssignBinding(BasisSettingsDefaults.FingerTouchHands);
-                fingerTouchTuning.Add(dropdownTouchHands.Descriptor);
-
-                PanelSlider sliderTipOffset = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.tipOffset"), 0f, 0.05f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchTipOffset);
-                sliderTipOffset.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.tipOffset.tooltip"));
-                fingerTouchTuning.Add(sliderTipOffset.Descriptor);
-
-                PanelSlider sliderFingerLength = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.fingerLength"), 0.02f, 0.3f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchFingerLength);
-                sliderFingerLength.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.fingerLength.tooltip"));
-                fingerTouchTuning.Add(sliderFingerLength.Descriptor);
-
-                PanelSlider sliderTouchRadius = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.radius"), 0.001f, 0.05f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchRadius);
-                sliderTouchRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.radius.tooltip"));
-                fingerTouchTuning.Add(sliderTouchRadius.Descriptor);
-
-                PanelSlider sliderHoverDistance = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.hoverDistance"), 0.01f, 0.15f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchHoverDistance);
-                sliderHoverDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.hoverDistance.tooltip"));
-                fingerTouchTuning.Add(sliderHoverDistance.Descriptor);
-
-                PanelSlider sliderPressDepth = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.pressDepth"), 0.002f, 0.05f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchPressDepth);
-                sliderPressDepth.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.pressDepth.tooltip"));
-                fingerTouchTuning.Add(sliderPressDepth.Descriptor);
-
-                PanelSlider sliderReleaseDistance = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.releaseDistance"), 0.005f, 0.08f, false, 3, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.FingerTouchReleaseDistance);
-                sliderReleaseDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.releaseDistance.tooltip"));
-                fingerTouchTuning.Add(sliderReleaseDistance.Descriptor);
-
-                PanelSlider sliderScrollSensitivity = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.scrollSensitivity"), 100f, 2000f, true, 0, ValueDisplayMode.Raw),
-                    BasisSettingsDefaults.FingerTouchScrollSensitivity);
-                sliderScrollSensitivity.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.scrollSensitivity.tooltip"));
-                fingerTouchTuning.Add(sliderScrollSensitivity.Descriptor);
-
-                PanelToggle toggleFingerTouchHaptics = PanelToggle.CreateNewEntry(container);
-                toggleFingerTouchHaptics.AssignBinding(BasisSettingsDefaults.FingerTouchHaptics);
-                toggleFingerTouchHaptics.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.haptics"));
-                toggleFingerTouchHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.haptics.tooltip"));
-                fingerTouchTuning.Add(toggleFingerTouchHaptics.Descriptor);
-
-                ApplyFingerTouchTuningVisibility();
-                toggleDisableVRFingerTouch.OnValueChanged += _ =>
-                {
-                    ApplyFingerTouchTuningVisibility();
-                    descriptor.ForceRebuild();
-                };
-            }, false, visible =>
-            {
-                if (visible)
-                {
-                    ApplyFingerTouchTuningVisibility();
-                }
-                descriptor.ForceRebuild();
-            });
-
             // HUD overlays — heads-up display elements rendered over the scene.
             PanelToggle toggleAvatarPreview = null;
             PanelToggle toggleAvatarPreviewMirror = null;
@@ -857,17 +726,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
-            BasisSettingsDefaults.DisableVRFingerTouch.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchFinger.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchHands.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchTipOffset.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchFingerLength.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchRadius.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchHoverDistance.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchPressDepth.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchReleaseDistance.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchScrollSensitivity.ResetToDefault();
-            BasisSettingsDefaults.FingerTouchHaptics.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
@@ -1060,6 +918,12 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.VoiceVolume.ResetToDefault();
             BasisSettingsDefaults.AvatarVolume.ResetToDefault();
             BasisSettingsDefaults.PropVolume.ResetToDefault();
+            BasisSettingsDefaults.SoundHover.ResetToDefault();
+            BasisSettingsDefaults.SoundPress.ResetToDefault();
+            BasisSettingsDefaults.SoundGrab.ResetToDefault();
+            BasisSettingsDefaults.SoundChat.ResetToDefault();
+            BasisSettingsDefaults.SoundMicrophone.ResetToDefault();
+            BasisSettingsDefaults.SoundCamera.ResetToDefault();
             BasisSettingsDefaults.UseOpenLipSyncLimit.ResetToDefault();
             BasisSettingsDefaults.OpenLipSyncMaxSlots.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
@@ -2071,20 +1935,6 @@ namespace Basis.BasisUI
             descriptor.SetTitle(BasisLocalization.Get("settings.tab.chat"));
             RectTransform container = descriptor.ContentParent;
 
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
-                BasisLocalization.Get("settings.chat.notifications.title"), () =>
-            {
-                PanelToggle toggleJoinNotifications = PanelToggle.CreateNewEntry(container);
-                toggleJoinNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.joinNotifications"));
-                toggleJoinNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.joinNotifications.tooltip"));
-                toggleJoinNotifications.AssignBinding(BasisSettingsDefaults.JoinNotifications);
-
-                PanelToggle toggleLeaveNotifications = PanelToggle.CreateNewEntry(container);
-                toggleLeaveNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.leaveNotifications"));
-                toggleLeaveNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.leaveNotifications.tooltip"));
-                toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
-            }, false, _ => descriptor.ForceRebuild());
-
             PanelTextField chatTextField = null;
             PanelSlider sliderChatSize = null;
             PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
@@ -2161,6 +2011,20 @@ namespace Basis.BasisUI
                     _chatComposerPlayNotificationSound = true;
                 }
             }
+
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.chat.notifications.title"), () =>
+            {
+                PanelToggle toggleJoinNotifications = PanelToggle.CreateNewEntry(container);
+                toggleJoinNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.joinNotifications"));
+                toggleJoinNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.joinNotifications.tooltip"));
+                toggleJoinNotifications.AssignBinding(BasisSettingsDefaults.JoinNotifications);
+
+                PanelToggle toggleLeaveNotifications = PanelToggle.CreateNewEntry(container);
+                toggleLeaveNotifications.Descriptor.SetTitle(BasisLocalization.Get("settings.chat.leaveNotifications"));
+                toggleLeaveNotifications.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.leaveNotifications.tooltip"));
+                toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
+            }, false, _ => descriptor.ForceRebuild());
 
             PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
                 BasisLocalization.Get("settings.chat.camera.title"), () =>
@@ -2763,30 +2627,15 @@ namespace Basis.BasisUI
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(cameraRateToggle, container, cameraRateStart, false,
                 _ => descriptor.ForceRebuild());
 
-            // ---- Section Visibility Toggles ----
-            PanelSectionToggle sectionTogglesToggle = PanelSectionToggle.CreateNewEntry(container);
-            sectionTogglesToggle.SetTitle(BasisLocalization.Get("settings.developer.sections.title"));
-            int sectionTogglesStart = container.childCount;
+            // ---- Developer Options ----
+            PanelSectionToggle developerOptionsToggle = PanelSectionToggle.CreateNewEntry(container);
+            developerOptionsToggle.SetTitle(BasisLocalization.Get("settings.developer.options.title"));
+            int developerOptionsStart = container.childCount;
 
-            PanelToggle toggleBuildInfo = PanelToggle.CreateNewEntry(container);
-            toggleBuildInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.buildInfo"));
-            toggleBuildInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.buildInfo.tooltip"));
-            toggleBuildInfo.AssignBinding(BasisSettingsDefaults.DevShowBuildInfo);
-
-            PanelToggle toggleConsole = PanelToggle.CreateNewEntry(container);
-            toggleConsole.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.console"));
-            toggleConsole.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.console.tooltip"));
-            toggleConsole.AssignBinding(BasisSettingsDefaults.DevShowConsole);
-
-            PanelToggle toggleEuroFilter = PanelToggle.CreateNewEntry(container);
-            toggleEuroFilter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.euroFilter"));
-            toggleEuroFilter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.euroFilter.tooltip"));
-            toggleEuroFilter.AssignBinding(BasisSettingsDefaults.DevShowEuroFilter);
-
-            PanelToggle toggleNetStats = PanelToggle.CreateNewEntry(container);
-            toggleNetStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.netStats"));
-            toggleNetStats.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.netStats.tooltip"));
-            toggleNetStats.AssignBinding(BasisSettingsDefaults.DevShowNetStats);
+            PanelToggle toggleAlwaysShowCalibration = PanelToggle.CreateNewEntry(container);
+            toggleAlwaysShowCalibration.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.alwaysShowCalibration"));
+            toggleAlwaysShowCalibration.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.alwaysShowCalibration.tooltip"));
+            toggleAlwaysShowCalibration.AssignBinding(BasisSettingsDefaults.DevAlwaysShowCalibration);
 
             PanelToggle toggleCalibrationCsv = PanelToggle.CreateNewEntry(container);
             toggleCalibrationCsv.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationCsv"));
@@ -2811,7 +2660,7 @@ namespace Basis.BasisUI
             toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
             toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(sectionTogglesToggle, container, sectionTogglesStart, false,
+            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(developerOptionsToggle, container, developerOptionsStart, false,
                 _ => descriptor.ForceRebuild());
 
             // ---- Remote Audio Debug ----
@@ -2933,170 +2782,71 @@ namespace Basis.BasisUI
             // The face / eye tracking section builders are owned by the comms
             // package because they reference HVR types the framework can't see;
             // the framework holds Action<RectTransform> hooks they register into.
-            PanelSectionToggle avatarDebugSectionToggle = PanelSectionToggle.CreateNewEntry(container);
-            avatarDebugSectionToggle.SetTitle(BasisLocalization.Get("settings.developer.avatarDebug.title"));
-            int avatarDebugStart = container.childCount;
-
-            PanelToggle toggleDebugFace = PanelToggle.CreateNewEntry(container);
-            toggleDebugFace.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
-            toggleDebugFace.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.debugFaceTracking.tooltip"));
-            toggleDebugFace.AssignBinding(BasisSettingsDefaults.DevDebugFaceTracking);
-
-            PanelToggle toggleDebugEye = PanelToggle.CreateNewEntry(container);
-            toggleDebugEye.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
-            toggleDebugEye.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.debugEyeTracking.tooltip"));
-            toggleDebugEye.AssignBinding(BasisSettingsDefaults.DevDebugEyeTracking);
-
-            PanelToggle toggleTextureStats = PanelToggle.CreateNewEntry(container);
-            toggleTextureStats.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.textureStats"));
-            toggleTextureStats.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.textureStats.tooltip"));
-            toggleTextureStats.AssignBinding(BasisSettingsDefaults.AvatarShowTextureStats);
-
-            PanelToggle toggleAssignedTrackers = PanelToggle.CreateNewEntry(container);
-            toggleAssignedTrackers.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.assignedTrackers"));
-            toggleAssignedTrackers.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.assignedTrackers.tooltip"));
-            toggleAssignedTrackers.AssignBinding(BasisSettingsDefaults.AvatarShowTrackerRoles);
-
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(avatarDebugSectionToggle, container, avatarDebugStart, false,
-                _ => descriptor.ForceRebuild());
-
-            // ---- Collapsible sections (toggled by section visibility) ----
-            // Helper: collect all new children added to container by a builder call
-            static List<GameObject> CollectNewChildren(RectTransform parent, int countBefore)
-            {
-                var result = new List<GameObject>();
-                for (int i = countBefore; i < parent.childCount; i++)
-                    result.Add(parent.GetChild(i).gameObject);
-                return result;
-            }
-
-            static void DestroyList(List<GameObject> list)
-            {
-                for (int i = 0; i < list.Count; i++)
-                    if (list[i] != null) UnityEngine.Object.Destroy(list[i]);
-                list.Clear();
-            }
-
-            // Build & Environment
-            PanelElementDescriptor infoGroup = null;
-            void CreateBuildInfo()
-            {
-                infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                infoGroup.SetTitle(BasisLocalization.Get("settings.developer.buildInfo"));
-                CreateBuildInfoSection(infoGroup.ContentParent);
-            }
-            if (BasisSettingsDefaults.DevShowBuildInfo.RawValue) CreateBuildInfo();
-            toggleBuildInfo.OnValueChanged += on =>
-            {
-                if (infoGroup != null) { UnityEngine.Object.Destroy(infoGroup.gameObject); infoGroup = null; }
-                if (on) CreateBuildInfo();
-            };
-
-            // Network Euro Filter
-            List<GameObject> euroObjects = new();
-            void CreateEuroFilter()
-            {
-                int before = container.childCount;
-                SettingsProviderNetworkTab.BuildNetworkEuroFilterGroup(container);
-                euroObjects = CollectNewChildren(container, before);
-            }
-            if (BasisSettingsDefaults.DevShowEuroFilter.RawValue) CreateEuroFilter();
-            toggleEuroFilter.OnValueChanged += on =>
-            {
-                DestroyList(euroObjects);
-                if (on) CreateEuroFilter();
-            };
-
-            // Network & Statistics
-            List<GameObject> netObjects = new();
-            void CreateNetStats()
-            {
-                int before = container.childCount;
-                SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out _);
-                netObjects = CollectNewChildren(container, before);
-            }
-            if (BasisSettingsDefaults.DevShowNetStats.RawValue) CreateNetStats();
-            toggleNetStats.OnValueChanged += on =>
-            {
-                DestroyList(netObjects);
-                if (on) CreateNetStats();
-            };
-
-            // Avatar Debug — Face Tracking diagnostics
-            PanelElementDescriptor faceTrackingSection = null;
-            void CreateFaceTrackingSection()
-            {
-                if (FaceTrackingDebugBuilder == null)
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.debugFaceTracking"), () =>
                 {
-                    faceTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                    faceTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
-                    faceTrackingSection.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.unavailable"));
-                    return;
-                }
-                faceTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                faceTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugFaceTracking"));
-                FaceTrackingDebugBuilder(faceTrackingSection.ContentParent);
-            }
-            if (BasisSettingsDefaults.DevDebugFaceTracking.RawValue) CreateFaceTrackingSection();
-            toggleDebugFace.OnValueChanged += on =>
-            {
-                if (faceTrackingSection != null) { UnityEngine.Object.Destroy(faceTrackingSection.gameObject); faceTrackingSection = null; }
-                if (on) CreateFaceTrackingSection();
-            };
+                    if (FaceTrackingDebugBuilder == null)
+                    {
+                        PanelElementDescriptor unavailable = PanelElementDescriptor.CreateNew(
+                            PanelElementDescriptor.ElementStyles.Group, container);
+                        unavailable.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.unavailable"));
+                        return;
+                    }
 
-            // Avatar Debug — Eye Tracking diagnostics
-            PanelElementDescriptor eyeTrackingSection = null;
-            void CreateEyeTrackingSection()
-            {
-                if (EyeTrackingDebugBuilder == null)
+                    FaceTrackingDebugBuilder(container);
+                }, false, _ => descriptor.ForceRebuild());
+
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.debugEyeTracking"), () =>
                 {
-                    eyeTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                    eyeTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
-                    eyeTrackingSection.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.unavailable"));
-                    return;
-                }
-                eyeTrackingSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                eyeTrackingSection.SetTitle(BasisLocalization.Get("settings.developer.debugEyeTracking"));
-                EyeTrackingDebugBuilder(eyeTrackingSection.ContentParent);
-            }
-            if (BasisSettingsDefaults.DevDebugEyeTracking.RawValue) CreateEyeTrackingSection();
-            toggleDebugEye.OnValueChanged += on =>
-            {
-                if (eyeTrackingSection != null) { UnityEngine.Object.Destroy(eyeTrackingSection.gameObject); eyeTrackingSection = null; }
-                if (on) CreateEyeTrackingSection();
-            };
+                    if (EyeTrackingDebugBuilder == null)
+                    {
+                        PanelElementDescriptor unavailable = PanelElementDescriptor.CreateNew(
+                            PanelElementDescriptor.ElementStyles.Group, container);
+                        unavailable.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.unavailable"));
+                        return;
+                    }
 
-            // Avatar Debug — Texture Statistics
-            PanelElementDescriptor textureStatsSection = null;
-            void CreateTextureStatsSection()
-            {
-                textureStatsSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                textureStatsSection.SetTitle(BasisLocalization.Get("settings.developer.textureStats"));
-                SettingsProviderAvatarStats.PopulateStatsInto(textureStatsSection.ContentParent);
-            }
-            if (BasisSettingsDefaults.AvatarShowTextureStats.RawValue) CreateTextureStatsSection();
-            toggleTextureStats.OnValueChanged += on =>
-            {
-                if (textureStatsSection != null) { UnityEngine.Object.Destroy(textureStatsSection.gameObject); textureStatsSection = null; }
-                if (on) CreateTextureStatsSection();
-            };
+                    EyeTrackingDebugBuilder(container);
+                }, false, _ => descriptor.ForceRebuild());
 
-            // Avatar Debug — Assigned Trackers list
-            PanelElementDescriptor assignedTrackersSection = null;
-            void CreateAssignedTrackersSection()
-            {
-                assignedTrackersSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                assignedTrackersSection.SetTitle(BasisLocalization.Get("settings.developer.assignedTrackers"));
-                SettingsProviderAvatarStats.PopulateTrackerRoles(assignedTrackersSection);
-            }
-            if (BasisSettingsDefaults.AvatarShowTrackerRoles.RawValue) CreateAssignedTrackersSection();
-            toggleAssignedTrackers.OnValueChanged += on =>
-            {
-                if (assignedTrackersSection != null) { UnityEngine.Object.Destroy(assignedTrackersSection.gameObject); assignedTrackersSection = null; }
-                if (on) CreateAssignedTrackersSection();
-            };
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.textureStats"),
+                () => SettingsProviderAvatarStats.PopulateStatsInto(container),
+                false, _ => descriptor.ForceRebuild());
 
-            SettingsProviderPlatform.BuildAutoSwapUI(container);
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.assignedTrackers"), () =>
+                {
+                    PanelElementDescriptor trackerRoles = PanelElementDescriptor.CreateNew(
+                        PanelElementDescriptor.ElementStyles.Group, container);
+                    SettingsProviderAvatarStats.PopulateTrackerRoles(trackerRoles);
+                }, false, _ => descriptor.ForceRebuild());
+
+            // ---- Build & Environment ----
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.buildInfo"),
+                () => CreateBuildInfoSection(container),
+                false, _ => descriptor.ForceRebuild());
+
+            // ---- Network ----
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.euroFilter"),
+                () => SettingsProviderNetworkTab.BuildNetworkEuroFilterGroup(container),
+                false, _ => descriptor.ForceRebuild());
+
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.netStats"),
+                () => SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out _),
+                false, _ => descriptor.ForceRebuild());
+
+#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
+            // ---- Platform Auto-Swap ----
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.platform.swapMode.title"),
+                () => SettingsProviderPlatform.BuildAutoSwapUI(container),
+                false, _ => descriptor.ForceRebuild());
+#endif
 
             // ---- Diagnostic Notifications ----
             PanelSectionToggle notificationSectionToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -3116,23 +2866,14 @@ namespace Basis.BasisUI
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(notificationSectionToggle, container, notificationStart, false,
                 _ => descriptor.ForceRebuild());
 
+            // ---- Console Log ----
+            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
+                BasisLocalization.Get("settings.developer.console"),
+                () => SettingsProviderConsoleTab.BuildConsoleUI(container),
+                false, _ => descriptor.ForceRebuild());
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.developer", ResetDeveloperDefaults);
-
-            // Console Log (BuildConsoleUI creates 2 groups: controls + output)
-            List<GameObject> consoleObjects = new();
-            void CreateConsole()
-            {
-                int before = container.childCount;
-                SettingsProviderConsoleTab.BuildConsoleUI(container);
-                consoleObjects = CollectNewChildren(container, before);
-            }
-            if (BasisSettingsDefaults.DevShowConsole.RawValue) CreateConsole();
-            toggleConsole.OnValueChanged += on =>
-            {
-                DestroyList(consoleObjects);
-                if (on) CreateConsole();
-            };
 
             descriptor.ForceRebuild();
             return tab;
@@ -3173,12 +2914,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
             BasisSettingsDefaults.StreamingMetaPort.ResetToDefault();
             BasisSettingsDefaults.DisableLogging.ResetToDefault();
-            BasisSettingsDefaults.DevShowBuildInfo.ResetToDefault();
-            BasisSettingsDefaults.DevShowConsole.ResetToDefault();
-            BasisSettingsDefaults.DevShowEuroFilter.ResetToDefault();
-            BasisSettingsDefaults.DevShowNetStats.ResetToDefault();
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
+            BasisSettingsDefaults.DevAlwaysShowCalibration.ResetToDefault();
             BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
@@ -3202,10 +2940,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AudioDebugShowJitter.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowSilence.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowViseme.ResetToDefault();
-            BasisSettingsDefaults.DevDebugFaceTracking.ResetToDefault();
-            BasisSettingsDefaults.DevDebugEyeTracking.ResetToDefault();
-            BasisSettingsDefaults.AvatarShowTextureStats.ResetToDefault();
-            BasisSettingsDefaults.AvatarShowTrackerRoles.ResetToDefault();
             BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
             BasisSettingsDefaults.EyeFoveationAutoManage.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();

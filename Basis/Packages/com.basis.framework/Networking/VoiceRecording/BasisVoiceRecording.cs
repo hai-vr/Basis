@@ -466,7 +466,7 @@ namespace Basis.Scripts.Networking.VoiceRecording
         private static void ShowPrompt(ushort recorderId, string uuid, BasisVoiceConsentPurpose purpose)
         {
             byte purposeByte = (byte)purpose;
-            if (BasisMainMenu.Instance == null || Time.realtimeSinceStartup - _lastPromptTime < GlobalPromptCooldownSeconds)
+            if (Time.realtimeSinceStartup - _lastPromptTime < GlobalPromptCooldownSeconds)
             {
                 BasisNetworkHandleVoiceRecord.SendConsent(recorderId, (byte)BasisVoiceConsentState.Denied, purposeByte);
                 return;
@@ -476,24 +476,33 @@ namespace Basis.Scripts.Networking.VoiceRecording
             string bodyKey = purpose == BasisVoiceConsentPurpose.Route
                 ? "menu.voiceRecording.consent.body.route"
                 : "menu.voiceRecording.consent.body";
-            BasisMainMenu.Open();
-            BasisMainMenu.Instance.OpenDialogue(
-                BasisLocalization.Get("menu.voiceRecording.consent.title"),
-                BasisLocalization.Get(bodyKey, displayName),
-                BasisLocalization.Get("menu.voiceRecording.consent.allow"),
-                BasisLocalization.Get("menu.voiceRecording.consent.deny"),
-                allowed =>
+            string title = BasisLocalization.Get("menu.voiceRecording.consent.title");
+            string body = BasisLocalization.Get(bodyKey, displayName);
+            string accept = BasisLocalization.Get("menu.voiceRecording.consent.allow");
+            string deny = BasisLocalization.Get("menu.voiceRecording.consent.deny");
+
+            void Decide(bool allowed)
+            {
+                if (allowed)
                 {
-                    if (allowed)
-                    {
-                        GrantToRecorder(recorderId, purpose);
-                    }
-                    else
-                    {
-                        BasisNetworkHandleVoiceRecord.SendConsent(recorderId, (byte)BasisVoiceConsentState.Denied, purposeByte);
-                    }
-                },
-                divertible: true);
+                    GrantToRecorder(recorderId, purpose);
+                }
+                else
+                {
+                    BasisNetworkHandleVoiceRecord.SendConsent(recorderId, (byte)BasisVoiceConsentState.Denied, purposeByte);
+                }
+            }
+
+            if (BasisNotificationCenter.RouteToNotifications)
+            {
+                BasisMenuDialoguePanel.CreateNew(title, body, accept, deny, Decide, divertible: true);
+                return;
+            }
+            if (!BasisMainMenu.Instance)
+            {
+                BasisMainMenu.Open();
+            }
+            BasisMainMenu.Instance.OpenDialogue(title, body, accept, deny, Decide, divertible: true);
         }
 
         private static bool IsRateLimited(ushort recorderId)

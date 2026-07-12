@@ -10,10 +10,9 @@ namespace HVR.Basis.Comms
 {
     /// <summary>
     /// Registers the face- and eye-tracking diagnostic builders into the
-    /// framework's Developer tab. The framework owns the toggles
-    /// (DevDebugFaceTracking / DevDebugEyeTracking) and the collapsible group
-    /// containers; this package fills them in with the live state of the HVR
-    /// pipeline components.
+    /// framework's Developer tab. The framework owns the collapsible sections
+    /// and calls these builders each time one is expanded; this package fills
+    /// them in with the live state of the HVR pipeline components.
     /// </summary>
     public static class SettingsProviderFaceTracking
     {

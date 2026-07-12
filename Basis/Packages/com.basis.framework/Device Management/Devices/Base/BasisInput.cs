@@ -1,3 +1,4 @@
+using Basis.Scripts.Audio;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
@@ -714,13 +715,16 @@ namespace Basis.Scripts.Device_Management.Devices
             switch (SoundEffectName)
             {
                 case "hover":
-                    AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.HoverUI, transform.position, Volume);
+                    BasisUISounds.PlayAt(BasisUISoundEvent.Hover, BasisDeviceManagement.Instance.HoverUI, transform.position, Volume);
+                    break;
+                case "grab":
+                    BasisUISounds.PlayAt(BasisUISoundEvent.Grab, BasisDeviceManagement.Instance.HoverUI, transform.position, Volume);
                     break;
                 case "press":
-                    AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.pressUI, transform.position, Volume);
+                    BasisUISounds.PlayAt(BasisUISoundEvent.Press, BasisDeviceManagement.Instance.pressUI, transform.position, Volume);
                     break;
                 case "chat":
-                    AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, transform.position, Volume);
+                    BasisUISounds.PlayAt(BasisUISoundEvent.Chat, BasisDeviceManagement.Instance.ChatNotificationUI, transform.position, Volume);
                     break;
             }
         }

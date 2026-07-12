@@ -76,6 +76,132 @@ public static class SettingsProviderControllerConfig
         sliderSnapTurnAngleRef.Descriptor.SetActive(snapOn);
         sliderSmoothTurnSpeedRef.Descriptor.SetActive(!snapOn);
 
+        // VR finger touch — direct fingertip presses on menus (BasisDirectTouch).
+        // Tuning controls only show while the feature is enabled.
+        List<PanelElementDescriptor> fingerTouchTuning = new List<PanelElementDescriptor>();
+        void ApplyFingerTouchTuningVisibility()
+        {
+            bool tuningVisible = !BasisSettingsDefaults.DisableVRFingerTouch.RawValue;
+            for (int i = 0; i < fingerTouchTuning.Count; i++)
+            {
+                fingerTouchTuning[i].SetActive(tuningVisible);
+            }
+        }
+        SettingsProviderKeyboardBindings.CreateCollapsibleSection(
+            container, BasisLocalization.Get("settings.general.fingerTouch.title"),
+            BasisLocalization.Get("settings.general.disableVRFingerTouch.description"), group =>
+        {
+            PanelToggle toggleDisableVRFingerTouch = PanelToggle.CreateNewEntry(group);
+            toggleDisableVRFingerTouch.AssignBinding(BasisSettingsDefaults.DisableVRFingerTouch);
+            toggleDisableVRFingerTouch.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableVRFingerTouch"));
+            toggleDisableVRFingerTouch.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableVRFingerTouch.tooltip"));
+
+            PanelDropdown dropdownTouchFinger = PanelDropdown.CreateNewEntry(group);
+            dropdownTouchFinger.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.finger"));
+            dropdownTouchFinger.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.finger.tooltip"));
+            dropdownTouchFinger.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.FingerTouchFinger_Index,
+                    BasisSettingsDefaults.FingerTouchFinger_Thumb,
+                    BasisSettingsDefaults.FingerTouchFinger_Middle,
+                    BasisSettingsDefaults.FingerTouchFinger_Ring,
+                    BasisSettingsDefaults.FingerTouchFinger_Little,
+                },
+                new List<string>
+                {
+                    "settings.general.fingerTouch.finger.index",
+                    "settings.general.fingerTouch.finger.thumb",
+                    "settings.general.fingerTouch.finger.middle",
+                    "settings.general.fingerTouch.finger.ring",
+                    "settings.general.fingerTouch.finger.little",
+                });
+            dropdownTouchFinger.AssignBinding(BasisSettingsDefaults.FingerTouchFinger);
+            fingerTouchTuning.Add(dropdownTouchFinger.Descriptor);
+
+            PanelDropdown dropdownTouchHands = PanelDropdown.CreateNewEntry(group);
+            dropdownTouchHands.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.hands"));
+            dropdownTouchHands.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.hands.tooltip"));
+            dropdownTouchHands.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.FingerTouchHands_Both,
+                    BasisSettingsDefaults.FingerTouchHands_Left,
+                    BasisSettingsDefaults.FingerTouchHands_Right,
+                },
+                new List<string>
+                {
+                    "settings.general.fingerTouch.hands.both",
+                    "settings.general.fingerTouch.hands.left",
+                    "settings.general.fingerTouch.hands.right",
+                });
+            dropdownTouchHands.AssignBinding(BasisSettingsDefaults.FingerTouchHands);
+            fingerTouchTuning.Add(dropdownTouchHands.Descriptor);
+
+            PanelSlider sliderTipOffset = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.tipOffset"), 0f, 0.05f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchTipOffset);
+            sliderTipOffset.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.tipOffset.tooltip"));
+            fingerTouchTuning.Add(sliderTipOffset.Descriptor);
+
+            PanelSlider sliderFingerLength = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.fingerLength"), 0.02f, 0.3f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchFingerLength);
+            sliderFingerLength.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.fingerLength.tooltip"));
+            fingerTouchTuning.Add(sliderFingerLength.Descriptor);
+
+            PanelSlider sliderTouchRadius = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.radius"), 0.001f, 0.05f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchRadius);
+            sliderTouchRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.radius.tooltip"));
+            fingerTouchTuning.Add(sliderTouchRadius.Descriptor);
+
+            PanelSlider sliderHoverDistance = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.hoverDistance"), 0.01f, 0.15f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchHoverDistance);
+            sliderHoverDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.hoverDistance.tooltip"));
+            fingerTouchTuning.Add(sliderHoverDistance.Descriptor);
+
+            PanelSlider sliderPressDepth = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.pressDepth"), 0.002f, 0.05f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchPressDepth);
+            sliderPressDepth.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.pressDepth.tooltip"));
+            fingerTouchTuning.Add(sliderPressDepth.Descriptor);
+
+            PanelSlider sliderReleaseDistance = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.releaseDistance"), 0.005f, 0.08f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.FingerTouchReleaseDistance);
+            sliderReleaseDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.releaseDistance.tooltip"));
+            fingerTouchTuning.Add(sliderReleaseDistance.Descriptor);
+
+            PanelSlider sliderScrollSensitivity = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.general.fingerTouch.scrollSensitivity"), 100f, 2000f, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FingerTouchScrollSensitivity);
+            sliderScrollSensitivity.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.scrollSensitivity.tooltip"));
+            fingerTouchTuning.Add(sliderScrollSensitivity.Descriptor);
+
+            PanelToggle toggleFingerTouchHaptics = PanelToggle.CreateNewEntry(group);
+            toggleFingerTouchHaptics.AssignBinding(BasisSettingsDefaults.FingerTouchHaptics);
+            toggleFingerTouchHaptics.Descriptor.SetTitle(BasisLocalization.Get("settings.general.fingerTouch.haptics"));
+            toggleFingerTouchHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.haptics.tooltip"));
+            fingerTouchTuning.Add(toggleFingerTouchHaptics.Descriptor);
+
+            toggleDisableVRFingerTouch.OnValueChanged += _ =>
+            {
+                ApplyFingerTouchTuningVisibility();
+                group.ForceRebuild();
+            };
+        });
+
+        ApplyFingerTouchTuningVisibility();
+
         // Deadzone - General
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(
             container, BasisLocalization.Get("settings.controls.generalDeadzone.title"), BasisLocalization.Get("settings.controls.generalDeadzone.description"), group =>
@@ -172,6 +298,17 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.Extraxdeadzoneatfully.ResetToDefault();
         BasisSettingsDefaults.Wingexponent.ResetToDefault();
         BasisSettingsDefaults.Ydeadzone.ResetToDefault();
+        BasisSettingsDefaults.DisableVRFingerTouch.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchFinger.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchHands.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchTipOffset.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchFingerLength.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchRadius.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchHoverDistance.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchPressDepth.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchReleaseDistance.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchScrollSensitivity.ResetToDefault();
+        BasisSettingsDefaults.FingerTouchHaptics.ResetToDefault();
     }
 
     private static void BuildBindingsUI(RectTransform container)

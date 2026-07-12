@@ -518,7 +518,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         inPos = weldHandPos;
                         inRot = weldHandRot;
                     }
-                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
+                    input.PlaySoundEffect("grab", SMModuleAudio.ActiveMenusVolume);
                     if (RigidRef != null)
                     {
                         if (KinematicWhileInteracting)

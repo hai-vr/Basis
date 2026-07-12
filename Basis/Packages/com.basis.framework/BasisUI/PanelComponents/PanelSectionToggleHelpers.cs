@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -92,6 +93,92 @@ namespace Basis.BasisUI
             }
 
             FinalizeCollapsibleContents(sectionToggle, startExpanded, onExpandedChanged, contents);
+            return sectionToggle;
+        }
+
+        /// <summary>
+        /// Builds a flat section whose content is created when it expands and destroyed when it
+        /// collapses, so nothing is paid for a section the user never opens and the rows re-read
+        /// live state every time it is reopened. Use this instead of
+        /// <see cref="CreateCollapsibleFlatSection"/> for sections that are expensive to build or
+        /// that snapshot runtime data. <paramref name="buildContent"/> adds its rows to
+        /// <paramref name="container"/> as usual; they are moved directly beneath the header.
+        /// </summary>
+        public static PanelSectionToggle CreateLazyFlatSection(
+            RectTransform container,
+            string title,
+            Action buildContent,
+            bool startExpanded = false,
+            Action<bool> onExpandedChanged = null)
+        {
+            PanelSectionToggle sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+            sectionToggle.SetTitle(title);
+
+            string stateKey = ResolveSectionKey(sectionToggle);
+            bool effectiveOpen = stateKey != null ? BasisMenuStateMemory.GetSection(stateKey, startExpanded) : startExpanded;
+
+            List<GameObject> content = new();
+
+            void Populate()
+            {
+                int start = container.childCount;
+                buildContent?.Invoke();
+
+                for (int i = start; i < container.childCount; i++)
+                {
+                    content.Add(container.GetChild(i).gameObject);
+                }
+
+                // The builder appends to the end of the tab; walk the new rows back up so they
+                // sit under this section's header rather than below every later section.
+                int insertAt = sectionToggle.transform.GetSiblingIndex() + 1;
+                for (int i = 0; i < content.Count; i++)
+                {
+                    content[i].transform.SetSiblingIndex(insertAt + i);
+                }
+            }
+
+            void Clear()
+            {
+                for (int i = 0; i < content.Count; i++)
+                {
+                    GameObject row = content[i];
+                    if (row == null)
+                    {
+                        continue;
+                    }
+
+                    // Destroy is deferred to end of frame; deactivate first so the dying rows
+                    // drop out of the layout pass that this collapse triggers.
+                    row.SetActive(false);
+                    UnityEngine.Object.Destroy(row);
+                }
+
+                content.Clear();
+            }
+
+            if (effectiveOpen)
+            {
+                Populate();
+            }
+
+            sectionToggle.SetExpandedWithoutNotify(effectiveOpen);
+            sectionToggle.OnExpandedChanged += visible =>
+            {
+                Clear();
+                if (visible)
+                {
+                    Populate();
+                }
+
+                if (stateKey != null)
+                {
+                    BasisMenuStateMemory.SetSection(stateKey, visible);
+                }
+
+                onExpandedChanged?.Invoke(visible);
+            };
+
             return sectionToggle;
         }
 

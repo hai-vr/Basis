@@ -581,11 +581,13 @@ namespace Basis.BasisUI
             base.OnButtonCreated(button);
             BasisDeviceManagement.OnBootModeChanged += BootModeChanged;
             BasisSettingsDefaults.EnableFBT.OnChanged += FBTToggleChanged;
+            BasisSettingsDefaults.DevAlwaysShowCalibration.OnChanged += AlwaysShowCalibrationChanged;
             SetDeviceListSubscription(true);
             BoundButton.OnInstanceReleased += () =>
             {
                 BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
                 BasisSettingsDefaults.EnableFBT.OnChanged -= FBTToggleChanged;
+                BasisSettingsDefaults.DevAlwaysShowCalibration.OnChanged -= AlwaysShowCalibrationChanged;
                 SetDeviceListSubscription(false);
             };
             EvaluateButtonVisibility();
@@ -593,6 +595,7 @@ namespace Basis.BasisUI
 
         private void BootModeChanged(string _) => EvaluateButtonVisibility();
         private void FBTToggleChanged(bool _) => EvaluateButtonVisibility();
+        private void AlwaysShowCalibrationChanged(bool _) => EvaluateButtonVisibility();
 
         private void SetDeviceListSubscription(bool subscribe)
         {
@@ -618,7 +621,8 @@ namespace Basis.BasisUI
                 return;
             }
 
-            bool show = !BasisDeviceManagement.IsUserInDesktop()
+            bool show = BasisSettingsDefaults.DevAlwaysShowCalibration.RawValue
+                || !BasisDeviceManagement.IsUserInDesktop()
                 || (BasisSettingsDefaults.EnableFBT.RawValue && HasNonCameraBodyTrackers());
             BoundButton.gameObject.SetActive(show);
         }

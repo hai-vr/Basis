@@ -276,6 +276,12 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] float m_HintLeftLowerLegEnabled;
         [SyncSceneToStream, SerializeField] float m_HintRightLowerLegEnabled;
 
+        // True when the knee/lower-leg hint is a physical tracker (jittery, and pole-amplified by the leg
+        // solve) rather than a computed hint (foot driver / butterfly). Gates the tracked-knee output-swivel
+        // smoothing in SolveLegs -- see SmoothKneeSwivel.
+        [SyncSceneToStream, SerializeField] bool m_LeftLowerLegHintIsTracker;
+        [SyncSceneToStream, SerializeField] bool m_RightLowerLegHintIsTracker;
+
         [SyncSceneToStream, SerializeField] bool m_EnabledLeftHand;
         [SyncSceneToStream, SerializeField] bool m_EnabledRightHand;
 
@@ -449,6 +455,8 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootRotation));
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionRightLowerLeg));
         public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationRightLowerLeg));
+        public string HintIsTrackerBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegHintIsTracker));
+        public string HintIsTrackerBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightLowerLegHintIsTracker));
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
@@ -509,6 +517,8 @@ namespace UnityEngine.Animations.Rigging
         public float EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
         public float EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
         public float EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
+        public bool LeftLowerLegHintIsTracker { get => m_LeftLowerLegHintIsTracker; set => m_LeftLowerLegHintIsTracker = value; }
+        public bool RightLowerLegHintIsTracker { get => m_RightLowerLegHintIsTracker; set => m_RightLowerLegHintIsTracker = value; }
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
         public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
         public bool HintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
@@ -672,6 +682,7 @@ namespace UnityEngine.Animations.Rigging
             m_SpineIKEnabled = true;
             m_HasHipsTracker = false;
             m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
+            m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
             m_IKLockMode = (float)BasisIKLockMode.LockHips;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
@@ -1060,6 +1071,7 @@ w20, w54;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting, legSwivelSmoothing;
+        public BoolProperty hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public FloatProperty lordosisPitchGainDeg;
         public FloatProperty lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
         public FloatProperty lordosisExtremeStartDeg, lordosisExtremeFullDeg;
@@ -1156,8 +1168,8 @@ w20, w54;
             }
 
             // 3) Legs: two-bone IK with bend normal preference
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, 0);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, 1);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, 0);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, 1);
 
             // Smooth the hips rotation that feeds the no-elbow-tracker bend frame (ArmBendFrame) so hip
             // jitter/sway doesn't wobble the derived elbows. Integrated once per frame, before the hands.
@@ -2375,7 +2387,7 @@ w20, w54;
             tip.SetRotation(stream, result.TipRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp, int legSlot)
+        public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp, BoolProperty hintIsTrackerProp, int legSlot)
         {
             float posWeight = enabledProp.Get(stream);
             if (posWeight <= 0f)
@@ -2417,9 +2429,26 @@ w20, w54;
             }
             if (preserveTip) tip.SetRotation(stream, origTipRot);
 
-            if (preserveTip && legSwivelSmoothing.Get(stream))
+            // Body-relative One-Euro on the OUTPUT knee swivel (leg roll about the hip->foot axis): damps
+            // swivel jitter without lagging bulk locomotion (translation/turn move the whole leg, so the
+            // swivel angle barely changes). Two entry points, different cutoffs:
+            //  - tracked knee hint: the pole is a physical tracker whose few-mm jitter is amplified into
+            //    degrees of knee swivel by the leg solve's short pole lever arm -> shave that jitter, but
+            //    stay responsive so deliberate shin motion isn't lagged.
+            //  - no foot tracker (preserveTip): the near-full-extension standing leg rolls on hips-yaw
+            //    jitter via the bend normal -> heavy 1 Hz floor (the original leg-twist fix).
+            if (legSwivelSmoothing.Get(stream))
             {
-                SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime);
+                if (hintIsTrackerProp.Get(stream))
+                {
+                    SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
+                        k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz);
+                }
+                else if (preserveTip)
+                {
+                    SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
+                        BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz);
+                }
             }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2489,11 +2518,21 @@ w20, w54;
             tip.SetPosition(stream, preHand);
             tip.SetRotation(stream, preHandRot);
         }
+        // Tracked-knee swivel cutoffs. A One-Euro rejects rest jitter at its FLOOR, so the floor stays low
+        // (near the 1 Hz standing floor) to actually kill the pole-amplified tracker jitter -- a high floor
+        // would pass it straight through. The difference from the standing path is a much larger BETA: a knee
+        // tracker is a real user-driven signal, so the cutoff must open aggressively on deliberate shin motion
+        // and not lag it. Starting points -- tune in-headset; BasisLegTwistSmoothingTests guards the balance.
+        const float k_TrackedKneeSwivelMinCutoffHz = 1.5f;  // held-still smoothing floor (vs 1.0 standing)
+        const float k_TrackedKneeSwivelBeta = 0.20f;        // 4x standing: opens fast so real shin motion isn't lagged
+        const float k_TrackedKneeSwivelDerivCutoffHz = 1.0f;
+
         // Leg analog of SmoothElbowSwivel: OneEuro low-pass of the knee swivel (leg roll about the
-        // hip->foot axis), foot kept exactly on target. Standing legs run near full extension where the
-        // solver's bend axis is the raw hips-yaw bend normal, so hips-yaw jitter rolls the near-straight
-        // leg; this damps that without lagging a real turn. Per-leg slot. Only called on the foot-IK path.
-        void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
+        // hip->foot axis), foot kept exactly on target. Damps swivel jitter without lagging a real turn or
+        // locomotion (both move the whole leg, leaving the swivel angle ~unchanged). Called on the no-foot-
+        // tracker path (standing twist) and the tracked-knee path (pole-amplified tracker jitter); the
+        // caller passes the appropriate One-Euro cutoffs. Per-leg slot.
+        void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz)
         {
             if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || dt <= 1e-6f)
             {
@@ -2525,7 +2564,7 @@ w20, w54;
             swivelState.Raw = legSwivelRaw[slot].x;
             swivelState.Vel = legSwivelRaw[slot].y;
             swivelState.Smooth = legSwivelSmooth[slot].x;
-            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt);
+            swivelState = BasisSwivelFilterCore.Step(swivelState, curSwivel, dt, minCutoffHz, beta, derivCutoffHz);
             float smooth = swivelState.Smooth;
             legSwivelRaw[slot] = new Vector3(swivelState.Raw, swivelState.Vel, 0f);
             legSwivelSmooth[slot] = new Vector3(swivelState.Smooth, 0f, 0f);
@@ -2780,6 +2819,8 @@ w20, w54;
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
                 legSwivelSmoothing = BoolProperty.Bind(animator, component, data.LegSwivelSmoothingProperty),
+                hintIsTrackerLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyLeftLowerLeg),
+                hintIsTrackerRightLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyRightLowerLeg),
                 lordosisPitchGainDeg = FloatProperty.Bind(animator, component, data.LordosisPitchGainDegFloatProperty),
                 lordosisBaseDeg = FloatProperty.Bind(animator, component, data.LordosisBaseDegFloatProperty),
                 lordosisNeckShare = FloatProperty.Bind(animator, component, data.LordosisNeckShareFloatProperty),

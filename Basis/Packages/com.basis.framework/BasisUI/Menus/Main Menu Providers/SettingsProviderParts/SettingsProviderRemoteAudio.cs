@@ -134,6 +134,41 @@ namespace Basis.BasisUI
                 advancedToggle, container, BasisLocalization.Get("ui.advanced"), showGroupTitle: false);
             container = advancedGroup.ContentParent;
 
+            // ─────────────── INTERFACE SOUNDS (advanced) ───────────────
+            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+                BasisLocalization.Get("settings.audio.sounds.title"), () =>
+            {
+                PanelToggle toggleSoundHover = PanelToggle.CreateNewEntry(container);
+                toggleSoundHover.AssignBinding(BasisSettingsDefaults.SoundHover);
+                toggleSoundHover.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.hover"));
+                toggleSoundHover.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.hover.tooltip"));
+
+                PanelToggle toggleSoundPress = PanelToggle.CreateNewEntry(container);
+                toggleSoundPress.AssignBinding(BasisSettingsDefaults.SoundPress);
+                toggleSoundPress.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.press"));
+                toggleSoundPress.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.press.tooltip"));
+
+                PanelToggle toggleSoundGrab = PanelToggle.CreateNewEntry(container);
+                toggleSoundGrab.AssignBinding(BasisSettingsDefaults.SoundGrab);
+                toggleSoundGrab.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.grab"));
+                toggleSoundGrab.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.grab.tooltip"));
+
+                PanelToggle toggleSoundChat = PanelToggle.CreateNewEntry(container);
+                toggleSoundChat.AssignBinding(BasisSettingsDefaults.SoundChat);
+                toggleSoundChat.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.chat"));
+                toggleSoundChat.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.chat.tooltip"));
+
+                PanelToggle toggleSoundMicrophone = PanelToggle.CreateNewEntry(container);
+                toggleSoundMicrophone.AssignBinding(BasisSettingsDefaults.SoundMicrophone);
+                toggleSoundMicrophone.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.microphone"));
+                toggleSoundMicrophone.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.microphone.tooltip"));
+
+                PanelToggle toggleSoundCamera = PanelToggle.CreateNewEntry(container);
+                toggleSoundCamera.AssignBinding(BasisSettingsDefaults.SoundCamera);
+                toggleSoundCamera.Descriptor.SetTitle(BasisLocalization.Get("settings.audio.sounds.camera"));
+                toggleSoundCamera.Descriptor.SetTooltip(BasisLocalization.Get("settings.audio.sounds.camera.tooltip"));
+            }, false, _ => RebuildLayout());
+
             // ─────────────── VOICE BUFFER (advanced) ───────────────
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.

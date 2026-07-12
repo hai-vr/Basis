@@ -18,6 +18,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> PropVolume = new("propvolume", new BasisPlatformDefault<float>(75));
         public static BasisSettingsBinding<float> MicrophoneVolume = new("microphonevolume", new BasisPlatformDefault<float>(1));
 
+        // ---------------- INTERFACE SOUNDS ----------------
+        // Per-event toggles for the UI/interaction sound effects (BasisUISounds).
+        public static BasisSettingsBinding<bool> SoundHover = new("soundhover", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SoundPress = new("soundpress", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SoundGrab = new("soundgrab", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> SoundChat = new("soundchat", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SoundMicrophone = new("soundmicrophone", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> SoundCamera = new("soundcamera", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<float> ControllerDeadZone = new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
 
         public static BasisSettingsBinding<float> Basexdeadzone = new("basexdeadzone", new BasisPlatformDefault<float>(0.08f));
@@ -353,21 +362,12 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<string> StreamingMetaPort = new("streamingmetaport", new BasisPlatformDefault<string>("9080"));
 
-        public static BasisSettingsBinding<bool> AvatarShowTextureStats = new("avatarshowtexturestats", new BasisPlatformDefault<bool>(false));
-
-        public static BasisSettingsBinding<bool> AvatarShowTrackerRoles = new("avatarshowtrackerroles", new BasisPlatformDefault<bool>(false));
-
-        // Debug toggles for the avatar diagnostics on the Developer tab. Separate
-        // from EnableFaceTracking / EnableEyeTracking — those drive the actual
-        // avatar; these only gate the visibility of the diagnostic panels.
-        public static BasisSettingsBinding<bool> DevDebugFaceTracking = new("devdebugfacetracking", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> DevDebugEyeTracking = new("devdebugeyetracking", new BasisPlatformDefault<bool>(false));
-
-        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo_v2", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowCalibrationDebug = new("devshowcalibrationdebug", new BasisPlatformDefault<bool>(false));
+
+        // The calibrate button normally hides itself in desktop unless FBT is on and a real
+        // (non-camera) body tracker is connected. This forces it visible in every mode, so
+        // desktop users can reach the calibration panel — height recapture works without trackers.
+        public static BasisSettingsBinding<bool> DevAlwaysShowCalibration = new("devalwaysshowcalibration", new BasisPlatformDefault<bool>(false));
 
         // When on, the local avatar calibration pipeline dumps every stage's scales/positions/
         // rotation eulers + offsets to a CSV under persistentDataPath/CalibrationDebug. Read once
@@ -1467,6 +1467,13 @@ namespace Basis.BasisUI
             AvatarVolume.LoadBindingValue();
             PropVolume.LoadBindingValue();
 
+            SoundHover.LoadBindingValue();
+            SoundPress.LoadBindingValue();
+            SoundGrab.LoadBindingValue();
+            SoundChat.LoadBindingValue();
+            SoundMicrophone.LoadBindingValue();
+            SoundCamera.LoadBindingValue();
+
             MicrophoneVolume.LoadBindingValue();
             MicrophoneRange.LoadBindingValue();
             HearingRange.LoadBindingValue();
@@ -1598,22 +1605,15 @@ namespace Basis.BasisUI
             GizmoNetworkPlayers.LoadBindingValue();
             GizmoNetworkPlayersBandwidth.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
-            AvatarShowTrackerRoles.LoadBindingValue();
-            AvatarShowTextureStats.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
             ShowVoiceRange.LoadBindingValue();
-            DevDebugFaceTracking.LoadBindingValue();
-            DevDebugEyeTracking.LoadBindingValue();
             AvatarDataDebugEnabled.LoadBindingValue();
             AvatarDataDebugShowReceive.LoadBindingValue();
             AvatarDataDebugShowStaging.LoadBindingValue();
             AvatarDataDebugShowInterp.LoadBindingValue();
             AvatarDataDebugShowMeta.LoadBindingValue();
-            DevShowBuildInfo.LoadBindingValue();
-            DevShowConsole.LoadBindingValue();
-            DevShowEuroFilter.LoadBindingValue();
-            DevShowNetStats.LoadBindingValue();
             DevShowCalibrationDebug.LoadBindingValue();
+            DevAlwaysShowCalibration.LoadBindingValue();
             DumpCalibrationCsv.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;

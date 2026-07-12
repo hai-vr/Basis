@@ -2131,10 +2131,6 @@
       "value": "Calibrating"
     },
     {
-      "key": "calibration.pullTriggers",
-      "value": "T-Pose, then pull both triggers"
-    },
-    {
       "key": "calibration.clickToConfirm",
       "value": "Click again to calibrate"
     },
@@ -4003,6 +3999,58 @@
       "value": "Prop Volume"
     },
     {
+      "key": "settings.audio.sounds.title",
+      "value": "Interface Sounds"
+    },
+    {
+      "key": "settings.audio.sounds.hover",
+      "value": "Hover Sound"
+    },
+    {
+      "key": "settings.audio.sounds.hover.tooltip",
+      "value": "Play a soft tick when the pointer passes over a menu element."
+    },
+    {
+      "key": "settings.audio.sounds.press",
+      "value": "Click Sound"
+    },
+    {
+      "key": "settings.audio.sounds.press.tooltip",
+      "value": "Play a click when you activate a menu element."
+    },
+    {
+      "key": "settings.audio.sounds.grab",
+      "value": "Pickup Sound"
+    },
+    {
+      "key": "settings.audio.sounds.grab.tooltip",
+      "value": "Play a sound when you pick an object up. Off by default."
+    },
+    {
+      "key": "settings.audio.sounds.chat",
+      "value": "Chat Message Sound"
+    },
+    {
+      "key": "settings.audio.sounds.chat.tooltip",
+      "value": "Play a soft notification when another player sends a text message."
+    },
+    {
+      "key": "settings.audio.sounds.microphone",
+      "value": "Microphone Mute Sound"
+    },
+    {
+      "key": "settings.audio.sounds.microphone.tooltip",
+      "value": "Play a sound when you mute or unmute your microphone."
+    },
+    {
+      "key": "settings.audio.sounds.camera",
+      "value": "Camera Sounds"
+    },
+    {
+      "key": "settings.audio.sounds.camera.tooltip",
+      "value": "Play the shutter and countdown ticks when a photo is taken."
+    },
+    {
       "key": "settings.microphone.group.title",
       "value": "Microphone"
     },
@@ -5568,7 +5616,7 @@
     },
     {
       "key": "settings.bodyTracking.smoothingStrength.title",
-      "value": "work"
+      "value": "Smoothing Strength"
     },
     {
       "key": "settings.bodyTracking.smoothingStrength.description",
@@ -6511,12 +6559,16 @@
       "value": "Lowest severity that is allowed through BasisDebug. All emits logs, warnings, and errors. Warnings & Errors hides plain logs. Errors Only hides logs and warnings."
     },
     {
-      "key": "settings.developer.sections.title",
-      "value": "Developer Sections"
+      "key": "settings.developer.options.title",
+      "value": "Developer Options"
     },
     {
-      "key": "settings.developer.sections.description",
-      "value": "Toggle which developer sections are visible below."
+      "key": "settings.developer.alwaysShowCalibration",
+      "value": "Always Show Calibrate Button"
+    },
+    {
+      "key": "settings.developer.alwaysShowCalibration.tooltip",
+      "value": "Show the Calibrate button in every mode, including desktop. Normally it only appears in VR, or in desktop when full body tracking is on and a real body tracker is connected. Calibrating on desktop still recaptures your height and rescales the avatar."
     },
     {
       "key": "settings.developer.buildInfo",
