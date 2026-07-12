@@ -1,5 +1,6 @@
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -43,10 +44,7 @@ namespace Basis.ImagePickup
         private IntPtr _windowHandle = IntPtr.Zero;
         private IntPtr _previousWndProc = IntPtr.Zero;
         private bool _hookInstalled;
-
-        private List<string[]> _pendingBatches = new();
-        private List<string[]> _processingBatches = new();
-        private readonly object _pendingLock = new();
+        private readonly ConcurrentQueue<string[]> _pendingBatches = new();
 
         private void OnEnable()
         {
@@ -117,30 +115,18 @@ namespace Basis.ImagePickup
             BasisImagePickupManager manager = BasisImagePickupManager.Instance;
             if (manager == null) return;
 
-            lock (_pendingLock)
+            int batchCount = _pendingBatches.Count;
+            for (int i = 0; i < batchCount; i++)
             {
-                if (_pendingBatches.Count == 0) return;
-                (_pendingBatches, _processingBatches) = (_processingBatches, _pendingBatches);
-            }
-
-            try
-            {
-                int batchCount = _processingBatches.Count;
-                for (int i = 0; i < batchCount; i++)
+                if (!_pendingBatches.TryDequeue(out string[] paths)) break;
+                try
                 {
-                    try
-                    {
-                        manager.SpawnFromFiles(_processingBatches[i]);
-                    }
-                    catch (Exception exception)
-                    {
-                        BasisDebug.LogError($"Image pickup: dropped-file batch {i + 1:N0}/{batchCount:N0} failed ({exception.Message}).", LogTag);
-                    }
+                    manager.SpawnFromFiles(paths);
                 }
-            }
-            finally
-            {
-                _processingBatches.Clear();
+                catch (Exception exception)
+                {
+                    BasisDebug.LogError($"Image pickup: dropped-file batch {i + 1:N0}/{batchCount:N0} failed ({exception.Message}).", LogTag);
+                }
             }
         }
 
@@ -201,7 +187,7 @@ namespace Basis.ImagePickup
             }
 
             if (droppedPaths.Count == 0) return;
-            lock (_pendingLock) _pendingBatches.Add(droppedPaths.ToArray());
+            _pendingBatches.Enqueue(droppedPaths.ToArray());
         }
 
         [AOT.MonoPInvokeCallback(typeof(EnumThreadWindowProc))]

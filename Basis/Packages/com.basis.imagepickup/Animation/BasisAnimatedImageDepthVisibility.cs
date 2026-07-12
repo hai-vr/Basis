@@ -6,662 +6,576 @@ using UnityEngine.Rendering;
 
 namespace Basis.ImagePickup
 {
-	/// <summary>
-	/// Owns the persistent GPU buffers and asynchronous readback state used by the
-	/// depth-buffer animation visibility mode. Capacity grows on demand while one readback
-	/// remains in flight at a time. If a larger allocation is unavailable, excess candidates
-	/// rotate through later batches and retain the physics fallback meanwhile.
-	/// </summary>
-	internal sealed class BasisAnimatedImageDepthVisibility : MonoBehaviour
-	{
-		internal const int SamplesPerCard = 5;
-		private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Rendering;
-		private const int InitialCardCapacity =
-			BasisImagePickupSettings.MaxConcurrentImagesPerSender;
-		private const int SampleStrideBytes = sizeof(float) * 4;
-		private const int VisibilityStrideBytes = sizeof(uint);
-		private const float CapacityRetryDelaySeconds = 5f;
+    /// <summary>
+    /// Owns the persistent GPU buffers and asynchronous readback state used by the
+    /// depth-buffer animation visibility mode. Capacity grows on demand while one readback
+    /// remains in flight at a time. If a larger allocation is unavailable, excess candidates
+    /// rotate through later batches and retain the physics fallback meanwhile.
+    /// </summary>
+    internal sealed class BasisAnimatedImageDepthVisibility : MonoBehaviour
+    {
+        internal const int SamplesPerCard = 5;
+        private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Rendering;
+        private const int InitialCardCapacity =
+            BasisImagePickupSettings.MaxConcurrentImagesPerSender;
+        private const int SampleStrideBytes = sizeof(float) * 4;
+        private const int VisibilityStrideBytes = sizeof(uint);
+        private const float CapacityRetryDelaySeconds = 5f;
 
-		private static readonly ProfilerMarker PrepareMarker = new(
-			"Basis.ImagePickup.AnimatedImage.DepthPrepare"
-		);
-		private static readonly ProfilerMarker ReadbackMarker = new(
-			"Basis.ImagePickup.AnimatedImage.DepthReadback"
-		);
+        private static readonly ProfilerMarker PrepareMarker = new("Basis.ImagePickup.AnimatedImage.DepthPrepare");
+        private static readonly ProfilerMarker ReadbackMarker = new("Basis.ImagePickup.AnimatedImage.DepthReadback");
 
-		public static BasisAnimatedImageDepthVisibility Instance;
+        public static BasisAnimatedImageDepthVisibility Instance;
 
-		private Vector4[] _sampleUpload = Array.Empty<Vector4>();
-		private BasisAnimatedImagePlayer[] _preparedPlayers =
-			Array.Empty<BasisAnimatedImagePlayer>();
-		private BasisAnimatedImagePlayer[] _readbackPlayers =
-			Array.Empty<BasisAnimatedImagePlayer>();
-		private readonly Plane[] _frustumPlanes = new Plane[6];
+        private Vector4[] _sampleUpload = Array.Empty<Vector4>();
+        private BasisAnimatedImagePlayer[] _preparedPlayers =
+            Array.Empty<BasisAnimatedImagePlayer>();
+        private BasisAnimatedImagePlayer[] _readbackPlayers =
+            Array.Empty<BasisAnimatedImagePlayer>();
+        private readonly Plane[] _frustumPlanes = new Plane[6];
 
-		private GraphicsBuffer _sampleBuffer;
-		private GraphicsBuffer _visibilityBuffer;
-		private int _cardCapacity;
-		private int _lastFailedCapacity;
-		private float _nextCapacityRetryTime;
-		private Camera _preparedCamera;
-		private Camera _readbackCamera;
-		private int _preparedFrame = -1;
-		private int _readbackFrame = -1;
-		private int _preparedCount;
-		private int _readbackCount;
-		private int _readbackGeneration;
-		private int _readbackInFlightGeneration;
-		private float _nextPrepareTime;
-		private int _candidateStartIndex;
-		private bool _readbackPending;
-		private bool _readbackInFlight;
-		private bool _fallbackWarningLogged;
-		private bool _successfulReadbackLogged;
-		private bool _readbackErrorLogged;
+        private GraphicsBuffer _sampleBuffer;
+        private GraphicsBuffer _visibilityBuffer;
+        private int _cardCapacity;
+        private int _lastFailedCapacity;
+        private float _nextCapacityRetryTime;
+        private Camera _preparedCamera;
+        private Camera _readbackCamera;
+        private int _preparedFrame = -1;
+        private int _readbackFrame = -1;
+        private int _preparedCount;
+        private int _readbackCount;
+        private int _readbackGeneration;
+        private int _readbackInFlightGeneration;
+        private float _nextPrepareTime;
+        private int _candidateStartIndex;
+        private bool _readbackPending;
+        private bool _readbackInFlight;
+        private bool _fallbackWarningLogged;
+        private bool _successfulReadbackLogged;
+        private bool _readbackErrorLogged;
 
-		internal int PreparedCount => _preparedCount;
+        internal int PreparedCount => _preparedCount;
 
-		private void Awake()
-		{
-			if (Instance != null && Instance != this)
-			{
-				Destroy(this);
-				return;
-			}
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this);
+                return;
+            }
 
-			Instance = this;
-			TryEnsureCapacity(1, Time.unscaledTime);
-		}
+            Instance = this;
+            TryEnsureCapacity(1, Time.unscaledTime);
+        }
 
-		internal static BasisAnimatedImageDepthVisibility EnsureInstance(
-			GameObject host
-		)
-		{
-			if (Instance != null)
-				return Instance;
-			if (host == null)
-				throw new ArgumentNullException(nameof(host));
+        internal static BasisAnimatedImageDepthVisibility EnsureInstance(GameObject host)
+        {
+            if (Instance != null)
+                return Instance;
+            if (host == null)
+                throw new ArgumentNullException(nameof(host));
 
-			if (!host.TryGetComponent(out BasisAnimatedImageDepthVisibility service))
-				service = host.AddComponent<BasisAnimatedImageDepthVisibility>();
-			return service;
-		}
+            if (!host.TryGetComponent(out BasisAnimatedImageDepthVisibility service))
+                service = host.AddComponent<BasisAnimatedImageDepthVisibility>();
+            return service;
+        }
 
-		internal void PrepareFrame(
-			IReadOnlyList<BasisAnimatedImagePlayer> players,
-			Camera camera,
-			float unscaledTime
-		)
-		{
-			using var scope = PrepareMarker.Auto();
+        internal void PrepareFrame(IReadOnlyList<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
+        {
+            using var scope = PrepareMarker.Auto();
 
-			if (!CanUseDepthCamera(camera))
-			{
-				InvalidateReadback();
-				ResetPreparedPlayers();
-				ResetResults(players);
-				return;
-			}
+            if (!CanUseDepthCamera(camera))
+            {
+                InvalidateReadback();
+                ResetPreparedPlayers();
+                ResetResults(players);
+                return;
+            }
 
-			if (_readbackInFlight || unscaledTime < _nextPrepareTime)
-				return;
-			_nextPrepareTime =
-				unscaledTime
-				+ BasisImagePickupSettings.AnimationFaceOcclusionCheckIntervalSeconds;
+            if (_readbackInFlight || unscaledTime < _nextPrepareTime)
+                return;
+            _nextPrepareTime =
+                unscaledTime
+                + BasisImagePickupSettings.AnimationFaceOcclusionCheckIntervalSeconds;
 
-			for (int i = 0; i < _preparedCount; i++)
-				_preparedPlayers[i] = null;
+            for (int i = 0; i < _preparedCount; i++)
+                _preparedPlayers[i] = null;
 
-			GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
-			camera.transform.GetPositionAndRotation(
-				out Vector3 cameraPosition,
-				out Quaternion cameraRotation
-			);
-			Vector3 cameraForward = cameraRotation * Vector3.forward;
-			int candidateCount = 0;
-			int playerCount = players?.Count ?? 0;
-			int normalizedStartIndex =
-				playerCount > 0 ? _candidateStartIndex % playerCount : 0;
-			int nextStartIndex = normalizedStartIndex;
-			bool capacityExceeded = false;
+            GeometryUtility.CalculateFrustumPlanes(camera, _frustumPlanes);
+            camera.transform.GetPositionAndRotation(out Vector3 cameraPosition, out Quaternion cameraRotation);
+            Vector3 cameraForward = cameraRotation * Vector3.forward;
+            int candidateCount = 0;
+            int playerCount = players?.Count ?? 0;
+            int normalizedStartIndex =
+                playerCount > 0 ? _candidateStartIndex % playerCount : 0;
+            int nextStartIndex = normalizedStartIndex;
+            bool capacityExceeded = false;
 
-			for (int offset = 0; offset < playerCount; offset++)
-			{
-				int playerIndex = (normalizedStartIndex + offset) % playerCount;
-				BasisAnimatedImagePlayer player = players[playerIndex];
-				if (player == null || !player.IsInitialized)
-					continue;
+            for (int offset = 0; offset < playerCount; offset++)
+            {
+                int playerIndex = (normalizedStartIndex + offset) % playerCount;
+                BasisAnimatedImagePlayer player = players[playerIndex];
+                if (player == null || !player.IsInitialized)
+                    continue;
 
-				BasisImagePickupObject pickup = player.Pickup;
-				Vector3 faceCenter = default;
-				Vector3 frontNormal = default;
-				if (pickup != null)
-					pickup.GetFrontFacePose(out faceCenter, out frontNormal);
-				if (
-					!IsMainCameraCandidate(
-						player,
-						pickup,
-						camera,
-						_frustumPlanes,
-						faceCenter,
-						frontNormal,
-						cameraPosition,
-						cameraForward
-					)
-				)
-				{
-					player.ResetFaceVisibility();
-					player.SetDepthVisibility(false, unscaledTime, false);
-					continue;
-				}
+                BasisImagePickupObject pickup = player.Pickup;
+                Vector3 faceCenter = default;
+                Vector3 frontNormal = default;
+                if (pickup != null)
+                    pickup.GetFrontFacePose(out faceCenter, out frontNormal);
+                if (
+                    !IsMainCameraCandidate(
+                        player,
+                        pickup,
+                        camera,
+                        _frustumPlanes,
+                        faceCenter,
+                        frontNormal,
+                        cameraPosition,
+                        cameraForward
+                    )
+                )
+                {
+                    player.ResetFaceVisibility();
+                    player.SetDepthVisibility(false, unscaledTime, false);
+                    continue;
+                }
 
-				if (
-					candidateCount >= _cardCapacity
-					&& !TryEnsureCapacity(candidateCount + 1, unscaledTime)
-				)
-				{
-					capacityExceeded = true;
-					player.ResetDepthVisibility();
-					continue;
-				}
+                if (candidateCount >= _cardCapacity && !TryEnsureCapacity(candidateCount + 1, unscaledTime))
+                {
+                    capacityExceeded = true;
+                    player.ResetDepthVisibility();
+                    continue;
+                }
 
-				if (!player.DepthVisibilityFromGpu)
-					player.ResetDepthVisibility();
+                if (!player.DepthVisibilityFromGpu)
+                    player.ResetDepthVisibility();
 
-				_preparedPlayers[candidateCount] = player;
-				int sampleOffset = candidateCount * SamplesPerCard;
-				for (int sampleIndex = 0; sampleIndex < SamplesPerCard; sampleIndex++)
-				{
-					Vector3 sample = pickup.GetFrontFaceOcclusionSample(
-						sampleIndex,
-						frontNormal
-					);
-					_sampleUpload[sampleOffset + sampleIndex] = new Vector4(
-						sample.x,
-						sample.y,
-						sample.z,
-						1f
-					);
-				}
-				candidateCount++;
-				nextStartIndex = (playerIndex + 1) % playerCount;
-			}
+                _preparedPlayers[candidateCount] = player;
+                int sampleOffset = candidateCount * SamplesPerCard;
+                for (int sampleIndex = 0; sampleIndex < SamplesPerCard; sampleIndex++)
+                {
+                    Vector3 sample = pickup.GetFrontFaceOcclusionSample(sampleIndex, frontNormal);
+                    _sampleUpload[sampleOffset + sampleIndex] = new Vector4(sample.x, sample.y, sample.z, 1f);
+                }
+                candidateCount++;
+                nextStartIndex = (playerIndex + 1) % playerCount;
+            }
 
-			_candidateStartIndex =
-				playerCount <= 0 ? 0
-				: capacityExceeded ? nextStartIndex
-				: (normalizedStartIndex + 1) % playerCount;
-			if (capacityExceeded && !_fallbackWarningLogged)
-			{
-				_fallbackWarningLogged = true;
-				BasisDebug.LogWarning(
-					$"Image pickup depth visibility is limited to the current {_cardCapacity:N0}-card "
-						+ "GPU capacity; additional cards rotate through later batches and use "
-						+ "physics fallback meanwhile.",
-					LogTag
-				);
-			}
+            _candidateStartIndex =
+                playerCount <= 0 ? 0
+                : capacityExceeded ? nextStartIndex
+                : (normalizedStartIndex + 1) % playerCount;
+            if (capacityExceeded && !_fallbackWarningLogged)
+            {
+                _fallbackWarningLogged = true;
+                BasisDebug.LogWarning(
+                    $"Image pickup depth visibility is limited to the current {_cardCapacity:N0}-card "
+                        + "GPU capacity; additional cards rotate through later batches and use "
+                        + "physics fallback meanwhile.",
+                    LogTag
+                );
+            }
 
-			_preparedCamera = camera;
-			_preparedFrame = Time.frameCount;
-			_preparedCount = candidateCount;
+            _preparedCamera = camera;
+            _preparedFrame = Time.frameCount;
+            _preparedCount = candidateCount;
 
-			if (candidateCount <= 0)
-				return;
+            if (candidateCount <= 0)
+                return;
 
-			if (!TryEnsureCapacity(candidateCount, unscaledTime))
-			{
-				ResetPreparedPlayers();
-				return;
-			}
+            if (!TryEnsureCapacity(candidateCount, unscaledTime))
+            {
+                ResetPreparedPlayers();
+                return;
+            }
 
-			try
-			{
-				_sampleBuffer.SetData(
-					_sampleUpload,
-					0,
-					0,
-					candidateCount * SamplesPerCard
-				);
-			}
-			catch (Exception exception)
-			{
-				HandleBufferFailure(
-					"uploading depth visibility samples",
-					exception,
-					unscaledTime
-				);
-				ResetPreparedPlayers();
-			}
-		}
+            try
+            {
+                _sampleBuffer.SetData(_sampleUpload, 0, 0, candidateCount * SamplesPerCard);
+            }
+            catch (Exception exception)
+            {
+                HandleBufferFailure("uploading depth visibility samples", exception, unscaledTime);
+                ResetPreparedPlayers();
+            }
+        }
 
-		internal bool TryBeginDispatch(
-			Camera camera,
-			out GraphicsBuffer sampleBuffer,
-			out GraphicsBuffer visibilityBuffer,
-			out int cardCount,
-			out Action<AsyncGPUReadbackRequest> readbackCallback
-		)
-		{
-			sampleBuffer = null;
-			visibilityBuffer = null;
-			cardCount = 0;
-			readbackCallback = null;
+        internal bool TryBeginDispatch(
+            Camera camera,
+            out GraphicsBuffer sampleBuffer,
+            out GraphicsBuffer visibilityBuffer,
+            out int cardCount,
+            out Action<AsyncGPUReadbackRequest> readbackCallback
+        )
+        {
+            sampleBuffer = null;
+            visibilityBuffer = null;
+            cardCount = 0;
+            readbackCallback = null;
 
-			if (
-				_readbackInFlight
-				|| _preparedCount <= 0
-				|| _preparedFrame != Time.frameCount
-				|| !ReferenceEquals(camera, _preparedCamera)
-				|| _sampleBuffer == null
-				|| _visibilityBuffer == null
-			)
-			{
-				return false;
-			}
+            if (
+                _readbackInFlight
+                || _preparedCount <= 0
+                || _preparedFrame != Time.frameCount
+                || !ReferenceEquals(camera, _preparedCamera)
+                || _sampleBuffer == null
+                || _visibilityBuffer == null
+            )
+            {
+                return false;
+            }
 
-			_readbackCount = _preparedCount;
-			for (int i = 0; i < _readbackCount; i++)
-			{
-				_readbackPlayers[i] = _preparedPlayers[i];
-				_preparedPlayers[i] = null;
-			}
+            _readbackCount = _preparedCount;
+            for (int i = 0; i < _readbackCount; i++)
+            {
+                _readbackPlayers[i] = _preparedPlayers[i];
+                _preparedPlayers[i] = null;
+            }
 
-			_readbackCamera = camera;
-			_readbackFrame = Time.frameCount;
-			int generation = ++_readbackGeneration;
-			_readbackInFlightGeneration = generation;
-			_readbackPending = true;
-			_readbackInFlight = true;
-			_preparedCount = 0;
-			_preparedFrame = -1;
-			_preparedCamera = null;
-			sampleBuffer = _sampleBuffer;
-			visibilityBuffer = _visibilityBuffer;
-			cardCount = _readbackCount;
-			Camera capturedCamera = _readbackCamera;
-			int capturedFrame = _readbackFrame;
-			readbackCallback = request =>
-				CompleteReadback(request, generation, capturedCamera, capturedFrame);
-			return true;
-		}
+            _readbackCamera = camera;
+            _readbackFrame = Time.frameCount;
+            int generation = ++_readbackGeneration;
+            _readbackInFlightGeneration = generation;
+            _readbackPending = true;
+            _readbackInFlight = true;
+            _preparedCount = 0;
+            _preparedFrame = -1;
+            _preparedCamera = null;
+            sampleBuffer = _sampleBuffer;
+            visibilityBuffer = _visibilityBuffer;
+            cardCount = _readbackCount;
+            Camera capturedCamera = _readbackCamera;
+            int capturedFrame = _readbackFrame;
+            readbackCallback = request =>
+                CompleteReadback(request, generation, capturedCamera, capturedFrame);
+            return true;
+        }
 
-		internal static bool CanUseDepthCamera(Camera camera)
-		{
-			return camera != null
-				&& camera.isActiveAndEnabled
-				&& camera.cameraType == CameraType.Game
-				&& !camera.orthographic
-				&& !camera.stereoEnabled
-				&& SystemInfo.supportsComputeShaders
-				&& SystemInfo.supportsAsyncGPUReadback;
-		}
+        internal static bool CanUseDepthCamera(Camera camera)
+        {
+            return camera != null
+                && camera.isActiveAndEnabled
+                && camera.cameraType == CameraType.Game
+                && !camera.orthographic
+                && !camera.stereoEnabled
+                && SystemInfo.supportsComputeShaders
+                && SystemInfo.supportsAsyncGPUReadback;
+        }
 
-		internal static bool IsMainCameraCandidate(
-			BasisAnimatedImagePlayer player,
-			BasisImagePickupObject pickup,
-			Camera camera,
-			Plane[] frustumPlanes,
-			Vector3 faceCenter,
-			Vector3 frontNormal,
-			Vector3 cameraPosition,
-			Vector3 cameraForward
-		)
-		{
-			if (
-				player == null
-				|| player.IsHidden
-				|| pickup == null
-				|| !pickup.HasFrontRenderer
-				|| camera == null
-				|| frustumPlanes == null
-				|| frustumPlanes.Length < 6
-			)
-			{
-				return false;
-			}
+        internal static bool IsMainCameraCandidate(
+            BasisAnimatedImagePlayer player,
+            BasisImagePickupObject pickup,
+            Camera camera,
+            Plane[] frustumPlanes,
+            Vector3 faceCenter,
+            Vector3 frontNormal,
+            Vector3 cameraPosition,
+            Vector3 cameraForward
+        )
+        {
+            if (
+                player == null
+                || player.IsHidden
+                || pickup == null
+                || !pickup.HasFrontRenderer
+                || camera == null
+                || frustumPlanes == null
+                || frustumPlanes.Length < 6
+            )
+            {
+                return false;
+            }
 
-			int layerMaskBit = 1 << pickup.FrontRendererLayer;
-			if ((camera.cullingMask & layerMaskBit) == 0)
-				return false;
-			if (
-				!GeometryUtility.TestPlanesAABB(
-					frustumPlanes,
-					pickup.FrontRendererBounds
-				)
-			)
-				return false;
+            return BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+                pickup.FrontRendererLayer,
+                pickup.FrontRendererBounds,
+                frustumPlanes,
+                frontNormal,
+                faceCenter,
+                cameraPosition,
+                cameraForward,
+                false,
+                camera.cullingMask
+            );
+        }
 
-			return BasisAnimatedImageScheduler.IsFrontFacingCamera(
-				frontNormal,
-				faceCenter,
-				cameraPosition,
-				cameraForward,
-				false
-			);
-		}
+        private void CompleteReadback(AsyncGPUReadbackRequest request, int generation, Camera camera, int frame)
+        {
+            using var scope = ReadbackMarker.Auto();
+            if (!_readbackInFlight || generation != _readbackInFlightGeneration)
+            {
+                return;
+            }
 
-		private void CompleteReadback(
-			AsyncGPUReadbackRequest request,
-			int generation,
-			Camera camera,
-			int frame
-		)
-		{
-			using var scope = ReadbackMarker.Auto();
-			if (!_readbackInFlight || generation != _readbackInFlightGeneration)
-			{
-				return;
-			}
+            _readbackInFlight = false;
+            _readbackInFlightGeneration = 0;
+            if (
+                !_readbackPending
+                || generation != _readbackGeneration
+                || frame != _readbackFrame
+                || !ReferenceEquals(camera, _readbackCamera)
+                || !CanUseDepthCamera(camera)
+            )
+            {
+                ClearReadbackCapture(true);
+                return;
+            }
 
-			_readbackInFlight = false;
-			_readbackInFlightGeneration = 0;
-			if (
-				!_readbackPending
-				|| generation != _readbackGeneration
-				|| frame != _readbackFrame
-				|| !ReferenceEquals(camera, _readbackCamera)
-				|| !CanUseDepthCamera(camera)
-			)
-			{
-				ClearReadbackCapture(true);
-				return;
-			}
+            bool acceptResult = !request.hasError;
+            if (acceptResult)
+            {
+                var data = request.GetData<uint>();
+                acceptResult = data.Length >= _readbackCount;
+                if (acceptResult)
+                {
+                    if (!_successfulReadbackLogged)
+                    {
+                        _successfulReadbackLogged = true;
+                        BasisDebug.Log(
+                            "Image pickup depth-buffer visibility is active and returning GPU results.",
+                            LogTag
+                        );
+                    }
 
-			bool acceptResult = !request.hasError;
-			if (acceptResult)
-			{
-				var data = request.GetData<uint>();
-				acceptResult = data.Length >= _readbackCount;
-				if (acceptResult)
-				{
-					if (!_successfulReadbackLogged)
-					{
-						_successfulReadbackLogged = true;
-						BasisDebug.Log(
-							"Image pickup depth-buffer visibility is active and returning GPU results.",
-							LogTag
-						);
-					}
+                    float unscaledTime = Time.unscaledTime;
+                    for (int i = 0; i < _readbackCount; i++)
+                    {
+                        BasisAnimatedImagePlayer player = _readbackPlayers[i];
+                        if (player != null)
+                        {
+                            player.ResetFaceVisibility();
+                            player.SetDepthVisibility(data[i] != 0u, unscaledTime);
+                        }
+                    }
+                }
+            }
 
-					float unscaledTime = Time.unscaledTime;
-					for (int i = 0; i < _readbackCount; i++)
-					{
-						BasisAnimatedImagePlayer player = _readbackPlayers[i];
-						if (player != null)
-						{
-							player.ResetFaceVisibility();
-							player.SetDepthVisibility(data[i] != 0u, unscaledTime);
-						}
-					}
-				}
-			}
+            if (!acceptResult)
+            {
+                if (request.hasError && !_readbackErrorLogged)
+                {
+                    _readbackErrorLogged = true;
+                    BasisDebug.LogWarning(
+                        "Image pickup depth visibility readback failed; using the physics fallback.",
+                        LogTag
+                    );
+                }
 
-			if (!acceptResult)
-			{
-				if (request.hasError && !_readbackErrorLogged)
-				{
-					_readbackErrorLogged = true;
-					BasisDebug.LogWarning(
-						"Image pickup depth visibility readback failed; using the physics fallback.",
-						LogTag
-					);
-				}
+                for (int i = 0; i < _readbackCount; i++)
+                    _readbackPlayers[i]?.ResetDepthVisibility();
+            }
 
-				for (int i = 0; i < _readbackCount; i++)
-					_readbackPlayers[i]?.ResetDepthVisibility();
-			}
+            ClearReadbackCapture(false);
+        }
 
-			ClearReadbackCapture(false);
-		}
+        private void InvalidateReadback()
+        {
+            if (_readbackPending)
+                _readbackGeneration++;
+            ClearReadbackCapture(true);
+        }
 
-		private void InvalidateReadback()
-		{
-			if (_readbackPending)
-				_readbackGeneration++;
-			ClearReadbackCapture(true);
-		}
+        private void ClearReadbackCapture(bool resetPlayers)
+        {
+            for (int i = 0; i < _readbackCount; i++)
+            {
+                if (resetPlayers)
+                    _readbackPlayers[i]?.ResetDepthVisibility();
+                _readbackPlayers[i] = null;
+            }
 
-		private void ClearReadbackCapture(bool resetPlayers)
-		{
-			for (int i = 0; i < _readbackCount; i++)
-			{
-				if (resetPlayers)
-					_readbackPlayers[i]?.ResetDepthVisibility();
-				_readbackPlayers[i] = null;
-			}
+            _readbackCount = 0;
+            _readbackPending = false;
+            _readbackCamera = null;
+            _readbackFrame = -1;
+        }
 
-			_readbackCount = 0;
-			_readbackPending = false;
-			_readbackCamera = null;
-			_readbackFrame = -1;
-		}
+        private bool TryEnsureCapacity(int minimumRequired, float unscaledTime)
+        {
+            if (minimumRequired <= 0)
+                return true;
+            if (_cardCapacity >= minimumRequired && _sampleBuffer != null && _visibilityBuffer != null)
+            {
+                return true;
+            }
+            if (unscaledTime < _nextCapacityRetryTime)
+                return false;
 
-		private bool TryEnsureCapacity(int minimumRequired, float unscaledTime)
-		{
-			if (minimumRequired <= 0)
-				return true;
-			if (
-				_cardCapacity >= minimumRequired
-				&& _sampleBuffer != null
-				&& _visibilityBuffer != null
-			)
-			{
-				return true;
-			}
-			if (unscaledTime < _nextCapacityRetryTime)
-				return false;
+            // Unity exposes the hard per-buffer limit, not currently free VRAM. Keep the
+            // existing buffers alive while probing the larger allocation so failure leaves
+            // the current GPU batch capacity usable.
+            int maximumCapacity = CalculateMaximumCardCapacity(SystemInfo.maxGraphicsBufferSize);
+            int targetCapacity = CalculateGrowthCapacity(_cardCapacity, minimumRequired, maximumCapacity);
+            if (targetCapacity < minimumRequired)
+            {
+                LogCapacityFailure(
+                    minimumRequired,
+                    $"the platform permits at most {maximumCapacity:N0} cards per buffer",
+                    unscaledTime
+                );
+                return false;
+            }
 
-			// Unity exposes the hard per-buffer limit, not currently free VRAM. Keep the
-			// existing buffers alive while probing the larger allocation so failure leaves
-			// the current GPU batch capacity usable.
-			int maximumCapacity = CalculateMaximumCardCapacity(
-				SystemInfo.maxGraphicsBufferSize
-			);
-			int targetCapacity = CalculateGrowthCapacity(
-				_cardCapacity,
-				minimumRequired,
-				maximumCapacity
-			);
-			if (targetCapacity < minimumRequired)
-			{
-				LogCapacityFailure(
-					minimumRequired,
-					$"the platform permits at most {maximumCapacity:N0} cards per buffer",
-					unscaledTime
-				);
-				return false;
-			}
+            GraphicsBuffer newSampleBuffer = null;
+            GraphicsBuffer newVisibilityBuffer = null;
+            try
+            {
+                int sampleCount = checked(targetCapacity * SamplesPerCard);
+                var newSampleUpload = new Vector4[sampleCount];
+                var newPreparedPlayers = new BasisAnimatedImagePlayer[targetCapacity];
+                var newReadbackPlayers = new BasisAnimatedImagePlayer[targetCapacity];
 
-			GraphicsBuffer newSampleBuffer = null;
-			GraphicsBuffer newVisibilityBuffer = null;
-			try
-			{
-				int sampleCount = checked(targetCapacity * SamplesPerCard);
-				var newSampleUpload = new Vector4[sampleCount];
-				var newPreparedPlayers = new BasisAnimatedImagePlayer[targetCapacity];
-				var newReadbackPlayers = new BasisAnimatedImagePlayer[targetCapacity];
+                Array.Copy(_sampleUpload, newSampleUpload, Math.Min(_sampleUpload.Length, newSampleUpload.Length));
+                Array.Copy(
+                    _preparedPlayers,
+                    newPreparedPlayers,
+                    Math.Min(_preparedPlayers.Length, newPreparedPlayers.Length)
+                );
+                Array.Copy(
+                    _readbackPlayers,
+                    newReadbackPlayers,
+                    Math.Min(_readbackPlayers.Length, newReadbackPlayers.Length)
+                );
 
-				Array.Copy(
-					_sampleUpload,
-					newSampleUpload,
-					Math.Min(_sampleUpload.Length, newSampleUpload.Length)
-				);
-				Array.Copy(
-					_preparedPlayers,
-					newPreparedPlayers,
-					Math.Min(_preparedPlayers.Length, newPreparedPlayers.Length)
-				);
-				Array.Copy(
-					_readbackPlayers,
-					newReadbackPlayers,
-					Math.Min(_readbackPlayers.Length, newReadbackPlayers.Length)
-				);
+                newSampleBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, sampleCount, SampleStrideBytes);
+                newVisibilityBuffer = new GraphicsBuffer(
+                    GraphicsBuffer.Target.Structured,
+                    targetCapacity,
+                    VisibilityStrideBytes
+                );
 
-				newSampleBuffer = new GraphicsBuffer(
-					GraphicsBuffer.Target.Structured,
-					sampleCount,
-					SampleStrideBytes
-				);
-				newVisibilityBuffer = new GraphicsBuffer(
-					GraphicsBuffer.Target.Structured,
-					targetCapacity,
-					VisibilityStrideBytes
-				);
+                int previousCapacity = _cardCapacity;
+                ReleaseGpuBuffers();
+                _sampleBuffer = newSampleBuffer;
+                _visibilityBuffer = newVisibilityBuffer;
+                newSampleBuffer = null;
+                newVisibilityBuffer = null;
+                _sampleUpload = newSampleUpload;
+                _preparedPlayers = newPreparedPlayers;
+                _readbackPlayers = newReadbackPlayers;
+                _cardCapacity = targetCapacity;
+                _lastFailedCapacity = 0;
+                _nextCapacityRetryTime = 0f;
+                _fallbackWarningLogged = false;
 
-				int previousCapacity = _cardCapacity;
-				ReleaseGpuBuffers();
-				_sampleBuffer = newSampleBuffer;
-				_visibilityBuffer = newVisibilityBuffer;
-				newSampleBuffer = null;
-				newVisibilityBuffer = null;
-				_sampleUpload = newSampleUpload;
-				_preparedPlayers = newPreparedPlayers;
-				_readbackPlayers = newReadbackPlayers;
-				_cardCapacity = targetCapacity;
-				_lastFailedCapacity = 0;
-				_nextCapacityRetryTime = 0f;
-				_fallbackWarningLogged = false;
+                if (targetCapacity > previousCapacity && previousCapacity > 0)
+                {
+                    BasisDebug.Log(
+                        $"Image pickup depth visibility GPU capacity grew from "
+                            + $"{previousCapacity:N0} to {targetCapacity:N0} cards.",
+                        LogTag
+                    );
+                }
+                return true;
+            }
+            catch (Exception exception)
+            {
+                newSampleBuffer?.Dispose();
+                newVisibilityBuffer?.Dispose();
+                LogCapacityFailure(targetCapacity, exception.GetBaseException().Message, unscaledTime);
+                return false;
+            }
+        }
 
-				if (targetCapacity > previousCapacity && previousCapacity > 0)
-				{
-					BasisDebug.Log(
-						$"Image pickup depth visibility GPU capacity grew from "
-							+ $"{previousCapacity:N0} to {targetCapacity:N0} cards.",
-						LogTag
-					);
-				}
-				return true;
-			}
-			catch (Exception exception)
-			{
-				newSampleBuffer?.Dispose();
-				newVisibilityBuffer?.Dispose();
-				LogCapacityFailure(
-					targetCapacity,
-					exception.GetBaseException().Message,
-					unscaledTime
-				);
-				return false;
-			}
-		}
+        internal static int CalculateMaximumCardCapacity(long maximumBufferBytes)
+        {
+            if (maximumBufferBytes <= 0)
+                return int.MaxValue / SamplesPerCard;
 
-		internal static int CalculateMaximumCardCapacity(long maximumBufferBytes)
-		{
-			if (maximumBufferBytes <= 0)
-				return int.MaxValue / SamplesPerCard;
+            long maximumBySamples =
+                maximumBufferBytes / (SamplesPerCard * (long)SampleStrideBytes);
+            long maximumByVisibility = maximumBufferBytes / VisibilityStrideBytes;
+            long maximumByElementCount = int.MaxValue / SamplesPerCard;
+            return (int)
+                Math.Max(0, Math.Min(maximumByElementCount, Math.Min(maximumBySamples, maximumByVisibility)));
+        }
 
-			long maximumBySamples =
-				maximumBufferBytes / (SamplesPerCard * (long)SampleStrideBytes);
-			long maximumByVisibility = maximumBufferBytes / VisibilityStrideBytes;
-			long maximumByElementCount = int.MaxValue / SamplesPerCard;
-			return (int)
-				Math.Max(
-					0,
-					Math.Min(
-						maximumByElementCount,
-						Math.Min(maximumBySamples, maximumByVisibility)
-					)
-				);
-		}
+        internal static int CalculateGrowthCapacity(int currentCapacity, int minimumRequired, int maximumCapacity)
+        {
+            if (minimumRequired <= currentCapacity)
+                return currentCapacity;
+            if (maximumCapacity < minimumRequired)
+                return currentCapacity;
 
-		internal static int CalculateGrowthCapacity(
-			int currentCapacity,
-			int minimumRequired,
-			int maximumCapacity
-		)
-		{
-			if (minimumRequired <= currentCapacity)
-				return currentCapacity;
-			if (maximumCapacity < minimumRequired)
-				return currentCapacity;
+            long doubled =
+                currentCapacity > 0 ? (long)currentCapacity * 2L : InitialCardCapacity;
+            long target = Math.Max(minimumRequired, doubled);
+            return (int)Math.Min(target, maximumCapacity);
+        }
 
-			long doubled =
-				currentCapacity > 0 ? (long)currentCapacity * 2L : InitialCardCapacity;
-			long target = Math.Max(minimumRequired, doubled);
-			return (int)Math.Min(target, maximumCapacity);
-		}
+        private void LogCapacityFailure(int requestedCapacity, string reason, float unscaledTime)
+        {
+            _nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
+            if (_lastFailedCapacity == requestedCapacity)
+                return;
 
-		private void LogCapacityFailure(
-			int requestedCapacity,
-			string reason,
-			float unscaledTime
-		)
-		{
-			_nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
-			if (_lastFailedCapacity == requestedCapacity)
-				return;
+            _lastFailedCapacity = requestedCapacity;
+            BasisDebug.LogWarning(
+                $"Image pickup depth visibility could not grow its GPU capacity to "
+                    + $"{requestedCapacity:N0} cards ({reason}). The existing "
+                    + $"{_cardCapacity:N0}-card capacity and physics fallback remain active.",
+                LogTag
+            );
+        }
 
-			_lastFailedCapacity = requestedCapacity;
-			BasisDebug.LogWarning(
-				$"Image pickup depth visibility could not grow its GPU capacity to "
-					+ $"{requestedCapacity:N0} cards ({reason}). The existing "
-					+ $"{_cardCapacity:N0}-card capacity and physics fallback remain active.",
-				LogTag
-			);
-		}
+        private void HandleBufferFailure(string operation, Exception exception, float unscaledTime)
+        {
+            ReleaseGpuBuffers();
+            _nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
+            BasisDebug.LogWarning(
+                $"Image pickup depth visibility failed while {operation} "
+                    + $"({exception.GetBaseException().Message}); using physics fallback "
+                    + "until GPU buffers can be recreated.",
+                LogTag
+            );
+        }
 
-		private void HandleBufferFailure(
-			string operation,
-			Exception exception,
-			float unscaledTime
-		)
-		{
-			ReleaseGpuBuffers();
-			_nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
-			BasisDebug.LogWarning(
-				$"Image pickup depth visibility failed while {operation} "
-					+ $"({exception.GetBaseException().Message}); using physics fallback "
-					+ "until GPU buffers can be recreated.",
-				LogTag
-			);
-		}
+        private void ResetPreparedPlayers()
+        {
+            for (int i = 0; i < _preparedCount; i++)
+            {
+                _preparedPlayers[i]?.ResetDepthVisibility();
+                _preparedPlayers[i] = null;
+            }
+            _preparedCount = 0;
+            _preparedFrame = -1;
+            _preparedCamera = null;
+        }
 
-		private void ResetPreparedPlayers()
-		{
-			for (int i = 0; i < _preparedCount; i++)
-			{
-				_preparedPlayers[i]?.ResetDepthVisibility();
-				_preparedPlayers[i] = null;
-			}
-			_preparedCount = 0;
-			_preparedFrame = -1;
-			_preparedCamera = null;
-		}
+        private void ReleaseGpuBuffers()
+        {
+            _sampleBuffer?.Dispose();
+            _sampleBuffer = null;
+            _visibilityBuffer?.Dispose();
+            _visibilityBuffer = null;
+        }
 
-		private void ReleaseGpuBuffers()
-		{
-			_sampleBuffer?.Dispose();
-			_sampleBuffer = null;
-			_visibilityBuffer?.Dispose();
-			_visibilityBuffer = null;
-		}
+        private static void ResetResults(IReadOnlyList<BasisAnimatedImagePlayer> players)
+        {
+            int count = players?.Count ?? 0;
+            for (int i = 0; i < count; i++)
+                players[i]?.ResetDepthVisibility();
+        }
 
-		private static void ResetResults(
-			IReadOnlyList<BasisAnimatedImagePlayer> players
-		)
-		{
-			int count = players?.Count ?? 0;
-			for (int i = 0; i < count; i++)
-				players[i]?.ResetDepthVisibility();
-		}
+        private void OnDestroy()
+        {
+            if (Instance == this)
+                Instance = null;
 
-		private void OnDestroy()
-		{
-			if (Instance == this)
-				Instance = null;
+            InvalidateReadback();
+            _readbackInFlight = false;
+            _readbackInFlightGeneration = 0;
+            ResetPreparedPlayers();
+            ReleaseGpuBuffers();
 
-			InvalidateReadback();
-			_readbackInFlight = false;
-			_readbackInFlightGeneration = 0;
-			ResetPreparedPlayers();
-			ReleaseGpuBuffers();
-
-			for (int i = 0; i < _preparedPlayers.Length; i++)
-			{
-				_preparedPlayers[i] = null;
-				_readbackPlayers[i] = null;
-			}
-		}
-	}
+            int preparedPlayerCount = _preparedPlayers.Length;
+            for (int i = 0; i < preparedPlayerCount; i++)
+            {
+                _preparedPlayers[i] = null;
+                _readbackPlayers[i] = null;
+            }
+        }
+    }
 }
