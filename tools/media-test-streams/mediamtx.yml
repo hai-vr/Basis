@@ -1,6 +1,6 @@
 # mediamtx config for the Basis media-player test stack.
-# RTSP over TCP only (the player's rtspt:// lane); RTMP is enabled solely as
-# the compose-internal ingest for the publisher containers.
+# RTSP over TCP only (the player's rtspt:// lane). RTMP doubles as the
+# publisher ingest and the player's rtmp:// pull lane.
 
 logLevel: info
 
@@ -9,7 +9,7 @@ rtspTransports: [tcp]
 rtspAddress: :8554
 
 rtmp: yes
-rtmpAddress: :1935   # not published to the host by docker-compose; ingest only
+rtmpAddress: :1935
 
 hls: no
 webrtc: no

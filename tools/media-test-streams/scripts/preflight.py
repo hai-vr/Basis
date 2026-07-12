@@ -30,19 +30,21 @@ LANES = [
     ("main",     "rtsp", "rtsp://{host}:8554/main",          6.0),
     ("silent",   "rtsp", "rtsp://{host}:8554/silent",        6.0),
     ("slowjoin", "rtsp", "rtsp://{host}:8554/slowjoin",      None),
-    ("captions", "rtsp", "rtsp://{host}:8554/captions",      6.0),
+    ("rtmp",     "rtsp", "rtmp://{host}:1935/main",          6.0),
     ("vod",      "vod",  "http://{host}:8080/assets/mezzanine.mp4", None),
     ("hls-vod",  "vod",  "http://{host}:8080/assets/hls/index.m3u8", None),
     ("tslive",   "http", "http://{host}:8081/live.ts",       1.0),
+    ("captions", "http", "http://{host}:8082/captions.ts",   1.0),
 ]
 
 
 def probe_rtsp(name, url, limit):
-    """Time-to-first-decoded-video-frame over RTSP/TCP + stream shape."""
+    """Time-to-first-decoded-video-frame + stream shape (RTSP/TCP or RTMP)."""
+    transport = ["-rtsp_transport", "tcp"] if url.startswith("rtsp") else []
     t0 = time.monotonic()
     try:
         out = subprocess.run(
-            ["ffmpeg", "-v", "error", "-rtsp_transport", "tcp", "-i", url,
+            ["ffmpeg", "-v", "error"] + transport + ["-i", url,
              "-map", "0:v:0", "-frames:v", "1", "-f", "null", "-"],
             capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:
@@ -53,7 +55,7 @@ def probe_rtsp(name, url, limit):
                if "Missing reference" not in l and "mmco" not in l]
         return f"FAIL  {name}: {err[-1] if err else 'ffmpeg error'}"
     streams = subprocess.run(
-        ["ffprobe", "-v", "error", "-rtsp_transport", "tcp", "-show_entries",
+        ["ffprobe", "-v", "error"] + transport + ["-show_entries",
          "stream=codec_type,codec_name,channels", "-of", "json", url],
         capture_output=True, text=True, timeout=25)
     shape = ",".join(

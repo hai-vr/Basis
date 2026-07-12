@@ -37,7 +37,8 @@ python3 scripts/preflight.py --host my.vps   # deployed
 | `rtspt://<host>:8554/main` | RTSPT live, 2 s GOP | The reference live path — joins land a frame within ~2 s |
 | `rtspt://<host>:8554/silent` | Video + silent stereo | Regression cover for effectively video-only sources |
 | `rtspt://<host>:8554/slowjoin` | **Adversarial** ~10 s GOP | Mid-stream joins wait up to 10 s for an IDR — deliberately; audio-first joins here are expected |
-| `rtspt://<host>:8554/captions` | CEA-608 in-band captions | Generated fixture (silent test pattern); cues every ~3 s incl. accents, music note, clear |
+| `http://<host>:8082/captions.ts` | CEA-608 in-band captions, HTTP-TS | Generated fixture (silent test pattern); cues every ~3 s incl. accents, music note, clear; single-client feeder |
+| `rtmp://<host>:1935/main` | RTMP pull | The player's minimal RTMP client (plain `rtmp://` only) |
 | `http://<host>:8081/live.ts` | HTTP-TS live | Single-client feeder: serves one connection, respawns on disconnect |
 | `http://<host>:8080/assets/mezzanine.mp4` | Progressive MP4 VOD | nginx answers real 206 → `Delivery=Auto` detects OnDemand |
 | `http://<host>:8080/assets/hls/index.m3u8` | HLS VOD | Single-rendition packaging of the mezzanine |
@@ -45,7 +46,7 @@ python3 scripts/preflight.py --host my.vps   # deployed
 | `http://<host>:8080/assets/w8.wav` | Multichannel WAV | Audio-only; name varies with source channel count |
 | `http://<host>:8080/assets/videoonly.mp4` + `audioonly.mp4` | Split-stream pair | Load the video URL with the audio URL as the separate audio leg |
 | `rist://<host>:5000` | RIST plain | `--profile rist`; see below |
-| `rist://<host>:5001?secret=…&aes-type=128` | RIST AES-128 | Same PSK on both ends; change the compose file's placeholder |
+| `rist://<host>:5001?secret=<psk>&aes-type=128` | RIST AES-128 | Same PSK on both ends; change the compose file's placeholder |
 
 `http://<host>:8080/assets/` autoindexes, so anything else you drop into `assets/` is served
 with range support too.
@@ -73,19 +74,19 @@ Change the AES lane's pre-shared key in `docker-compose.yml` before deploying an
 2. Copy this directory up, run `prepare-assets.sh` there (or copy a prepared `assets/`), then
    `docker compose up -d`.
 3. Open the inbound ports at **every** firewall layer (many providers gate ports in a panel
-   *in addition to* the OS firewall): `8554/tcp`, `8080/tcp`, `8081/tcp`, and for RIST
-   `5000-5001/udp`.
+   *in addition to* the OS firewall): `8554/tcp`, `1935/tcp`, `8080/tcp`, `8081-8082/tcp`,
+   and for RIST `5000-5001/udp`.
 4. Give it a DNS name. Hostnames are DNS-validated by the player, and Quest's cleartext
-   policy means the HTTP lanes (`8080`/`8081`) need to sit behind TLS with a certificate
+   policy means the HTTP lanes (`8080`–`8082`) need to sit behind TLS with a certificate
    chain standalone headsets actually trust (serve the full chain including intermediates —
    headset trust stores are sparser than desktop browsers'). `rtspt://` needs no TLS.
 5. `python3 scripts/preflight.py --host <name>` before every session.
 
 ## Gotchas
 
-- **One client per HTTP-TS slot.** The `tslive` feeder serves a single connection then exits
-  and respawns. If it wedges without exiting (stale ~0.5 Mbps trickle — the preflight's
-  bitrate floor catches this), `docker compose restart tslive`.
+- **One client per HTTP-TS slot.** The `tslive` and `cclive` feeders serve a single
+  connection then exit and respawn. If one wedges without exiting (stale ~0.5 Mbps trickle —
+  the preflight's bitrate floor catches this), `docker compose restart tslive` (or `cclive`).
 - **Don't benchmark with `curl.exe` on Windows** — it under-reads regardless of server. Use
   `preflight.py`'s sampled throughput.
 - **Slow joins on `slowjoin` are the point.** File a bug only if the join exceeds the GOP

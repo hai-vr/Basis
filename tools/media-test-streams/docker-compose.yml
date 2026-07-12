@@ -8,15 +8,17 @@
 #   rist           RIST senders (needs an ffmpeg image built with librist)
 
 services:
-  # RTSP server, TCP-interleaved only (rtspt://<host>:8554/<path>).
-  # Publishers push in over RTMP on the compose-internal network: RTMP carries
-  # whole access units, while ffmpeg's RTSP output fragments large AAC frames
-  # in ways ingest depacketisers reject.
+  # RTSP server, TCP-interleaved only (rtspt://<host>:8554/<path>), plus the
+  # RTMP pull lane on 1935 (rtmp://<host>:1935/<path>).
+  # Publishers also push in over RTMP: it carries whole access units, while
+  # ffmpeg's RTSP output fragments large AAC frames in ways ingest
+  # depacketisers reject.
   mediamtx:
     image: bluenviron/mediamtx:latest
     restart: unless-stopped
     ports:
       - "8554:8554"      # RTSP (TCP)
+      - "1935:1935"      # RTMP (ingest + player pull lane)
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
 
@@ -51,14 +53,22 @@ services:
       -re -stream_loop -1 -i /assets/slowjoin.mp4
       -c copy -f flv rtmp://mediamtx:1935/slowjoin
 
-  # CEA-608 caption fixture (silent test pattern with in-band captions in the
-  # H.264 SEIs; -c copy preserves them through RTMP and RTSP).
-  pub-captions:
-    <<: *publisher
+  # CEA-608 caption fixture over HTTP-TS: http://<host>:8082/captions.ts
+  # (silent test pattern with in-band captions in the H.264 SEIs; -c copy
+  # preserves them). Served raw rather than via RTMP: the fixture loops, and
+  # the player treats the per-loop timestamp wrap as a new timeline, while the
+  # FLV mux does not tolerate it. Single-client feeder like tslive.
+  cclive:
+    image: linuxserver/ffmpeg:latest
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./assets:/assets:ro
     command: >-
       -hide_banner -loglevel warning
       -re -stream_loop -1 -i /assets/test_cc.ts
-      -c copy -f flv rtmp://mediamtx:1935/captions
+      -c copy -f mpegts -listen 1 http://0.0.0.0:8082/captions.ts
 
   # VOD over HTTP with real range support (nginx answers 206, so the player's
   # Delivery=Auto probe detects OnDemand). Serves everything in ./assets.
