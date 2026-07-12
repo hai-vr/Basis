@@ -88,6 +88,11 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     // debug window / diagnostics.
     public string DebugInfo => handle != IntPtr.Zero ? BasisNativeMedia.GetDebug(handle) : null;
 
+    // Human-readable transport: negotiated detail where the protocol reports one
+    // ("RTSP over UDP", "RTSP over TCP (UDP unavailable)"), the URL scheme
+    // otherwise. Settles once playback starts; null on binaries without the export.
+    public string Transport => handle != IntPtr.Zero ? BasisNativeMedia.GetTransport(handle) : null;
+
     // Monotonic count of frames decoded + written to the ring (for fps readouts).
     public ulong DecodedFrameCount => BasisNativeMedia.GetFrameCounter(handle);
 
@@ -107,6 +112,7 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     private bool readyFired;
     private bool eosRaised;
     private bool errorRaised;
+    private string loggedTransport;
 
     // Desired jitter buffer; applied to the native engine on Start and on change.
     private int bufferMode = (int)BasisVideoBufferMode.Dynamic;
@@ -169,6 +175,7 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         BasisNativeMedia.SetBuffer(handle, bufferMode, bufferMs);
         started = true;
         readyFired = eosRaised = errorRaised = false;
+        loggedTransport = null;
         lastFrameCounter = 0;
         lastTexturePtr = IntPtr.Zero;
         // Re-arm caption polling for the new native handle: clear the dedup state so
@@ -314,6 +321,20 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
             case BasisNativeMedia.State.Ended when !eosRaised:
                 eosRaised = true;
                 OnEndOfStream?.Invoke();
+                break;
+            case BasisNativeMedia.State.Playing when (pumpCount % 30) == 0:
+                // Logs which transport the connection settled on (RTSP
+                // negotiates UDP vs TCP), and again if it changes (a mid-play
+                // fallback restarts the session over TCP). Checked on a ~0.5 s
+                // cadence rather than every pump so the marshalling cost stays
+                // off the per-frame path regardless of what the native binary
+                // returns; stub-platform binaries return null and never log.
+                string transport = Transport;
+                if (!string.IsNullOrEmpty(transport) && transport != loggedTransport)
+                {
+                    loggedTransport = transport;
+                    BasisDebug.Log($"[NativeMedia] transport: {transport}", BasisDebug.LogTag.Video);
+                }
                 break;
         }
 
