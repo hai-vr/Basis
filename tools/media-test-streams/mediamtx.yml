@@ -1,12 +1,16 @@
 # mediamtx config for the Basis media-player test stack.
-# RTSP over TCP only (the player's rtspt:// lane). RTMP doubles as the
-# publisher ingest and the player's rtmp:// pull lane.
+# RTSP with both transports: rtsp:// negotiates UDP first and falls back to
+# TCP; rtspt:// pins TCP. Set rtspTransports: [tcp] to test the player's
+# refusal fallback (UDP SETUP answered 461). RTMP doubles as the publisher
+# ingest and the player's rtmp:// pull lane.
 
 logLevel: info
 
 rtsp: yes
-rtspTransports: [tcp]
+rtspTransports: [udp, tcp]
 rtspAddress: :8554
+rtpAddress: :8000
+rtcpAddress: :8001
 
 rtmp: yes
 rtmpAddress: :1935

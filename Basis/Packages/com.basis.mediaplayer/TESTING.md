@@ -117,8 +117,11 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 | Lane | Source | Verify additionally |
 | --- | --- | --- |
-| RTSP live | VRCDN or stack `rtsp://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly |
+| RTSP live | VRCDN or stack `rtsp://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly. `rtsp://` negotiates UDP transport first and falls back to TCP-interleaved; the Console logs the settled choice once per load (`[NativeMedia] transport: RTSP over UDP`), and it's queryable via `BasisMediaPlayer.CurrentTransport` |
 | RTSP adversarial join | stack `rtsp://<host>:8554/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
+| RTSP refusal fallback | stack with `rtspTransports: [tcp]` in `mediamtx.yml` | UDP SETUP is refused (461); playback is indistinguishable from today, no error surfaced; Console logs `RTSP over TCP (UDP unavailable)` |
+| RTSP timer fallback | stack with the host's `8000-8001/udp` blocked (or any network that silently eats UDP) | First join stalls ~3 s, then restarts transparently over TCP with the same fallback log line; a reload of the same host skips the probe and goes straight to TCP |
+| RTSP forced TCP | `rtspt://` form of any RTSP URL | No UDP attempt at all (no UDP `SETUP` in the server log); Console logs `RTSP over TCP` |
 | HTTP-TS live | VRCDN `.live.ts` or stack | Same checks over plain TS; on Quest use the https lane |
 | HLS VOD | Mux master or stack packaging | Variant switch via panel bitrate dropdown mid-play |
 | Progressive/fMP4 MP4 | Big Buck Bunny | `Delivery=Auto` detects OnDemand (needs the 206); seek slider works |
