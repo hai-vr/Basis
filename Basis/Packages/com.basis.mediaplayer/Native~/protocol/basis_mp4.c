@@ -531,7 +531,6 @@ static void parse_sidx(mp4_t* m, const uint8_t* p, int len, int64_t box_end) {
     uint64_t box_end_u = (uint64_t)box_end;
     if (first_offset > UINT64_MAX - box_end_u) return;
     uint64_t ref_offset = box_end_u + first_offset;
-    if (ref_offset < box_end_u) return;
     uint64_t pts = earliest;
 
     for (uint16_t i = 0; i < ref_count; ++i, off += 12) {
