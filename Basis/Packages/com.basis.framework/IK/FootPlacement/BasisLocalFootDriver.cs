@@ -112,9 +112,9 @@ public partial class BasisLocalFootDriver
     [Tooltip("Extra step trigger distance when idle (fraction of stepTriggerDist).")]
     [SerializeField, Range(0.0f, 1.5f)]
     private float idleBoostFraction = 0.5f;
-    [Tooltip("Max yaw between planted foot and body forward before triggering a step (degrees).")]
+    [Tooltip("Max body yaw since plant before triggering a step (degrees). Also sets the yaw rate at which steps go full-fast (fastYawRef = 0.5 * this / stepDurFast).")]
     [SerializeField, Range(10f, 90f)]
-    private float maxPlantedYawDegrees = 35f;
+    private float maxPlantedYawDegrees = 20f;
 
     [Header("Side Enforcement")]
     [Tooltip("Ideal position side enforcement as fraction of half stance.")]
@@ -192,6 +192,8 @@ public partial class BasisLocalFootDriver
     private BasisFootState left;
     private BasisFootState right;
     private float rayCastRange;
+    private Collider _selfCollider;
+    private Transform _selfRoot;
     private Vector3 cachedPlayerUp = Vector3.up;
     private Vector3 cachedPlayerFwd = Vector3.forward;
     private Vector3 cachedPlayerRight = Vector3.right;
@@ -233,6 +235,13 @@ public partial class BasisLocalFootDriver
         right.currentPos = right.plantedPos = rf.position;
         right.currentRot = right.plantedRot = rf.rotation;
         right.phase = BasisFootPhase.Planted;
+
+        // Zero, don't seed: the sim reseeds it from the live body forward on the next tick. These feet
+        // were just picked up from the animation (which is aligned to the body), so "no turn owed" is
+        // the correct starting state. Note plantedRot above is the FOOT BONE's rotation and is only
+        // safe to use for the foot's own orientation -- never as a body-yaw reference.
+        left.plantedBodyFwd = Vector3.zero;
+        right.plantedBodyFwd = Vector3.zero;
 
         // Sync to native state
         if (_nativeFeet.IsCreated)
@@ -325,6 +334,8 @@ public partial class BasisLocalFootDriver
         // Use the same collision layers as the character controller
         var cc = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
         int ccLayer = cc.gameObject.layer;
+        _selfCollider = cc;
+        _selfRoot = BasisLocalPlayer.Instance.transform;
         // Build mask of all layers that collide with the character controller's layer
         int mask = 0;
         for (int Index = 0; Index < 32; Index++)
@@ -425,6 +436,7 @@ public partial class BasisLocalFootDriver
             phase = f.phase == BasisFootPhase.Planted ? 0 : 1,
             plantedPos = f.plantedPos,
             plantedRot = f.plantedRot,
+            plantedBodyFwd = f.plantedBodyFwd,
             stepStartPos = f.stepStartPos,
             stepTargetPos = f.stepTargetPos,
             stepTimer = f.stepTimer,
@@ -441,6 +453,7 @@ public partial class BasisLocalFootDriver
     {
         f.plantedPos = n.plantedPos;
         f.plantedRot = n.plantedRot;
+        f.plantedBodyFwd = n.plantedBodyFwd;
         f.stepStartPos = n.stepStartPos;
         f.stepTargetPos = n.stepTargetPos;
         f.stepTimer = n.stepTimer;
@@ -786,7 +799,7 @@ public partial class BasisLocalFootDriver
         if (f.bone == null) return;
 
         Vector3 origin = f.bone.position + cachedPlayerUp * (hipToFoot * 0.33f);
-        if (Physics.Raycast(origin, -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit hit))
         {
             Vector3 snapped = hit.point + hit.normal * footHeightOffset;
             f.currentPos = f.plantedPos = f.idealPos = snapped;
@@ -820,7 +833,7 @@ public partial class BasisLocalFootDriver
         var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
         var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
         var chestCtrl = BasisLocalBoneDriver.ChestControl;
-        bool groundHit = Physics.Raycast(hips.position, -cachedPlayerUp, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore);
+        bool groundHit = GroundCast(hips.position, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit ch);
         LastGroundHit = groundHit;
         LastGroundUp = groundHit ? Vector3.Dot(ch.point, cachedPlayerUp) : float.NaN;
         HipsUp = Vector3.Dot(hips.position, cachedPlayerUp);
@@ -913,9 +926,10 @@ public partial class BasisLocalFootDriver
         f.stepTimer = 0f;
         f.stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
+        float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
         Vector3 targetXZ = f.predictedTargetXZ;
         Vector3 rayOrig = targetXZ + cachedPlayerUp * rayCastRange * 0.5f;
-        if (Physics.SphereCast(rayOrig, raySphereRadius, -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        if (GroundCast(rayOrig, -cachedPlayerUp, rayCastRange, raySphereRadius, hipsUpComp, out RaycastHit hit))
         {
             f.stepTargetPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;
@@ -926,7 +940,6 @@ public partial class BasisLocalFootDriver
             // successful raycast would produce (hipToFoot is the Hips→Foot bone, the ground sits
             // ankleHeight below that, and raycasted plants carry footHeightOffset) — matching the
             // sim job's missed-ray fallback so the stepped foot doesn't plant ankleHeight high.
-            float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
             float targetUpComp = hipsUpComp - hipToFoot - ankleHeight + footHeightOffset;
             Vector3 targetFlat = ProjectHorizontal(targetXZ);
             f.stepTargetPos = targetFlat + cachedPlayerUp * targetUpComp;
@@ -945,6 +958,50 @@ public partial class BasisLocalFootDriver
         EnforceSide(ref stp, hGround, rawR, f.sideSign, stanceWidth * stepTargetSideFraction);
         f.stepTargetPos = stp;
     }
+    // groundLayers is "every layer that collides with the character controller's layer" -- and a layer
+    // ALWAYS collides with itself unless explicitly ignored, so the CC's own layer is in the mask and
+    // every ground query can hit the player's own capsule. The step SphereCast starts at
+    // target + up * rayCastRange * 0.5 (~1 m up, i.e. INSIDE the capsule), so it either sweeps into the
+    // capsule's side and plants the foot at hip height, or -- when it starts fully overlapped -- takes
+    // Unity's initial-overlap result, which reports distance 0, point (0,0,0) and normal -direction, and
+    // flings the foot to the world origin. That is the leg snapping up to head height.
+    //
+    // Narrowing the mask is not safe (a world may legitimately put geometry on that layer), so reject by
+    // COLLIDER instead: skip anything under the local player, skip the overlap sentinel, and skip any hit
+    // above the pelvis -- a foot can never plant above the hips, on any avatar, at any scale.
+    private static readonly RaycastHit[] s_groundHits = new RaycastHit[8];
+
+    private bool IsSelfCollider(Collider c)
+    {
+        if (c == null) return true;
+        if (_selfCollider != null && c == _selfCollider) return true;
+        return _selfRoot != null && c.transform.IsChildOf(_selfRoot);
+    }
+
+    private bool GroundCast(Vector3 origin, Vector3 dir, float maxDist, float sphereRadius, float maxUpComponent, out RaycastHit best)
+    {
+        best = default;
+        int count = sphereRadius > 0f
+            ? Physics.SphereCastNonAlloc(origin, sphereRadius, dir, s_groundHits, maxDist, groundLayers, QueryTriggerInteraction.Ignore)
+            : Physics.RaycastNonAlloc(origin, dir, s_groundHits, maxDist, groundLayers, QueryTriggerInteraction.Ignore);
+
+        bool found = false;
+        float bestDist = float.MaxValue;
+        for (int Index = 0; Index < count; Index++)
+        {
+            RaycastHit h = s_groundHits[Index];
+            // distance 0 == the sweep began already overlapping this collider; point/normal are unusable.
+            if (h.distance <= 0f) continue;
+            if (IsSelfCollider(h.collider)) continue;
+            if (Vector3.Dot(h.point, cachedPlayerUp) > maxUpComponent) continue;
+            if (h.distance >= bestDist) continue;   // NonAlloc does not sort
+            bestDist = h.distance;
+            best = h;
+            found = true;
+        }
+        return found;
+    }
+
     /// <summary>Projects a vector onto the player's horizontal plane (removes up component).</summary>
     private Vector3 ProjectHorizontal(Vector3 v)
     {
@@ -1146,7 +1203,7 @@ public partial class BasisLocalFootDriver
         }
 
         Vector3 bp = f.bone.position;
-        if (Physics.Raycast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        if (GroundCast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit hit))
         {
             f.currentPos = f.plantedPos = f.idealPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;

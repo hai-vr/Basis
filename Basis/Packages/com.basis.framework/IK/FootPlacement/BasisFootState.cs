@@ -14,6 +14,7 @@ public partial class BasisLocalFootDriver
         public BasisFootPhase phase;
         public Vector3 plantedPos;
         public Quaternion plantedRot;
+        public Vector3 plantedBodyFwd;
         public Vector3 stepStartPos, stepTargetPos;
         public float stepTimer, stepDur;
 

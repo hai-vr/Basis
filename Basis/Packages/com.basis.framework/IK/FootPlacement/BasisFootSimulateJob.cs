@@ -112,9 +112,25 @@ public struct BasisFootSimulateJob : IJob
         float3 hipsFlat = inp.hipsPos - up * hipsUpComponent;
         float3 velDir = sim.smoothedVelocity - up * math.dot(sim.smoothedVelocity, up);
 
+        // A ground HIT is not the same as being ON the ground. `airborne` used to mean "the ray missed",
+        // which only happens on a fall taller than rayCastRange -- so during an ordinary jump the ray still
+        // finds the floor under you, groundHit stays true, and the planted feet stay WELDED to it while the
+        // hips rise. The leg simply stretches: 1.31x standing reach on an adult, 1.63x on a half-scale
+        // avatar (a fixed jump impulse is a far bigger fraction of a short leg -- this is a large part of
+        // "does not do well with small avatars"). Zero horizontal drift, zero steps, pure vertical tearing.
+        //
+        // You are airborne the moment the floor is further below the hips than the leg can reach. Standing,
+        // hips sit hipToFoot + ankleHeight above the ground and legLen >= hipToFoot by construction (a bone
+        // chain's length is never less than its vertical span), so this cannot false-positive -- but the two
+        // are EQUAL for a perfectly straight vertical leg rig, which would leave a standing avatar sitting
+        // exactly on the boundary for float noise to flip. The 2% slack (~1.7 cm of leg) keeps it off the knife
+        // edge; a jump smaller than that stretches the leg by 1.02x, which is nothing.
+        float maxLegReach = math.max(p.leftLegLen, p.rightLegLen) * 1.02f + p.ankleHeight;
+        bool groundInReach = inp.groundHit && (hipsUpComponent - math.dot(inp.groundPoint, up)) <= maxLegReach;
+
         float groundUpComponent;
         bool airborne;
-        if (inp.groundHit)
+        if (groundInReach)
         {
             // Planted feet carry hit.point + footHeightOffset; the ideal/vertical-snap level must
             // share that convention or the drift snap buries a planted foot by the offset.
@@ -223,8 +239,8 @@ public struct BasisFootSimulateJob : IJob
         }
 
         // ── Update feet ──
-        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up);
-        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up);
+        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg);
+        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -276,6 +292,7 @@ public struct BasisFootSimulateJob : IJob
         // ── Hip bob ──
         var outp = output[0];
         outp.hipBob = ComputeHipBob(ref left, ref right, speed);
+        outp.airborne = airborne;
         output[0] = outp;
 
         // ── Write back ──
@@ -285,8 +302,13 @@ public struct BasisFootSimulateJob : IJob
     }
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
-        float3 rawFwd, float3 smoothedVelocity, float speed, float threshold, float stepDur, float dt, float3 up)
+        float3 rawFwd, float3 smoothedVelocity, float speed, float threshold, float stepDur, float dt, float3 up,
+        float3 hipsGround, float yawRateDeg)
     {
+        float3 bodyFlat = rawFwd - up * math.dot(rawFwd, up);
+        bool bodyFlatValid = math.lengthsq(bodyFlat) > 1e-6f;
+        if (bodyFlatValid) bodyFlat = math.normalize(bodyFlat);
+
         if (f.phase == 0) // Planted
         {
             float a = 1f - math.exp(-p.plantedLerpSpeed * dt);
@@ -297,21 +319,31 @@ public struct BasisFootSimulateJob : IJob
 
             float dist = HDist(f.plantedPos, f.idealPos, up);
 
-            // Also check yaw: if body has turned significantly from planted rotation, step
-            float3 plantedFwd = math.mul(f.plantedRot, new float3(0, 0, 1));
-            float3 pff = plantedFwd - up * math.dot(plantedFwd, up);
-            float3 bff = rawFwd - up * math.dot(rawFwd, up);
+            // "How far has the BODY turned since this foot planted." The reference used to be
+            // plantedRot * (0,0,1) -- i.e. the FOOT BONE's local +Z, because plantedRot is seeded from
+            // the foot bone's world rotation on every re-engage. A humanoid foot bone's +Z is a
+            // rig-dependent axis (typically down the shin or along the toes), NOT the body forward, so
+            // that comparison was meaningless: flatten a shin-aligned +Z and you get ~zero, the length
+            // guard rejects it, and the yaw trigger SILENTLY DISABLES ITSELF. Rotation could then only
+            // ever be answered by the distance trigger -- and a pure turn only orbits the ideal foot at
+            // radius halfStance (~12 cm), so it takes ~90 deg of turn to travel one trigger distance.
+            // That is the "I can spin 180 before the legs even try to follow".
+            //
+            // Store the body forward itself. Rig-convention-free, and it survives foot rotation being
+            // discarded downstream. Seed (never skip) when degenerate so it cannot deadlock again.
             bool yawTrigger = false;
-            if (math.lengthsq(pff) > 0.001f && math.lengthsq(bff) > 0.001f)
+            if (bodyFlatValid)
             {
-                float yawDiff = math.abs(SignedAngle(math.normalize(pff), math.normalize(bff), up));
+                if (math.lengthsq(f.plantedBodyFwd) < 1e-6f) f.plantedBodyFwd = bodyFlat;
+
+                float yawDiff = math.abs(SignedAngle(math.normalize(f.plantedBodyFwd), bodyFlat, up));
                 yawTrigger = yawDiff > p.maxPlantedYawDegrees;
             }
 
             if ((dist > threshold || yawTrigger) && other.phase == 0)
             {
                 f.wantsStep = true;
-                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up);
+                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up, hipsGround, yawRateDeg);
             }
             else
             {
@@ -364,12 +396,14 @@ public struct BasisFootSimulateJob : IJob
                 f.phase = 0; // Planted
                 f.plantedPos = f.stepTargetPos;
                 f.plantedRot = FootRotation(rawFwd, f.filteredNormal, up);
+                f.plantedBodyFwd = bodyFlatValid ? bodyFlat : f.plantedBodyFwd;
                 f.currentPos = f.stepTargetPos;
             }
         }
     }
 
-    private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float3 smoothedVelocity, float speed, float stepDur, float3 up)
+    private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float3 smoothedVelocity, float speed, float stepDur, float3 up,
+        float3 hipsGround, float yawRateDeg)
     {
         // Uses the caller's live sim state — simState[0] still holds last frame's values here
         // (Execute writes back only at its end).
@@ -379,7 +413,24 @@ public struct BasisFootSimulateJob : IJob
             ? math.normalize(svFlat)
             : bodyFwd;
         float predAmount = math.min(speed * stepDur * p.predictionFactor, avgLeg * p.maxPredictionFraction);
-        return f.idealPos + moveDir * predAmount;
+
+        // ANGULAR prediction. The old code predicted TRANSLATION only, so a pure turn (speed ~0 => predAmount ~0)
+        // aimed the foot at where the body is pointing NOW -- but the foot lands stepDur LATER, by which time the
+        // body has turned further. The foot was therefore born already behind and could never catch up: at 90 deg/s
+        // with a 0.24 s swing the body turns ~22 deg mid-flight, so the foot perpetually trailed by 22-35 deg
+        // (the yaw trigger). That is the leg "lagging behind the motion" and the steps not landing where the
+        // rotation is going -- and it is why the sweep had to TOLERATE crossovers during spins instead of
+        // preventing them.
+        //
+        // Rotate the target about the body centre by the yaw the body will actually cover during the swing, so the
+        // foot lands where the body WILL be pointing. Clamped so a violent spin can't fling the foot past what the
+        // hip can rotate to.
+        float predYawDeg = math.clamp(yawRateDeg * stepDur, -p.maxPlantedYawDegrees, p.maxPlantedYawDegrees);
+        quaternion yawPredict = quaternion.AxisAngle(up, math.radians(predYawDeg));
+        float3 fromCenter = f.idealPos - hipsGround;
+        float3 predictedIdeal = hipsGround + math.mul(yawPredict, fromCenter);
+
+        return predictedIdeal + moveDir * predAmount;
     }
 
     // Vertical pelvis motion over the gait cycle. The PHASE here was inverted, which is why the walk read wrong

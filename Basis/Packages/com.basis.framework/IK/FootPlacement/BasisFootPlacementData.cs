@@ -9,6 +9,7 @@ public struct BasisFootNativeState
     public int phase;
     public float3 plantedPos;
     public quaternion plantedRot;
+    public float3 plantedBodyFwd;   // body forward at plant time — the yaw trigger's reference
     public float3 stepStartPos, stepTargetPos;
     public float stepTimer, stepDur;
 
@@ -128,4 +129,5 @@ public struct BasisFootSimParams
 public struct BasisFootSimOutput
 {
     public float hipBob;
+    public bool airborne;   // ground is out of leg reach; planted feet ride the hips instead of the floor
 }

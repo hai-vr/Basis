@@ -92,7 +92,7 @@ namespace Basis.IK.Debugging
                 StepHeightStrideRefFraction = 0.45f,
                 IdleSpeedThreshold = 0.05f,
                 IdleBoostFraction = 0.5f,
-                MaxPlantedYawDegrees = 35f,
+                MaxPlantedYawDegrees = 20f,
                 IdealSideEnforceFraction = 0.3f,
                 StepTargetSideFraction = 0.15f,
                 FootSideEnforceFraction = 0.2f,
@@ -417,8 +417,15 @@ namespace Basis.IK.Debugging
                     if (lm.slideValid) res.SlideMm.Consider(lm.slideMm, t, speed);
                     if (rm.slideValid) res.SlideMm.Consider(rm.slideMm, t, speed);
                     res.ExtRatio.Consider(lm.ext, t, speed); res.ExtRatio.Consider(rm.ext, t, speed);
-                    if (lp) { res.PenMm.Consider(lm.penMm, t, speed); res.HoverMm.Consider(lm.hoverMm, t, speed); }
-                    if (rp) { res.PenMm.Consider(rm.penMm, t, speed); res.HoverMm.Consider(rm.hoverMm, t, speed); }
+                    // Hover means "a planted foot is floating above the floor it is supposed to be standing on".
+                    // While the sim is AIRBORNE that is not a defect, it is the point: the ground is out of leg
+                    // reach (a jump), so the feet ride the hips and hang below the body instead of staying welded
+                    // to a floor they can no longer touch. Measuring hover there just reports the jump height.
+                    // Read the flag the job itself set rather than re-deriving it here -- a mirrored copy of that
+                    // rule is exactly what let the last two foot bugs hide from this sweep.
+                    bool simAirborne = output[0].airborne;
+                    if (lp) { res.PenMm.Consider(lm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(lm.hoverMm, t, speed); }
+                    if (rp) { res.PenMm.Consider(rm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(rm.hoverMm, t, speed); }
                     res.TiltDeg.Consider(lm.tilt, t, speed); res.TiltDeg.Consider(rm.tilt, t, speed);
                     if (lm.yawClamp) res.YawDeg.Consider(lm.yaw, t, speed);
                     if (rm.yawClamp) res.YawDeg.Consider(rm.yaw, t, speed);
