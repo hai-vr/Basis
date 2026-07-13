@@ -2404,11 +2404,25 @@ w20, w54;
             {
                 if (hintIsTrackerProp.Get(stream))
                 {
+                    // A real knee/lower-leg tracker: the user's own input, so track it responsively.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz);
                 }
-                else if (preserveTip)
+                else
                 {
+                    // NO knee tracker => the pole is INVENTED (BendNormal = hipsRot * right), so it inherits every
+                    // wobble of the hips and must be damped. This used to be gated on `preserveTip`, which is the
+                    // "position-only foot IK" sentinel -- i.e. it really meant "no FOOT tracker". So the one
+                    // configuration that got NO smoothing at all was FOOT TRACKERS WITHOUT KNEE TRACKERS:
+                    // hintIsTracker is false (no knee tracker) and preserveTip is false (a real foot tracker sends
+                    // a real rotation), so both branches missed. That config is also the worst possible one for it
+                    // -- under stick locomotion the real legs stand straight, so reach -> 1.0 and the pole sits on
+                    // its singularity, where hips jitter is amplified hardest. Raw synthetic pole + no damping +
+                    // worst conditioning = the legs twist about the hip->foot axis and the feet read as sliding.
+                    //
+                    // The right question was never "is there a foot tracker" but "is the pole REAL or INVENTED".
+                    // An invented pole always needs damping. Safe to widen now that the swivel is measured in the
+                    // BODY frame (BasisSwivelSmootherCore) -- it damps jitter without lagging a real turn.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz);
                 }

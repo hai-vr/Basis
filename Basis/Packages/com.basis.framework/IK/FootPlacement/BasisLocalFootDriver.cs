@@ -43,7 +43,7 @@ public partial class BasisLocalFootDriver
     private float rotationLerpSpeed = 16f;
     [Tooltip("Velocity smoothing rate when accelerating.")]
     [SerializeField, Range(1f, 30f)]
-    private float velocitySmoothAccel = 10f;
+    private float velocitySmoothAccel = 25f;
     [Tooltip("Velocity smoothing rate when decelerating.")]
     [SerializeField, Range(10f, 100f)]
     private float velocitySmoothDecel = 50f;
@@ -356,7 +356,7 @@ public partial class BasisLocalFootDriver
         // Generous margin so the hips-down raycast still finds the floor when the hips sit
         // elevated above leg reach (certain height/scale calibrations); a short range misses
         // and the fallback floats the feet up with the body.
-        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 1.0f;
+        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) * 2.15f;
 
         Matrix4x4 ltw = BasisLocalPlayer.localToWorldMatrix;
         cachedPlayerUp = ltw.MultiplyVector(Vector3.up).normalized;
@@ -665,16 +665,24 @@ public partial class BasisLocalFootDriver
         float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
         float avgShin = (leftShinLen + rightShinLen) * 0.5f;
 
-        // Scale the absolute clamp bounds with the avatar so a child / giant gets proportional step
-        // params instead of clipping at human-sized limits (fulfilling "everything scales with the
-        // body"). Lengths scale linearly; gait time & speed scale as sqrt (pendulum / Froude),
-        // matching how pendulum and fastSpeedRef already derive. lengthScale = 1 at calibration.
-        float baseAvgLeg = (baseLeftLegLen + baseRightLegLen) * 0.5f;
-        float lengthScale = baseAvgLeg > 1e-4f ? avgLeg / baseAvgLeg : 1f;
-        float timeScale = Mathf.Sqrt(lengthScale);
+        // Every clamp bound is a FRACTION OF THIS AVATAR'S OWN LEG, not an absolute metre value.
+        //
+        // The old form multiplied the absolute bounds by `lengthScale = avgLeg / baseAvgLeg` -- but baseAvgLeg is
+        // captured at THIS avatar's own calibration, so lengthScale is 1 for every avatar (the comment even said
+        // so). The bounds were therefore raw human-sized metres for a chibi and a giant alike: a 0.30 m-legged
+        // avatar wants a 2.4 cm step trigger and got floored to 4 cm -- 13% of its leg instead of 8% -- so it had
+        // to drift proportionally 65% further before stepping. Same for step height, sphere radius and the
+        // duration floor. That is the "foot IK is bad on small avatars" bug.
+        //
+        // Ratios below are the old absolute values divided by the reference adult leg they were tuned against, so
+        // this is EXACTLY a no-op at reference size and a proportional fix at every other size. Lengths scale with
+        // L; gait TIMES scale as sqrt(L/g) (pendulum) and speeds as sqrt(g*L) (Froude) -- a small avatar must step
+        // faster, not merely shorter.
+        const float k_RefLeg = 0.87f;   // the adult leg length these constants were originally tuned at
+        float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
+        float speedRef = Mathf.Sqrt(avgLeg * 9.81f);
 
-        // Ray sphere radius: ~half the foot width, approximated as footLength * 0.3
-        raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, 0.02f * lengthScale, 0.12f * lengthScale);
+        raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.12f / k_RefLeg));
 
         // footHeightOffset: how far above the ground raycast hit the IK target sits.
         // For the legs to fully extend when standing, the vertical distance from
@@ -684,19 +692,20 @@ public partial class BasisLocalFootDriver
         //   upperLegToFootVertical + ankleHeight - footHeightOffset >= avgLeg
         float desiredOffset = ankleHeight * footHeightOffsetMul;
         float straightLegLimit = upperLegToFootVertical + ankleHeight - avgLeg;
-        footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f * lengthScale, 0.05f * lengthScale);
+        footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / k_RefLeg), avgLeg * (0.05f / k_RefLeg));
 
-        stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, 0.04f * lengthScale, 0.18f * lengthScale);
+        stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, avgLeg * (0.04f / k_RefLeg), avgLeg * (0.18f / k_RefLeg));
 
-        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f * lengthScale, 0.22f * lengthScale);
+        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.22f / k_RefLeg));
 
-        stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, 0.03f * lengthScale, 0.20f * lengthScale);
+        stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, avgLeg * (0.03f / k_RefLeg), avgLeg * (0.20f / k_RefLeg));
 
-        float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
-        stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, 0.10f * timeScale, 0.30f * timeScale);
-        stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, 0.06f * timeScale, 0.18f * timeScale);
+        // Reference pendulum at k_RefLeg = pi*sqrt(0.87/9.81) = 0.9356 s; the 0.10/0.30 s bounds are fractions of it.
+        stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, pendulum * (0.10f / 0.9356f), pendulum * (0.30f / 0.9356f));
+        stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, pendulum * (0.06f / 0.9356f), pendulum * (0.18f / 0.9356f));
 
-        fastSpeedRef = Mathf.Clamp(fastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f * timeScale, 3.5f * timeScale);
+        // Reference sqrt(g*L) at k_RefLeg = 2.921 m/s; the 1.0/3.5 m/s bounds are fractions of it.
+        fastSpeedRef = Mathf.Clamp(fastSpeedMul * speedRef, speedRef * (1.0f / 2.921f), speedRef * 2.5f);
 
         _paramsDirty = true;
     }
@@ -739,7 +748,7 @@ public partial class BasisLocalFootDriver
         // Generous margin so the hips-down raycast still finds the floor when the hips sit
         // elevated above leg reach (certain height/scale calibrations); a short range misses
         // and the fallback floats the feet up with the body.
-        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) + 1.0f;
+        rayCastRange = Mathf.Max(hipToFoot + ankleHeight, Mathf.Max(leftLegLen, rightLegLen)) * 2.15f;
         _paramsDirty = true;
 
         // Sync leg lengths to native foot state
@@ -776,7 +785,7 @@ public partial class BasisLocalFootDriver
     {
         if (f.bone == null) return;
 
-        Vector3 origin = f.bone.position + cachedPlayerUp * 0.3f;
+        Vector3 origin = f.bone.position + cachedPlayerUp * (hipToFoot * 0.33f);
         if (Physics.Raycast(origin, -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
         {
             Vector3 snapped = hit.point + hit.normal * footHeightOffset;
@@ -1137,7 +1146,7 @@ public partial class BasisLocalFootDriver
         }
 
         Vector3 bp = f.bone.position;
-        if (Physics.Raycast(bp + cachedPlayerUp * 0.3f, -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(bp + cachedPlayerUp * (hipToFoot * 0.33f), -cachedPlayerUp, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
         {
             f.currentPos = f.plantedPos = f.idealPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;

@@ -809,20 +809,24 @@ namespace Basis.IK.Debugging
 
             // Mirror the driver's scale-aware clamp bounds: lengths scale linearly with the avatar,
             // gait time/speed as sqrt (pendulum/Froude). c.Scale is the scale this config represents.
-            float lengthScale = c.Scale > 1e-4f ? c.Scale : 1f;
-            float timeScale = Mathf.Sqrt(lengthScale);
+            // MUST mirror BasisLocalFootDriver.DeriveStepParameters. Bounds are fractions of the avatar's OWN
+            // leg, so they are scale-correct by construction. (The sweep used to scale them by c.Scale while the
+            // RUNTIME scaled them by avgLeg/baseAvgLeg -- which is always 1 -- so the sweep was validating a
+            // scaled system the runtime never produced. Green gate, broken small avatars. Same law now.)
+            const float k_RefLeg = 0.87f;
 
-            float raySphereRadius = Mathf.Clamp(c.FootLength * c.RaySphereRadiusMul, 0.02f * lengthScale, 0.12f * lengthScale);
+            float raySphereRadius = Mathf.Clamp(c.FootLength * c.RaySphereRadiusMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.12f / k_RefLeg));
             float desiredOffset = c.AnkleHeight * c.FootHeightOffsetMul;
             float straightLegLimit = c.UpperLegToFootVertical + c.AnkleHeight - avgLeg;
-            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), 0.001f * lengthScale, 0.05f * lengthScale);
-            float stepTriggerDist = Mathf.Clamp(avgLeg * c.StepTriggerMul, 0.04f * lengthScale, 0.18f * lengthScale);
-            float strideScale = Mathf.Clamp(avgLeg * c.StrideScaleMul, 0.02f * lengthScale, 0.22f * lengthScale);
-            float stepHeightCalc = Mathf.Clamp(avgShin * c.StepHeightMul, 0.03f * lengthScale, 0.20f * lengthScale);
+            float footHeightOffset = Mathf.Clamp(Mathf.Min(desiredOffset, straightLegLimit), avgLeg * (0.001f / k_RefLeg), avgLeg * (0.05f / k_RefLeg));
+            float stepTriggerDist = Mathf.Clamp(avgLeg * c.StepTriggerMul, avgLeg * (0.04f / k_RefLeg), avgLeg * (0.18f / k_RefLeg));
+            float strideScale = Mathf.Clamp(avgLeg * c.StrideScaleMul, avgLeg * (0.02f / k_RefLeg), avgLeg * (0.22f / k_RefLeg));
+            float stepHeightCalc = Mathf.Clamp(avgShin * c.StepHeightMul, avgLeg * (0.03f / k_RefLeg), avgLeg * (0.20f / k_RefLeg));
             float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
-            float stepDurSlow = Mathf.Clamp(pendulum * c.StepDurSlowMul, 0.10f * timeScale, 0.30f * timeScale);
-            float stepDurFast = Mathf.Clamp(pendulum * c.StepDurFastMul, 0.06f * timeScale, 0.18f * timeScale);
-            float fastSpeedRef = Mathf.Clamp(c.FastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f * timeScale, 3.5f * timeScale);
+            float stepDurSlow = Mathf.Clamp(pendulum * c.StepDurSlowMul, pendulum * (0.10f / 0.9356f), pendulum * (0.30f / 0.9356f));
+            float stepDurFast = Mathf.Clamp(pendulum * c.StepDurFastMul, pendulum * (0.06f / 0.9356f), pendulum * (0.18f / 0.9356f));
+            float speedRef = Mathf.Sqrt(avgLeg * 9.81f);
+            float fastSpeedRef = Mathf.Clamp(c.FastSpeedMul * speedRef, speedRef * (1.0f / 2.921f), speedRef * 2.5f);
             float rayCastRange = Mathf.Max(c.HipToFoot + c.AnkleHeight, legLen) + 1.0f;
 
             return new BasisFootSimParams

@@ -25,11 +25,19 @@ public struct BasisFootSimulateJob : IJob
         float3 up = inp.playerUp;
         if (math.lengthsq(up) < 0.001f) up = new float3(0, 1, 0);
 
-        // ── Velocity from head ──
-        float3 headPos = inp.headPos;
-        float3 rawVel = (headPos - sim.prevHeadPos) / dt;
+        // ── Velocity from the HIPS ──
+        // Was taken from the HEAD. The head is the worst available proxy for body translation: it bobs with every
+        // step, sways, and swings a long lever arm whenever you look around, so "speed" carried gait-frequency
+        // noise and look-around motion that has nothing to do with travelling. The hips ARE the body's
+        // translation -- the pelvis is the COM proxy the whole of gait biomechanics is written against -- so the
+        // feet now pace off the thing that is actually moving.
+        //
+        // prevHeadPos keeps its name/slot in the state struct (it is the previous SAMPLE position) so the layout
+        // and the sweep's mirrored state stay put; it now holds the hips.
+        float3 velSample = inp.hipsPos;
+        float3 rawVel = (velSample - sim.prevHeadPos) / dt;
         rawVel -= up * math.dot(rawVel, up); // strip vertical component
-        sim.prevHeadPos = headPos;
+        sim.prevHeadPos = velSample;
 
         bool decelerating = math.lengthsq(rawVel) < math.lengthsq(sim.smoothedVelocity);
         float vAlpha = 1f - math.exp(-(decelerating ? p.velocitySmoothDecel : p.velocitySmoothAccel) * dt);
@@ -135,7 +143,17 @@ public struct BasisFootSimulateJob : IJob
         // a high yaw rate); boosting the trigger there steps late and the foot crosses.
         bool stationary = speed < p.idleSpeedThreshold && math.abs(sim.smoothedYawRateDeg) < 20f;
         float idleBoost = stationary ? p.stepTriggerDist * p.idleBoostFraction : 0f;
-        float threshold = p.stepTriggerDist + speed * p.strideScale + idleBoost;
+
+        // The trigger drift is CAPPED at what the leg can actually recover.
+        //
+        // It used to grow without bound as `stepTriggerDist + speed * strideScale` -- 59 cm of drag at 5 m/s,
+        // 80 cm at 7 m/s. But the foot can only ever be PLANTED about 0.35*leg (~30 cm) ahead of the hips before
+        // the leg over-extends, so past a point the foot is being asked to recover more ground than it can reach:
+        // it stays glued while the body races past, the leg stretches, and the feet read as "too slow to keep up".
+        // Beyond the cap the only way to hold speed is to step MORE OFTEN, which is exactly what a real human
+        // does -- stride length saturates and cadence takes over. Capping the drift makes that happen.
+        float avgLegT = (p.leftLegLen + p.rightLegLen) * 0.5f;
+        float threshold = math.min(p.stepTriggerDist + speed * p.strideScale + idleBoost, avgLegT * 0.55f);
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, speedT);
 
         // ── Vertical correction ──
@@ -275,7 +293,13 @@ public struct BasisFootSimulateJob : IJob
             f.wantsStep = false;
             f.stepTimer += dt;
             float t = math.saturate(f.stepTimer / f.stepDur);
-            float ease = 1f - (1f - t) * (1f - t) * (1f - t);
+
+            // Smoothstep, not a cubic ease-OUT. The old curve (1-(1-t)^3) has its MAXIMUM slope at t=0, so the
+            // foot was flung off the ground at ~3.7 m/s on the first frame of the swing and then decelerated into
+            // the landing -- backwards. A real swing leg is slow at toe-off, fastest at mid-swing, and slow again
+            // at heel-strike. Smoothstep's derivative 6t(1-t) is exactly that: zero at both ends, peak in the
+            // middle. This is the single most visible "the feet snap" artifact.
+            float ease = t * t * (3f - 2f * t);
 
             float3 pos = math.lerp(f.stepStartPos, f.stepTargetPos, ease);
 
@@ -287,7 +311,18 @@ public struct BasisFootSimulateJob : IJob
             float strideFrac = math.saturate(stepDist / math.max(1e-3f, avgLeg * p.stepHeightStrideRefFraction));
             float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, strideFrac);
 
-            float lift = math.pow(t, p.stepArcLiftExp) * math.pow(1f - t, p.stepArcDropExp) / 0.234f;
+            // Normalise the arc by its OWN peak, derived from the exponents. The hardcoded 0.234 was wrong for the
+            // default exponents (the true peak of t^0.6*(1-t)^1.4 is 0.2947 at t=0.3), so the expression peaked at
+            // 1.26 and saturate() clipped it -- the foot sat at exactly max height, dead flat, for ~42% of the
+            // swing. That plateau is the "robotic" read. Worse, the constant did not track the exponents: retuning
+            // either one silently clipped harder or never reached the commanded height.
+            //
+            //   peak of t^a * (1-t)^b  is at  t* = a/(a+b),  value  t*^a * (1-t*)^b
+            float a = p.stepArcLiftExp, b = p.stepArcDropExp;
+            float tPeak = a / math.max(1e-4f, a + b);
+            float arcPeak = math.max(1e-4f, math.pow(tPeak, a) * math.pow(1f - tPeak, b));
+
+            float lift = math.pow(t, a) * math.pow(1f - t, b) / arcPeak;
             pos += up * (math.saturate(lift) * dynamicHeight);
             f.currentPos = pos;
 
@@ -317,27 +352,38 @@ public struct BasisFootSimulateJob : IJob
         return f.idealPos + moveDir * predAmount;
     }
 
+    // Vertical pelvis motion over the gait cycle. The PHASE here was inverted, which is why the walk read wrong
+    // even though the frequency was right.
+    //
+    // While one foot is swinging, the OTHER is in mid-stance -- and mid-stance is where a human's centre of mass
+    // is at its HIGHEST: you vault over the straight stance leg like an inverted pendulum. The COM is at its
+    // LOWEST at double support, where both legs are splayed and the hips sit between them. The old code returned
+    // -sin(pi*t) at mid-swing, pushing the pelvis DOWN exactly where it should rise, and 0 at double support
+    // exactly where it should be lowest. Right frequency, opposite sign.
+    //
+    // Speed gate is relative, not an absolute 0.05 m/s: a small avatar's whole speed range scales as sqrt(g*L),
+    // so a fixed m/s cutoff silently disables the bob for anything short.
     private float ComputeHipBob(ref BasisFootNativeState left, ref BasisFootNativeState right, float speed)
     {
-        if (speed < 0.05f) return 0f;
+        if (speed < 0.02f * p.fastSpeedRef) return 0f;
 
         float maxBob = p.hipToFoot * p.hipBobFraction;
         float speedScale = math.saturate(speed / p.fastSpeedRef);
         float amplitude = maxBob * speedScale;
 
-        float leftDip = 0f, rightDip = 0f;
+        float leftRise = 0f, rightRise = 0f;
         if (left.phase == 1)
         {
             float t = math.saturate(left.stepTimer / left.stepDur);
-            leftDip = math.sin(t * math.PI);
+            leftRise = math.sin(t * math.PI);
         }
         if (right.phase == 1)
         {
             float t = math.saturate(right.stepTimer / right.stepDur);
-            rightDip = math.sin(t * math.PI);
+            rightRise = math.sin(t * math.PI);
         }
 
-        return -math.max(leftDip, rightDip) * amplitude;
+        return math.max(leftRise, rightRise) * amplitude;
     }
 
     // ── Helpers ──
