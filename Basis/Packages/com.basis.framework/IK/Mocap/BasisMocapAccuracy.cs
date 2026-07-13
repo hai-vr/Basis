@@ -391,8 +391,8 @@ namespace Basis.IK.Mocap
             // The LEG has no such bisection: its hint is applied as a weight-scaled quaternion and is documented
             // as not reach-preserving. So foot slip is a SOLVER PROPERTY to be measured, not a harness fault --
             // but 5 cm of it would be a visible foot slide on a foot tracker, so it is still bounded.
-            if (s.FootMaxM > 0.05f)
-                return (false, $"the knee hint slid the foot {s.FootMaxM * 100f:F1} cm off its target -- the leg hint is not reach-preserving");
+            if (s.FootMaxM > 0.002f)
+                return (false, $"the knee hint slid the foot {s.FootMaxM * 1000f:F1} mm off its target -- the leg hint is not reach-preserving");
 
             if (s.RigidityMaxM > 0.002f)
                 return (false, $"the solved rotations rebuild the joint {s.RigidityMaxM * 1000f:F1} mm away from the solved position -- " +
