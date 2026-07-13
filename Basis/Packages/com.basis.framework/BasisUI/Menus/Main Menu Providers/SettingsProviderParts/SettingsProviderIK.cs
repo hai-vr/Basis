@@ -362,6 +362,29 @@ public static class SettingsProviderIK
                 "settings.bodyTracking.anat.trackerBendNormal.description");
         });
 
+        // ============== Desktop head carry ==============
+        // Desktop only: in VR the headset already rides the lever arm this reproduces.
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.headSwing.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.headSwing.description"), false, swingParent =>
+        {
+            AddAnatomyToggle(swingParent, BasisSettingsDefaults.DesktopHeadSwingEnabled,
+                "settings.bodyTracking.headSwing.enabled.title",
+                "settings.bodyTracking.headSwing.enabled.description");
+
+            var strength = PanelSlider.CreateAndBind(
+                swingParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.headSwing.strength"), 0f, 2f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.DesktopHeadSwingStrength);
+            strength?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.headSwing.strength.tooltip"));
+
+            var backward = PanelSlider.CreateAndBind(
+                swingParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.headSwing.backward"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.DesktopHeadSwingBackward);
+            backward?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.headSwing.backward.tooltip"));
+        });
+
         // ============== Spine: Reach Limits ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
             BasisLocalization.Get("settings.bodyTracking.section.spineReach.title"),

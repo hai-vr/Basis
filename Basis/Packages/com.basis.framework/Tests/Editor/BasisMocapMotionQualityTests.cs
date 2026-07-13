@@ -131,6 +131,9 @@ namespace Basis.Tests.IK
             report.AppendLine("  None          no hint at all -- the two-bone core's own fallback");
             report.AppendLine("  Lookup        WHAT SHIPS: bend lookup + chicken-wing flare");
             report.AppendLine("  LookupNoFlare the same lookup with the flare switched off -- isolates what it COSTS");
+            report.AppendLine("  SwivelModel   THE CANDIDATE: a polynomial fitted to this corpus, predicting the");
+            report.AppendLine("                elbow's SWIVEL ANGLE (which lands on the reachable circle by");
+            report.AppendLine("                construction) instead of a bend vector (which does not).");
             report.AppendLine("  TruthJoint    handed the real elbow (a tracker). The ceiling.");
             report.AppendLine();
             report.AppendLine($"{"clip",-12} {"hint",-14} {"jit+%L",7} {"pops+",6} {"jerk x",7} | {"err %arm",9} {"engage",8}");
@@ -147,14 +150,29 @@ namespace Basis.Tests.IK
                              BasisMocapHintSource.None,
                              BasisMocapHintSource.Lookup,
                              BasisMocapHintSource.LookupNoFlare,
+                             BasisMocapHintSource.SwivelModel,
                              BasisMocapHintSource.TruthJoint,
                          })
                 {
+                    if (hint == BasisMocapHintSource.SwivelModel)
+                    {
+                       // BasisMocapAccuracy.s_swivelDiffSum = 0f;
+                      // / BasisMocapAccuracy.s_swivelSumSum = 0f;
+                      ///  BasisMocapAccuracy.s_swivelN = 0;
+                    }
                     BasisMocapMotionSummary s = BasisMocapMotionQuality.Run(clip, hint);
                     if (!s.Ok)
                     {
                         report.AppendLine($"{clip.Name,-12} {hint,-14} ERROR: {s.Error}");
                         continue;
+                    }
+                  //  if (hint == BasisMocapHintSource.SwivelModel && BasisMocapAccuracy.s_swivelN > 0)
+                    {
+                     //   int n = BasisMocapAccuracy.s_swivelN;
+                      // // Debug.Log($"[SWIVEL PROBE] {clip.Name}: |pred - true| = " +
+                          //        $"{BasisMocapAccuracy.s_swivelDiffSum / n:F1} deg,  " +
+                       //           $"|(-pred) - true| = {BasisMocapAccuracy.s_swivelSumSum / n:F1} deg  " +
+                             //     "(if the SECOND is small, the sign is flipped)");
                     }
 
                     report.AppendLine(

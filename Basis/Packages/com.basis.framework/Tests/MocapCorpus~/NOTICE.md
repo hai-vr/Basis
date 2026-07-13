@@ -1,7 +1,12 @@
 # Mocap corpus — third-party data
 
-Ground truth for `BasisMocapAccuracyTests`. Not shipped in player builds and not imported by Unity: the
-trailing `~` on the folder name keeps it out of the asset database entirely.
+Ground truth for `BasisMocapAccuracyTests` (is the solved pose RIGHT?) and `BasisMocapMotionQualityTests`
+(is the solved MOTION right?). Not shipped in player builds and not imported by Unity: the trailing `~` on
+the folder name keeps it out of the asset database entirely.
+
+**Licensing is recorded in `Packages/com.basis.framework/THIRD_PARTY_NOTICES.md`** — the package-root file
+the rest of the repo uses for this. The short version is repeated at the bottom of this file so nobody has
+to go looking, but the notices file is the authority.
 
 ## CMU Graphics Lab Motion Capture Database
 
@@ -21,12 +26,40 @@ trailing `~` on the folder name keeps it out of the asset database entirely.
   - `143_25.bvh` (waving)
   - `143_17.bvh` (walk up stairs and step over)
 
+## License
+
 CMU places no restrictions on the use of this data, including commercial use. From the database's own terms:
 
 > This data is free for use in research and commercial projects worldwide. You may include this data in
 > commercially-released products.
 
-The database was created with funding from NSF EIA-0196217.
+No attribution is required. The database was created with funding from **NSF EIA-0196217**, and CMU asks
+that work using it carry this acknowledgement, which we do:
+
+> The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding
+> from NSF EIA-0196217.
+
+The cgspeed BVH conversion adds no restrictions of its own — it is a reformatting of the same data.
+
+## ⚠️ Fidelity limits — read before trusting a number that comes out of here
+
+The corpus is REAL HUMAN MOTION, but it is not a VR user, and two differences have already produced
+misleading measurements:
+
+1. **A mocap hand is not a controller.** These clips carry a hand-BONE rotation from a marker-fitted
+   skeleton. A VR controller's rotation is a GRIP convention. Anything in the IK that reads the hand's
+   *rotation* (the chicken-wing elbow flare does) is therefore being fed a convention it was not designed
+   for, and a result that hinges on it must be confirmed in a headset before it is believed. This is not
+   hypothetical: measured against this corpus the flare engages ~0.5 on average and 0.89 while STANDING
+   STILL, which is either a real bug or exactly this artefact — and the corpus alone cannot tell you which.
+
+2. **The mocap has its own noise floor**, ~0.2% of limb length above 8 Hz (about 1.2 mm on an adult arm),
+   which is the optical rig, not the human. Any jitter metric taken from here is an EXCESS over that floor,
+   never an absolute. Differentiating the raw signal measures the rig; low-pass first
+   (`BasisMotionSignal.LowPass`) or the number is fiction.
+
+What the corpus IS unimpeachable for: joint POSITIONS and their time-derivatives. Those are anatomy, and
+they transfer.
 
 ## Adding more clips
 

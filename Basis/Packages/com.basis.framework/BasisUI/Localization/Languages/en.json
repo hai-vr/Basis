@@ -1979,6 +1979,46 @@
       "value": "({0})"
     },
     {
+      "key": "trackerLinking.pair.title",
+      "value": "Linked pair"
+    },
+    {
+      "key": "trackerLinking.unlink",
+      "value": "Unlink"
+    },
+    {
+      "key": "trackerLinking.unlink.tooltip",
+      "value": "Break this pair. Both trackers go back to being calibrated on their own. Recalibrate afterwards."
+    },
+    {
+      "key": "trackerLinking.roleOverridePair.tooltip",
+      "value": "Lock the pair's fused midpoint to a body role. Auto lets calibration choose."
+    },
+    {
+      "key": "trackerLinking.status.driving",
+      "value": "Driving {0}"
+    },
+    {
+      "key": "trackerLinking.status.unassigned",
+      "value": "No role yet — run full-body calibration"
+    },
+    {
+      "key": "trackerLinking.status.pairDriving",
+      "value": "Fused — driving {0}"
+    },
+    {
+      "key": "trackerLinking.status.pairUncalibrated",
+      "value": "Fused — run full-body calibration to give the pair a role"
+    },
+    {
+      "key": "trackerLinking.status.pairPending",
+      "value": "Linked, waiting for the merged tracker to come up"
+    },
+    {
+      "key": "trackerLinking.status.partnerOffline",
+      "value": "Linked to a tracker that isn't connected — reconnect it, or unlink"
+    },
+    {
       "key": "trackerLinking.trackers.title",
       "value": "Connected Trackers"
     },
@@ -8185,6 +8225,38 @@
     {
       "key": "settings.ra.title.voiceBuffer",
       "value": "Voice Buffer"
+    },
+    {
+      "key": "settings.bodyTracking.section.headSwing.title",
+      "value": "Desktop Head Carry"
+    },
+    {
+      "key": "settings.bodyTracking.section.headSwing.description",
+      "value": "Desktop only. Your head pivots at the base of your neck, not at itself, so looking down carries your eyes forward - out over your feet. In VR the headset does this on its own because it physically rides that same lever arm. Desktop used to pin the camera above the hips, so the gaze tipped, the chest hunched to follow, and the head never actually went anywhere."
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.enabled.title",
+      "value": "Carry the head when looking up/down"
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.enabled.description",
+      "value": "Moves the camera forward as you look down and back as you look up, by the amount your avatar's own neck geometry says it should. Turn this off to pin the camera over the hips as it was before."
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.strength",
+      "value": "Carry Strength"
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.strength.tooltip",
+      "value": "1.0 is the full swing implied by your avatar's neck-to-eye distance. Lower it if the camera travel feels like too much; 0 disables the carry entirely."
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.backward",
+      "value": "Look-Up Carry"
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.backward.tooltip",
+      "value": "How far the camera pulls back when you look UP, as a fraction of the look-down carry. Looking up is not the mirror of looking down - your upper back takes most of it, so your skull does not slide backward nearly as far. 1.0 would treat them the same."
     }
   ]
 }

@@ -1274,6 +1274,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKArmHeightRatioEnabled = new("fbikarmheightratioenabled", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> FBIKArmHeightRatio = new("fbikarmheightratio", new BasisPlatformDefault<float>(1.05f));
 
+        // Desktop only. The head pitches about the base of the neck, so looking down carries the eye FORWARD --
+        // the swing an HMD makes for free, which desktop used to pin away. Strength 1 = the avatar's own
+        // neck->eye geometry; lower it if the camera travel feels like too much.
+        public static BasisSettingsBinding<bool> DesktopHeadSwingEnabled = new("desktopheadswingenabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> DesktopHeadSwingStrength = new("desktopheadswingstrength", new BasisPlatformDefault<float>(1f));
+        // Looking up is not the mirror of looking down: the thoracic spine takes most of it, so the skull does
+        // not slide back over the shoulders anything like as far as the raw neck geometry claims.
+        public static BasisSettingsBinding<float> DesktopHeadSwingBackward = new("desktopheadswingbackward", new BasisPlatformDefault<float>(0.35f));
+
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
         // spine carry when no chest tracker is present. Yaw fractions are derived from bone-length
@@ -1964,6 +1973,9 @@ namespace Basis.BasisUI
             FBIKUpperArmTwistFraction.LoadBindingValue();
             FBIKArmHeightRatioEnabled.LoadBindingValue();
             FBIKArmHeightRatio.LoadBindingValue();
+            DesktopHeadSwingEnabled.LoadBindingValue();
+            DesktopHeadSwingStrength.LoadBindingValue();
+            DesktopHeadSwingBackward.LoadBindingValue();
             FBIKAnatDifferentialStiffness.LoadBindingValue();
             FBIKAnatShoulderSlide.LoadBindingValue();
             FBIKAnatCervicalLordosis.LoadBindingValue();

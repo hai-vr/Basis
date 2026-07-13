@@ -16,6 +16,7 @@ namespace Basis.IK.Mocap
         None,          // no hint at all -- the two-bone core's internal fallback
         Lookup,        // WHAT SHIPS for an untracked arm: ArmBendFrame -> BasisArmBendLookup -> chicken-wing flare
         LookupNoFlare, // the same lookup, with the chicken-wing flare switched off. Isolates what the flare COSTS.
+        SwivelModel,   // THE CANDIDATE: BasisArmSwivelModel -- a polynomial fitted to this very corpus.
         TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
     }
 
@@ -58,6 +59,10 @@ namespace Basis.IK.Mocap
 
         // A pole flip: the joint jumps hard while the end effector is essentially still. Real human motion is
         // smooth, so any such jump is the solver's doing, not the human's.
+        // Swivel-model diagnostics. Static because SolveArm is static and this is a temporary probe.
+        internal static float s_swivelDiffSum, s_swivelSumSum;
+        internal static int s_swivelN;
+
         const float k_PopJointM = 0.05f;   // 5 cm of elbow/knee travel in one frame
         const float k_PopEffectorM = 0.01f; // while the hand/foot moved under 1 cm
 
@@ -361,6 +366,69 @@ namespace Basis.IK.Mocap
                     i.HintIsTracker = false;   // the job passes hintIsTracker = hasHint && !usedLookup
                     hintFlared = i.HintPosition;
                     hintRaw = shoulder + 0.5f * armLen * preFlare;
+                    break;
+                }
+                case BasisMocapHintSource.SwivelModel:
+                {
+                    // The elbow is confined to a CIRCLE, so predict the one angle that places it on that
+                    // circle rather than a 3-vector that does not lie on it. See BasisArmSwivelModel.
+                    //
+                    // The body frame is built from POSITIONS on purpose. A bone's local axes are a rig
+                    // convention (CMU's chest bone is not Unity's), so a frame taken from bone ROTATIONS
+                    // would not transfer. Shoulder-line and spine-direction are anatomy, and they do.
+                    Vector3 lSh = clip.Get(f, BasisMocapJoint.LeftUpperArm).Position;
+                    Vector3 rSh = clip.Get(f, BasisMocapJoint.RightUpperArm).Position;
+                    Vector3 neck = clip.Get(f, BasisMocapJoint.Neck).Position;
+                    Vector3 chest = clip.Get(f, BasisMocapJoint.Chest).Position;
+
+                    Vector3 bUp = (neck - chest).normalized;
+                    Vector3 bRight = (rSh - lSh);
+                    bRight = (bRight - bUp * Vector3.Dot(bRight, bUp)).normalized;
+                    Vector3 bFwd = Vector3.Cross(bRight, bUp);
+                    Vector3 bOut = isLeft ? -bRight : bRight;   // mirrored: +x is OUTWARD for both arms
+
+                    Vector3 s2h = truthHand - shoulder;
+                    var handLocal = new Unity.Mathematics.float3(
+                        Vector3.Dot(s2h, bOut) / armLen,
+                        Vector3.Dot(s2h, bUp) / armLen,
+                        Vector3.Dot(s2h, bFwd) / armLen);
+
+                    // Hand orientation RELATIVE TO ITS T-POSE, in the body frame. A BVH's rest pose has
+                    // identity rotations on every joint, so the T-pose divides out to nothing here -- but
+                    // the LIVE rig must use handRot * inverse(handTposeRot) or it is fitted to CMU's rig
+                    // and nothing else. Columns are the hand's own axes, written in the body frame.
+                    Vector3 hX = truthHandRot * Vector3.right;
+                    Vector3 hY = truthHandRot * Vector3.up;
+                    Vector3 hZ = truthHandRot * Vector3.forward;
+                    Unity.Mathematics.float3 InBody(Vector3 v) => new Unity.Mathematics.float3(
+                        Vector3.Dot(v, bOut), Vector3.Dot(v, bUp), Vector3.Dot(v, bFwd));
+                    var handOrient = new Unity.Mathematics.float3x3(InBody(hX), InBody(hY), InBody(hZ));
+
+                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, handOrient);
+                    if (isLeft) swivel = -swivel;   // un-mirror
+
+                    // DIAGNOSTIC: what IS the true swivel on this frame? A prediction that is right looks
+                    // different from one that is sign-flipped, and both look different from garbage.
+                    {
+                        Vector3 ax = s2h.normalized;
+                        Vector3 dn = -bUp;
+                        Vector3 uu = (dn - ax * Vector3.Dot(dn, ax)).normalized;
+                        Vector3 vv = Vector3.Cross(ax, uu);
+                        Vector3 rp = (truthElbow - shoulder);
+                        rp -= ax * Vector3.Dot(rp, ax);
+                        float trueSw = Mathf.Atan2(Vector3.Dot(rp, vv), Vector3.Dot(rp, uu));
+                        s_swivelDiffSum += Mathf.Abs(Mathf.DeltaAngle(swivel * Mathf.Rad2Deg, trueSw * Mathf.Rad2Deg));
+                        s_swivelSumSum += Mathf.Abs(Mathf.DeltaAngle(-swivel * Mathf.Rad2Deg, trueSw * Mathf.Rad2Deg));
+                        s_swivelN++;
+                    }
+
+                    Unity.Mathematics.float3 bend = BasisArmSwivelModel.BendDirection(
+                        new Unity.Mathematics.float3(s2h.x, s2h.y, s2h.z),
+                        new Unity.Mathematics.float3(bUp.x, bUp.y, bUp.z), swivel);
+
+                    i.HintPosition = shoulder + 0.5f * armLen * new Vector3(bend.x, bend.y, bend.z);
+                    i.HintWeight = true;
+                    i.HintIsTracker = false;
                     break;
                 }
                 default:

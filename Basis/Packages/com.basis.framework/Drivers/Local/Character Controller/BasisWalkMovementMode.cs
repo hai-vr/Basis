@@ -27,16 +27,7 @@ namespace Basis.Scripts.BasisCharacterController
                 ctx.UpdateCrouchBlend(ctx.CrouchBlendDelta);
             }
 
-            // Project head forward onto horizontal plane (avoids gimbal lock near ±90° pitch)
-            Quaternion headRot = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
-            Vector3 flatForward = headRot * Vector3.forward;
-            flatForward.y = 0f;
-            if (flatForward.sqrMagnitude < 0.0001f)
-            {
-                flatForward = -(headRot * Vector3.up);
-                flatForward.y = 0f;
-            }
-            Quaternion facing = Quaternion.LookRotation(flatForward.normalized, Vector3.up);
+            Quaternion facing = BasisLocalCharacterDriver.GetMovementFacing();
 
             Vector3 inputDir = new Vector3(ctx.MovementVector.x, 0, ctx.MovementVector.y).normalized;
 

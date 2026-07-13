@@ -5,6 +5,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
     /// <summary>
@@ -302,8 +303,37 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             Vector3 rotatedEyeOffset = targetRot * neutralEyeFromHead;
             Vector3 eyeWorld = tposeHeadWorld + rotatedEyeOffset;
 
+            // Pin the eye over the hips. This is what stops the eye's static forward offset ORBITING the neck
+            // every time you turn — yaw would otherwise sweep the camera sideways through an arc. The pin is
+            // right; what it also threw away was the pitch swing, which is put back immediately below.
             eyeWorld.x = X;
             eyeWorld.z = Z;
+
+            // The head pitches about the BASE OF THE NECK, not about itself, so the eye rides a lever arm and is
+            // carried FORWARD as the gaze tips down — look at your own feet and your eyes travel out over them.
+            // VR gets that for free (the HMD is a physical object on the same lever arm; the spine bend even has
+            // to SUPPRESS the resulting hunch when a chest tracker is present). Desktop had none of it: the gaze
+            // tipped, BasisCervicalSolveCore hunched the chest to follow, and the head stayed pinned over the
+            // hips — so the neck absorbed a translation the head should have made itself.
+            //
+            // Horizontal only, and that is not a shortcut: eye HEIGHT feeds CapturePlayerHeight through
+            // UnscaledDeviceCoord.y (see the note above), and a pitch-varying eye height would drive it straight
+            // into the avatar-rescale loop. The forward carry is the piece that was missing and the piece that is
+            // safe to add.
+            if (Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingEnabled.RawValue &&
+                BasisLocalBoneDriver.NeckControl != null)
+            {
+                BasisHeadPitchSwingInput swing;
+                swing.PitchDeg = rotationPitch;
+                swing.YawDeg = rotationYaw;
+                swing.EyeFromNeck = tposeEyeWorld - BasisLocalBoneDriver.NeckControl.TposeLocal.position;
+                swing.Strength = Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingStrength.RawValue;
+                swing.BackwardScale = Basis.BasisUI.BasisSettingsDefaults.DesktopHeadSwingBackward.RawValue;
+
+                BasisHeadPitchSwingCore.Solve(swing, out BasisHeadPitchSwingResult swung);
+                eyeWorld += swung.Offset;
+            }
+
             // Output transforms
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, eyeWorld);
             UnscaledDeviceCoord.rotation = targetRot;

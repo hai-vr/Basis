@@ -28,12 +28,21 @@ namespace UnityEngine.Animations.Rigging
         const float k_RollProjFadeStart = 0.10f;
         const float k_RollProjFadeFull = 0.25f;
 
-        // Confidence fade for the SWING BASIS itself -- see BuildSwingBasis. A projection magnitude is a sine, so
-        // 0.05 -> 0.20 means "no confidence within ~3 deg of vertical, full confidence past ~11.5 deg". Measured
-        // on the CMU corpus the buzzy clips sit at a 5th-percentile projection of 0.03-0.045, i.e. inside this
-        // window, while the clean clips sit at 0.19-0.28, i.e. outside it. The window is drawn from that data.
-        const float k_BasisFadeStart = 0.05f;
-        const float k_BasisFadeFull = 0.20f;
+        // Confidence fade for the SWING BASIS -- see BuildSwingBasis. The window is set by the reference frame's
+        // CONDITIONING, not by where its magnitude stops being denormal.
+        //
+        // downPole's magnitude is sin(theta), theta = the forearm's angle off vertical. But what the flare
+        // actually depends on is downPole's DIRECTION, and that direction amplifies any wobble in the arm by
+        // 1/sin(theta). Near vertical the reference frame does not merely get small -- IT SPINS. At theta = 12
+        // degrees (which is what a hanging, gently swaying arm measures) a 1-degree sway becomes a 5-degree swing
+        // of the axis every angle in this file is measured against.
+        //
+        // So the window is drawn from the amplification, not the magnitude: no confidence below 1/0.20 = 5x
+        // amplification (theta ~11.5 deg), full confidence once it is under 2x (theta ~30 deg). The first cut used
+        // 0.05 -> 0.20 -- chosen off the denormal guard rather than the conditioning -- and it handed FULL
+        // confidence to the idle standing pose, where the corpus measures the flare engaging at 0.89.
+        const float k_BasisFadeStart = 0.20f;
+        const float k_BasisFadeFull = 0.50f;
 
         // Confidence fade for the BEND's own stand-off from the limb axis -- the pole singularity. See ApplyFlare.
         // Same units (a sine): no confidence within ~3 deg of the limb axis, full past ~11.5 deg.
