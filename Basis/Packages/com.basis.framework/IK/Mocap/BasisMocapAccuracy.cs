@@ -36,6 +36,11 @@ namespace Basis.IK.Mocap
         // is not driving the solver properly and every other number here is meaningless.
         public float HandMaxM, FootMaxM;
 
+        // The cores report a solved pose BOTH as positions and as rotations. Rebuilding the joint from the
+        // reported rotations over fixed bone lengths must reproduce the reported position, or the two answers
+        // disagree and the temporal carry (which rides the rotations) is quietly solving a different limb.
+        public float RigidityMaxM;
+
         // Pole flips measured on REAL human motion: the elbow jumps while the hand barely moves.
         public int ElbowPops, KneePops;
     }
@@ -55,12 +60,47 @@ namespace Basis.IK.Mocap
         const float k_PopJointM = 0.05f;   // 5 cm of elbow/knee travel in one frame
         const float k_PopEffectorM = 0.01f; // while the hand/foot moved under 1 cm
 
+        // The PRE-IK limb, modelled the way the runtime actually produces it: a fixed bind pose riding the parent
+        // (chest for an arm, hips for a leg), rebuilt from scratch every frame, with IK layered on top. That is
+        // what the Animator does -- it re-evaluates the base layer each frame, so the IK constraint never sees
+        // its own previous output as input.
+        //
+        // Two wrong models were tried first and both corrupt the measurement:
+        //   - Carrying the solved pose forward: one bad frame poisons every frame after it. A single knee
+        //     inversion at full extension compounded into 74 cm of foot error by the end of a walk cycle.
+        //   - Seeding from TRUTH each frame: with no hint the two-bone core preserves the CURRENT bend plane,
+        //     so handing it the true elbow makes it trivially "right". A circular measurement that proves nothing.
         struct Limb
         {
-            public Vector3 Root, Mid, Tip;
-            public Quaternion RootRot, MidRot;
+            public Quaternion RootLocal, MidLocal;         // bind pose relative to the parent
+            public Vector3 UpperDirLocal, LowerDirLocal;   // bone axis in its own bone's frame; a bone is rigid
+            public float UpperLen, LowerLen;
             public bool Seeded;
         }
+
+        static void SeedLimb(ref Limb l, Quaternion parentRot, Vector3 root, Vector3 mid, Vector3 tip, Quaternion rootRot, Quaternion midRot)
+        {
+            l.RootLocal = Quaternion.Inverse(parentRot) * rootRot;
+            l.MidLocal = Quaternion.Inverse(rootRot) * midRot;
+            l.UpperLen = Vector3.Distance(root, mid);
+            l.LowerLen = Vector3.Distance(mid, tip);
+            l.UpperDirLocal = Quaternion.Inverse(rootRot) * (mid - root).normalized;
+            l.LowerDirLocal = Quaternion.Inverse(midRot) * (tip - mid).normalized;
+            l.Seeded = true;
+        }
+
+        // The animated (pre-IK) pose for this frame.
+        static void AnimatedPose(in Limb l, Quaternion parentRot, Vector3 root,
+                                 out Quaternion rootRot, out Quaternion midRot, out Vector3 mid, out Vector3 tip)
+        {
+            rootRot = parentRot * l.RootLocal;
+            midRot = rootRot * l.MidLocal;
+            mid = root + (rootRot * l.UpperDirLocal) * l.UpperLen;
+            tip = mid + (midRot * l.LowerDirLocal) * l.LowerLen;
+        }
+
+        // Rebuild a joint from a pair of solved rotations over the fixed bone lengths.
+        static Vector3 RebuildMid(in Limb l, Vector3 root, Quaternion rootRot) => root + (rootRot * l.UpperDirLocal) * l.UpperLen;
 
         public static BasisMocapAccuracySummary Run(BasisMotionClip clip, BasisMocapHintSource hint, string csvPath)
         {
@@ -85,7 +125,7 @@ namespace Basis.IK.Mocap
                 var kneeErr = new List<float>();
                 float armLen = 0f, legLen = 0f;
                 float dt = Mathf.Max(clip.FrameTime, 1e-4f);
-                var csv = new StringBuilder("clip,frame,limb,err_m,truth_x,truth_y,truth_z,solved_x,solved_y,solved_z,reach\n");
+                var csv = new StringBuilder("clip,frame,limb,err_m,truth_x,truth_y,truth_z,solved_x,solved_y,solved_z,reach,eff_err_m,axis\n");
 
                 var arms = new Limb[2];
                 var legs = new Limb[2];
@@ -114,12 +154,14 @@ namespace Basis.IK.Mocap
                     {
                         bool isLeft = side == 0;
                         SolveArm(clip, f, isLeft, ref arms[side], bendFrame, chestRot, playerUp, hint, lookup, dt,
-                                 out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float aLen);
+                                 out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float aLen,
+                                 out float armRigid, out byte armAxis);
                         armLen = aLen;
+                        s.RigidityMaxM = Mathf.Max(s.RigidityMaxM, armRigid);
                         float e = Vector3.Distance(truthElbow, solvedElbow);
                         elbowErr.Add(e);
                         s.HandMaxM = Mathf.Max(s.HandMaxM, handErr);
-                        Append(csv, clip.Name, f, isLeft ? "leftArm" : "rightArm", e, truthElbow, solvedElbow, reach);
+                        Append(csv, clip.Name, f, isLeft ? "leftArm" : "rightArm", e, truthElbow, solvedElbow, reach, handErr, armAxis);
 
                         if (side == 0 && f > 0)
                         {
@@ -131,12 +173,14 @@ namespace Basis.IK.Mocap
                         if (side == 0) { prevElbow0 = solvedElbow; if (f == 0) prevHand0 = clip.Get(0, BasisMocapJoint.LeftHand).Position; }
 
                         SolveLeg(clip, f, isLeft, ref legs[side], hipsRot, hint, dt,
-                                 out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float lReach, out float lLen);
+                                 out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float lReach, out float lLen,
+                                 out float legRigid, out byte legAxis);
                         legLen = lLen;
+                        s.RigidityMaxM = Mathf.Max(s.RigidityMaxM, legRigid);
                         float k = Vector3.Distance(truthKnee, solvedKnee);
                         kneeErr.Add(k);
                         s.FootMaxM = Mathf.Max(s.FootMaxM, footErr);
-                        Append(csv, clip.Name, f, isLeft ? "leftLeg" : "rightLeg", k, truthKnee, solvedKnee, lReach);
+                        Append(csv, clip.Name, f, isLeft ? "leftLeg" : "rightLeg", k, truthKnee, solvedKnee, lReach, footErr, legAxis);
 
                         if (side == 0 && f > 0)
                         {
@@ -190,7 +234,8 @@ namespace Basis.IK.Mocap
 
         static void SolveArm(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion bendFrame, Quaternion chestRot,
                              Vector3 playerUp, BasisMocapHintSource hint, NativeArray<Vector3> lookup, float dt,
-                             out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float armLen)
+                             out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float armLen,
+                             out float rigidity, out byte axis)
         {
             BasisMocapJoint jS = isLeft ? BasisMocapJoint.LeftUpperArm : BasisMocapJoint.RightUpperArm;
             BasisMocapJoint jE = isLeft ? BasisMocapJoint.LeftLowerArm : BasisMocapJoint.RightLowerArm;
@@ -204,19 +249,23 @@ namespace Basis.IK.Mocap
 
             // The shoulder is handed to the solver from truth: the torso is not what is under test here, and
             // letting torso error leak in would confound the one number we actually want -- the elbow.
-            CarryLimb(ref limb, shoulder, clip.Get(f, jS).Rotation, clip.Get(f, jE).Rotation, truthElbow, truthHand);
+            if (!limb.Seeded) SeedLimb(ref limb, chestRot, shoulder, truthElbow, truthHand, clip.Get(f, jS).Rotation, clip.Get(f, jE).Rotation);
+            AnimatedPose(limb, chestRot, shoulder, out Quaternion animRootRot, out Quaternion animMidRot, out Vector3 elbow, out Vector3 hand);
 
             BasisArmSolveInput i = default;
             i.Shoulder = shoulder;
-            i.Elbow = limb.Mid;
-            i.Hand = limb.Tip;
-            i.RootRotation = limb.RootRot;
-            i.MidRotation = limb.MidRot;
+            i.Elbow = elbow;
+            i.Hand = hand;
+            i.RootRotation = animRootRot;
+            i.MidRotation = animMidRot;
             i.TargetPosition = truthHand;
             i.TargetRotation = truthHandRot;
             i.TargetOffset = Quaternion.identity;
             i.PlayerUp = playerUp;
-            i.HintMaxStepDeg = k_HintRateDegPerSec * dt;   // the live rate limit
+            // Unclamped: the rate limiter exists to bound the swivel change from the PREVIOUS SOLVE, and this is
+            // a memoryless solve off the bind pose. Applying it here would throttle the solver's reach to its own
+            // hint and be read as pole error that the live rig does not have.
+            i.HintMaxStepDeg = float.MaxValue;
 
             switch (hint)
             {
@@ -242,11 +291,10 @@ namespace Basis.IK.Mocap
             solvedElbow = r.ElbowSolved;
             handErr = Vector3.Distance(r.HandSolved, truthHand);
             reach = r.ReachRatio;
+            axis = r.AxisSource;
 
-            limb.Mid = r.ElbowSolved;
-            limb.Tip = r.HandSolved;
-            limb.RootRot = r.RootRotationSolved;
-            limb.MidRot = r.MidRotationSolved;
+            // Nothing is carried: next frame rebuilds the pre-IK arm from the bind pose again.
+            rigidity = Vector3.Distance(RebuildMid(limb, shoulder, r.RootRotationSolved), r.ElbowSolved);
         }
 
         // Mirror of BasisFullIKConstraintJob.ComputeArmBendFromLookup. Same lock-step caveat as ArmBendFrame.
@@ -271,7 +319,8 @@ namespace Basis.IK.Mocap
 
         static void SolveLeg(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion hipsRot,
                              BasisMocapHintSource hint, float dt,
-                             out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float reach, out float legLen)
+                             out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float reach, out float legLen,
+                             out float rigidity, out byte axis)
         {
             BasisMocapJoint jH = isLeft ? BasisMocapJoint.LeftUpperLeg : BasisMocapJoint.RightUpperLeg;
             BasisMocapJoint jK = isLeft ? BasisMocapJoint.LeftLowerLeg : BasisMocapJoint.RightLowerLeg;
@@ -283,14 +332,15 @@ namespace Basis.IK.Mocap
             Quaternion truthFootRot = clip.Get(f, jF).Rotation;
             legLen = Vector3.Distance(hip, truthKnee) + Vector3.Distance(truthKnee, truthFoot);
 
-            CarryLimb(ref limb, hip, clip.Get(f, jH).Rotation, clip.Get(f, jK).Rotation, truthKnee, truthFoot);
+            if (!limb.Seeded) SeedLimb(ref limb, hipsRot, hip, truthKnee, truthFoot, clip.Get(f, jH).Rotation, clip.Get(f, jK).Rotation);
+            AnimatedPose(limb, hipsRot, hip, out Quaternion animRootRot, out Quaternion animMidRot, out Vector3 knee, out Vector3 foot);
 
             BasisLegSolveInput i = default;
             i.Root = hip;
-            i.Mid = limb.Mid;
-            i.Tip = limb.Tip;
-            i.RootRotation = limb.RootRot;
-            i.MidRotation = limb.MidRot;
+            i.Mid = knee;
+            i.Tip = foot;
+            i.RootRotation = animRootRot;
+            i.MidRotation = animMidRot;
             i.TargetPosition = truthFoot;
             i.TargetRotation = truthFootRot;
             i.TargetOffset = Quaternion.identity;
@@ -310,38 +360,17 @@ namespace Basis.IK.Mocap
             solvedKnee = r.KneeSolved;
             footErr = Vector3.Distance(r.FootSolved, truthFoot);
             reach = r.ReachRatio;
-
-            limb.Mid = r.KneeSolved;
-            limb.Tip = r.FootSolved;
-            limb.RootRot = r.RootRotationSolved;
-            limb.MidRot = r.MidRotationSolved;
+            axis = r.AxisSource;
+            rigidity = Vector3.Distance(RebuildMid(limb, hip, r.RootRotationSolved), r.KneeSolved);
         }
 
-        // Ride the parent, then let IK correct -- exactly what a parented rig does. Without this the limb would
-        // be re-seeded from truth every frame and the temporal feedback loop (rate limiter, pole commit ramps)
-        // would never be exercised, which is where the pole flips actually live.
-        static void CarryLimb(ref Limb limb, Vector3 root, Quaternion truthRootRot, Quaternion truthMidRot, Vector3 truthMid, Vector3 truthTip)
-        {
-            if (!limb.Seeded)
-            {
-                limb.Root = root; limb.Mid = truthMid; limb.Tip = truthTip;
-                limb.RootRot = truthRootRot; limb.MidRot = truthMidRot;
-                limb.Seeded = true;
-                return;
-            }
-            Vector3 delta = root - limb.Root;
-            limb.Mid += delta;
-            limb.Tip += delta;
-            limb.Root = root;
-        }
-
-        static void Append(StringBuilder csv, string clip, int f, string limb, float err, Vector3 truth, Vector3 solved, float reach)
+        static void Append(StringBuilder csv, string clip, int f, string limb, float err, Vector3 truth, Vector3 solved, float reach, float effErr, byte axis)
         {
             csv.Append(clip).Append(',').Append(f).Append(',').Append(limb).Append(',')
                .Append(F(err)).Append(',')
                .Append(F(truth.x)).Append(',').Append(F(truth.y)).Append(',').Append(F(truth.z)).Append(',')
                .Append(F(solved.x)).Append(',').Append(F(solved.y)).Append(',').Append(F(solved.z)).Append(',')
-               .Append(F(reach)).Append('\n');
+               .Append(F(reach)).Append(',').Append(F(effErr)).Append(',').Append(axis).Append('\n');
         }
 
         static string F(float v) => float.IsNaN(v) ? "nan" : v.ToString("0.######", CultureInfo.InvariantCulture);
@@ -355,8 +384,19 @@ namespace Basis.IK.Mocap
 
             // The hand/foot are COMMANDED. If the solver cannot hit a target it was handed, nothing else here
             // means anything, so this is checked first and hard.
+            // The ARM solve ends in a reach-preserving bisection, so it must always land on the hand target it
+            // was handed. If it does not, the harness is not driving the solve and nothing below means anything.
             if (s.HandMaxM > 0.01f) return (false, $"hand missed its own target by {s.HandMaxM * 100f:F1} cm -- harness is not driving the solve");
-            if (s.FootMaxM > 0.01f) return (false, $"foot missed its own target by {s.FootMaxM * 100f:F1} cm -- harness is not driving the solve");
+
+            // The LEG has no such bisection: its hint is applied as a weight-scaled quaternion and is documented
+            // as not reach-preserving. So foot slip is a SOLVER PROPERTY to be measured, not a harness fault --
+            // but 5 cm of it would be a visible foot slide on a foot tracker, so it is still bounded.
+            if (s.FootMaxM > 0.05f)
+                return (false, $"the knee hint slid the foot {s.FootMaxM * 100f:F1} cm off its target -- the leg hint is not reach-preserving");
+
+            if (s.RigidityMaxM > 0.002f)
+                return (false, $"the solved rotations rebuild the joint {s.RigidityMaxM * 1000f:F1} mm away from the solved position -- " +
+                               "the core's rotation and position outputs disagree");
 
             if (s.Hint == BasisMocapHintSource.TruthJoint)
             {
