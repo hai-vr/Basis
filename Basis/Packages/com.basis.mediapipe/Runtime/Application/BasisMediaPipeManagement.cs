@@ -37,6 +37,7 @@ namespace Basis.MediaPipe
         private Transform _hipsBone, _headBone, _leftUpperArm, _leftLowerArm, _leftHandBone, _rightUpperArm, _rightLowerArm, _rightHandBone;
         private float _leftUpperLen, _leftForeLen, _rightUpperLen, _rightForeLen;
         private bool _armRigValid;
+        private BasisAvatar _armRigAvatar;
         private bool _armPosePathActive;
         private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
@@ -181,10 +182,32 @@ namespace Basis.MediaPipe
             CalibrateHead();
         }
 
+        /// <summary>
+        /// Rebuilds the cached arm rig when the avatar changes. Keyed on the avatar instance so a
+        /// mid-session enable (hand tracking is off by default, so it is always switched on after the
+        /// avatar has already loaded and OnLocalAvatarChanged has been and gone) still gets a rig.
+        /// </summary>
+        private bool EnsureArmRig()
+        {
+            BasisAvatar avatar = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.BasisAvatar : null;
+            if (avatar == null)
+            {
+                _armRigValid = false;
+                _armRigAvatar = null;
+                return false;
+            }
+            if (!_armRigValid || _armRigAvatar != avatar)
+            {
+                CacheArmRig();
+            }
+            return _armRigValid;
+        }
+
         private void CacheArmRig()
         {
             _armRigValid = false;
             BasisAvatar avatar = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.BasisAvatar : null;
+            _armRigAvatar = avatar;
             Animator anim = avatar != null ? avatar.Animator : null;
             if (anim == null || !anim.isHuman) return;
 
@@ -223,7 +246,7 @@ namespace Basis.MediaPipe
         private bool TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
         {
             rig = default;
-            if (!_armRigValid || BasisLocalPlayer.Instance == null) return false;
+            if (!EnsureArmRig() || BasisLocalPlayer.Instance == null) return false;
             if (_hipsBone == null || _leftUpperArm == null || _rightUpperArm == null) return false;
 
             Transform root = BasisLocalPlayer.Instance.transform;
@@ -437,17 +460,7 @@ namespace Basis.MediaPipe
                 return;
             }
 
-            BasisLocalBoneControl baseControl = BasisLocalBoneDriver.HipsControl != null ? BasisLocalBoneDriver.HipsControl : BasisLocalBoneDriver.EyeControl;
-            if (baseControl == null)
-            {
-                return;
-            }
-
-            if (_handConverter.TryGetHandTarget(landmarks, left, out Vector3 positionOffset, out Quaternion rotationOffset))
-            {
-                var basePose = baseControl.OutGoingData;
-                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(basePose.position + basePose.rotation * positionOffset, basePose.rotation * rotationOffset);
-            }
+            RemoveTracker(handRole);
         }
 
         public void CalibrateHead()
