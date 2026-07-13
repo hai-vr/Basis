@@ -157,6 +157,62 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void CompositorBudgetWarningIsGloballyThrottled()
+        {
+            long nextLogTimestamp = 0;
+            int suppressedCount = 0;
+
+            Assert.That(
+                BasisAnimatedImagePlayer.ShouldLogCompositorBudgetWarning(
+                    100,
+                    30,
+                    ref nextLogTimestamp,
+                    ref suppressedCount,
+                    out int firstSuppressed
+                ),
+                Is.True
+            );
+            Assert.That(firstSuppressed, Is.EqualTo(0));
+            Assert.That(nextLogTimestamp, Is.EqualTo(130));
+
+            Assert.That(
+                BasisAnimatedImagePlayer.ShouldLogCompositorBudgetWarning(
+                    101,
+                    30,
+                    ref nextLogTimestamp,
+                    ref suppressedCount,
+                    out _
+                ),
+                Is.False
+            );
+            Assert.That(
+                BasisAnimatedImagePlayer.ShouldLogCompositorBudgetWarning(
+                    129,
+                    30,
+                    ref nextLogTimestamp,
+                    ref suppressedCount,
+                    out _
+                ),
+                Is.False
+            );
+            Assert.That(suppressedCount, Is.EqualTo(2));
+
+            Assert.That(
+                BasisAnimatedImagePlayer.ShouldLogCompositorBudgetWarning(
+                    130,
+                    30,
+                    ref nextLogTimestamp,
+                    ref suppressedCount,
+                    out int repeatedSuppressed
+                ),
+                Is.True
+            );
+            Assert.That(repeatedSuppressed, Is.EqualTo(2));
+            Assert.That(suppressedCount, Is.EqualTo(0));
+            Assert.That(nextLogTimestamp, Is.EqualTo(160));
+        }
+
+        [Test]
         public void CompositorPressureStartsClosestAnimationAfterReleasingFarthest()
         {
             Camera previousCamera = BasisLocalCameraDriver.CameraInstance;

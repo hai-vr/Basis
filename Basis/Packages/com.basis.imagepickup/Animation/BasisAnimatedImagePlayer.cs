@@ -15,6 +15,9 @@ namespace Basis.ImagePickup
     {
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Rendering;
 
+        private static long _nextCompositorBudgetWarningTimestamp;
+        private static int _suppressedCompositorBudgetWarnings;
+
         private BasisAnimatedImageData _data;
         private BasisNativeAnimationPayload _reloadPayload;
         private BasisBurstAnimationDecodeRequest _reloadRequest;
@@ -37,7 +40,6 @@ namespace Basis.ImagePickup
         private bool _depthVisibilityValid;
         private bool _depthVisibilityFromGpu;
         private bool _preferCpuFallback;
-        private bool _compositorBudgetDeferredLogged;
         private bool _reloadDecodeSlotHeld;
         private bool _reloadFailed;
         private bool _hasAnyAlpha;
@@ -447,10 +449,7 @@ namespace Basis.ImagePickup
             }
 
             if (OutputTexture != null)
-            {
-                _compositorBudgetDeferredLogged = false;
                 return true;
-            }
             DisposeCanvases();
             return false;
         }
@@ -469,7 +468,6 @@ namespace Basis.ImagePickup
                 {
                     _cpuCanvas = new BasisAnimatedImageCpuCanvas(_data);
 				_displayTextureBound = false;
-                _compositorBudgetDeferredLogged = false;
                 BasisDebug.LogWarning("Animated image switched to the CPU compositor fallback.", LogTag);
             }
             catch (BasisAnimationMemoryBudgetException exception)
@@ -490,10 +488,63 @@ namespace Basis.ImagePickup
 
         private void LogCompositorBudgetDeferred(string reason)
         {
-            if (_compositorBudgetDeferredLogged)
+            long intervalTicks = Math.Max(
+                1L,
+                (long)(
+                    System.Diagnostics.Stopwatch.Frequency
+                    * BasisImagePickupSettings.AnimationCompositorBudgetWarningIntervalSeconds
+                )
+            );
+            long timestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (
+                !ShouldLogCompositorBudgetWarning(
+                    timestamp,
+                    intervalTicks,
+                    ref _nextCompositorBudgetWarningTimestamp,
+                    ref _suppressedCompositorBudgetWarnings,
+                    out int suppressedSinceLastLog
+                )
+            )
+            {
                 return;
-            _compositorBudgetDeferredLogged = true;
-            BasisDebug.LogWarning($"Animated image compositor deferred until memory is available: {reason}", LogTag);
+            }
+
+            string message = $"Animated image compositor deferred until memory is available: {reason}";
+            if (suppressedSinceLastLog > 0)
+            {
+                message +=
+                    $" Repeated attempts suppressed since the last warning: "
+                    + $"{suppressedSinceLastLog:N0}.";
+            }
+            BasisDebug.LogWarning(message, LogTag);
+        }
+
+        internal static bool ShouldLogCompositorBudgetWarning(
+            long timestamp,
+            long intervalTicks,
+            ref long nextLogTimestamp,
+            ref int suppressedCount,
+            out int suppressedSinceLastLog
+        )
+        {
+            if (intervalTicks <= 0)
+                throw new ArgumentOutOfRangeException(nameof(intervalTicks));
+
+            suppressedSinceLastLog = 0;
+            if (timestamp < nextLogTimestamp)
+            {
+                if (suppressedCount < int.MaxValue)
+                    suppressedCount++;
+                return false;
+            }
+
+            suppressedSinceLastLog = suppressedCount;
+            suppressedCount = 0;
+            nextLogTimestamp =
+                timestamp > long.MaxValue - intervalTicks
+                    ? long.MaxValue
+                    : timestamp + intervalTicks;
+            return true;
         }
 
         internal void ReleaseCompositorForMemoryPressure()

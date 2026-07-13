@@ -56,6 +56,7 @@ namespace Basis.ImagePickup
         public const int MaxAnimationTransitionsPerFrame = 256;
         public const long MaxAnimationCompositedPixelsPerFrame = 32L * 1024L * 1024L;
 		public const float AnimationOffscreenResourceReleaseSeconds = 10f;
+        public const float AnimationCompositorBudgetWarningIntervalSeconds = 30f;
         public const long MaxResidentAnimationNativeBytes = 2L * 1024L * 1024L * 1024L;
         public const long MaxResidentAnimationPayloadBytes = 1L * 1024L * 1024L * 1024L;
         public const long MaxResidentAnimationCompositorBytes =
