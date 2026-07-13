@@ -205,39 +205,9 @@ namespace Basis.Scripts.Animator_Driver
         /// Velocity is computed in hips-local space, sanitized for NaN/Inf, and smoothed using an exponential spring-like filter.
         /// Angular velocity is derived from hips delta rotation and interpolated to reduce jitter.
         /// </remarks>
-        /// <summary>
-        /// Do trackers actually pose the LEGS? The animator is suppressed only if they do.
-        ///
-        /// This used to test BasisAvatarIKStageCalibration.HasFBIKTrackers, which is true for ANY FBIK tracker --
-        /// chest, shoulders, elbows, hips included. None of those pose the legs, but suppressing the animator for
-        /// one of them still kills the WALK CYCLE. And leg IK correctly disables itself during locomotion (foot IK
-        /// blends out so the animation can take over). So with, say, only a chest tracker: the animator is off
-        /// AND the leg IK is off, and the legs simply FREEZE mid-stride with no driver at all.
-        ///
-        /// That went unnoticed while the only things producing chest/shoulder/elbow trackers were real FBT rigs --
-        /// which have leg trackers too, so the suppression happened to be right for the wrong reason. MediaPipe
-        /// spawns chest/shoulder/elbow trackers with no leg trackers anywhere, which is what finally exposed it.
-        ///
-        /// A leg question gets a leg answer. Read the bone controls live so it self-heals on dropout/reconnect.
-        /// </summary>
-        private static bool HasLegFBIKTrackers()
-        {
-            return IsLegTracked(BasisLocalBoneDriver.LeftFootControl)
-                || IsLegTracked(BasisLocalBoneDriver.RightFootControl)
-                || IsLegTracked(BasisLocalBoneDriver.LeftLowerLegControl)
-                || IsLegTracked(BasisLocalBoneDriver.RightLowerLegControl)
-                || IsLegTracked(BasisLocalBoneDriver.LeftUpperLegControl)
-                || IsLegTracked(BasisLocalBoneDriver.RightUpperLegControl);
-        }
-
-        private static bool IsLegTracked(BasisLocalBoneControl control)
-        {
-            return control != null && control.HasTracked == BasisHasTracked.HasTracker;
-        }
-
         public void SimulateAnimator(float DeltaTime)
         {
-            if (BasisLocalAvatarDriver.CurrentlyTposing || HasLegFBIKTrackers() || PauseAnimator)
+            if (BasisLocalAvatarDriver.CurrentlyTposing || BasisAvatarIKStageCalibration.HasLegFBIKTrackers || PauseAnimator)
             {
                 StopAllVariables();
                 return;
@@ -326,7 +296,10 @@ namespace Basis.Scripts.Animator_Driver
         /// </summary>
         private void JustJumped()
         {
-            if (BasisAvatarIKStageCalibration.HasFBIKTrackers && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue)
+            // LEG trackers, not ANY tracker: the jump animation poses the LEGS, so only a leg tracker has standing
+            // to veto it. A chest/shoulder/elbow tracker (MediaPipe spawns all three) would otherwise silence the
+            // jump animation while leaving nothing to drive the legs.
+            if (BasisAvatarIKStageCalibration.HasLegFBIKTrackers && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue)
             {
                 return;
             }
@@ -339,7 +312,8 @@ namespace Basis.Scripts.Animator_Driver
         /// </summary>
         private void JustLanded()
         {
-            if (BasisAvatarIKStageCalibration.HasFBIKTrackers && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue)
+            // As JustJumped: the landing animation poses the LEGS, so only a leg tracker gets to veto it.
+            if (BasisAvatarIKStageCalibration.HasLegFBIKTrackers && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue)
             {
                 return;
             }

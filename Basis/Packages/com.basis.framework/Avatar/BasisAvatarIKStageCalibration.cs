@@ -115,6 +115,44 @@ namespace Basis.Scripts.Avatar
         /// If Any trackers are actively connected to the IK system
         /// </summary>
         public static bool HasFBIKTrackers = false;
+
+        /// <summary>
+        /// Do trackers actually pose the LEGS?
+        ///
+        /// HasFBIKTrackers is a WHOLE-BODY flag -- it is true for a chest, shoulder, elbow or hips tracker just as
+        /// readily as for a foot. Asking it a LEG question gives the wrong answer, and the failure is silent and
+        /// severe: the animator suppresses the walk cycle "because we're in FBT", while leg IK simultaneously
+        /// disables itself during locomotion (so the animation can take over) -- and the legs end up with NO driver
+        /// at all. They freeze mid-stride.
+        ///
+        /// That went unnoticed for as long as the only things producing chest/shoulder/elbow trackers were real FBT
+        /// rigs, which carry leg trackers too -- so the suppression happened to be right, for the wrong reason.
+        /// MediaPipe spawns chest/shoulder/elbow trackers with no leg trackers anywhere, which is what exposed it.
+        ///
+        /// A leg question gets a leg answer. Read live so it self-heals on tracker dropout/reconnect.
+        /// </summary>
+        public static bool HasLegFBIKTrackers =>
+               IsRoleTracked(BasisLocalBoneDriver.LeftFootControl)
+            || IsRoleTracked(BasisLocalBoneDriver.RightFootControl)
+            || IsRoleTracked(BasisLocalBoneDriver.LeftLowerLegControl)
+            || IsRoleTracked(BasisLocalBoneDriver.RightLowerLegControl)
+            || IsRoleTracked(BasisLocalBoneDriver.LeftUpperLegControl)
+            || IsRoleTracked(BasisLocalBoneDriver.RightUpperLegControl);
+
+        /// <summary>
+        /// Is the PELVIS specifically tracker-driven?
+        ///
+        /// Distinct from HasLegFBIKTrackers on purpose: a hip tracker moves the leg ROOT but does not pose the legs,
+        /// so it should not silence the walk cycle. It DOES make the pelvis authoritative, so anything that
+        /// synthesises pelvis motion (the landing hip-dip, gait bob/sway/pelvis-rotation) must stand down or it
+        /// fights the user's real body.
+        /// </summary>
+        public static bool HasHipsFBIKTracker => IsRoleTracked(BasisLocalBoneDriver.HipsControl);
+
+        private static bool IsRoleTracked(BasisLocalBoneControl control)
+        {
+            return control != null && control.HasTracked == BasisHasTracked.HasTracker;
+        }
         /// <summary>
         /// Builds a tracker→role assignment from the player's T-pose constellation alone.
         /// The avatar is no longer the source of truth for "where should this tracker be";

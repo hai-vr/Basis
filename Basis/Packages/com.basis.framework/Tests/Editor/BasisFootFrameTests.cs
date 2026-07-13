@@ -1,3 +1,4 @@
+using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -352,6 +353,137 @@ namespace Basis.Tests.IK
 
             Assert.IsFalse(nan < 0.5f, "the trap: NaN < x is false, so 'reject if bad' FAILS OPEN on NaN");
             Assert.IsTrue(!(nan > 0.5f), "the fix: !(good > x) is true for NaN, so it lands in the reject branch");
+        }
+
+        // ── 4. THE CALIBRATION-OFFSET ROUND TRIP ─────────────────────────────────────────────────────────────
+        //
+        // `data.LeftFootRotation` is a field with TWO incompatible meanings and nothing in the type system to tell
+        // them apart:
+        //   - the TRACKER path writes a bone-CONTROL rotation, and SolveTwoBone's `target * targetOffset` is what
+        //     converts it into the bone's frame. Correct, and load-bearing.
+        //   - the FOOT DRIVER writes an already-finished BONE rotation. That same multiply is then pure surplus,
+        //     and the foot lands at footRot*offset -- wrong by a whole calibrated rotation.
+        //
+        // Because the offset is calibrated PER AVATAR, the symptom is a different wrong angle on every rig, which
+        // reads like a tuning problem rather than a frame bug. That is precisely how it survived: it does not look
+        // like a bug, it looks like bad numbers. (The same double-offset was found in MediaPipe's hands, where the
+        // producer likewise baked the bone's rest rotation into what it handed the tracker.)
+        //
+        // The rule these gates lock down: WHATEVER WE HAND THE SOLVE, IT MUST SURVIVE THE SOLVE'S OWN MULTIPLY.
+
+        // A per-avatar calibration offset is an arbitrary rotation -- it maps a tracker/landmark frame onto
+        // whatever axes this particular rig gave its foot bone. These stand in for "several different rigs".
+        private static readonly Quaternion[] k_Offsets =
+        {
+            Quaternion.identity,
+            Quaternion.Euler(0f, 0f, 90f),
+            Quaternion.Euler(90f, 0f, 0f),
+            Quaternion.Euler(-73f, 14f, 122f),
+            Quaternion.Euler(180f, 0f, 0f),
+        };
+
+        private static readonly Quaternion[] k_BoneRotations =
+        {
+            Quaternion.identity,
+            Quaternion.Euler(12f, 47f, -8f),
+            Quaternion.Euler(-31f, 160f, 5f),
+            Quaternion.Euler(3f, -120f, 44f),
+        };
+
+        private static bool IsSentinel(Quaternion q) => q.x == 0f && q.y == 0f && q.z == 0f && q.w == 0f;
+
+        /// <summary>
+        /// THE CONTRACT. SolveTwoBone will multiply whatever we give it by the per-avatar offset. So the value we
+        /// hand over, once that multiply has happened, must be the bone rotation we actually meant:
+        ///
+        ///     (footRot * offset^-1) * offset  ==  footRot
+        ///
+        /// Tolerance is 0.5 degrees: an inverse plus two quaternion multiplies in float32 leaves ~0.1 deg of
+        /// round-trip noise. A real double-offset is tens of degrees (see the legacy gate below), so this is ~2
+        /// orders of magnitude clear of the defect it guards -- loose enough not to be flaky, nowhere near loose
+        /// enough to let the bug back through.
+        /// </summary>
+        [Test]
+        public void FootTargetRotation_SurvivesTheSolvesOwnOffsetMultiply()
+        {
+            foreach (Quaternion bone in k_BoneRotations)
+            {
+                foreach (Quaternion offset in k_Offsets)
+                {
+                    Quaternion target = BasisLocalRigDriver.SafeFootTargetRotation(bone, offset);
+                    Assert.IsFalse(IsSentinel(target), $"valid inputs must not degrade to the sentinel (offset={offset.eulerAngles})");
+
+                    // Exactly what SolveTwoBone does to the target we just handed it.
+                    Quaternion solved = target * offset;
+
+                    Assert.Less(Quaternion.Angle(solved, bone), 0.5f,
+                        $"the offset did not cancel: bone={bone.eulerAngles} offset={offset.eulerAngles} solved={solved.eulerAngles}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// LEGACY GATE -- proves the test above has teeth.
+        ///
+        /// If someone "simplifies" the pre-cancellation away and hands the bone rotation straight over, the result
+        /// is wrong by exactly the calibration offset. This asserts that the naive version really is badly wrong,
+        /// so the round-trip gate cannot pass vacuously (e.g. if every sample offset were identity). A revert then
+        /// fails loudly, with a reason, instead of silently reintroducing a bug that took a full day to find.
+        /// </summary>
+        [Test]
+        public void FootTargetRotation_NaiveVersionIsWrongByExactlyTheOffset()
+        {
+            Quaternion bone = Quaternion.Euler(12f, 47f, -8f);
+            Quaternion offset = Quaternion.Euler(0f, 0f, 90f);
+
+            Quaternion naive = bone * offset;             // no pre-cancellation: what the bug produced
+            Quaternion errorIntroduced = Quaternion.Inverse(bone) * naive;
+
+            Assert.Greater(Quaternion.Angle(naive, bone), 45f,
+                "the naive path must be badly wrong -- if it isn't, the round-trip gate above is vacuous");
+            Assert.Less(Quaternion.Angle(errorIntroduced, offset), 0.5f,
+                "and the error introduced is precisely the calibration offset -- that is the double-offset signature");
+        }
+
+        /// <summary>
+        /// A degenerate OFFSET must degrade to the sentinel, never to NaN.
+        ///
+        /// A serialized Quaternion defaults to (0,0,0,0) -- NOT identity -- and Quaternion.Inverse divides by the
+        /// squared norm, so inverting it yields NaN. The window is real: the offset is only assigned when the avatar
+        /// has that foot mapped, and recalibration/avatar-swap rewrite it live. And a NaN here is not a glitch, it
+        /// is terminal: a NaN'd bone transform in Unity PERSISTS, so the rig dies and never recovers.
+        /// </summary>
+        [Test]
+        public void FootTargetRotation_DegenerateOffset_DegradesToSentinelNotNaN()
+        {
+            Quaternion bone = Quaternion.Euler(12f, 47f, -8f);
+
+            var zero = new Quaternion(0f, 0f, 0f, 0f);
+            var nan = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
+
+            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(bone, zero)),
+                "a zero-quaternion offset (the serialized default) must fall back to the sentinel");
+            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(bone, nan)),
+                "a NaN offset must fall back to the sentinel -- this is the guard whose `<` form failed open");
+        }
+
+        /// <summary>
+        /// A degenerate FOOT ROTATION must also degrade to the sentinel. The offset can be perfectly valid and the
+        /// producer still hand us garbage (e.g. a LookRotation built on a collapsed frame), so guarding the input
+        /// alone is not enough -- the RESULT has to be checked too.
+        /// </summary>
+        [Test]
+        public void FootTargetRotation_DegenerateFootRotation_DegradesToSentinelNotNaN()
+        {
+            Quaternion offset = Quaternion.Euler(-73f, 14f, 122f);
+
+            var zero = new Quaternion(0f, 0f, 0f, 0f);
+            var nan = new Quaternion(float.NaN, float.NaN, float.NaN, float.NaN);
+
+            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(zero, offset)),
+                "a zero foot rotation must fall back to the sentinel");
+            Assert.IsTrue(IsSentinel(BasisLocalRigDriver.SafeFootTargetRotation(nan, offset)),
+                "a NaN foot rotation must fall back to the sentinel");
         }
     }
 }

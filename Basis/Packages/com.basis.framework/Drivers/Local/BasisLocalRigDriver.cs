@@ -1316,7 +1316,7 @@ namespace Basis.Scripts.Drivers
         /// The zero quaternion. SolveLegs reads it as "position-only foot IK": it keeps the foot's pre-solve
         /// (animation) rotation. It is the system's existing, well-defined "I have no usable rotation for you".
         /// </summary>
-        private static readonly Quaternion PreserveTipSentinel = new Quaternion(0f, 0f, 0f, 0f);
+        public static readonly Quaternion PreserveTipSentinel = new Quaternion(0f, 0f, 0f, 0f);
 
         /// <summary>
         /// The foot target rotation to hand SolveLegs, with the per-avatar calibration offset pre-cancelled --
@@ -1343,7 +1343,7 @@ namespace Basis.Scripts.Drivers
         /// WRONG foot rotation, while the sentinel restores exactly the old, known-good behaviour (the animation's
         /// foot rotation). Foot rotation degrades; walking never breaks.
         /// </summary>
-        private static Quaternion SafeFootTargetRotation(Quaternion footRot, Quaternion offset)
+        public static Quaternion SafeFootTargetRotation(Quaternion footRot, Quaternion offset)
         {
             float offSqr = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z + offset.w * offset.w;
             if (!(offSqr > 0.5f)) return PreserveTipSentinel;

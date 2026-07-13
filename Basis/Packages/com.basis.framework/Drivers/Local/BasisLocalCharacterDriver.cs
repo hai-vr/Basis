@@ -323,7 +323,11 @@ namespace Basis.Scripts.BasisCharacterController
                 {
                     float fallSpeed = Mathf.Abs(currentVerticalSpeed);
                     // Suppress hip dip in FBT to avoid fighting real hip tracker data on landing.
-                    if (!(BasisAvatarIKStageCalibration.HasFBIKTrackers && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue))
+                    // The comment already named the right question -- the code was asking a different one. The dip is
+                    // applied to the HIPS (BasisLocalRigDriver subtracts landingCrouchEffect from hipsPos), so only a
+                    // HIPS tracker has anything to be fought. HasFBIKTrackers is true for a chest/shoulder/elbow
+                    // tracker too, and those leave the pelvis fully IK-derived -- there the dip is correct and wanted.
+                    if (!(BasisAvatarIKStageCalibration.HasHipsFBIKTracker && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue))
                     {
                         landingCrouchTarget = Mathf.Clamp(fallSpeed * landingImpactScale, 0f, maxLandingCrouchEffect);
                     }
