@@ -11,7 +11,7 @@ public struct BasisFootSimulateJob : IJob
 
     // Double support as a fraction of one step's duration. Real walking spends 20-25% of the CYCLE (= two steps)
     // with both feet down, so ~0.45 of a single step. Falls to 0 with speed -- a run has a flight phase instead.
-    const float k_DoubleSupportWalkFrac = 0.45f;
+    const float k_DoubleSupportWalkFrac = 0.0f;
 
     // Step width at top speed, as a fraction of the walking stance. Walkers plant ~0.13 leg-lengths apart
     // laterally; runners land nearly on one line as the COM spends less time shifted over each stance leg.
@@ -207,8 +207,17 @@ public struct BasisFootSimulateJob : IJob
         // Step width NARROWS as you speed up. A walking human plants ~0.13 leg-lengths apart laterally; a runner
         // lands almost on a single line (the COM has less time to shift sideways over each stance leg, so the feet
         // converge under it). Holding one width at every speed is what makes a fast gait read as a WADDLE.
+        //
+        // But that is a FORWARD-gait effect, and applying it to a STRAFE is actively wrong -- side-stepping humans
+        // WIDEN their base, they do not narrow it, because the COM is travelling toward the edge of the support
+        // polygon rather than over it. Narrowing during a strafe drove the lateral velocity bias past the (now
+        // smaller) half-stance, which collapsed both ideals onto the same side of the body: the sweep showed
+        // strafe-left at "steps 18 (L0 R18)" -- the left foot never stepped at all, and the body strafed 11 metres
+        // away from it. Scale the narrowing by how much of the motion is actually forward, so a pure strafe keeps
+        // its full stance and a pure run gets the full convergence.
         float speedFrac = math.saturate(speed / p.fastSpeedRef);
-        float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac);
+        float fwdFrac = math.abs(math.dot(moveDir, bodyFwd));   // 1 = pure forward/back, 0 = pure sideways
+        float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac * fwdFrac);
 
         float leadAmount = math.min(speed * p.velocityBiasFactor * p.leadOffsetFactor, maxOffset * 0.5f);
         float3 leadOffset = moveDir * leadAmount;
@@ -266,12 +275,30 @@ public struct BasisFootSimulateJob : IJob
         // stance window at speed would starve the step rate and strand the foot.
         float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportWalkFrac, 0f, speedT);
 
+        // TOUCHDOWN, detected as an EDGE (airborne last tick, grounded this one).
+        //
+        // While airborne the planted feet ride a HIPS-RELATIVE height -- correct in the air, where there is no
+        // floor to stand on. But nothing put them back on the actual floor when the jump ended: the residual sits
+        // UNDER maxVD, so the symmetric drift snap below never fired, and the foot simply landed hovering (the
+        // sweep measured 138 mm on an adult jump, 79 mm at half scale -- i.e. the airborne margin itself).
+        //
+        // It cannot be fixed by tightening that snap: a planted foot legitimately sits above the hips' ground ray
+        // when standing uphill, because the sim casts ONE ray under the hips and never re-casts under a planted
+        // foot. Tightening it would fight every slope. The landing is an event, so treat it as one.
+        bool touchedDown = sim.wasAirborne && !airborne;
+        sim.wasAirborne = airborne;
+
         // ── Vertical correction ──
         if (airborne)
         {
             float airUpComp = groundUpComponent;
             if (left.phase == 0) { SetUpComponent(ref left.currentPos, airUpComp, up); SetUpComponent(ref left.plantedPos, airUpComp, up); }
             if (right.phase == 0) { SetUpComponent(ref right.currentPos, airUpComp, up); SetUpComponent(ref right.plantedPos, airUpComp, up); }
+        }
+        else if (touchedDown)
+        {
+            if (left.phase == 0) { SetUpComponent(ref left.currentPos, groundUpComponent, up); SetUpComponent(ref left.plantedPos, groundUpComponent, up); }
+            if (right.phase == 0) { SetUpComponent(ref right.currentPos, groundUpComponent, up); SetUpComponent(ref right.plantedPos, groundUpComponent, up); }
         }
         else
         {
@@ -408,10 +435,23 @@ public struct BasisFootSimulateJob : IJob
                 yawTrigger = yawDiff > p.maxPlantedYawDegrees;
             }
 
-            // The other foot must be not just DOWN but SETTLED -- it has to have carried the weight for the
-            // double-support window before this one is allowed to leave the ground. Without the plantedTime test
-            // a foot can lift on the very tick the other lands, so the body is never actually on two legs.
-            bool otherSettled = other.phase == 0 && other.plantedTime >= doubleSupportSec;
+            // Double support = BOTH feet down together for a while. That period began at the LATER of the two
+            // landings, so its length so far is min(f.plantedTime, other.plantedTime) -- and that expression is
+            // SYMMETRIC, which is the whole point.
+            //
+            // The obvious formulation, `other.plantedTime >= doubleSupportSec`, is asymmetric and STARVES A FOOT
+            // OUTRIGHT. At a walk the swinging foot is airborne ~90% of the time, so the planted foot's only
+            // opportunity is the instant the other one LANDS -- and at that exact instant other.plantedTime is 0,
+            // so its gate fails. The foot that just landed, meanwhile, sees a partner that has been planted for
+            // ages, so ITS gate always passes and it immediately steps again. Whichever foot moves first therefore
+            // wins forever: the sweep showed strafe-left at "steps 23 (L0 R23)" -- the left foot took ZERO steps in
+            // six seconds while the body walked 11 metres away from it (extension 23x standing reach).
+            //
+            // With min(), both feet read the same number, so neither can lock the other out. Both gates open on
+            // the same tick and the existing same-tick resolver hands the step to whichever foot has drifted
+            // further -- i.e. exactly the starved one.
+            float doubleSupportSoFar = math.min(f.plantedTime, other.plantedTime);
+            bool otherSettled = other.phase == 0 && doubleSupportSoFar >= doubleSupportSec;
 
             if ((dist > threshold || yawTrigger) && otherSettled)
             {
@@ -687,35 +727,77 @@ public struct BasisFootSimulateJob : IJob
             pos -= bodyRight * (lateral + minDist);
     }
 
-    private static float3 ComputeBodyForward(BasisFootSimInput inp, BasisFootSimState sim, BasisFootSimParams p, float3 up)
+    /// <summary>
+    /// The horizontal yaw a bone is facing, and how much that answer is worth.
+    ///
+    /// Flattening a bone's forward onto the ground plane (fwd - up*dot(fwd,up)) is only meaningful while the
+    /// forward has some horizontal length. Look STRAIGHT DOWN or STRAIGHT UP and the head's forward is parallel
+    /// to up, so the projection collapses to ~zero -- and normalizing a near-zero vector turns float noise into a
+    /// wildly swinging yaw. The old guards let this through: hips and chest only required lengthsq > 0.001, i.e.
+    /// a mere 1.8 degrees off vertical, and then normalized a vector carrying almost no yaw information at all.
+    ///
+    /// But the yaw is not actually lost -- it has just moved axes. When a bone's FORWARD goes vertical, its UP
+    /// axis becomes HORIZONTAL, and it carries the yaw exactly:
+    ///     looking DOWN (fwd.up &lt; 0): the head's up axis points FORWARD   => yaw = +flat(boneUp)
+    ///     looking UP   (fwd.up &gt; 0): the head's up axis points BACKWARD  => yaw = -flat(boneUp)
+    /// So read the yaw off whichever axis is currently horizontal, and cross-fade between them by how horizontal
+    /// the forward is. No cutoff, no pop, no noise amplification, and it stays exact at the poles.
+    ///
+    /// confidence = |flat(fwd)| = sin(angle from vertical), which is precisely how much horizontal information
+    /// the forward axis holds. Returns false only if BOTH axes are degenerate, which cannot happen for a valid
+    /// rotation (forward and up are orthogonal, so at most one can be parallel to `up`).
+    /// </summary>
+    public static bool BoneYaw(quaternion rot, float3 up, out float3 yawDir)
+    {
+        float3 fwd = math.mul(rot, new float3(0, 0, 1));
+        float3 fwdFlat = fwd - up * math.dot(fwd, up);
+        float fwdLen = math.length(fwdFlat);
+
+        float3 boneUp = math.mul(rot, new float3(0, 1, 0));
+        float3 upFlat = boneUp - up * math.dot(boneUp, up);
+        float upLen = math.length(upFlat);
+
+        // -sign(fwd . up): looking down (negative) flips the up-axis reading to +forward, looking up flips it to
+        // -forward. At fwd.up == 0 the forward axis is fully horizontal, so this branch carries zero weight anyway.
+        float upSign = -math.sign(math.dot(fwd, up));
+
+        float3 fromFwd = fwdLen > 1e-5f ? fwdFlat / fwdLen : float3.zero;
+        float3 fromUp = upLen > 1e-5f ? (upFlat / upLen) * upSign : float3.zero;
+
+        // fwdLen IS the blend: 1 when the forward is horizontal (trust it entirely), 0 when it is vertical
+        // (trust the up axis entirely). fwd and boneUp are orthogonal, so fwdLen^2 + upLen^2 == 1 -- as one
+        // collapses the other is at full length. The handover is smooth and always well-conditioned.
+        float3 blended = fromFwd * fwdLen + fromUp * (1f - fwdLen);
+        if (math.lengthsq(blended) < 1e-8f)
+        {
+            yawDir = float3.zero;
+            return false;
+        }
+
+        yawDir = math.normalize(blended);
+        return true;
+    }
+
+    public static float3 ComputeBodyForward(BasisFootSimInput inp, BasisFootSimState sim, BasisFootSimParams p, float3 up)
     {
         float3 accumulated = float3.zero;
         float totalWeight = 0f;
 
-        float3 hipsFwd = math.mul(inp.hipsRot, new float3(0, 0, 1));
-        hipsFwd -= up * math.dot(hipsFwd, up);
-        if (math.lengthsq(hipsFwd) > 0.001f)
+        if (BoneYaw(inp.hipsRot, up, out float3 hipsYaw))
         {
-            accumulated += math.normalize(hipsFwd) * p.bodyFwdHipsWeight;
+            accumulated += hipsYaw * p.bodyFwdHipsWeight;
             totalWeight += p.bodyFwdHipsWeight;
         }
 
-        if (inp.hasChest)
+        if (inp.hasChest && BoneYaw(inp.chestRot, up, out float3 chestYaw))
         {
-            float3 chestFwd = math.mul(inp.chestRot, new float3(0, 0, 1));
-            chestFwd -= up * math.dot(chestFwd, up);
-            if (math.lengthsq(chestFwd) > 0.001f)
-            {
-                accumulated += math.normalize(chestFwd) * p.bodyFwdChestWeight;
-                totalWeight += p.bodyFwdChestWeight;
-            }
+            accumulated += chestYaw * p.bodyFwdChestWeight;
+            totalWeight += p.bodyFwdChestWeight;
         }
 
-        float3 headFwd = math.mul(inp.headRot, new float3(0, 0, 1));
-        float3 headFlat = headFwd - up * math.dot(headFwd, up);
-        if (math.lengthsq(headFlat) > 0.1f)
+        if (BoneYaw(inp.headRot, up, out float3 headYaw))
         {
-            accumulated += math.normalize(headFlat) * p.bodyFwdHeadWeight;
+            accumulated += headYaw * p.bodyFwdHeadWeight;
             totalWeight += p.bodyFwdHeadWeight;
         }
 
@@ -745,7 +827,7 @@ public struct BasisFootSimulateJob : IJob
     // swingPitchDeg pitches the FRAME about its own lateral axis (local X) before the bone is seated, so the ankle
     // pitches about the correct axis on any rig. Unity is left-handed, so a POSITIVE rotation about +X carries +Z
     // (forward) downward => positive = toes down = plantarflexion.
-    private quaternion FootRotation(float3 bodyFwd, float3 normal, float3 up, quaternion footAlign, float swingPitchDeg)
+    public quaternion FootRotation(float3 bodyFwd, float3 normal, float3 up, quaternion footAlign, float swingPitchDeg)
     {
         if (math.lengthsq(normal) < 0.001f) normal = up;
 
@@ -787,7 +869,7 @@ public struct BasisFootSimulateJob : IJob
     }
 
     /// <summary>Ankle pitch across the swing: plantarflexed at toe-off, ~neutral mid-swing, dorsiflexed for heel-strike.</summary>
-    private static float SwingAnklePitchDeg(float t)
+    public static float SwingAnklePitchDeg(float t)
     {
         float inv = 1f - t;
         return k_ToeOffDeg * inv * inv - k_HeelStrikeDeg * t * t;

@@ -4,6 +4,8 @@
     "references": [
         "Basis Framework",
         "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Burst",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [

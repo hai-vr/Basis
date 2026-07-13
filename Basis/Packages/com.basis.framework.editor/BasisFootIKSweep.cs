@@ -273,7 +273,13 @@ namespace Basis.IK.Debugging
                     summary.WorstPenetrationMm = Mathf.Max(summary.WorstPenetrationMm, r.PenMm.Value);
                     summary.WorstPlantedHoverMm = Mathf.Max(summary.WorstPlantedHoverMm, r.HoverMm.Value);
                     // Hips never left standing height in this scenario => the sim must never call it airborne.
-                    if (r.HipUpMax - r.HipUpMin < 0.02f && r.SimAirborneTicks > 0)
+                    //
+                    // Gap is excluded, and not as a convenience: the check's premise is "the hips did not rise, so
+                    // there is ground under them and the feet must be using it". Over a GAP there is no ground to
+                    // use -- the ray genuinely misses and `airborne` is the correct, intended answer. Counting it
+                    // as a false airborne would make the gate cry wolf on the one scenario built to exercise the
+                    // real airborne path, and a gate that fires when nothing is wrong gets ignored when something is.
+                    if (r.Ground != BasisFootGroundKind.Gap && r.HipUpMax - r.HipUpMin < 0.02f && r.SimAirborneTicks > 0)
                     {
                         summary.SimAirborneWhileGroundedTicks += r.SimAirborneTicks;
                         if (string.IsNullOrEmpty(summary.SimAirborneWorstScenario)) summary.SimAirborneWorstScenario = r.Name;

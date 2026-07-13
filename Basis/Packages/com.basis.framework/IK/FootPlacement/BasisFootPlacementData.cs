@@ -34,6 +34,7 @@ public struct BasisFootSimState
     public float3 prevBodyFwd;          // last frame's body forward, for yaw-rate
     public float smoothedYawRateDeg;    // body turn rate (deg/s), paces stepping during turns/spins
     public float3 prevRootFwd;          // last frame's PLAYER-ROOT forward; lets the body-fwd filter ride the root
+    public bool wasAirborne;            // last frame's airborne flag, so touchdown can be detected as an EDGE
 }
 
 public struct BasisFootSimInput

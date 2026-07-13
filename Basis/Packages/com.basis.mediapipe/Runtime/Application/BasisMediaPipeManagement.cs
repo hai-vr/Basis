@@ -44,6 +44,8 @@ namespace Basis.MediaPipe
         private BasisAvatar _armRigAvatar;
         private bool _leftArmTracked;
         private bool _rightArmTracked;
+        private float _leftHandIK;
+        private float _rightHandIK;
         private double _lastSampleMs;
         private float _sampleDelta = 1f / 15f;
         private bool _armPosePathActive;
@@ -677,6 +679,43 @@ namespace Basis.MediaPipe
         private const float ArmVisibilityGain = 0.7f;
         private const float ArmVisibilityLose = 0.5f;
 
+        // ~200 ms in, ~330 ms out. Fading out slower than in matters: tracking drops out in brief flickers, and a
+        // slow release rides straight over them without the arm twitching, while a fast acquire means the hand is
+        // there the moment you are.
+        private const float HandFadeInHz = 5f;
+        private const float HandFadeOutHz = 3f;
+
+        /// <summary>
+        /// Eases the hand's IK weight toward tracked/untracked instead of switching it. Returns false once the
+        /// hand has faded fully out and is free, meaning the caller should release it altogether.
+        ///
+        /// A hand that is CARRYING something never fades: the held object is constrained to the hand BONE, so
+        /// letting the IK go would fling it to the avatar's rest pose. It stays pinned at full weight, holding its
+        /// last good pose, until you let go — at which point it fades out normally.
+        /// </summary>
+        private bool FadeHandIK(bool left, bool trackable, BasisBoneTrackedRole role, float deltaTime)
+        {
+            BasisLocalBoneControl control = left
+                ? BasisLocalBoneDriver.LeftHandControl
+                : BasisLocalBoneDriver.RightHandControl;
+
+            bool holding = HandIsHolding(role);
+            float target = trackable || holding ? 1f : 0f;
+            float weight = left ? _leftHandIK : _rightHandIK;
+
+            float rate = target > weight ? HandFadeInHz : HandFadeOutHz;
+            weight = holding
+                ? 1f
+                : Mathf.Lerp(weight, target, 1f - Mathf.Exp(-rate * Mathf.Max(deltaTime, 1e-4f)));
+            if (weight < 0.001f) weight = 0f;
+
+            if (left) _leftHandIK = weight;
+            else _rightHandIK = weight;
+
+            if (control != null) control.RigLayerWeight = weight;
+            return weight > 0f;
+        }
+
         /// <summary>Whether this hand is currently gripping an interactable, in which case its IK must stay put.</summary>
         private static bool HandIsHolding(BasisBoneTrackedRole role)
         {
@@ -716,18 +755,20 @@ namespace Basis.MediaPipe
             BasisBoneTrackedRole handRole = left ? BasisBoneTrackedRole.LeftHand : BasisBoneTrackedRole.RightHand;
             BasisBoneTrackedRole elbowRole = left ? BasisBoneTrackedRole.LeftLowerArm : BasisBoneTrackedRole.RightLowerArm;
 
-            if (Config.EnablePose && result.HasPose && !ArmIsTrackable(in result, left))
+            bool trackable = !Config.EnablePose || !result.HasPose || ArmIsTrackable(in result, left);
+            if (!FadeHandIK(left, trackable, handRole, timing.RenderDelta))
             {
-                // Losing the arm releases its trackers, which drops the hand's rig layer and lets the arm fall
-                // back to its normal pose rather than freezing wherever the last phantom landmark put it. The
-                // exception is a hand that is carrying something: a held object is constrained to the hand BONE,
-                // so dropping the IK would fling it to the avatar's rest pose. Hold the last good pose instead
-                // and keep the grip until it is let go.
-                if (!HandIsHolding(handRole))
-                {
-                    RemoveTracker(handRole);
-                    RemoveTracker(elbowRole);
-                }
+                // Faded all the way out and nothing is being carried: let go entirely, so the arm returns to its
+                // normal animated pose instead of hanging on the last landmark we saw.
+                RemoveTracker(handRole);
+                RemoveTracker(elbowRole);
+                return;
+            }
+
+            if (!trackable)
+            {
+                // Mid-fade, or holding something. Leave the tracker exactly where it was: the IK weight is what is
+                // moving, so the hand eases out of its last good pose rather than snapping out of it.
                 return;
             }
 
@@ -809,6 +850,9 @@ namespace Basis.MediaPipe
 
         private void RemoveTracker(BasisBoneTrackedRole role)
         {
+            if (role == BasisBoneTrackedRole.LeftHand) _leftHandIK = 0f;
+            else if (role == BasisBoneTrackedRole.RightHand) _rightHandIK = 0f;
+
             if (!_activeTrackers.Remove(role))
             {
                 return;

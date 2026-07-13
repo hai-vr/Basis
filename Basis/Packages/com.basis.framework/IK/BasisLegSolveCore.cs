@@ -44,6 +44,12 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
         const float k_PoleColinearSin = 0.5f; // sin(30deg): a hint nearer the leg axis than this is unreliable
+
+        // Knee-hint fade window, as a fraction of the leg's full reach that the knee stands off the hip->foot axis.
+        // Start = sqrt(0.001), the exact threshold the old boolean gate cliffed at, so the fade only replaces the
+        // step and never grants authority the solver was previously withholding.
+        const float k_HintFadeStart = 0.0316228f;
+        const float k_HintFadeFull = 0.12f;
         public const float MinKneeInteriorDeg = 20f; // max human knee flexion ~160deg; folding past this drives the calf through the thigh
 
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
@@ -168,12 +174,26 @@ namespace UnityEngine.Animations.Rigging
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
 
-                    if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
+                    // The pole's lever arm IS abProj -- the knee's offset from the hip->foot axis -- so it sweeps
+                    // smoothly to zero as the leg straightens. Gating on it with a threshold therefore takes the
+                    // hint from FULLY applied to not applied at all between two adjacent frames, and the knee
+                    // teleports around the bend circle to wherever the fixed BendNormal points: measured at 356x
+                    // the foot's own travel in a single step, on the way out and again on the way back. That is
+                    // the snap. Ramp the influence out instead, exactly as hintFade does in BasisArmSolveCore.
+                    //
+                    // The window OPENS at the old cliff, so nothing the solver already ignored starts counting;
+                    // it just stops being a step. It closes well before the pole is well-conditioned, so a knee
+                    // tracker on a leg with any real bend in it is still followed at full strength.
+                    float projNorm = (maxReach > k_Epsilon) ? abProj.magnitude / maxReach : 0f;
+                    float hintFade = Mathf.Clamp01((projNorm - k_HintFadeStart) / (k_HintFadeFull - k_HintFadeStart));
+
+                    if (hintFade > 0f && ahProj.sqrMagnitude > k_SqrEpsilon)
                     {
+                        float fadedWeight = hintWeight * hintFade;
                         hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                        hintR.x *= hintWeight;
-                        hintR.y *= hintWeight;
-                        hintR.z *= hintWeight;
+                        hintR.x *= fadedWeight;
+                        hintR.y *= fadedWeight;
+                        hintR.z *= fadedWeight;
                         hintR = QuaternionExt.NormalizeSafe(hintR);
 
                         rootRot = hintR * rootRot;

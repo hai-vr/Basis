@@ -1,4 +1,4 @@
-using Basis.Scripts.Common;
+﻿using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using System;
 using System.Collections.Generic;
@@ -69,6 +69,14 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         [SerializeField] private BasisHasRigLayer hasRigLayer = BasisHasRigLayer.HasNoRigLayer;
 
         /// <summary>T-pose local-space reference (calibration data, not job-accessed).</summary>
+        /// <summary>
+        /// How strongly this bone's rig layer applies, 0..1. Only the HANDS read it today: a producer that comes
+        /// and goes (webcam tracking) has to fade its IK in and out, because snapping the layer on and off pops
+        /// the arm between the tracked pose and the animated one. HasRigLayer stays the on/off switch; this is
+        /// how far along that switch is.
+        /// </summary>
+        public float RigLayerWeight = 1f;
+
         [SerializeField] public BasisCalibratedCoords TposeLocal = new BasisCalibratedCoords();
 
         /// <summary>Scaled T-pose local-space reference (calibration data, not job-accessed).</summary>

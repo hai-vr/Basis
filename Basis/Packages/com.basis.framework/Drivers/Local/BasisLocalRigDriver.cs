@@ -1,4 +1,4 @@
-using Basis.Scripts.BasisSdk.Helpers;
+﻿using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -524,6 +524,9 @@ namespace Basis.Scripts.Drivers
                 data.PositionHips = hipsPos;
                 data.RotationHips = hipsRot;
                 data.HasHipsTracker = hipsHaveTracker;
+                // Per frame, not just on OnHasRigChanged: the weight moves continuously while a source fades.
+                data.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
+                data.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
 
                 data.PositionHead = pOut[S_Head];
                 data.RotationHead = rOut[S_Head];
@@ -1068,18 +1071,18 @@ namespace Basis.Scripts.Drivers
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += (hasRig) =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
+                d.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
+            data.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += (hasRig) =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+                d.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+            data.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
 
             // Lower arms (hand hints)
             BasisLocalBoneDriver.LeftLowerArmControl.OnHasRigChanged += (hasRig) =>
@@ -1299,8 +1302,8 @@ namespace Basis.Scripts.Drivers
                 data.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
                 data.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
                 data.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
-                data.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
-                data.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+                data.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
+                data.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
                 data.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
                 data.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
                 data.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
@@ -1360,6 +1363,18 @@ namespace Basis.Scripts.Drivers
         private static float HasRigLayerFloat(BasisLocalBoneControl control)
         {
             return control.HasRigLayer == BasisHasRigLayer.HasRigLayer ? 1f : 0f;
+        }
+
+        /// <summary>
+        /// Hand IK weight. Unlike the other limbs this is not a straight on/off: the layer must be there AND the
+        /// producer says how far in it is, so a source that comes and goes (webcam tracking) can fade rather than
+        /// pop. Clamped, and written so a NaN weight collapses to 0 instead of reaching the Burst job.
+        /// </summary>
+        private static float HandRigWeight(BasisLocalBoneControl control)
+        {
+            if (control == null || control.HasRigLayer != BasisHasRigLayer.HasRigLayer) return 0f;
+            float w = control.RigLayerWeight;
+            return w > 0f ? (w < 1f ? w : 1f) : 0f;
         }
 
         /// <summary>

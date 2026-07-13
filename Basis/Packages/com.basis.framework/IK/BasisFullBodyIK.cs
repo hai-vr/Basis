@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Unity.Collections;
 namespace UnityEngine.Animations.Rigging
 {
@@ -275,8 +275,10 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_LeftLowerLegHintIsTracker;
         [SyncSceneToStream, SerializeField] bool m_RightLowerLegHintIsTracker;
 
-        [SyncSceneToStream, SerializeField] bool m_EnabledLeftHand;
-        [SyncSceneToStream, SerializeField] bool m_EnabledRightHand;
+        // Hand IK weight (0..1), not a toggle: the webcam fades the hands in and out as tracking comes and
+        // goes, and a hard on/off pops the arm. Mirrors the legs, which have been fractional all along.
+        [SyncSceneToStream, SerializeField] float m_EnabledLeftHand;
+        [SyncSceneToStream, SerializeField] float m_EnabledRightHand;
 
         [SyncSceneToStream, SerializeField] bool m_HintRightHandEnabled;
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
@@ -503,8 +505,8 @@ namespace UnityEngine.Animations.Rigging
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
         public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
         public bool HintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
-        public bool EnabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
-        public bool EnabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
+        public float EnabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
+        public float EnabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
         public bool ProtectElbow { get => m_ProtectElbow; set => m_ProtectElbow = value; }
         public bool CollideTrackedElbow { get => m_CollideTrackedElbow; set => m_CollideTrackedElbow = value; }
         public bool HintWeightRightHand { get => m_HintRightHandEnabled; set => m_HintRightHandEnabled = value; }
@@ -663,7 +665,7 @@ namespace UnityEngine.Animations.Rigging
             m_IKLockMode = (float)BasisIKLockMode.LockHips;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
-            m_EnabledLeftHand = m_EnabledRightHand = true;
+            m_EnabledLeftHand = m_EnabledRightHand = 1f;
             m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
 
@@ -1002,15 +1004,16 @@ o20, o54;
 
         public FloatProperty
 enabledLeftLowerLeg, enabledRightLowerLeg,
-hintWeightLeftLowerLeg, hintWeightRightLowerLeg;
+hintWeightLeftLowerLeg, hintWeightRightLowerLeg,
+enabledLeftHand, enabledRightHand;
 
         public BoolProperty
 HasChestTracker, hasHipsTracker, enabledSpineIK,
             enabledLeftShoulder, enabledRightShoulder,
 
 leftToeEnabled, RightToeEnabled,
-hintWeightLeftHand, enabledLeftHand,
-hintWeightRightHand, enabledRightHand,
+hintWeightLeftHand,
+hintWeightRightHand,
 protectElbow, collideTrackedElbow,
 collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
@@ -1149,12 +1152,12 @@ w20, w54;
             // instead of popping in one frame. Runs before arm twist (which reads the arm pose).
             float swingRate = swingSmoothRateDeg.Get(stream);
             float swingDt = stream.deltaTime;
-            if (enabledLeftHand.Get(stream))
+            if (enabledLeftHand.Get(stream) > 0f)
             {
                 ApplySwingContinuity(stream, k_SwingLeftElbow, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand.Get(stream), swingRate, swingDt);
             }
 
-            if (enabledRightHand.Get(stream))
+            if (enabledRightHand.Get(stream) > 0f)
             {
                 ApplySwingContinuity(stream, k_SwingRightElbow, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand.Get(stream), swingRate, swingDt);
             }
@@ -1782,8 +1785,8 @@ w20, w54;
                 return;
             }
 
-            bool leftEnabled = enabledLeftHand.Get(stream);
-            bool rightEnabled = enabledRightHand.Get(stream);
+            bool leftEnabled = enabledLeftHand.Get(stream) > 0f;
+            bool rightEnabled = enabledRightHand.Get(stream) > 0f;
             if (!leftEnabled && !rightEnabled)
             {
                 return;
@@ -2372,7 +2375,15 @@ w20, w54;
             Quaternion tRot = V4ToQuat(targetRotProp.Get(stream));
             // Zero-quaternion target = position-only foot IK: keep the foot's pre-solve (animation) rotation,
             // which is already correct, instead of applying target*offset. Sidesteps the foot offset entirely.
-            bool preserveTip = (tRot.x * tRot.x + tRot.y * tRot.y + tRot.z * tRot.z + tRot.w * tRot.w) < 0.5f;
+            //
+            // Written as !(x > 0.5f), NOT (x < 0.5f). Those are the same for every finite number and OPPOSITE for
+            // NaN: `NaN < 0.5f` is FALSE, so the old shape declared a NaN target "valid" and fed it straight into
+            // SolveTwoBone -- and a NaN'd bone transform PERSISTS in Unity, so the leg dies and never recovers,
+            // not even once good data returns. `!(NaN > 0.5f)` is TRUE, so a NaN now lands in the SAFE branch and
+            // the foot simply keeps the animation's rotation. A validity check must be "reject unless good", never
+            // "reject if bad", or it fails open on exactly the input that hurts most.
+            float tRotSqrLen = tRot.x * tRot.x + tRot.y * tRot.y + tRot.z * tRot.z + tRot.w * tRot.w;
+            bool preserveTip = !(tRotSqrLen > 0.5f);
             if (preserveTip) tRot = origTipRot;
             float hintW = hintWeightProp.Get(stream);
 
@@ -2548,9 +2559,11 @@ w20, w54;
             tip.SetPosition(stream, preFoot);
             tip.SetRotation(stream, preFootRot);
         }
-        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty protectElbow, BoolProperty collideTrackedElbow, int swingSlot)
+        public void SolveHand(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty protectElbow, BoolProperty collideTrackedElbow, int swingSlot)
         {
-            if (!enabledProp.Get(stream))
+            // Written `!(w > 0)` so a NaN weight takes the reject branch rather than solving on garbage.
+            float weight = enabledProp.Get(stream);
+            if (!(weight > 0f))
             {
                 return;
             }
@@ -2558,6 +2571,12 @@ w20, w54;
             {
                 return;
             }
+
+            // Rotation-only fade, exactly as SolveLegs does it: the solve produces ROTATIONS, so blending
+            // positions mid-fade would translate bones off the FK chain and dislocate the hand.
+            Quaternion origRootRot = root.GetRotation(stream);
+            Quaternion origMidRot = mid.GetRotation(stream);
+            Quaternion origTipRot = tip.GetRotation(stream);
 
             // Read inputs
             Vector3 tgtPos = targetPosProp.Get(stream);
@@ -2632,6 +2651,13 @@ w20, w54;
             if (swingCollided.IsCreated)
             {
                 swingCollided[swingSlot] = collisionState;
+            }
+
+            if (weight < 1f)
+            {
+                root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), weight));
+                mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), weight));
+                tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), weight));
             }
         }
         public float TriangleAngle(float aLen, float aLen1, float aLen2)
@@ -2716,9 +2742,9 @@ w20, w54;
                 hintWeightRightLowerLeg = FloatProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
                 leftToeEnabled = BoolProperty.Bind(animator, component, data.LeftToeEnabledProperty),
                 RightToeEnabled = BoolProperty.Bind(animator, component, data.RightToeEnabledProperty),
-                enabledLeftHand = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftHand),
+                enabledLeftHand = FloatProperty.Bind(animator, component, data.EnabledPropertyLeftHand),
                 hintWeightLeftHand = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftHand),
-                enabledRightHand = BoolProperty.Bind(animator, component, data.EnabledPropertyRightHand),
+                enabledRightHand = FloatProperty.Bind(animator, component, data.EnabledPropertyRightHand),
                 hintWeightRightHand = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightHand),
                 protectElbow = BoolProperty.Bind(animator, component, data.ProtectElbowBoolProperty),
                 collideTrackedElbow = BoolProperty.Bind(animator, component, data.CollideTrackedElbowBoolProperty),

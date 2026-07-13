@@ -52,6 +52,12 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
 
+        // Elbow-lever fade window, as a fraction of the arm's reach that the elbow stands off the shoulder->hand
+        // axis. Start = sqrt(0.001), the exact threshold the old boolean gate cliffed at, so the fade only
+        // replaces the step and never grants the hint authority the solver was previously withholding.
+        const float k_HintBendFadeStart = 0.0316228f;
+        const float k_HintBendFadeFull = 0.12f;
+
         // Anatomical elbow flexion range, as the angle at the elbow between the upper arm and the forearm.
         // 180 deg = arm straight; small = forearm folded toward the upper arm. A human elbow cannot
         // hyperextend past straight, nor fold the forearm fully into the upper arm (~25-30 deg is the limit).
@@ -199,7 +205,22 @@ namespace UnityEngine.Animations.Rigging
                         projNorm = Mathf.Lerp(projNorm, Mathf.Max(projNorm, 0.30f), floorBlend);
                     }
                     hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
-                    if (hintFade > 0f && abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
+
+                    // The ramp above fades ahProj -- the HINT's stand-off from the arm axis. A strapped-on elbow
+                    // tracker keeps that well clear of zero (that is the whole point of the HintIsTracker floor
+                    // right above), so for a real tracker it never actually reaches zero. The quantity that DOES
+                    // collapse is abProj: the ELBOW's own lever arm, which sweeps continuously to zero as the arm
+                    // straightens -- and it was gated with a boolean cliff. Full hint one frame, none the next:
+                    // the elbow teleported around the bend circle at 295x the hand's own travel in a single step,
+                    // on the way out and again on the way back. The floor made it worse, holding hintFade pinned
+                    // at 1.0 right up to the instant the cliff tripped.
+                    //
+                    // So ramp abProj as well. The window OPENS at the old cliff, so nothing the solver already
+                    // ignored starts counting; the step just stops being a step. Same fix as BasisLegSolveCore.
+                    float bendNorm = (totalLen > k_Epsilon) ? abProj.magnitude / totalLen : 0f;
+                    hintFade *= Mathf.Clamp01((bendNorm - k_HintBendFadeStart) / (k_HintBendFadeFull - k_HintBendFadeStart));
+
+                    if (hintFade > 0f && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
                         hintR = QuaternionExt.FromToRotation(abProj, ahProj);
                         // A near-180 deg bend->hint rotation is direction-ambiguous when applied
