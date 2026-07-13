@@ -22,7 +22,14 @@ namespace Basis.MediaPipe
 
         public Vector3[] LeftHandLandmarks;
         public Vector3[] RightHandLandmarks;
+
+        /// <summary>Metric hand landmarks in metres, wrist-relative. Orientation and finger curl come from these.</summary>
+        public Vector3[] LeftHandWorldLandmarks;
+        public Vector3[] RightHandWorldLandmarks;
+
         public Vector3[] PoseLandmarks;
+
+        /// <summary>Metric body landmarks in metres. The arm retarget runs off these, not the image landmarks.</summary>
         public Vector3[] PoseWorldLandmarks;
 
         public double TimestampMs;

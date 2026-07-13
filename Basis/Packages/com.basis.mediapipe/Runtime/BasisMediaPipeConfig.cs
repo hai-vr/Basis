@@ -13,6 +13,9 @@ namespace Basis.MediaPipe
         public bool EnableArmElbowPole;
         public bool SwapHands;
         public bool MirrorHorizontally;
+
+        /// <summary>Overrides the depth sign the backend resolves from anatomy (nose in front of ears).</summary>
+        public bool InvertDepth;
         public int TargetFps;
         public int CameraWidth;
         public int CameraHeight;
@@ -29,6 +32,7 @@ namespace Basis.MediaPipe
             EnableArmElbowPole = false,
             SwapHands = false,
             MirrorHorizontally = true,
+            InvertDepth = false,
             TargetFps = 30,
             CameraWidth = 640,
             CameraHeight = 480,

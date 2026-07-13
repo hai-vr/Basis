@@ -44,7 +44,10 @@ namespace Basis.MediaPipe
             new BasisSettingsBinding<bool>("mediapipe_swaphands", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<bool> SwapArms =
-            new BasisSettingsBinding<bool>("mediapipe_swaparms", new BasisPlatformDefault<bool>(true));
+            new BasisSettingsBinding<bool>("mediapipe_swaparms_v2", new BasisPlatformDefault<bool>(false));
+
+        public static readonly BasisSettingsBinding<float> ArmHeadAnchor =
+            new BasisSettingsBinding<float>("mediapipe_armheadanchor", new BasisPlatformDefault<float>(1f));
 
         public static readonly BasisSettingsBinding<bool> InvertArmDepth =
             new BasisSettingsBinding<bool>("mediapipe_invertarmdepth", new BasisPlatformDefault<bool>(false));
@@ -120,6 +123,7 @@ namespace Basis.MediaPipe
             EnableBody.LoadBindingValue();
             SwapHands.LoadBindingValue();
             SwapArms.LoadBindingValue();
+            ArmHeadAnchor.LoadBindingValue();
             InvertArmDepth.LoadBindingValue();
             EnableArmElbowPole.LoadBindingValue();
             Mirror.LoadBindingValue();

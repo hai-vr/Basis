@@ -29,6 +29,8 @@ namespace Basis.MediaPipe.Homuler
         public bool IsAvailable { get; private set; }
         public string BackendName => "homuler MediaPipe Unity Plugin";
         private bool _swapHands;
+        private bool _invertDepth;
+        private float _depthSign = 1f;
 
         private FaceLandmarker _face;
         private HandLandmarker _hand;
@@ -67,6 +69,7 @@ namespace Basis.MediaPipe.Homuler
         {
             _mirror = config.MirrorHorizontally;
             _swapHands = config.SwapHands;
+            _invertDepth = config.InvertDepth;
             _useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
             TryCreateLandmarkers(config);
             IsAvailable = _face != null || _hand != null || _pose != null;
@@ -294,6 +297,7 @@ namespace Basis.MediaPipe.Homuler
             }
             if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
             if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
+            ResolveDepth(ref result);
 
             lock (_resultLock)
             {
@@ -302,7 +306,7 @@ namespace Basis.MediaPipe.Homuler
             }
         }
 
-        private static void ParseFace(FaceLandmarkerResult result, ref BasisMediaPipeResult output)
+        private void ParseFace(FaceLandmarkerResult result, ref BasisMediaPipeResult output)
         {
             if (result.faceLandmarks != null && result.faceLandmarks.Count > 0)
             {
@@ -310,7 +314,8 @@ namespace Basis.MediaPipe.Homuler
                 var fl = result.faceLandmarks[0].landmarks;
                 if (fl != null && fl.Count > 152)
                 {
-                    output.HeadImagePosition = new Vector2(fl[1].x, fl[1].y);
+                    Vector3 head = MediaPipeSpace.Image(new Vector3(fl[1].x, fl[1].y, 0f), _mirror);
+                    output.HeadImagePosition = new Vector2(head.x, head.y);
                     output.FaceImageSize = Mathf.Abs(fl[152].y - fl[10].y);
                 }
             }
@@ -347,16 +352,40 @@ namespace Basis.MediaPipe.Homuler
                 var landmarks = result.handLandmarks[h].landmarks;
                 if (landmarks == null) continue;
 
-                Vector3[] arr = new Vector3[landmarks.Count];
+                Vector3[] image = new Vector3[landmarks.Count];
                 for (int i = 0; i < landmarks.Count; i++)
                 {
-                    arr[i] = new Vector3(landmarks[i].x, landmarks[i].y, landmarks[i].z);
+                    image[i] = MediaPipeSpace.Image(new Vector3(landmarks[i].x, landmarks[i].y, landmarks[i].z), _mirror);
+                }
+
+                Vector3[] world = null;
+                if (result.handWorldLandmarks != null && h < result.handWorldLandmarks.Count)
+                {
+                    var metric = result.handWorldLandmarks[h].landmarks;
+                    if (metric != null)
+                    {
+                        world = new Vector3[metric.Count];
+                        for (int i = 0; i < metric.Count; i++)
+                        {
+                            world[i] = MediaPipeSpace.World(new Vector3(metric[i].x, metric[i].y, metric[i].z), _mirror);
+                        }
+                    }
                 }
 
                 bool isLeft = IsLeftHand(result, h);
                 if (_swapHands) isLeft = !isLeft;
-                if (isLeft) { output.LeftHandLandmarks = arr; output.HasLeftHand = true; }
-                else { output.RightHandLandmarks = arr; output.HasRightHand = true; }
+                if (isLeft)
+                {
+                    output.LeftHandLandmarks = image;
+                    output.LeftHandWorldLandmarks = world;
+                    output.HasLeftHand = true;
+                }
+                else
+                {
+                    output.RightHandLandmarks = image;
+                    output.RightHandWorldLandmarks = world;
+                    output.HasRightHand = true;
+                }
             }
         }
 
@@ -373,7 +402,22 @@ namespace Basis.MediaPipe.Homuler
             return index == 0;
         }
 
-        private static void ParsePose(PoseLandmarkerResult result, ref BasisMediaPipeResult output)
+        // MediaPipe's depth axis sign is not something we can assume, so it is resolved from the body itself
+        // and held across frames where the head is too degenerate to call it. Both the pose and the hands are
+        // reported in the same camera frame, so one sign covers all of them.
+        private void ResolveDepth(ref BasisMediaPipeResult output)
+        {
+            float sign = MediaPipeSpace.DepthSign(output.PoseWorldLandmarks);
+            if (sign != 0f) _depthSign = sign;
+
+            float applied = _invertDepth ? -_depthSign : _depthSign;
+            MediaPipeSpace.ApplyDepthSign(output.PoseWorldLandmarks, applied);
+            MediaPipeSpace.ApplyDepthSign(output.PoseLandmarks, applied);
+            MediaPipeSpace.ApplyDepthSign(output.LeftHandWorldLandmarks, applied);
+            MediaPipeSpace.ApplyDepthSign(output.RightHandWorldLandmarks, applied);
+        }
+
+        private void ParsePose(PoseLandmarkerResult result, ref BasisMediaPipeResult output)
         {
             if (result.poseWorldLandmarks != null && result.poseWorldLandmarks.Count > 0)
             {
@@ -381,11 +425,13 @@ namespace Basis.MediaPipe.Homuler
                 if (world != null)
                 {
                     output.HasPose = true;
-                    output.PoseWorldLandmarks = new Vector3[world.Count];
+                    Vector3[] arr = new Vector3[world.Count];
                     for (int i = 0; i < world.Count; i++)
                     {
-                        output.PoseWorldLandmarks[i] = new Vector3(world[i].x, world[i].y, world[i].z);
+                        arr[i] = MediaPipeSpace.World(new Vector3(world[i].x, world[i].y, world[i].z), _mirror);
                     }
+                    if (_mirror) MediaPipeSpace.SwapPoseSidesInPlace(arr);
+                    output.PoseWorldLandmarks = arr;
                 }
             }
 
@@ -395,11 +441,13 @@ namespace Basis.MediaPipe.Homuler
                 if (image != null)
                 {
                     output.HasPose = true;
-                    output.PoseLandmarks = new Vector3[image.Count];
+                    Vector3[] arr = new Vector3[image.Count];
                     for (int i = 0; i < image.Count; i++)
                     {
-                        output.PoseLandmarks[i] = new Vector3(image[i].x, image[i].y, image[i].z);
+                        arr[i] = MediaPipeSpace.Image(new Vector3(image[i].x, image[i].y, image[i].z), _mirror);
                     }
+                    if (_mirror) MediaPipeSpace.SwapPoseSidesInPlace(arr);
+                    output.PoseLandmarks = arr;
                 }
             }
         }

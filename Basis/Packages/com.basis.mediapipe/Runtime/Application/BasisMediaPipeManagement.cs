@@ -35,8 +35,11 @@ namespace Basis.MediaPipe
         private bool _hasLatest;
 
         private Transform _hipsBone, _headBone, _leftUpperArm, _leftLowerArm, _leftHandBone, _rightUpperArm, _rightLowerArm, _rightHandBone;
+        private Transform _leftIndexProximal, _leftMiddleProximal, _leftLittleProximal;
+        private Transform _rightIndexProximal, _rightMiddleProximal, _rightLittleProximal;
         private float _leftUpperLen, _leftForeLen, _rightUpperLen, _rightForeLen;
         private bool _armRigValid;
+        private bool _handRigValid;
         private BasisAvatar _armRigAvatar;
         private bool _armPosePathActive;
         private bool _armDiagLogged;
@@ -69,6 +72,7 @@ namespace Basis.MediaPipe
             Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
             Config.EnableChest = BasisMediaPipeSettings.EnableBody.RawValue;
             Config.EnableArmElbowPole = BasisMediaPipeSettings.EnableArmElbowPole.RawValue;
+            Config.InvertDepth = BasisMediaPipeSettings.InvertArmDepth.RawValue;
             Config.EnablePose = Config.EnableChest || Config.EnableHandTracking;
             ApplyTuning();
         }
@@ -91,7 +95,7 @@ namespace Basis.MediaPipe
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
             _armConverter.Smoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
             _armConverter.SwapArms = BasisMediaPipeSettings.SwapArms.RawValue;
-            _armConverter.InvertForward = BasisMediaPipeSettings.InvertArmDepth.RawValue;
+            _armConverter.HeadAnchor = BasisMediaPipeSettings.ArmHeadAnchor.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
             _headConverter.HeightOffset = BasisMediaPipeSettings.HeadHeight.RawValue;
             _headConverter.YawGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
@@ -179,6 +183,7 @@ namespace Basis.MediaPipe
             DestroyAllTrackers();
             CacheArmRig();
             _armConverter.Reset();
+            _handConverter.Reset();
             CalibrateHead();
         }
 
@@ -231,6 +236,63 @@ namespace Basis.MediaPipe
             _rightUpperLen = Vector3.Distance(root.InverseTransformPoint(_rightUpperArm.position), root.InverseTransformPoint(_rightLowerArm.position));
             _rightForeLen = Vector3.Distance(root.InverseTransformPoint(_rightLowerArm.position), root.InverseTransformPoint(_rightHandBone.position));
             _armRigValid = true;
+
+            _leftIndexProximal = anim.GetBoneTransform(HumanBodyBones.LeftIndexProximal);
+            _leftMiddleProximal = anim.GetBoneTransform(HumanBodyBones.LeftMiddleProximal);
+            _leftLittleProximal = anim.GetBoneTransform(HumanBodyBones.LeftLittleProximal);
+            _rightIndexProximal = anim.GetBoneTransform(HumanBodyBones.RightIndexProximal);
+            _rightMiddleProximal = anim.GetBoneTransform(HumanBodyBones.RightMiddleProximal);
+            _rightLittleProximal = anim.GetBoneTransform(HumanBodyBones.RightLittleProximal);
+            _handRigValid = _leftIndexProximal != null && _leftMiddleProximal != null && _leftLittleProximal != null
+                && _rightIndexProximal != null && _rightMiddleProximal != null && _rightLittleProximal != null;
+        }
+
+        /// <summary>
+        /// The constant that maps a MediaPipe palm frame onto the avatar's hand bone rotation. Built from the
+        /// knuckles, which stay put relative to the hand when the fingers curl, so it is invariant to the
+        /// avatar's current pose and does not need a reference pose to capture.
+        /// </summary>
+        private bool TryBuildHandRig(in MediaPipeArmConverter.AvatarArmRig arm, out MediaPipeHandConverter.AvatarHandRig rig)
+        {
+            rig = default;
+            if (!arm.Valid || !_handRigValid || BasisLocalPlayer.Instance == null) return false;
+
+            Transform root = BasisLocalPlayer.Instance.transform;
+            if (!TryHandCorrection(root, _leftHandBone, _leftIndexProximal, _leftMiddleProximal, _leftLittleProximal, true, out Quaternion left)
+                || !TryHandCorrection(root, _rightHandBone, _rightIndexProximal, _rightMiddleProximal, _rightLittleProximal, false, out Quaternion right))
+            {
+                return false;
+            }
+
+            rig = new MediaPipeHandConverter.AvatarHandRig
+            {
+                Body = Quaternion.LookRotation(arm.Forward, arm.Up),
+                LeftCorrection = left,
+                RightCorrection = right,
+                Valid = true,
+            };
+            return true;
+        }
+
+        private static bool TryHandCorrection(Transform root, Transform hand, Transform index, Transform middle,
+            Transform little, bool left, out Quaternion correction)
+        {
+            correction = Quaternion.identity;
+            if (hand == null || index == null || middle == null || little == null) return false;
+
+            if (!MediaPipeSpace.TryPalmFrame(
+                    root.InverseTransformPoint(hand.position),
+                    root.InverseTransformPoint(index.position),
+                    root.InverseTransformPoint(middle.position),
+                    root.InverseTransformPoint(little.position),
+                    left, out Quaternion palm))
+            {
+                return false;
+            }
+
+            Quaternion rest = Quaternion.Inverse(root.rotation) * hand.rotation;
+            correction = Quaternion.Inverse(palm) * rest;
+            return true;
         }
 
         private float CameraAspect()
@@ -379,7 +441,7 @@ namespace Basis.MediaPipe
                 {
                     _armDiagLogged = true;
                     _armPosePathActive = posePath;
-                    BasisDebug.Log($"BasisMediaPipe arms: EnablePose={Config.EnablePose} HasPose={result.HasPose} armRig={_armRigValid} pose2D={(result.PoseLandmarks != null ? result.PoseLandmarks.Length : 0)} -> {(posePath ? "pose retarget" : "hand fallback")}");
+                    BasisDebug.Log($"BasisMediaPipe arms: EnablePose={Config.EnablePose} HasPose={result.HasPose} armRig={_armRigValid} handRig={_handRigValid} poseWorld={(result.PoseWorldLandmarks != null ? result.PoseWorldLandmarks.Length : 0)} -> {(posePath ? "pose retarget" : "hand fallback")}");
                 }
                 ApplyHandTracker(in result, true);
                 ApplyHandTracker(in result, false);
@@ -417,20 +479,21 @@ namespace Basis.MediaPipe
             BasisBoneTrackedRole elbowRole = left ? BasisBoneTrackedRole.LeftLowerArm : BasisBoneTrackedRole.RightLowerArm;
 
             if (Config.EnablePose && result.HasPose && TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
-                && _armConverter.TryGetArm(result.PoseLandmarks, CameraAspect(), in rig, left,
-                    out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion wristRotation))
+                && _armConverter.TryGetArm(result.PoseWorldLandmarks, in rig, left,
+                    out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion forearmRotation))
             {
-                if (handDetected && landmarks != null && BasisLocalBoneDriver.HipsControl != null
-                    && _handConverter.TryGetHandTarget(landmarks, left, out _, out Quaternion handRotationOffset))
+                Quaternion wristRotation = forearmRotation;
+                if (handDetected && TryBuildHandRig(in rig, out MediaPipeHandConverter.AvatarHandRig handRig)
+                    && _handConverter.TryGetHandRotation(in result, in handRig, left, out Quaternion handRotation))
                 {
-                    wristRotation = BasisLocalBoneDriver.HipsControl.OutGoingData.rotation * handRotationOffset;
+                    wristRotation = handRotation;
                 }
 
                 EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(wristLocal, wristRotation);
 
                 if (Config.EnableArmElbowPole)
                 {
-                    EnsureTracker(elbowRole).FollowMovement.SetLocalPositionAndRotation(elbowLocal, Quaternion.identity);
+                    EnsureTracker(elbowRole).FollowMovement.SetLocalPositionAndRotation(elbowLocal, forearmRotation);
                 }
                 else
                 {
@@ -440,7 +503,7 @@ namespace Basis.MediaPipe
             }
 
             RemoveTracker(elbowRole);
-            if (!handDetected || landmarks == null || landmarks.Length < 21)
+            if (!handDetected || landmarks == null || landmarks.Length < MediaPipeSpace.HandCount)
             {
                 RemoveTracker(handRole);
                 return;
@@ -448,14 +511,10 @@ namespace Basis.MediaPipe
 
             // No body pose: place the wrist from the hand landmarker, anchored to the head (face) when present.
             float faceSize = result.HasFace ? result.FaceImageSize : 0f;
-            if (TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig handRig)
-                && _armConverter.TryGetArmFromHand(landmarks[0], result.HeadImagePosition, faceSize, CameraAspect(), in handRig, left, out Vector3 handWrist, out Quaternion handWristRotation))
+            if (TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig handOnlyRig)
+                && _armConverter.TryGetArmFromHand(landmarks[MediaPipeSpace.HandWrist], result.HeadImagePosition,
+                    faceSize, CameraAspect(), in handOnlyRig, left, out Vector3 handWrist, out Quaternion handWristRotation))
             {
-                if (BasisLocalBoneDriver.HipsControl != null
-                    && _handConverter.TryGetHandTarget(landmarks, left, out _, out Quaternion handRotationOffset))
-                {
-                    handWristRotation = BasisLocalBoneDriver.HipsControl.OutGoingData.rotation * handRotationOffset;
-                }
                 EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(handWrist, handWristRotation);
                 return;
             }
@@ -472,7 +531,6 @@ namespace Basis.MediaPipe
 
             _headConverter.Calibrate(_latest);
             _bodyConverter.Calibrate(_latest);
-            _handConverter.Calibrate(_latest);
         }
 
         public string DiagnosticsText()

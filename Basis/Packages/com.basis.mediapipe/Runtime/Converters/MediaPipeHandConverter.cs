@@ -4,10 +4,15 @@ using UnityEngine;
 namespace Basis.MediaPipe
 {
     /// <summary>
-    /// MediaPipe 21-point hand landmarks → finger curl/splay (BasisLocalHandDriver) plus a
-    /// wrist pose OFFSET for the hand trackers. Like the head, the offset is applied on top of a
-    /// base tracker space (the manager adds it to the head/eye position and the hand bone's rest
-    /// rotation), and rotation is relative to a calibrated neutral.
+    /// MediaPipe 21-point hand landmarks → finger curl/splay (BasisLocalHandDriver) plus the wrist
+    /// rotation for the hand trackers. Both run off the metric WORLD landmarks, so curl no longer
+    /// collapses when the hand points at the camera and the palm frame is real 3D rather than a
+    /// projection.
+    ///
+    /// Rotation is a retarget, not a calibration: the palm frame is measured relative to the user's torso
+    /// and re-expressed relative to the avatar's, then corrected by the constant that maps a palm frame
+    /// onto the avatar's hand bone. Holding your hand however you like reproduces it on the avatar with
+    /// nothing to calibrate.
     /// </summary>
     public sealed class MediaPipeHandConverter
     {
@@ -16,118 +21,84 @@ namespace Basis.MediaPipe
         public float FingerMaxAngle = 160f;
         public float MaxSplayDegrees = 20f;
         public float SplayGain = 1f;
-
-        // Wrist-position offset from the head, derived from the wrist's position in the frame.
-        public float PlaneWidth = 0.7f;
-        public float PlaneHeight = 0.7f;
-        public float ForwardDepth = 0.35f;
-        public float HandDrop = 0f;
         public float FingerSmoothing = 0.5f;
         public float PoseSmoothing = 0.5f;
         public bool UseRotation = true;
 
-        private Vector3 _leftPos;
-        private Vector3 _rightPos;
         private Quaternion _leftRot = Quaternion.identity;
         private Quaternion _rightRot = Quaternion.identity;
-        private bool _leftInit;
-        private bool _rightInit;
-        private Quaternion _leftNeutralInverse = Quaternion.identity;
-        private Quaternion _rightNeutralInverse = Quaternion.identity;
-        private bool _leftCalibrated;
-        private bool _rightCalibrated;
+        private bool _leftRotInit;
+        private bool _rightRotInit;
 
-        public void Calibrate(in BasisMediaPipeResult result)
+        /// <summary>
+        /// Avatar hand geometry in player-root-local space. Correction maps a MediaPipe palm frame onto the
+        /// hand bone's rotation; it is built from the knuckle positions, which do not move relative to the
+        /// hand when the fingers curl, so it holds for any pose and needs no reference pose to capture.
+        /// </summary>
+        public struct AvatarHandRig
         {
-            if (result.HasLeftHand && TryRawRotation(result.LeftHandLandmarks, out Quaternion lr))
-            {
-                _leftNeutralInverse = Quaternion.Inverse(lr);
-                _leftCalibrated = true;
-            }
-            if (result.HasRightHand && TryRawRotation(result.RightHandLandmarks, out Quaternion rr))
-            {
-                _rightNeutralInverse = Quaternion.Inverse(rr);
-                _rightCalibrated = true;
-            }
+            public Quaternion Body;
+            public Quaternion LeftCorrection;
+            public Quaternion RightCorrection;
+            public bool Valid;
         }
 
-        /// <summary>Wrist pose as an offset: position relative to the head, rotation relative to the calibrated neutral.</summary>
-        public bool TryGetHandTarget(Vector3[] lm, bool left, out Vector3 positionOffset, out Quaternion rotationOffset)
+        public void Reset()
         {
-            positionOffset = Vector3.zero;
-            rotationOffset = Quaternion.identity;
-            if (lm == null || lm.Length < 21)
-            {
-                return false;
-            }
+            _leftRotInit = _rightRotInit = false;
+        }
 
-            Vector3 wrist = lm[0];
-            Vector3 rawPos = new Vector3(
-                (0.5f - wrist.x) * PlaneWidth,
-                (0.5f - wrist.y) * PlaneHeight - HandDrop,
-                ForwardDepth);
+        public bool TryGetHandRotation(in BasisMediaPipeResult result, in AvatarHandRig rig, bool left,
+            out Quaternion rotation)
+        {
+            rotation = Quaternion.identity;
+            if (!UseRotation || !rig.Valid) return false;
 
-            Quaternion rawRot = Quaternion.identity;
-            if (UseRotation && TryRawRotation(lm, out Quaternion r))
-            {
-                if (left)
-                {
-                    if (!_leftCalibrated) { _leftNeutralInverse = Quaternion.Inverse(r); _leftCalibrated = true; }
-                    rawRot = _leftNeutralInverse * r;
-                }
-                else
-                {
-                    if (!_rightCalibrated) { _rightNeutralInverse = Quaternion.Inverse(r); _rightCalibrated = true; }
-                    rawRot = _rightNeutralInverse * r;
-                }
-            }
+            Vector3[] hand = left ? result.LeftHandWorldLandmarks : result.RightHandWorldLandmarks;
+            if (!MediaPipeSpace.TryHandFrame(hand, left, out Quaternion handFrame)) return false;
+            if (!MediaPipeSpace.TryBodyFrame(result.PoseWorldLandmarks, out _, out Quaternion bodyFrame)) return false;
+
+            Quaternion handInBody = Quaternion.Inverse(bodyFrame) * handFrame;
+            Quaternion correction = left ? rig.LeftCorrection : rig.RightCorrection;
+            Quaternion target = rig.Body * handInBody * correction;
 
             float t = 1f - Mathf.Clamp01(PoseSmoothing);
             if (left)
             {
-                _leftPos = _leftInit ? Vector3.Lerp(_leftPos, rawPos, t) : rawPos;
-                _leftRot = _leftInit ? Quaternion.Slerp(_leftRot, rawRot, t) : rawRot;
-                _leftInit = true;
-                positionOffset = _leftPos;
-                rotationOffset = _leftRot;
+                _leftRot = _leftRotInit ? Quaternion.Slerp(_leftRot, target, t) : target;
+                _leftRotInit = true;
+                rotation = _leftRot;
             }
             else
             {
-                _rightPos = _rightInit ? Vector3.Lerp(_rightPos, rawPos, t) : rawPos;
-                _rightRot = _rightInit ? Quaternion.Slerp(_rightRot, rawRot, t) : rawRot;
-                _rightInit = true;
-                positionOffset = _rightPos;
-                rotationOffset = _rightRot;
+                _rightRot = _rightRotInit ? Quaternion.Slerp(_rightRot, target, t) : target;
+                _rightRotInit = true;
+                rotation = _rightRot;
             }
-            return true;
-        }
-
-        private static bool TryRawRotation(Vector3[] lm, out Quaternion rot)
-        {
-            rot = Quaternion.identity;
-            if (lm == null || lm.Length < 21) return false;
-
-            Vector3 forward = lm[9] - lm[0];
-            Vector3 normal = Vector3.Cross(lm[5] - lm[0], lm[17] - lm[0]);
-            if (forward.sqrMagnitude < 1e-6f || normal.sqrMagnitude < 1e-6f) return false;
-
-            rot = Quaternion.LookRotation(
-                new Vector3(-forward.x, -forward.y, -forward.z),
-                new Vector3(-normal.x, -normal.y, -normal.z)) * Quaternion.Euler(0f, 180f, 0f);
             return true;
         }
 
         public void Apply(in BasisMediaPipeResult result)
         {
             BasisLocalHandDriver driver = BasisLocalPlayer.Instance.LocalHandDriver;
-            if (result.HasLeftHand && result.LeftHandLandmarks != null && result.LeftHandLandmarks.Length >= 21)
+
+            Vector3[] left = Fingers(result.LeftHandWorldLandmarks, result.LeftHandLandmarks);
+            if (result.HasLeftHand && left != null)
             {
-                ApplyHand(result.LeftHandLandmarks, driver.LeftHand, true);
+                ApplyHand(left, driver.LeftHand, true);
             }
-            if (result.HasRightHand && result.RightHandLandmarks != null && result.RightHandLandmarks.Length >= 21)
+
+            Vector3[] right = Fingers(result.RightHandWorldLandmarks, result.RightHandLandmarks);
+            if (result.HasRightHand && right != null)
             {
-                ApplyHand(result.RightHandLandmarks, driver.RightHand, false);
+                ApplyHand(right, driver.RightHand, false);
             }
+        }
+
+        private static Vector3[] Fingers(Vector3[] world, Vector3[] image)
+        {
+            if (world != null && world.Length >= MediaPipeSpace.HandCount) return world;
+            return image != null && image.Length >= MediaPipeSpace.HandCount ? image : null;
         }
 
         private void ApplyHand(Vector3[] lm, BasisFingerPose pose, bool isLeft)
@@ -154,7 +125,9 @@ namespace Basis.MediaPipe
         {
             Vector3 dir = lm[basePip] - lm[baseMcp];
             Vector3 refDir = lm[refPip] - lm[refMcp];
-            Vector3 palmNormal = Vector3.Cross(lm[5] - lm[0], lm[17] - lm[0]);
+            Vector3 palmNormal = Vector3.Cross(
+                lm[MediaPipeSpace.HandIndexMcp] - lm[MediaPipeSpace.HandWrist],
+                lm[MediaPipeSpace.HandPinkyMcp] - lm[MediaPipeSpace.HandWrist]);
             float signed = Vector3.SignedAngle(refDir, dir, palmNormal);
             float splay = Mathf.Clamp(signed / MaxSplayDegrees * SplayGain, -1f, 1f);
             return isLeft ? splay : -splay;
