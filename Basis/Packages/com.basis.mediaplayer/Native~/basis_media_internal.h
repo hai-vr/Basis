@@ -101,8 +101,9 @@ typedef int (*basis_read_fn)(void* ctx, uint8_t* buf, int len);
  * source has repositioned for a seek; the next read delivers post-seek data.
  * The demuxer must drop any buffered/partial state and re-anchor the pace clock
  * (via sink->take_seek) before consuming further, so a stale pre-seek sample
- * can't survive the jump. Distinct from a <0 read error. Only sources that
- * reposition mid-stream (the HLS segment source) ever return it. */
+ * can't survive the jump. This exact value is the reposition signal; any other
+ * negative return is a read error. Only sources that reposition mid-stream (the
+ * HLS segment source) ever return it. */
 #define BASIS_READ_REPOSITION (-2)
 
 /* Repositions a byte source to an absolute offset (a ranged HTTP refetch).

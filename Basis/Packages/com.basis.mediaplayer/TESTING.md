@@ -176,7 +176,8 @@ Editor (Windows) and Quest.
 > On-demand multiplayer sync **drift-corrects by seeking**: the owner broadcasts its playhead
 > and a client that drifts past `DriftSeekThresholdSeconds` seeks to catch up (set 0 to
 > disable). Catch-up needs a seekable source — TS-segment HLS VOD and progressive/trailing-moov
-> MP4 qualify; a live source can't seek, so those clients stay start-together.
+> MP4 qualify; a live source can't seek, so those clients converge independently to the live
+> edge rather than using playhead-seek correction.
 
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each
