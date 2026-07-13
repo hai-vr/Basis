@@ -110,6 +110,19 @@ typedef struct {
 } mp4_frag_t;
 
 typedef struct {
+    int64_t start_us;
+    int64_t end_us;
+    uint64_t offset; /* absolute top-level box boundary for this subsegment */
+} mp4_sidx_ref_t;
+
+typedef struct {
+    mp4_sidx_ref_t* refs;
+    uint32_t count;
+    uint32_t cap;
+    int64_t duration_us;
+} mp4_sidx_index_t;
+
+typedef struct {
     basis_media_sink_t* sink;
     basis_read_fn read;
     void* ctx;
@@ -122,12 +135,16 @@ typedef struct {
 
     int64_t pos;          /* absolute stream offset consumed so far */
     int     mdat_skipped; /* media data streamed past before any index arrived */
+    int64_t mdat_seek_pos;/* first skipped mdat's payload start, -1 until one is skipped;
+                             a range-capable source seeks back here for a trailing moov */
 
     /* runs from the last moof (one per traf/trun), consumed against its mdat */
     mp4_frag_t frags[MP4_MAX_FRAGS];
     int nfrags;
+    mp4_sidx_index_t sidx;
 } mp4_t;
 
+static uint16_t rd16(const uint8_t* p) { return (uint16_t)(((uint16_t)p[0] << 8) | p[1]); }
 static uint32_t rd32(const uint8_t* p) { return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3]; }
 static uint64_t rd64(const uint8_t* p) { return ((uint64_t)rd32(p)<<32)|rd32(p+4); }
 
@@ -215,6 +232,39 @@ static int read_box_header(mp4_t* m, uint32_t* type, int64_t* body_len) {
 static mp4_track_t* track_by_id(mp4_t* m, int id) {
     for (int i = 0; i < m->ntracks; ++i) if (m->tracks[i].track_id == id) return &m->tracks[i];
     return NULL;
+}
+
+static void sidx_clear(mp4_sidx_index_t* idx) {
+    free(idx->refs);
+    memset(idx, 0, sizeof(*idx));
+}
+
+static int sidx_reserve(mp4_sidx_index_t* idx, uint32_t n) {
+    if (idx->cap >= n) return 1;
+    uint32_t cap = idx->cap ? idx->cap : 32;
+    while (cap < n) cap *= 2;
+    mp4_sidx_ref_t* refs = (mp4_sidx_ref_t*)realloc(idx->refs, (size_t)cap * sizeof(*refs));
+    if (!refs) return 0;
+    idx->refs = refs;
+    idx->cap = cap;
+    return 1;
+}
+
+static int sidx_add_ref(mp4_sidx_index_t* idx, const mp4_sidx_ref_t* ref) {
+    if (!sidx_reserve(idx, idx->count + 1)) return 0;
+    idx->refs[idx->count++] = *ref;
+    if (ref->end_us > idx->duration_us) idx->duration_us = ref->end_us;
+    return 1;
+}
+
+static const mp4_sidx_ref_t* sidx_find_ref(const mp4_sidx_index_t* idx, int64_t target_us) {
+    if (!idx || idx->count == 0) return NULL;
+    for (uint32_t i = 0; i < idx->count; ++i) {
+        const mp4_sidx_ref_t* r = &idx->refs[i];
+        if (target_us >= r->start_us && target_us < r->end_us) return r;
+    }
+    if (target_us <= idx->refs[0].start_us) return &idx->refs[0];
+    return &idx->refs[idx->count - 1];
 }
 
 /* ---- moov parsing ------------------------------------------------------- */
@@ -443,6 +493,109 @@ static void announce_tracks(mp4_t* m) {
         }
         t->announced = 1;
     }
+}
+
+/* ---- sidx (direct fMP4 VOD seek index) ---------------------------------- */
+
+static void parse_sidx(mp4_t* m, const uint8_t* p, int len, int64_t box_end) {
+    if (!m || !p || len < 24 || box_end < 0) return;
+    int version = p[0];
+    if (version > 1) return;
+
+    uint32_t timescale = rd32(p + 8);
+    if (timescale == 0) return;
+
+    int off = 12;
+    uint64_t earliest;
+    uint64_t first_offset;
+    if (version == 0) {
+        if (len < off + 8) return;
+        earliest = rd32(p + off);
+        first_offset = rd32(p + off + 4);
+        off += 8;
+    } else {
+        if (len < off + 16) return;
+        earliest = rd64(p + off);
+        first_offset = rd64(p + off + 8);
+        off += 16;
+    }
+
+    if (off > len - 4) return;
+    uint16_t ref_count = rd16(p + off + 2); /* reserved(16), reference_count(16) */
+    off += 4;
+    if ((size_t)ref_count > (size_t)(len - off) / 12) return;
+
+    mp4_sidx_index_t next;
+    memset(&next, 0, sizeof(next));
+    uint64_t box_end_u = (uint64_t)box_end;
+    if (first_offset > UINT64_MAX - box_end_u) return;
+    uint64_t ref_offset = box_end_u + first_offset;
+    uint64_t pts = earliest;
+
+    for (uint16_t i = 0; i < ref_count; ++i, off += 12) {
+        uint32_t ref = rd32(p + off);
+        uint32_t size = ref & 0x7FFFFFFFU;
+        uint32_t dur = rd32(p + off + 4);
+        uint32_t sap = rd32(p + off + 8);
+        int ref_type = (ref & 0x80000000U) != 0;
+        int starts_with_sap = (sap & 0x80000000U) != 0;
+        int sap_type = (sap & 0x70000000U) >> 28;
+        uint32_t sap_delta = sap & 0x0FFFFFFFU;
+
+        /* This path supports the direct integrated fMP4 shape where sidx
+         * references complete moof+mdat subsegments that begin on a SAP type-1, 2
+         * or unspecified(0). Nested sidx references are deliberately not exposed
+         * as seekable yet. */
+        if (ref_type || !starts_with_sap || sap_type > 2 || sap_delta != 0 || size == 0 || dur == 0 ||
+            ref_offset > (uint64_t)INT64_MAX || pts > (uint64_t)INT64_MAX ||
+            dur > (uint64_t)INT64_MAX - pts) {
+            sidx_clear(&next);
+            return;
+        }
+
+        mp4_sidx_ref_t r;
+        r.start_us = ticks_to_us((int64_t)pts, (int)timescale);
+        r.end_us = ticks_to_us((int64_t)(pts + dur), (int)timescale);
+        r.offset = ref_offset;
+        if (r.end_us <= r.start_us || !sidx_add_ref(&next, &r)) {
+            sidx_clear(&next);
+            return;
+        }
+
+        if (ref_offset > UINT64_MAX - size) {
+            sidx_clear(&next);
+            return;
+        }
+        ref_offset += size;
+        pts += dur;
+    }
+
+    if (next.count == 0 || next.duration_us <= 0) {
+        sidx_clear(&next);
+        return;
+    }
+
+    sidx_clear(&m->sidx);
+    m->sidx = next;
+    if (m->reseek && m->sink->on_duration) {
+        m->sink->on_duration(m->sink->user, m->sidx.duration_us);
+    }
+}
+
+static int maybe_seek_fragment(mp4_t* m) {
+    if (!m->reseek || !m->sink->take_seek || m->sidx.count == 0) return 0;
+
+    int64_t seek_us;
+    if (!m->sink->take_seek(m->sink->user, &seek_us)) return 0;
+    const mp4_sidx_ref_t* ref = sidx_find_ref(&m->sidx, seek_us);
+    if (!ref) return 0;
+    if (ref->offset > (uint64_t)INT64_MAX) return 0;
+
+    if (m->reseek(m->reseek_ctx, (int64_t)ref->offset) != 0) return 0;
+    m->pos = (int64_t)ref->offset;
+    m->nfrags = 0;
+    m->mdat_skipped = 0;
+    return 1;
 }
 
 /* ---- classic (progressive) sample walk ---------------------------------- */
@@ -880,6 +1033,9 @@ static void consume_mdat(mp4_t* m, const uint8_t* data, int len) {
     }
 
     for (;;) {
+        if (maybe_seek_fragment(m))
+            break;
+
         int k = -1;
         int64_t best_us = 0;
         for (int j = 0; j < m->nfrags; ++j) {
@@ -925,8 +1081,12 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
     mp4_t m; memset(&m, 0, sizeof(m));
     m.sink = sink; m.read = read; m.ctx = ctx;
     m.reseek = reseek; m.reseek_ctx = reseek_ctx;
+    m.mdat_seek_pos = -1;
 
     while (sink->is_running(sink->user)) {
+        if (maybe_seek_fragment(&m))
+            continue;
+
         uint32_t type; int64_t body;
         if (read_box_header(&m, &type, &body) != 0) break;
 
@@ -947,10 +1107,18 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                 continue;
             }
             /* media data with no index yet: the moov may still follow (trailing-
-             * moov progressive file). Skip it, and report if the moov proves that
-             * these bytes were the media. */
+             * moov progressive file). Skip it, but remember where the first one
+             * started so a range-capable source can seek back once the moov's
+             * sample tables arrive. On such a source seek straight past the mdat
+             * rather than streaming its payload — otherwise reaching a trailing
+             * moov reads the whole file before playback can begin. */
             m.mdat_skipped = 1;
-            if (body < 0 || skip_bytes(&m, body) != 0) break;
+            if (m.mdat_seek_pos < 0) m.mdat_seek_pos = m.pos;
+            if (body < 0) break;
+            if (m.reseek && m.reseek(m.reseek_ctx, add_i64_sat(m.pos, body)) == 0)
+                m.pos = add_i64_sat(m.pos, body);
+            else if (skip_bytes(&m, body) != 0)
+                break;
             continue;
         }
 
@@ -975,15 +1143,34 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                             "MP4 uses a compact (stz2) sample-size table, which isn't supported; remux (ffmpeg -c copy) to rewrite the sample tables");
                         break;
                     }
-                if (m.mdat_skipped && classic_ready(&m))
+                if (m.mdat_skipped && classic_ready(&m)) {
+                    /* Trailing-moov progressive: the media streamed past before its
+                     * index arrived. On a range-capable source (reseek wired) the
+                     * mdat is still reachable — seek back to the first one and stream
+                     * from there now that the sample tables are in hand; the walk is
+                     * offset-driven, so a single mdat or several play alike. A one-way
+                     * stream can't reach it, so it keeps the remux refusal. */
+                    if (m.reseek && m.mdat_seek_pos >= 0 &&
+                        m.reseek(m.reseek_ctx, m.mdat_seek_pos) == 0) {
+                        m.pos = m.mdat_seek_pos;
+                        if (sink->on_duration) {
+                            int64_t dur_us = m.movie_duration > 0
+                                ? ticks_to_us(m.movie_duration, m.movie_timescale > 0 ? m.movie_timescale : 1000)
+                                : classic_total_duration_us(&m);
+                            if (dur_us > 0) sink->on_duration(sink->user, dur_us);
+                        }
+                        free(buf);
+                        consume_progressive(&m, INT64_MAX);
+                        goto done; /* played to EOF (or stopped); the trailing moov is behind us */
+                    }
                     sink->on_error(sink->user,
                         "progressive MP4 stores its index (moov) after the media data, which can't play over a one-way stream; remux with faststart (ffmpeg -movflags +faststart)");
-                /* Progressive files have a complete timeline in hand — report it,
-                 * but only when the byte source can honour seeks (a non-zero
-                 * duration is the managed layer's seekability signal) and the file
-                 * wasn't just refused above (a raised error stops is_running, so a
-                 * rejected file publishes no duration). fMP4 durations come from the
-                 * layer that knows them (HLS VOD). */
+                    break;
+                }
+                /* Faststart progressive: complete timeline in hand — report it, but
+                 * only when the byte source can honour seeks (a non-zero duration is
+                 * the managed layer's seekability signal). fMP4 durations come from
+                 * the layer that knows them (HLS VOD). */
                 if (sink->is_running(sink->user) && classic_ready(&m) && m.reseek && sink->on_duration) {
                     int64_t dur_us = m.movie_duration > 0
                         ? ticks_to_us(m.movie_duration, m.movie_timescale > 0 ? m.movie_timescale : 1000)
@@ -994,12 +1181,16 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
             case 0x6d6f6f66: /* moof */
                 parse_moof(&m, buf, (int)body);
                 break;
+            case 0x73696478: /* sidx */
+                parse_sidx(&m, buf, (int)body, m.pos);
+                break;
             default:
-                break; /* ftyp, styp, sidx, free, ... ignored */
+                break; /* ftyp, styp, free, ... ignored */
         }
         free(buf);
     }
 
+done:
     for (int k = 0; k < MP4_MAX_FRAGS; ++k) {
         free(m.frags[k].sizes); free(m.frags[k].durs); free(m.frags[k].ctos);
     }
@@ -1008,5 +1199,6 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
         free(c->sizes); free(c->stts); free(c->ctts);
         free(c->stsc); free(c->chunk_offsets); free(c->stss);
     }
+    sidx_clear(&m.sidx);
     return 0;
 }

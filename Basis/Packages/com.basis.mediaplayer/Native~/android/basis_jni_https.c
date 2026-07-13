@@ -135,7 +135,10 @@ typedef struct {
     int scratch_cap;
     int eof;
     int seekable;       /* finite, byte-range-fetchable body (VOD detect)   */
+    int range_ok;       /* probe answered 206 — ranged re-request honoured  */
     long long total_bytes;
+    char* url;          /* kept for ranged re-requests (reseek)             */
+    int timeout_ms;
 } https_ctx;
 
 /* Reads a response header into buf; returns 0 when absent. */
@@ -152,30 +155,32 @@ static int get_header(JNIEnv* env, jobject conn, const char* name, char* buf, in
     return ok;
 }
 
-void* basis_jni_https_open(const char* url, int timeout_ms) {
-    if (!url) return NULL;
-    if (!g_init_ok) { LOGE("basis_jni_https: JNI not initialised"); return NULL; }
-
-    jenv_lease L; if (jenv_acquire(&L) != 0) return NULL;
-    JNIEnv* env = L.env;
-
-    https_ctx* h = (https_ctx*)calloc(1, sizeof(*h));
-    if (!h) { jenv_release(&L); return NULL; }
+/* Opens a connected HttpURLConnection GET for `url` with the given Range header
+ * value, following redirects. On success returns a local ref to the connection
+ * and writes the HTTP status to *out_code (0 for a non-HTTP connection); the
+ * caller reads headers / getInputStream and owns the ref. Returns NULL on any
+ * failure, with the java exception cleared. Shared by open and reseek so the
+ * connect sequence lives in one place. */
+static jobject https_connect(JNIEnv* env, const char* url, int timeout_ms,
+                             const char* range_val, jint* out_code) {
+    *out_code = 0;
 
     jstring jurl = (*env)->NewStringUTF(env, url);
+    if (!jurl) return NULL;
     jobject urlObj = (*env)->NewObject(env, g_ids.url_cls, g_ids.url_ctor, jurl);
+    (*env)->DeleteLocalRef(env, jurl);
     if ((*env)->ExceptionCheck(env) || !urlObj) {
         log_and_clear_pending(env, "new URL");
-        (*env)->DeleteLocalRef(env, jurl);
-        free(h); jenv_release(&L); return NULL;
+        if (urlObj) (*env)->DeleteLocalRef(env, urlObj);
+        return NULL;
     }
 
     jobject conn = (*env)->CallObjectMethod(env, urlObj, g_ids.url_open);
+    (*env)->DeleteLocalRef(env, urlObj);
     if ((*env)->ExceptionCheck(env) || !conn) {
         log_and_clear_pending(env, "openConnection");
-        (*env)->DeleteLocalRef(env, urlObj);
-        (*env)->DeleteLocalRef(env, jurl);
-        free(h); jenv_release(&L); return NULL;
+        if (conn) (*env)->DeleteLocalRef(env, conn);
+        return NULL;
     }
 
     if (timeout_ms > 0) {
@@ -188,57 +193,77 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
     (*env)->DeleteLocalRef(env, agent_key);
     (*env)->DeleteLocalRef(env, agent_val);
 
-    /* The bytes=0- probe: identical body, but a server that really implements
-     * ranges answers 206 — the seekability signal the live-vs-VOD delivery
-     * auto-detect needs (mirrors the WinHTTP source; nginx omits Accept-Ranges
-     * on 206 responses, so the status is the only proof there). */
     jstring range_key = (*env)->NewStringUTF(env, "Range");
-    jstring range_val = (*env)->NewStringUTF(env, "bytes=0-");
-    (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, range_key, range_val);
+    jstring range_str = (*env)->NewStringUTF(env, range_val);
+    (*env)->CallVoidMethod(env, conn, g_ids.conn_set_req, range_key, range_str);
     (*env)->DeleteLocalRef(env, range_key);
-    (*env)->DeleteLocalRef(env, range_val);
+    (*env)->DeleteLocalRef(env, range_str);
 
     /* HttpURLConnection (and its HttpsURLConnection subclass) gets redirect + status APIs. */
-    if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls)) {
+    if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls))
         (*env)->CallVoidMethod(env, conn, g_ids.http_set_follow, JNI_TRUE);
-    }
 
     (*env)->CallVoidMethod(env, conn, g_ids.conn_connect);
     if ((*env)->ExceptionCheck(env)) {
         log_and_clear_pending(env, "connect");
         (*env)->DeleteLocalRef(env, conn);
-        (*env)->DeleteLocalRef(env, urlObj);
-        (*env)->DeleteLocalRef(env, jurl);
-        free(h); jenv_release(&L); return NULL;
+        return NULL;
     }
 
     if ((*env)->IsInstanceOf(env, conn, g_ids.http_conn_cls)) {
         jint code = (*env)->CallIntMethod(env, conn, g_ids.http_get_code);
         if ((*env)->ExceptionCheck(env)) { log_and_clear_pending(env, "getResponseCode"); code = 0; }
-        if (code < 200 || code >= 400) {
+        *out_code = code;
+        /* Reject 3xx, not just 4xx/5xx: setInstanceFollowRedirects handles
+         * same-protocol redirects transparently (getResponseCode returns the
+         * final 2xx), so a surviving 3xx is a redirect HttpURLConnection won't
+         * follow — a cross-protocol http<->https hop. getInputStream would then
+         * return the redirect page, not the media; fail cleanly instead. */
+        if (code < 200 || code >= 300) {
             LOGE("basis_jni_https: HTTP %d for %s", (int)code, url);
             (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
-            log_and_clear_pending(env, "disconnect");
+            if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
             (*env)->DeleteLocalRef(env, conn);
-            (*env)->DeleteLocalRef(env, urlObj);
-            (*env)->DeleteLocalRef(env, jurl);
-            free(h); jenv_release(&L); return NULL;
+            return NULL;
         }
-        /* Seekability (live-vs-VOD auto-detect): a finite, range-fetchable body
-         * is on-demand. Range support is proven by the probe answering 206 or
-         * by an Accept-Ranges: bytes advertisement; a known Content-Length is
-         * required either way so a chunked / open-ended live stream is never
-         * mistaken for VOD (which would mis-pace it). */
-        {
-            char ranges[64], clen[32];
-            int rangeable = (code == 206);
-            if (!rangeable && get_header(env, conn, "Accept-Ranges", ranges, sizeof(ranges)))
-                rangeable = strcasecmp(ranges, "bytes") == 0;
-            long long len = 0;
-            if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
-                len = atoll(clen);
-            h->seekable = (rangeable && len > 0) ? 1 : 0;
-        }
+    }
+    return conn; /* local ref */
+}
+
+void* basis_jni_https_open(const char* url, int timeout_ms) {
+    if (!url) return NULL;
+    if (!g_init_ok) { LOGE("basis_jni_https: JNI not initialised"); return NULL; }
+
+    jenv_lease L; if (jenv_acquire(&L) != 0) return NULL;
+    JNIEnv* env = L.env;
+
+    https_ctx* h = (https_ctx*)calloc(1, sizeof(*h));
+    if (!h) { jenv_release(&L); return NULL; }
+
+    /* The bytes=0- probe: identical body, but a server that really implements
+     * ranges answers 206 — the seekability signal the live-vs-VOD delivery
+     * auto-detect needs (mirrors the WinHTTP source; nginx omits Accept-Ranges
+     * on 206 responses, so the status is the only proof there). */
+    jint code = 0;
+    jobject conn = https_connect(env, url, timeout_ms, "bytes=0-", &code);
+    if (!conn) { free(h); jenv_release(&L); return NULL; }
+
+    /* Seekability (live-vs-VOD auto-detect): a finite, range-fetchable body is
+     * on-demand. Range support is proven by the probe answering 206 or by an
+     * Accept-Ranges: bytes advertisement; a known Content-Length is required
+     * either way so a chunked / open-ended live stream is never mistaken for VOD
+     * (which would mis-pace it). range_ok keeps the stricter 206-only proof that
+     * a later ranged refetch relies on. */
+    {
+        char ranges[64], clen[32];
+        h->range_ok = (code == 206);
+        int rangeable = h->range_ok;
+        if (!rangeable && get_header(env, conn, "Accept-Ranges", ranges, sizeof(ranges)))
+            rangeable = strcasecmp(ranges, "bytes") == 0;
+        long long len = 0;
+        if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
+            len = atoll(clen);
+        h->seekable = (rangeable && len > 0) ? 1 : 0;
     }
 
     jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
@@ -248,18 +273,16 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
             (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
         log_and_clear_pending(env, "disconnect");
         (*env)->DeleteLocalRef(env, conn);
-        (*env)->DeleteLocalRef(env, urlObj);
-        (*env)->DeleteLocalRef(env, jurl);
         free(h); jenv_release(&L); return NULL;
     }
 
     h->conn = (*env)->NewGlobalRef(env, conn);
     h->is   = (*env)->NewGlobalRef(env, is);
+    h->url  = strdup(url);
+    h->timeout_ms = timeout_ms;
 
     (*env)->DeleteLocalRef(env, is);
     (*env)->DeleteLocalRef(env, conn);
-    (*env)->DeleteLocalRef(env, urlObj);
-    (*env)->DeleteLocalRef(env, jurl);
 
     LOGI("basis_jni_https: open ok for %s", url);
     jenv_release(&L);
@@ -285,6 +308,81 @@ static int ensure_scratch(JNIEnv* env, https_ctx* h, int want) {
 int basis_jni_https_is_seekable(void* ctx) {
     https_ctx* h = (https_ctx*)ctx;
     return h ? h->seekable : 0;
+}
+
+int basis_jni_https_can_reseek(void* ctx) {
+    https_ctx* h = (https_ctx*)ctx;
+    return h ? (h->seekable && h->range_ok) : 0;
+}
+
+void basis_jni_https_abort(void* ctx) {
+    https_ctx* h = (https_ctx*)ctx;
+    if (!h) return;
+    jenv_lease L; if (jenv_acquire(&L) != 0) return;
+    JNIEnv* env = L.env;
+    /* Disconnecting closes the underlying socket, so a read blocked in
+     * InputStream.read() on the reader thread throws and returns at once (the
+     * counterpart to closing the WinHTTP request handle). The read path sets eof
+     * on that exception; reseek clears it when it installs the new stream. */
+    if (h->conn && (*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls)) {
+        (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+    }
+    jenv_release(&L);
+}
+
+int basis_jni_https_reseek(void* ctx, long long offset) {
+    https_ctx* h = (https_ctx*)ctx;
+    if (!h || !h->seekable || !h->range_ok || !h->url || offset < 0) return -1;
+
+    jenv_lease L; if (jenv_acquire(&L) != 0) return -1;
+    JNIEnv* env = L.env;
+
+    /* Tear down the old response (abort may already have disconnected it). */
+    if (h->is) {
+        (*env)->CallVoidMethod(env, h->is, g_ids.is_close);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteGlobalRef(env, h->is); h->is = NULL;
+    }
+    if (h->conn) {
+        if ((*env)->IsInstanceOf(env, h->conn, g_ids.http_conn_cls))
+            (*env)->CallVoidMethod(env, h->conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteGlobalRef(env, h->conn); h->conn = NULL;
+    }
+
+    char range[64];
+    snprintf(range, sizeof(range), "bytes=%lld-", offset);
+    jint code = 0;
+    jobject conn = https_connect(env, h->url, h->timeout_ms, range, &code);
+    if (!conn) { h->eof = 1; jenv_release(&L); return -1; }
+
+    /* 206 = ranged body starting at offset. A 200 means the server ignored the
+     * Range and restarted at byte 0 — the bytes would be silently misaligned. */
+    if (code != 206 && !(code == 200 && offset == 0)) {
+        (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, conn);
+        h->eof = 1; jenv_release(&L); return -1;
+    }
+
+    jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
+    if ((*env)->ExceptionCheck(env) || !is) {
+        log_and_clear_pending(env, "reseek getInputStream");
+        (*env)->CallVoidMethod(env, conn, g_ids.http_disconnect);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, conn);
+        h->eof = 1; jenv_release(&L); return -1;
+    }
+
+    h->conn = (*env)->NewGlobalRef(env, conn);
+    h->is   = (*env)->NewGlobalRef(env, is);
+    h->eof  = 0;
+    h->total_bytes = offset;
+    (*env)->DeleteLocalRef(env, is);
+    (*env)->DeleteLocalRef(env, conn);
+    jenv_release(&L);
+    return 0;
 }
 
 int basis_jni_https_read(void* ctx, uint8_t* buf, int len) {
@@ -354,5 +452,6 @@ void basis_jni_https_close(void* ctx) {
         if (h->scratch) (*env)->DeleteGlobalRef(env, h->scratch);
         jenv_release(&L);
     }
+    free(h->url);
     free(h);
 }

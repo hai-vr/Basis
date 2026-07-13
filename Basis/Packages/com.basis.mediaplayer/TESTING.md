@@ -139,8 +139,10 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
 | PCE-signalled / >6-ch AAC | **Graceful refusal** on Windows (mute or clean error, never a crash) |
+| Trailing-moov progressive MP4 | Non-faststart file (`ffmpeg -i in.mp4 -c copy out.mp4` leaves `moov` after `mdat`): on a range/`206` server it plays with seek + duration; over a one-way stream (no ranges) it refuses cleanly with a faststart-remux hint |
 | CEA-608 captions | Stack caption fixture: cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
 | 44.1 kHz audio | Resamples cleanly to the DSP rate (dominant path is 48 kHz — don't let 44.1k rot) |
+| 1080p video | No thin black strip along the top edge on Windows (720p is unaffected — test 1080p specifically) |
 
 ### Platforms and backends
 
@@ -157,7 +159,10 @@ Run the rows your change plausibly touches; run everything before a release-boun
 different URL mid-play. No stale frames, no orphaned audio, position resets correctly.
 
 **Seek (VOD)** — slider to arbitrary positions; rapid successive seeks (input is debounced);
-seek-then-pause shows the sought frame.
+seek-then-pause shows the sought frame. The byte-source ranged refetch that backs a seek now
+runs on **Android** too (JNI `HttpsURLConnection`), not just Windows — run the same slider
+checks on a Quest against a range/`206` VOD host (`https://`), watching `adb logcat` for a clean
+reposition (no decoder error, playback resumes at the target).
 
 > On-demand multiplayer sync is **start-together, not catch-up**: the native backend exposes
 > no absolute seek, so a client that falls behind stays behind until the next shared (re)load.

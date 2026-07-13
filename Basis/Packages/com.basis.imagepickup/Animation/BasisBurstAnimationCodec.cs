@@ -16,6 +16,12 @@ namespace Basis.ImagePickup
             : base(message) { }
     }
 
+    internal enum BasisAnimationDecodeTrust : byte
+    {
+        UntrustedRemote = 0,
+        TrustedLocal = 1,
+    }
+
     internal enum BasisAnimationCodecError
     {
         None = 0,
@@ -386,12 +392,18 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            if (_completed == null)
-                _handle.Complete();
-            if (!_resultClaimed)
-                _completed?.TakePayload()?.Dispose();
-            _completed = null;
-            DisposeNative(true);
+            try
+            {
+                if (_completed == null)
+                    _handle.Complete();
+                if (!_resultClaimed)
+                    _completed?.TakePayload()?.Dispose();
+            }
+            finally
+            {
+                _completed = null;
+                DisposeNative(true);
+            }
         }
     }
 
@@ -424,13 +436,28 @@ namespace Basis.ImagePickup
             _state == DecodeState.Complete || _handle.IsCompleted;
 
         public BasisBurstAnimationDecodeRequest(NativeArray<byte> payload, int payloadLength, bool takeOwnership)
-            : this(payload, payloadLength, takeOwnership, false) { }
+            : this(
+                payload,
+                payloadLength,
+                takeOwnership,
+                false,
+                BasisAnimationDecodeTrust.UntrustedRemote
+            ) { }
+
+        internal BasisBurstAnimationDecodeRequest(
+            NativeArray<byte> payload,
+            int payloadLength,
+            bool takeOwnership,
+            BasisAnimationDecodeTrust trust
+        )
+            : this(payload, payloadLength, takeOwnership, false, trust) { }
 
         private BasisBurstAnimationDecodeRequest(
             NativeArray<byte> payload,
             int payloadLength,
             bool takeOwnership,
-            bool disposeOwnedInputOnFailure
+            bool disposeOwnedInputOnFailure,
+            BasisAnimationDecodeTrust trust
         )
         {
             if (
@@ -451,6 +478,7 @@ namespace Basis.ImagePickup
                     !BasisBurstAnimationCodec.TryReadOuterHeader(
                         payload,
                         payloadLength,
+                        trust,
                         out int rawLength,
                         out string headerError
                     )
@@ -533,7 +561,13 @@ namespace Basis.ImagePickup
         }
 
         public BasisBurstAnimationDecodeRequest(byte[] payload)
-            : this(ToNative(payload), payload?.Length ?? 0, true, true) { }
+            : this(
+                ToNative(payload),
+                payload?.Length ?? 0,
+                true,
+                true,
+                BasisAnimationDecodeTrust.UntrustedRemote
+            ) { }
 
         public bool TryComplete(out BasisBurstAnimationDecodeResult result)
         {
@@ -747,12 +781,18 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            if (_state != DecodeState.Complete)
-                _handle.Complete();
-            if (!_resultClaimed)
-                _completed?.TakeAnimation()?.Dispose();
-            _completed = null;
-            DisposeAllNative();
+            try
+            {
+                if (_state != DecodeState.Complete)
+                    _handle.Complete();
+                if (!_resultClaimed)
+                    _completed?.TakeAnimation()?.Dispose();
+            }
+            finally
+            {
+                _completed = null;
+                DisposeAllNative();
+            }
         }
 
         private static NativeArray<byte> ToNative(byte[] payload)
@@ -804,6 +844,44 @@ namespace Basis.ImagePickup
             out string error
         )
         {
+            return TryReadOuterHeader(
+                payload,
+                length,
+                BasisAnimationDecodeTrust.UntrustedRemote,
+                out decodedLength,
+                out error
+            );
+        }
+
+        internal static bool TryReadOuterHeader(
+            NativeArray<byte> payload,
+            int length,
+            BasisAnimationDecodeTrust trust,
+            out int decodedLength,
+            out string error
+        )
+        {
+            long decodedBodyLimit =
+                trust == BasisAnimationDecodeTrust.TrustedLocal
+                    ? BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes
+                    : BasisImagePickupSettings.MaxInboundAnimationDecodedBodyBytes;
+            return TryReadOuterHeader(
+                payload,
+                length,
+                decodedBodyLimit,
+                out decodedLength,
+                out error
+            );
+        }
+
+        internal static bool TryReadOuterHeader(
+            NativeArray<byte> payload,
+            int length,
+            long decodedBodyLimit,
+            out int decodedLength,
+            out string error
+        )
+        {
             decodedLength = 0;
             error = null;
             if (!payload.IsCreated || length < OuterHeaderBytes || length > payload.Length)
@@ -828,9 +906,11 @@ namespace Basis.ImagePickup
             decodedLength = ReadInt32(payload, 8);
             int compressedLength = ReadInt32(payload, 12);
             if (
-                decodedLength <= 0
-                || decodedLength
+                decodedBodyLimit <= 0
+                || decodedBodyLimit
                     > BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes
+                || decodedLength <= 0
+                || decodedLength > decodedBodyLimit
                 || compressedLength <= 0
                 || compressedLength != length - OuterHeaderBytes
             )
@@ -1247,7 +1327,10 @@ namespace Basis.ImagePickup
                     Fail(BasisAnimationCodecError.InvalidLz4Token);
                     return;
                 }
-                if (input + literalLength > inputEnd || output + literalLength > Raw.Length)
+                if (
+                    literalLength > inputEnd - input
+                    || literalLength > Raw.Length - output
+                )
                 {
                     Fail(BasisAnimationCodecError.Truncated);
                     return;
@@ -1258,7 +1341,7 @@ namespace Basis.ImagePickup
                 output += literalLength;
                 if (input == inputEnd)
                     break;
-                if (input + 2 > inputEnd)
+                if (inputEnd - input < 2)
                 {
                     Fail(BasisAnimationCodecError.Truncated);
                     return;
@@ -1278,7 +1361,7 @@ namespace Basis.ImagePickup
                     Fail(BasisAnimationCodecError.InvalidLz4Token);
                     return;
                 }
-                if (output + matchLength > Raw.Length)
+                if (matchLength > Raw.Length - output)
                 {
                     Fail(BasisAnimationCodecError.OutputOverflow);
                     return;

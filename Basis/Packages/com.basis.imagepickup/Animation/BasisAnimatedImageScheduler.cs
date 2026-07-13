@@ -82,7 +82,7 @@ namespace Basis.ImagePickup
                 _depthVisibility = BasisAnimatedImageDepthVisibility.EnsureInstance(gameObject);
 
             Shader shader = Shader.Find(CompositorShaderName);
-            if (shader != null)
+            if (BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(shader))
             {
                 _compositorMaterial = new Material(shader)
                 {
@@ -93,7 +93,8 @@ namespace Basis.ImagePickup
             else
             {
                 BasisDebug.LogWarning(
-                    "Animated image GPU compositor shader was not found; using the CPU fallback.",
+                    "Animated image GPU compositor shader is missing, unsupported, or incomplete; "
+                        + "using the CPU fallback.",
                     LogTag
                 );
             }
@@ -431,7 +432,12 @@ namespace Basis.ImagePickup
             }
             catch (System.Exception exception)
             {
-                BasisDebug.LogErrorOnce($"Animated image scheduler simulation failed: {exception}", LogTag);
+                BasisDebug.LogErrorOnce(
+                    $"Animated image scheduler simulation failed with {_players.Count:N0} players, "
+                        + $"{_pendingCompositorReleases.Count:N0} pending compositor releases, "
+                        + $"and {_activeReloadDecodes:N0} active reload decodes: {exception}",
+                    LogTag
+                );
             }
         }
 
@@ -700,18 +706,11 @@ namespace Basis.ImagePickup
                 if (!visible)
                     continue;
 
-                bool allowOversizedFirstJob =
-                    transitionsRemaining
-                        == BasisImagePickupSettings.MaxAnimationTransitionsPerFrame
-                    && pixelsRemaining
-                        == BasisImagePickupSettings.MaxAnimationCompositedPixelsPerFrame;
-
                 player.Schedule(
                     _commands,
                     synchronizedTicks,
                     ref transitionsRemaining,
                     ref pixelsRemaining,
-                    allowOversizedFirstJob,
                     ref gpuCommandsAdded
                 );
 

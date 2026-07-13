@@ -214,7 +214,10 @@ namespace Basis.EventDriver
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"MainThread action failed: {ex}");
+                    BasisDebug.LogError(
+                        $"MainThread action failed: {ex}",
+                        BasisDebug.LogTag.Event
+                    );
                 }
             }
             // Player join/leave work is budgeted separately so a mass disconnect

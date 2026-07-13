@@ -792,7 +792,7 @@ MonoBehaviour:
   FlipHorizontally: 0
   ProjectionMode: 0
   StereoEye: 0
-  AspectMode: 0
+  AspectMode: 2
   DisplayAspectOverride: 0
 --- !u!114 &5505517674190816405
 MonoBehaviour:

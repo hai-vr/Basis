@@ -81,7 +81,7 @@ namespace Basis.ImagePickup
             return service;
         }
 
-        internal void PrepareFrame(IReadOnlyList<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
+        internal void PrepareFrame(List<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
         {
             using var scope = PrepareMarker.Auto();
 
@@ -552,7 +552,7 @@ namespace Basis.ImagePickup
             _visibilityBuffer = null;
         }
 
-        private static void ResetResults(IReadOnlyList<BasisAnimatedImagePlayer> players)
+        private static void ResetResults(List<BasisAnimatedImagePlayer> players)
         {
             int count = players?.Count ?? 0;
             for (int i = 0; i < count; i++)

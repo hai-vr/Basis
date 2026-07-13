@@ -8,6 +8,28 @@ namespace Basis.ImagePickup
 {
     internal static class BasisAnimatedImageWorkEstimator
     {
+        public static long ResetPixelCost(BasisAnimatedImageData data)
+        {
+            return (long)data.CanvasWidth * data.CanvasHeight;
+        }
+
+        public static long TransitionPixelCost(
+            BasisAnimatedImageData data,
+            int previousFrameIndex,
+            int nextFrameIndex
+        )
+        {
+            long pixels =
+                previousFrameIndex >= 0
+                    ? DisposalPixelCost(data.GetFrame(previousFrameIndex))
+                    : 0;
+            BasisAnimatedImageFrame frame = data.GetFrame(nextFrameIndex);
+            pixels += frame.PixelCount;
+            if (frame.Disposal == BasisAnimationDisposal.Previous)
+                pixels += frame.PixelCount;
+            return pixels;
+        }
+
         public static void Estimate(
             BasisAnimatedImageData data,
             bool stateValid,
@@ -22,16 +44,11 @@ namespace Basis.ImagePickup
             if (!stateValid || targetPlayIndex != currentPlayIndex || targetFrameIndex < currentFrameIndex)
             {
                 transitions = targetFrameIndex + 1;
-                pixels = (long)data.CanvasWidth * data.CanvasHeight;
+                pixels = ResetPixelCost(data);
                 int previous = -1;
                 for (int i = 0; i <= targetFrameIndex; i++)
                 {
-                    if (previous >= 0)
-                        pixels += DisposalPixelCost(data.GetFrame(previous));
-                    BasisAnimatedImageFrame frame = data.GetFrame(i);
-                    pixels += frame.PixelCount;
-                    if (frame.Disposal == BasisAnimationDisposal.Previous)
-                        pixels += frame.PixelCount;
+                    pixels += TransitionPixelCost(data, previous, i);
                     previous = i;
                 }
                 return;
@@ -41,11 +58,7 @@ namespace Basis.ImagePickup
             pixels = 0;
             for (int i = currentFrameIndex + 1; i <= targetFrameIndex; i++)
             {
-                pixels += DisposalPixelCost(data.GetFrame(i - 1));
-                BasisAnimatedImageFrame frame = data.GetFrame(i);
-                pixels += frame.PixelCount;
-                if (frame.Disposal == BasisAnimationDisposal.Previous)
-                    pixels += frame.PixelCount;
+                pixels += TransitionPixelCost(data, i - 1, i);
             }
         }
 
@@ -154,15 +167,60 @@ namespace Basis.ImagePickup
 
         public int UpdateToState(long targetPlayIndex, int targetFrameIndex)
         {
+            return UpdateToState(
+                targetPlayIndex,
+                targetFrameIndex,
+                int.MaxValue,
+                long.MaxValue,
+                out _
+            );
+        }
+
+        public int UpdateToState(
+            long targetPlayIndex,
+            int targetFrameIndex,
+            int transitionBudget,
+            long pixelBudget,
+            out long pixelsUsed
+        )
+        {
             ThrowIfDisposed();
             ValidateTarget(targetPlayIndex, targetFrameIndex);
+            pixelsUsed = 0;
+            if (transitionBudget <= 0 || pixelBudget <= 0)
+                return 0;
 
             bool reset =
                 !_stateValid
                 || targetPlayIndex != _currentPlayIndex
                 || targetFrameIndex < _currentFrameIndex;
             int startFrame = reset ? -1 : _currentFrameIndex;
-            int transitions = targetFrameIndex - startFrame;
+            long canvasPixels = BasisAnimatedImageWorkEstimator.ResetPixelCost(_data);
+            long requiredPixels = canvasPixels;
+            if (reset)
+                requiredPixels += canvasPixels;
+            if (requiredPixels > pixelBudget)
+                return 0;
+
+            int partialTargetFrame = startFrame;
+            int transitions = 0;
+            while (
+                partialTargetFrame < targetFrameIndex
+                && transitions < transitionBudget
+            )
+            {
+                int nextFrameIndex = partialTargetFrame + 1;
+                long transitionPixels = BasisAnimatedImageWorkEstimator.TransitionPixelCost(
+                    _data,
+                    partialTargetFrame,
+                    nextFrameIndex
+                );
+                if (transitionPixels > pixelBudget - requiredPixels)
+                    break;
+                requiredPixels += transitionPixels;
+                partialTargetFrame = nextFrameIndex;
+                transitions++;
+            }
             if (transitions <= 0)
                 return 0;
 
@@ -171,7 +229,7 @@ namespace Basis.ImagePickup
                 CanvasWidth = _data.CanvasWidth,
                 Reset = reset ? (byte)1 : (byte)0,
                 StartFrame = startFrame,
-                TargetFrame = targetFrameIndex,
+                TargetFrame = partialTargetFrame,
                 Linear =
                     QualitySettings.activeColorSpace == ColorSpace.Linear
                         ? (byte)1
@@ -186,10 +244,11 @@ namespace Basis.ImagePickup
                 .Complete();
 
             _currentPlayIndex = targetPlayIndex;
-            _currentFrameIndex = targetFrameIndex;
+            _currentFrameIndex = partialTargetFrame;
             _stateValid = true;
             _texture.SetPixelData(_pixels, 0);
             _texture.Apply(false, false);
+            pixelsUsed = requiredPixels;
             return transitions;
         }
 

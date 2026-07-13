@@ -8,6 +8,37 @@ namespace Basis.ImagePickup
     /// </summary>
     public static class BasisImagePickupSettings
     {
+        internal readonly struct AnimationMemoryLimits
+        {
+            public readonly long DecodedBodyBytes;
+            public readonly long PendingDecodedBytesPerSender;
+            public readonly long DecodedFramePixelsPerSender;
+            public readonly long ResidentNativeBytes;
+            public readonly long ResidentCompositorBytes;
+            public readonly long NativeWorkingSetBytes;
+
+            public AnimationMemoryLimits(
+                long decodedBodyBytes,
+                long pendingDecodedBytesPerSender,
+                long decodedFramePixelsPerSender,
+                long residentNativeBytes,
+                long residentCompositorBytes,
+                long nativeWorkingSetBytes
+            )
+            {
+                DecodedBodyBytes = decodedBodyBytes;
+                PendingDecodedBytesPerSender = pendingDecodedBytesPerSender;
+                DecodedFramePixelsPerSender = decodedFramePixelsPerSender;
+                ResidentNativeBytes = residentNativeBytes;
+                ResidentCompositorBytes = residentCompositorBytes;
+                NativeWorkingSetBytes = nativeWorkingSetBytes;
+            }
+        }
+
+        private const long MiB = 1024L * 1024L;
+        private static readonly AnimationMemoryLimits RuntimeAnimationMemoryLimits =
+            CalculateAnimationMemoryLimits(SystemInfo.systemMemorySize, Application.isMobilePlatform);
+
         public const string ReceiveEnabledKey = "Basis.ImagePickup.ReceiveEnabled";
 
         public const int MaxImageBytes = 8 * 1024 * 1024;
@@ -57,12 +88,15 @@ namespace Basis.ImagePickup
         public const long MaxAnimationCompositedPixelsPerFrame = 32L * 1024L * 1024L;
 		public const float AnimationOffscreenResourceReleaseSeconds = 10f;
         public const float AnimationCompositorBudgetWarningIntervalSeconds = 30f;
-        public const long MaxResidentAnimationNativeBytes = 2L * 1024L * 1024L * 1024L;
+        public static long MaxInboundAnimationDecodedBodyBytes =>
+            RuntimeAnimationMemoryLimits.DecodedBodyBytes;
+        public static long MaxResidentAnimationNativeBytes =>
+            RuntimeAnimationMemoryLimits.ResidentNativeBytes;
         public const long MaxResidentAnimationPayloadBytes = 1L * 1024L * 1024L * 1024L;
-        public const long MaxResidentAnimationCompositorBytes =
-            1L * 1024L * 1024L * 1024L;
-        public const long MaxAnimationNativeWorkingSetBytes =
-            3L * 1024L * 1024L * 1024L;
+        public static long MaxResidentAnimationCompositorBytes =>
+            RuntimeAnimationMemoryLimits.ResidentCompositorBytes;
+        public static long MaxAnimationNativeWorkingSetBytes =>
+            RuntimeAnimationMemoryLimits.NativeWorkingSetBytes;
 
         // Physics-backed front-face visibility is sampled at 10 Hz and globally budgeted per frame.
         public const float AnimationFaceOcclusionCheckIntervalSeconds = 0.1f;
@@ -84,8 +118,8 @@ namespace Basis.ImagePickup
         // Completed network payloads wait compressed; these limits apply only to active native decodes.
         public static int MaxPendingInboundAnimationDecodeJobsPerSender =>
             MaxConcurrentAnimationDecodeJobs;
-        public const long MaxPendingInboundAnimationDecodedBytesPerSender =
-            320L * 1024L * 1024L;
+        public static long MaxPendingInboundAnimationDecodedBytesPerSender =>
+            RuntimeAnimationMemoryLimits.PendingDecodedBytesPerSender;
 
         // Includes retained remote compressed payloads plus accepted in-flight transfers and decodes.
         public const long MaxInboundAnimationNetworkBytesPerSender =
@@ -93,8 +127,8 @@ namespace Basis.ImagePickup
 
         // Payload-backed players share this decoded-data cache per owner. The scheduler keeps the
         // closest animations decoded and restores them from compressed payloads as proximity changes.
-        public const long MaxRemoteAnimationDecodedFramePixelsPerSender =
-            128L * 1024L * 1024L;
+        public static long MaxRemoteAnimationDecodedFramePixelsPerSender =>
+            RuntimeAnimationMemoryLimits.DecodedFramePixelsPerSender;
         public const long MaxRemoteAnimationCanvasPixelsPerSender = 16L * 1024L * 1024L;
 
         private static bool _loaded;
@@ -111,6 +145,45 @@ namespace Basis.ImagePickup
         internal static int CalculateAnimationDecodeJobLimit(int availableProcessorCount)
         {
             return Mathf.Clamp(availableProcessorCount, 1, 2);
+        }
+
+        internal static AnimationMemoryLimits CalculateAnimationMemoryLimits(
+            int systemMemoryMegabytes,
+            bool mobileOrPortablePlatform
+        )
+        {
+            if (mobileOrPortablePlatform || (systemMemoryMegabytes > 0 && systemMemoryMegabytes <= 4096))
+            {
+                return new AnimationMemoryLimits(
+                    64L * MiB,
+                    128L * MiB,
+                    16L * 1024L * 1024L,
+                    256L * MiB,
+                    256L * MiB,
+                    512L * MiB
+                );
+            }
+
+            if (systemMemoryMegabytes > 0 && systemMemoryMegabytes <= 8192)
+            {
+                return new AnimationMemoryLimits(
+                    128L * MiB,
+                    256L * MiB,
+                    64L * 1024L * 1024L,
+                    768L * MiB,
+                    512L * MiB,
+                    1536L * MiB
+                );
+            }
+
+            return new AnimationMemoryLimits(
+                MaxAnimationNetworkDecodedBytes,
+                320L * MiB,
+                128L * 1024L * 1024L,
+                2L * 1024L * MiB,
+                1024L * MiB,
+                3L * 1024L * MiB
+            );
         }
 
         /// <summary>

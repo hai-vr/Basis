@@ -92,6 +92,47 @@ namespace Basis.ImagePickup.Tests
             Assert.That(result.Animation.BackgroundColor, Is.EqualTo(new Color32(0, 255, 0, 255)));
         }
 
+        [Test]
+        public void SkippedPlainTextConsumesPendingGraphicControl()
+        {
+            byte[] source = Convert.FromBase64String(AnimatedGif);
+            int graphicControl = FindGraphicControlExtension(source, 0);
+            Assert.That(graphicControl, Is.GreaterThanOrEqualTo(0));
+            byte[] plainTextExtension =
+            {
+                0x21,
+                0x01,
+                0x0C,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x00,
+                0x01,
+                0x00,
+                0x08,
+                0x08,
+                0x01,
+                0x00,
+                0x01,
+                0x41,
+                0x00,
+            };
+            source = InsertBytes(source, graphicControl + 8, plainTextExtension);
+
+            using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(source);
+            using BasisBurstGifDecodeResult result = request.Complete();
+            Assert.That(result.Ok, Is.True, result.Error);
+            BasisAnimatedImageFrame firstFrame = result.Animation.GetFrame(0);
+            Assert.That(
+                firstFrame.DurationMicroseconds,
+                Is.EqualTo(BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds)
+            );
+            Assert.That(firstFrame.Disposal, Is.EqualTo(BasisAnimationDisposal.None));
+            Assert.That(firstFrame.Blend, Is.EqualTo(BasisAnimationBlend.Source));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void ClaimedAnimationEncodeResultSurvivesRequestDisposal(bool useTryComplete)
@@ -213,6 +254,142 @@ namespace Basis.ImagePickup.Tests
 
             Assert.That(BasisBurstAnimationCodec.TryAccumulateLz4Length(ref length, 11), Is.False);
             Assert.That(length, Is.EqualTo(int.MaxValue - 10));
+        }
+
+        [Test]
+        public void AnimationOuterHeaderSeparatesTrustedLocalAndRemoteLimits()
+        {
+            const int frameCount = 4;
+            int rawLength = checked(
+                BasisBurstAnimationCodec.BodyHeaderBytes
+                + frameCount * BasisBurstAnimationCodec.FrameRecordBytes
+                + frameCount * 2048 * 2048 * 4
+            );
+            Assert.That(rawLength, Is.EqualTo(64 * 1024 * 1024 + 232));
+
+            var payload = new NativeArray<byte>(
+                BasisBurstAnimationCodec.OuterHeaderBytes + 1,
+                Allocator.Temp,
+                NativeArrayOptions.ClearMemory
+            );
+            try
+            {
+                WriteAnimationOuterHeader(payload, rawLength, 1);
+
+                Assert.That(
+                    BasisBurstAnimationCodec.TryReadOuterHeader(
+                        payload,
+                        payload.Length,
+                        64L * 1024L * 1024L,
+                        out _,
+                        out _
+                    ),
+                    Is.False
+                );
+                Assert.That(
+                    BasisBurstAnimationCodec.TryReadOuterHeader(
+                        payload,
+                        payload.Length,
+                        BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes,
+                        out int trustedRawLength,
+                        out string trustedError
+                    ),
+                    Is.True,
+                    trustedError
+                );
+                Assert.That(trustedRawLength, Is.EqualTo(rawLength));
+            }
+            finally
+            {
+                payload.Dispose();
+            }
+        }
+
+        [Test]
+        public void Lz4DecompressRejectsOverflowingLiteralRange()
+        {
+            const int rawLength = 6;
+            int extendedByteCount = CalculateExtendedLengthByteCount(int.MaxValue - 15);
+            int compressedLength = 5 + extendedByteCount;
+            var payload = new NativeArray<byte>(
+                BasisBurstAnimationCodec.OuterHeaderBytes + compressedLength,
+                Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory
+            );
+            try
+            {
+                using var raw = new NativeArray<byte>(
+                    rawLength,
+                    Allocator.TempJob,
+                    NativeArrayOptions.ClearMemory
+                );
+                using var result = new NativeArray<int>(
+                    2,
+                    Allocator.TempJob,
+                    NativeArrayOptions.ClearMemory
+                );
+
+                WriteAnimationOuterHeader(payload, rawLength, compressedLength);
+                int offset = BasisBurstAnimationCodec.OuterHeaderBytes;
+                payload[offset++] = 0x10;
+                payload[offset++] = 0x7F;
+                payload[offset++] = 1;
+                payload[offset++] = 0;
+                payload[offset++] = 0xF0;
+                WriteExtendedLength(payload, ref offset, int.MaxValue - 15);
+                Assert.That(offset, Is.EqualTo(payload.Length));
+
+                new BasisLz4DecompressJob { Payload = payload, Raw = raw, Result = result }.Execute();
+
+                Assert.That(result[1], Is.EqualTo((int)BasisAnimationCodecError.Truncated));
+            }
+            finally
+            {
+                payload.Dispose();
+            }
+        }
+
+        [Test]
+        public void Lz4DecompressRejectsOverflowingMatchRange()
+        {
+            const int rawLength = 2;
+            int extendedByteCount = CalculateExtendedLengthByteCount(int.MaxValue - 19);
+            int compressedLength = 4 + extendedByteCount;
+            var payload = new NativeArray<byte>(
+                BasisBurstAnimationCodec.OuterHeaderBytes + compressedLength,
+                Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory
+            );
+            try
+            {
+                using var raw = new NativeArray<byte>(
+                    rawLength,
+                    Allocator.TempJob,
+                    NativeArrayOptions.ClearMemory
+                );
+                using var result = new NativeArray<int>(
+                    2,
+                    Allocator.TempJob,
+                    NativeArrayOptions.ClearMemory
+                );
+
+                WriteAnimationOuterHeader(payload, rawLength, compressedLength);
+                int offset = BasisBurstAnimationCodec.OuterHeaderBytes;
+                payload[offset++] = 0x1F;
+                payload[offset++] = 0x7F;
+                payload[offset++] = 1;
+                payload[offset++] = 0;
+                WriteExtendedLength(payload, ref offset, int.MaxValue - 19);
+                Assert.That(offset, Is.EqualTo(payload.Length));
+
+                new BasisLz4DecompressJob { Payload = payload, Raw = raw, Result = result }.Execute();
+
+                Assert.That(result[1], Is.EqualTo((int)BasisAnimationCodecError.OutputOverflow));
+            }
+            finally
+            {
+                payload.Dispose();
+            }
         }
 
         [Test]
@@ -467,6 +644,21 @@ namespace Basis.ImagePickup.Tests
             }
         }
 
+        private static byte[] InsertBytes(byte[] source, int offset, byte[] inserted)
+        {
+            var combined = new byte[source.Length + inserted.Length];
+            Buffer.BlockCopy(source, 0, combined, 0, offset);
+            Buffer.BlockCopy(inserted, 0, combined, offset, inserted.Length);
+            Buffer.BlockCopy(
+                source,
+                offset,
+                combined,
+                offset + inserted.Length,
+                source.Length - offset
+            );
+            return combined;
+        }
+
         private static int FindGraphicControlExtension(byte[] source, int startIndex)
         {
             int sourceLength = source.Length;
@@ -476,6 +668,40 @@ namespace Basis.ImagePickup.Tests
                     return i;
             }
             return -1;
+        }
+
+        private static int CalculateExtendedLengthByteCount(int value)
+        {
+            return value / byte.MaxValue + 1;
+        }
+
+        private static void WriteExtendedLength(
+            NativeArray<byte> destination,
+            ref int offset,
+            int value
+        )
+        {
+            while (value >= byte.MaxValue)
+            {
+                destination[offset++] = byte.MaxValue;
+                value -= byte.MaxValue;
+            }
+            destination[offset++] = (byte)value;
+        }
+
+        private static void WriteAnimationOuterHeader(
+            NativeArray<byte> destination,
+            int rawLength,
+            int compressedLength
+        )
+        {
+            WriteInt32(destination, 0, (int)BasisBurstAnimationCodec.Magic);
+            destination[4] = BasisBurstAnimationCodec.Version;
+            destination[5] = 0;
+            destination[6] = 0;
+            destination[7] = 0;
+            WriteInt32(destination, 8, rawLength);
+            WriteInt32(destination, 12, compressedLength);
         }
 
         private static void WriteByte(NativeArray<byte> destination, int offset, byte value)
