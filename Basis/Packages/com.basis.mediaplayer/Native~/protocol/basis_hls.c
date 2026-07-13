@@ -499,13 +499,14 @@ static int hls_should_run(basis_hls_t* h) {
 /* Copy n bytes into the ring, sleeping while it's full. Stops early on shutdown. */
 static void ring_write(basis_hls_t* h, const uint8_t* data, int n) {
     int written = 0;
-    /* Stop filling the moment a seek is requested: the bytes queued here are
-     * pre-seek and about to be flushed, and the consumer withholds the ring
-     * while the seek is in flight, so a full ring here would otherwise wedge
-     * the producer against a consumer that has stopped draining. The producer
-     * picks the seek up at the top of its next loop. */
-    while (written < n && hls_should_run(h) && !h->seek_pending) {
+    while (written < n && hls_should_run(h)) {
         hls_mutex_lock(&h->lock);
+        /* Stop filling the moment a seek is requested: the bytes queued here are
+         * pre-seek and about to be flushed, and the consumer withholds the ring
+         * while the seek is in flight, so a full ring here would otherwise wedge
+         * the producer against a consumer that has stopped draining. The producer
+         * picks the seek up at the top of its next loop. */
+        if (h->seek_pending) { hls_mutex_unlock(&h->lock); break; }
         int space = h->ring_cap - h->ring_count;
         if (space > 0) {
             int chunk = n - written;
@@ -531,39 +532,40 @@ static void ring_write(basis_hls_t* h, const uint8_t* data, int n) {
 static void hls_producer(basis_hls_t* h) {
     uint8_t tmp[16384];
     while (hls_should_run(h)) {
-        if (h->seek_pending) {
+        /* Take the seek request under the lock so the pending flag, target and
+         * generation read as one consistent snapshot. Only accept it when the VOD
+         * segment list is present (the only seekable case) — clearing the flag
+         * without flushing would strand the reader withholding the ring. */
+        hls_mutex_lock(&h->lock);
+        int do_seek = h->seek_pending && h->vod_count > 0;
+        long seek_target = h->seek_target_ms;
+        long seek_g = h->seek_gen;
+        if (do_seek) h->seek_pending = 0;
+        hls_mutex_unlock(&h->lock);
+        if (do_seek) {
             /* Reposition: drop the current segment, rebuild the queue from the
              * segment containing the target, flush buffered bytes. The consumer
              * may hold a partial TS packet from before the jump; the TS demuxer
-             * resynchronises on the 0x47 sync byte. Snapshot the request under
-             * the ring lock so target + generation stay consistent with the
-             * flush_gen published below. */
-            hls_mutex_lock(&h->lock);
-            long seek_target = h->seek_target_ms;
-            long seek_g = h->seek_gen;
-            h->seek_pending = 0;
-            hls_mutex_unlock(&h->lock);
-            if (h->vod_count > 0) {
-                if (h->seg_ctx) { h->http.close(h->seg_ctx); h->seg_ctx = NULL; }
-                long acc = 0;
-                int idx = 0;
-                for (; idx < h->vod_count - 1; ++idx) {
-                    if (acc + h->vod_dur_ms[idx] > seek_target) break;
-                    acc += h->vod_dur_ms[idx];
-                }
-                h->pending_head = 0;
-                h->pending_count = 0;
-                for (int i = idx; i < h->vod_count; ++i)
-                    queue_push(h, h->vod_uri[i], h->vod_dur_ms[i]);
-                hls_mutex_lock(&h->lock);
-                h->ring_head = h->ring_tail = h->ring_count = 0;
-                /* Publish the flush for the snapshot generation under the same
-                 * lock as the ring clear, so a consumer that acquires it sees an
-                 * emptied ring and the matched generation together; its next
-                 * serve is guaranteed post-seek. */
-                h->flush_gen = seek_g;
-                hls_mutex_unlock(&h->lock);
+             * resynchronises on the 0x47 sync byte. */
+            if (h->seg_ctx) { h->http.close(h->seg_ctx); h->seg_ctx = NULL; }
+            long acc = 0;
+            int idx = 0;
+            for (; idx < h->vod_count - 1; ++idx) {
+                if (acc + h->vod_dur_ms[idx] > seek_target) break;
+                acc += h->vod_dur_ms[idx];
             }
+            h->pending_head = 0;
+            h->pending_count = 0;
+            for (int i = idx; i < h->vod_count; ++i)
+                queue_push(h, h->vod_uri[i], h->vod_dur_ms[i]);
+            hls_mutex_lock(&h->lock);
+            h->ring_head = h->ring_tail = h->ring_count = 0;
+            /* Publish the flush for the snapshot generation under the same lock
+             * as the ring clear, so a consumer that acquires it sees an emptied
+             * ring and the matched generation together; its next serve is
+             * guaranteed post-seek. */
+            h->flush_gen = seek_g;
+            hls_mutex_unlock(&h->lock);
         }
         if (!h->seg_ctx) {
             if (h->is_fmp4 && !h->map_served && h->map_uri[0]) {
@@ -577,11 +579,15 @@ static void hls_producer(basis_hls_t* h) {
                     if (!h->seg_ctx) continue; /* skip a transient open failure */
                     h->empty_reloads = 0;
                 } else if (h->endlist_seen) {
-                    /* VOD exhausted. Loop back to honour a seek that raced in
-                     * after the top-of-loop check, rather than exiting with it
-                     * unprocessed and leaving the reader withholding on a flush
-                     * that never comes. */
-                    if (h->seek_pending) continue;
+                    /* VOD exhausted. Arbitrate against a late seek under the lock:
+                     * either honour a pending request (loop back) or mark the
+                     * producer done so basis_hls_request_seek rejects further
+                     * seeks. The two can't interleave, so no request is lost and
+                     * the reader never withholds on a flush that never comes. */
+                    hls_mutex_lock(&h->lock);
+                    if (h->seek_pending) { hls_mutex_unlock(&h->lock); continue; }
+                    h->producer_done = 1;
+                    hls_mutex_unlock(&h->lock);
                     break; /* VOD / stream finished */
                 } else {
                     int r = reload_and_enqueue(h);
@@ -612,7 +618,12 @@ static void hls_producer(basis_hls_t* h) {
                 reload_and_enqueue(h);
         }
     }
+    /* Publish under the lock so basis_hls_read and basis_hls_request_seek see a
+     * consistent producer_done (the endlist path already set it under the lock
+     * to arbitrate against a late seek; this covers the stop/exhaustion exits). */
+    hls_mutex_lock(&h->lock);
     h->producer_done = 1;
+    hls_mutex_unlock(&h->lock);
 }
 
 #if defined(_WIN32)
@@ -816,12 +827,15 @@ int basis_hls_can_seek(void* ctx) {
 
 int basis_hls_request_seek(void* ctx, long long target_ms) {
     basis_hls_t* h = (basis_hls_t*)ctx;
-    if (!basis_hls_can_seek(ctx) || target_ms < 0) return -1;
-    /* Publish {target, generation, pending} atomically under the ring lock so
-     * the producer and reader observe one consistent request. The generation
-     * runs ahead of flush_gen until the producer finishes flushing, during
-     * which the consumer withholds the (now pre-seek) ring bytes. */
+    if (!h || h->vod_count <= 0 || target_ms < 0) return -1;   /* vod_count is fixed at open */
+    /* Accept the seek atomically with the producer_done check so a request can't
+     * be lost against the producer exiting on end-of-stream: the endlist path
+     * sets producer_done under this same lock while verifying no seek is pending,
+     * so exactly one of the two wins. Publish {target, generation, pending}
+     * together; the generation runs ahead of flush_gen until the producer
+     * finishes flushing, during which the consumer withholds the pre-seek ring. */
     hls_mutex_lock(&h->lock);
+    if (h->producer_done) { hls_mutex_unlock(&h->lock); return -1; }
     h->seek_target_ms = (long)target_ms;
     h->seek_gen++;
     h->seek_pending = 1;
