@@ -142,6 +142,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | Trailing-moov progressive MP4 | Non-faststart file (`ffmpeg -i in.mp4 -c copy out.mp4` leaves `moov` after `mdat`): on a range/`206` server it plays with seek + duration; over a one-way stream (no ranges) it refuses cleanly with a faststart-remux hint |
 | CEA-608 captions | Stack caption fixture: cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
 | 44.1 kHz audio | Resamples cleanly to the DSP rate (dominant path is 48 kHz — don't let 44.1k rot) |
+| 1080p video | No thin black strip along the top edge on Windows (720p is unaffected — test 1080p specifically) |
 
 ### Platforms and backends
 
