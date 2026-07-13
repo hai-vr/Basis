@@ -1,21 +1,24 @@
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
+using Basis.EventDriver;
 using UnityEngine;
 
 namespace Basis.ImagePickup
 {
     /// <summary>
     /// Windows-only OS file-drop bridge. Subclasses the player window to intercept WM_DROPFILES and forwards
-    /// dropped file paths to the image pickup manager on the Unity main thread, which validates them and
-    /// surfaces failures to the user. The native callbacks are static (IL2CPP cannot marshal instance-method
-    /// delegates) and reach instance state through <see cref="_instance"/>.
+    /// dropped file paths to the image pickup manager on the Unity main thread. The manager validates supported
+    /// image formats. The native callbacks are static (IL2CPP cannot marshal instance-method delegates) and reach
+    /// instance state through <see cref="_instance"/>.
     /// </summary>
     public class BasisDesktopImageDropHook : MonoBehaviour
     {
         private const int GWLP_WNDPROC = -4;
+        private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
         private const uint WM_DROPFILES = 0x0233;
 
         private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
@@ -41,9 +44,7 @@ namespace Basis.ImagePickup
         private IntPtr _windowHandle = IntPtr.Zero;
         private IntPtr _previousWndProc = IntPtr.Zero;
         private bool _hookInstalled;
-
-        private readonly List<string> _pending = new();
-        private readonly object _pendingLock = new();
+        private readonly ConcurrentQueue<string[]> _pendingBatches = new();
 
         private void OnEnable()
         {
@@ -51,7 +52,7 @@ namespace Basis.ImagePickup
             _windowHandle = FindPlayerWindow();
             if (_windowHandle == IntPtr.Zero)
             {
-                BasisDebug.LogWarning("Image pickup: could not find the player window; file drop disabled.");
+                BasisDebug.LogWarning("Image pickup: could not find the player window; file drop disabled.", LogTag);
                 enabled = false;
                 return;
             }
@@ -61,7 +62,7 @@ namespace Basis.ImagePickup
             int error = Marshal.GetLastWin32Error();
             if (_previousWndProc == IntPtr.Zero && error != 0)
             {
-                BasisDebug.LogWarning($"Image pickup: failed to subclass the player window ({error}); file drop disabled.");
+                BasisDebug.LogWarning($"Image pickup: failed to subclass the player window ({error}); file drop disabled.", LogTag);
                 _windowHandle = IntPtr.Zero;
                 if (_instance == this) _instance = null;
                 enabled = false;
@@ -72,10 +73,12 @@ namespace Basis.ImagePickup
             _activeWindowHandle = _windowHandle;
             _activePreviousWndProc = _previousWndProc;
             DragAcceptFiles(_windowHandle, true);
+            BasisEventDriver.OnUpdate += Simulate;
         }
 
         private void OnDisable()
         {
+            BasisEventDriver.OnUpdate -= Simulate;
             if (_windowHandle != IntPtr.Zero)
             {
                 if (_hookInstalled)
@@ -95,17 +98,35 @@ namespace Basis.ImagePickup
             if (_instance == this) _instance = null;
         }
 
-        private void Update()
+        private void Simulate()
         {
-            if (BasisImagePickupManager.Instance == null) return;
-
-            lock (_pendingLock)
+            try
             {
-                for (int i = 0; i < _pending.Count; i++)
+                SimulateBody();
+            }
+            catch (Exception exception)
+            {
+                BasisDebug.LogErrorOnce($"Image pickup file-drop simulation failed: {exception}", LogTag);
+            }
+        }
+
+        private void SimulateBody()
+        {
+            BasisImagePickupManager manager = BasisImagePickupManager.Instance;
+            if (manager == null) return;
+
+            int batchCount = _pendingBatches.Count;
+            for (int i = 0; i < batchCount; i++)
+            {
+                if (!_pendingBatches.TryDequeue(out string[] paths)) break;
+                try
                 {
-                    BasisImagePickupManager.Instance.SpawnFromFile(_pending[i]);
+                    manager.SpawnFromFiles(paths);
                 }
-                _pending.Clear();
+                catch (Exception exception)
+                {
+                    BasisDebug.LogError($"Image pickup: dropped-file batch {i + 1:N0}/{batchCount:N0} failed ({exception.Message}).", LogTag);
+                }
             }
         }
 
@@ -121,10 +142,15 @@ namespace Basis.ImagePickup
                 {
                     instance.CollectDroppedFiles(wParam);
                 }
-                catch (Exception e)
+                catch (Exception exception)
                 {
-                    BasisDebug.LogWarning($"Image pickup: file drop handling failed ({e.Message}).");
+                    // Never allow a managed exception to unwind through the native window procedure.
+                    BasisDebug.LogError($"Image pickup: failed to collect dropped files ({exception.Message}).", LogTag);
                 }
+
+                // CollectDroppedFiles owns and releases the HDROP with DragFinish. Forwarding the consumed
+                // handle can make the previous WndProc query or release freed native memory.
+                return IntPtr.Zero;
             }
             return ForwardWindowMessage(previous, hWnd, msg, wParam, lParam);
         }
@@ -138,24 +164,30 @@ namespace Basis.ImagePickup
 
         private void CollectDroppedFiles(IntPtr hDrop)
         {
+            var droppedPaths = new List<string>();
             try
             {
                 uint count = DragQueryFile(hDrop, 0xFFFFFFFF, null, 0);
                 for (uint i = 0; i < count; i++)
                 {
-                    var builder = new StringBuilder(1024);
-                    DragQueryFile(hDrop, i, builder, (uint)builder.Capacity);
+                    uint pathLength = DragQueryFile(hDrop, i, null, 0);
+                    if (pathLength == 0 || pathLength >= int.MaxValue) continue;
+
+                    var builder = new StringBuilder(checked((int)pathLength + 1));
+                    uint copiedLength = DragQueryFile(hDrop, i, builder, (uint)builder.Capacity);
+                    if (copiedLength == 0) continue;
+
                     string path = builder.ToString();
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        lock (_pendingLock) _pending.Add(path);
-                    }
+                    if (!string.IsNullOrEmpty(path)) droppedPaths.Add(path);
                 }
             }
             finally
             {
                 DragFinish(hDrop);
             }
+
+            if (droppedPaths.Count == 0) return;
+            _pendingBatches.Enqueue(droppedPaths.ToArray());
         }
 
         [AOT.MonoPInvokeCallback(typeof(EnumThreadWindowProc))]

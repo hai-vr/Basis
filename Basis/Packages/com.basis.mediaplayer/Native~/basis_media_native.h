@@ -153,6 +153,13 @@ BASIS_API int BASIS_CALL basis_media_get_last_error(basis_media_engine_t* engine
  * in/out/blit/drop tallies) into buf. Returns bytes written. For tooling/logs. */
 BASIS_API int BASIS_CALL basis_media_get_debug(basis_media_engine_t* engine, char* buf, int buf_size);
 
+/* Copies a human-readable transport description into buf and returns bytes
+ * written. Protocols that negotiate a transport report the settled choice
+ * (RTSP: "RTSP over UDP", "RTSP over TCP", "RTSP over TCP (UDP unavailable)");
+ * everything else reports its URL scheme. Valid from open; refined when the
+ * protocol settles, so read it once playback has started. */
+BASIS_API int BASIS_CALL basis_media_get_transport(basis_media_engine_t* engine, char* buf, int buf_size);
+
 /* Jitter-buffer control. mode: 0 = fixed (use buffer_ms), 1 = dynamic (auto-tune;
  * buffer_ms is the starting value). buffer_ms is how far behind live video is
  * presented (latency vs smoothness). Safe to call any time after open. */

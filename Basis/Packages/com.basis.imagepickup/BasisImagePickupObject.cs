@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management.Devices;
@@ -14,6 +15,8 @@ namespace Basis.ImagePickup
     /// </summary>
     public class BasisImagePickupObject : MonoBehaviour
     {
+        private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
+
         public Guid ImageId;
         public ushort OwnerId;
         public string OwnerName;
@@ -22,16 +25,20 @@ namespace Basis.ImagePickup
         public TextMeshProUGUI HideLabel;
         public TextMeshProUGUI DeleteLabel;
 
-        private Texture2D _texture;
+        private Texture2D _posterTexture;
         private byte[] _cleanPng;
+        private bool _posterHasAlpha;
         private Material _material;
         private MeshRenderer _frontRenderer;
+        private Transform _cardTransform;
         private BasisImagePickupManager _manager;
+        private BasisAnimatedImagePlayer _animatedImagePlayer;
 
         private bool _hidden;
         private bool _deleteArmed;
         private bool _isController;
         private Rigidbody _body;
+        private Collider _ownCollider;
         private BasisPickupInteractable _interactable;
         private bool _hasRemoteTarget;
         private Vector3 _targetPosition;
@@ -46,9 +53,21 @@ namespace Basis.ImagePickup
 
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly Dictionary<Collider, BasisImagePickupObject> PickupByCollider = new();
 
         public byte[] CleanPng => _cleanPng;
+        internal long PosterPixelCount => _posterTexture != null ? (long)_posterTexture.width * _posterTexture.height : 0L;
         public bool IsHidden => _hidden;
+        internal bool HasFrontRenderer =>
+            _frontRenderer != null
+            && _cardTransform != null
+            && _frontRenderer.enabled
+            && _frontRenderer.gameObject.activeInHierarchy;
+        internal Bounds FrontRendererBounds =>
+            _frontRenderer != null ? _frontRenderer.bounds : default;
+        internal int FrontRendererLayer =>
+            _frontRenderer != null ? _frontRenderer.gameObject.layer : gameObject.layer;
+        public BasisAnimatedImagePlayer AnimatedImagePlayer => _animatedImagePlayer;
 
         public static BasisImagePickupObject Build(BasisImagePickupManager manager, Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
         {
@@ -64,8 +83,9 @@ namespace Basis.ImagePickup
             pickup.OwnerId = ownerId;
             pickup.OwnerName = string.IsNullOrEmpty(ownerName) ? "Unknown" : ownerName;
             pickup.IsOwner = isOwner;
-            pickup._texture = texture;
+            pickup._posterTexture = texture;
             pickup._cleanPng = cleanPng;
+            pickup._posterHasAlpha = cutout;
 
             float aspect = texture.height > 0 ? (float)texture.width / texture.height : 1f;
             float panelHeight = BasisImagePickupSettings.BaseHeightMeters;
@@ -75,6 +95,7 @@ namespace Basis.ImagePickup
             if (interactableLayer >= 0) card.layer = interactableLayer;
             card.transform.SetParent(root.transform, false);
             card.transform.localScale = new Vector3(panelWidth, panelHeight, 1f);
+            pickup._cardTransform = card.transform;
             card.AddComponent<MeshFilter>().sharedMesh = GetCardMesh();
 
             pickup._material = new Material(BundledContentHolder.Instance.UnlitUrpShader);
@@ -84,6 +105,7 @@ namespace Basis.ImagePickup
             if (cutout) ConfigureCutout(pickup._material);
 
             pickup._frontRenderer = card.AddComponent<MeshRenderer>();
+            pickup._frontRenderer.allowOcclusionWhenDynamic = true;
             pickup._frontRenderer.sharedMaterials = new[] { pickup._material, GetSharedBackMaterial() };
             pickup._frontRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             pickup._frontRenderer.receiveShadows = false;
@@ -93,6 +115,8 @@ namespace Basis.ImagePickup
             var box = root.AddComponent<BoxCollider>();
             box.isTrigger = true;
             box.size = new Vector3(panelWidth, panelHeight, 0.02f);
+            pickup._ownCollider = box;
+            RegisterCollider(box, pickup);
 
             var body = root.AddComponent<Rigidbody>();
             body.isKinematic = !isOwner;
@@ -115,16 +139,21 @@ namespace Basis.ImagePickup
             return pickup;
         }
 
-        private void Update()
+        internal void SimulateRemoteTransform(float deltaTime)
         {
             if (_isController || !_hasRemoteTarget) return;
             transform.GetPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
-            float t = Time.deltaTime * 12f;
+            float t = CalculateRemoteTransformLerpFactor(deltaTime);
             transform.SetPositionAndRotation(
                 Vector3.Lerp(currentPos, _targetPosition, t),
                 Quaternion.Slerp(currentRot, _targetRotation, t));
             float scale = Mathf.Lerp(transform.localScale.x, _targetScale, t);
             transform.localScale = new Vector3(scale, scale, scale);
+        }
+
+        internal static float CalculateRemoteTransformLerpFactor(float deltaTime)
+        {
+            return 1f - Mathf.Exp(-12f * Mathf.Max(0f, deltaTime));
         }
 
         private void OnLocalGrabbed(BasisInput input)
@@ -169,6 +198,138 @@ namespace Basis.ImagePickup
             if (HideLabel != null) HideLabel.text = _hidden ? "Show" : "Hide";
         }
 
+        /// <summary>
+        /// Upgrades this pickup from its static poster to synchronized animated playback.
+        /// The poster remains owned by the pickup for saving and backward-compatible display.
+        /// </summary>
+        public bool TrySetAnimation(BasisAnimatedImageData data, long playbackEpochUtcTicks = 0)
+        {
+            return TrySetAnimation(data, playbackEpochUtcTicks, null);
+        }
+
+        internal bool TrySetAnimation(
+            BasisAnimatedImageData data,
+            long playbackEpochUtcTicks,
+            BasisNativeAnimationPayload reloadPayload
+        )
+        {
+            if (data == null || _animatedImagePlayer != null)
+                return false;
+            if (
+                _posterTexture == null
+                || data.CanvasWidth != _posterTexture.width
+                || data.CanvasHeight != _posterTexture.height
+            )
+            {
+                BasisDebug.LogWarning("Animated image canvas does not match its static poster dimensions.", LogTag);
+                return false;
+            }
+
+            BasisAnimatedImagePlayer player =
+                gameObject.AddComponent<BasisAnimatedImagePlayer>();
+            if (!player.Initialize(data, this, playbackEpochUtcTicks, false, reloadPayload))
+            {
+                Destroy(player);
+                return false;
+            }
+
+            _animatedImagePlayer = player;
+            return true;
+        }
+
+        internal void GetFrontFacePose(out Vector3 center, out Vector3 normal)
+        {
+            Transform faceTransform =
+                _cardTransform != null ? _cardTransform : transform;
+            faceTransform.GetPositionAndRotation(out center, out Quaternion rotation);
+            normal = -(rotation * Vector3.forward);
+        }
+
+        internal Vector3 GetFrontFaceOcclusionSample(int sampleIndex, Vector3 frontNormal)
+        {
+            Transform faceTransform =
+                _cardTransform != null ? _cardTransform : transform;
+            float extent =
+                BasisImagePickupSettings.AnimationFaceOcclusionSampleHalfExtent;
+            Vector2 sample = sampleIndex switch
+            {
+                0 => Vector2.zero,
+                1 => new Vector2(-extent, extent),
+                2 => new Vector2(extent, extent),
+                3 => new Vector2(-extent, -extent),
+                4 => new Vector2(extent, -extent),
+                _ => throw new ArgumentOutOfRangeException(nameof(sampleIndex)),
+            };
+
+            Vector3 point = faceTransform.TransformPoint(new Vector3(sample.x, sample.y, 0f));
+            return point
+                + frontNormal
+                    * BasisImagePickupSettings.AnimationFaceOcclusionSurfaceOffsetMeters;
+        }
+
+        internal bool OwnsCollider(Collider collider)
+        {
+            if (collider == null)
+                return false;
+            Transform colliderTransform = collider.transform;
+            return colliderTransform == transform
+                || colliderTransform.IsChildOf(transform);
+        }
+
+        internal static void RegisterCollider(Collider collider, BasisImagePickupObject pickup)
+        {
+            if (collider == null || pickup == null)
+                return;
+            PickupByCollider[collider] = pickup;
+        }
+
+        internal static void UnregisterCollider(Collider collider)
+        {
+            if (collider != null)
+                PickupByCollider.Remove(collider);
+        }
+
+        internal static bool TryGetPickup(Collider collider, out BasisImagePickupObject pickup)
+        {
+            pickup = null;
+            return collider != null
+                && PickupByCollider.TryGetValue(collider, out pickup)
+                && pickup != null;
+        }
+
+        internal void SetAnimatedDisplayTexture(Texture texture, bool hasAnyAlpha, bool hasPartialAlpha)
+        {
+            if (_material == null || texture == null)
+                return;
+            SetDisplayTexture(texture);
+
+            if (hasPartialAlpha)
+                ConfigurePremultipliedTransparent(_material);
+            else if (hasAnyAlpha)
+                ConfigureCutout(_material);
+            else
+                ConfigureOpaque(_material);
+        }
+
+        internal void SetPosterDisplayTexture()
+        {
+            if (_material == null || _posterTexture == null)
+                return;
+            SetDisplayTexture(_posterTexture);
+            if (_posterHasAlpha)
+                ConfigureCutout(_material);
+            else
+                ConfigureOpaque(_material);
+        }
+
+        private void SetDisplayTexture(Texture texture)
+        {
+            if (_material.HasProperty(BaseMapId))
+                _material.SetTexture(BaseMapId, texture);
+            else
+                _material.mainTexture = texture;
+        }
+
         public void OnSavePressed()
         {
             if (_cleanPng == null || _cleanPng.Length == 0) return;
@@ -178,11 +339,11 @@ namespace Basis.ImagePickup
                 Directory.CreateDirectory(folder);
                 string path = Path.Combine(folder, BasisImageSecurity.GenerateSafeFileName());
                 File.WriteAllBytes(path, _cleanPng);
-                BasisDebug.Log($"Image pickup saved to {path}");
+                BasisDebug.Log($"Image pickup saved to {path}", LogTag);
             }
             catch (Exception e)
             {
-                BasisDebug.LogError($"Image pickup save failed: {e.Message}");
+                BasisDebug.LogError($"Image pickup save failed: {e.Message}", LogTag);
             }
         }
 
@@ -225,14 +386,20 @@ namespace Basis.ImagePickup
             if (_cardMesh != null) return _cardMesh;
 
             var temp = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Mesh quad = temp.GetComponent<MeshFilter>().sharedMesh;
+            if (!temp.TryGetComponent(out MeshFilter meshFilter))
+            {
+                DestroyImmediate(temp);
+                throw new InvalidOperationException("Unity quad primitive did not provide a MeshFilter.");
+            }
+            Mesh quad = meshFilter.sharedMesh;
             Vector3[] verts = quad.vertices;
             Vector2[] uv = quad.uv;
             int[] front = quad.triangles;
             DestroyImmediate(temp);
 
-            int[] back = new int[front.Length];
-            for (int i = 0; i < front.Length; i += 3)
+            int frontIndexCount = front.Length;
+            int[] back = new int[frontIndexCount];
+            for (int i = 0; i < frontIndexCount; i += 3)
             {
                 back[i] = front[i];
                 back[i + 1] = front[i + 2];
@@ -258,12 +425,31 @@ namespace Basis.ImagePickup
             return _sharedBackMaterial;
         }
 
+        private static void ConfigureOpaque(Material material)
+        {
+            material.SetFloat("_Surface", 0f);
+            material.SetFloat("_Blend", 0f);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.Zero);
+            material.SetFloat("_ZWrite", 1f);
+            material.SetFloat("_AlphaClip", 0f);
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+            material.SetOverrideTag("RenderType", "Opaque");
+        }
+
         private static void ConfigureCutout(Material material)
         {
             material.SetFloat("_Surface", 0f);
             material.SetFloat("_Blend", 0f);
             material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
             material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.Zero);
             material.SetFloat("_ZWrite", 1f);
             material.SetFloat("_AlphaClip", 1f);
             material.SetFloat("_Cutoff", 0.5f);
@@ -274,12 +460,51 @@ namespace Basis.ImagePickup
             material.SetOverrideTag("RenderType", "TransparentCutout");
         }
 
+        private static void ConfigurePremultipliedTransparent(Material material)
+        {
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 1f);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0f);
+            material.SetFloat("_AlphaClip", 0f);
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            // The animation canvas already stores premultiplied RGB, so the display shader
+            // must not multiply by alpha again even if URP later adds this keyword to Unlit.
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            material.SetOverrideTag("RenderType", "Transparent");
+        }
+
         private static string ShortId(Guid id) => id.ToString("N").Substring(0, 8);
 
         private void OnDestroy()
         {
-            if (_material != null) Destroy(_material);
-            if (_texture != null) Destroy(_texture);
+            if (_manager != null)
+                _manager.OnPickupDestroyed(this);
+            _manager = null;
+            UnregisterCollider(_ownCollider);
+            if (_material != null)
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    DestroyImmediate(_material);
+                else
+#endif
+                    Destroy(_material);
+            }
+            if (_posterTexture != null)
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    DestroyImmediate(_posterTexture);
+                else
+#endif
+                    Destroy(_posterTexture);
+            }
         }
     }
 }

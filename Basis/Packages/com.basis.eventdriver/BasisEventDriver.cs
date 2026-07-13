@@ -93,6 +93,39 @@ namespace Basis.EventDriver
         /// Instance of Basis Event Driver
         /// </summary>
         public static BasisEventDriver Instance;
+        public static event Action OnUpdate;
+        public static event Action OnLateUpdate;
+
+        private static void ResetEventCallbacks()
+        {
+            OnUpdate = null;
+            OnLateUpdate = null;
+        }
+
+        private static void InvokeEventCallbacks(Action callbacks, string callbackName)
+        {
+            if (callbacks == null) return;
+
+            Delegate[] invocationList = callbacks.GetInvocationList();
+            int invocationCount = invocationList.Length;
+            for (int index = 0; index < invocationCount; index++)
+            {
+                Delegate callback = invocationList[index];
+                try
+                {
+                    ((Action)callback).Invoke();
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogErrorOnce(
+                        $"BasisEventDriver.{callbackName} callback "
+                        + $"{callback.Method.DeclaringType?.FullName}.{callback.Method.Name} "
+                        + $"failed: {ex}",
+                        BasisDebug.LogTag.Event);
+                }
+            }
+        }
+
         public static bool StateOfOnRenderBefore = false;
         /// <summary>
         /// Unity enable hook. Subscribes render callbacks (client), initializes scene and network drivers.
@@ -116,12 +149,23 @@ namespace Basis.EventDriver
         /// </summary>
         public void OnDestroy()
         {
-            BasisOpenLipSyncDriver.Shutdown();
-            Basis.Scripts.Networking.Sync.BasisSyncDriver.OnDestroy();
-            Application.onBeforeRender -= OnBeforeRender;
-            RemoteBoneJobSystem.Dispose();
-            BasisAuthoredMotionSystem.Dispose();
-            BasisAvatarBufferPool.Deinitialize();
+            try
+            {
+                BasisOpenLipSyncDriver.Shutdown();
+                Basis.Scripts.Networking.Sync.BasisSyncDriver.OnDestroy();
+                Application.onBeforeRender -= OnBeforeRender;
+                RemoteBoneJobSystem.Dispose();
+                BasisAuthoredMotionSystem.Dispose();
+                BasisAvatarBufferPool.Deinitialize();
+            }
+            finally
+            {
+                if (ReferenceEquals(Instance, this))
+                {
+                    Instance = null;
+                    ResetEventCallbacks();
+                }
+            }
         }
 
         /// <summary>
@@ -187,6 +231,7 @@ namespace Basis.EventDriver
             SMModuleDebugOptions.Simulate();
             Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
             BasisHighPlayerCapPerformanceMode.Simulate();
+            InvokeEventCallbacks(OnUpdate, nameof(OnUpdate));
             timeSinceLastUpdate += DeltaTime;
         }
 
@@ -418,6 +463,7 @@ namespace Basis.EventDriver
                 OnBeforeRender();
             }
 
+            InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate));
             ProfileLateUpdateFinish();
         }
         /// <summary>
@@ -453,12 +499,20 @@ namespace Basis.EventDriver
         /// </summary>
         public void OnApplicationQuit()
         {
-            JigglePhysics.Dispose();
+            try
+            {
+                JigglePhysics.Dispose();
 #if !BASIS_DISABLE_MICROPHONE
-            BasisLocalMicrophoneDriver.StopProcessingThread();
+                BasisLocalMicrophoneDriver.StopProcessingThread();
 #endif
-            BasisRemoteNamePlateDriver.Dispose();
-            BasisContentSphereBillboardDriver.Dispose();
+                BasisRemoteNamePlateDriver.Dispose();
+                BasisContentSphereBillboardDriver.Dispose();
+            }
+            finally
+            {
+                if (ReferenceEquals(Instance, this)) Instance = null;
+                ResetEventCallbacks();
+            }
         }
 
         public void OnDrawGizmosSelected()
