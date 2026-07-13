@@ -1247,7 +1247,10 @@ namespace Basis.ImagePickup
                     Fail(BasisAnimationCodecError.InvalidLz4Token);
                     return;
                 }
-                if (input + literalLength > inputEnd || output + literalLength > Raw.Length)
+                if (
+                    literalLength > inputEnd - input
+                    || literalLength > Raw.Length - output
+                )
                 {
                     Fail(BasisAnimationCodecError.Truncated);
                     return;
@@ -1258,7 +1261,7 @@ namespace Basis.ImagePickup
                 output += literalLength;
                 if (input == inputEnd)
                     break;
-                if (input + 2 > inputEnd)
+                if (inputEnd - input < 2)
                 {
                     Fail(BasisAnimationCodecError.Truncated);
                     return;
@@ -1278,7 +1281,7 @@ namespace Basis.ImagePickup
                     Fail(BasisAnimationCodecError.InvalidLz4Token);
                     return;
                 }
-                if (output + matchLength > Raw.Length)
+                if (matchLength > Raw.Length - output)
                 {
                     Fail(BasisAnimationCodecError.OutputOverflow);
                     return;
