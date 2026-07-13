@@ -48,7 +48,10 @@ void* basis_hls_open(const char* url, const basis_http_provider_t* http,
 
 /* basis_read_fn-compatible. Serves the stitched segment/part bytes, advancing to
  * the next segment and reloading the playlist (blocking for LL-HLS) as needed.
- * Returns bytes read, 0 when the stream ends or the engine stops, <0 on error. */
+ * Returns bytes read, 0 when the stream ends or the engine stops, <0 on error.
+ * After a basis_hls_request_seek it withholds the pre-seek ring and, once the
+ * producer has requeued at the target, returns BASIS_READ_REPOSITION once at the
+ * boundary so the demuxer can drop its pre-seek state and re-anchor pacing. */
 int basis_hls_read(void* ctx, uint8_t* buf, int len);
 
 /* 1 if the opened playlist is VOD (EXT-X-ENDLIST seen), 0 if live. Reflects the

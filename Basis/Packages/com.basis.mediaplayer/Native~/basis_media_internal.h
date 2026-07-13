@@ -97,6 +97,14 @@ typedef struct basis_media_sink {
  * (MPEG-TS / fMP4 over TCP or HTTP). Returns bytes read, 0 on EOF, <0 on error. */
 typedef int (*basis_read_fn)(void* ctx, uint8_t* buf, int len);
 
+/* A read_fn may return this (instead of bytes) at the exact boundary where the
+ * source has repositioned for a seek; the next read delivers post-seek data.
+ * The demuxer must drop any buffered/partial state and re-anchor the pace clock
+ * (via sink->take_seek) before consuming further, so a stale pre-seek sample
+ * can't survive the jump. Distinct from a <0 read error. Only sources that
+ * reposition mid-stream (the HLS segment source) ever return it. */
+#define BASIS_READ_REPOSITION (-2)
+
 /* Repositions a byte source to an absolute offset (a ranged HTTP refetch).
  * Returns 0 on success — subsequent reads deliver from `abs_offset`. Called by
  * a demuxer between its own reads, on its own thread; sources that can't

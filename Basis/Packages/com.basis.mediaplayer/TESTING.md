@@ -165,6 +165,14 @@ runs on **Android** too (JNI `HttpsURLConnection`), not just Windows — run the
 checks on a Quest against a range/`206` VOD host (`https://`), watching `adb logcat` for a clean
 reposition (no decoder error, playback resumes at the target).
 
+**Seek (HLS-TS VOD)** — on the Mux master (`https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`),
+seek both directions and confirm playback resumes **paced at 1x from the target**: a forward
+seek must not freeze for the jump distance, and a backward seek must not fast-forward through
+the intervening segments back to the pre-seek position. The segment producer repositions and
+the demux leg re-anchors delivery pacing at the flushed boundary, so a mis-anchored pace clock
+(stall forward / flood backward) is the failure to watch for. Shared clock, so check both the
+Editor (Windows) and Quest.
+
 > On-demand multiplayer sync is **start-together, not catch-up**: the native backend exposes
 > no absolute seek, so a client that falls behind stays behind until the next shared (re)load.
 > Late-joiner-starts-at-zero on VOD is a known limit, not a regression.

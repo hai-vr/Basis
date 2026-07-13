@@ -8,6 +8,7 @@
  * support is planned (it needs a non-Windows http provider). */
 
 #include "basis_hls.h"
+#include "../basis_media_internal.h"  /* BASIS_READ_REPOSITION */
 
 #include <stdlib.h>
 #include <string.h>
@@ -102,6 +103,16 @@ typedef struct basis_hls {
     int   vod_count;
     volatile int  seek_pending;  /* producer repositions at its next iteration */
     volatile long seek_target_ms;
+    /* Seek-boundary handshake with the consumer. request_seek bumps seek_gen
+     * (single writer: the seek caller); the producer sets flush_gen to match
+     * once it has flushed the ring and requeued at the target (single writer:
+     * the producer). While seek_gen != flush_gen the ring holds pre-seek bytes,
+     * so basis_hls_read withholds them; when they match it raises
+     * BASIS_READ_REPOSITION once (tracked by read_signaled_gen, consumer-only)
+     * so the demuxer flushes and re-anchors at the exact boundary. */
+    volatile long seek_gen;
+    volatile long flush_gen;
+    long          read_signaled_gen;
 
     int  map_served;             /* fMP4: init segment already streamed once */
     char map_uri[HLS_MAX_URI];
@@ -488,7 +499,12 @@ static int hls_should_run(basis_hls_t* h) {
 /* Copy n bytes into the ring, sleeping while it's full. Stops early on shutdown. */
 static void ring_write(basis_hls_t* h, const uint8_t* data, int n) {
     int written = 0;
-    while (written < n && hls_should_run(h)) {
+    /* Stop filling the moment a seek is requested: the bytes queued here are
+     * pre-seek and about to be flushed, and the consumer withholds the ring
+     * while the seek is in flight, so a full ring here would otherwise wedge
+     * the producer against a consumer that has stopped draining. The producer
+     * picks the seek up at the top of its next loop. */
+    while (written < n && hls_should_run(h) && !h->seek_pending) {
         hls_mutex_lock(&h->lock);
         int space = h->ring_cap - h->ring_count;
         if (space > 0) {
@@ -535,6 +551,10 @@ static void hls_producer(basis_hls_t* h) {
                     queue_push(h, h->vod_uri[i], h->vod_dur_ms[i]);
                 hls_mutex_lock(&h->lock);
                 h->ring_head = h->ring_tail = h->ring_count = 0;
+                /* Publish the flush under the same lock as the ring clear so a
+                 * consumer that acquires it sees an emptied ring and the matched
+                 * generation together; its next serve is guaranteed post-seek. */
+                h->flush_gen = h->seek_gen;
                 hls_mutex_unlock(&h->lock);
             }
         }
@@ -721,6 +741,18 @@ int basis_hls_read(void* ctx, uint8_t* buf, int len) {
     for (;;) {
         if (h->stop || (h->is_running && !h->is_running(h->user))) return 0;
 
+        /* Seek in flight: the ring still holds pre-seek bytes until the producer
+         * flushes and requeues at the target. Withhold them, since handing them
+         * to the demuxer would let a stale AU re-anchor pacing to the old timeline. */
+        if (h->seek_gen != h->flush_gen) { hls_sleep_ms(2); continue; }
+        /* First read after the flush settled: raise the reposition boundary once
+         * so the demuxer drops its pre-seek state and re-anchors before the
+         * target segment's bytes flow. */
+        if (h->flush_gen != h->read_signaled_gen) {
+            h->read_signaled_gen = h->flush_gen;
+            return BASIS_READ_REPOSITION;
+        }
+
         /* No metering here: the engine paces delivery by AU timestamp (pace_gate),
          * holding the demux thread on submit, so serving the ring as fast as the
          * demuxer pulls can't flood the decoder. */
@@ -763,6 +795,10 @@ int basis_hls_request_seek(void* ctx, long long target_ms) {
     basis_hls_t* h = (basis_hls_t*)ctx;
     if (!basis_hls_can_seek(ctx) || target_ms < 0) return -1;
     h->seek_target_ms = (long)target_ms;
+    /* Advance the generation before arming the producer: while it runs ahead of
+     * flush_gen the consumer withholds the (now pre-seek) ring bytes. Single
+     * writer (the seek caller), so a plain increment is safe. */
+    h->seek_gen++;
     h->seek_pending = 1;
     return 0;
 }

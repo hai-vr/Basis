@@ -268,6 +268,19 @@ int basis_ts_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx) {
         int space = (int)sizeof(rb) - rb_len;
         if (space <= 0) { rb_len = 0; space = (int)sizeof(rb); } /* desync guard */
         int n = read(ctx, rb + rb_len, space);
+        if (n == BASIS_READ_REPOSITION) {
+            /* The source seeked. Drop the partial packet buffer and both PES
+             * accumulations so the next emitted AU is a post-seek one; a stale
+             * pre-seek AU would otherwise re-anchor pacing to the old timeline.
+             * The learned packet stride and announced formats stay valid across
+             * the same rendition. Take the seek to re-anchor the pace clock on
+             * this (demux) thread, atomically with this flush. */
+            rb_len = 0;
+            t.v.len = 0; t.v.started = 0;
+            t.a.len = 0; t.a.started = 0;
+            if (sink->take_seek) { int64_t discard; sink->take_seek(sink->user, &discard); }
+            continue;
+        }
         if (n <= 0) break;
         rb_len += n;
 
