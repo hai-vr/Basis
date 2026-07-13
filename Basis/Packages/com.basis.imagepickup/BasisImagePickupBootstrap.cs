@@ -10,10 +10,16 @@ namespace Basis.ImagePickup
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Initialize()
         {
-            if (BasisImagePickupManager.Instance != null) return;
+            if (BasisImagePickupManager.Instance != null)
+            {
+                if (!BasisImagePickupManager.Instance.TryGetComponent(out BasisAnimatedImageScheduler _))
+                    BasisImagePickupManager.Instance.gameObject.AddComponent<BasisAnimatedImageScheduler>();
+                return;
+            }
 
             var host = new GameObject("BasisImagePickupManager");
             host.AddComponent<BasisImagePickupManager>();
+            host.AddComponent<BasisAnimatedImageScheduler>();
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             host.AddComponent<BasisDesktopImageDropHook>();
 #endif
