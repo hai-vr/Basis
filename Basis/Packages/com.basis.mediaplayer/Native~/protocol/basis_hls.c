@@ -534,15 +534,21 @@ static void hls_producer(basis_hls_t* h) {
         if (h->seek_pending) {
             /* Reposition: drop the current segment, rebuild the queue from the
              * segment containing the target, flush buffered bytes. The consumer
-             * may hold a partial TS packet from before the jump — the TS
-             * demuxer resynchronises on the 0x47 sync byte. */
+             * may hold a partial TS packet from before the jump; the TS demuxer
+             * resynchronises on the 0x47 sync byte. Snapshot the request under
+             * the ring lock so target + generation stay consistent with the
+             * flush_gen published below. */
+            hls_mutex_lock(&h->lock);
+            long seek_target = h->seek_target_ms;
+            long seek_g = h->seek_gen;
             h->seek_pending = 0;
+            hls_mutex_unlock(&h->lock);
             if (h->vod_count > 0) {
                 if (h->seg_ctx) { h->http.close(h->seg_ctx); h->seg_ctx = NULL; }
                 long acc = 0;
                 int idx = 0;
                 for (; idx < h->vod_count - 1; ++idx) {
-                    if (acc + h->vod_dur_ms[idx] > h->seek_target_ms) break;
+                    if (acc + h->vod_dur_ms[idx] > seek_target) break;
                     acc += h->vod_dur_ms[idx];
                 }
                 h->pending_head = 0;
@@ -551,10 +557,11 @@ static void hls_producer(basis_hls_t* h) {
                     queue_push(h, h->vod_uri[i], h->vod_dur_ms[i]);
                 hls_mutex_lock(&h->lock);
                 h->ring_head = h->ring_tail = h->ring_count = 0;
-                /* Publish the flush under the same lock as the ring clear so a
-                 * consumer that acquires it sees an emptied ring and the matched
-                 * generation together; its next serve is guaranteed post-seek. */
-                h->flush_gen = h->seek_gen;
+                /* Publish the flush for the snapshot generation under the same
+                 * lock as the ring clear, so a consumer that acquires it sees an
+                 * emptied ring and the matched generation together; its next
+                 * serve is guaranteed post-seek. */
+                h->flush_gen = seek_g;
                 hls_mutex_unlock(&h->lock);
             }
         }
@@ -741,22 +748,25 @@ int basis_hls_read(void* ctx, uint8_t* buf, int len) {
     for (;;) {
         if (h->stop || (h->is_running && !h->is_running(h->user))) return 0;
 
+        /* No metering here: the engine paces delivery by AU timestamp (pace_gate),
+         * holding the demux thread on submit, so serving the ring as fast as the
+         * demuxer pulls can't flood the decoder. The seek generations are read
+         * under the same lock that guards the ring, so the boundary stays
+         * consistent with the flushed ring state (volatile orders nothing across
+         * threads on its own). */
+        hls_mutex_lock(&h->lock);
         /* Seek in flight: the ring still holds pre-seek bytes until the producer
          * flushes and requeues at the target. Withhold them, since handing them
          * to the demuxer would let a stale AU re-anchor pacing to the old timeline. */
-        if (h->seek_gen != h->flush_gen) { hls_sleep_ms(2); continue; }
+        if (h->seek_gen != h->flush_gen) { hls_mutex_unlock(&h->lock); hls_sleep_ms(2); continue; }
         /* First read after the flush settled: raise the reposition boundary once
          * so the demuxer drops its pre-seek state and re-anchors before the
          * target segment's bytes flow. */
         if (h->flush_gen != h->read_signaled_gen) {
             h->read_signaled_gen = h->flush_gen;
+            hls_mutex_unlock(&h->lock);
             return BASIS_READ_REPOSITION;
         }
-
-        /* No metering here: the engine paces delivery by AU timestamp (pace_gate),
-         * holding the demux thread on submit, so serving the ring as fast as the
-         * demuxer pulls can't flood the decoder. */
-        hls_mutex_lock(&h->lock);
         if (h->ring_count > 0) {
             int take = h->ring_count < len ? h->ring_count : len;
             int first = h->ring_cap - h->ring_tail;
@@ -794,12 +804,15 @@ int basis_hls_can_seek(void* ctx) {
 int basis_hls_request_seek(void* ctx, long long target_ms) {
     basis_hls_t* h = (basis_hls_t*)ctx;
     if (!basis_hls_can_seek(ctx) || target_ms < 0) return -1;
+    /* Publish {target, generation, pending} atomically under the ring lock so
+     * the producer and reader observe one consistent request. The generation
+     * runs ahead of flush_gen until the producer finishes flushing, during
+     * which the consumer withholds the (now pre-seek) ring bytes. */
+    hls_mutex_lock(&h->lock);
     h->seek_target_ms = (long)target_ms;
-    /* Advance the generation before arming the producer: while it runs ahead of
-     * flush_gen the consumer withholds the (now pre-seek) ring bytes. Single
-     * writer (the seek caller), so a plain increment is safe. */
     h->seek_gen++;
     h->seek_pending = 1;
+    hls_mutex_unlock(&h->lock);
     return 0;
 }
 
