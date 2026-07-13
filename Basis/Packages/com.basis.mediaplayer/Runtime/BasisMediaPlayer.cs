@@ -467,6 +467,12 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     // Exposed for diagnostics/tooling.
     public BasisNativeVideoSource NativeEngine => nativeEngine;
 
+    // Human-readable transport of the current native load ("RTSP over UDP",
+    // "RTSP over TCP (UDP unavailable)", or the URL scheme for protocols that
+    // don't negotiate). Null on the CPU path or before a load. Settles once
+    // playback starts; also logged once per load.
+    public string CurrentTransport => nativeEngine?.Transport;
+
     private IBasisFrameSource source;
     private IBasisSeekableFrameSource seekableSource;
     private IBasisFrameRenderer _renderer;

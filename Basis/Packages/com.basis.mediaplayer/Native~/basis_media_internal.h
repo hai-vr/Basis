@@ -77,6 +77,12 @@ typedef struct basis_media_sink {
      * again on a reconnect re-parsing the same index. */
     void (*on_duration)(void* user, int64_t duration_us);
 
+    /* Human-readable transport description once a protocol settles on one
+     * (e.g. "RTSP over UDP", "RTSP over TCP (UDP unavailable)"). Only
+     * protocols that negotiate call it; may be NULL. Exposed to the host via
+     * basis_media_get_transport. */
+    void (*on_transport)(void* user, const char* transport);
+
     /* Absolute-seek handshake for on-demand sources. A demuxer that can seek
      * polls it between samples: returns 1 and writes the target when a request
      * is pending, 0 otherwise. Each sink hands out a request once. May be NULL

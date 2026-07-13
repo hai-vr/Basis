@@ -9,7 +9,7 @@ cover the common lanes with zero setup.
 Runs in two modes:
 
 - **Local (Editor iteration).** The player allows loopback URLs in the Editor, so
-  `docker compose up -d` on your dev machine and `rtspt://localhost:8554/main` in the Editor
+  `docker compose up -d` on your dev machine and `rtsp://localhost:8554/main` in the Editor
   is the fastest loop. Builds refuse loopback — local mode is Editor-only by design.
 - **Public VPS (builds, Quest, multi-client).** The same stack on any cheap VPS with a public
   IP and a DNS name. Private/LAN addresses are refused on every platform, so there is no
@@ -34,9 +34,9 @@ python3 scripts/preflight.py --host my.vps   # deployed
 
 | URL (`<host>` = `localhost` or your VPS) | Lane | Notes |
 | --- | --- | --- |
-| `rtspt://<host>:8554/main` | RTSPT live, 2 s GOP | The reference live path — joins land a frame within ~2 s |
-| `rtspt://<host>:8554/silent` | Video + silent stereo | Regression cover for effectively video-only sources |
-| `rtspt://<host>:8554/slowjoin` | **Adversarial** ~10 s GOP | Mid-stream joins wait up to 10 s for an IDR — deliberately; audio-first joins here are expected |
+| `rtsp://<host>:8554/main` | RTSP live, 2 s GOP | The reference live path — joins land a frame within ~2 s. Negotiates UDP transport with TCP fallback; `rtspt://` of the same URL pins TCP for the forced-TCP lane |
+| `rtsp://<host>:8554/silent` | Video + silent stereo | Regression cover for effectively video-only sources |
+| `rtsp://<host>:8554/slowjoin` | **Adversarial** ~10 s GOP | Mid-stream joins wait up to 10 s for an IDR — deliberately; audio-first joins here are expected |
 | `http://<host>:8082/captions.ts` | CEA-608 in-band captions, HTTP-TS | Generated fixture (silent test pattern); cues every ~3 s incl. accents, music note, clear; single-client feeder |
 | `rtmp://<host>:1935/main` | RTMP pull | The player's minimal RTMP client (plain `rtmp://` only) |
 | `http://<host>:8081/live.ts` | HTTP-TS live | Single-client feeder: serves one connection, respawns on disconnect |
@@ -79,7 +79,7 @@ Change the AES lane's pre-shared key in `docker-compose.yml` before deploying an
 4. Give it a DNS name. Hostnames are DNS-validated by the player, and Quest's cleartext
    policy means the HTTP lanes (`8080`–`8082`) need to sit behind TLS with a certificate
    chain standalone headsets actually trust (serve the full chain including intermediates —
-   headset trust stores are sparser than desktop browsers'). `rtspt://` needs no TLS.
+   headset trust stores are sparser than desktop browsers'). RTSP needs no TLS.
 5. `python3 scripts/preflight.py --host <name>` before every session.
 
 ## Gotchas
