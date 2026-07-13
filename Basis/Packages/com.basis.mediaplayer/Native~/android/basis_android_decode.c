@@ -575,6 +575,46 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
     return 0;
 }
 
+/* Big-endian bit cursor over an AudioSpecificConfig; -1 past the end. */
+static int asc_bits(const uint8_t* a, int len, int* pos, int n) {
+    int v = 0;
+    for (int i = 0; i < n; ++i) {
+        int b = (*pos)++;
+        if (b >= len * 8) return -1;
+        v = (v << 1) | ((a[b >> 3] >> (7 - (b & 7))) & 1);
+    }
+    return v;
+}
+
+/* An AudioSpecificConfig from an MP4 esds can carry a backward-compatible SBR
+ * sync extension (0x2b7) with sbrPresentFlag=0 — SBR advertised but absent.
+ * C2SoftAacDec rejects a multichannel LC config with that inert tail
+ * (aacDecoder_DecodeFrame 0x1001, "Invalid AAC stream" -> substituted silence),
+ * while the same audio over TS decodes fine: ADTS framing can't express the
+ * extension, so the decoder never sees it. Return the config length to hand the
+ * decoder — the 2-byte core for AAC-LC with an inert SBR/PS tail, otherwise the
+ * config unchanged so real HE-AAC keeps its SBR signalling and PCE /
+ * explicit-rate configs are left alone. */
+static int aac_core_asc_len(const uint8_t* asc, int asc_len) {
+    if (!asc || asc_len < 2) return asc_len;
+    int p = 0;
+    if (asc_bits(asc, asc_len, &p, 5) != 2) return asc_len;    /* AAC-LC only */
+    if (asc_bits(asc, asc_len, &p, 4) == 15) return asc_len;   /* explicit rate: leave */
+    if (asc_bits(asc, asc_len, &p, 4) < 1) return asc_len;     /* channelConfig 0 = PCE: leave */
+    /* GASpecificConfig (AAC-LC) */
+    asc_bits(asc, asc_len, &p, 1);                             /* frameLengthFlag */
+    if (asc_bits(asc, asc_len, &p, 1) == 1)                    /* dependsOnCoreCoder */
+        asc_bits(asc, asc_len, &p, 14);                        /* coreCoderDelay */
+    asc_bits(asc, asc_len, &p, 1);                             /* extensionFlag (0 for LC) */
+    if (p < 0 || p > asc_len * 8) return asc_len;
+    int core_len = (p + 7) / 8;
+    if (asc_bits(asc, asc_len, &p, 11) == 0x2b7 &&             /* SBR sync extension */
+        asc_bits(asc, asc_len, &p, 5) == 5 &&                  /* extensionAudioObjectType = SBR */
+        asc_bits(asc, asc_len, &p, 1) == 0)                    /* sbrPresentFlag = 0: inert */
+        return core_len;
+    return asc_len;
+}
+
 int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
                                    int sample_rate, int channels, const uint8_t* asc, int asc_len) {
     if (!d || d->aconfigured) return 0;
@@ -615,7 +655,11 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
      * smaller, so large 5.1 frames were fed truncated and the decoder rejected
      * them (0x4004 -> silence). Give it headroom so whole multichannel frames fit. */
     AMediaFormat_setInt32(fmt, "max-input-size", 32768);
-    if (asc && asc_len > 0) AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, asc_len);
+    int csd_len = aac_core_asc_len(asc, asc_len);
+    if (csd_len != asc_len)
+        __android_log_print(ANDROID_LOG_INFO, "basis_media",
+            "AAC config: dropped inert SBR sync extension (%d -> %d bytes)", asc_len, csd_len);
+    if (asc && csd_len > 0) AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, csd_len);
     AMediaCodec* c = AMediaCodec_createDecoderByType("audio/mp4a-latm");
     if (!c || AMediaCodec_configure(c, fmt, NULL, NULL, 0) != AMEDIA_OK ||
         AMediaCodec_start(c) != AMEDIA_OK) {
