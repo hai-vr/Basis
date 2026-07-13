@@ -577,6 +577,11 @@ static void hls_producer(basis_hls_t* h) {
                     if (!h->seg_ctx) continue; /* skip a transient open failure */
                     h->empty_reloads = 0;
                 } else if (h->endlist_seen) {
+                    /* VOD exhausted. Loop back to honour a seek that raced in
+                     * after the top-of-loop check, rather than exiting with it
+                     * unprocessed and leaving the reader withholding on a flush
+                     * that never comes. */
+                    if (h->seek_pending) continue;
                     break; /* VOD / stream finished */
                 } else {
                     int r = reload_and_enqueue(h);
@@ -757,8 +762,16 @@ int basis_hls_read(void* ctx, uint8_t* buf, int len) {
         hls_mutex_lock(&h->lock);
         /* Seek in flight: the ring still holds pre-seek bytes until the producer
          * flushes and requeues at the target. Withhold them, since handing them
-         * to the demuxer would let a stale AU re-anchor pacing to the old timeline. */
-        if (h->seek_gen != h->flush_gen) { hls_mutex_unlock(&h->lock); hls_sleep_ms(2); continue; }
+         * to the demuxer would let a stale AU re-anchor pacing to the old timeline.
+         * If the producer has already exited (VOD genuinely ended) without
+         * honouring the seek, stop waiting for a flush that will never come. */
+        if (h->seek_gen != h->flush_gen) {
+            int done = h->producer_done;
+            hls_mutex_unlock(&h->lock);
+            if (done) return 0;
+            hls_sleep_ms(2);
+            continue;
+        }
         /* First read after the flush settled: raise the reposition boundary once
          * so the demuxer drops its pre-seek state and re-anchors before the
          * target segment's bytes flow. */
