@@ -1,4 +1,4 @@
-using Basis.Scripts.Settings;
+﻿using Basis.Scripts.Settings;
 
 namespace Basis.MediaPipe
 {
@@ -35,7 +35,7 @@ namespace Basis.MediaPipe
             new BasisSettingsBinding<bool>("mediapipe_headrotation", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<bool> EnableHandTracking =
-            new BasisSettingsBinding<bool>("mediapipe_handtracking_v2", new BasisPlatformDefault<bool>(false));
+            new BasisSettingsBinding<bool>("mediapipe_handtracking_v2", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<bool> EnableBody =
             new BasisSettingsBinding<bool>("mediapipe_body", new BasisPlatformDefault<bool>(false));
@@ -49,14 +49,25 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<bool> EnableArmElbowPole =
             new BasisSettingsBinding<bool>("mediapipe_armelbowpole", new BasisPlatformDefault<bool>(false));
 
+        public static readonly BasisSettingsBinding<float> ElbowRestBias =
+            new BasisSettingsBinding<float>("mediapipe_elbowrestbias", new BasisPlatformDefault<float>(0.5f));
+
+        public static readonly BasisSettingsBinding<float> ChestMotion =
+            new BasisSettingsBinding<float>("mediapipe_chestmotion", new BasisPlatformDefault<float>(0.6f));
+
+        public static readonly BasisSettingsBinding<float> ShoulderMotion =
+            new BasisSettingsBinding<float>("mediapipe_shouldermotion", new BasisPlatformDefault<float>(0.6f));
+
         public static readonly BasisSettingsBinding<bool> InvertBlink =
             new BasisSettingsBinding<bool>("mediapipe_invertblink", new BasisPlatformDefault<bool>(false));
 
+        // Keys bumped to _v2: a changed default is ignored by anyone who has already run the app, because the old
+        // value is pinned on disk. Bumping the key is what actually ships the new default to existing installs.
         public static readonly BasisSettingsBinding<bool> InvertHeadYaw =
-            new BasisSettingsBinding<bool>("mediapipe_invertheadyaw", new BasisPlatformDefault<bool>(false));
+            new BasisSettingsBinding<bool>("mediapipe_invertheadyaw_v2", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<bool> InvertHeadPitch =
-            new BasisSettingsBinding<bool>("mediapipe_invertheadpitch", new BasisPlatformDefault<bool>(true));
+            new BasisSettingsBinding<bool>("mediapipe_invertheadpitch_v2", new BasisPlatformDefault<bool>(true));
 
         public static readonly BasisSettingsBinding<bool> InvertHeadRoll =
             new BasisSettingsBinding<bool>("mediapipe_invertheadroll", new BasisPlatformDefault<bool>(false));
@@ -118,6 +129,9 @@ namespace Basis.MediaPipe
             SwapHands.LoadBindingValue();
             ArmHeadAnchor.LoadBindingValue();
             EnableArmElbowPole.LoadBindingValue();
+            ElbowRestBias.LoadBindingValue();
+            ChestMotion.LoadBindingValue();
+            ShoulderMotion.LoadBindingValue();
             Mirror.LoadBindingValue();
             InvertBlink.LoadBindingValue();
             InvertHeadYaw.LoadBindingValue();

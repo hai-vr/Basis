@@ -79,12 +79,32 @@ namespace Basis.MediaPipe
         /// Avatar hand geometry in player-root-local space. Correction maps a MediaPipe palm frame onto the
         /// hand bone's rotation; it is built from the knuckle positions, which do not move relative to the
         /// hand when the fingers curl, so it holds for any pose and needs no reference pose to capture.
+        ///
+        /// IkOffsetInverse undoes a SECOND palm->bone correction that the IK applies downstream. We hand our
+        /// rotation to a tracker, and BasisArmSolveCore does `tRotation = TargetRotation * TargetOffset` with
+        /// TargetOffset = data.m_CalibratedRotationLeft/RightHand, which BasisAnimationRiggingHelper builds as
+        /// `Inverse(landmarkBind) * boneBind` -- i.e. it is ALSO a palm-frame -> hand-bone constant. That offset
+        /// is correct for a producer that reports a PALM/LANDMARK frame (a real tracker does). But `Correction`
+        /// above already finishes the job: we hand over a BONE rotation, so the IK's offset lands on top of it
+        /// and the hand ends up wrong by exactly that offset -- and DIFFERENTLY ON EVERY AVATAR, because it is
+        /// calibrated per rig. (The feet had this identical bug.)
+        ///
+        /// Pre-multiplying by its inverse makes the IK's own `* TargetOffset` collapse back to what we meant:
+        ///     (boneRot * offset^-1) * offset == boneRot
+        ///
+        /// Note the two corrections are NOT the same quaternion, so this does not reduce to "drop Correction":
+        /// MediaPipeSpace's palm frame uses the middle-MCP knuckle with a left-hand normal flip, while
+        /// HandRotationFromLandmarks uses the index/pinky midpoint. `Correction * IkOffsetInverse` is exactly the
+        /// residual between those two conventions. Deleting Correction instead would leave that residual behind
+        /// as a silent frame error -- close enough to look plausible, which is worse than obviously wrong.
         /// </summary>
         public struct AvatarHandRig
         {
             public Quaternion Body;
             public Quaternion LeftCorrection;
             public Quaternion RightCorrection;
+            public Quaternion LeftIkOffsetInverse;
+            public Quaternion RightIkOffsetInverse;
             public bool Valid;
         }
 
@@ -116,12 +136,24 @@ namespace Basis.MediaPipe
             Quaternion handInBody = Quaternion.Inverse(bodyFrame) * handFrame;
             Quaternion correction = left ? rig.LeftCorrection : rig.RightCorrection;
 
+            // AvatarHandRig is a STRUCT, so an initializer that omits this field leaves it at (0,0,0,0) -- the ZERO
+            // quaternion, not identity. Multiplying by that does not "do nothing", it ANNIHILATES the rotation.
+            // Treating a degenerate offset as identity means a caller that never heard of this field simply gets
+            // the old, uncancelled behaviour instead of a dead hand. Cheap, and it makes the struct impossible to
+            // hold wrong.
+            Quaternion ikOffsetInverse = left ? rig.LeftIkOffsetInverse : rig.RightIkOffsetInverse;
+            float ikSqrNorm = ikOffsetInverse.x * ikOffsetInverse.x + ikOffsetInverse.y * ikOffsetInverse.y
+                + ikOffsetInverse.z * ikOffsetInverse.z + ikOffsetInverse.w * ikOffsetInverse.w;
+            if (ikSqrNorm < 0.5f) ikOffsetInverse = Quaternion.identity;
+
             float cutoff = RotationCutoff;
             Quaternion smoothed = left
                 ? _leftRot.Apply(handInBody, in timing, cutoff)
                 : _rightRot.Apply(handInBody, in timing, cutoff);
 
-            rotation = rig.Body * smoothed * correction;
+            // `rig.Body * smoothed * correction` is the finished HAND BONE rotation. The IK will multiply its own
+            // palm->bone offset onto whatever we report, so pre-cancel it here (see AvatarHandRig).
+            rotation = rig.Body * smoothed * correction * ikOffsetInverse;
             return true;
         }
 

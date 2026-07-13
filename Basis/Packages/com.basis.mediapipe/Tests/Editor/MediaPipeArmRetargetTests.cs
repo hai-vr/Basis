@@ -257,6 +257,51 @@ namespace Basis.MediaPipe.Tests
                 "and it is nasty precisely because the side still looks right");
         }
 
+        /// <summary>
+        /// A Burst abort, pinned. NaN fails every ordered comparison, so a `x &lt; epsilon` degeneracy guard lets
+        /// it straight through; it then latches into the one-euro filters (which lerp it forward forever) and
+        /// finally reaches the IK job, where the arm-bend lookup does `(int)NaN` == int.MinValue and kills the
+        /// process with no managed stack. Refusing the frame costs one frame of arm and is recoverable.
+        /// </summary>
+        [Test]
+        public void ANaNLandmark_IsRefused_NotRetargeted()
+        {
+            foreach (int joint in new[] { MediaPipeSpace.RightShoulder, MediaPipeSpace.RightElbow, MediaPipeSpace.RightWrist })
+            {
+                Vector3[] pose = HandAtFace();
+                pose[joint] = new Vector3(float.NaN, float.NaN, float.NaN);
+
+                MediaPipeArmConverter converter = Converter();
+                MediaPipeArmConverter.AvatarArmRig rig = Rig();
+
+                Assert.IsFalse(converter.TryGetArm(pose, in rig, false, in Timing, out _, out _, out _),
+                    $"a NaN at pose landmark {joint} must be refused outright");
+            }
+        }
+
+        /// <summary>
+        /// And it must not poison the converter either: the old arm-length tracker did `Mathf.Max(stored, NaN)`,
+        /// which returns NaN and pinned the arm length forever, so `reach = avatarArm / NaN` made every target
+        /// after it NaN — long after the bad frame was gone.
+        /// </summary>
+        [Test]
+        public void ANaNFrame_DoesNotPoisonTheFramesAfterIt()
+        {
+            MediaPipeArmConverter converter = Converter();
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+
+            Vector3[] bad = HandAtFace();
+            bad[MediaPipeSpace.RightWrist] = new Vector3(float.NaN, 0f, 0f);
+            converter.TryGetArm(bad, in rig, false, in Timing, out _, out _, out _);
+
+            Assert.IsTrue(converter.TryGetArm(HandAtFace(), in rig, false, in Timing, out Vector3 wrist, out Vector3 elbow, out _),
+                "the converter must recover on the next good frame");
+            Assert.IsTrue(float.IsFinite(wrist.x) && float.IsFinite(wrist.y) && float.IsFinite(wrist.z),
+                $"and hand back a finite wrist, got {wrist}");
+            Assert.IsTrue(float.IsFinite(elbow.x) && float.IsFinite(elbow.y) && float.IsFinite(elbow.z),
+                $"and a finite elbow, got {elbow}");
+        }
+
         [Test]
         public void ArmVisibility_ReportsTheWeakestJoint()
         {
@@ -297,6 +342,39 @@ namespace Basis.MediaPipe.Tests
                 "and exactly one forearm from the wrist");
             Assert.Greater(elbow.x, wrist.x,
                 "with the hand tucked in at the face the elbow should still swing out wider than the wrist");
+        }
+
+        /// <summary>
+        /// The reported bug. The solver reads only the hint's DIRECTION in the swing plane, and that direction is
+        /// dominated by the elbow's DEPTH — the worst number a monocular pose model produces. A depth error does
+        /// not nudge the elbow, it rotates it around the arm, and it surfaces as the elbow riding up.
+        /// </summary>
+        [Test]
+        public void ElbowHangsBelowTheShoulder_WithTheHandAtTheFace()
+        {
+            MediaPipeArmConverter converter = Converter();
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+            Assert.IsTrue(converter.TryGetArm(HandAtFace(), in rig, false, in Timing, out _, out Vector3 elbow, out _));
+
+            Assert.Less(elbow.y, AvatarShoulderY,
+                $"a hand at the face bends the elbow DOWN and out; elbow at {elbow.y:F3} is above the shoulder ({AvatarShoulderY:F3})");
+        }
+
+        [Test]
+        public void ElbowRestBias_LowersTheElbow()
+        {
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+
+            MediaPipeArmConverter trusting = new MediaPipeArmConverter { Smoothing = 0f, ElbowRestBias = 0f };
+            Assert.IsTrue(trusting.TryGetArm(HandAtFace(), in rig, false, in Timing, out _, out Vector3 fromCamera, out _));
+
+            MediaPipeArmConverter resting = new MediaPipeArmConverter { Smoothing = 0f, ElbowRestBias = 1f };
+            Assert.IsTrue(resting.TryGetArm(HandAtFace(), in rig, false, in Timing, out _, out Vector3 fromRest, out _));
+
+            Assert.Less(fromRest.y, fromCamera.y,
+                "raising the rest bias must pull the elbow down — that is the entire purpose of the knob");
+            Assert.That(Vector3.Distance(rig.RightAnchor, fromRest), Is.EqualTo(AvatarUpperLen).Within(1e-3f),
+                "and it must stay on the reachable circle, not just slide down");
         }
 
         [Test]

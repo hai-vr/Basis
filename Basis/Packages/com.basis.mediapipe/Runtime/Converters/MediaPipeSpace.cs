@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Basis.MediaPipe
 {
@@ -41,6 +41,17 @@ namespace Basis.MediaPipe
             1, 4, 2, 5, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
             17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
         };
+
+        /// <summary>
+        /// A landmark the maths is allowed to touch.
+        ///
+        /// The pose model can hand back a NaN, and NaN fails every ordered comparison — so a `< epsilon`
+        /// degeneracy guard lets it straight through, the one-euro filters latch it and lerp it forward forever,
+        /// and it finally reaches the Burst IK job where the arm-bend lookup does `(int)NaN` == int.MinValue and
+        /// aborts the process. Every gateway below checks this before it computes anything.
+        /// </summary>
+        public static bool IsFinite(Vector3 v) =>
+            float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
 
         /// <summary>Metric world landmark (metres) into Unity space, undoing the selfie mirror.</summary>
         public static Vector3 World(Vector3 v, bool mirrored) =>
@@ -97,7 +108,7 @@ namespace Basis.MediaPipe
             Vector3 right = pose[RightShoulder];
             float width = Vector3.Distance(left, right);
             float dx = left.x - right.x;
-            if (width < 1e-3f || Mathf.Abs(dx) < width * 0.3f) return 0f;
+            if (!(width > 1e-3f) || !(Mathf.Abs(dx) > width * 0.3f)) return 0f;
 
             return dx < 0f ? 1f : -1f;
         }
@@ -116,6 +127,35 @@ namespace Basis.MediaPipe
             float elbow = visibility[left ? LeftElbow : RightElbow];
             float wrist = visibility[left ? LeftWrist : RightWrist];
             return Mathf.Min(shoulder, Mathf.Min(elbow, wrist));
+        }
+
+        /// <summary>
+        /// How far each shoulder sits BELOW the head, along the torso's up axis, as a fraction of shoulder width.
+        /// A shrug shows up as this shrinking.
+        ///
+        /// Two traps make this the only reference that works. It cannot be measured against the shoulder centre,
+        /// because the body frame is BUILT from the shoulders — shrug both and the reference rises with the
+        /// signal, so a symmetric shrug reads as nothing at all. And it should not be measured against the hips:
+        /// a webcam crop is head-and-shoulders, so the hips are pure extrapolation, while the ears and shoulders
+        /// are both genuinely in frame. Normalising by shoulder width (a body constant) makes it scale-free, and
+        /// it leans on the image-plane axes rather than depth, which is the half of the data worth trusting.
+        /// </summary>
+        public static bool TryShoulderDrop(Vector3[] pose, out float left, out float right)
+        {
+            left = 0f;
+            right = 0f;
+            if (pose == null || pose.Length < PoseCount) return false;
+            if (!TryBodyFrame(pose, out _, out Quaternion frame)) return false;
+
+            float width = Vector3.Distance(pose[LeftShoulder], pose[RightShoulder]);
+            if (!(width > 1e-3f)) return false;
+
+            Vector3 up = frame * Vector3.up;
+            Vector3 earCenter = (pose[LeftEar] + pose[RightEar]) * 0.5f;
+
+            left = Vector3.Dot(earCenter - pose[LeftShoulder], up) / width;
+            right = Vector3.Dot(earCenter - pose[RightShoulder], up) / width;
+            return true;
         }
 
         /// <summary>
@@ -139,10 +179,13 @@ namespace Basis.MediaPipe
             frame = Quaternion.identity;
             if (pose == null || pose.Length < PoseCount) return false;
 
+            if (!IsFinite(pose[LeftShoulder]) || !IsFinite(pose[RightShoulder])
+                || !IsFinite(pose[LeftHip]) || !IsFinite(pose[RightHip])) return false;
+
             shoulderCenter = (pose[LeftShoulder] + pose[RightShoulder]) * 0.5f;
 
             Vector3 right = pose[RightShoulder] - pose[LeftShoulder];
-            if (right.sqrMagnitude < 1e-8f) return false;
+            if (!(right.sqrMagnitude > 1e-8f)) return false;
             right.Normalize();
 
             Vector3 hipCenter = (pose[LeftHip] + pose[RightHip]) * 0.5f;
@@ -152,11 +195,11 @@ namespace Basis.MediaPipe
                 up = (pose[LeftEar] + pose[RightEar]) * 0.5f - shoulderCenter;
             }
             up = Vector3.ProjectOnPlane(up, right);
-            if (up.sqrMagnitude < 1e-8f) return false;
+            if (!(up.sqrMagnitude > 1e-8f)) return false;
             up.Normalize();
 
             Vector3 forward = Vector3.Cross(right, up);
-            if (forward.sqrMagnitude < 1e-8f) return false;
+            if (!(forward.sqrMagnitude > 1e-8f)) return false;
 
             frame = Quaternion.LookRotation(forward.normalized, up);
             return true;
@@ -174,18 +217,19 @@ namespace Basis.MediaPipe
             bool left, out Quaternion frame)
         {
             frame = Quaternion.identity;
+            if (!IsFinite(wrist) || !IsFinite(indexMcp) || !IsFinite(middleMcp) || !IsFinite(pinkyMcp)) return false;
 
             Vector3 forward = middleMcp - wrist;
             Vector3 across = indexMcp - pinkyMcp;
-            if (forward.sqrMagnitude < 1e-8f || across.sqrMagnitude < 1e-8f) return false;
+            if (!(forward.sqrMagnitude > 1e-8f) || !(across.sqrMagnitude > 1e-8f)) return false;
 
             Vector3 normal = Vector3.Cross(forward, across);
-            if (normal.sqrMagnitude < 1e-8f) return false;
+            if (!(normal.sqrMagnitude > 1e-8f)) return false;
             if (left) normal = -normal;
             normal.Normalize();
 
             forward = Vector3.ProjectOnPlane(forward, normal);
-            if (forward.sqrMagnitude < 1e-8f) return false;
+            if (!(forward.sqrMagnitude > 1e-8f)) return false;
 
             frame = Quaternion.LookRotation(forward.normalized, normal);
             return true;

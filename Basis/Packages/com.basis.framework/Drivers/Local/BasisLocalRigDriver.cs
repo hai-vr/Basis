@@ -54,6 +54,21 @@ namespace Basis.Scripts.Drivers
         public RigLayer RigLayer;
         public BasisFullBodyIK BasisFullIKConstraint;
 
+        /// <summary>
+        /// The FBIK hand target offsets (landmark frame -> hand bone frame), as plain quaternions.
+        ///
+        /// MediaPipe needs these to cancel FBIK's offset -- it emits an already-finished BONE rotation, so the
+        /// solve's own `target * offset` would apply the palm->bone map a second time. But BasisFullBodyIK derives
+        /// from RigConstraint&lt;,,&gt;, so reading `.data` from another package forces com.basis.mediapipe to take a hard
+        /// dependency on Unity.Animation.Rigging just to fetch two quaternions. Handing them out from here -- inside
+        /// the assembly that already references Rigging -- keeps that dependency where it belongs.
+        ///
+        /// Identity when there is no constraint yet, which is the correct no-op: an uncalibrated offset must not
+        /// rotate anything.
+        /// </summary>
+        public Quaternion LeftHandIKOffset => BasisFullIKConstraint != null ? BasisFullIKConstraint.data.m_CalibratedRotationLeftHand : Quaternion.identity;
+        public Quaternion RightHandIKOffset => BasisFullIKConstraint != null ? BasisFullIKConstraint.data.m_CalibratedRotationRightHand : Quaternion.identity;
+
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping basisTransformMapping;
 
@@ -116,6 +131,23 @@ namespace Basis.Scripts.Drivers
         // Prevents single-frame flicker at jump apex or during speed oscillations.
         private static float stationaryTimer = 0f;
         private const float StationaryDelaySeconds = 0.15f;
+
+        // ── FOOT ROTATION KILL SWITCH ──
+        // false => hand SolveLegs the zero-quaternion sentinel, which makes it keep the ANIMATION's foot rotation.
+        // That is the long-standing, known-good behaviour: no heel-strike / toe-off / slope adaptation, and a
+        // planted foot pivots with the body -- but locomotion is guaranteed intact.
+        // true  => drive the foot's rotation from the foot placement driver (SafeFootTargetRotation).
+        //
+        // Defaulted OFF because the un-discard has never been compiled or play-tested, and it landed alongside a
+        // report that the legs stop handing back to the Animator when the character controller moves. The handoff
+        // gate itself is provably untouched (git diff 0e8b2efdc..HEAD changes not one line of stationaryTimer /
+        // leftWantIK / footIKReady / EnableLeftLeg / MovementVector / leftHasTracker), so this is NOT a diagnosis --
+        // it is a safety default. Walking matters more than heel-strike; flip this to true and re-test once the
+        // project actually builds.
+        // static readonly, NOT const: a const false would make the ternaries below compile-time-constant and raise
+        // CS0429 (unreachable expression code), which is an error under warnings-as-errors. The JIT folds this away
+        // just the same, so it costs nothing.
+        private static readonly bool FootRotationFromDriver = false;
 
         // Batched filter job state — one slot per S_* index (shoulder slot in position arrays is unused).
         private NativeArray<float3> _posInputs;
@@ -528,7 +560,9 @@ namespace Basis.Scripts.Drivers
                     //
                     // This is the "toes-up" that got foot rotation switched off in the first place -- the sentinel
                     // on the zero quaternion existed to dodge this exact multiply, not to dodge a bad frame.
-                    data.LeftFootRotation = footDriver.LeftFootRotation * Quaternion.Inverse(data.M_CalibrationLeftFootRotation);
+                    data.LeftFootRotation = FootRotationFromDriver
+                        ? SafeFootTargetRotation(footDriver.LeftFootRotation, data.M_CalibrationLeftFootRotation)
+                        : PreserveTipSentinel;
                     data.EnableLeftLeg = footIKBlendWeightLeft;
                 }
                 else
@@ -546,7 +580,9 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightRight > 0.001f && footDriverReady)
                 {
                     data.RightFootPosition = footDriver.RightFootPosition;
-                    data.RightFootRotation = footDriver.RightFootRotation * Quaternion.Inverse(data.M_CalibrationRightFootRotation);
+                    data.RightFootRotation = FootRotationFromDriver
+                        ? SafeFootTargetRotation(footDriver.RightFootRotation, data.M_CalibrationRightFootRotation)
+                        : PreserveTipSentinel;
                     data.EnableRightLeg = footIKBlendWeightRight;
                 }
                 else
@@ -1273,6 +1309,49 @@ namespace Basis.Scripts.Drivers
                 BasisFullIKConstraint.data = data;
             }
         }
+        /// <summary>
+        /// The zero quaternion. SolveLegs reads it as "position-only foot IK": it keeps the foot's pre-solve
+        /// (animation) rotation. It is the system's existing, well-defined "I have no usable rotation for you".
+        /// </summary>
+        private static readonly Quaternion PreserveTipSentinel = new Quaternion(0f, 0f, 0f, 0f);
+
+        /// <summary>
+        /// The foot target rotation to hand SolveLegs, with the per-avatar calibration offset pre-cancelled --
+        /// or the preserve-tip sentinel if the result is not a usable rotation.
+        ///
+        /// WHY THIS EXISTS: a NaN here does not degrade the rig, it KILLS it. SolveLegs decides "no rotation
+        /// supplied" with `sqrMagnitude(tRot) &lt; 0.5f` -- and NaN &lt; 0.5f is FALSE, so a NaN target does not trip
+        /// that guard. It flows into SolveTwoBone, NaNs the leg bone rotations, and from there the rig never
+        /// recovers: zeroing EnableLeftLeg only stops us WRITING, it cannot un-poison what is already written.
+        /// That is exactly "the legs stop falling back to the animator when I move, and never come back".
+        ///
+        /// Two ways a NaN gets in, and both are guarded:
+        ///   - the OFFSET is degenerate. A serialized Quaternion defaults to (0,0,0,0), not identity, and
+        ///     Quaternion.Inverse divides by the squared norm -- inverting it yields NaN. There is a real window
+        ///     for this: BasisAnimationRiggingHelper only assigns the offset when the avatar HAS that foot mapped,
+        ///     and recalibration/avatar-swap rewrite it live.
+        ///   - the foot driver's own rotation is degenerate (a LookRotation on a collapsed frame).
+        ///
+        /// NOTE THE COMPARISON SHAPE: `!(x > k)`, never `x &lt; k`. NaN compares false to EVERYTHING, so a `&lt;` test
+        /// ACCEPTS NaN. That is precisely the bug in SolveLegs' preserveTip check, and the first version of this
+        /// guard repeated it. Negating a `>` rejects NaN, zero and denormals in one test.
+        ///
+        /// Falling back to the SENTINEL rather than identity matters: identity would hand the solve a confidently
+        /// WRONG foot rotation, while the sentinel restores exactly the old, known-good behaviour (the animation's
+        /// foot rotation). Foot rotation degrades; walking never breaks.
+        /// </summary>
+        private static Quaternion SafeFootTargetRotation(Quaternion footRot, Quaternion offset)
+        {
+            float offSqr = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z + offset.w * offset.w;
+            if (!(offSqr > 0.5f)) return PreserveTipSentinel;
+
+            Quaternion result = footRot * Quaternion.Inverse(offset);
+            float resSqr = result.x * result.x + result.y * result.y + result.z * result.z + result.w * result.w;
+            if (!(resSqr > 0.5f)) return PreserveTipSentinel;
+
+            return result;
+        }
+
         private static bool HasRigLayer(BasisLocalBoneControl control)
         {
             return control.HasRigLayer == BasisHasRigLayer.HasRigLayer;

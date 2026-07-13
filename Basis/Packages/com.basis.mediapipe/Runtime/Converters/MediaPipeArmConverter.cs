@@ -1,4 +1,4 @@
-using Basis.Scripts.Drivers;
+﻿using Basis.Scripts.Drivers;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -24,6 +24,12 @@ namespace Basis.MediaPipe
         public float HeadAnchor = 1f;
         public float MaxReach = 0.98f;
         public float HandReachGain = 1.1f;
+
+        /// <summary>How far to pull the elbow swivel toward the resting pole. 0 = trust the camera's elbow completely.</summary>
+        public float ElbowRestBias = 0.5f;
+
+        /// <summary>How far the resting elbow sits away from the ribs, relative to straight down.</summary>
+        private const float ElbowOutward = 0.3f;
 
         // One-euro tuning, applied on the CAMERA clock. It only has to take the sensor noise off; the carry pass
         // below is what bridges the gap between samples, so this stays light rather than stacking two heavy
@@ -121,13 +127,17 @@ namespace Basis.MediaPipe
             Vector3 shoulder = pose[avatarLeft ? MediaPipeSpace.LeftShoulder : MediaPipeSpace.RightShoulder];
             Vector3 elbow = pose[avatarLeft ? MediaPipeSpace.LeftElbow : MediaPipeSpace.RightElbow];
             Vector3 wrist = pose[avatarLeft ? MediaPipeSpace.LeftWrist : MediaPipeSpace.RightWrist];
+            if (!MediaPipeSpace.IsFinite(shoulder) || !MediaPipeSpace.IsFinite(elbow) || !MediaPipeSpace.IsFinite(wrist))
+            {
+                return false;
+            }
 
             float userArm = TrackUserArm(avatarLeft,
                 Vector3.Distance(shoulder, elbow) + Vector3.Distance(elbow, wrist), timing);
             float upperLen = avatarLeft ? rig.LeftUpperLen : rig.RightUpperLen;
             float foreLen = avatarLeft ? rig.LeftForeLen : rig.RightForeLen;
             float avatarArm = upperLen + foreLen;
-            if (userArm < 1e-3f || avatarArm < 1e-4f) return false;
+            if (!(userArm > 1e-3f) || !(avatarArm > 1e-4f)) return false;
 
             Quaternion toBody = Quaternion.Inverse(bodyFrame);
             Vector3 wristBody = toBody * (wrist - shoulder);
@@ -147,10 +157,16 @@ namespace Basis.MediaPipe
             float lift = VerticalScale(headBody, Vector3.Dot(rig.HeadLocal - anchor, rig.Up), wristBody.y, reach);
 
             Vector3 wristTarget = ClampReach(anchor, Place(anchor, wristBody, reach, lift, in rig), avatarArm);
-            Vector3 measuredElbow = Place(anchor, elbowBody, reach, lift, in rig);
+
+            // The elbow scales UNIFORMLY by reach — never by lift. lift is the head-anchor scale derived from the
+            // WRIST's height; it exists to pull the HAND up to the avatar's face and means nothing for the elbow.
+            // Applying it here stretches the elbow's vertical component against its lateral/forward ones, which
+            // does not merely move the elbow — it ROTATES the swivel, and the swivel is the whole ballgame (the
+            // solver reads only the hint's DIRECTION in the swing plane).
+            Vector3 measuredElbow = Place(anchor, elbowBody, reach, reach, in rig);
 
             wristLocal = wristTarget;
-            elbowLocal = SolveElbow(anchor, wristTarget, measuredElbow, upperLen, foreLen, rig.Up);
+            elbowLocal = SolveElbow(anchor, wristTarget, measuredElbow, upperLen, foreLen, in rig, avatarLeft);
             wristRotation = LookFrom(wristLocal - elbowLocal, rig.Up);
             return true;
         }
@@ -196,33 +212,50 @@ namespace Basis.MediaPipe
         }
 
         /// <summary>
-        /// Puts the elbow on the circle of positions that the avatar's own bone lengths actually allow, picking
-        /// the point around that circle nearest the measured elbow. Scaling the measured elbow directly (as this
-        /// used to) leaves |wrist-elbow| disagreeing with the forearm, so the LowerArm tracker ends up fighting
-        /// the arm solver instead of hinting it.
+        /// Places the elbow on the circle the avatar's own bone lengths allow, around a swivel direction taken
+        /// from the measured elbow and pulled toward the anatomical rest pole.
+        ///
+        /// What the arm solver actually consumes is only the DIRECTION of this hint in the swing plane
+        /// (BasisArmSolveCore: `hintR = FromToRotation(abProj, ahProj)`), so the swivel is the entire ballgame —
+        /// the radius only conditions how far the hint fades in. And that swivel is the least trustworthy thing
+        /// we compute: it is dominated by the elbow's DEPTH, which is the worst number a monocular pose model
+        /// produces. A depth error does not push the elbow forward or back, it ROTATES it around the arm — and
+        /// it reads as the elbow winging UP, which a real elbow essentially never does.
+        ///
+        /// So bias it toward where an elbow actually lives: hanging down, a little away from the ribs. The solver
+        /// already reaches for the same prior (`downPole = -PlayerUp`) whenever it has no hint at all.
         /// </summary>
-        private static Vector3 SolveElbow(Vector3 shoulder, Vector3 wrist, Vector3 measured,
-            float upperLen, float foreLen, Vector3 fallbackUp)
+        private Vector3 SolveElbow(Vector3 shoulder, Vector3 wrist, Vector3 measured,
+            float upperLen, float foreLen, in AvatarArmRig rig, bool avatarLeft)
         {
             Vector3 toWrist = wrist - shoulder;
             float span = toWrist.magnitude;
             if (span < 1e-4f) return measured;
 
             Vector3 axis = toWrist / span;
-            if (span >= upperLen + foreLen - 1e-4f)
-            {
-                return shoulder + axis * upperLen;
-            }
-
-            float along = (upperLen * upperLen - foreLen * foreLen + span * span) / (2f * span);
-            float radiusSq = upperLen * upperLen - along * along;
-            if (radiusSq <= 1e-8f) return shoulder + axis * upperLen;
+            float along = span >= upperLen + foreLen - 1e-4f
+                ? upperLen
+                : (upperLen * upperLen - foreLen * foreLen + span * span) / (2f * span);
 
             Vector3 center = shoulder + axis * along;
+            float radiusSq = upperLen * upperLen - along * along;
+            if (radiusSq <= 1e-8f) return center;
+
+            Vector3 outward = avatarLeft ? -rig.Right : rig.Right;
+            Vector3 rest = Vector3.ProjectOnPlane(-rig.Up + outward * ElbowOutward, axis);
             Vector3 swivel = Vector3.ProjectOnPlane(measured - center, axis);
-            if (swivel.sqrMagnitude < 1e-8f)
+
+            bool hasRest = rest.sqrMagnitude > 1e-8f;
+            bool hasSwivel = swivel.sqrMagnitude > 1e-8f;
+            if (!hasSwivel && !hasRest) return center;
+
+            if (!hasSwivel)
             {
-                swivel = Vector3.ProjectOnPlane(-fallbackUp, axis);
+                swivel = rest;
+            }
+            else if (hasRest)
+            {
+                swivel = Vector3.Slerp(swivel.normalized, rest.normalized, Mathf.Clamp01(ElbowRestBias));
             }
             if (swivel.sqrMagnitude < 1e-8f) return center;
 
@@ -260,22 +293,23 @@ namespace Basis.MediaPipe
         // Arm length is a body constant, so this rejects sample noise while still adapting if the model's metric
         // estimate drifts. It advances on the CAMERA clock — stepping it every rendered frame over a held sample
         // would make it converge many times faster than intended.
+        //
+        // The range test is written as `!(measured > lo && measured < hi)` on purpose. A NaN fails EVERY ordered
+        // comparison, so it takes the reject branch here; phrased the natural way round it would sail through, and
+        // the old `Mathf.Max(stored, NaN)` returned NaN — poisoning the arm length PERMANENTLY, which made
+        // `reach = avatarArm / NaN` NaN and every target after it, ending in a Burst abort inside the IK.
         private float TrackUserArm(bool left, float measured, in MediaPipeTiming timing)
         {
-            if (!timing.IsNewSample) return left ? _leftUserArm : _rightUserArm;
+            float stored = left ? _leftUserArm : _rightUserArm;
+            if (!timing.IsNewSample) return stored;
+            if (!(measured > 1e-3f && measured < 100f)) return stored;
 
             float alpha = 1f - Mathf.Exp(-ArmLengthTrackingHz * timing.SampleDelta);
-            if (left)
-            {
-                _leftUserArm = _leftUserArm > 1e-4f && measured > 1e-3f
-                    ? Mathf.Lerp(_leftUserArm, measured, alpha)
-                    : Mathf.Max(_leftUserArm, measured);
-                return _leftUserArm;
-            }
-            _rightUserArm = _rightUserArm > 1e-4f && measured > 1e-3f
-                ? Mathf.Lerp(_rightUserArm, measured, alpha)
-                : Mathf.Max(_rightUserArm, measured);
-            return _rightUserArm;
+            float updated = stored > 1e-4f ? Mathf.Lerp(stored, measured, alpha) : measured;
+
+            if (left) _leftUserArm = updated;
+            else _rightUserArm = updated;
+            return updated;
         }
 
         private static Quaternion LookFrom(Vector3 forward, Vector3 up) =>

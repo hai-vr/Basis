@@ -97,8 +97,39 @@ namespace Basis.MediaPipe.Tests
     /// </summary>
     public class MediaPipeBodyConverterTests
     {
+        private static readonly MediaPipeTiming Timing = new MediaPipeTiming(1f / 60f, 1f / 15f, true);
+
         private static BasisMediaPipeResult Result(Vector3[] pose) =>
             new BasisMediaPipeResult { HasPose = true, PoseWorldLandmarks = pose };
+
+        private static MediaPipeBodyConverter Converter(float strength = 1f) =>
+            new MediaPipeBodyConverter { Smoothing = 0f, Strength = strength };
+
+        private static Vector3[] Turned(Quaternion by)
+        {
+            Vector3[] neutral = MediaPipeArmRetargetTests.ArmDown();
+            Vector3[] turned = new Vector3[neutral.Length];
+            for (int i = 0; i < neutral.Length; i++)
+            {
+                turned[i] = by * neutral[i];
+            }
+            return turned;
+        }
+
+        private static Vector3 OffsetEuler(Quaternion by, float strength = 1f)
+        {
+            MediaPipeBodyConverter converter = Converter(strength);
+            BasisMediaPipeResult rest = Result(MediaPipeArmRetargetTests.ArmDown());
+            BasisMediaPipeResult moved = Result(Turned(by));
+
+            converter.Calibrate(rest);
+            Assert.IsTrue(converter.TryGetTorsoOffset(in moved, in Timing, out Quaternion offset));
+
+            Vector3 euler = offset.eulerAngles;
+            return new Vector3(Signed(euler.x), Signed(euler.y), Signed(euler.z));
+        }
+
+        private static float Signed(float angle) => angle > 180f ? angle - 360f : angle;
 
         [Test]
         public void TorsoFrameIsNotUpsideDown()
@@ -113,38 +144,124 @@ namespace Basis.MediaPipe.Tests
         [Test]
         public void NeutralTorso_ProducesNoOffset()
         {
-            MediaPipeBodyConverter converter = new MediaPipeBodyConverter { Smoothing = 0f };
+            MediaPipeBodyConverter converter = Converter();
             BasisMediaPipeResult neutral = Result(MediaPipeArmRetargetTests.ArmDown());
 
             converter.Calibrate(neutral);
-            Assert.IsTrue(converter.TryGetTorsoOffset(in neutral, out Quaternion offset));
+            Assert.IsTrue(converter.TryGetTorsoOffset(in neutral, in Timing, out Quaternion offset));
 
             Assert.Less(Quaternion.Angle(offset, Quaternion.identity), 0.1f,
-                "standing in the calibration pose must leave the chest exactly where the body puts it");
+                "sitting in the calibration pose must leave the chest exactly where the body puts it");
         }
 
         [Test]
         public void TwistingYourTorso_TurnsTheChestTheSameWay()
         {
-            Vector3[] neutral = MediaPipeArmRetargetTests.ArmDown();
-            Vector3[] twisted = new Vector3[neutral.Length];
-            Quaternion twist = Quaternion.AngleAxis(25f, Vector3.up);
-            for (int i = 0; i < neutral.Length; i++)
-            {
-                twisted[i] = twist * neutral[i];
-            }
+            float yaw = OffsetEuler(Quaternion.AngleAxis(25f, Vector3.up)).y;
 
-            MediaPipeBodyConverter converter = new MediaPipeBodyConverter { Smoothing = 0f };
-            BasisMediaPipeResult rest = Result(neutral);
-            BasisMediaPipeResult turned = Result(twisted);
-
-            converter.Calibrate(rest);
-            Assert.IsTrue(converter.TryGetTorsoOffset(in turned, out Quaternion offset));
-
-            float yaw = offset.eulerAngles.y;
-            if (yaw > 180f) yaw -= 360f;
             Assert.That(yaw, Is.EqualTo(25f).Within(2f),
                 $"a 25 degree torso twist should come back as a 25 degree yaw, got {yaw:F1}");
+        }
+
+        /// <summary>Side-lean used to be discarded outright (`Quaternion.Euler(lean, twist, 0f)`), and for someone
+        /// sitting at a webcam it is the most visible thing their torso does.</summary>
+        [Test]
+        public void LeaningSideways_RollsTheChest()
+        {
+            float roll = OffsetEuler(Quaternion.AngleAxis(20f, Vector3.forward)).z;
+
+            Assert.That(Mathf.Abs(roll), Is.EqualTo(20f).Within(3f),
+                $"a 20 degree side lean must reach the chest, got {roll:F1}");
+        }
+
+        [Test]
+        public void ChestMotionStrength_ScalesTheOffset()
+        {
+            float full = OffsetEuler(Quaternion.AngleAxis(25f, Vector3.up), 1f).y;
+            float half = OffsetEuler(Quaternion.AngleAxis(25f, Vector3.up), 0.5f).y;
+
+            Assert.That(half, Is.EqualTo(full * 0.5f).Within(1f),
+                "Chest Motion must scale the offset, so it can read as a suggestion rather than a copy");
+        }
+
+        /// <summary>
+        /// Raises both shoulders 4 cm without moving anything else — the pose a shrug actually makes.
+        /// </summary>
+        private static Vector3[] Shrugged(float left, float right)
+        {
+            Vector3[] pose = MediaPipeArmRetargetTests.ArmDown();
+            pose[MediaPipeSpace.LeftShoulder] += new Vector3(0f, left, 0f);
+            pose[MediaPipeSpace.RightShoulder] += new Vector3(0f, right, 0f);
+            return pose;
+        }
+
+        private static void Shrug(Vector3[] moved, out float left, out float right)
+        {
+            MediaPipeBodyConverter converter = Converter();
+            BasisMediaPipeResult rest = Result(MediaPipeArmRetargetTests.ArmDown());
+            BasisMediaPipeResult now = Result(moved);
+
+            converter.Calibrate(rest);
+            Assert.IsTrue(converter.TryGetShrug(in now, in Timing, out left, out right));
+        }
+
+        [Test]
+        public void RestingShoulders_ProduceNoShrug()
+        {
+            Shrug(MediaPipeArmRetargetTests.ArmDown(), out float left, out float right);
+
+            Assert.That(left, Is.EqualTo(0f).Within(0.02f));
+            Assert.That(right, Is.EqualTo(0f).Within(0.02f));
+        }
+
+        /// <summary>
+        /// The trap this exists to pin: measuring a shoulder against the shoulder CENTRE cannot see a symmetric
+        /// shrug at all, because the body frame is built from the shoulders and the reference rises with the
+        /// signal. Measuring the drop below the HEAD does see it.
+        /// </summary>
+        [Test]
+        public void ShruggingBothShoulders_IsNotCancelledOutByItsOwnReference()
+        {
+            Shrug(Shrugged(0.04f, 0.04f), out float left, out float right);
+
+            Assert.Greater(left, 0.1f, "a symmetric shrug must register, not vanish into the reference");
+            Assert.Greater(right, 0.1f);
+        }
+
+        [Test]
+        public void ShruggingOneShoulder_LeavesTheOtherAlone()
+        {
+            Shrug(Shrugged(0.04f, 0f), out float left, out float right);
+
+            Assert.Greater(left, 0.1f, "the shrugged shoulder rises");
+            Assert.That(right, Is.EqualTo(0f).Within(0.05f), "the resting one stays put — the sides are independent");
+        }
+
+        [Test]
+        public void DroppingAShoulder_ReadsAsNegative()
+        {
+            Shrug(Shrugged(-0.04f, 0f), out float left, out _);
+
+            Assert.Less(left, -0.1f, "shoulders drop as well as rise");
+        }
+
+        [Test]
+        public void ShoulderMotionZero_LeavesTheShouldersAlone()
+        {
+            MediaPipeBodyConverter converter = new MediaPipeBodyConverter { Smoothing = 0f, ShoulderStrength = 0f };
+            BasisMediaPipeResult now = Result(Shrugged(0.04f, 0.04f));
+
+            Assert.IsFalse(converter.TryGetShrug(in now, in Timing, out _, out _),
+                "zero strength must not drive the clavicles at all, not merely drive them by zero");
+        }
+
+        [Test]
+        public void AWildFrameCannotThrowTheTorso()
+        {
+            Vector3 euler = OffsetEuler(Quaternion.AngleAxis(150f, Vector3.up));
+
+            Assert.LessOrEqual(Mathf.Abs(euler.y), 36f,
+                "each axis is clamped before Strength, so a bad frame cannot put the chest somewhere a spine will not go");
         }
     }
 
@@ -196,6 +313,12 @@ namespace Basis.MediaPipe.Tests
                 Body = Quaternion.LookRotation(Vector3.forward, Vector3.up),
                 LeftCorrection = correction,
                 RightCorrection = correction,
+                // Identity on purpose: these tests cover the palm -> hand-bone RETARGET, not the cancellation of the
+                // IK's own palm->bone offset (which needs a live rig). Identity == "no cancellation", so the
+                // expectations below are unchanged. Set explicitly rather than left to default -- a Quaternion's
+                // default is (0,0,0,0), which would zero the rotation outright.
+                LeftIkOffsetInverse = Quaternion.identity,
+                RightIkOffsetInverse = Quaternion.identity,
                 Valid = true,
             };
         }

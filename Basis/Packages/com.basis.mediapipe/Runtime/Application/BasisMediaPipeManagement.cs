@@ -99,6 +99,10 @@ namespace Basis.MediaPipe
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
             _armConverter.Smoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
             _armConverter.HeadAnchor = BasisMediaPipeSettings.ArmHeadAnchor.RawValue;
+            _armConverter.ElbowRestBias = BasisMediaPipeSettings.ElbowRestBias.RawValue;
+            _bodyConverter.Strength = BasisMediaPipeSettings.ChestMotion.RawValue;
+            _bodyConverter.ShoulderStrength = BasisMediaPipeSettings.ShoulderMotion.RawValue;
+            _bodyConverter.Smoothing = BasisMediaPipeSettings.HeadSmoothing.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
             _headConverter.HeightOffset = BasisMediaPipeSettings.HeadHeight.RawValue;
             _headConverter.YawGain = BasisMediaPipeSettings.HeadRotationStrength.RawValue;
@@ -269,14 +273,64 @@ namespace Basis.MediaPipe
                 return false;
             }
 
+            GetHandIkOffsetInverses(out Quaternion leftIkInv, out Quaternion rightIkInv);
+
             rig = new MediaPipeHandConverter.AvatarHandRig
             {
                 Body = Quaternion.LookRotation(arm.Forward, arm.Up),
                 LeftCorrection = left,
                 RightCorrection = right,
+                LeftIkOffsetInverse = leftIkInv,
+                RightIkOffsetInverse = rightIkInv,
                 Valid = true,
             };
             return true;
+        }
+
+        /// <summary>
+        /// The inverses of the IK's own palm->bone hand offsets, so the hand converter can cancel them (see
+        /// MediaPipeHandConverter.AvatarHandRig for why they must be cancelled at all).
+        ///
+        /// Re-read every frame rather than cached: the offsets are (re)written on calibration, recalibration and
+        /// avatar swap, and TryBuildHandRig already runs per frame, so this self-heals instead of pinning a stale
+        /// offset from whatever avatar happened to be loaded first.
+        ///
+        /// Falls back to identity whenever the rig is not up yet -- an uncancelled rotation is the pre-existing
+        /// behaviour, and the IK is not solving anything at that point anyway.
+        /// </summary>
+        private static void GetHandIkOffsetInverses(out Quaternion leftInverse, out Quaternion rightInverse)
+        {
+            leftInverse = Quaternion.identity;
+            rightInverse = Quaternion.identity;
+
+            // Read the offsets through BasisLocalRigDriver, which hands them out as plain quaternions.
+            //
+            // Reaching for `constraint.data` directly does not compile from here: BasisFullBodyIK derives from
+            // RigConstraint<,,>, and `data` is declared on that base -- so touching it would force this package to
+            // reference Unity.Animation.Rigging just to fetch two quaternions. Fully qualifying the type is not
+            // enough; the ASSEMBLY reference is what's missing. The rig driver already lives in the assembly that
+            // references Rigging, so it is the right place to expose them.
+            BasisLocalPlayer player = BasisLocalPlayer.Instance;
+            if (player == null || player.LocalRigDriver == null) return;
+
+            leftInverse = InverseOffsetSafe(player.LocalRigDriver.LeftHandIKOffset);
+            rightInverse = InverseOffsetSafe(player.LocalRigDriver.RightHandIKOffset);
+        }
+
+        /// <summary>
+        /// Inverse of a calibration offset that can never produce NaN.
+        ///
+        /// A default-initialised Quaternion is (0,0,0,0), NOT identity, and Quaternion.Inverse divides by the
+        /// squared norm -- inverting a zero quaternion yields NaN. That NaN would ride into the tracker rotation,
+        /// through the IK, and into the bone transforms, where in Unity it PERSISTS: a NaN'd transform does not
+        /// recover on the next good frame, so the rig simply dies. The offsets are identity-initialised and then
+        /// calibrated, but they are written from several places and there is a window where a reader can catch one
+        /// before it is valid. Treating an invalid offset as identity (i.e. "no cancellation") costs nothing.
+        /// </summary>
+        private static Quaternion InverseOffsetSafe(Quaternion offset)
+        {
+            float sqrNorm = offset.x * offset.x + offset.y * offset.y + offset.z * offset.z + offset.w * offset.w;
+            return sqrNorm < 0.5f ? Quaternion.identity : Quaternion.Inverse(offset);
         }
 
         private static bool TryHandCorrection(Transform root, Transform hand, Transform index, Transform middle,
@@ -316,17 +370,8 @@ namespace Basis.MediaPipe
             right = Vector3.right;
             up = Vector3.up;
             forward = Vector3.forward;
+            if (!TryBodyDelta(out Quaternion body)) return false;
 
-            BasisLocalBoneControl torso = BasisLocalBoneDriver.ChestControl != null
-                ? BasisLocalBoneDriver.ChestControl
-                : BasisLocalBoneDriver.HipsControl;
-            if (torso == null) return false;
-
-            Quaternion rest = torso.TposeLocal.rotation;
-            Quaternion live = torso.OutGoingData.rotation;
-            if (!IsUsable(rest) || !IsUsable(live)) return false;
-
-            Quaternion body = live * Quaternion.Inverse(rest);
             right = body * Vector3.right;
             up = body * Vector3.up;
             forward = body * Vector3.forward;
@@ -489,7 +534,7 @@ namespace Basis.MediaPipe
                         headPosition.z += headPositionOffset.z;
                     }
                     Quaternion headRotation = Config.EnableHeadRotation ? eye.OutGoingData.rotation * headOffset : eye.OutGoingData.rotation;
-                    EnsureTracker(BasisBoneTrackedRole.Head).FollowMovement.SetLocalPositionAndRotation(headPosition, headRotation);
+                    WriteTracker(BasisBoneTrackedRole.Head, headPosition, headRotation);
                 }
                 else
                 {
@@ -526,20 +571,80 @@ namespace Basis.MediaPipe
 
             if (Config.EnableChest)
             {
-                if (result.HasPose && _bodyConverter.TryGetTorsoOffset(in result, out Quaternion torsoOffset)
+                if (result.HasPose && _bodyConverter.TryGetTorsoOffset(in result, in timing, out Quaternion torsoOffset)
                     && TryComposeChest(torsoOffset, out Vector3 chestPosition, out Quaternion chestRotation))
                 {
-                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(chestPosition, chestRotation);
+                    WriteTracker(BasisBoneTrackedRole.Chest, chestPosition, chestRotation);
                 }
                 else
                 {
                     RemoveTracker(BasisBoneTrackedRole.Chest);
                 }
+
+                if (result.HasPose && _bodyConverter.TryGetShrug(in result, in timing, out float leftShrug, out float rightShrug))
+                {
+                    ApplyShoulder(true, leftShrug);
+                    ApplyShoulder(false, rightShrug);
+                }
+                else
+                {
+                    RemoveTracker(BasisBoneTrackedRole.LeftShoulder);
+                    RemoveTracker(BasisBoneTrackedRole.RightShoulder);
+                }
             }
             else
             {
                 RemoveTracker(BasisBoneTrackedRole.Chest);
+                RemoveTracker(BasisBoneTrackedRole.LeftShoulder);
+                RemoveTracker(BasisBoneTrackedRole.RightShoulder);
             }
+        }
+
+        /// <summary>
+        /// Swings the clavicle to raise or drop the shoulder. The rig driver feeds the shoulder bone from this
+        /// control's ROTATION alone (`posPtr[S_LeftShoulder] = float3.zero`), so nothing else here is load-bearing.
+        /// The offset rides the chest, so a shrug adds to your torso lean rather than replacing it.
+        /// </summary>
+        private void ApplyShoulder(bool left, float shrug)
+        {
+            BasisBoneTrackedRole role = left ? BasisBoneTrackedRole.LeftShoulder : BasisBoneTrackedRole.RightShoulder;
+            BasisLocalBoneControl shoulder = left
+                ? BasisLocalBoneDriver.LeftShoulderControl
+                : BasisLocalBoneDriver.RightShoulderControl;
+            BasisLocalBoneControl hips = BasisLocalBoneDriver.HipsControl;
+
+            if (shoulder == null || hips == null || !IsUsable(shoulder.TposeLocal.rotation)
+                || !TryBodyDelta(out Quaternion body))
+            {
+                RemoveTracker(role);
+                return;
+            }
+
+            // The clavicle points away from the sternum, so the same swing about the body's forward axis raises one
+            // shoulder and drops the other — hence the sign flip.
+            float angle = shrug * _bodyConverter.MaxShrugDegrees * (left ? -1f : 1f);
+            Quaternion rotation = body * Quaternion.AngleAxis(angle, Vector3.forward) * shoulder.TposeLocal.rotation;
+            Vector3 position = hips.OutGoingData.position
+                + body * (shoulder.TposeLocal.position - hips.TposeLocal.position);
+
+            WriteTracker(role, position, rotation);
+        }
+
+        /// <summary>Torso orientation in player space, as a delta from the avatar's rest pose.</summary>
+        private static bool TryBodyDelta(out Quaternion body)
+        {
+            body = Quaternion.identity;
+            BasisLocalBoneControl torso = BasisLocalBoneDriver.ChestControl != null
+                ? BasisLocalBoneDriver.ChestControl
+                : BasisLocalBoneDriver.HipsControl;
+            if (torso == null) return false;
+
+            Quaternion rest = torso.TposeLocal.rotation;
+            Quaternion live = torso.OutGoingData.rotation;
+            if (!IsUsable(rest) || !IsUsable(live)) return false;
+
+            body = live * Quaternion.Inverse(rest);
+            return true;
         }
 
         /// <summary>
@@ -567,6 +672,42 @@ namespace Basis.MediaPipe
             rotation = body * torsoOffset * chestRest;
             return true;
         }
+
+        /// <summary>
+        /// The only door camera data gets through to a tracker, and it is barred to anything non-finite.
+        ///
+        /// This is not belt-and-braces. Every threshold guard in this package reads `x &lt; epsilon`, and that
+        /// comparison is FALSE for NaN — so one NaN landmark walks through all of them untouched, latches into the
+        /// one-euro filters (which lerp it forward forever), and finally reaches the Burst IK job, where
+        /// `BasisArmBendLookup.SampleTrilinear` turns it into `(int)NaN` == int.MinValue and aborts the process
+        /// with no managed stack to read. Dropping the tracker instead costs one frame of arm and is recoverable.
+        /// </summary>
+        private void WriteTracker(BasisBoneTrackedRole role, Vector3 position, Quaternion rotation)
+        {
+            if (!IsFinite(position) || !IsFinite(rotation))
+            {
+                if (!_nonFiniteLogged)
+                {
+                    _nonFiniteLogged = true;
+                    BasisDebug.LogError($"BasisMediaPipe: refused a non-finite {role} target ({position}, {rotation}). "
+                        + "Tracking data went bad; the tracker is being dropped rather than handed to the IK. "
+                        + "If this repeats, the pose model is emitting NaN.");
+                }
+                RemoveTracker(role);
+                return;
+            }
+            EnsureTracker(role).FollowMovement.SetLocalPositionAndRotation(position, rotation);
+        }
+
+        private bool _nonFiniteLogged;
+
+        private static bool IsFinite(Vector3 v) =>
+            float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
+
+        // Also rejects the zero quaternion: a struct field nobody assigned is (0,0,0,0), which is not a rotation.
+        private static bool IsFinite(Quaternion q) =>
+            float.IsFinite(q.x) && float.IsFinite(q.y) && float.IsFinite(q.z) && float.IsFinite(q.w)
+            && q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w > 1e-6f;
 
         private static bool IsUsable(Quaternion q) =>
             q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w > 0.5f;
@@ -643,11 +784,11 @@ namespace Basis.MediaPipe
                     wristRotation = handRotation;
                 }
 
-                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(wristLocal, wristRotation);
+                WriteTracker(handRole, wristLocal, wristRotation);
 
                 if (Config.EnableArmElbowPole)
                 {
-                    EnsureTracker(elbowRole).FollowMovement.SetLocalPositionAndRotation(elbowLocal, forearmRotation);
+                    WriteTracker(elbowRole, elbowLocal, forearmRotation);
                 }
                 else
                 {
@@ -669,7 +810,7 @@ namespace Basis.MediaPipe
                 && _armConverter.TryGetArmFromHand(landmarks[MediaPipeSpace.HandWrist], result.HeadImagePosition,
                     faceSize, CameraAspect(), in handOnlyRig, left, in timing, out Vector3 handWrist, out Quaternion handWristRotation))
             {
-                EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(handWrist, handWristRotation);
+                WriteTracker(handRole, handWrist, handWristRotation);
                 return;
             }
 

@@ -136,7 +136,7 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Arm Tracking (experimental)", "Move your avatar's arms to match your real arms, retargeted from the pose skeleton (turns on the pose model; extra CPU).", BasisMediaPipeSettings.EnableHandTracking);
             AddTuningToggle("Arm Elbow Pole (experimental)", "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first.", BasisMediaPipeSettings.EnableArmElbowPole);
             AddTuningToggle("Hand Rotation", "Off keeps the wrist aligned to the forearm (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
-            AddFeatureToggle("Body Lean/Twist (experimental)", "Lean and twist your torso. Uses the pose model (extra CPU); monocular, so approximate.", BasisMediaPipeSettings.EnableBody);
+            AddFeatureToggle("Body Lean/Twist", "Your avatar's chest leans, twists and sways with your torso. Uses the pose model (extra CPU). Set the amount with Chest Motion below.", BasisMediaPipeSettings.EnableBody);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
 
             AddFeatureToggle("Swap Hands", "Fix left/right hands if they are reversed.", BasisMediaPipeSettings.SwapHands);
@@ -164,6 +164,39 @@ namespace Basis.MediaPipe
             AddSmoothingSlider("Face Smoothing", BasisMediaPipeSettings.FaceSmoothing);
             AddSmoothingSlider("Hand Smoothing", BasisMediaPipeSettings.HandSmoothing);
             AddSmoothingSlider("Finger Smoothing", BasisMediaPipeSettings.FingerSmoothing);
+
+            PanelSlider chestMotion = PanelSlider.CreateNew(content);
+            chestMotion.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1.5f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            chestMotion.Descriptor.SetTitle("Chest Motion");
+            chestMotion.Descriptor.SetDescription("How much your torso lean, twist and sway carries into the avatar's chest. Needs Body Lean/Twist on. Below 100% reads as a suggestion of movement rather than a copy of it.");
+            chestMotion.SetValueWithoutNotify(BasisMediaPipeSettings.ChestMotion.RawValue);
+            chestMotion.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.ChestMotion.SetValue(value);
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+            };
+
+            PanelSlider shoulderMotion = PanelSlider.CreateNew(content);
+            shoulderMotion.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1.5f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            shoulderMotion.Descriptor.SetTitle("Shoulder Motion");
+            shoulderMotion.Descriptor.SetDescription("Shrugs. Each shoulder rises and drops on its own, so a one-sided shrug carries. Needs Body Lean/Twist on; set to 0 to leave the shoulders alone.");
+            shoulderMotion.SetValueWithoutNotify(BasisMediaPipeSettings.ShoulderMotion.RawValue);
+            shoulderMotion.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.ShoulderMotion.SetValue(value);
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+            };
+
+            PanelSlider elbowRest = PanelSlider.CreateNew(content);
+            elbowRest.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
+            elbowRest.Descriptor.SetTitle("Elbow Rest Bias");
+            elbowRest.Descriptor.SetDescription("Pulls the elbow toward hanging naturally. The camera guesses elbow depth badly and the error shows up as the elbow riding too high, so raise this if your elbows wing out; lower it to trust the camera.");
+            elbowRest.SetValueWithoutNotify(BasisMediaPipeSettings.ElbowRestBias.RawValue);
+            elbowRest.OnValueChanged += value =>
+            {
+                BasisMediaPipeSettings.ElbowRestBias.SetValue(value);
+                BasisMediaPipeManagement.Instance.ApplyTuning();
+            };
 
             PanelSlider headAnchor = PanelSlider.CreateNew(content);
             headAnchor.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
