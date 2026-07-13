@@ -440,7 +440,16 @@ namespace Basis.IK.Debugging
                     if (simAirborne) res.SimAirborneTicks++;
                     if (lp) { res.PenMm.Consider(lm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(lm.hoverMm, t, speed); }
                     if (rp) { res.PenMm.Consider(rm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(rm.hoverMm, t, speed); }
-                    res.TiltDeg.Consider(lm.tilt, t, speed); res.TiltDeg.Consider(rm.tilt, t, speed);
+                    // Tilt is the SLOPE clamp: "a foot standing on a surface must not tilt more than maxFootTiltDegrees
+                    // to conform to it". That is a statement about a foot ON THE GROUND, so measure it planted-only.
+                    // A SWINGING foot is deliberately pitched by the ankle (plantarflexed at toe-off, dorsiflexed for
+                    // heel-strike, up to k_ToeOffDeg); scoring that against the slope clamp would flag the heel-strike
+                    // pose as "slope clamp not holding", which it plainly is not.
+                    //
+                    // This does NOT weaken the gate: plantedRot is built with zero ankle pitch, and a planted foot's
+                    // currentRot slerps to it, so every rotation the slope clamp actually governs is still measured.
+                    if (lp) res.TiltDeg.Consider(lm.tilt, t, speed);
+                    if (rp) res.TiltDeg.Consider(rm.tilt, t, speed);
                     if (lm.yawClamp) res.YawDeg.Consider(lm.yaw, t, speed);
                     if (rm.yawClamp) res.YawDeg.Consider(rm.yaw, t, speed);
                     float lDrift = HDist(left.plantedPos, left.idealPos), rDrift = HDist(right.plantedPos, right.idealPos);
@@ -713,6 +722,8 @@ namespace Basis.IK.Debugging
             float3 planted = gpt + gn * p.footHeightOffset;
             float thigh = sideSign < 0 ? p.leftThighLen : p.rightThighLen;
             float legLen = sideSign < 0 ? p.leftLegLen : p.rightLegLen;
+            quaternion footAlign = sideSign < 0 ? p.footAlignLeft : p.footAlignRight;
+            quaternion restRot = FootRotation(fwd, gn, p, footAlign);
             return new BasisFootNativeState
             {
                 sideSign = sideSign,
@@ -721,7 +732,7 @@ namespace Basis.IK.Debugging
                 legLength = legLen,
                 phase = 0,
                 plantedPos = planted,
-                plantedRot = FootRotation(fwd, gn, p),
+                plantedRot = restRot,
                 stepStartPos = planted,
                 stepTargetPos = planted,
                 stepTimer = 0f,
@@ -729,7 +740,7 @@ namespace Basis.IK.Debugging
                 idealPos = planted,
                 filteredNormal = gn,
                 currentPos = planted,
-                currentRot = FootRotation(fwd, gn, p),
+                currentRot = restRot,
                 kneeHint = (hips + planted) * 0.5f + fwd * (thigh * 0.4f),
             };
         }
@@ -780,7 +791,11 @@ namespace Basis.IK.Debugging
         }
 
         // Port of BasisFootSimulateJob.FootRotation (same math the driver's Quaternion version runs).
-        static quaternion FootRotation(float3 bodyFwd, float3 normal, in BasisFootSimParams p)
+        // footAlign re-seats the body-derived frame into the foot BONE's rest orientation. The sweep's avatar is
+        // synthetic and has no foot bone, so its align is identity -- frame == bone -- which keeps these numbers
+        // directly comparable to the pre-footAlign baselines. This is only used to seed InitFoot; the swing/plant
+        // rotations come from the REAL job, which the sweep runs via Execute().
+        static quaternion FootRotation(float3 bodyFwd, float3 normal, in BasisFootSimParams p, quaternion footAlign)
         {
             if (math.lengthsq(normal) < 0.001f) normal = Up;
             float3 fwd = ProjectOnPlane(bodyFwd, normal);
@@ -803,7 +818,7 @@ namespace Basis.IK.Debugging
                     result = math.mul(quaternion.AxisAngle(Up, math.radians(correction)), result);
                 }
             }
-            return result;
+            return math.mul(result, footAlign);
         }
 
         // Returns a copy of the config scaled to an avatar `s`x the nominal size: all measurements AND
@@ -893,6 +908,11 @@ namespace Basis.IK.Debugging
                 rightShinLen = c.ShinLen,
                 footLength = c.FootLength,
                 ankleHeight = c.AnkleHeight,
+                // MUST be set explicitly: default(quaternion) is all-ZEROS, not identity, and a zero quaternion
+                // would annihilate every foot rotation. The sweep's avatar is synthetic and has no foot bone, so
+                // identity is the right value -- frame == bone, exactly the pre-footAlign behaviour.
+                footAlignLeft = quaternion.identity,
+                footAlignRight = quaternion.identity,
                 stepTriggerDist = stepTriggerDist,
                 strideScale = strideScale,
                 stepHeightCalc = stepHeightCalc,

@@ -135,7 +135,6 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Head Position", "Your avatar's head shifts to follow your real head movement.", BasisMediaPipeSettings.EnableHeadPosition);
             AddFeatureToggle("Arm Tracking (experimental)", "Move your avatar's arms to match your real arms, retargeted from the pose skeleton (turns on the pose model; extra CPU).", BasisMediaPipeSettings.EnableHandTracking);
             AddTuningToggle("Arm Elbow Pole (experimental)", "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first.", BasisMediaPipeSettings.EnableArmElbowPole);
-            AddTuningToggle("Swap Arms", "Only needed if left/right arms come out reversed; sides are resolved automatically.", BasisMediaPipeSettings.SwapArms);
             AddTuningToggle("Hand Rotation", "Off keeps the wrist aligned to the forearm (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
             AddFeatureToggle("Body Lean/Twist (experimental)", "Lean and twist your torso. Uses the pose model (extra CPU); monocular, so approximate.", BasisMediaPipeSettings.EnableBody);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);

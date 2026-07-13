@@ -1,4 +1,4 @@
-using Basis.MediaPipe;
+﻿using Basis.MediaPipe;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -104,6 +104,10 @@ namespace Basis.MediaPipe.Tests
             };
         }
 
+       // A fresh camera sample rendered at 60 fps. Both filter stages return their first sample untouched, so a
+        // fresh converter is a passthrough and these stay exact.
+        private static readonly MediaPipeTiming Timing = new MediaPipeTiming(1f / 60f, 1f / 15f, true);
+
         private static MediaPipeArmConverter Converter(float headAnchor = 1f) =>
             new MediaPipeArmConverter { Smoothing = 0f, HeadAnchor = headAnchor };
 
@@ -111,7 +115,7 @@ namespace Basis.MediaPipe.Tests
         {
             MediaPipeArmConverter converter = Converter(headAnchor);
             MediaPipeArmConverter.AvatarArmRig rig = Rig();
-            Assert.IsTrue(converter.TryGetArm(pose, in rig, false, out Vector3 wrist, out _, out _),
+            Assert.IsTrue(converter.TryGetArm(pose, in rig, false, in Timing, out Vector3 wrist, out _, out _),
                 "pose retarget should succeed on a well-formed body");
             return wrist;
         }
@@ -275,18 +279,39 @@ namespace Basis.MediaPipe.Tests
                 "no visibility data must mean 'do not gate', not 'never track'");
         }
 
+        /// <summary>
+        /// The elbow must be a pose the avatar's own bones can actually reach: exactly an upper-arm from the
+        /// shoulder AND exactly a forearm from the wrist. Scaling the measured elbow straight through (as this
+        /// used to) satisfies neither, so the LowerArm tracker ends up fighting the arm solver.
+        /// </summary>
         [Test]
-        public void ElbowSitsBetweenShoulderAndWrist()
+        public void ElbowIsKinematicallyReachable()
         {
             MediaPipeArmConverter converter = Converter();
             MediaPipeArmConverter.AvatarArmRig rig = Rig();
-            Assert.IsTrue(converter.TryGetArm(HandAtFace(), in rig, false, out Vector3 wrist, out Vector3 elbow, out _));
+            Assert.IsTrue(converter.TryGetArm(HandAtFace(), in rig, false, in Timing, out Vector3 wrist, out Vector3 elbow, out _));
 
-            float upper = Vector3.Distance(rig.RightAnchor, elbow);
-            Assert.That(upper, Is.EqualTo(AvatarUpperLen).Within(0.06f),
-                $"elbow should sit about an upper-arm from the shoulder, got {upper:F3}");
+            Assert.That(Vector3.Distance(rig.RightAnchor, elbow), Is.EqualTo(AvatarUpperLen).Within(1e-3f),
+                "elbow must sit exactly one upper-arm from the shoulder");
+            Assert.That(Vector3.Distance(elbow, wrist), Is.EqualTo(AvatarForeLen).Within(1e-3f),
+                "and exactly one forearm from the wrist");
             Assert.Greater(elbow.x, wrist.x,
-                "with the hand tucked in at the face the elbow should be further out than the wrist");
+                "with the hand tucked in at the face the elbow should still swing out wider than the wrist");
+        }
+
+        [Test]
+        public void ElbowStaysReachableWhenTheArmIsFullyExtended()
+        {
+            Vector3[] pose = HandAtFace();
+            pose[MediaPipeSpace.RightWrist] = new Vector3(-3f, 3f, -3f);
+
+            MediaPipeArmConverter converter = Converter();
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+            Assert.IsTrue(converter.TryGetArm(pose, in rig, false, in Timing, out Vector3 wrist, out Vector3 elbow, out _));
+
+            Assert.That(Vector3.Distance(rig.RightAnchor, elbow), Is.EqualTo(AvatarUpperLen).Within(1e-3f));
+            Assert.That(Vector3.Distance(elbow, wrist), Is.LessThanOrEqualTo(AvatarForeLen + 1e-3f),
+                "a straight arm must not stretch the forearm");
         }
     }
 }

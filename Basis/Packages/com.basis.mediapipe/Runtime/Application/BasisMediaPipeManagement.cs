@@ -1,5 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Simulation;
@@ -43,6 +44,8 @@ namespace Basis.MediaPipe
         private BasisAvatar _armRigAvatar;
         private bool _leftArmTracked;
         private bool _rightArmTracked;
+        private double _lastSampleMs;
+        private float _sampleDelta = 1f / 15f;
         private bool _armPosePathActive;
         private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
@@ -95,7 +98,6 @@ namespace Basis.MediaPipe
             _handConverter.FingerSmoothing = BasisMediaPipeSettings.FingerSmoothing.RawValue;
             _handConverter.UseRotation = BasisMediaPipeSettings.HandRotation.RawValue;
             _armConverter.Smoothing = BasisMediaPipeSettings.HandSmoothing.RawValue;
-            _armConverter.SwapArms = BasisMediaPipeSettings.SwapArms.RawValue;
             _armConverter.HeadAnchor = BasisMediaPipeSettings.ArmHeadAnchor.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
             _headConverter.HeightOffset = BasisMediaPipeSettings.HeadHeight.RawValue;
@@ -308,6 +310,47 @@ namespace Basis.MediaPipe
             return Config.CameraHeight > 0 ? (float)Config.CameraWidth / Config.CameraHeight : 1f;
         }
 
+        /// <summary>Avatar body axes from the chest (or hips) bone control — a filtered target the arm solver never writes to.</summary>
+        private static bool TryTorsoAxes(out Vector3 right, out Vector3 up, out Vector3 forward)
+        {
+            right = Vector3.right;
+            up = Vector3.up;
+            forward = Vector3.forward;
+
+            BasisLocalBoneControl torso = BasisLocalBoneDriver.ChestControl != null
+                ? BasisLocalBoneDriver.ChestControl
+                : BasisLocalBoneDriver.HipsControl;
+            if (torso == null) return false;
+
+            Quaternion rest = torso.TposeLocal.rotation;
+            Quaternion live = torso.OutGoingData.rotation;
+            if (!IsUsable(rest) || !IsUsable(live)) return false;
+
+            Quaternion body = live * Quaternion.Inverse(rest);
+            right = body * Vector3.right;
+            up = body * Vector3.up;
+            forward = body * Vector3.forward;
+            return true;
+        }
+
+        private bool TryShoulderAxes(Vector3 leftAnchor, Vector3 rightAnchor, Transform root,
+            out Vector3 right, out Vector3 up, out Vector3 forward)
+        {
+            right = Vector3.right;
+            up = Vector3.up;
+            forward = Vector3.forward;
+
+            Vector3 hip = root.InverseTransformPoint(_hipsBone.position);
+            Vector3 rawUp = ((leftAnchor + rightAnchor) * 0.5f) - hip;
+            Vector3 rawRight = rightAnchor - leftAnchor;
+            if (rawUp.sqrMagnitude < 1e-6f || rawRight.sqrMagnitude < 1e-6f) return false;
+
+            up = rawUp.normalized;
+            forward = Vector3.Cross(rawRight.normalized, up).normalized;
+            right = Vector3.Cross(up, forward).normalized;
+            return true;
+        }
+
         private bool TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
         {
             rig = default;
@@ -317,15 +360,17 @@ namespace Basis.MediaPipe
             Transform root = BasisLocalPlayer.Instance.transform;
             Vector3 leftAnchor = root.InverseTransformPoint(_leftUpperArm.position);
             Vector3 rightAnchor = root.InverseTransformPoint(_rightUpperArm.position);
-            Vector3 hip = root.InverseTransformPoint(_hipsBone.position);
 
-            Vector3 up = ((leftAnchor + rightAnchor) * 0.5f) - hip;
-            Vector3 right = rightAnchor - leftAnchor;
-            if (up.sqrMagnitude < 1e-6f || right.sqrMagnitude < 1e-6f) return false;
-
-            up.Normalize();
-            Vector3 forward = Vector3.Cross(right.normalized, up).normalized;
-            right = Vector3.Cross(up, forward).normalized;
+            // Axes come from the torso bone control (a pre-IK target), NOT from the shoulder bones. The rig
+            // driver rotates the clavicles, which MOVES the upper-arm bones, so a frame derived from them turns
+            // whenever an arm moves — which then drags the OTHER arm's target and both wrist rotations with it.
+            // The anchor still rides the live shoulder, because the hand should hang off where the shoulder
+            // actually is; only the axes have to be stable.
+            if (!TryTorsoAxes(out Vector3 right, out Vector3 up, out Vector3 forward)
+                && !TryShoulderAxes(leftAnchor, rightAnchor, root, out right, out up, out forward))
+            {
+                return false;
+            }
 
             Vector3 shoulderCenter = (leftAnchor + rightAnchor) * 0.5f;
             Vector3 headLocal = _headBone != null ? root.InverseTransformPoint(_headBone.position) : shoulderCenter + up * 0.2f;
@@ -386,19 +431,38 @@ namespace Basis.MediaPipe
                 _backend.SubmitFrame(_camera.Texture, Time.realtimeSinceStartupAsDouble * 1000.0);
             }
 
+            bool isNewSample = false;
             if (_backend.TryGetLatestResult(out BasisMediaPipeResult result))
             {
+                TrackSampleRate(result.TimestampMs);
                 _latest = result;
                 _hasLatest = true;
+                isNewSample = true;
             }
 
             if (_hasLatest)
             {
-                ApplyResult(in _latest);
+                ApplyResult(in _latest, new MediaPipeTiming(Time.deltaTime, _sampleDelta, isNewSample));
             }
         }
 
-        private void ApplyResult(in BasisMediaPipeResult result)
+        // Three models share one worker thread, so what actually comes back is well under the camera's fps and
+        // varies with load. Measure it from the result timestamps rather than assuming, because everything
+        // downstream filters on this clock — guess it wrong and the hands either stutter or swim.
+        private void TrackSampleRate(double timestampMs)
+        {
+            if (_lastSampleMs > 0.0)
+            {
+                float delta = (float)((timestampMs - _lastSampleMs) / 1000.0);
+                if (delta > 1e-3f && delta < 0.5f)
+                {
+                    _sampleDelta = Mathf.Lerp(_sampleDelta, delta, 0.2f);
+                }
+            }
+            _lastSampleMs = timestampMs;
+        }
+
+        private void ApplyResult(in BasisMediaPipeResult result, in MediaPipeTiming timing)
         {
             if (Config.EnableFace && result.HasFace)
             {
@@ -406,7 +470,7 @@ namespace Basis.MediaPipe
             }
             if (Config.EnableHands)
             {
-                _handConverter.Apply(in result);
+                _handConverter.Apply(in result, in timing);
             }
 
             if (Config.EnableHeadPosition || Config.EnableHeadRotation)
@@ -449,8 +513,8 @@ namespace Basis.MediaPipe
                         + $" visL={MediaPipeSpace.ArmVisibility(result.PoseVisibility, true):F2} visR={MediaPipeSpace.ArmVisibility(result.PoseVisibility, false):F2}"
                         + $" -> {(posePath ? "pose retarget" : "hand fallback")}");
                 }
-                ApplyHandTracker(in result, true);
-                ApplyHandTracker(in result, false);
+                ApplyHandTracker(in result, true, in timing);
+                ApplyHandTracker(in result, false, in timing);
             }
             else
             {
@@ -514,12 +578,31 @@ namespace Basis.MediaPipe
         private const float ArmVisibilityGain = 0.7f;
         private const float ArmVisibilityLose = 0.5f;
 
+        /// <summary>Whether this hand is currently gripping an interactable, in which case its IK must stay put.</summary>
+        private static bool HandIsHolding(BasisBoneTrackedRole role)
+        {
+            BasisPlayerInteract interact = BasisPlayerInteract.Instance;
+            if (interact == null || interact.InteractInputs == null) return false;
+
+            for (int i = 0; i < interact.InteractInputs.Length; i++)
+            {
+                BasisInteractInput slot = interact.InteractInputs[i];
+                if (slot.input == null || slot.lastTarget == null) continue;
+                if (!slot.input.TryGetRole(out BasisBoneTrackedRole slotRole) || slotRole != role) continue;
+                if (slot.lastTarget.IsInteractingWith(slot.input)) return true;
+            }
+            return false;
+        }
+
         private bool ArmIsTrackable(in BasisMediaPipeResult result, bool avatarLeft)
         {
-            bool srcLeft = avatarLeft ^ _armConverter.SwapArms;
-            float visibility = MediaPipeSpace.ArmVisibility(result.PoseVisibility, srcLeft);
-            if (visibility < 0f) return true;
+            float arm = MediaPipeSpace.ArmVisibility(result.PoseVisibility, avatarLeft);
+            // The body frame is built from BOTH shoulders, so one of them leaving frame rotates the frame that
+            // places every target — gate on it too, not just on this arm's own joints.
+            float torso = MediaPipeSpace.TorsoVisibility(result.PoseVisibility);
+            if (arm < 0f || torso < 0f) return true;
 
+            float visibility = Mathf.Min(arm, torso);
             bool tracked = avatarLeft ? _leftArmTracked : _rightArmTracked;
             tracked = visibility >= (tracked ? ArmVisibilityLose : ArmVisibilityGain);
             if (avatarLeft) _leftArmTracked = tracked;
@@ -527,7 +610,7 @@ namespace Basis.MediaPipe
             return tracked;
         }
 
-        private void ApplyHandTracker(in BasisMediaPipeResult result, bool left)
+        private void ApplyHandTracker(in BasisMediaPipeResult result, bool left, in MediaPipeTiming timing)
         {
             Vector3[] landmarks = left ? result.LeftHandLandmarks : result.RightHandLandmarks;
             bool handDetected = left ? result.HasLeftHand : result.HasRightHand;
@@ -536,18 +619,26 @@ namespace Basis.MediaPipe
 
             if (Config.EnablePose && result.HasPose && !ArmIsTrackable(in result, left))
             {
-                RemoveTracker(handRole);
-                RemoveTracker(elbowRole);
+                // Losing the arm releases its trackers, which drops the hand's rig layer and lets the arm fall
+                // back to its normal pose rather than freezing wherever the last phantom landmark put it. The
+                // exception is a hand that is carrying something: a held object is constrained to the hand BONE,
+                // so dropping the IK would fling it to the avatar's rest pose. Hold the last good pose instead
+                // and keep the grip until it is let go.
+                if (!HandIsHolding(handRole))
+                {
+                    RemoveTracker(handRole);
+                    RemoveTracker(elbowRole);
+                }
                 return;
             }
 
             if (Config.EnablePose && result.HasPose && TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
-                && _armConverter.TryGetArm(result.PoseWorldLandmarks, in rig, left,
+                && _armConverter.TryGetArm(result.PoseWorldLandmarks, in rig, left, in timing,
                     out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion forearmRotation))
             {
                 Quaternion wristRotation = forearmRotation;
                 if (TryBuildHandRig(in rig, out MediaPipeHandConverter.AvatarHandRig handRig)
-                    && _handConverter.TryGetHandRotation(in result, in handRig, left, out Quaternion handRotation))
+                    && _handConverter.TryGetHandRotation(in result, in handRig, left, in timing, out Quaternion handRotation))
                 {
                     wristRotation = handRotation;
                 }
@@ -576,7 +667,7 @@ namespace Basis.MediaPipe
             float faceSize = result.HasFace ? result.FaceImageSize : 0f;
             if (TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig handOnlyRig)
                 && _armConverter.TryGetArmFromHand(landmarks[MediaPipeSpace.HandWrist], result.HeadImagePosition,
-                    faceSize, CameraAspect(), in handOnlyRig, left, out Vector3 handWrist, out Quaternion handWristRotation))
+                    faceSize, CameraAspect(), in handOnlyRig, left, in timing, out Vector3 handWrist, out Quaternion handWristRotation))
             {
                 EnsureTracker(handRole).FollowMovement.SetLocalPositionAndRotation(handWrist, handWristRotation);
                 return;
@@ -608,6 +699,7 @@ namespace Basis.MediaPipe
             {
                 status += $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}";
                 status += $"\nArm rig: {(_armRigValid ? "ready" : "unavailable")}";
+                status += $"\nTracking: {1f / Mathf.Max(_sampleDelta, 1e-4f):F1} Hz (camera set to {Config.TargetFps})";
             }
             else
             {

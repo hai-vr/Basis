@@ -509,9 +509,26 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightLeft > 0.001f && footDriverReady)
                 {
                     data.LeftFootPosition = footDriver.LeftFootPosition;
-                    // Position-only foot IK: zero-quaternion sentinel -> SolveLegs keeps the foot's correct
-                    // pre-solve (animation) rotation instead of applying target*offset (which came out toes-up).
-                    data.LeftFootRotation = new Quaternion(0f, 0f, 0f, 0f);
+                    // Foot rotation is LIVE again. It used to be discarded via the zero-quaternion sentinel
+                    // (-> SolveLegs kept the animation rotation) because feeding it produced a toes-up foot -- the
+                    // driver was handing over a frame built from the BODY's axes, which are not the foot bone's.
+                    // FootRotation() now re-seats that frame through the bone's calibrated rest orientation
+                    // (footAlign), so a standing foot reproduces its rest rotation exactly. With it live we finally
+                    // get: a planted foot HELD in the world (it no longer pivots as the body turns), heel-strike /
+                    // toe-off through the swing, and slope adaptation.
+                    // PRE-CANCEL THE CALIBRATION OFFSET. SolveLegs hands targetOffsetLeftFoot to SolveTwoBone, which
+                    // applies it to the target as `target * offset` -- because the TRACKER path feeds a tracker
+                    // rotation, and the offset is what maps the tracker's frame onto the bone's frame. The foot
+                    // driver has no tracker: it already emits the finished BONE rotation, so that offset is pure
+                    // surplus and lands the foot at footRot*offset. It is CALIBRATED PER AVATAR, which is exactly
+                    // why the error is a different wrong angle on every rig instead of a constant one.
+                    //
+                    // Multiplying by its inverse here makes the solve's own `target * offset` collapse back to the
+                    // rotation we meant: (footRot * offset^-1) * offset == footRot.
+                    //
+                    // This is the "toes-up" that got foot rotation switched off in the first place -- the sentinel
+                    // on the zero quaternion existed to dodge this exact multiply, not to dodge a bad frame.
+                    data.LeftFootRotation = footDriver.LeftFootRotation * Quaternion.Inverse(data.M_CalibrationLeftFootRotation);
                     data.EnableLeftLeg = footIKBlendWeightLeft;
                 }
                 else
@@ -529,7 +546,7 @@ namespace Basis.Scripts.Drivers
                 else if (footIKBlendWeightRight > 0.001f && footDriverReady)
                 {
                     data.RightFootPosition = footDriver.RightFootPosition;
-                    data.RightFootRotation = new Quaternion(0f, 0f, 0f, 0f);
+                    data.RightFootRotation = footDriver.RightFootRotation * Quaternion.Inverse(data.M_CalibrationRightFootRotation);
                     data.EnableRightLeg = footIKBlendWeightRight;
                 }
                 else
@@ -555,13 +572,18 @@ namespace Basis.Scripts.Drivers
                             (Quaternion)rOut[S_RightFoot], footDriverReady ? footDriver.RightFootRotation : Quaternion.identity);
                 }
 
-                // ── HIP BOB + LATERAL SWAY ──
-                // Both are gated on !hipsHaveTracker: with a hip tracker the pelvis is the user's own, and
-                // synthesising gait motion on top of it would fight their real body.
+                // ── HIP BOB + LATERAL SWAY + PELVIS ROTATION ──
+                // All three are gated on !hipsHaveTracker: with a hip tracker the pelvis is the user's own, and
+                // synthesising gait motion on top of it would fight their real body. (This is gait-driven pelvis
+                // motion in the ABSENCE of a tracker -- it is not, and must not become, tracker tilt stabilisation.)
                 if (footIKBlendWeight > 0.001f && footDriverReady && !hipsHaveTracker)
                 {
                     data.PositionHips += playerUpDir * (footDriver.ComputeHipBob() * footIKBlendWeight);
                     data.PositionHips += footDriver.ComputeHipSway() * footIKBlendWeight;
+
+                    // Axial rotation + frontal list, blended in by weight so it fades with the rest of foot IK.
+                    Quaternion pelvis = Quaternion.Slerp(Quaternion.identity, footDriver.ComputePelvisDelta(), footIKBlendWeight);
+                    data.RotationHips = pelvis * data.RotationHips;
                 }
 
                 // ── CHEST (head hint) ──

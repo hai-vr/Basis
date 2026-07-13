@@ -43,9 +43,6 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<bool> SwapHands =
             new BasisSettingsBinding<bool>("mediapipe_swaphands", new BasisPlatformDefault<bool>(false));
 
-        public static readonly BasisSettingsBinding<bool> SwapArms =
-            new BasisSettingsBinding<bool>("mediapipe_swaparms_v2", new BasisPlatformDefault<bool>(false));
-
         public static readonly BasisSettingsBinding<float> ArmHeadAnchor =
             new BasisSettingsBinding<float>("mediapipe_armheadanchor", new BasisPlatformDefault<float>(1f));
 
@@ -119,7 +116,6 @@ namespace Basis.MediaPipe
             EnableHandTracking.LoadBindingValue();
             EnableBody.LoadBindingValue();
             SwapHands.LoadBindingValue();
-            SwapArms.LoadBindingValue();
             ArmHeadAnchor.LoadBindingValue();
             EnableArmElbowPole.LoadBindingValue();
             Mirror.LoadBindingValue();

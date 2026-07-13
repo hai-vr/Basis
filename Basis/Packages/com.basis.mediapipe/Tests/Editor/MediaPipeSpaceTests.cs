@@ -1,4 +1,4 @@
-using Basis.MediaPipe;
+﻿using Basis.MediaPipe;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -219,7 +219,7 @@ namespace Basis.MediaPipe.Tests
             MediaPipeHandConverter converter = new MediaPipeHandConverter { UseRotation = true, PoseSmoothing = 0f };
             MediaPipeHandConverter.AvatarHandRig rig = Rig();
 
-            Assert.IsTrue(converter.TryGetHandRotation(in result, in rig, false, out Quaternion rotation));
+            Assert.IsTrue(converter.TryGetHandRotation(in result, in rig, false, new MediaPipeTiming(1f / 60f, 1f / 15f, true), out Quaternion rotation));
             return rotation;
         }
 

@@ -192,6 +192,8 @@ public partial class BasisLocalFootDriver
     private BasisFootState left;
     private BasisFootState right;
     private float rayCastRange;
+    private Quaternion footAlignLeft = Quaternion.identity;
+    private Quaternion footAlignRight = Quaternion.identity;
     private Collider _selfCollider;
     private Transform _selfRoot;
     private Vector3 cachedPlayerUp = Vector3.up;
@@ -229,12 +231,25 @@ public partial class BasisLocalFootDriver
     {
         var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
         left.currentPos = left.plantedPos = lf.position;
-        left.currentRot = left.plantedRot = lf.rotation;
         left.phase = BasisFootPhase.Planted;
         var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
         right.currentPos = right.plantedPos = rf.position;
-        right.currentRot = right.plantedRot = rf.rotation;
         right.phase = BasisFootPhase.Planted;
+
+        // Seed the rotation from the actual FOOT BONE, not from the bone CONTROL.
+        //
+        // OutgoingWorldData is the bone control's rotation, which lives in the TRACKER frame -- that is the whole
+        // reason M_CalibrationLeftFootRotation exists (boneControlRot * offset == boneRot). But plantedRot/currentRot
+        // are now consumed as absolute BONE world rotations (FootRotation() = targetFrame * footAlign produces one,
+        // and the rig driver cancels the calibration offset before handing it to the solve). Seeding them from the
+        // control therefore lands the foot wrong by exactly that offset -- and it STAYS wrong, because only a
+        // landing rewrites plantedRot. Since re-engage happens the moment you stop moving, the foot visibly rotates
+        // to a wrong angle every time you come to a halt.
+        //
+        // The bone's own world rotation is already in the frame everything downstream expects, and it is literally
+        // "where the animation currently has the foot" -- which is what this re-engage snapshot is FOR.
+        if (left.bone != null) left.currentRot = left.plantedRot = left.bone.rotation;
+        if (right.bone != null) right.currentRot = right.plantedRot = right.bone.rotation;
 
         // Zero, don't seed: the sim reseeds it from the live body forward on the next tick. These feet
         // were just picked up from the animation (which is aligned to the body), so "no turn owed" is
@@ -325,6 +340,8 @@ public partial class BasisLocalFootDriver
         var rf = mapping.rightFoot;
         left = new BasisFootState("Left", lf, -1);
         right = new BasisFootState("Right", rf, +1);
+
+        CaptureFootAlignment(lf, rf);
 
         left.thigh = mapping.HasLeftUpperLeg ? mapping.LeftUpperLeg : (lf != null ? lf.parent != null ? lf.parent.parent : null : null);
         left.shin = mapping.HasLeftLowerLeg ? mapping.LeftLowerLeg : (lf != null ? lf.parent : null);
@@ -511,6 +528,8 @@ public partial class BasisLocalFootDriver
             rightShinLen = rightShinLen,
             footLength = footLength,
             ankleHeight = ankleHeight,
+            footAlignLeft = footAlignLeft,
+            footAlignRight = footAlignRight,
             stepTriggerDist = stepTriggerDist,
             strideScale = strideScale,
             stepHeightCalc = stepHeightCalc,
@@ -1096,11 +1115,39 @@ public partial class BasisLocalFootDriver
     }
 
     /// <summary>
+    /// Capture each foot bone's orientation IN THE BODY FRAME, once, at avatar init.
+    ///
+    /// This is the fix for the long-standing "foot rotation comes out toes-up", which is why foot rotation was
+    /// switched off (the zero-quaternion sentinel) in the first place. FootRotation() builds a frame out of the
+    /// BODY's axes (+Z body-forward, +Y surface normal) -- but a humanoid foot bone's local axes are rig-dependent
+    /// and are NOT the body's, so assigning that frame straight onto the bone tips the foot into a garbage pose.
+    ///
+    /// Measuring the bone against the body frame instead gives a per-rig correction:
+    ///     footAlign  = inverse(restFrame) * footBone.rotation
+    ///     footWorld  = targetFrame * footAlign
+    /// Both sides are taken from LIVE world transforms, so the spaces cannot disagree. And at rest the target
+    /// frame IS the rest frame, so this reproduces footBone.rotation EXACTLY -- toes-up is impossible by
+    /// construction, and the avatar's natural toe-out is preserved rather than clamped away.
+    /// </summary>
+    private void CaptureFootAlignment(Transform lf, Transform rf)
+    {
+        footAlignLeft = Quaternion.identity;
+        footAlignRight = Quaternion.identity;
+        if (avatarTransform == null) return;
+
+        Quaternion restFrame = Quaternion.LookRotation(avatarTransform.forward, avatarTransform.up);
+        Quaternion invRest = Quaternion.Inverse(restFrame);
+
+        if (lf != null) footAlignLeft = invRest * lf.rotation;
+        if (rf != null) footAlignRight = invRest * rf.rotation;
+    }
+
+    /// <summary>
     /// Compute foot rotation from body forward + surface normal, clamped to human limits:
     /// - Tilt (roll/pitch from slope) clamped to maxFootTiltDegrees
     /// - Yaw (toe-out/toe-in from body forward) clamped to maxFootYawDegrees
     /// </summary>
-    private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal)
+    private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal, Quaternion footAlign)
     {
         if (normal.sqrMagnitude < 0.001f)
         {
@@ -1141,7 +1188,7 @@ public partial class BasisLocalFootDriver
             }
         }
 
-        return result;
+        return result * footAlign;
     }
     private static bool TryTP(System.Collections.Generic.Dictionary<HumanBodyBones, BasisCalibratedCoords> tp, HumanBodyBones b, out Vector3 p)
     {
@@ -1214,7 +1261,7 @@ public partial class BasisLocalFootDriver
             f.filteredNormal = cachedPlayerUp;
         }
         Vector3 fwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
-        f.currentRot = f.plantedRot = FootRotation(fwd, f.filteredNormal);
+        f.currentRot = f.plantedRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);
         f.phase = BasisFootPhase.Planted;
         f.kneeHint = (hips.position + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
     }
@@ -1237,6 +1284,16 @@ public partial class BasisLocalFootDriver
     {
         if (!IsInitialized || !_nativeOutput.IsCreated) return Vector3.zero;
         return _nativeOutput[0].hipSway;
+    }
+
+    /// <summary>
+    /// Gait-driven pelvis rotation (world delta, pre-multiply onto the hips rotation): the swing-side hip is
+    /// carried forward and dropped. Identity when standing. Only valid to apply when there is NO hip tracker.
+    /// </summary>
+    public Quaternion ComputePelvisDelta()
+    {
+        if (!IsInitialized || !_nativeOutput.IsCreated) return Quaternion.identity;
+        return _nativeOutput[0].pelvisDelta;
     }
 
     public bool LeftIsPlanted => left.phase == BasisFootPhase.Planted;

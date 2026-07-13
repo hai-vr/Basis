@@ -119,6 +119,16 @@ namespace Basis.MediaPipe
         }
 
         /// <summary>
+        /// Confidence in the body frame itself. Both shoulders define its right axis, so losing either one turns
+        /// the frame that every target is placed in — worse than losing a single arm.
+        /// </summary>
+        public static float TorsoVisibility(float[] visibility)
+        {
+            if (visibility == null || visibility.Length < PoseCount) return -1f;
+            return Mathf.Min(visibility[LeftShoulder], visibility[RightShoulder]);
+        }
+
+        /// <summary>
         /// Orthonormal body frame from the shoulder line and torso, built with the same rule the avatar rig
         /// uses so mapping between them is a plain change of basis. Up falls back to the head when the hips
         /// are off-frame (a seated webcam user), where the pose model extrapolates them badly.

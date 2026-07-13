@@ -22,6 +22,32 @@ public struct BasisFootSimulateJob : IJob
     // straight line and the walk reads as a glide on rails, which is a large part of "unnatural".
     const float k_HipSwayFraction = 0.03f;
 
+    // Ankle pitch through the swing. A real foot does not fly flat: it PLANTARFLEXES (toes down) as it pushes off,
+    // passes ~neutral at mid-swing, then DORSIFLEXES (toes up) to present the heel for heel-strike. The foot then
+    // rolls down flat under the plantedRot slerp -- which gives the foot-flat rocker for free.
+    const float k_ToeOffDeg = 22f;       // plantarflexion at toe-off (t=0)
+    const float k_HeelStrikeDeg = 16f;   // dorsiflexion at heel-strike (t=1)
+
+    // Pelvis, per Saunders' determinants of gait.
+    // Axial: the swing-side hip is carried FORWARD ~4-5 deg -- this is what lengthens the stride without
+    // lengthening the leg, and its absence is the classic "pelvis is one rigid block" robotic tell.
+    // List: the swing-side hip DROPS ~5 deg in the frontal plane (Trendelenburg), because nothing is holding it up.
+    const float k_PelvisAxialDeg = 4.5f;
+    const float k_PelvisListDeg = 5f;
+
+    // LOADING RESPONSE -- Saunders' stance-phase knee flexion. Just after heel strike the knee flexes 15-20 deg to
+    // absorb the impact, and the COM dips to its lowest point of the whole cycle before re-extending.
+    //
+    // In a 2-bone IK the knee angle is ENTIRELY a function of hip->foot distance: flexion = 2*acos(d/L). And
+    // footHeightOffset is deliberately clamped so "the legs fully extend when standing", which parks the standing
+    // leg at d/L ~= 1.0 -- i.e. exactly ON the pole singularity, which is the whole reason the knee-swivel filter
+    // has to exist. acos is near-vertical there, so a tiny dip buys a lot of bend:
+    //     d/L 1.000 -> 0 deg      0.990 -> 16.2 deg      0.985 -> 19.9 deg
+    // So ~1.2% of leg (about 1 cm on an adult) delivers the real 15-20 deg AND lifts the leg off the singularity.
+    // Both a naturalness fix and an IK-conditioning fix, for one centimetre.
+    const float k_LoadingDipFraction = 0.012f;   // of leg length
+    const float k_LoadingResponseFrac = 0.35f;   // of one stepDur, measured from heel strike
+
     public BasisFootSimParams p;
     public NativeArray<BasisFootNativeState> feet;   // length 2: [0]=left, [1]=right
     public NativeArray<BasisFootSimState> simState;   // length 1
@@ -327,10 +353,11 @@ public struct BasisFootSimulateJob : IJob
         if (left.phase == 1) EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
         if (right.phase == 1) EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
 
-        // ── Hip bob + lateral sway ──
+        // ── Hip bob + lateral sway + pelvis rotation ──
         var outp = output[0];
         outp.hipBob = ComputeHipBob(ref left, ref right, speed);
         outp.hipSway = bodyRight * ComputeHipSway(ref left, ref right, speed);
+        outp.pelvisDelta = ComputePelvisDelta(ref left, ref right, speed, up, bodyFwd);
         outp.airborne = airborne;
         output[0] = outp;
 
@@ -434,14 +461,24 @@ public struct BasisFootSimulateJob : IJob
             pos += up * (math.saturate(lift) * dynamicHeight);
             f.currentPos = pos;
 
-            quaternion liveRot = FootRotation(rawFwd, f.filteredNormal, up);
+            quaternion footAlign = f.sideSign < 0 ? p.footAlignLeft : p.footAlignRight;
+
+            quaternion liveRot = FootRotation(rawFwd, f.filteredNormal, up, footAlign, SwingAnklePitchDeg(t));
             f.currentRot = math.slerp(f.currentRot, liveRot, ease);
 
             if (t >= 1f)
             {
                 f.phase = 0; // Planted
                 f.plantedPos = f.stepTargetPos;
-                f.plantedRot = FootRotation(rawFwd, f.filteredNormal, up);
+
+                // The PLANTED rotation is flat (pitch 0), while currentRot is still sitting at the dorsiflexed
+                // heel-strike pose. The planted branch then slerps currentRot -> plantedRot at rotationLerpSpeed,
+                // which rolls the foot down onto the floor: that is the foot-flat rocker, for free.
+                //
+                // From here plantedRot is FROZEN IN THE WORLD until this foot next steps. That is what stops a
+                // planted foot pivoting in place as the body turns -- the rotation is held until we lift it and
+                // put it back down.
+                f.plantedRot = FootRotation(rawFwd, f.filteredNormal, up, footAlign, 0f);
                 f.plantedBodyFwd = bodyFlatValid ? bodyFlat : f.plantedBodyFwd;
                 f.currentPos = f.stepTargetPos;
                 f.plantedTime = 0f;   // starts the double-support window for the OTHER foot
@@ -511,7 +548,27 @@ public struct BasisFootSimulateJob : IJob
             rightRise = math.sin(t * math.PI);
         }
 
-        return math.max(leftRise, rightRise) * amplitude;
+        float rise = math.max(leftRise, rightRise) * amplitude;
+
+        // Subtract the loading-response dip, which lands right after heel strike -- when nothing is swinging yet,
+        // so `rise` is 0 and the COM reaches its true low point of the cycle. This is what bends the stance knee
+        // (see k_LoadingDipFraction). Net travel stays within a couple of cm.
+        float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
+        float dipAmplitude = avgLeg * k_LoadingDipFraction * speedScale;
+        float dip = math.max(LoadingResponse(ref left), LoadingResponse(ref right)) * dipAmplitude;
+
+        return rise - dip;
+    }
+
+    /// <summary>0 -> 1 -> 0 over the loading response window that follows this foot's heel strike; 0 otherwise.</summary>
+    private static float LoadingResponse(ref BasisFootNativeState f)
+    {
+        if (f.phase != 0) return 0f;
+        float dur = f.stepDur * k_LoadingResponseFrac;
+        if (dur <= 1e-4f) return 0f;
+        float u = f.plantedTime / dur;
+        if (u >= 1f) return 0f;
+        return math.sin(u * math.PI);
     }
 
     // Lateral pelvis sway, signed along body-right, in metres.
@@ -543,6 +600,51 @@ public struct BasisFootSimulateJob : IJob
         }
 
         return sway * amplitude;
+    }
+
+    // Gait-driven pelvis rotation, as a WORLD delta to pre-multiply onto the hips rotation.
+    //
+    // Two of Saunders' determinants of gait, both absent today, which is why the pelvis reads as one rigid block:
+    //
+    //  AXIAL (about up): the SWING-side hip is carried FORWARD. This is what lets a human lengthen the stride
+    //  without lengthening the leg -- the pelvis rotates instead of the leg over-reaching -- and it is the single
+    //  most recognisable thing about a human walk when seen from above.
+    //
+    //  LIST / Trendelenburg (about body-forward): the SWING-side hip DROPS, because there is no longer a leg under
+    //  it holding it up. It is what makes the walk look loaded rather than floated.
+    //
+    // Both peak at mid-swing and pass through zero at double support, in phase with the bob and the sway. Sign is
+    // driven off which foot is SWINGING: a swinging LEFT foot carries the LEFT hip forward and drops it.
+    // Returns identity when standing still, and is only ever applied when there is NO hip tracker.
+    private quaternion ComputePelvisDelta(ref BasisFootNativeState left, ref BasisFootNativeState right, float speed, float3 up, float3 bodyFwd)
+    {
+        if (speed < 0.02f * p.fastSpeedRef) return quaternion.identity;
+
+        float scale = math.saturate(speed / p.fastSpeedRef);
+
+        // +1 => LEFT foot is swinging, -1 => RIGHT foot is swinging.
+        float swingSide = 0f;
+        if (left.phase == 1)
+        {
+            float t = math.saturate(left.stepTimer / left.stepDur);
+            swingSide += math.sin(t * math.PI);
+        }
+        if (right.phase == 1)
+        {
+            float t = math.saturate(right.stepTimer / right.stepDur);
+            swingSide -= math.sin(t * math.PI);
+        }
+        if (math.abs(swingSide) < 1e-4f) return quaternion.identity;
+
+        // Left-handed: a POSITIVE rotation about `up` turns +right toward -forward, i.e. it carries the LEFT side
+        // forward. So a swinging left foot (swingSide > 0) wants a positive axial angle. Same reasoning for list:
+        // a positive rotation about bodyFwd tilts +right upward, which drops the LEFT side.
+        float axialDeg = swingSide * k_PelvisAxialDeg * scale;
+        float listDeg = swingSide * k_PelvisListDeg * scale;
+
+        quaternion axial = quaternion.AxisAngle(up, math.radians(axialDeg));
+        quaternion list = quaternion.AxisAngle(bodyFwd, math.radians(listDeg));
+        return math.mul(axial, list);
     }
 
     // ── Helpers ──
@@ -627,7 +729,23 @@ public struct BasisFootSimulateJob : IJob
         return inp.avatarForward;
     }
 
-    private quaternion FootRotation(float3 bodyFwd, float3 normal, float3 up)
+    // Desired WORLD rotation of the foot bone.
+    //
+    // Everything up to `result` builds a body-derived FRAME (+Z = body forward laid on the surface, +Y = surface
+    // normal), tilt-clamped toward upright and yaw-clamped. That frame is NOT the foot bone's rotation, and the
+    // old code returned it as if it were -- which is precisely why switching foot rotation on "came out toes-up",
+    // and why it got switched back off. A humanoid foot bone's local axes are rig-dependent (its +Z often runs
+    // down the shin or out along the toes); they are not the body's.
+    //
+    // `footAlign` is the bone's orientation measured IN this same frame at the calibration T-pose, so
+    // `frame * footAlign` re-seats the bone into whatever frame we hand it. At rest the frame IS the rest frame,
+    // so it reproduces the T-pose rotation exactly -- identity by construction -- and the avatar's natural toe-out
+    // comes along for free instead of being clamped away.
+    //
+    // swingPitchDeg pitches the FRAME about its own lateral axis (local X) before the bone is seated, so the ankle
+    // pitches about the correct axis on any rig. Unity is left-handed, so a POSITIVE rotation about +X carries +Z
+    // (forward) downward => positive = toes down = plantarflexion.
+    private quaternion FootRotation(float3 bodyFwd, float3 normal, float3 up, quaternion footAlign, float swingPitchDeg)
     {
         if (math.lengthsq(normal) < 0.001f) normal = up;
 
@@ -660,7 +778,19 @@ public struct BasisFootSimulateJob : IJob
             }
         }
 
-        return result;
+        if (math.abs(swingPitchDeg) > 1e-4f)
+        {
+            result = math.mul(result, quaternion.AxisAngle(new float3(1, 0, 0), math.radians(swingPitchDeg)));
+        }
+
+        return math.mul(result, footAlign);
+    }
+
+    /// <summary>Ankle pitch across the swing: plantarflexed at toe-off, ~neutral mid-swing, dorsiflexed for heel-strike.</summary>
+    private static float SwingAnklePitchDeg(float t)
+    {
+        float inv = 1f - t;
+        return k_ToeOffDeg * inv * inv - k_HeelStrikeDeg * t * t;
     }
 
     private static float3 ProjectOnPlane(float3 v, float3 normal)

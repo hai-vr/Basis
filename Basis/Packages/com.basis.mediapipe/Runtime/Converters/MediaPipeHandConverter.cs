@@ -1,4 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Basis.MediaPipe
@@ -25,10 +27,53 @@ namespace Basis.MediaPipe
         public float PoseSmoothing = 0.5f;
         public bool UseRotation = true;
 
-        private Quaternion _leftRot = Quaternion.identity;
-        private Quaternion _rightRot = Quaternion.identity;
-        private bool _leftRotInit;
-        private bool _rightRotInit;
+        private const float CutoffResponsive = 10f;
+        private const float CutoffSmooth = 1.5f;
+        private const float Beta = 3.25f;
+        private const float DerivativeCutoff = 1f;
+
+        private RotationFilter _leftRot, _rightRot;
+
+        private float RotationCutoff => Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(PoseSmoothing));
+
+        /// <summary>
+        /// Same two-clock split the arm positions use: one-euro on the camera's delta when a fresh sample lands,
+        /// then a carry slerp every rendered frame. Running the filter at render rate over a held sample makes
+        /// each new sample look like a burst of speed, which is what snaps the wrist between poses.
+        /// </summary>
+        private struct RotationFilter
+        {
+            public BasisEuroQuatState Euro;
+            public Quaternion Sampled;
+            public Quaternion Carried;
+            public bool HasSample;
+
+            public Quaternion Apply(Quaternion target, in MediaPipeTiming timing, float cutoff)
+            {
+                if (timing.IsNewSample || !HasSample)
+                {
+                    Sampled = BasisFilterMath.EuroQuat(ref Euro, target, timing.SampleDelta,
+                        cutoff, Beta, DerivativeCutoff);
+
+                    if (!HasSample)
+                    {
+                        Carried = Sampled;
+                        HasSample = true;
+                        return Carried;
+                    }
+                }
+
+                Carried = Quaternion.Slerp(Carried, Sampled,
+                    BasisFilterMath.Alpha(timing.CarryCutoff, timing.RenderDelta));
+                return Carried;
+            }
+
+            public void Reset()
+            {
+                Euro = default;
+                HasSample = false;
+            }
+        }
 
         /// <summary>
         /// Avatar hand geometry in player-root-local space. Correction maps a MediaPipe palm frame onto the
@@ -45,11 +90,12 @@ namespace Basis.MediaPipe
 
         public void Reset()
         {
-            _leftRotInit = _rightRotInit = false;
+            _leftRot.Reset();
+            _rightRot.Reset();
         }
 
         public bool TryGetHandRotation(in BasisMediaPipeResult result, in AvatarHandRig rig, bool left,
-            out Quaternion rotation)
+            in MediaPipeTiming timing, out Quaternion rotation)
         {
             rotation = Quaternion.identity;
             if (!UseRotation || !rig.Valid) return false;
@@ -65,40 +111,39 @@ namespace Basis.MediaPipe
                 if (!MediaPipeSpace.TryPoseHandFrame(result.PoseWorldLandmarks, left, out handFrame)) return false;
             }
 
+            // Filter the BODY-RELATIVE rotation, not the finished one. rig.Body is the avatar's own orientation and
+            // moves at render rate, so smoothing it on the camera clock would drag the wrist behind every turn.
             Quaternion handInBody = Quaternion.Inverse(bodyFrame) * handFrame;
             Quaternion correction = left ? rig.LeftCorrection : rig.RightCorrection;
-            Quaternion target = rig.Body * handInBody * correction;
 
-            float t = 1f - Mathf.Clamp01(PoseSmoothing);
-            if (left)
-            {
-                _leftRot = _leftRotInit ? Quaternion.Slerp(_leftRot, target, t) : target;
-                _leftRotInit = true;
-                rotation = _leftRot;
-            }
-            else
-            {
-                _rightRot = _rightRotInit ? Quaternion.Slerp(_rightRot, target, t) : target;
-                _rightRotInit = true;
-                rotation = _rightRot;
-            }
+            float cutoff = RotationCutoff;
+            Quaternion smoothed = left
+                ? _leftRot.Apply(handInBody, in timing, cutoff)
+                : _rightRot.Apply(handInBody, in timing, cutoff);
+
+            rotation = rig.Body * smoothed * correction;
             return true;
         }
 
-        public void Apply(in BasisMediaPipeResult result)
+        public void Apply(in BasisMediaPipeResult result, in MediaPipeTiming timing)
         {
             BasisLocalHandDriver driver = BasisLocalPlayer.Instance.LocalHandDriver;
+            // Fingers only ever need the carry pass: the curl target is a plain function of the held landmarks,
+            // so approaching it every rendered frame already turns the camera's steps into continuous motion.
+            float alpha = BasisFilterMath.Alpha(
+                Mathf.Min(Mathf.Lerp(CutoffResponsive, CutoffSmooth, Mathf.Clamp01(FingerSmoothing)), timing.CarryCutoff),
+                timing.RenderDelta);
 
             Vector3[] left = Fingers(result.LeftHandWorldLandmarks, result.LeftHandLandmarks);
             if (result.HasLeftHand && left != null)
             {
-                ApplyHand(left, driver.LeftHand, true);
+                ApplyHand(left, driver.LeftHand, true, alpha);
             }
 
             Vector3[] right = Fingers(result.RightHandWorldLandmarks, result.RightHandLandmarks);
             if (result.HasRightHand && right != null)
             {
-                ApplyHand(right, driver.RightHand, false);
+                ApplyHand(right, driver.RightHand, false, alpha);
             }
         }
 
@@ -108,9 +153,8 @@ namespace Basis.MediaPipe
             return image != null && image.Length >= MediaPipeSpace.HandCount ? image : null;
         }
 
-        private void ApplyHand(Vector3[] lm, BasisFingerPose pose, bool isLeft)
+        private void ApplyHand(Vector3[] lm, BasisFingerPose pose, bool isLeft, float t)
         {
-            float t = 1f - Mathf.Clamp01(FingerSmoothing);
             pose.ThumbPercentage = Vector2.Lerp(pose.ThumbPercentage, new Vector2(Curl(lm, 1, 2, 3, 4, ThumbMaxAngle), Splay(lm, 2, 3, 5, 6, isLeft)), t);
             pose.IndexPercentage = Vector2.Lerp(pose.IndexPercentage, new Vector2(Curl(lm, 5, 6, 7, 8, FingerMaxAngle), Splay(lm, 5, 6, 9, 10, isLeft)), t);
             pose.MiddlePercentage = Vector2.Lerp(pose.MiddlePercentage, new Vector2(Curl(lm, 9, 10, 11, 12, FingerMaxAngle), 0f), t);

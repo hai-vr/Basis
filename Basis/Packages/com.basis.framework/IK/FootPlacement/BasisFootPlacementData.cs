@@ -106,6 +106,17 @@ public struct BasisFootSimParams
     // Hip bob
     public float hipBobFraction;
 
+    // Foot bone orientation captured IN THE BODY FRAME at calibration (T-pose):
+    //     footAlign = inverse(LookRotation(avatarFwd, avatarUp)) * footBone.rotation
+    // A humanoid foot bone's local axes are NOT the body's -- its +Z may run down the shin or out along the
+    // toes, entirely rig-dependent. So a LookRotation built from the BODY's axes cannot be assigned to the bone
+    // directly; doing that is what came out toes-up and got foot rotation switched off in the first place.
+    // Post-multiplying by footAlign re-expresses the bone in whatever frame we want:
+    //     footWorldRot = targetFrame * footAlign
+    // At rest targetFrame == the rest frame, so this returns EXACTLY the T-pose rotation -- identity by
+    // construction, cannot be toes-up -- and it carries the avatar's natural toe-out along for free.
+    public quaternion footAlignLeft, footAlignRight;
+
     // Calibrated measurements
     public float stanceWidth;
     public float hipToFoot;
@@ -132,4 +143,9 @@ public struct BasisFootSimOutput
     public float hipBob;
     public float3 hipSway;  // lateral COM shift TOWARD the stance leg, as a world offset (already * body-right)
     public bool airborne;   // ground is out of leg reach; planted feet ride the hips instead of the floor
+
+    // Gait-driven pelvis rotation, as a WORLD delta to pre-multiply onto the hips rotation.
+    // Axial rotation (swing-side hip carried forward) + frontal-plane list (swing-side hip dropped).
+    // Identity when standing still. Only applied when there is NO hip tracker.
+    public quaternion pelvisDelta;
 }
