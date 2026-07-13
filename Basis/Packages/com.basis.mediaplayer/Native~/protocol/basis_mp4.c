@@ -539,12 +539,14 @@ static void parse_sidx(mp4_t* m, const uint8_t* p, int len, int64_t box_end) {
         uint32_t sap = rd32(p + off + 8);
         int ref_type = (ref & 0x80000000U) != 0;
         int starts_with_sap = (sap & 0x80000000U) != 0;
+        int sap_type = (sap & 0x70000000U) >> 28;
         uint32_t sap_delta = sap & 0x0FFFFFFFU;
 
         /* This path supports the direct integrated fMP4 shape where sidx
-         * references complete moof+mdat subsegments that begin on a SAP. Nested
-         * sidx references are deliberately not exposed as seekable yet. */
-        if (ref_type || !starts_with_sap || sap_delta != 0 || size == 0 || dur == 0 ||
+         * references complete moof+mdat subsegments that begin on a SAP type-1, 2
+         * or unspecified(0). Nested sidx references are deliberately not exposed
+         * as seekable yet. */
+        if (ref_type || !starts_with_sap || sap_type > 2 || sap_delta != 0 || size == 0 || dur == 0 ||
             ref_offset > (uint64_t)INT64_MAX || pts > (uint64_t)INT64_MAX ||
             dur > (uint64_t)INT64_MAX - pts) {
             sidx_clear(&next);
