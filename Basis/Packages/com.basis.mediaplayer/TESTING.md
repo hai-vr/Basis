@@ -141,6 +141,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | PCE-signalled / >6-ch AAC | **Graceful refusal** on Windows (mute or clean error, never a crash) |
 | CEA-608 captions | Stack caption fixture: cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
 | 44.1 kHz audio | Resamples cleanly to the DSP rate (dominant path is 48 kHz — don't let 44.1k rot) |
+| 1080p video | No thin black strip along the top edge on Windows (720p is unaffected — test 1080p specifically) |
 
 ### Platforms and backends
 

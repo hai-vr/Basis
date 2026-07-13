@@ -200,7 +200,9 @@ struct basis_decoder {
     /* video */
     IMFTransform* vdec = nullptr;
     basis_codec_t vcodec = BASIS_CODEC_NONE;
-    int vwidth = 0, vheight = 0;
+    int vwidth = 0, vheight = 0;         /* coded (decoder surface) size */
+    int dispX = 0, dispY = 0;            /* clean-aperture offset within the coded surface */
+    int dispW = 0, dispH = 0;            /* clean-aperture (visible) size; 0 = none, use coded */
     bool vconfigured = false;
 
     ID3D11VideoDevice* vdevice = nullptr;
@@ -375,6 +377,30 @@ static IMFTransform* create_video_mft(basis_codec_t codec) {
     return mft;
 }
 
+/* Read the clean-aperture (visible) region from the MFT's current output type.
+ * H.264/H.265 round the coded surface up to a macroblock multiple (e.g. 1080 -> 1088),
+ * and MF_MT_MINIMUM_DISPLAY_APERTURE carries the visible sub-rect. Stored so the video
+ * processor can crop the coded pad instead of blitting it 1:1 (the pad would otherwise
+ * land at the top of the frame after the decode-time vertical mirror). Left zeroed when
+ * the type carries no aperture, and the caller falls back to the coded size. Many
+ * decoders only populate it after the first-frame stream change, so this is read there
+ * too, not just at configure. */
+static void read_display_aperture(basis_decoder* d) {
+    d->dispX = d->dispY = d->dispW = d->dispH = 0;
+    if (!d->vdec) return;
+    IMFMediaType* cur = nullptr;
+    if (FAILED(d->vdec->GetOutputCurrentType(0, &cur)) || !cur) return;
+    MFVideoArea area = {};
+    if (SUCCEEDED(cur->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE, (UINT8*)&area, sizeof(area), nullptr)) &&
+        area.Area.cx > 0 && area.Area.cy > 0) {
+        d->dispX = area.OffsetX.value;
+        d->dispY = area.OffsetY.value;
+        d->dispW = area.Area.cx;
+        d->dispH = area.Area.cy;
+    }
+    cur->Release();
+}
+
 static bool configure_video_mft(basis_decoder* d) {
     d->vdec = create_video_mft(d->vcodec);
     if (!d->vdec) { basis_engine_set_error(d->engine, "no Media Foundation decoder MFT for this codec (HEVC needs the HEVC Video Extension)"); return false; }
@@ -411,6 +437,7 @@ static bool configure_video_mft(basis_decoder* d) {
     hr = d->vdec->SetOutputType(0, out, 0);
     out->Release();
     if (FAILED(hr)) { basis_engine_set_error(d->engine, "MFT SetOutputType(NV12) failed"); return false; }
+    read_display_aperture(d);
 
     d->vdec->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
     d->vdec->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
@@ -542,13 +569,24 @@ static void video_process_to_shared(basis_decoder* d, ID3D11Texture2D* nv12, UIN
     D3D11_TEXTURE2D_DESC td; nv12->GetDesc(&td);
     int w = (int)td.Width, h = (int)td.Height;
     if (d->vwidth != w || d->vheight != h) { d->vwidth = w; d->vheight = h; }
-    if (!ensure_shared_textures(d, w, h)) return;
+
+    /* Crop the coded surface to its clean aperture so the macroblock pad (e.g. the
+     * 8 rows from 1080 -> 1088) never reaches Unity; blitted 1:1 it copies the pad and
+     * the decode-time vertical mirror moves it to the top of the displayed frame. The
+     * output texture is the visible size, so Unity also samples the true aspect. */
+    int cw = w, ch = h, sx = 0, sy = 0;
+    if (d->dispW > 0 && d->dispH > 0 &&
+        d->dispX >= 0 && d->dispY >= 0 &&
+        d->dispX + d->dispW <= w && d->dispY + d->dispH <= h) {
+        cw = d->dispW; ch = d->dispH; sx = d->dispX; sy = d->dispY;
+    }
+    if (!ensure_shared_textures(d, cw, ch)) return;
     if (d->videoBasePts == INT64_MIN) d->videoBasePts = pts_us; /* sync origin */
 
     if (!d->vproc) {
         D3D11_VIDEO_PROCESSOR_CONTENT_DESC cd = {};
         cd.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
-        cd.InputWidth = w; cd.InputHeight = h; cd.OutputWidth = w; cd.OutputHeight = h;
+        cd.InputWidth = w; cd.InputHeight = h; cd.OutputWidth = cw; cd.OutputHeight = ch;
         cd.Usage = D3D11_VIDEO_USAGE_PLAYBACK_NORMAL;
         if (FAILED(d->vdevice->CreateVideoProcessorEnumerator(&cd, &d->vprocEnum))) return;
         if (FAILED(d->vdevice->CreateVideoProcessor(d->vprocEnum, 0, &d->vproc))) return;
@@ -575,6 +613,13 @@ static void video_process_to_shared(basis_decoder* d, ID3D11Texture2D* nv12, UIN
             }
         }
         d->frameTopLeft = mirrored ? 0 : 1;
+
+        /* Sample only the clean aperture (see the crop note above); persists on the
+         * stream for every blt. A full-frame rect when no aperture is a no-op. */
+        RECT srcRect = { sx, sy, sx + cw, sy + ch };
+        d->vcontext->VideoProcessorSetStreamSourceRect(d->vproc, 0, TRUE, &srcRect);
+        RECT dstRect = { 0, 0, cw, ch };
+        d->vcontext->VideoProcessorSetStreamDestRect(d->vproc, 0, TRUE, &dstRect);
     }
 
     int slot = (int)(d->writeSeq % basis_decoder::RING);
@@ -661,7 +706,7 @@ static void drain_video(basis_decoder* d) {
                 if (sub == MFVideoFormat_NV12) { t = c; break; }
                 c->Release();
             }
-            if (t) { d->vdec->SetOutputType(0, t, 0); t->Release(); }
+            if (t) { d->vdec->SetOutputType(0, t, 0); t->Release(); read_display_aperture(d); }
             SAFE_RELEASE(outBuf.pSample);
             if (outBuf.pEvents) outBuf.pEvents->Release();
             continue;
