@@ -17,6 +17,15 @@ namespace Basis.IK.Debugging
                 BasisFootIKSweepSummary s = BasisFootIKSweep.Run(cfg, path);
                 (bool pass, string reason) = BasisIKTestGates.GateFoot(s);
                 Debug.Log("FOOTSWEEP_RESULT " + (pass ? "PASS" : "FAIL") + " :: " + reason);
+                Debug.Log("FOOTSWEEP_METRICS"
+                    + " crossovers=" + s.Crossovers + "(+" + s.CrossoversTolerated + " tol)"
+                    + " extension=" + s.WorstExtensionRatio.ToString("F2")
+                    + " slideMm=" + s.WorstPlantedSlideMm.ToString("F1")
+                    + " bothStepping=" + s.BothSteppingTicks
+                    + " idleSteps=" + s.IdleSteps
+                    + " steps=" + s.TotalSteps
+                    + " liftMm=" + s.WorstStepLiftMm.ToString("F0")
+                    + " hoverMm=" + s.WorstPlantedHoverMm.ToString("F1"));
                 Debug.Log("FOOTSWEEP_CSV " + path);
                 exit = pass ? 0 : 1;
             }

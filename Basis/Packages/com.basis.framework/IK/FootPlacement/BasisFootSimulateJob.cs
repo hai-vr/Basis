@@ -56,10 +56,40 @@ public struct BasisFootSimulateJob : IJob
         float3 rawFwd = ComputeBodyForward(inp, sim, p, up);
 
         // Body yaw rate (deg/s), smoothed — paces stepping so feet keep up when turning / spinning.
+        // Deliberately measured BEFORE the root carry below, so a character-controller turn still counts as yaw
+        // rate and still paces the steps faster.
         float bodyYawRate = math.lengthsq(sim.prevBodyFwd) > 0.001f ? SignedAngle(sim.prevBodyFwd, rawFwd, up) / dt : 0f;
         sim.prevBodyFwd = rawFwd;
         sim.smoothedYawRateDeg = math.lerp(sim.smoothedYawRateDeg, bodyYawRate, 1f - math.exp(-p.bodyFwdRateMoving * dt));
-        float fwdRate = speed > 0.1f ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
+
+        // ── Ride the root, THEN smooth ──
+        // smoothedBodyFwd is a WORLD vector, but it is derived from the hips/chest/head bones, which are rigid
+        // children of the player root. So a character-controller turn rotates all of them identically -- it is a
+        // deliberate, known input, not noise -- yet the exponential filter treated it as something to chase, at
+        // tau = 400 ms whenever translation speed was under 0.1 m/s. Turning in place IS speed ~0, so a turn got
+        // the SLOWEST possible tracking: the step targets were built from a body forward that was ~0.4 s stale and
+        // the feet floated after it. Same bug class as the world-referenced knee swivel.
+        //
+        // Rotating the filter's STATE by the root's own yaw delta first makes a root turn pass through with zero
+        // filter error (instant), while the organic deviation -- hips/chest/head wobbling RELATIVE to the root --
+        // is still damped exactly as before. The filter now smooths only what it was ever meant to smooth.
+        float3 rootFwd = inp.avatarForward - up * math.dot(inp.avatarForward, up);
+        if (math.lengthsq(rootFwd) > 1e-6f)
+        {
+            rootFwd = math.normalize(rootFwd);
+            if (math.lengthsq(sim.prevRootFwd) > 1e-6f && math.lengthsq(sim.smoothedBodyFwd) > 1e-6f)
+            {
+                float rootYawDeg = SignedAngle(sim.prevRootFwd, rootFwd, up);
+                quaternion rootDelta = quaternion.AxisAngle(up, math.radians(rootYawDeg));
+                sim.smoothedBodyFwd = math.mul(rootDelta, sim.smoothedBodyFwd);
+            }
+            sim.prevRootFwd = rootFwd;
+        }
+
+        // Turning in place is speed ~0, so the speed test alone always picked the slow rate exactly when the body
+        // was rotating fastest. Any real turn (physical or stick) gets the responsive rate.
+        bool turning = math.abs(sim.smoothedYawRateDeg) > 20f;
+        float fwdRate = (speed > 0.1f || turning) ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
         float fwdAlpha = 1f - math.exp(-fwdRate * dt);
         // Degeneracy checks run BEFORE normalize: normalizing a near-zero vector yields NaN, and
         // a NaN never compares < epsilon — with smoothedBodyFwd self-feeding, one bad frame would
