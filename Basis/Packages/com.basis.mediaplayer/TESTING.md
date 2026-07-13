@@ -173,11 +173,20 @@ the demux leg re-anchors delivery pacing at the flushed boundary, so a mis-ancho
 (stall forward / flood backward) is the failure to watch for. Shared clock, so check both the
 Editor (Windows) and Quest.
 
+**Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
+`sidx`) served from a range/`206` host — e.g.
+`https://zipline.space.superneko.net/raw/bbb_sunflower_1080p_30fps_normal_idfmp4.mp4` — confirm
+`Delivery=Auto` detects OnDemand and seeks in both directions reposition cleanly and resume at the
+target with no decoder error. This is the `sidx`-driven byte-source reseek; it shares the
+byte-source seek path with progressive/trailing-moov MP4, so a regression here usually surfaces on
+those too. Distinct from fMP4 carried *in HLS*, which isn't seekable — a mid-fragment ring flush
+can't resynchronise the box parser. Check the Editor (Windows) and Quest.
+
 > On-demand multiplayer sync **drift-corrects by seeking**: the owner broadcasts its playhead
 > and a client that drifts past `DriftSeekThresholdSeconds` seeks to catch up (set 0 to
-> disable). Catch-up needs a seekable source — TS-segment HLS VOD and progressive/trailing-moov
-> MP4 qualify; a live source can't seek, so those clients converge independently to the live
-> edge rather than using playhead-seek correction.
+> disable). Catch-up needs a seekable source — TS-segment HLS VOD, progressive/trailing-moov
+> MP4, and integrated fMP4 qualify; a live source can't seek, so those clients converge
+> independently to the live edge rather than using playhead-seek correction.
 
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each
