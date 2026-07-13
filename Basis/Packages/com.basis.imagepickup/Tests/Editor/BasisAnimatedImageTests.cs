@@ -1046,6 +1046,19 @@ namespace Basis.ImagePickup.Tests
             Assert.That(limits.NativeWorkingSetBytes, Is.EqualTo(expectedWorkingSetMiB * mib));
         }
 
+        [Test]
+        public void LocalOwnerReloadUsesTrustedDecodeLimit()
+        {
+            Assert.That(
+                BasisAnimatedImagePlayer.ResolveReloadDecodeTrust(true),
+                Is.EqualTo(BasisAnimationDecodeTrust.TrustedLocal)
+            );
+            Assert.That(
+                BasisAnimatedImagePlayer.ResolveReloadDecodeTrust(false),
+                Is.EqualTo(BasisAnimationDecodeTrust.UntrustedRemote)
+            );
+        }
+
         [TestCase(-1, 1)]
         [TestCase(0, 1)]
         [TestCase(1, 1)]

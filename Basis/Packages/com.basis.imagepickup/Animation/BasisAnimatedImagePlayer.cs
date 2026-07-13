@@ -65,6 +65,13 @@ namespace Basis.ImagePickup
         internal bool HasAllocatedCompositor =>
 			_gpuCanvas != null || _cpuCanvas != null;
 
+        internal static BasisAnimationDecodeTrust ResolveReloadDecodeTrust(bool isOwner)
+        {
+            return isOwner
+                ? BasisAnimationDecodeTrust.TrustedLocal
+                : BasisAnimationDecodeTrust.UntrustedRemote;
+        }
+
         internal bool Initialize(
             BasisAnimatedImageData data,
             BasisImagePickupObject pickup,
@@ -316,7 +323,8 @@ namespace Basis.ImagePickup
                 _reloadRequest = new BasisBurstAnimationDecodeRequest(
                     _reloadPayload.Bytes,
                     _reloadPayload.Length,
-                    false
+                    false,
+                    ResolveReloadDecodeTrust(_pickup != null && _pickup.IsOwner)
                 );
                 return false;
             }

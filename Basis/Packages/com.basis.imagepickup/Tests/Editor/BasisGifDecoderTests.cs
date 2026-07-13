@@ -257,11 +257,60 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void AnimationOuterHeaderSeparatesTrustedLocalAndRemoteLimits()
+        {
+            const int frameCount = 4;
+            int rawLength = checked(
+                BasisBurstAnimationCodec.BodyHeaderBytes
+                + frameCount * BasisBurstAnimationCodec.FrameRecordBytes
+                + frameCount * 2048 * 2048 * 4
+            );
+            Assert.That(rawLength, Is.EqualTo(64 * 1024 * 1024 + 232));
+
+            var payload = new NativeArray<byte>(
+                BasisBurstAnimationCodec.OuterHeaderBytes + 1,
+                Allocator.Temp,
+                NativeArrayOptions.ClearMemory
+            );
+            try
+            {
+                WriteAnimationOuterHeader(payload, rawLength, 1);
+
+                Assert.That(
+                    BasisBurstAnimationCodec.TryReadOuterHeader(
+                        payload,
+                        payload.Length,
+                        64L * 1024L * 1024L,
+                        out _,
+                        out _
+                    ),
+                    Is.False
+                );
+                Assert.That(
+                    BasisBurstAnimationCodec.TryReadOuterHeader(
+                        payload,
+                        payload.Length,
+                        BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes,
+                        out int trustedRawLength,
+                        out string trustedError
+                    ),
+                    Is.True,
+                    trustedError
+                );
+                Assert.That(trustedRawLength, Is.EqualTo(rawLength));
+            }
+            finally
+            {
+                payload.Dispose();
+            }
+        }
+
+        [Test]
         public void Lz4DecompressRejectsOverflowingLiteralRange()
         {
             const int rawLength = 6;
             int extendedByteCount = CalculateExtendedLengthByteCount(int.MaxValue - 15);
-            int compressedLength = 5 + 1 + extendedByteCount;
+            int compressedLength = 5 + extendedByteCount;
             var payload = new NativeArray<byte>(
                 BasisBurstAnimationCodec.OuterHeaderBytes + compressedLength,
                 Allocator.TempJob,
