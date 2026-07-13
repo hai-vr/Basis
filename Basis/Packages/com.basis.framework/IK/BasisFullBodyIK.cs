@@ -2538,6 +2538,14 @@ w20, w54;
             input.MinCutoffHz = minCutoffHz;
             input.Beta = beta;
             input.DerivCutoffHz = derivCutoffHz;
+            // A standing leg sits ON the pole singularity -- footHeightOffset is deliberately clamped so the legs
+            // fully extend, which parks hip->foot distance at ~= thigh+shin, leaving the knee on the hip->foot axis
+            // with no meaningful bend plane. There the raw swivel is noise, and a speed-adaptive filter reads that
+            // noise as intent and opens right up (see BasisSwivelSmootherCore). Condition the filter on the pole's
+            // lever arm so it damps hard while straight and recovers full responsiveness once the knee is bent.
+            // Only the LEG opts in; the arm keeps the legacy path.
+            input.ConditionOnPole = true;
+            input.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
             input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
             input.Seeded = legSwivelInit[slot] != 0;
 
