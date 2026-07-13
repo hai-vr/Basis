@@ -45,6 +45,7 @@ namespace Basis.BasisUI.MediaPlayer
         private PanelToggle _captionsToggle;
         private PanelSlider _captionTextOpacitySlider;
         private PanelSlider _captionBgOpacitySlider;
+        private PanelDropdown _subtitleDropdown;
         private PanelDropdown _bitrateDropdown;
         private PanelDropdown _audioTrackDropdown;
         private PanelToggle _advancedToggle;
@@ -199,6 +200,7 @@ namespace Basis.BasisUI.MediaPlayer
             _captionsToggle = null;
             _captionTextOpacitySlider = null;
             _captionBgOpacitySlider = null;
+            _subtitleDropdown = null;
             _bitrateDropdown = null;
             _audioTrackDropdown = null;
             _advancedToggle = null;
@@ -330,12 +332,25 @@ namespace Basis.BasisUI.MediaPlayer
 
             _captionsToggle = PanelToggle.CreateNewEntry(content);
             _captionsToggle.Descriptor.SetTitle("Captions (CC)");
-            _captionsToggle.Descriptor.SetDescription("Show in-band closed captions when the stream carries them.");
+            _captionsToggle.Descriptor.SetDescription("Show closed captions when the stream or its subtitle tracks carry them.");
             _captionsToggle.OnValueChanged = v =>
             {
                 if (_activePlayer != null) _activePlayer.CaptionsEnabled = v;
                 ApplyCaptionOptionsVisibility(v);
             };
+
+            // Language selector for out-of-band subtitle tracks. Hidden unless
+            // the loaded media actually offers tracks AND captions are on — the
+            // panel stays clutter-free for everything else. Row 0 returns to
+            // the in-band default.
+            _subtitleDropdown = PanelDropdown.CreateNewEntry(content);
+            _subtitleDropdown.Descriptor.SetTitle("Subtitles");
+            _subtitleDropdown.OnValueChanged = _ =>
+            {
+                if (_activePlayer == null || _subtitleDropdown == null) return;
+                _activePlayer.SelectSubtitleTrack(_subtitleDropdown.Index - 1);
+            };
+            _subtitleDropdown.gameObject.SetActive(false);
 
             _captionTextOpacitySlider = PanelSlider.CreateNew(content);
             _captionTextOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Text Opacity"));
@@ -427,6 +442,7 @@ namespace Basis.BasisUI.MediaPlayer
             if (_activePlayer == null) return;
             _activePlayer.OnBitrateTrackChanged += HandleActiveBitrateChanged;
             _activePlayer.OnAudioTrackChanged += HandleActiveAudioTrackChanged;
+            _activePlayer.OnSubtitleTrackChanged += HandleActiveSubtitleTrackChanged;
             _activePlayer.OnMetadataChanged += HandleActiveMetadataChanged;
             HandleActiveMetadataChanged(_activePlayer.Metadata);
         }
@@ -436,17 +452,24 @@ namespace Basis.BasisUI.MediaPlayer
             if (_activePlayer == null) return;
             _activePlayer.OnBitrateTrackChanged -= HandleActiveBitrateChanged;
             _activePlayer.OnAudioTrackChanged -= HandleActiveAudioTrackChanged;
+            _activePlayer.OnSubtitleTrackChanged -= HandleActiveSubtitleTrackChanged;
             _activePlayer.OnMetadataChanged -= HandleActiveMetadataChanged;
         }
 
         private void HandleActiveBitrateChanged(BasisBitrateTrack _) => RebuildBitrateDropdown();
         private void HandleActiveAudioTrackChanged(BasisAudioTrack _) => RebuildAudioTrackDropdown();
+        // A failed track fetch reverts the selection player-side; rebuilding
+        // snaps the dropdown back to the row that's actually in effect.
+        private void HandleActiveSubtitleTrackChanged(int _) => RebuildSubtitleDropdown();
 
         private void HandleActiveMetadataChanged(BasisMediaMetadata meta)
         {
             _metaTitle = meta?.Title;
             _metaUploader = meta?.Uploader;
             _lastStatusMarkup = null;   /* force the next status repaint */
+            // Subtitle tracks arrive as metadata enrichment (resolver), so this
+            // is where the dropdown appears/disappears as loads come and go.
+            RebuildSubtitleDropdown();
         }
 
         private void ApplyActivePlayerToControls()
@@ -496,6 +519,7 @@ namespace Basis.BasisUI.MediaPlayer
 
             RebuildBitrateDropdown();
             RebuildAudioTrackDropdown();
+            RebuildSubtitleDropdown();
 
             if (_debugToggle != null) _debugToggle.SetValueWithoutNotify(_activePlayer.VerboseLogging);
             RefreshStatus();
@@ -541,6 +565,24 @@ namespace Basis.BasisUI.MediaPlayer
             int sel = _activePlayer.SelectedAudioTrackIndex;
             if (sel >= 0 && sel < labels.Count) _audioTrackDropdown.SetValueWithoutNotify(labels[sel]);
             _audioTrackDropdown.gameObject.SetActive(tracks.Count > 0);
+        }
+
+        private void RebuildSubtitleDropdown()
+        {
+            if (_subtitleDropdown == null || _activePlayer == null) return;
+            var tracks = _activePlayer.SubtitleTracks;
+            var labels = new List<string> { "CC (embedded)" };
+            for (int i = 0; i < tracks.Count; i++)
+            {
+                var t = tracks[i];
+                labels.Add(!string.IsNullOrEmpty(t.Label) ? t.Label
+                    : (!string.IsNullOrEmpty(t.Language) ? t.Language : $"Track {i + 1}"));
+            }
+            _subtitleDropdown.AssignEntries(labels);
+            int sel = _activePlayer.SelectedSubtitleTrackIndex;
+            int row = sel >= 0 && sel < tracks.Count ? sel + 1 : 0;
+            if (row < labels.Count) _subtitleDropdown.SetValueWithoutNotify(labels[row]);
+            ApplySubtitleDropdownVisibility(_activePlayer.CaptionsEnabled);
         }
 
         private void SetGroupsActive(bool active)
@@ -656,6 +698,16 @@ namespace Basis.BasisUI.MediaPlayer
         {
             _captionTextOpacitySlider?.gameObject.SetActive(visible);
             _captionBgOpacitySlider?.gameObject.SetActive(visible);
+            ApplySubtitleDropdownVisibility(visible);
+        }
+
+        private void ApplySubtitleDropdownVisibility(bool captionsOn)
+        {
+            if (_subtitleDropdown != null)
+            {
+                bool show = captionsOn && _activePlayer != null && _activePlayer.SubtitleTracks.Count > 0;
+                _subtitleDropdown.gameObject.SetActive(show);
+            }
             _userGroup?.ForceRebuild();
         }
 

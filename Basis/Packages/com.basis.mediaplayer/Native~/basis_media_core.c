@@ -125,6 +125,7 @@ struct basis_media_engine {
     basis_mutex_t submit_lock;
     basis_media_state_t state;
     char error[512];
+    char transport[64];   /* scheme by default; negotiated detail via on_transport */
 
     basis_media_sink_t sink;
 
@@ -324,6 +325,14 @@ static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t p
 }
 static void sink_state(void* user, basis_media_state_t s) { basis_engine_set_state((basis_media_engine_t*)user, s); }
 static void sink_error(void* user, const char* m) { basis_engine_set_error((basis_media_engine_t*)user, m); }
+static void sink_transport(void* user, const char* t) {
+    basis_media_engine_t* e = (basis_media_engine_t*)user;
+    if (!e || !t) return;
+    mutex_lock(&e->lock);
+    strncpy(e->transport, t, sizeof(e->transport) - 1);
+    e->transport[sizeof(e->transport) - 1] = 0;
+    mutex_unlock(&e->lock);
+}
 static void sink_eos(void* user) { basis_engine_set_state((basis_media_engine_t*)user, BASIS_MEDIA_STATE_ENDED); }
 static void sink_duration(void* user, int64_t us) { basis_media_engine_t* e = (basis_media_engine_t*)user; if (us > 0) e->duration_us = us; }
 /* A raised error is fatal to the current demux run: the reconnect loop already
@@ -370,6 +379,7 @@ static void install_sink(basis_media_engine_t* e) {
     e->sink.on_error = sink_error;
     e->sink.on_end_of_stream = sink_eos;
     e->sink.on_duration = sink_duration;
+    e->sink.on_transport = sink_transport;
     e->sink.take_seek = sink_take_seek;
     e->sink.is_running = sink_is_running;
 }
@@ -1076,6 +1086,8 @@ static basis_media_engine_t* open_impl(const char* url, const char* audio_url, i
     mutex_init(&e->lock);
     mutex_init(&e->submit_lock);
     e->state = BASIS_MEDIA_STATE_IDLE;
+    /* Default until a protocol reports negotiated detail (RTSP does). */
+    strncpy(e->transport, e->parts.scheme, sizeof(e->transport) - 1);
 
     /* Optional: a NULL context just means captions are unavailable (scan/poll no-op). */
     e->captions = basis_caption_create();
@@ -1239,6 +1251,17 @@ BASIS_API int BASIS_CALL basis_media_get_last_error(basis_media_engine_t* e, cha
     int n = (int)strlen(e->error);
     if (n >= buf_size) n = buf_size - 1;
     memcpy(buf, e->error, (size_t)n);
+    buf[n] = 0;
+    mutex_unlock(&e->lock);
+    return n;
+}
+
+BASIS_API int BASIS_CALL basis_media_get_transport(basis_media_engine_t* e, char* buf, int buf_size) {
+    if (!e || !buf || buf_size <= 0) return 0;
+    mutex_lock(&e->lock);
+    int n = (int)strlen(e->transport);
+    if (n >= buf_size) n = buf_size - 1;
+    memcpy(buf, e->transport, (size_t)n);
     buf[n] = 0;
     mutex_unlock(&e->lock);
     return n;

@@ -8,8 +8,9 @@
 #   rist           RIST senders (needs an ffmpeg image built with librist)
 
 services:
-  # RTSP server, TCP-interleaved only (rtspt://<host>:8554/<path>), plus the
-  # RTMP pull lane on 1935 (rtmp://<host>:1935/<path>).
+  # RTSP server, UDP + TCP transports (rtsp://<host>:8554/<path> negotiates,
+  # rtspt:// pins TCP), plus the RTMP pull lane on 1935
+  # (rtmp://<host>:1935/<path>).
   # Publishers also push in over RTMP: it carries whole access units, while
   # ffmpeg's RTSP output fragments large AAC frames in ways ingest
   # depacketisers reject.
@@ -17,8 +18,10 @@ services:
     image: bluenviron/mediamtx:latest
     restart: unless-stopped
     ports:
-      - "8554:8554"      # RTSP (TCP)
-      - "1935:1935"      # RTMP (ingest + player pull lane)
+      - "8554:8554"          # RTSP control (TCP)
+      - "8000:8000/udp"      # RTP  (UDP transport)
+      - "8001:8001/udp"      # RTCP (UDP transport; carries client receiver reports)
+      - "1935:1935"          # RTMP (ingest + player pull lane)
     volumes:
       - ./mediamtx.yml:/mediamtx.yml:ro
 

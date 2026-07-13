@@ -76,6 +76,9 @@ internal static class BasisNativeMedia
     private static extern int basis_media_get_debug(IntPtr engine, byte[] buf, int bufSize);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
+    private static extern int basis_media_get_transport(IntPtr engine, byte[] buf, int bufSize);
+
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern void basis_media_set_buffer(IntPtr engine, int mode, int bufferMs);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
@@ -263,6 +266,19 @@ internal static class BasisNativeMedia
         int n = basis_media_get_debug(e, buf, buf.Length);
         if (n <= 0) return null;
         return System.Text.Encoding.UTF8.GetString(buf, 0, Math.Min(n, buf.Length));
+    }
+
+    public static string GetTransport(IntPtr e)
+    {
+        if (e == IntPtr.Zero) return null;
+        var buf = new byte[64];
+        try
+        {
+            int n = basis_media_get_transport(e, buf, buf.Length);
+            if (n <= 0) return null;
+            return System.Text.Encoding.UTF8.GetString(buf, 0, Math.Min(n, buf.Length));
+        }
+        catch (EntryPointNotFoundException) { return null; } // binary predates the transport API (stub platforms)
     }
 
     public static IntPtr GetTexture(IntPtr e, out int w, out int h)

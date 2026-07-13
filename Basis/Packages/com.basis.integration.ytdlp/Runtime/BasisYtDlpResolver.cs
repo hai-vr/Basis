@@ -111,6 +111,7 @@ namespace Basis.Integration.YtDlp
                 Duration = info.Duration.HasValue && info.Duration.Value > 0
                     ? TimeSpan.FromSeconds(info.Duration.Value)
                     : (TimeSpan?)null,
+                SubtitleTracks = BuildSubtitleTracks(info),
                 Provider = "ytdlp",
             };
             return source;
@@ -172,6 +173,167 @@ namespace Basis.Integration.YtDlp
                 return new BasisMediaSource { Uri = info.DirectUrl, Delivery = DeliveryFor(info) };
 
             return null;
+        }
+
+        // How many subtitle rows a single video may contribute. Real track lists are a
+        // handful; this only bounds a hostile/degenerate extraction.
+        private const int MaxSubtitleTracks = 32;
+
+        // Builds the sidecar subtitle track list from the extraction's caption dictionaries
+        // (lang code -> per-format entries). Everything is already in the info dict — no
+        // extra fetch. Selection rules:
+        //   - VOD only: live/upcoming streams get none (their caption URLs don't apply).
+        //   - json3 entries only — the format the player parses. This also naturally
+        //     excludes pseudo-tracks like "live_chat" (ext "json").
+        //   - Manual (uploader) tracks in the video's original language or the viewer's
+        //     system language; when none match, all manual tracks (uploader-curated,
+        //     rarely more than a handful — better listed than hidden).
+        //   - Auto (ASR) tracks only for the original language and the viewer's system
+        //     language, skipping languages a manual track already covers — YouTube
+        //     offers 100+ auto-translations per video, which would drown the picker.
+        // Returns null when nothing qualifies, so the metadata stays "no tracks".
+        private static List<BasisSubtitleTrack> BuildSubtitleTracks(VideoInfo info)
+        {
+            if (info == null || info.IsLive == true) return null;
+            if (info.LiveStatus == "is_live" || info.LiveStatus == "is_upcoming") return null;
+
+            // The original language: the info dict's language field when present, else
+            // derived from the ASR track yt-dlp marks with an "-orig" suffix (the
+            // language field is null for plenty of videos that still carry captions).
+            string originalLang = info.Language;
+            string origAsrKey = null;
+            if (info.AutomaticCaptions != null)
+            {
+                foreach (KeyValuePair<string, List<SubtitleTrack>> pair in info.AutomaticCaptions)
+                {
+                    if (!pair.Key.EndsWith("-orig", StringComparison.OrdinalIgnoreCase)) continue;
+                    origAsrKey = pair.Key;
+                    if (string.IsNullOrEmpty(originalLang))
+                        originalLang = pair.Key.Substring(0, pair.Key.Length - "-orig".Length);
+                    break;
+                }
+            }
+            string systemLang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+
+            var tracks = new List<BasisSubtitleTrack>();
+
+            // Manual tracks first. Two passes: languages matching original/system, then
+            // — only if that found nothing — every manual track.
+            if (info.Subtitles != null && info.Subtitles.Count > 0)
+            {
+                AddManualTracks(tracks, info.Subtitles, originalLang, systemLang, matchedOnly: true);
+                if (tracks.Count == 0)
+                    AddManualTracks(tracks, info.Subtitles, originalLang, systemLang, matchedOnly: false);
+            }
+
+            // Auto tracks: original-language ASR, then the system language if distinct;
+            // both skipped when a manual track already covers the language.
+            if (info.AutomaticCaptions != null && info.AutomaticCaptions.Count > 0)
+            {
+                string origKey = origAsrKey ?? FindKeyByLanguage(info.AutomaticCaptions, originalLang);
+                if (origKey != null) AddAutoTrack(tracks, info.AutomaticCaptions, origKey);
+                if (!SameLanguage(systemLang, origKey))
+                {
+                    string systemKey = FindKeyByLanguage(info.AutomaticCaptions, systemLang);
+                    if (systemKey != null) AddAutoTrack(tracks, info.AutomaticCaptions, systemKey);
+                }
+            }
+
+            return tracks.Count > 0 ? tracks : null;
+        }
+
+        private static void AddManualTracks(
+            List<BasisSubtitleTrack> tracks,
+            Dictionary<string, List<SubtitleTrack>> subtitles,
+            string originalLang, string systemLang, bool matchedOnly)
+        {
+            foreach (KeyValuePair<string, List<SubtitleTrack>> pair in subtitles)
+            {
+                if (tracks.Count >= MaxSubtitleTracks) return;
+                if (matchedOnly && !SameLanguage(pair.Key, originalLang) && !SameLanguage(pair.Key, systemLang)) continue;
+                SubtitleTrack json3 = FindJson3(pair.Value);
+                if (json3 == null) continue;
+                tracks.Add(new BasisSubtitleTrack
+                {
+                    Url = json3.Url,
+                    Format = "json3",
+                    Language = pair.Key,
+                    Label = !string.IsNullOrEmpty(json3.Name) ? json3.Name : pair.Key,
+                    IsAutoGenerated = false,
+                });
+            }
+        }
+
+        private static void AddAutoTrack(
+            List<BasisSubtitleTrack> tracks,
+            Dictionary<string, List<SubtitleTrack>> autoCaptions,
+            string key)
+        {
+            if (tracks.Count >= MaxSubtitleTracks) return;
+            foreach (BasisSubtitleTrack existing in tracks)
+            {
+                if (SameLanguage(existing.Language, key)) return;
+            }
+            if (!autoCaptions.TryGetValue(key, out List<SubtitleTrack> entries)) return;
+            SubtitleTrack json3 = FindJson3(entries);
+            if (json3 == null) return;
+
+            // "English (Original)" -> "English (auto)" rather than stacking suffixes.
+            string name = !string.IsNullOrEmpty(json3.Name) ? json3.Name : key;
+            const string origSuffix = " (Original)";
+            if (name.EndsWith(origSuffix, StringComparison.Ordinal))
+                name = name.Substring(0, name.Length - origSuffix.Length);
+
+            tracks.Add(new BasisSubtitleTrack
+            {
+                Url = json3.Url,
+                Format = "json3",
+                Language = key,
+                Label = $"{name} (auto)",
+                IsAutoGenerated = true,
+            });
+        }
+
+        // Finds the dictionary key for a language: exact match first, then any key
+        // sharing the primary subtag (a Chinese system locale is "zh" while YouTube's
+        // auto tracks key as "zh-Hans"/"zh-Hant"). "-orig" keys are skipped here — the
+        // original-language pass handles those.
+        private static string FindKeyByLanguage(Dictionary<string, List<SubtitleTrack>> dict, string lang)
+        {
+            if (string.IsNullOrEmpty(lang)) return null;
+            if (dict.ContainsKey(lang)) return lang;
+            foreach (KeyValuePair<string, List<SubtitleTrack>> pair in dict)
+            {
+                if (pair.Key.EndsWith("-orig", StringComparison.OrdinalIgnoreCase)) continue;
+                if (SameLanguage(pair.Key, lang)) return pair.Key;
+            }
+            return null;
+        }
+
+        private static SubtitleTrack FindJson3(List<SubtitleTrack> entries)
+        {
+            if (entries == null) return null;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                SubtitleTrack t = entries[i];
+                if (t != null && t.Ext == "json3" && !string.IsNullOrEmpty(t.Url)) return t;
+            }
+            return null;
+        }
+
+        // Language-code comparison on the primary subtag: "en-GB", "en-orig" and "en"
+        // are all the same language for track-list purposes.
+        private static bool SameLanguage(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            string pa = PrimarySubtag(a), pb = PrimarySubtag(b);
+            return string.Equals(pa, pb, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string PrimarySubtag(string code)
+        {
+            int dash = code.IndexOf('-');
+            return dash > 0 ? code.Substring(0, dash) : code;
         }
 
         // Maps yt-dlp's live-status metadata onto the engine's delivery hint, so the

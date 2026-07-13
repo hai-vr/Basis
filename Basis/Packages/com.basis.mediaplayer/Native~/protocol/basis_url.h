@@ -14,11 +14,13 @@ typedef struct basis_url {
     char user[128];
     char pass[128];
     int  tls;          /* 1 for rtmps/https */
+    int  force_tcp;    /* 1 for rtspt: RTSP skips UDP negotiation, TCP-interleaved only */
 } basis_url_t;
 
 /* Returns 0 on success. Fills defaults: rtsp/rtspt=554, rtmp=1935, rtmps=443,
- * http=80, https=443. rtspt is normalised to scheme "rtsp" with tls=0 (the
- * "t" only means "interleave RTP over the TCP control channel"). */
+ * http=80, https=443. rtspt is normalised to scheme "rtsp" with tls=0 and
+ * force_tcp=1 (the "t" pins RTP to the TCP control channel; plain rtsp
+ * negotiates UDP first and falls back to TCP). */
 int basis_url_parse(const char* url, basis_url_t* out);
 
 /* 1 if the scheme uses our custom TCP control protocols (rtsp/rtmp family). */
