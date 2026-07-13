@@ -1064,6 +1064,33 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void NetworkDecodeSchedulesSharedErrorWritersInDependencyOrder()
+        {
+            using BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { new Color32(255, 255, 255, 128) }
+                )
+            );
+            using var encode = new BasisBurstAnimationEncodeRequest(data);
+            BasisBurstAnimationEncodeResult encoded = encode.Complete();
+            Assert.That(encoded.Ok, Is.True, encoded.Error);
+            using BasisNativeAnimationPayload payload = encoded.TakePayload();
+            Assert.That(payload, Is.Not.Null);
+
+            using var decode = new BasisBurstAnimationDecodeRequest(payload.Bytes, payload.Length, false);
+            BasisBurstAnimationDecodeResult decoded = decode.Complete();
+            Assert.That(decoded.Ok, Is.True, decoded.Error);
+            using BasisAnimatedImageData decodedData = decoded.TakeAnimation();
+            Assert.That(decodedData, Is.Not.Null);
+            Assert.That(decodedData.HasAnyAlpha, Is.True);
+            Assert.That(decodedData.HasPartialAlpha, Is.True);
+        }
+
+        [Test]
         public void AnimationNativeMemoryBudgetHonorsExactBoundary()
         {
             Assert.That(BasisAnimatedImageData.FitsMemoryBudget(100, 50, 25, 175), Is.True);

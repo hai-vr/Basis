@@ -611,33 +611,46 @@ namespace Basis.ImagePickup
                     return;
                 }
 
-                var unpackFramesJob = new BasisAnimationUnpackFramesJob
+                JobHandle frames = default;
+                JobHandle pixels = default;
+                try
                 {
-                    Raw = _raw,
-                    Header = header,
-                    Frames = _frames,
-                    FrameEnds = _frameEnds,
-                    Errors = _errors,
-                };
-                JobHandle frames = unpackFramesJob.ScheduleParallelByRef(header.FrameCount, 64, default);
-                var unpackPixelsJob = new BasisAnimationUnpackPixelsJob
+                    var unpackFramesJob = new BasisAnimationUnpackFramesJob
+                    {
+                        Raw = _raw,
+                        Header = header,
+                        Frames = _frames,
+                        FrameEnds = _frameEnds,
+                        Errors = _errors,
+                    };
+                    frames = unpackFramesJob.ScheduleParallelByRef(header.FrameCount, 64, default);
+                    var unpackPixelsJob = new BasisAnimationUnpackPixelsJob
+                    {
+                        SourceOffset = header.PixelDataOffset,
+                        Raw = _raw,
+                        Pixels = _pixels,
+                    };
+                    pixels = unpackPixelsJob.ScheduleParallelByRef(header.PixelCount, 512, default);
+                    JobHandle dependencies = JobHandle.CombineDependencies(frames, pixels);
+                    _handle = new BasisAnimationValidateAlphaJob
+                    {
+                        Header = header,
+                        Pixels = _pixels,
+                        Errors = _errors,
+                        ErrorIndex = header.FrameCount,
+                    }.Schedule(dependencies);
+                    JobHandle.ScheduleBatchedJobs();
+                    _state = DecodeState.Unpack;
+                    return;
+                }
+                catch (Exception exception)
                 {
-                    SourceOffset = header.PixelDataOffset,
-                    Raw = _raw,
-                    Pixels = _pixels,
-                };
-                JobHandle pixels = unpackPixelsJob.ScheduleParallelByRef(header.PixelCount, 512, default);
-                JobHandle alpha = new BasisAnimationValidateAlphaJob
-                {
-                    Header = header,
-                    Pixels = _pixels,
-                    Errors = _errors,
-                    ErrorIndex = header.FrameCount,
-                }.Schedule(pixels);
-                _handle = JobHandle.CombineDependencies(frames, alpha);
-                JobHandle.ScheduleBatchedJobs();
-                _state = DecodeState.Unpack;
-                return;
+                    _handle.Complete();
+                    pixels.Complete();
+                    frames.Complete();
+                    FinishFailure("Animation job scheduling failed: " + exception.Message);
+                    return;
+                }
             }
 
             BasisAnimationBodyHeader completedHeader = _bodyHeader[0];

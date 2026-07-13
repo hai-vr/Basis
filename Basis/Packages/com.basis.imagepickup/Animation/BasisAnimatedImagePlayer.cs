@@ -303,8 +303,29 @@ namespace Basis.ImagePickup
         {
             if (_reloadRequest == null)
                 return _data != null;
-            if (!_reloadRequest.TryComplete(out BasisBurstAnimationDecodeResult result))
+
+            BasisBurstAnimationDecodeResult result;
+            try
             {
+                if (!_reloadRequest.TryComplete(out result))
+                    return false;
+            }
+            catch (Exception exception)
+            {
+                _reloadFailed = true;
+                BasisDebug.LogWarning(
+                    $"Animated image could not restore its decoded frame data: {exception.Message}",
+                    LogTag
+                );
+                try
+                {
+                    _reloadRequest.Dispose();
+                }
+                finally
+                {
+                    _reloadRequest = null;
+                    ReleaseReloadDecodeSlot();
+                }
                 return false;
             }
 
