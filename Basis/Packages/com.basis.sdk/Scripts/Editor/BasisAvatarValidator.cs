@@ -217,6 +217,10 @@ public class BasisAvatarValidator
                     BasisEditorLocalization.Get("sdk.avatarValidator.animator.noAvatar.fix")
                 ));
             }
+            else
+            {
+                ValidateHumanoidRig(ref errors, ref warnings, ref passes);
+            }
         }
         else
         {
@@ -495,6 +499,63 @@ public class BasisAvatarValidator
             }
         }
         EditorUtility.SetDirty(Avatar);
+    }
+
+    private static readonly HumanBodyBones[] RequiredHumanoidBones =
+    {
+        HumanBodyBones.Hips, HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.Neck, HumanBodyBones.Head,
+        HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand,
+        HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand,
+        HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot,
+        HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot
+    };
+
+    private static readonly HumanBodyBones[] RecommendedHumanoidBones =
+    {
+        HumanBodyBones.LeftShoulder, HumanBodyBones.RightShoulder,
+        HumanBodyBones.LeftEye, HumanBodyBones.RightEye
+    };
+
+    private void ValidateHumanoidRig(ref List<BasisValidationIssue> errors, ref List<BasisValidationIssue> warnings, ref List<string> passes)
+    {
+        UnityEngine.Avatar rig = Avatar.Animator.avatar;
+        if (!rig.isValid || !rig.isHuman)
+        {
+            errors.Add(new BasisValidationIssue(
+                BasisEditorLocalization.Get("sdk.avatarValidator.rig.notHumanoid"), ValidationCategory.Configuration,
+                FixTryCreateHumanoidAvatarOnSourceModels,
+                BasisEditorLocalization.Get("sdk.avatarValidator.animator.noAvatar.fix")
+            ));
+            return;
+        }
+
+        List<string> missingRequired = new List<string>();
+        foreach (HumanBodyBones bone in RequiredHumanoidBones)
+        {
+            if (Avatar.Animator.GetBoneTransform(bone) == null)
+                missingRequired.Add(bone.ToString());
+        }
+
+        List<string> missingRecommended = new List<string>();
+        foreach (HumanBodyBones bone in RecommendedHumanoidBones)
+        {
+            if (Avatar.Animator.GetBoneTransform(bone) == null)
+                missingRecommended.Add(bone.ToString());
+        }
+
+        if (missingRequired.Count == 0)
+            passes.Add(BasisEditorLocalization.Get("sdk.avatarValidator.rig.bonesMapped"));
+        else
+            errors.Add(new BasisValidationIssue(
+                BasisEditorLocalization.Get("sdk.avatarValidator.rig.missingBones", string.Join(", ", missingRequired)),
+                ValidationCategory.Configuration, null
+            ));
+
+        if (missingRecommended.Count > 0)
+            warnings.Add(new BasisValidationIssue(
+                BasisEditorLocalization.Get("sdk.avatarValidator.rig.missingOptionalBones", string.Join(", ", missingRecommended)),
+                ValidationCategory.Configuration, null, "", Avatar.Animator
+            ));
     }
 
     private void ValidateTranslationDof(ref List<BasisValidationIssue> warnings, ref List<string> passes)
