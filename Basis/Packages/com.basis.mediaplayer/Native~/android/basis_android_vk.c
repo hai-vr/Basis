@@ -73,6 +73,7 @@ struct basis_vk_present {
     pthread_mutex_t lock;
     AHardwareBuffer* pending;   /* newest decoded buffer awaiting import */
     int w, h;
+    float uv[4];                /* crop UV transform for `pending` (scale.xy, offset.zw) */
 
     /* format-keyed resolve pipeline (rebuilt only if the external format changes) */
     int      haveFormat;
@@ -123,12 +124,15 @@ basis_vk_present* basis_vk_create(void) {
     return v;
 }
 
-void basis_vk_set_hardware_buffer(basis_vk_present* v, AHardwareBuffer* ahb, int w, int h) {
+void basis_vk_set_hardware_buffer(basis_vk_present* v, AHardwareBuffer* ahb, int w, int h,
+                                  const float uvXform[4]) {
     if (!v || !ahb) return;
     AHardwareBuffer_acquire(ahb);
     pthread_mutex_lock(&v->lock);
     if (v->pending) AHardwareBuffer_release(v->pending);
     v->pending = ahb; v->w = w; v->h = h;
+    if (uvXform) { v->uv[0] = uvXform[0]; v->uv[1] = uvXform[1]; v->uv[2] = uvXform[2]; v->uv[3] = uvXform[3]; }
+    else { v->uv[0] = v->uv[1] = 1.0f; v->uv[2] = v->uv[3] = 0.0f; }
     pthread_mutex_unlock(&v->lock);
 }
 
@@ -309,8 +313,11 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
         if (vkAllocateDescriptorSets(v->device, &dai, &v->ring[i].set) != VK_SUCCESS) return -1;
     }
 
+    /* vec4 crop UV transform, pushed per frame into the vertex stage */
+    VkPushConstantRange pcr = { VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * sizeof(float) };
     VkPipelineLayoutCreateInfo plc = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
     plc.setLayoutCount = 1; plc.pSetLayouts = &v->dsLayout;
+    plc.pushConstantRangeCount = 1; plc.pPushConstantRanges = &pcr;
     if (vkCreatePipelineLayout(v->device, &plc, NULL, &v->pipeLayout) != VK_SUCCESS) return -1;
 
     /* render pass: write rgba then hand it to Unity already SHADER_READ_ONLY */
@@ -492,9 +499,10 @@ int basis_vk_render_update(basis_vk_present* v) {
      * returns a non-zero size; until then the demuxer's AHBs sit in v->pending. */
     if (!v->unityNativeTex) return 0;
 
-    AHardwareBuffer* ahb = NULL; int w, h;
+    AHardwareBuffer* ahb = NULL; int w, h; float uv[4];
     pthread_mutex_lock(&v->lock);
     ahb = v->pending; v->pending = NULL; w = v->w; h = v->h;
+    uv[0] = v->uv[0]; uv[1] = v->uv[1]; uv[2] = v->uv[2]; uv[3] = v->uv[3];
     pthread_mutex_unlock(&v->lock);
     if (!ahb) return 0;
 
@@ -579,6 +587,7 @@ int basis_vk_render_update(basis_vk_present* v) {
     vkCmdSetScissor(cmd, 0, 1, &sc);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, v->pipeLayout, 0, 1, &s->set, 0, NULL);
+    vkCmdPushConstants(cmd, v->pipeLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uv), uv);
     vkCmdDraw(cmd, 3, 1, 0, 0);
     vkCmdEndRenderPass(cmd);
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS) { destroy_slot(v, s); return 0; }
