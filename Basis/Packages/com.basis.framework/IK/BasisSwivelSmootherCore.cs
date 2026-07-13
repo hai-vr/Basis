@@ -39,6 +39,18 @@ namespace UnityEngine.Animations.Rigging
         // swivel carries no information at all. Lerped toward MinCutoffHz as conditioning recovers. Ignored
         // unless ConditionOnPole. Pass BasisSwivelFilterCore.MinCutoffHz for the heavy standing floor.
         public float SingularMinCutoffHz;
+
+        // Forbid the mid joint from crossing BEHIND the root->tip axis (see BasisLegSolveCore.ClampKneeSwivelDeg).
+        //
+        // KNEE ONLY, and opt-in: false reproduces the legacy filter exactly, so the ELBOW path is untouched. This is
+        // not squeamishness about regressions -- it is that the constraint does not TRANSFER. The reference here is
+        // ReferenceLocal, and for the leg that is body-FORWARD, which is genuinely the direction a knee bulges. The
+        // arm's reference is body-DOWN, and an elbow does not point "down"; it points BACK. Applying a
+        // forward-anterior half-space to the elbow would clamp it to the wrong hemisphere entirely. The arm has the
+        // same inversion problem and deserves the same guard -- but with its own reference, as its own change.
+        public bool GuardAnteriorHalfSpace;
+        public float AnteriorSoftDeg;   // ignored unless GuardAnteriorHalfSpace
+        public float AnteriorHardDeg;   // ignored unless GuardAnteriorHalfSpace
     }
 
     public struct BasisSwivelSmootherResult
@@ -55,6 +67,11 @@ namespace UnityEngine.Animations.Rigging
         // 0 = the mid joint sits ON the axis (pole singularity, bend plane undefined), 1 = limb fully folded.
         // Always reported, whether or not ConditionOnPole is set, so it can be measured and gated in tests.
         public float Conditioning;
+
+        // True when the anterior half-space guard actually had to pull the joint back this frame -- i.e. the
+        // incoming swivel was trying to put the knee behind the leg. Reported so tests can prove the guard FIRES on
+        // the inverting input, not merely that the output happens to look fine.
+        public bool AnteriorGuardApplied;
     }
 
     public static class BasisSwivelSmootherCore
@@ -118,14 +135,33 @@ namespace UnityEngine.Animations.Rigging
             r.Conditioning = conditioning;
 
             float curSwivel = Vector3.SignedAngle(refDir, pole, axis);
-            r.RawSwivelDeg = curSwivel;
+            r.RawSwivelDeg = curSwivel;   // the TRUE measurement, unguarded -- diagnostics must not lie
+
+            // ANTERIOR HALF-SPACE GUARD. The knee is REBUILT below at `refDir` rotated by the smoothed swivel, so
+            // bounding that angle bounds where the knee can physically end up: the posterior half-space becomes
+            // unreachable through this core, not merely unlikely.
+            //
+            // Guard the value going INTO the filter, not just the one coming out. A One-Euro is a low-pass, and a
+            // low-pass of values inside [-hard, hard] is a convex blend of them and therefore stays inside -- so
+            // clamping the input is what makes the bound hold structurally. Clamp only the output and the filter's
+            // STATE still winds up posterior, then fights the clamp every frame and lags the release.
+            //
+            // Free side-effect worth knowing about: SignedAngle wraps at +-180, and this filter low-passes a LINEAR
+            // angle, so an unguarded swivel sweeping past the back of the leg jumps 179 -> -179 and the filter
+            // crawls the LONG way round through zero. Clamping the input to +-85 makes that wrap unreachable.
+            float guardedSwivel = curSwivel;
+            if (i.GuardAnteriorHalfSpace)
+            {
+                guardedSwivel = BasisLegSolveCore.ClampKneeSwivelDeg(curSwivel, i.AnteriorSoftDeg, i.AnteriorHardDeg);
+                r.AnteriorGuardApplied = guardedSwivel != curSwivel;
+            }
 
             if (!i.Seeded)
             {
-                r.State = BasisSwivelFilterCore.Seed(curSwivel);
+                r.State = BasisSwivelFilterCore.Seed(guardedSwivel);
                 r.Seeded = true;
                 r.WriteState = true;
-                r.SmoothSwivelDeg = curSwivel;
+                r.SmoothSwivelDeg = guardedSwivel;
                 return;
             }
 
@@ -157,11 +193,22 @@ namespace UnityEngine.Animations.Rigging
                 minCutoffHz = Mathf.Lerp(i.SingularMinCutoffHz, i.MinCutoffHz, conditioning);
             }
 
-            BasisSwivelFilterState state = BasisSwivelFilterCore.Step(i.State, curSwivel, i.Dt, minCutoffHz, beta, i.DerivCutoffHz);
+            BasisSwivelFilterState state = BasisSwivelFilterCore.Step(i.State, guardedSwivel, i.Dt, minCutoffHz, beta, i.DerivCutoffHz);
             r.State = state;
             r.Seeded = true;
             r.WriteState = true;
-            r.SmoothSwivelDeg = state.Smooth;
+
+            // Belt and braces. Clamping the input already bounds this (a low-pass of bounded values is bounded), so
+            // in a correct filter this is a no-op -- which is the point: the anatomical invariant is then guaranteed
+            // by the ANGLE THAT BUILDS THE BONE, not by trusting an upstream filter to have stayed in range. Seeded
+            // state restored from a previous frame, or any future change to the filter, cannot smuggle the knee
+            // through the joint.
+            float outSwivel = state.Smooth;
+            if (i.GuardAnteriorHalfSpace)
+            {
+                outSwivel = BasisLegSolveCore.ClampKneeSwivelDeg(outSwivel, i.AnteriorSoftDeg, i.AnteriorHardDeg);
+            }
+            r.SmoothSwivelDeg = outSwivel;
 
             Vector3 center = i.Root + axis * Vector3.Dot(i.Mid - i.Root, axis);
             float radius = (i.Mid - center).magnitude;
@@ -170,7 +217,7 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
 
-            r.DesiredMid = center + (Quaternion.AngleAxis(state.Smooth, axis) * refDir) * radius;
+            r.DesiredMid = center + (Quaternion.AngleAxis(outSwivel, axis) * refDir) * radius;
             r.Valid = true;
         }
     }

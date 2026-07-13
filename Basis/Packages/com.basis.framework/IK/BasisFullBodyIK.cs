@@ -2546,6 +2546,12 @@ w20, w54;
             // Only the LEG opts in; the arm keeps the legacy path.
             input.ConditionOnPole = true;
             input.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+            // A knee is a hinge: it cannot bend backwards. The solve already refuses to PLACE the knee posterior
+            // (BasisLegSolveCore's pole guard), but this smoother MOVES it afterwards, so without the same bound
+            // here a lagging filter could still drag it through the joint. Same limits, one shared clamp.
+            input.GuardAnteriorHalfSpace = true;
+            input.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
+            input.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
             input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
             input.Seeded = legSwivelInit[slot] != 0;
 

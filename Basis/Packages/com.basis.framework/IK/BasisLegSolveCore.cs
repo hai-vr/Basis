@@ -33,7 +33,7 @@ namespace UnityEngine.Animations.Rigging
         public float TargetDistance;
         public float ReachRatio;
         public float KneeAngleDeg;
-        public byte AxisSource;     // 0 plane-normal, 1 hint (straight leg), 2 target (straight leg), 3 bend-normal, 4 pole blended toward bend-normal
+        public byte AxisSource;     // 0 plane-normal, 1 hint (straight leg), 2 target (straight leg), 3 bend-normal, 4 pole blended toward bend-normal, 5 pole clamped into the anterior half-space
         public float FootError;
     }
 
@@ -53,6 +53,76 @@ namespace UnityEngine.Animations.Rigging
         const float k_PoleColinearSin = 0.5f; // sin(30deg): a hint nearer the leg axis than this is unreliable
 
         public const float MinKneeInteriorDeg = 20f; // max human knee flexion ~160deg; folding past this drives the calf through the thigh
+
+        // ANTERIOR HALF-SPACE: how far the knee may swivel away from "in front of the leg" before the guard bites.
+        //
+        // A knee is a HINGE. It flexes one way -- heel toward the backside -- so the knee ALWAYS bulges anterior to
+        // the hip->ankle axis. A knee behind that axis is not "unnatural", it is anatomically unrepresentable, so
+        // the guard is a hard constraint rather than a tuning knob (same status as MinKneeInteriorDeg above).
+        //
+        // The angles are measured from ANTERIOR, about the hip->ankle axis:
+        //   0 deg  = knee dead ahead of the leg      90 deg = knee dead lateral      180 deg = knee INVERTED
+        // so `dot(kneeDir, anterior) > 0` is exactly `|swivel| < 90`.
+        //
+        //   SOFT (85): everything below passes through EXACTLY untouched.
+        //   HARD (89.5): the asymptote. Strictly under 90, so dot(kneeDir, anterior) stays strictly POSITIVE -- the
+        //                posterior half-space is not merely discouraged, it is unreachable.
+        //
+        // The soft band sits at 85 and not lower because 90deg is NOT an inversion -- it is a knee pointing dead
+        // LATERAL, which is a legal (if extreme) pose, and the codebase already contracts to honour it:
+        // BasisLegHintReachTests.KneeHint_StillActuallySwivelsTheKnee parks the hint at exactly +X, 90deg off
+        // anterior, and demands the knee follow it to within 15deg. Only PAST 90 does the knee go through the joint.
+        // So the guard has to bite as late as it possibly can while still asymptoting under 90: a 90deg lateral hint
+        // is nudged just 2.6deg, butterfly splay (60deg) and hip abduction (~45deg) are not touched at all, and an
+        // outright inverting hint still cannot reach the far side. Set SOFT lower and the guard starts bending legal
+        // poses to fix an illegal one, which is the wrong trade.
+        public const float KneeAnteriorSoftDeg = 85f;
+        public const float KneeAnteriorHardDeg = 89.5f;
+
+        // Compress a knee swivel (degrees from anterior) into the anterior half-space.
+        //
+        // Below `softDeg` this is the IDENTITY -- byte for byte, so a legitimate pose is not perturbed by a guard
+        // that has no business firing. Past it, the excess is squashed through a rational saturation that has slope
+        // exactly 1 where it takes over and asymptotes to `hardDeg`:
+        //
+        //     out = soft + M * e / (M + e),   e = |x| - soft,   M = hard - soft
+        //
+        // Slope-1 at the handover means NO derivative step: the knee eases into the limit instead of hitting a wall,
+        // which is the difference between a guard and a jerk. The asymptote means the limit is never even reached,
+        // let alone crossed, so `dot > 0` holds by construction and not by a tolerance. And it is a rational
+        // function -- no transcendentals, safe and cheap inside a Burst job.
+        //
+        // Shared, not duplicated: this is the ONE implementation, called by the solve (which places the knee) and by
+        // BasisSwivelSmootherCore (which can move it afterwards). Two copies of an anatomical constraint is exactly
+        // the hand-mirror failure that has bitten this codebase repeatedly -- the sweep and the runtime silently
+        // disagreeing about what the rule was.
+        public static float ClampKneeSwivelDeg(float swivelDeg, float softDeg, float hardDeg)
+        {
+            float mag = swivelDeg < 0f ? -swivelDeg : swivelDeg;
+
+            // Reject-unless-good. NaN fails every ordered comparison, so `!(mag >= 0f)` is TRUE for NaN and sends it
+            // to the safe anterior default. Written the other way round (`if (float.IsNaN(mag))` aside), a guard of
+            // the shape `if (mag < 0f) return ...` would let NaN sail straight through into the bone.
+            if (!(mag >= 0f))
+            {
+                return 0f;
+            }
+
+            if (!(mag > softDeg))
+            {
+                return swivelDeg;   // inside the free band: identity, exactly
+            }
+
+            float maxExcess = hardDeg - softDeg;
+            if (!(maxExcess > 0f))
+            {
+                return swivelDeg < 0f ? -softDeg : softDeg;   // degenerate limits: fall back to a hard clamp
+            }
+
+            float excess = mag - softDeg;
+            float compressed = softDeg + maxExcess * excess / (maxExcess + excess);
+            return swivelDeg < 0f ? -compressed : compressed;
+        }
 
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
         {
@@ -222,6 +292,45 @@ namespace UnityEngine.Animations.Rigging
                 }
 
                 pole -= acNorm * Vector3.Dot(pole, acNorm);   // the pole-colinear slerp can tilt it; back into the swing plane
+
+                // -----------------------------------------------------------------------------------------
+                // ANTERIOR HALF-SPACE GUARD -- a knee cannot bend backwards, so make that unreachable.
+                //
+                // This swivel rotates the knee ONTO the pole, so at full weight the knee's final direction IS the
+                // pole direction. Guarding the POLE therefore guards the KNEE, structurally: there is no path by
+                // which the solve can place the knee somewhere the pole is forbidden to point.
+                //
+                // `bendPole` is the anterior reference and it is already in the swing plane -- Cross(acNorm,
+                // BendNormal) with BendNormal = hips-right and acNorm = hip->ankle, which is "in front of the leg,
+                // as seen from the leg's own axis". It is a BODY-frame quantity, so it co-rotates with the player
+                // and cannot go stale on a turn (a world-frame reference here would lag every yaw -- the defect
+                // BasisSwivelSmootherCore exists to remove).
+                //
+                // WHY THIS FIRES: the hint is a real tracker, and a real knee is never behind the leg. But push the
+                // foot forward and the leg EXTENDS -- the knee's lever arm off the axis collapses toward zero, and
+                // at ~1.0 reach a few millimetres of tracker offset is enough to tip the projected pole across the
+                // axis and land the knee posterior. The leg inverts. That is the "extension 0.999 inversion" defect,
+                // and it is the same pole singularity as the swivel snap; this is its other half. The BEND step
+                // cannot save us either, because it saturates at a straight leg rather than refusing -- so the only
+                // place the inversion can be stopped is here, at the pole.
+                // -----------------------------------------------------------------------------------------
+                if (hasBendPole && pole.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 anterior = bendPole.normalized;
+                    float poleDeg = SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
+                    float guardedDeg = ClampKneeSwivelDeg(poleDeg, KneeAnteriorSoftDeg, KneeAnteriorHardDeg);
+
+                    // Only rebuild when the guard actually bit. ClampKneeSwivelDeg returns its argument unchanged
+                    // inside the free band, so this compares equal and every legitimate pose takes the untouched
+                    // path -- no normalisation, no float drift, bit-for-bit the pre-guard solver.
+                    // A NaN pole angle lands here too: the clamp returns 0, and `0f != NaN` is true, so the knee is
+                    // rebuilt pointing dead ahead rather than being fed NaN.
+                    if (guardedDeg != poleDeg)
+                    {
+                        pole = AngleAxisRad(guardedDeg * Mathf.Deg2Rad, acNorm) * anterior;
+                        axisSource = 5;
+                    }
+                }
 
                 // No near-extension fade, and no near-extension blend back toward BendNormal. Both used to live
                 // here, and both were guarding the WRONG QUANTITY -- the same mistake, one level up, that the
