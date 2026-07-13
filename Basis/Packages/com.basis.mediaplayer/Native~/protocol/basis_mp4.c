@@ -952,10 +952,16 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
             /* media data with no index yet: the moov may still follow (trailing-
              * moov progressive file). Skip it, but remember where the first one
              * started so a range-capable source can seek back once the moov's
-             * sample tables arrive. */
+             * sample tables arrive. On such a source seek straight past the mdat
+             * rather than streaming its payload — otherwise reaching a trailing
+             * moov reads the whole file before playback can begin. */
             m.mdat_skipped = 1;
             if (m.mdat_seek_pos < 0) m.mdat_seek_pos = m.pos;
-            if (body < 0 || skip_bytes(&m, body) != 0) break;
+            if (body < 0) break;
+            if (m.reseek && m.reseek(m.reseek_ctx, add_i64_sat(m.pos, body)) == 0)
+                m.pos = add_i64_sat(m.pos, body);
+            else if (skip_bytes(&m, body) != 0)
+                break;
             continue;
         }
 
