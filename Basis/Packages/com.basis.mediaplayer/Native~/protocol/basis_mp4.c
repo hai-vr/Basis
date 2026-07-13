@@ -270,11 +270,31 @@ static const mp4_sidx_ref_t* sidx_find_ref(const mp4_sidx_index_t* idx, int64_t 
 /* ---- moov parsing ------------------------------------------------------- */
 
 /* Reads an MP4 expandable descriptor length (7 bits/byte, high bit continues,
- * up to 4 bytes) at *j, advancing *j past it. */
-static uint32_t esds_desc_len(const uint8_t* p, int el, int* j) {
-    uint32_t v = 0; int n = 0, b;
-    do { if (*j >= el) break; b = p[(*j)++]; v = (v << 7) | (uint32_t)(b & 0x7F); }
-    while ((b & 0x80) && n++ < 3);
+ * max 4 bytes) at *j, advancing *j past it, into *out. Returns 1 on a length
+ * that terminates within 4 bytes and within el; 0 if the payload runs out
+ * (truncated) or a fourth byte still has its continuation bit set (malformed). */
+static int esds_desc_len(const uint8_t* p, int el, int* j, uint32_t* out) {
+    uint32_t v = 0;
+    for (int n = 0; n < 4; ++n) {
+        if (*j >= el) return 0;                       /* truncated */
+        int b = p[(*j)++];
+        v = (v << 7) | (uint32_t)(b & 0x7F);
+        if (!(b & 0x80)) { *out = v; return 1; }      /* terminating byte */
+    }
+    return 0;                                          /* unterminated after 4 bytes */
+}
+
+/* Reads nb bits (nb <= 24, MSB-first) from buf at *pos, advancing *pos. Returns
+ * the value, or -1 and sets *pos < 0 if the read runs past the buffer. */
+static int asc_read_bits(const uint8_t* buf, int len, int* pos, int nb) {
+    if (*pos < 0) return -1;
+    int v = 0;
+    for (int i = 0; i < nb; ++i) {
+        int b = *pos + i;
+        if (b >= len * 8) { *pos = -1; return -1; }
+        v = (v << 1) | ((buf[b >> 3] >> (7 - (b & 7))) & 1);
+    }
+    *pos += nb;
     return v;
 }
 
@@ -287,19 +307,23 @@ static uint32_t esds_desc_len(const uint8_t* p, int el, int* j) {
  * walked by tag+length. */
 static int esds_extract_asc(const uint8_t* ep, int el, uint8_t* asc, int cap) {
     int j = 0;
+    uint32_t len;
     if (j >= el || ep[j++] != 0x03) return 0;                 /* ES_Descriptor */
-    esds_desc_len(ep, el, &j);
-    if (j + 3 > el) return 0;
+    if (!esds_desc_len(ep, el, &j, &len) || len > (uint32_t)(el - j)) return 0;
+    int es_end = j + (int)len;                                /* the ES descriptor bounds its children */
+    if (j + 3 > es_end) return 0;
     int flags = ep[j + 2]; j += 3;                            /* ES_ID(2) + flags(1) */
     if (flags & 0x80) j += 2;                                 /* streamDependenceFlag */
-    if (flags & 0x40) { if (j >= el) return 0; j += 1 + ep[j]; } /* URL_flag */
+    if (flags & 0x40) { if (j >= es_end) return 0; j += 1 + ep[j]; } /* URL_flag */
     if (flags & 0x20) j += 2;                                 /* OCRstreamFlag */
-    if (j >= el || ep[j++] != 0x04) return 0;                 /* DecoderConfigDescriptor */
-    esds_desc_len(ep, el, &j);
+    if (j >= es_end || ep[j++] != 0x04) return 0;             /* DecoderConfigDescriptor */
+    if (!esds_desc_len(ep, es_end, &j, &len) || len < 13 || len > (uint32_t)(es_end - j)) return 0;
+    int dec_end = j + (int)len;                               /* DecoderConfig bounds the ASC */
     j += 13;                                                  /* objType+streamType+bufSize(3)+maxBR(4)+avgBR(4) */
-    if (j >= el || ep[j++] != 0x05) return 0;                 /* DecoderSpecificInfo */
-    uint32_t dlen = esds_desc_len(ep, el, &j);
-    if (dlen < 2 || (int)dlen > cap || j > el - (int)dlen) return 0;
+    if (j >= dec_end || ep[j++] != 0x05) return 0;            /* DecoderSpecificInfo */
+    uint32_t dlen;
+    if (!esds_desc_len(ep, dec_end, &j, &dlen)) return 0;
+    if (dlen < 2 || (int)dlen > cap || (int)dlen > dec_end - j) return 0;
     memcpy(asc, ep + j, dlen);
     return (int)dlen;
 }
@@ -349,11 +373,23 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                     int n = esds_extract_asc(ep, el, t->asc, (int)sizeof(t->asc));
                     if (n >= 2) {
                         t->asc_len = n;
-                        int aot = (t->asc[0] >> 3) & 0x1F;
-                        int sri = ((t->asc[0] & 7) << 1) | (t->asc[1] >> 7);
-                        t->obj = aot;
-                        if (!t->sr) t->sr = basis_aac_sample_rate_from_index(sri);
-                        if (!t->ch) t->ch = basis_aac_channels_from_config((t->asc[1] >> 3) & 0xF);
+                        /* Walk the ASC bit fields so the escape forms parse
+                         * correctly: audioObjectType 31 carries 6 extra bits
+                         * (AOT = 32 + value), and samplingFrequencyIndex 15 a
+                         * 24-bit explicit rate, both of which shift the
+                         * channelConfiguration that follows. */
+                        int bit = 0;
+                        int aot = asc_read_bits(t->asc, n, &bit, 5);
+                        if (aot == 31) aot = 32 + asc_read_bits(t->asc, n, &bit, 6);
+                        int sri = asc_read_bits(t->asc, n, &bit, 4);
+                        int sr = sri == 15 ? asc_read_bits(t->asc, n, &bit, 24)
+                                           : basis_aac_sample_rate_from_index(sri);
+                        int chcfg = asc_read_bits(t->asc, n, &bit, 4);
+                        if (bit >= 0) {   /* every field fit inside the ASC */
+                            t->obj = aot;
+                            if (!t->sr && sr > 0) t->sr = sr;
+                            if (!t->ch) t->ch = basis_aac_channels_from_config(chcfg);
+                        }
                     }
                 }
                 co += csz;
