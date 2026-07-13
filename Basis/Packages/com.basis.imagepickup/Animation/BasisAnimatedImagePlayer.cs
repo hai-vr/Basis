@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Basis.Scripts.Networking;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -22,7 +22,6 @@ namespace Basis.ImagePickup
         private BasisNativeAnimationPayload _reloadPayload;
         private BasisBurstAnimationDecodeRequest _reloadRequest;
         private BasisImagePickupObject _pickup;
-        private BasisAnimatedImageScheduler _scheduler;
         private BasisAnimatedImageGpuCanvas _gpuCanvas;
         private BasisAnimatedImageCpuCanvas _cpuCanvas;
         private long _playbackEpochUtcTicks;
@@ -103,14 +102,13 @@ namespace Basis.ImagePickup
             _depthVisible = false;
             _depthVisibilityValid = false;
             _depthVisibilityFromGpu = false;
-            _scheduler = BasisAnimatedImageScheduler.EnsureInstance();
 
             // Keep the static poster bound until a rendering camera can actually see this pickup.
             // This avoids allocating a full animation atlas and one or two full-size canvases for
             // images that spawn behind the player or outside every rendering camera frustum.
             _initialized = true;
-            _scheduler.Register(this);
-            _scheduler.EnforceDecodedPixelBudget(this);
+            BasisImagePickupManager.RegisterAnimatedPlayer(this);
+            BasisImagePickupManager.EnforceDecodedPixelBudget(this);
             return true;
         }
 
@@ -282,7 +280,7 @@ namespace Basis.ImagePickup
             }
             else
             {
-                processedTransitions = _cpuCanvas.UpdateToState(
+                processedTransitions = _cpuCanvas.BeginUpdateToState(
                     targetPlayIndex,
                     targetFrameIndex,
                     transitionsRemaining,
@@ -302,18 +300,50 @@ namespace Basis.ImagePickup
                 BindDisplayTexture();
         }
 
+        /// <summary>
+        /// True while composition or atlas work scheduled by <see cref="Schedule"/> is still in
+        /// flight on the worker threads.
+        /// </summary>
+        internal bool HasPendingJobs =>
+            (_cpuCanvas != null && _cpuCanvas.HasPendingCompose)
+            || (_gpuCanvas != null && _gpuCanvas.HasPendingAtlasPage);
+
+        /// <summary>
+        /// Lands the work scheduled by <see cref="Schedule"/> and performs the main-thread uploads.
+        /// The manager calls this once per frame, after the GPU command buffer has been executed.
+        /// </summary>
+        internal void FlushPendingJobs()
+        {
+            _cpuCanvas?.FlushPendingCompose();
+
+            if (_gpuCanvas == null || !_gpuCanvas.HasPendingAtlasPage)
+                return;
+            try
+            {
+                _gpuCanvas.FlushPendingAtlasPage();
+            }
+            catch (Exception exception)
+            {
+                BasisDebug.LogWarning(
+                    $"Animated image atlas upload failed; using CPU fallback: {exception.Message}",
+                    LogTag
+                );
+                SwitchToCpuFallback();
+            }
+        }
+
         private bool EnsureAnimationData()
         {
             if (_data != null)
                 return true;
-            if (_reloadFailed || _reloadPayload == null || !_reloadPayload.IsCreated || _scheduler == null)
+            if (_reloadFailed || _reloadPayload == null || !_reloadPayload.IsCreated)
             {
                 return false;
             }
 
             if (_reloadRequest != null)
                 return CompleteReload(true);
-            if (!_scheduler.TryAcquireReloadDecodeSlot(this, _reloadNativeByteEstimate))
+            if (!BasisImagePickupManager.TryAcquireReloadDecodeSlot(this, _reloadNativeByteEstimate))
                 return false;
 
             _reloadDecodeSlotHeld = true;
@@ -414,10 +444,7 @@ namespace Basis.ImagePickup
             _reloadDecodeSlotHeld = false;
             long reservedBytes = _reservedReloadNativeBytes;
             _reservedReloadNativeBytes = 0;
-            if (_scheduler != null)
-                _scheduler.ReleaseReloadDecodeSlot(this, reservedBytes);
-            else
-                BasisAnimatedImageData.ReleaseRestoreBytes(reservedBytes);
+            BasisImagePickupManager.ReleaseReloadDecodeSlot(this, reservedBytes);
         }
 
         internal float GetDistanceSquared(Vector3 position)
@@ -441,20 +468,19 @@ namespace Basis.ImagePickup
 
             if (
                 !_preferCpuFallback
-				&& _scheduler != null
-				&& _scheduler.HasGpuCompositor
+				&& BasisImagePickupManager.HasGpuCompositor
 				&& SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null
 			)
             {
                 try
                 {
-					_gpuCanvas = new BasisAnimatedImageGpuCanvas(_data, _scheduler.CompositorMaterial);
+					_gpuCanvas = new BasisAnimatedImageGpuCanvas(_data, BasisImagePickupManager.CompositorMaterial);
                 }
                 catch (BasisAnimationMemoryBudgetException exception)
                 {
 					_gpuCanvas?.Dispose();
 					_gpuCanvas = null;
-                    _scheduler?.RequestCompositorMemory(this);
+                    BasisImagePickupManager.RequestCompositorMemory(this);
                     LogCompositorBudgetDeferred(exception.Message);
                     return false;
                 }
@@ -477,7 +503,7 @@ namespace Basis.ImagePickup
                 {
                     _cpuCanvas?.Dispose();
                     _cpuCanvas = null;
-                    _scheduler?.RequestCompositorMemory(this);
+                    BasisImagePickupManager.RequestCompositorMemory(this);
                     LogCompositorBudgetDeferred(exception.Message);
                     return false;
                 }
@@ -515,7 +541,7 @@ namespace Basis.ImagePickup
             {
                 _cpuCanvas?.Dispose();
                 _cpuCanvas = null;
-                _scheduler?.RequestCompositorMemory(this);
+                BasisImagePickupManager.RequestCompositorMemory(this);
                 LogCompositorBudgetDeferred(exception.Message);
             }
             catch (Exception exception)
@@ -624,9 +650,7 @@ namespace Basis.ImagePickup
             _reloadRequest?.Dispose();
             _reloadRequest = null;
             ReleaseReloadDecodeSlot();
-            if (_scheduler != null)
-                _scheduler.Unregister(this);
-            _scheduler = null;
+            BasisImagePickupManager.UnregisterAnimatedPlayer(this);
             _pickup?.SetPosterDisplayTexture();
             _displayTextureBound = false;
             DisposeCanvases();

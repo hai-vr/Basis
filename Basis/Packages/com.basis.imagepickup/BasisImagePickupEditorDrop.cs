@@ -11,8 +11,6 @@ namespace Basis.ImagePickup
     [InitializeOnLoad]
     public static class BasisImagePickupEditorDrop
     {
-        private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
-
         static BasisImagePickupEditorDrop()
         {
             SceneView.duringSceneGui += OnSceneGui;
@@ -33,14 +31,7 @@ namespace Basis.ImagePickup
             DragAndDrop.AcceptDrag();
             e.Use();
 
-            BasisImagePickupManager manager = BasisImagePickupManager.Instance;
-            if (manager == null)
-            {
-                BasisDebug.LogWarning("Image pickup: manager not ready.", LogTag);
-                return;
-            }
-
-            manager.SpawnFromFiles(DragAndDrop.paths);
+            BasisImagePickupManager.SpawnFromFiles(DragAndDrop.paths);
         }
 
         private static bool DragContainsSupportedImage()

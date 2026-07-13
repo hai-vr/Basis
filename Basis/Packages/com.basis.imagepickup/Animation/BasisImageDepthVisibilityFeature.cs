@@ -59,12 +59,14 @@ namespace Basis.ImagePickup
                 return;
             }
 
-            BasisAnimatedImageDepthVisibility service =
-                BasisAnimatedImageDepthVisibility.Instance;
-            if (service == null || service.PreparedCount <= 0)
+            if (
+                !BasisAnimatedImageDepthVisibility.IsActive
+                || BasisAnimatedImageDepthVisibility.PreparedCount <= 0
+            )
+            {
                 return;
+            }
 
-            _pass.Setup(service);
             renderer.EnqueuePass(_pass);
         }
 
@@ -115,7 +117,6 @@ namespace Basis.ImagePickup
             private readonly ComputeShader _computeShader;
             private readonly int _kernel;
             private readonly ProfilingSampler _profilingSampler = new("Basis Image Depth Visibility");
-            private BasisAnimatedImageDepthVisibility _service;
 
             private sealed class ComputePassData
             {
@@ -147,14 +148,9 @@ namespace Basis.ImagePickup
                 ConfigureInput(ScriptableRenderPassInput.Depth);
             }
 
-            public void Setup(BasisAnimatedImageDepthVisibility service)
-            {
-                _service = service;
-            }
-
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
-                if (_service == null)
+                if (!BasisAnimatedImageDepthVisibility.IsActive)
                     return;
 
                 UniversalResourceData resourceData =
@@ -166,7 +162,7 @@ namespace Basis.ImagePickup
 
                 Camera camera = cameraData.camera;
                 if (
-                    !_service.TryBeginDispatch(
+                    !BasisAnimatedImageDepthVisibility.TryBeginDispatch(
                         camera,
                         out GraphicsBuffer sampleBuffer,
                         out GraphicsBuffer visibilityBuffer,

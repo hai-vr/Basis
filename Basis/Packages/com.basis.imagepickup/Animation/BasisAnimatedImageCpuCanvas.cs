@@ -79,13 +79,16 @@ namespace Basis.ImagePickup
         private NativeArray<Color32> _previousPixels;
 
         private Texture2D _texture;
+        private JobHandle _composeHandle;
         private long _reservedCompositorBytes;
         private long _currentPlayIndex = -1;
         private int _currentFrameIndex = -1;
         private bool _stateValid;
+        private bool _composePending;
         private bool _disposed;
 
         public Texture OutputTexture => _texture;
+        public bool HasPendingCompose => _composePending;
 
         public BasisAnimatedImageCpuCanvas(BasisAnimatedImageData data)
         {
@@ -184,8 +187,33 @@ namespace Basis.ImagePickup
             out long pixelsUsed
         )
         {
+            int transitions = BeginUpdateToState(
+                targetPlayIndex,
+                targetFrameIndex,
+                transitionBudget,
+                pixelBudget,
+                out pixelsUsed
+            );
+            FlushPendingCompose();
+            return transitions;
+        }
+
+        /// <summary>
+        /// Schedules composition and returns without waiting for it. The output texture only holds
+        /// the requested state once <see cref="FlushPendingCompose"/> lands the job.
+        /// </summary>
+        public int BeginUpdateToState(
+            long targetPlayIndex,
+            int targetFrameIndex,
+            int transitionBudget,
+            long pixelBudget,
+            out long pixelsUsed
+        )
+        {
             ThrowIfDisposed();
             ValidateTarget(targetPlayIndex, targetFrameIndex);
+            // A queued job still owns the canvas buffers; land it before scheduling over them.
+            FlushPendingCompose();
             pixelsUsed = 0;
             if (transitionBudget <= 0 || pixelBudget <= 0)
                 return 0;
@@ -224,7 +252,7 @@ namespace Basis.ImagePickup
             if (transitions <= 0)
                 return 0;
 
-            new BasisAnimatedImageCpuComposeJob
+            _composeHandle = new BasisAnimatedImageCpuComposeJob
             {
                 CanvasWidth = _data.CanvasWidth,
                 Reset = reset ? (byte)1 : (byte)0,
@@ -239,17 +267,30 @@ namespace Basis.ImagePickup
                 FramePixels = _data.PixelsNative,
                 Canvas = _pixels,
                 Previous = _previousPixels,
-            }
-                .Schedule()
-                .Complete();
+            }.Schedule();
+            _composePending = true;
 
             _currentPlayIndex = targetPlayIndex;
             _currentFrameIndex = partialTargetFrame;
             _stateValid = true;
-            _texture.SetPixelData(_pixels, 0);
-            _texture.Apply(false, false);
             pixelsUsed = requiredPixels;
             return transitions;
+        }
+
+        /// <summary>
+        /// Completes a scheduled composition and uploads the canvas. Safe when nothing is pending.
+        /// </summary>
+        public void FlushPendingCompose()
+        {
+            if (!_composePending)
+                return;
+            _composePending = false;
+            _composeHandle.Complete();
+            _composeHandle = default;
+            if (_disposed || _texture == null)
+                return;
+            _texture.SetPixelData(_pixels, 0);
+            _texture.Apply(false, false);
         }
 
         private void ValidateTarget(long targetPlayIndex, int targetFrameIndex)
@@ -271,6 +312,10 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
+            // The compose job writes these buffers; it must land before they are freed.
+            _composeHandle.Complete();
+            _composeHandle = default;
+            _composePending = false;
             if (_pixels.IsCreated)
                 _pixels.Dispose();
             if (_previousPixels.IsCreated)

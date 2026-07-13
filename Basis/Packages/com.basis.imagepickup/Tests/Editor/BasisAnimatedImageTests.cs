@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -16,6 +16,14 @@ namespace Basis.ImagePickup.Tests
 {
     public class BasisAnimatedImageTests
     {
+        // The manager is a static service, so registered players and scheduler resources would
+        // otherwise leak from one case into the next.
+        [SetUp]
+        public void ResetImagePickupManager()
+        {
+            BasisImagePickupManager.Shutdown();
+        }
+
         [Test]
         public void NativeDataAndPlaybackWork()
         {
@@ -177,6 +185,7 @@ namespace Basis.ImagePickup.Tests
                 long pixelsRemaining = 1024;
                 bool gpuCommandsAdded = false;
                 player.Schedule(commands, 1, ref transitionsRemaining, ref pixelsRemaining, ref gpuCommandsAdded);
+                player.FlushPendingJobs();
 
                 Assert.That(player.HasAllocatedCompositor, Is.True);
                 float resumeTime =
@@ -196,6 +205,7 @@ namespace Basis.ImagePickup.Tests
                     ref pixelsRemaining,
                     ref gpuCommandsAdded
                 );
+                player.FlushPendingJobs();
                 Assert.That(player.HasAllocatedCompositor, Is.True);
                 Assert.That(player.OutputTexture, Is.Not.Null);
                 Color32[] resumedPixels = ((Texture2D)player.OutputTexture).GetPixels32();
@@ -208,10 +218,7 @@ namespace Basis.ImagePickup.Tests
                 Object.DestroyImmediate(host);
                 if (!initialized)
                     data.Dispose();
-                BasisAnimatedImageScheduler scheduler =
-                    BasisAnimatedImageScheduler.Instance;
-                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
-                    Object.DestroyImmediate(scheduler.gameObject);
+                BasisImagePickupManager.Shutdown();
             }
         }
 
@@ -275,7 +282,6 @@ namespace Basis.ImagePickup.Tests
         public void CompositorPressureStartsClosestAnimationAfterReleasingFarthest()
         {
             Camera previousCamera = BasisLocalCameraDriver.CameraInstance;
-            BasisAnimatedImageScheduler previousScheduler = BasisAnimatedImageScheduler.Instance;
             var cameraHost = new GameObject("BasisAnimatedImageCompositorCamera");
             var nearHost = new GameObject("BasisAnimatedImageCompositorNear");
             var middleHost = new GameObject("BasisAnimatedImageCompositorMiddle");
@@ -363,27 +369,25 @@ namespace Basis.ImagePickup.Tests
                 Assert.That(nearPlayer.HasAllocatedCompositor, Is.False);
                 Assert.That(farPlayer.HasAllocatedCompositor, Is.True);
 
-                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
-                Assert.That(scheduler, Is.Not.Null);
-                scheduler.ApplyPendingCompositorReleases();
+                BasisImagePickupManager.ApplyPendingCompositorReleases();
                 Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
                 Assert.That(farPlayer.HasAllocatedCompositor, Is.False);
 
-                FieldInfo startIndexField = typeof(BasisAnimatedImageScheduler).GetField(
+                FieldInfo startIndexField = typeof(BasisImagePickupManager).GetField(
                     "_visiblePassStartIndex",
-                    BindingFlags.Instance | BindingFlags.NonPublic
+                    BindingFlags.Static | BindingFlags.NonPublic
                 );
                 Assert.That(startIndexField, Is.Not.Null);
-                startIndexField.SetValue(scheduler, 0);
-                scheduler.PrioritizeDeferredCompositorCandidate();
-                Assert.That(startIndexField.GetValue(scheduler), Is.EqualTo(2));
+                startIndexField.SetValue(null, 0);
+                BasisImagePickupManager.PrioritizeDeferredCompositorCandidate();
+                Assert.That(startIndexField.GetValue(null), Is.EqualTo(2));
 
                 SchedulePlayerOnce(nearPlayer, commands);
                 Assert.That(nearPlayer.HasAllocatedCompositor, Is.True);
                 Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
 
-                scheduler.RequestCompositorMemory(farPlayer);
-                scheduler.ApplyPendingCompositorReleases();
+                BasisImagePickupManager.RequestCompositorMemory(farPlayer);
+                BasisImagePickupManager.ApplyPendingCompositorReleases();
                 Assert.That(nearPlayer.HasAllocatedCompositor, Is.True);
                 Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
             }
@@ -403,8 +407,7 @@ namespace Basis.ImagePickup.Tests
                     middleData.Dispose();
                 if (!farInitialized)
                     farData.Dispose();
-                if (previousScheduler == null && BasisAnimatedImageScheduler.Instance != null)
-                    Object.DestroyImmediate(BasisAnimatedImageScheduler.Instance.gameObject);
+                BasisImagePickupManager.Shutdown();
             }
         }
 
@@ -480,19 +483,16 @@ namespace Basis.ImagePickup.Tests
                 payload?.Dispose();
                 if (!initialized)
                     data.Dispose();
-                BasisAnimatedImageScheduler scheduler =
-                    BasisAnimatedImageScheduler.Instance;
-                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
-                    Object.DestroyImmediate(scheduler.gameObject);
+                BasisImagePickupManager.Shutdown();
             }
         }
 
         [Test]
         public void SceneViewAndPreviewCamerasDoNotDriveAnimationVisibility()
         {
-            Assert.That(BasisAnimatedImageScheduler.IsSupportedVisibilityCameraType(CameraType.Game), Is.True);
-            Assert.That(BasisAnimatedImageScheduler.IsSupportedVisibilityCameraType(CameraType.SceneView), Is.False);
-            Assert.That(BasisAnimatedImageScheduler.IsSupportedVisibilityCameraType(CameraType.Preview), Is.False);
+            Assert.That(BasisImagePickupManager.IsSupportedVisibilityCameraType(CameraType.Game), Is.True);
+            Assert.That(BasisImagePickupManager.IsSupportedVisibilityCameraType(CameraType.SceneView), Is.False);
+            Assert.That(BasisImagePickupManager.IsSupportedVisibilityCameraType(CameraType.Preview), Is.False);
         }
 
         [Test]
@@ -613,7 +613,7 @@ namespace Basis.ImagePickup.Tests
         public void CardFrontFacePointsTowardNegativeLocalZ()
         {
             Assert.That(
-                BasisAnimatedImageScheduler.IsFrontFacingCamera(
+                BasisImagePickupManager.IsFrontFacingCamera(
                     Vector3.back,
                     Vector3.zero,
                     new Vector3(0f, 0f, -2f),
@@ -623,7 +623,7 @@ namespace Basis.ImagePickup.Tests
                 Is.True
             );
             Assert.That(
-                BasisAnimatedImageScheduler.IsFrontFacingCamera(
+                BasisImagePickupManager.IsFrontFacingCamera(
                     Vector3.back,
                     Vector3.zero,
                     new Vector3(0f, 0f, 2f),
@@ -648,7 +648,7 @@ namespace Basis.ImagePickup.Tests
             };
             var bounds = new Bounds(Vector3.zero, Vector3.one);
             Assert.That(
-                BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+                BasisImagePickupManager.IsCpuFrontFacingCandidate(
                     0,
                     bounds,
                     frustum,
@@ -662,7 +662,7 @@ namespace Basis.ImagePickup.Tests
                 Is.True
             );
             Assert.That(
-                BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+                BasisImagePickupManager.IsCpuFrontFacingCandidate(
                     0,
                     bounds,
                     frustum,
@@ -676,7 +676,7 @@ namespace Basis.ImagePickup.Tests
                 Is.False
             );
             Assert.That(
-                BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+                BasisImagePickupManager.IsCpuFrontFacingCandidate(
                     0,
                     bounds,
                     frustum,
@@ -691,7 +691,7 @@ namespace Basis.ImagePickup.Tests
             );
             bounds.center = new Vector3(20f, 0f, 0f);
             Assert.That(
-                BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+                BasisImagePickupManager.IsCpuFrontFacingCandidate(
                     0,
                     bounds,
                     frustum,
@@ -753,17 +753,17 @@ namespace Basis.ImagePickup.Tests
 
             try
             {
-                Assert.That(BasisAnimatedImageScheduler.IsBlockingOcclusionCollider(ownCollider, target), Is.False);
+                Assert.That(BasisImagePickupManager.IsBlockingOcclusionCollider(ownCollider, target), Is.False);
                 Assert.That(
-                    BasisAnimatedImageScheduler.IsBlockingOcclusionCollider(
+                    BasisImagePickupManager.IsBlockingOcclusionCollider(
                         unrelatedTrigger,
                         target
                     ),
                     Is.False
                 );
-                Assert.That(BasisAnimatedImageScheduler.IsBlockingOcclusionCollider(wallCollider, target), Is.True);
+                Assert.That(BasisImagePickupManager.IsBlockingOcclusionCollider(wallCollider, target), Is.True);
                 Assert.That(
-                    BasisAnimatedImageScheduler.IsBlockingOcclusionCollider(
+                    BasisImagePickupManager.IsBlockingOcclusionCollider(
                         otherImageCollider,
                         target
                     ),
@@ -801,14 +801,11 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
-        public void ManagerInstanceUsesPublicReassignableField()
+        public void ImageManagerIsStaticAndNeedsNoGameObject()
         {
-            System.Reflection.FieldInfo field =
-                typeof(BasisImagePickupManager).GetField(nameof(BasisImagePickupManager.Instance));
-            Assert.That(field, Is.Not.Null);
-            Assert.That(field.IsStatic, Is.True);
-            Assert.That(field.IsPublic, Is.True);
-            Assert.That(field.IsInitOnly, Is.False);
+            System.Type managerType = typeof(BasisImagePickupManager);
+            Assert.That(managerType.IsAbstract && managerType.IsSealed, Is.True);
+            Assert.That(typeof(MonoBehaviour).IsAssignableFrom(managerType), Is.False);
         }
 
         [Test]
@@ -1079,17 +1076,10 @@ namespace Basis.ImagePickup.Tests
         {
             System.Type managerType = typeof(BasisImagePickupManager);
             Assert.That(
-                managerType
-                    .GetMethod(nameof(BasisImagePickupManager.OnDirectNetworkMessage))
-                    ?.DeclaringType,
-                Is.EqualTo(managerType)
+                managerType.GetMethod(nameof(BasisImagePickupManager.OnDirectNetworkMessage)),
+                Is.Not.Null
             );
-            Assert.That(
-                managerType
-                    .GetMethod(nameof(BasisImagePickupManager.OnNetworkMessage))
-                    ?.DeclaringType,
-                Is.EqualTo(typeof(BasisNetworkBehaviour))
-            );
+            Assert.That(managerType.GetMethod("OnNetworkMessage"), Is.Null);
         }
 
         [Test]
@@ -1362,9 +1352,9 @@ namespace Basis.ImagePickup.Tests
         [Test]
         public void SchedulerStartIndexTracksPlayerRemoval()
         {
-            Assert.That(BasisAnimatedImageScheduler.AdjustStartIndexAfterRemoval(3, 1, 4), Is.EqualTo(2));
-            Assert.That(BasisAnimatedImageScheduler.AdjustStartIndexAfterRemoval(3, 3, 4), Is.EqualTo(3));
-            Assert.That(BasisAnimatedImageScheduler.AdjustStartIndexAfterRemoval(4, 4, 4), Is.EqualTo(0));
+            Assert.That(BasisImagePickupManager.AdjustStartIndexAfterRemoval(3, 1, 4), Is.EqualTo(2));
+            Assert.That(BasisImagePickupManager.AdjustStartIndexAfterRemoval(3, 3, 4), Is.EqualTo(3));
+            Assert.That(BasisImagePickupManager.AdjustStartIndexAfterRemoval(4, 4, 4), Is.EqualTo(0));
         }
 
         [Test]
@@ -1462,7 +1452,6 @@ namespace Basis.ImagePickup.Tests
         public void DecodedPixelBudgetKeepsClosestPayloadBackedAnimation()
         {
             Camera previousCamera = BasisLocalCameraDriver.CameraInstance;
-            BasisAnimatedImageScheduler previousScheduler = BasisAnimatedImageScheduler.Instance;
             var cameraHost = new GameObject("BasisAnimatedImageBudgetCamera");
             var farHost = new GameObject("BasisAnimatedImageBudgetFar");
             var nearHost = new GameObject("BasisAnimatedImageBudgetNear");
@@ -1488,7 +1477,6 @@ namespace Basis.ImagePickup.Tests
             BasisNativeAnimationPayload nearPayload = null;
             BasisAnimatedImagePlayer farPlayer = null;
             BasisAnimatedImagePlayer nearPlayer = null;
-            BasisAnimatedImageScheduler scheduler = null;
             bool reloadSlotAcquired = false;
             long farNativeBytes = farData.NativeByteCount;
             try
@@ -1522,15 +1510,13 @@ namespace Basis.ImagePickup.Tests
                 Assert.That(nearPlayer.Initialize(nearData, nearPickup, 1, false, nearPayload), Is.True);
                 nearData = null;
 
-                scheduler = BasisAnimatedImageScheduler.Instance;
-                Assert.That(scheduler, Is.Not.Null);
-                scheduler.EnforceDecodedPixelBudget(nearPlayer, nearPlayer.DecodedFramePixels);
+                BasisImagePickupManager.EnforceDecodedPixelBudget(nearPlayer, nearPlayer.DecodedFramePixels);
                 Assert.That(farPlayer.Data, Is.Null);
                 Assert.That(nearPlayer.Data, Is.Not.Null);
 
                 farHost.transform.position = new Vector3(0f, 0f, 0.5f);
                 nearHost.transform.position = new Vector3(0f, 0f, 10f);
-                reloadSlotAcquired = scheduler.TryAcquireReloadDecodeSlot(
+                reloadSlotAcquired = BasisImagePickupManager.TryAcquireReloadDecodeSlot(
                     farPlayer,
                     farNativeBytes,
                     farPlayer.DecodedFramePixels
@@ -1538,21 +1524,21 @@ namespace Basis.ImagePickup.Tests
                 Assert.That(reloadSlotAcquired, Is.False);
                 Assert.That(nearPlayer.Data, Is.Not.Null);
 
-                scheduler.ApplyPendingDecodedReleases();
+                BasisImagePickupManager.ApplyPendingDecodedReleases();
                 Assert.That(nearPlayer.Data, Is.Null);
-                reloadSlotAcquired = scheduler.TryAcquireReloadDecodeSlot(
+                reloadSlotAcquired = BasisImagePickupManager.TryAcquireReloadDecodeSlot(
                     farPlayer,
                     farNativeBytes,
                     farPlayer.DecodedFramePixels
                 );
                 Assert.That(reloadSlotAcquired, Is.True);
-                scheduler.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
+                BasisImagePickupManager.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
                 reloadSlotAcquired = false;
             }
             finally
             {
                 if (reloadSlotAcquired)
-                    scheduler?.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
+                    BasisImagePickupManager.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
                 BasisLocalCameraDriver.CameraInstance = previousCamera;
                 farPlayer?.ClearReloadPayload();
                 nearPlayer?.ClearReloadPayload();
@@ -1563,14 +1549,7 @@ namespace Basis.ImagePickup.Tests
                 nearPayload?.Dispose();
                 farData?.Dispose();
                 nearData?.Dispose();
-                BasisAnimatedImageScheduler currentScheduler = BasisAnimatedImageScheduler.Instance;
-                if (previousScheduler == null && currentScheduler != null)
-                {
-                    if (currentScheduler.gameObject.name == "BasisAnimatedImageScheduler")
-                        Object.DestroyImmediate(currentScheduler.gameObject);
-                    else
-                        Object.DestroyImmediate(currentScheduler);
-                }
+                BasisImagePickupManager.Shutdown();
             }
         }
 
@@ -1642,9 +1621,7 @@ namespace Basis.ImagePickup.Tests
                 Object.DestroyImmediate(host);
                 if (!initialized)
                     data.Dispose();
-                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
-                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
-                    Object.DestroyImmediate(scheduler.gameObject);
+                BasisImagePickupManager.Shutdown();
             }
         }
 
@@ -1711,9 +1688,7 @@ namespace Basis.ImagePickup.Tests
                 Object.DestroyImmediate(host);
                 if (!initialized)
                     data.Dispose();
-                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
-                if (scheduler != null && scheduler.gameObject.name == "BasisAnimatedImageScheduler")
-                    Object.DestroyImmediate(scheduler.gameObject);
+                BasisImagePickupManager.Shutdown();
             }
         }
 
@@ -1721,13 +1696,10 @@ namespace Basis.ImagePickup.Tests
         public void DestroyedPickupReleasesManagerOwnedAnimationPayload()
         {
             long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
-            var managerHost = new GameObject("BasisImagePickupManagerDisposeTest");
             var pickupHost = new GameObject("BasisImagePickupDisposeTest");
-            BasisImagePickupManager manager = null;
             BasisNativeAnimationPayload payload = null;
             try
             {
-                Assert.That(BasisImagePickupManager.Instance, Is.Null);
                 using BasisAnimatedImageData data = Create(
                     new BasisAnimatedImageFrameSource(
                         new RectInt(0, 0, 1, 1),
@@ -1744,24 +1716,12 @@ namespace Basis.ImagePickup.Tests
                 Assert.That(payload, Is.Not.Null);
                 Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.GreaterThan(payloadBytesBefore));
 
-                manager = managerHost.AddComponent<BasisImagePickupManager>();
                 var pickup = pickupHost.AddComponent<BasisImagePickupObject>();
                 System.Guid id = System.Guid.NewGuid();
                 pickup.ImageId = id;
+                SetPickupManaged(pickup);
 
-                FieldInfo managerField = typeof(BasisImagePickupObject).GetField(
-                    "_manager",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(managerField, Is.Not.Null);
-                managerField.SetValue(pickup, manager);
-
-                FieldInfo imagesField = typeof(BasisImagePickupManager).GetField(
-                    "_images",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(imagesField, Is.Not.Null);
-                var images = (IDictionary)imagesField.GetValue(manager);
+                IDictionary images = GetManagerDictionary("_images");
                 images.Add(id, pickup);
 
                 System.Type ownedImageType = typeof(BasisImagePickupManager).GetNestedType(
@@ -1777,12 +1737,7 @@ namespace Basis.ImagePickup.Tests
                 ownedObjectField.SetValue(ownedImage, pickup);
                 ownedPayloadField.SetValue(ownedImage, payload);
 
-                FieldInfo ownedField = typeof(BasisImagePickupManager).GetField(
-                    "_owned",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(ownedField, Is.Not.Null);
-                var ownedImages = (IDictionary)ownedField.GetValue(manager);
+                IDictionary ownedImages = GetManagerDictionary("_owned");
                 ownedImages.Add(id, ownedImage);
 
                 Object.DestroyImmediate(pickupHost);
@@ -1795,24 +1750,41 @@ namespace Basis.ImagePickup.Tests
                 payload?.Dispose();
                 if (pickupHost != null)
                     Object.DestroyImmediate(pickupHost);
-                if (managerHost != null)
-                    Object.DestroyImmediate(managerHost);
-                if (BasisImagePickupManager.Instance == manager)
-                    BasisImagePickupManager.Instance = null;
+                BasisImagePickupManager.Shutdown();
             }
+        }
+
+        private static IDictionary GetManagerDictionary(string fieldName)
+        {
+            FieldInfo field = typeof(BasisImagePickupManager).GetField(
+                fieldName,
+                BindingFlags.Static | BindingFlags.NonPublic
+            );
+            Assert.That(field, Is.Not.Null, fieldName);
+            var dictionary = (IDictionary)field.GetValue(null);
+            Assert.That(dictionary, Is.Not.Null, fieldName);
+            dictionary.Clear();
+            return dictionary;
+        }
+
+        private static void SetPickupManaged(BasisImagePickupObject pickup)
+        {
+            FieldInfo managedField = typeof(BasisImagePickupObject).GetField(
+                "_managed",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            Assert.That(managedField, Is.Not.Null);
+            managedField.SetValue(pickup, true);
         }
 
         [Test]
         public void DestroyedRemotePickupReleasesRetainedAnimationPayload()
         {
             long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
-            var managerHost = new GameObject("BasisRemoteImagePickupManagerDisposeTest");
             var pickupHost = new GameObject("BasisRemoteImagePickupDisposeTest");
-            BasisImagePickupManager manager = null;
             BasisNativeAnimationPayload payload = null;
             try
             {
-                Assert.That(BasisImagePickupManager.Instance, Is.Null);
                 using BasisAnimatedImageData data = Create(
                     new BasisAnimatedImageFrameSource(
                         new RectInt(0, 0, 1, 1),
@@ -1828,32 +1800,15 @@ namespace Basis.ImagePickup.Tests
                 payload = encoded.TakePayload();
                 Assert.That(payload, Is.Not.Null);
 
-                manager = managerHost.AddComponent<BasisImagePickupManager>();
                 var pickup = pickupHost.AddComponent<BasisImagePickupObject>();
                 System.Guid id = System.Guid.NewGuid();
                 pickup.ImageId = id;
+                SetPickupManaged(pickup);
 
-                FieldInfo managerField = typeof(BasisImagePickupObject).GetField(
-                    "_manager",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(managerField, Is.Not.Null);
-                managerField.SetValue(pickup, manager);
-
-                FieldInfo imagesField = typeof(BasisImagePickupManager).GetField(
-                    "_images",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(imagesField, Is.Not.Null);
-                var images = (IDictionary)imagesField.GetValue(manager);
+                IDictionary images = GetManagerDictionary("_images");
                 images.Add(id, pickup);
 
-                FieldInfo payloadsField = typeof(BasisImagePickupManager).GetField(
-                    "_remoteAnimationPayloads",
-                    BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                Assert.That(payloadsField, Is.Not.Null);
-                var payloads = (IDictionary)payloadsField.GetValue(manager);
+                IDictionary payloads = GetManagerDictionary("_remoteAnimationPayloads");
                 payloads.Add(id, payload);
 
                 Object.DestroyImmediate(pickupHost);
@@ -1866,10 +1821,7 @@ namespace Basis.ImagePickup.Tests
                 payload?.Dispose();
                 if (pickupHost != null)
                     Object.DestroyImmediate(pickupHost);
-                if (managerHost != null)
-                    Object.DestroyImmediate(managerHost);
-                if (BasisImagePickupManager.Instance == manager)
-                    BasisImagePickupManager.Instance = null;
+                BasisImagePickupManager.Shutdown();
             }
         }
 

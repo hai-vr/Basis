@@ -12,7 +12,7 @@ namespace Basis.ImagePickup
     /// remains in flight at a time. If a larger allocation is unavailable, excess candidates
     /// rotate through later batches and retain the physics fallback meanwhile.
     /// </summary>
-    internal sealed class BasisAnimatedImageDepthVisibility : MonoBehaviour
+    internal static class BasisAnimatedImageDepthVisibility
     {
         internal const int SamplesPerCard = 5;
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Rendering;
@@ -25,63 +25,47 @@ namespace Basis.ImagePickup
         private static readonly ProfilerMarker PrepareMarker = new("Basis.ImagePickup.AnimatedImage.DepthPrepare");
         private static readonly ProfilerMarker ReadbackMarker = new("Basis.ImagePickup.AnimatedImage.DepthReadback");
 
-        public static BasisAnimatedImageDepthVisibility Instance;
-
-        private Vector4[] _sampleUpload = Array.Empty<Vector4>();
-        private BasisAnimatedImagePlayer[] _preparedPlayers =
+        private static Vector4[] _sampleUpload = Array.Empty<Vector4>();
+        private static BasisAnimatedImagePlayer[] _preparedPlayers =
             Array.Empty<BasisAnimatedImagePlayer>();
-        private BasisAnimatedImagePlayer[] _readbackPlayers =
+        private static BasisAnimatedImagePlayer[] _readbackPlayers =
             Array.Empty<BasisAnimatedImagePlayer>();
-        private readonly Plane[] _frustumPlanes = new Plane[6];
+        private static readonly Plane[] _frustumPlanes = new Plane[6];
 
-        private GraphicsBuffer _sampleBuffer;
-        private GraphicsBuffer _visibilityBuffer;
-        private int _cardCapacity;
-        private int _lastFailedCapacity;
-        private float _nextCapacityRetryTime;
-        private Camera _preparedCamera;
-        private Camera _readbackCamera;
-        private int _preparedFrame = -1;
-        private int _readbackFrame = -1;
-        private int _preparedCount;
-        private int _readbackCount;
-        private int _readbackGeneration;
-        private int _readbackInFlightGeneration;
-        private float _nextPrepareTime;
-        private int _candidateStartIndex;
-        private bool _readbackPending;
-        private bool _readbackInFlight;
-        private bool _fallbackWarningLogged;
-        private bool _successfulReadbackLogged;
-        private bool _readbackErrorLogged;
+        private static GraphicsBuffer _sampleBuffer;
+        private static GraphicsBuffer _visibilityBuffer;
+        private static int _cardCapacity;
+        private static int _lastFailedCapacity;
+        private static float _nextCapacityRetryTime;
+        private static Camera _preparedCamera;
+        private static Camera _readbackCamera;
+        private static int _preparedFrame = -1;
+        private static int _readbackFrame = -1;
+        private static int _preparedCount;
+        private static int _readbackCount;
+        private static int _readbackGeneration;
+        private static int _readbackInFlightGeneration;
+        private static float _nextPrepareTime;
+        private static int _candidateStartIndex;
+        private static bool _readbackPending;
+        private static bool _readbackInFlight;
+        private static bool _fallbackWarningLogged;
+        private static bool _successfulReadbackLogged;
+        private static bool _readbackErrorLogged;
+        private static bool _active;
 
-        internal int PreparedCount => _preparedCount;
+        internal static int PreparedCount => _preparedCount;
+        internal static bool IsActive => _active;
 
-        private void Awake()
+        internal static void Initialize()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(this);
+            if (_active)
                 return;
-            }
-
-            Instance = this;
+            _active = true;
             TryEnsureCapacity(1, Time.unscaledTime);
         }
 
-        internal static BasisAnimatedImageDepthVisibility EnsureInstance(GameObject host)
-        {
-            if (Instance != null)
-                return Instance;
-            if (host == null)
-                throw new ArgumentNullException(nameof(host));
-
-            if (!host.TryGetComponent(out BasisAnimatedImageDepthVisibility service))
-                service = host.AddComponent<BasisAnimatedImageDepthVisibility>();
-            return service;
-        }
-
-        internal void PrepareFrame(List<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
+        internal static void PrepareFrame(List<BasisAnimatedImagePlayer> players, Camera camera, float unscaledTime)
         {
             using var scope = PrepareMarker.Auto();
 
@@ -202,7 +186,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        internal bool TryBeginDispatch(
+        internal static bool TryBeginDispatch(
             Camera camera,
             out GraphicsBuffer sampleBuffer,
             out GraphicsBuffer visibilityBuffer,
@@ -216,7 +200,8 @@ namespace Basis.ImagePickup
             readbackCallback = null;
 
             if (
-                _readbackInFlight
+                !_active
+                || _readbackInFlight
                 || _preparedCount <= 0
                 || _preparedFrame != Time.frameCount
                 || !ReferenceEquals(camera, _preparedCamera)
@@ -288,7 +273,7 @@ namespace Basis.ImagePickup
                 return false;
             }
 
-            return BasisAnimatedImageScheduler.IsCpuFrontFacingCandidate(
+            return BasisImagePickupManager.IsCpuFrontFacingCandidate(
                 pickup.FrontRendererLayer,
                 pickup.FrontRendererBounds,
                 frustumPlanes,
@@ -301,7 +286,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void CompleteReadback(AsyncGPUReadbackRequest request, int generation, Camera camera, int frame)
+        private static void CompleteReadback(AsyncGPUReadbackRequest request, int generation, Camera camera, int frame)
         {
             using var scope = ReadbackMarker.Auto();
             if (!_readbackInFlight || generation != _readbackInFlightGeneration)
@@ -370,14 +355,14 @@ namespace Basis.ImagePickup
             ClearReadbackCapture(false);
         }
 
-        private void InvalidateReadback()
+        private static void InvalidateReadback()
         {
             if (_readbackPending)
                 _readbackGeneration++;
             ClearReadbackCapture(true);
         }
 
-        private void ClearReadbackCapture(bool resetPlayers)
+        private static void ClearReadbackCapture(bool resetPlayers)
         {
             for (int i = 0; i < _readbackCount; i++)
             {
@@ -392,7 +377,7 @@ namespace Basis.ImagePickup
             _readbackFrame = -1;
         }
 
-        private bool TryEnsureCapacity(int minimumRequired, float unscaledTime)
+        private static bool TryEnsureCapacity(int minimumRequired, float unscaledTime)
         {
             if (minimumRequired <= 0)
                 return true;
@@ -505,7 +490,7 @@ namespace Basis.ImagePickup
             return (int)Math.Min(target, maximumCapacity);
         }
 
-        private void LogCapacityFailure(int requestedCapacity, string reason, float unscaledTime)
+        private static void LogCapacityFailure(int requestedCapacity, string reason, float unscaledTime)
         {
             _nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
             if (_lastFailedCapacity == requestedCapacity)
@@ -520,7 +505,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void HandleBufferFailure(string operation, Exception exception, float unscaledTime)
+        private static void HandleBufferFailure(string operation, Exception exception, float unscaledTime)
         {
             ReleaseGpuBuffers();
             _nextCapacityRetryTime = unscaledTime + CapacityRetryDelaySeconds;
@@ -532,7 +517,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void ResetPreparedPlayers()
+        private static void ResetPreparedPlayers()
         {
             for (int i = 0; i < _preparedCount; i++)
             {
@@ -544,7 +529,7 @@ namespace Basis.ImagePickup
             _preparedCamera = null;
         }
 
-        private void ReleaseGpuBuffers()
+        private static void ReleaseGpuBuffers()
         {
             _sampleBuffer?.Dispose();
             _sampleBuffer = null;
@@ -559,10 +544,11 @@ namespace Basis.ImagePickup
                 players[i]?.ResetDepthVisibility();
         }
 
-        private void OnDestroy()
+        internal static void Shutdown()
         {
-            if (Instance == this)
-                Instance = null;
+            if (!_active)
+                return;
+            _active = false;
 
             InvalidateReadback();
             _readbackInFlight = false;
@@ -576,6 +562,18 @@ namespace Basis.ImagePickup
                 _preparedPlayers[i] = null;
                 _readbackPlayers[i] = null;
             }
+
+            _sampleUpload = Array.Empty<Vector4>();
+            _preparedPlayers = Array.Empty<BasisAnimatedImagePlayer>();
+            _readbackPlayers = Array.Empty<BasisAnimatedImagePlayer>();
+            _cardCapacity = 0;
+            _lastFailedCapacity = 0;
+            _nextCapacityRetryTime = 0f;
+            _nextPrepareTime = 0f;
+            _candidateStartIndex = 0;
+            _fallbackWarningLogged = false;
+            _successfulReadbackLogged = false;
+            _readbackErrorLogged = false;
         }
     }
 }

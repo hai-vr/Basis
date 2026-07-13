@@ -11,23 +11,34 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Unity.Collections;
+using Unity.Jobs;
+using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Basis.ImagePickup
 {
     /// <summary>
-    /// Per-client singleton that replicates image pickups. It shares a deterministic network identity across
-    /// all clients, so any client's manager can message the others. The server (or the P2P link) relays the
-    /// bytes and never stores them: an image exists only while its spawner is connected, and a late joiner is
-    /// served by the owner re-sending. Anyone may delete any image for everyone.
+    /// Per-client image pickup service. It shares a deterministic network identity across all clients, so any
+    /// client can message the others. The server (or the P2P link) relays the bytes and never stores them: an
+    /// image exists only while its spawner is connected, and a late joiner is served by the owner re-sending.
+    /// Anyone may delete any image for everyone.
+    ///
+    /// The animation scheduler lives here too. It advances image-pickup animations only while their front face
+    /// is visible to a gameplay camera: a per-frame CPU facing/frustum broad phase rejects cards before depth,
+    /// raycast, decode, or composition work. Desktop builds then prefer camera-depth visibility, while mobile
+    /// and portable platforms use front-face physics samples. Hidden players retain their synchronized epoch and
+    /// later resume at the correct frame.
+    ///
+    /// Image transfer work runs on the update tick; animation scheduling runs on the late-update tick, after
+    /// camera and transform writes have settled and before the render.
     /// </summary>
-    public class BasisImagePickupManager : BasisNetworkBehaviour
+    public static class BasisImagePickupManager
     {
-        public static BasisImagePickupManager Instance;
-
         private const string FixedNetworkIdentifier = "BasisImagePickupManager";
         private const int MaxIgnoredOwnerNameBytes = 1024;
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
+        private const BasisDebug.LogTag RenderLogTag = BasisDebug.LogTag.Rendering;
         internal const int MaxOwnerNameUtf8Bytes = 256;
         private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
@@ -42,6 +53,21 @@ namespace Basis.ImagePickup
         // Values 0 and 1 were used by pre-release animation transport experiments and remain
         // reserved so stale clients cannot misinterpret the production V2 native-LZ4 payload.
         private const byte AnimationFormatNativeLz4 = 2;
+
+        private const string CompositorShaderName = "Hidden/Basis/ImageAnimationComposite";
+        private const int FrontFaceSampleCount = 5;
+        private const int RaycastHitBufferSize = 16;
+        private const int MaximumCpuFacingCameraBits = 64;
+
+        private static readonly ProfilerMarker ScheduleMarker = new("Basis.ImagePickup.AnimatedImage.Schedule");
+        private static readonly ProfilerMarker GpuCommandsMarker = new("Basis.ImagePickup.AnimatedImage.GpuCommands");
+        private static readonly ProfilerMarker JobFlushMarker = new("Basis.ImagePickup.AnimatedImage.JobFlush");
+        private static readonly ProfilerMarker CpuFrontFacingMarker = new(
+            "Basis.ImagePickup.AnimatedImage.CpuFrontFacing"
+        );
+
+        public static bool HasNetworkID;
+        public static ushort NetworkID;
 
         private sealed class SpawnRateLimitState
         {
@@ -154,54 +180,92 @@ namespace Basis.ImagePickup
             public long FirstPacketQueueTicks;
         }
 
-        private readonly Dictionary<Guid, BasisImagePickupObject> _images = new();
-        private readonly Dictionary<Guid, OwnedImage> _owned = new();
-        private readonly Dictionary<Guid, BasisNativeAnimationPayload> _remoteAnimationPayloads = new();
-        private readonly Dictionary<Guid, InboundTransfer> _inbound = new();
-        private readonly Dictionary<Guid, InboundAnimationTransfer> _inboundAnimations =
-            new();
-        private readonly Queue<OutboundImageTransfer> _outboundImages = new();
-        private readonly Queue<OutboundAnimationTransfer> _outboundAnimations = new();
-        private readonly Queue<PendingGifSpawn> _queuedGifSpawns = new();
-        private readonly List<PendingGifSpawn> _pendingGifSpawns = new();
-        private readonly List<QueuedInboundAnimationDecode> _queuedInboundAnimationDecodes =
-            new();
-        private readonly List<PendingInboundAnimationDecode> _pendingInboundAnimationDecodes =
-            new();
-        private readonly HashSet<Guid> _animationAttempted = new();
-        private long _reservedInboundTransferBytes;
-        private bool _gifDecodePausedForMemory;
-        private bool _destroying;
-        private readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender =
-            new();
-        private readonly List<Guid> _scratchIds = new();
+        private static readonly Dictionary<Guid, BasisImagePickupObject> _images = new();
+        private static readonly Dictionary<Guid, OwnedImage> _owned = new();
+        private static readonly Dictionary<Guid, BasisNativeAnimationPayload> _remoteAnimationPayloads = new();
+        private static readonly Dictionary<Guid, InboundTransfer> _inbound = new();
+        private static readonly Dictionary<Guid, InboundAnimationTransfer> _inboundAnimations = new();
+        private static readonly Queue<OutboundImageTransfer> _outboundImages = new();
+        private static readonly Queue<OutboundAnimationTransfer> _outboundAnimations = new();
+        private static readonly Queue<PendingGifSpawn> _queuedGifSpawns = new();
+        private static readonly List<PendingGifSpawn> _pendingGifSpawns = new();
+        private static readonly List<QueuedInboundAnimationDecode> _queuedInboundAnimationDecodes = new();
+        private static readonly List<PendingInboundAnimationDecode> _pendingInboundAnimationDecodes = new();
+        private static readonly HashSet<Guid> _animationAttempted = new();
+        private static long _reservedInboundTransferBytes;
+        private static bool _gifDecodePausedForMemory;
+        private static bool _destroying;
+        private static readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender = new();
+        private static readonly List<Guid> _scratchIds = new();
+        private static bool _initialized;
 
-#if UNITY_EDITOR
-        [SerializeField]
-        private string editorTestImagePath;
-#endif
+        private static readonly List<BasisAnimatedImagePlayer> _players = new(64);
+        private static readonly List<BasisAnimatedImagePlayer> _pendingRemoval = new(8);
+        private static readonly List<BasisAnimatedImagePlayer> _pendingDecodedReleases = new(4);
+        private static readonly List<BasisAnimatedImagePlayer> _pendingCompositorReleases = new(4);
+        private static readonly List<BasisAnimatedImagePlayer> _pendingJobFlush = new(64);
+        private static readonly List<BasisAnimatedImagePlayer> _cpuFrontFacingPlayers = new(64);
+        private static readonly List<BasisAnimatedImagePlayer> _reloadDecodePlayers = new(2);
+        private static readonly List<Camera> _visibilityCameras = new(8);
+        private static readonly List<Vector3> _visibilityCameraPositions = new(8);
+        private static readonly List<Vector3> _visibilityCameraForwards = new(8);
+        private static readonly List<bool> _visibilityCameraOrthographic = new(8);
+        private static readonly List<Camera> _registeredCameraScratch = new(8);
+        private static readonly List<Plane[]> _visibilityFrustums = new(8);
+        private static readonly RaycastHit[] _raycastHits = new RaycastHit[RaycastHitBufferSize];
+        private static CommandBuffer _commands;
+        private static Material _compositorMaterial;
+        private static BasisAnimatedImagePlayer _compositorPriorityCandidate;
+        private static int _localVisibilityCameraIndex = -1;
+        private static int _activeReloadDecodes;
+        private static int _visiblePassStartIndex;
+        private static bool _cameraMaskLimitWarningLogged;
+        private static bool _schedulerReady;
 
-        private void Awake()
+        internal static Material CompositorMaterial => _compositorMaterial;
+        internal static bool HasGpuCompositor => _compositorMaterial != null;
+
+        /// <summary>Arms the image pickup service. Safe to call more than once.</summary>
+        public static void Initialize()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
+            if (_initialized)
                 return;
-            }
-            Instance = this;
-            BasisEventDriver.OnUpdate += Simulate;
-            if (Application.isPlaying)
-                DontDestroyOnLoad(gameObject);
+            _initialized = true;
+            _destroying = false;
+
+            EnsureSchedulerResources();
+            BasisEventDriver.OnUpdate += SimulateUpdate;
+            BasisNetworkPlayer.OnLocalPlayerJoined += HandleLocalPlayerJoined;
+            BasisNetworkPlayer.OnPlayerJoined += OnPlayerJoined;
+            BasisNetworkPlayer.OnPlayerLeft += OnPlayerLeft;
+            Application.quitting += Shutdown;
+
+            if (BasisNetworkConnection.LocalPlayerIsConnected)
+                HandleLocalPlayerJoined(null, null);
         }
 
-        public override void OnDestroy()
+        /// <summary>
+        /// Releases every player-owned native buffer and unsubscribes the service. Runs on application quit so
+        /// Unity's shutdown leak validation sees no retained allocations, and so a domain-reload-free editor
+        /// play session re-arms from clean state. Idempotent, and safe to call without a prior
+        /// <see cref="Initialize"/>, so tests can use it to reset the static state between cases.
+        /// </summary>
+        public static void Shutdown()
         {
+            _initialized = false;
             _destroying = true;
-            BasisEventDriver.OnUpdate -= Simulate;
-            if (Instance == this)
-                Instance = null;
 
-            // Release player-owned native buffers before Unity's shutdown leak validation runs.
+            BasisEventDriver.OnUpdate -= SimulateUpdate;
+            BasisNetworkPlayer.OnLocalPlayerJoined -= HandleLocalPlayerJoined;
+            BasisNetworkPlayer.OnPlayerJoined -= OnPlayerJoined;
+            BasisNetworkPlayer.OnPlayerLeft -= OnPlayerLeft;
+            Application.quitting -= Shutdown;
+
+            if (HasNetworkID)
+                BasisNetworkGenericMessages.UnregisterDirectHandler(NetworkID);
+            HasNetworkID = false;
+            NetworkID = 0;
+
             _scratchIds.Clear();
             foreach (Guid id in _images.Keys)
                 _scratchIds.Add(id);
@@ -232,9 +296,7 @@ namespace Basis.ImagePickup
             int pendingInboundDecodeCount = _pendingInboundAnimationDecodes.Count;
             for (int i = 0; i < pendingInboundDecodeCount; i++)
             {
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    i
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 pending.Job?.Dispose();
                 pending.Payload?.Dispose();
                 ReleaseInboundTransferBytes(pending.ReservedBytes);
@@ -265,27 +327,66 @@ namespace Basis.ImagePickup
             foreach (BasisNativeAnimationPayload payload in _remoteAnimationPayloads.Values)
                 payload?.Dispose();
             _remoteAnimationPayloads.Clear();
+            _animationAttempted.Clear();
+            _spawnRateBySender.Clear();
             _reservedInboundTransferBytes = 0;
+            _gifDecodePausedForMemory = false;
 
-            base.OnDestroy();
+            ReleaseSchedulerResources();
+            _destroying = false;
         }
 
-        public override void Start()
+        private static async void HandleLocalPlayerJoined(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
         {
-            AssignNetworkGUIDIdentifier(FixedNetworkIdentifier);
-            base.Start();
-        }
+            if (!BasisNetworkConnection.LocalPlayerIsConnected)
+            {
+                BasisDebug.LogError("Image pickup manager cannot start; the local player is not connected.", LogTag);
+                return;
+            }
+            if (HasNetworkID)
+                return;
 
-        public override void OnNetworkReady()
-        {
+            BasisIdResolutionResult resolution = await BasisNetworkIdResolver.ResolveAsync(FixedNetworkIdentifier);
+            if (!_initialized || HasNetworkID)
+                return;
+            if (!resolution.Success)
+            {
+                BasisDebug.LogError(
+                    $"Image pickup manager could not resolve the network identifier '{FixedNetworkIdentifier}'.",
+                    LogTag
+                );
+                return;
+            }
+
+            NetworkID = resolution.Id;
+            HasNetworkID = true;
+            BasisNetworkGenericMessages.RegisterDirectHandler(NetworkID, OnDirectNetworkMessage);
             BasisDebug.Log($"Image pickup manager ready (network id {NetworkID}).", LogTag);
+        }
+
+        /// <summary>
+        /// Sends over direct peer-to-peer links, falling back to the server relay for recipients with no direct
+        /// connection. Received via <see cref="OnDirectNetworkMessage"/>.
+        /// </summary>
+        private static void SendCustomNetworkEventDirect(
+            byte[] buffer,
+            DeliveryMethod deliveryMethod,
+            ushort[] recipients
+        )
+        {
+            if (!HasNetworkID)
+            {
+                BasisDebug.LogError("Image pickup manager has no network id assigned yet.", LogTag);
+                return;
+            }
+            BasisNetworkGenericMessages.OnNetworkMessageSendDirect(NetworkID, buffer, deliveryMethod, recipients);
         }
 
         /// <summary>
         /// Validates a PNG, JPEG, or GIF file, spawns it locally, and broadcasts a sanitized poster PNG.
         /// Multi-frame GIFs additionally replicate normalized animation data and a synchronized playback epoch.
         /// </summary>
-        public bool SpawnFromFile(string path)
+        public static bool SpawnFromFile(string path)
         {
             if (!CanStartLocalSpawn(path))
                 return false;
@@ -310,7 +411,7 @@ namespace Basis.ImagePickup
         /// Spawns one drag/drop batch in stable row-major slots. GIFs retain their assigned slots while
         /// waiting in the decode queue, so faster static images or shorter GIFs cannot scramble the layout.
         /// </summary>
-        public int SpawnFromFiles(IReadOnlyList<string> paths)
+        public static int SpawnFromFiles(IReadOnlyList<string> paths)
         {
             if (paths == null || paths.Count == 0)
                 return 0;
@@ -382,7 +483,7 @@ namespace Basis.ImagePickup
             return accepted;
         }
 
-        private int GetLocalReservedImageCount()
+        private static int GetLocalReservedImageCount()
         {
             return _owned.Count + _queuedGifSpawns.Count + _pendingGifSpawns.Count;
         }
@@ -411,7 +512,7 @@ namespace Basis.ImagePickup
             return false;
         }
 
-        private bool SpawnFromFileAtPose(string path, Vector3 position, Quaternion rotation)
+        private static bool SpawnFromFileAtPose(string path, Vector3 position, Quaternion rotation)
         {
             if (BasisAnimatedImageJobs.IsGifPath(path))
                 return QueueGifSpawn(path, position, rotation);
@@ -419,7 +520,7 @@ namespace Basis.ImagePickup
             return SpawnValidatedFile(path, BasisImageSecurity.ValidateFile(path), position, rotation);
         }
 
-        private bool QueueGifSpawn(string path, Vector3 position, Quaternion rotation)
+        private static bool QueueGifSpawn(string path, Vector3 position, Quaternion rotation)
         {
             _queuedGifSpawns.Enqueue(new PendingGifSpawn { Path = path, Position = position, Rotation = rotation });
             BasisDebug.Log(
@@ -432,7 +533,7 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private void StartQueuedGifSpawns()
+        private static void StartQueuedGifSpawns()
         {
             if (BasisAnimatedImageData.ShouldPauseNewDecode())
             {
@@ -441,7 +542,7 @@ namespace Basis.ImagePickup
             }
             if (_queuedGifSpawns.Count == 0)
             {
-            _gifDecodePausedForMemory = false;
+                _gifDecodePausedForMemory = false;
                 return;
             }
 
@@ -496,9 +597,9 @@ namespace Basis.ImagePickup
             {
                 long length = new FileInfo(path).Length;
                 if (length <= 0 || length > BasisImagePickupSettings.MaxAnimationSourceBytes)
-            {
-                return false;
-            }
+                {
+                    return false;
+                }
 
                 long estimate = BasisAnimatedImageData.EstimateGifDecodeWorkingBytes((int)length);
                 return !BasisAnimatedImageData.CanReserveWorkingBytes(estimate);
@@ -511,7 +612,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void LogGifDecodePausedForMemory()
+        private static void LogGifDecodePausedForMemory()
         {
             if (_gifDecodePausedForMemory)
                 return;
@@ -528,7 +629,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void ProcessCompletedGifSpawns()
+        private static void ProcessCompletedGifSpawns()
         {
             int pendingGifSpawnCount = _pendingGifSpawns.Count;
             for (int index = pendingGifSpawnCount - 1; index >= 0; index--)
@@ -597,7 +698,7 @@ namespace Basis.ImagePickup
             StartQueuedGifSpawns();
         }
 
-        private bool SpawnValidatedFile(
+        private static bool SpawnValidatedFile(
             string path,
             BasisImageValidationResult result,
             Vector3 position,
@@ -637,7 +738,6 @@ namespace Basis.ImagePickup
             );
 
             var pickup = BasisImagePickupObject.Build(
-                this,
                 id,
                 ownerId,
                 ownerName,
@@ -721,20 +821,20 @@ namespace Basis.ImagePickup
 
             BasisShareableRegistry.Register(
                 new BasisShareableEntry
-            {
-                Id = id.ToString(),
-                Kind = BasisShareableKind.Image,
-                Title = $"{result.Width}x{result.Height}",
-                SharerName = ownerName,
-                Actions = new List<BasisShareableAction>
                 {
-                    new BasisShareableAction
+                    Id = id.ToString(),
+                    Kind = BasisShareableKind.Image,
+                    Title = $"{result.Width}x{result.Height}",
+                    SharerName = ownerName,
+                    Actions = new List<BasisShareableAction>
                     {
-                        Style = BasisShareableActionStyle.Destructive,
-                        Invoke = () => { if (Instance != null) Instance.RequestDespawn(id); },
+                        new BasisShareableAction
+                        {
+                            Style = BasisShareableActionStyle.Destructive,
+                            Invoke = () => RequestDespawn(id),
+                        },
                     },
-                },
-            });
+                });
 
             if (HasNetworkID)
             {
@@ -770,7 +870,7 @@ namespace Basis.ImagePickup
         /// Attaches validated decoded animation data to an existing image pickup.
         /// Decoder/network layers can call this after the static poster has spawned.
         /// </summary>
-        public bool TrySetAnimation(Guid id, BasisAnimatedImageData data, long playbackEpochUtcTicks = 0)
+        public static bool TrySetAnimation(Guid id, BasisAnimatedImageData data, long playbackEpochUtcTicks = 0)
         {
             if (data == null)
                 return false;
@@ -794,7 +894,7 @@ namespace Basis.ImagePickup
         }
 
         /// <summary>Removes an image for everyone. Any client may call this for any image.</summary>
-        public void RequestDespawn(Guid id)
+        public static void RequestDespawn(Guid id)
         {
             if (HasNetworkID)
             {
@@ -804,7 +904,7 @@ namespace Basis.ImagePickup
         }
 
         /// <summary>Takes movement authority when this client grabs an image, demoting other clients to followers.</summary>
-        public void ClaimControl(Guid id)
+        public static void ClaimControl(Guid id)
         {
             if (!_images.TryGetValue(id, out BasisImagePickupObject pickup) || pickup == null)
                 return;
@@ -817,11 +917,11 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void Simulate()
+        private static void SimulateUpdate()
         {
             try
             {
-                SimulateBody();
+                SimulateUpdateBody();
             }
             catch (Exception exception)
             {
@@ -836,7 +936,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void SimulateBody()
+        private static void SimulateUpdateBody()
         {
             CleanupDestroyedImages();
             ProcessCompletedGifSpawns();
@@ -890,7 +990,7 @@ namespace Basis.ImagePickup
             CleanupExpiredTransfers(now);
         }
 
-        public override void OnPlayerJoined(BasisNetworkPlayer player)
+        private static void OnPlayerJoined(BasisNetworkPlayer player)
         {
             if (player == null || _owned.Count == 0)
                 return;
@@ -922,7 +1022,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        public override void OnPlayerLeft(BasisNetworkPlayer player)
+        private static void OnPlayerLeft(BasisNetworkPlayer player)
         {
             if (player == null)
                 return;
@@ -974,9 +1074,7 @@ namespace Basis.ImagePickup
             int pendingInboundDecodeCount = _pendingInboundAnimationDecodes.Count;
             for (int i = pendingInboundDecodeCount - 1; i >= 0; i--)
             {
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    i
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 if (pending.Sender != left)
                     continue;
                 pending.Job?.Dispose();
@@ -992,7 +1090,7 @@ namespace Basis.ImagePickup
             _spawnRateBySender.Remove(left);
         }
 
-        public override void OnDirectNetworkMessage(ushort senderId, byte[] buffer, DeliveryMethod deliveryMethod)
+        public static void OnDirectNetworkMessage(ushort senderId, byte[] buffer, DeliveryMethod deliveryMethod)
         {
             if (buffer == null || buffer.Length < 1)
                 return;
@@ -1040,7 +1138,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleSpawn(ushort senderId, BinaryReader reader)
+        private static void HandleSpawn(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             reader.ReadUInt16();
@@ -1074,26 +1172,26 @@ namespace Basis.ImagePickup
 
             try
             {
-            _inbound[id] = new InboundTransfer
-            {
-                Sender = senderId,
-                Id = id,
-                Buffer = new byte[totalBytes],
+                _inbound[id] = new InboundTransfer
+                {
+                    Sender = senderId,
+                    Id = id,
+                    Buffer = new byte[totalBytes],
                     ReservedBytes = totalBytes,
-                Received = new bool[totalChunks],
-                ReceivedCount = 0,
-                TotalChunks = totalChunks,
-                Width = width,
-                Height = height,
-                OwnerId = senderId,
-                OwnerName = ResolveOwnerName(senderId),
-                Deadline =
-                    Time.unscaledTime
-                    + BasisImagePickupSettings.InboundTransferTimeoutSeconds,
-                Position = position,
-                Rotation = rotation,
-            };
-        }
+                    Received = new bool[totalChunks],
+                    ReceivedCount = 0,
+                    TotalChunks = totalChunks,
+                    Width = width,
+                    Height = height,
+                    OwnerId = senderId,
+                    OwnerName = ResolveOwnerName(senderId),
+                    Deadline =
+                        Time.unscaledTime
+                        + BasisImagePickupSettings.InboundTransferTimeoutSeconds,
+                    Position = position,
+                    Rotation = rotation,
+                };
+            }
             catch
             {
                 ReleaseInboundTransferBytes(totalBytes);
@@ -1101,7 +1199,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleChunk(ushort senderId, BinaryReader reader)
+        private static void HandleChunk(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             int chunkIndex = reader.ReadInt32();
@@ -1145,7 +1243,7 @@ namespace Basis.ImagePickup
                 FinalizeTransfer(transfer);
         }
 
-        private void FinalizeTransfer(InboundTransfer transfer)
+        private static void FinalizeTransfer(InboundTransfer transfer)
         {
             _inbound.Remove(transfer.Id);
             ReleaseInboundTransferBytes(transfer.ReservedBytes);
@@ -1185,7 +1283,6 @@ namespace Basis.ImagePickup
             }
 
             var pickup = BasisImagePickupObject.Build(
-                this,
                 transfer.Id,
                 transfer.OwnerId,
                 transfer.OwnerName,
@@ -1201,23 +1298,23 @@ namespace Basis.ImagePickup
             Guid imageId = transfer.Id;
             BasisShareableRegistry.Register(
                 new BasisShareableEntry
-            {
-                Id = imageId.ToString(),
-                Kind = BasisShareableKind.Image,
-                Title = $"{transfer.Width}x{transfer.Height}",
-                SharerName = transfer.OwnerName,
-                Actions = new List<BasisShareableAction>
                 {
-                    new BasisShareableAction
+                    Id = imageId.ToString(),
+                    Kind = BasisShareableKind.Image,
+                    Title = $"{transfer.Width}x{transfer.Height}",
+                    SharerName = transfer.OwnerName,
+                    Actions = new List<BasisShareableAction>
                     {
-                        Style = BasisShareableActionStyle.Destructive,
-                        Invoke = () => { if (Instance != null) Instance.RequestDespawn(imageId); },
+                        new BasisShareableAction
+                        {
+                            Style = BasisShareableActionStyle.Destructive,
+                            Invoke = () => RequestDespawn(imageId),
+                        },
                     },
-                },
-            });
+                });
         }
 
-        private void HandleAnimationSpawn(ushort senderId, BinaryReader reader)
+        private static void HandleAnimationSpawn(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             byte format = reader.ReadByte();
@@ -1247,12 +1344,12 @@ namespace Basis.ImagePickup
             {
                 BasisDebug.LogWarning($"Image pickup animation from {senderId} dropped: {reason}.", LogTag);
                 return;
-        }
+            }
 
             NativeArray<byte> buffer = default;
             NativeArray<byte> received = default;
             try
-        {
+            {
                 buffer = new NativeArray<byte>(
                     totalBytes,
                     Allocator.Persistent,
@@ -1260,7 +1357,7 @@ namespace Basis.ImagePickup
                 );
                 received = new NativeArray<byte>(totalChunks, Allocator.Persistent, NativeArrayOptions.ClearMemory);
                 _inboundAnimations[id] = new InboundAnimationTransfer
-            {
+                {
                     Sender = senderId,
                     Id = id,
                     Buffer = buffer,
@@ -1292,7 +1389,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleAnimationChunk(ushort senderId, BinaryReader reader)
+        private static void HandleAnimationChunk(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             int chunkIndex = reader.ReadInt32();
@@ -1332,7 +1429,7 @@ namespace Basis.ImagePickup
                 FinalizeAnimationTransfer(transfer);
         }
 
-        private void FinalizeAnimationTransfer(InboundAnimationTransfer transfer)
+        private static void FinalizeAnimationTransfer(InboundAnimationTransfer transfer)
         {
             _inboundAnimations.Remove(transfer.Id);
             if (transfer.Received.IsCreated)
@@ -1448,7 +1545,7 @@ namespace Basis.ImagePickup
             StartQueuedInboundAnimationDecodes();
         }
 
-        private void StartQueuedInboundAnimationDecodes()
+        private static void StartQueuedInboundAnimationDecodes()
         {
             int queuedDecodeCount = _queuedInboundAnimationDecodes.Count;
             for (int index = 0; index < queuedDecodeCount; )
@@ -1458,9 +1555,7 @@ namespace Basis.ImagePickup
                     return;
                 }
 
-                QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[
-                    index
-                ];
+                QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[index];
                 if (!TryGetAcceptedInboundAnimationPickup(queued.Sender, queued.Id, out BasisImagePickupObject pickup))
                 {
                     RemoveQueuedInboundAnimationDecode(index);
@@ -1522,7 +1617,11 @@ namespace Basis.ImagePickup
             }
         }
 
-        private bool TryGetAcceptedInboundAnimationPickup(ushort sender, Guid id, out BasisImagePickupObject pickup)
+        private static bool TryGetAcceptedInboundAnimationPickup(
+            ushort sender,
+            Guid id,
+            out BasisImagePickupObject pickup
+        )
         {
             // The administrator lock blocks new image/animation headers. It does not remove
             // existing pickups, so work accepted before the lock must be allowed to finish.
@@ -1548,16 +1647,14 @@ namespace Basis.ImagePickup
                 && !animationAlreadyAttached;
         }
 
-        private bool CanStartInboundAnimationDecode(ushort sender, int decodedBytes)
+        private static bool CanStartInboundAnimationDecode(ushort sender, int decodedBytes)
         {
             int pendingForSender = 0;
             long pendingDecodedBytes = 0;
             int pendingDecodeCount = _pendingInboundAnimationDecodes.Count;
             for (int i = 0; i < pendingDecodeCount; i++)
             {
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    i
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 if (pending.Sender != sender)
                     continue;
                 pendingForSender++;
@@ -1586,7 +1683,7 @@ namespace Basis.ImagePickup
                 && pendingDecodedBytes <= decodedByteLimit - candidateDecodedBytes;
         }
 
-        private void RemoveQueuedInboundAnimationDecode(int index)
+        private static void RemoveQueuedInboundAnimationDecode(int index)
         {
             QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[index];
             _queuedInboundAnimationDecodes.RemoveAt(index);
@@ -1596,14 +1693,12 @@ namespace Basis.ImagePickup
             _animationAttempted.Remove(queued.Id);
         }
 
-        private void ProcessCompletedInboundAnimationDecodes()
+        private static void ProcessCompletedInboundAnimationDecodes()
         {
             int pendingDecodeCount = _pendingInboundAnimationDecodes.Count;
             for (int index = pendingDecodeCount - 1; index >= 0; index--)
             {
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    index
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[index];
                 BasisBurstAnimationDecodeResult workerResult;
                 try
                 {
@@ -1719,7 +1814,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleTransform(ushort senderId, BinaryReader reader)
+        private static void HandleTransform(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             Vector3 position = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
@@ -1737,7 +1832,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleClaim(ushort senderId, BinaryReader reader)
+        private static void HandleClaim(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             if (_images.TryGetValue(id, out BasisImagePickupObject pickup) && pickup != null)
@@ -1746,13 +1841,13 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void HandleDespawn(BinaryReader reader)
+        private static void HandleDespawn(BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
             RemoveImage(id);
         }
 
-        private bool CanAcceptSpawn(
+        private static bool CanAcceptSpawn(
             ushort sender,
             int totalBytes,
             int width,
@@ -1848,7 +1943,7 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private bool CanAcceptLocalImage(int totalBytes, int width, int height, out string reason)
+        private static bool CanAcceptLocalImage(int totalBytes, int width, int height, out string reason)
         {
             int imageCount = 1;
             long aggregatePixels = (long)width * height;
@@ -1912,7 +2007,7 @@ namespace Basis.ImagePickup
                     <= BasisImagePickupSettings.MaxInboundTransferBytes - reservedBytes;
         }
 
-        private bool TryReserveInboundTransferBytes(long bytes, out string reason)
+        private static bool TryReserveInboundTransferBytes(long bytes, out string reason)
         {
             if (!FitsInboundTransferBudget(_reservedInboundTransferBytes, bytes))
             {
@@ -1925,14 +2020,14 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private void ReleaseInboundTransferBytes(long bytes)
+        private static void ReleaseInboundTransferBytes(long bytes)
         {
             if (bytes <= 0)
                 return;
             _reservedInboundTransferBytes = Math.Max(0, _reservedInboundTransferBytes - bytes);
         }
 
-        private bool TryConsumeSpawnRateToken(ushort sender, float now)
+        private static bool TryConsumeSpawnRateToken(ushort sender, float now)
         {
             float interval = BasisImagePickupSettings.MinSecondsBetweenSpawnsPerSender;
             if (interval <= 0f)
@@ -1963,7 +2058,7 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private bool CanAcceptAnimation(
+        private static bool CanAcceptAnimation(
             ushort sender,
             Guid id,
             int totalBytes,
@@ -2056,9 +2151,7 @@ namespace Basis.ImagePickup
             int pendingInboundDecodeCount = _pendingInboundAnimationDecodes.Count;
             for (int i = 0; i < pendingInboundDecodeCount; i++)
             {
-                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
-                    i
-                ];
+                PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 if (pending.Sender == sender)
                     activeTransferBytes += pending.PayloadBytes;
             }
@@ -2076,7 +2169,7 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private bool CanAttachLocalAnimation(
+        private static bool CanAttachLocalAnimation(
             BasisAnimatedImageData candidate,
             bool reloadable,
             out string reason
@@ -2109,7 +2202,7 @@ namespace Basis.ImagePickup
                 : IsWithinRemoteAnimationBudget(decodedFramePixels, canvasPixels, out reason);
         }
 
-        private bool CanAttachRemoteAnimation(
+        private static bool CanAttachRemoteAnimation(
             ushort sender,
             BasisAnimatedImageData candidate,
             bool reloadable,
@@ -2178,16 +2271,16 @@ namespace Basis.ImagePickup
             return true;
         }
 
-        private void DisposeRejectedValidationResult(ref BasisImageValidationResult result)
+        private static void DisposeRejectedValidationResult(ref BasisImageValidationResult result)
         {
             if (result.Texture != null)
-                Destroy(result.Texture);
+                UnityEngine.Object.Destroy(result.Texture);
             result.Texture = null;
             result.TakeAnimation()?.Dispose();
             result.TakeAnimationPayload()?.Dispose();
         }
 
-        private void CleanupExpiredTransfers(float now)
+        private static void CleanupExpiredTransfers(float now)
         {
             if (_inbound.Count > 0)
             {
@@ -2216,7 +2309,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void RemoveInboundTransfer(Guid id)
+        private static void RemoveInboundTransfer(Guid id)
         {
             if (!_inbound.TryGetValue(id, out InboundTransfer transfer))
                 return;
@@ -2225,7 +2318,7 @@ namespace Basis.ImagePickup
             transfer.ReservedBytes = 0;
         }
 
-        private void RemoveInboundAnimationTransfer(Guid id)
+        private static void RemoveInboundAnimationTransfer(Guid id)
         {
             if (!_inboundAnimations.TryGetValue(id, out InboundAnimationTransfer transfer))
                 return;
@@ -2240,7 +2333,7 @@ namespace Basis.ImagePickup
         }
 
         /// <summary>Cleans manager-owned state when a scene unload destroys a pickup directly.</summary>
-        internal void OnPickupDestroyed(BasisImagePickupObject pickup)
+        internal static void OnPickupDestroyed(BasisImagePickupObject pickup)
         {
             if (_destroying || ReferenceEquals(pickup, null))
                 return;
@@ -2252,7 +2345,7 @@ namespace Basis.ImagePickup
             RemoveImage(pickup.ImageId, false);
         }
 
-        private void CleanupDestroyedImages()
+        private static void CleanupDestroyedImages()
         {
             _scratchIds.Clear();
             foreach (KeyValuePair<Guid, BasisImagePickupObject> entry in _images)
@@ -2266,7 +2359,7 @@ namespace Basis.ImagePickup
             _scratchIds.Clear();
         }
 
-        private void RemoveImage(Guid id, bool destroyPickup = true)
+        private static void RemoveImage(Guid id, bool destroyPickup = true)
         {
             _images.TryGetValue(id, out BasisImagePickupObject pickup);
             _images.Remove(id);
@@ -2317,13 +2410,13 @@ namespace Basis.ImagePickup
                 return;
 #if UNITY_EDITOR
             if (!Application.isPlaying)
-                DestroyImmediate(pickup.gameObject);
+                UnityEngine.Object.DestroyImmediate(pickup.gameObject);
             else
 #endif
-                Destroy(pickup.gameObject);
+                UnityEngine.Object.Destroy(pickup.gameObject);
         }
 
-        private void SendSpawn(
+        private static void SendSpawn(
             Guid id,
             ushort ownerId,
             string ownerName,
@@ -2339,7 +2432,7 @@ namespace Basis.ImagePickup
                 return;
             _outboundImages.Enqueue(
                 new OutboundImageTransfer
-        {
+                {
                     Id = id,
                     OwnerId = ownerId,
                     OwnerName = ownerName,
@@ -2355,7 +2448,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void ProcessOutboundImageTransfers()
+        private static void ProcessOutboundImageTransfers()
         {
             int chunksRemaining =
                 BasisImagePickupSettings.MaxImageNetworkChunksPerFrame;
@@ -2377,29 +2470,29 @@ namespace Basis.ImagePickup
                 if (!transfer.HeaderSent)
                 {
                     owned.Object.transform.GetPositionAndRotation(out transfer.Position, out transfer.Rotation);
-            SendCustomNetworkEventDirect(
-                EncodeSpawn(
+                    SendCustomNetworkEventDirect(
+                        EncodeSpawn(
                             transfer.Id,
                             transfer.OwnerId,
                             transfer.OwnerName,
                             transfer.Width,
                             transfer.Height,
                             transfer.Png.Length,
-                    totalChunks,
+                            totalChunks,
                             transfer.Position,
                             transfer.Rotation
-                ),
-                DeliveryMethod.ReliableOrdered,
+                        ),
+                        DeliveryMethod.ReliableOrdered,
                         transfer.Recipients
-            );
+                    );
                     transfer.HeaderSent = true;
                 }
 
                 while (chunksRemaining > 0 && transfer.NextChunkIndex < totalChunks)
-            {
+                {
                     int offset = transfer.NextChunkIndex * chunkSize;
                     int length = Mathf.Min(chunkSize, transfer.Png.Length - offset);
-                SendCustomNetworkEventDirect(
+                    SendCustomNetworkEventDirect(
                         EncodeChunk(
                             transfer.Id,
                             transfer.NextChunkIndex,
@@ -2407,9 +2500,9 @@ namespace Basis.ImagePickup
                             offset,
                             length
                         ),
-                    DeliveryMethod.ReliableOrdered,
+                        DeliveryMethod.ReliableOrdered,
                         transfer.Recipients
-                );
+                    );
                     transfer.NextChunkIndex++;
                     chunksRemaining--;
                 }
@@ -2435,7 +2528,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private bool HasPendingOutboundImageTransfer(Guid id)
+        private static bool HasPendingOutboundImageTransfer(Guid id)
         {
             foreach (OutboundImageTransfer transfer in _outboundImages)
             {
@@ -2445,7 +2538,7 @@ namespace Basis.ImagePickup
             return false;
         }
 
-        private void RemoveOutboundImageTransfers(Guid id)
+        private static void RemoveOutboundImageTransfers(Guid id)
         {
             int count = _outboundImages.Count;
             for (int i = 0; i < count; i++)
@@ -2456,7 +2549,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void RemoveOutboundImageTransfersForRecipient(ushort recipient)
+        private static void RemoveOutboundImageTransfersForRecipient(ushort recipient)
         {
             int count = _outboundImages.Count;
             for (int i = 0; i < count; i++)
@@ -2469,7 +2562,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void SendAnimation(Guid id, OwnedImage owned, ushort[] recipients)
+        private static void SendAnimation(Guid id, OwnedImage owned, ushort[] recipients)
         {
             if (
                 owned == null
@@ -2521,7 +2614,7 @@ namespace Basis.ImagePickup
             );
         }
 
-        private void ProcessOutboundAnimationTransfers()
+        private static void ProcessOutboundAnimationTransfers()
         {
             int chunksRemaining =
                 BasisImagePickupSettings.MaxAnimationNetworkChunksPerFrame;
@@ -2697,7 +2790,7 @@ namespace Basis.ImagePickup
                 }
 
                 if (batchIndex >= transfer.Packets.PacketCount)
-            {
+                {
                     transfer.Packets.Dispose();
                     transfer.Packets = null;
                     try
@@ -2723,7 +2816,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void RemoveOutboundAnimationTransfers(Guid id)
+        private static void RemoveOutboundAnimationTransfers(Guid id)
         {
             int count = _outboundAnimations.Count;
             for (int i = 0; i < count; i++)
@@ -2736,7 +2829,7 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void RemoveOutboundAnimationTransfersForRecipient(ushort recipient)
+        private static void RemoveOutboundAnimationTransfersForRecipient(ushort recipient)
         {
             int count = _outboundAnimations.Count;
             for (int i = 0; i < count; i++)
@@ -3017,7 +3110,7 @@ namespace Basis.ImagePickup
                 + BasisImagePickupSettings.BatchSpawnGroundClearanceMeters;
         }
 
-        private void GetSpawnPose(out Vector3 position, out Quaternion rotation)
+        private static void GetSpawnPose(out Vector3 position, out Quaternion rotation)
         {
             if (BasisLocalCameraDriver.HasInstance && BasisLocalCameraDriver.Instance != null)
             {
@@ -3037,13 +3130,1030 @@ namespace Basis.ImagePickup
             }
         }
 
-#if UNITY_EDITOR
-        [ContextMenu("Test Spawn From Path")]
-        private void EditorTestSpawn()
+        // ── Animated image scheduler ───────────────────────────────────────────────────────────────
+
+        private static void EnsureSchedulerResources()
         {
-            if (!string.IsNullOrEmpty(editorTestImagePath))
-                SpawnFromFile(editorTestImagePath);
+            if (_schedulerReady)
+                return;
+            _schedulerReady = true;
+
+            BasisDebug.Log(
+                BasisImagePickupSettings.UseDepthBufferAnimationVisibility
+                    ? "Image pickup animation visibility uses the depth buffer."
+                    : "Image pickup animation visibility uses front-face physics.",
+                RenderLogTag
+            );
+            _commands = new CommandBuffer { name = "Basis Animated Images" };
+            for (int i = _visibilityFrustums.Count; i < _visibilityFrustums.Capacity; i++)
+                _visibilityFrustums.Add(new Plane[6]);
+            if (BasisImagePickupSettings.UseDepthBufferAnimationVisibility)
+                BasisAnimatedImageDepthVisibility.Initialize();
+
+            Shader shader = Shader.Find(CompositorShaderName);
+            if (BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(shader))
+            {
+                _compositorMaterial = new Material(shader)
+                {
+                    name = "Basis Animated Image Compositor",
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+            }
+            else
+            {
+                BasisDebug.LogWarning(
+                    "Animated image GPU compositor shader is missing, unsupported, or incomplete; "
+                        + "using the CPU fallback.",
+                    RenderLogTag
+                );
+            }
+
+            BasisEventDriver.OnLateUpdate += SimulateLateUpdate;
         }
+
+        private static void ReleaseSchedulerResources()
+        {
+            if (!_schedulerReady)
+                return;
+            _schedulerReady = false;
+
+            BasisEventDriver.OnLateUpdate -= SimulateLateUpdate;
+            BasisAnimatedImageDepthVisibility.Shutdown();
+
+            if (_commands != null)
+            {
+                _commands.Release();
+                _commands = null;
+            }
+            if (_compositorMaterial != null)
+            {
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    UnityEngine.Object.DestroyImmediate(_compositorMaterial);
+                else
 #endif
+                    UnityEngine.Object.Destroy(_compositorMaterial);
+                _compositorMaterial = null;
+            }
+            _players.Clear();
+            _pendingRemoval.Clear();
+            _pendingDecodedReleases.Clear();
+            _pendingCompositorReleases.Clear();
+            _pendingJobFlush.Clear();
+            _compositorPriorityCandidate = null;
+            _cpuFrontFacingPlayers.Clear();
+            _reloadDecodePlayers.Clear();
+            _visibilityCameras.Clear();
+            _visibilityCameraPositions.Clear();
+            _visibilityCameraForwards.Clear();
+            _visibilityCameraOrthographic.Clear();
+            _registeredCameraScratch.Clear();
+            _visibilityFrustums.Clear();
+            _localVisibilityCameraIndex = -1;
+            _activeReloadDecodes = 0;
+            _visiblePassStartIndex = 0;
+            _cameraMaskLimitWarningLogged = false;
+        }
+
+        internal static void RegisterAnimatedPlayer(BasisAnimatedImagePlayer player)
+        {
+            if (player == null || _players.Contains(player))
+                return;
+            EnsureSchedulerResources();
+            _players.Add(player);
+        }
+
+        internal static void UnregisterAnimatedPlayer(BasisAnimatedImagePlayer player)
+        {
+            if (player == null)
+                return;
+            _pendingDecodedReleases.Remove(player);
+            _pendingCompositorReleases.Remove(player);
+            _pendingJobFlush.Remove(player);
+            if (ReferenceEquals(_compositorPriorityCandidate, player))
+                _compositorPriorityCandidate = null;
+            int playerIndex = _players.IndexOf(player);
+            if (playerIndex >= 0)
+                RemovePlayerAt(playerIndex);
+        }
+
+        internal static void RequestCompositorMemory(BasisAnimatedImagePlayer candidate)
+        {
+            Camera localCamera = BasisLocalCameraDriver.CameraInstance;
+            if (candidate == null || localCamera == null)
+                return;
+
+            Vector3 cameraPosition = localCamera.transform.position;
+            float candidateDistanceSquared = candidate.GetDistanceSquared(cameraPosition);
+            if (
+                _compositorPriorityCandidate == null
+                || candidateDistanceSquared
+                    < _compositorPriorityCandidate.GetDistanceSquared(cameraPosition)
+            )
+            {
+                _compositorPriorityCandidate = candidate;
+            }
+            if (_pendingCompositorReleases.Count > 0)
+                return;
+
+            candidate = _compositorPriorityCandidate;
+            candidateDistanceSquared = candidate.GetDistanceSquared(cameraPosition);
+            BasisAnimatedImagePlayer farthest = null;
+            float farthestDistanceSquared = candidateDistanceSquared;
+            int playerCount = _players.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _players[i];
+                if (
+                    player == null
+                    || ReferenceEquals(player, candidate)
+                    || !player.HasAllocatedCompositor
+                )
+                {
+                    continue;
+                }
+
+                float distanceSquared = player.GetDistanceSquared(cameraPosition);
+                if (distanceSquared <= farthestDistanceSquared)
+                    continue;
+                farthest = player;
+                farthestDistanceSquared = distanceSquared;
+            }
+
+            // Release after the current command buffer is no longer referencing the canvas.
+            if (farthest != null)
+                _pendingCompositorReleases.Add(farthest);
+        }
+
+        internal static bool TryAcquireReloadDecodeSlot(BasisAnimatedImagePlayer player, long nativeBytes)
+        {
+            return TryAcquireReloadDecodeSlot(
+                player,
+                nativeBytes,
+                BasisImagePickupSettings.MaxRemoteAnimationDecodedFramePixelsPerSender
+            );
+        }
+
+        internal static bool TryAcquireReloadDecodeSlot(
+            BasisAnimatedImagePlayer player,
+            long nativeBytes,
+            long decodedPixelLimit
+        )
+        {
+            if (
+                player == null
+                || _activeReloadDecodes >= BasisImagePickupSettings.MaxConcurrentAnimationDecodeJobs
+                || _reloadDecodePlayers.Contains(player)
+                || _pendingDecodedReleases.Count > 0
+                || !TryMakeRoomForDecodedPixels(player, decodedPixelLimit)
+                || !BasisAnimatedImageData.TryReserveRestoreBytes(nativeBytes)
+            )
+            {
+                return false;
+            }
+            _activeReloadDecodes++;
+            _reloadDecodePlayers.Add(player);
+            return true;
+        }
+
+        internal static void ReleaseReloadDecodeSlot(BasisAnimatedImagePlayer player, long nativeBytes)
+        {
+            int playerIndex = _reloadDecodePlayers.IndexOf(player);
+            if (playerIndex >= 0)
+            {
+                _reloadDecodePlayers.RemoveAt(playerIndex);
+                if (_activeReloadDecodes > 0)
+                    _activeReloadDecodes--;
+            }
+            BasisAnimatedImageData.ReleaseRestoreBytes(nativeBytes);
+        }
+
+        internal static void EnforceDecodedPixelBudget(BasisAnimatedImagePlayer candidate)
+        {
+            EnforceDecodedPixelBudget(
+                candidate,
+                BasisImagePickupSettings.MaxRemoteAnimationDecodedFramePixelsPerSender
+            );
+        }
+
+        internal static void EnforceDecodedPixelBudget(BasisAnimatedImagePlayer candidate, long decodedPixelLimit)
+        {
+            if (candidate == null || !candidate.HasDecodedData)
+                return;
+            TrimDecodedPixelBudget(candidate, false, false, decodedPixelLimit);
+        }
+
+        private static bool TryMakeRoomForDecodedPixels(
+            BasisAnimatedImagePlayer candidate,
+            long decodedPixelLimit
+        )
+        {
+            return TrimDecodedPixelBudget(candidate, true, true, decodedPixelLimit);
+        }
+
+        private static bool TrimDecodedPixelBudget(
+            BasisAnimatedImagePlayer candidate,
+            bool candidateNeedsDecode,
+            bool deferReleases,
+            long decodedPixelLimit
+        )
+        {
+            long limit = decodedPixelLimit;
+            long candidatePixels = candidate.DecodedFramePixels;
+            if (limit <= 0)
+                return false;
+            if (candidatePixels <= 0 || candidatePixels > limit)
+                return false;
+
+            ushort ownerId = candidate.OwnerId;
+            long decodedPixels = candidateNeedsDecode ? candidatePixels : 0;
+            int playerCount = _players.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _players[i];
+                if (player == null || player.OwnerId != ownerId || !player.HasDecodedData)
+                    continue;
+                decodedPixels += player.DecodedFramePixels;
+            }
+
+            int reloadDecodeCount = _reloadDecodePlayers.Count;
+            for (int i = 0; i < reloadDecodeCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _reloadDecodePlayers[i];
+                if (
+                    player == null
+                    || ReferenceEquals(player, candidate)
+                    || player.OwnerId != ownerId
+                    || player.HasDecodedData
+                )
+                {
+                    continue;
+                }
+                decodedPixels += player.DecodedFramePixels;
+            }
+
+            Camera localCamera = BasisLocalCameraDriver.CameraInstance;
+            Vector3 cameraPosition = localCamera != null ? localCamera.transform.position : Vector3.zero;
+            float candidateDistanceSquared =
+                localCamera != null ? candidate.GetDistanceSquared(cameraPosition) : float.PositiveInfinity;
+
+            if (candidateNeedsDecode && decodedPixels > limit)
+            {
+                long reclaimablePixels = 0;
+                playerCount = _players.Count;
+                for (int i = 0; i < playerCount; i++)
+                {
+                    BasisAnimatedImagePlayer player = _players[i];
+                    if (
+                        player == null
+                        || player.OwnerId != ownerId
+                        || !player.HasDecodedData
+                        || !player.CanReleaseDecodedData
+                    )
+                    {
+                        continue;
+                    }
+
+                    float distanceSquared =
+                        localCamera != null
+                            ? player.GetDistanceSquared(cameraPosition)
+                            : 0f;
+                    if (distanceSquared <= candidateDistanceSquared)
+                        continue;
+                    reclaimablePixels += player.DecodedFramePixels;
+                }
+
+                if (decodedPixels - reclaimablePixels > limit)
+                    return false;
+            }
+
+            bool releaseDeferred = false;
+            while (decodedPixels > limit)
+            {
+                BasisAnimatedImagePlayer farthest = null;
+                float farthestDistanceSquared = -1f;
+                playerCount = _players.Count;
+                for (int i = 0; i < playerCount; i++)
+                {
+                    BasisAnimatedImagePlayer player = _players[i];
+                    if (
+                        player == null
+                        || player.OwnerId != ownerId
+                        || !player.HasDecodedData
+                        || !player.CanReleaseDecodedData
+                        || (deferReleases && _pendingDecodedReleases.Contains(player))
+                    )
+                    {
+                        continue;
+                    }
+
+                    float distanceSquared;
+                    if (localCamera != null)
+                        distanceSquared = player.GetDistanceSquared(cameraPosition);
+                    else
+                        distanceSquared = ReferenceEquals(player, candidate) ? float.PositiveInfinity : 0f;
+                    if (distanceSquared <= farthestDistanceSquared)
+                        continue;
+                    farthest = player;
+                    farthestDistanceSquared = distanceSquared;
+                }
+
+                if (
+                    farthest == null
+                    || (
+                        candidateNeedsDecode
+                        && farthestDistanceSquared <= candidateDistanceSquared
+                    )
+                )
+                {
+                    return false;
+                }
+
+                decodedPixels -= farthest.DecodedFramePixels;
+                if (deferReleases)
+                {
+                    _pendingDecodedReleases.Add(farthest);
+                    releaseDeferred = true;
+                }
+                else
+                {
+                    farthest.ReleaseDecodedDataForMemoryPressure();
+                }
+            }
+
+            return !releaseDeferred;
+        }
+
+        internal static void ApplyPendingDecodedReleases()
+        {
+            int pendingReleaseCount = _pendingDecodedReleases.Count;
+            for (int i = 0; i < pendingReleaseCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _pendingDecodedReleases[i];
+                if (player != null)
+                    player.ReleaseDecodedDataForMemoryPressure();
+            }
+            _pendingDecodedReleases.Clear();
+        }
+
+        internal static void ApplyPendingCompositorReleases()
+        {
+            int pendingReleaseCount = _pendingCompositorReleases.Count;
+            for (int i = 0; i < pendingReleaseCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _pendingCompositorReleases[i];
+                if (player != null)
+                    player.ReleaseCompositorForMemoryPressure();
+            }
+            _pendingCompositorReleases.Clear();
+        }
+
+        internal static void PrioritizeDeferredCompositorCandidate()
+        {
+            BasisAnimatedImagePlayer candidate = _compositorPriorityCandidate;
+            _compositorPriorityCandidate = null;
+            if (candidate == null)
+                return;
+            int candidateIndex = _players.IndexOf(candidate);
+            if (candidateIndex >= 0)
+                _visiblePassStartIndex = candidateIndex;
+        }
+
+        private static void SimulateLateUpdate()
+        {
+            try
+            {
+                SimulateLateUpdateBody();
+            }
+            catch (Exception exception)
+            {
+                BasisDebug.LogErrorOnce(
+                    $"Animated image scheduler simulation failed with {_players.Count:N0} players, "
+                        + $"{_pendingCompositorReleases.Count:N0} pending compositor releases, "
+                        + $"and {_activeReloadDecodes:N0} active reload decodes: {exception}",
+                    RenderLogTag
+                );
+            }
+        }
+
+        private static void SimulateLateUpdateBody()
+        {
+            if (_players.Count == 0)
+            {
+                _pendingDecodedReleases.Clear();
+                _pendingCompositorReleases.Clear();
+                _compositorPriorityCandidate = null;
+                return;
+            }
+
+            using (ScheduleMarker.Auto())
+            {
+                int registeredPlayerCount = _players.Count;
+                for (int i = registeredPlayerCount - 1; i >= 0; i--)
+                {
+                    if (_players[i] == null)
+                        RemovePlayerAt(i);
+                }
+                if (_players.Count == 0)
+                {
+                    _pendingDecodedReleases.Clear();
+                    _pendingCompositorReleases.Clear();
+                    _compositorPriorityCandidate = null;
+                    return;
+                }
+
+                _commands.Clear();
+                // Canvas disposal is safe only after commands from the previous pass are discarded.
+                ApplyPendingCompositorReleases();
+                ApplyPendingDecodedReleases();
+                EnforceResidentNativeBudget();
+                _pendingRemoval.Clear();
+
+                bool useDepthBufferOcclusion =
+                    BasisImagePickupSettings.UseDepthBufferAnimationVisibility;
+                CollectVisibilityCameras();
+                float unscaledTime = Time.unscaledTime;
+                PrepareCpuFrontFacingPlayers(Time.frameCount, unscaledTime);
+
+                if (useDepthBufferOcclusion && BasisAnimatedImageDepthVisibility.IsActive)
+                {
+                    BasisAnimatedImageDepthVisibility.PrepareFrame(
+                        _cpuFrontFacingPlayers,
+                        BasisLocalCameraDriver.CameraInstance,
+                        unscaledTime
+                    );
+                }
+
+                int transitionsRemaining =
+                    BasisImagePickupSettings.MaxAnimationTransitionsPerFrame;
+                long pixelsRemaining =
+                    BasisImagePickupSettings.MaxAnimationCompositedPixelsPerFrame;
+                int raycastsRemaining =
+                    BasisImagePickupSettings.MaxAnimationFaceOcclusionRaycastsPerFrame;
+                bool gpuCommandsAdded = false;
+                long synchronizedTicks = BasisNetworkManagement.RemoteUtcTime().Ticks;
+                // Give released memory to the nearest blocked animation before farther players retry.
+                PrioritizeDeferredCompositorCandidate();
+
+                try
+                {
+                    ScheduleVisiblePlayers(
+                        synchronizedTicks,
+                        unscaledTime,
+                        ref _visiblePassStartIndex,
+                        useDepthBufferOcclusion,
+                        ref transitionsRemaining,
+                        ref pixelsRemaining,
+                        ref raycastsRemaining,
+                        ref gpuCommandsAdded
+                    );
+
+                    // Hand the composition and atlas jobs to the workers before the main thread
+                    // spends time on removals and the GPU command buffer, so they overlap.
+                    if (_pendingJobFlush.Count > 0)
+                        JobHandle.ScheduleBatchedJobs();
+
+                    int pendingRemovalCount = _pendingRemoval.Count;
+                    for (int i = 0; i < pendingRemovalCount; i++)
+                    {
+                        int playerIndex = _players.IndexOf(_pendingRemoval[i]);
+                        if (playerIndex >= 0)
+                            RemovePlayerAt(playerIndex);
+                    }
+
+                    if (gpuCommandsAdded)
+                    {
+                        using (GpuCommandsMarker.Auto())
+                        {
+                            Graphics.ExecuteCommandBuffer(_commands);
+                        }
+                    }
+                }
+                finally
+                {
+                    // Latest point that still lands the pixels before this frame renders.
+                    FlushPendingJobs();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Completes every job scheduled during this pass and performs the main-thread uploads.
+        /// Players disposed mid-pass already completed their own handles, so they no-op here.
+        /// </summary>
+        private static void FlushPendingJobs()
+        {
+            int pendingCount = _pendingJobFlush.Count;
+            if (pendingCount == 0)
+                return;
+
+            try
+            {
+                using (JobFlushMarker.Auto())
+                {
+                    for (int i = 0; i < pendingCount; i++)
+                    {
+                        BasisAnimatedImagePlayer player = _pendingJobFlush[i];
+                        if (player != null)
+                            player.FlushPendingJobs();
+                    }
+                }
+            }
+            finally
+            {
+                _pendingJobFlush.Clear();
+            }
+        }
+
+        private static void EnforceResidentNativeBudget()
+        {
+            long limit = BasisImagePickupSettings.MaxResidentAnimationNativeBytes;
+            if (BasisAnimatedImageData.TotalResidentNativeBytes <= limit)
+                return;
+
+            int playerCount = _players.Count;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int i = playerCount - 1; i >= 0; i--)
+                {
+                    BasisAnimatedImagePlayer player = _players[i];
+                    if (player == null || !player.CanReleaseDecodedData || (pass == 0 && player.HasAllocatedCompositor))
+                    {
+                        continue;
+                    }
+                    player.ReleaseDecodedDataForMemoryPressure();
+                    if (BasisAnimatedImageData.TotalResidentNativeBytes <= limit)
+                        return;
+                }
+            }
+        }
+
+        private static void RemovePlayerAt(int playerIndex)
+        {
+            _players.RemoveAt(playerIndex);
+            _visiblePassStartIndex = AdjustStartIndexAfterRemoval(_visiblePassStartIndex, playerIndex, _players.Count);
+        }
+
+        internal static int AdjustStartIndexAfterRemoval(int startIndex, int removedIndex, int remainingCount)
+        {
+            if (remainingCount <= 0)
+                return 0;
+            if (removedIndex < startIndex)
+                startIndex--;
+            if (startIndex < 0)
+                return 0;
+            return startIndex % remainingCount;
+        }
+
+        private static void PrepareCpuFrontFacingPlayers(int frame, float unscaledTime)
+        {
+            using var scope = CpuFrontFacingMarker.Auto();
+            _cpuFrontFacingPlayers.Clear();
+            int playerCount = _players.Count;
+            for (int playerIndex = 0; playerIndex < playerCount; playerIndex++)
+            {
+                BasisAnimatedImagePlayer player = _players[playerIndex];
+                if (player == null || !player.IsInitialized)
+                    continue;
+
+                ulong cameraMask = player.IsHidden
+                    ? 0
+                    : CalculateCpuFrontFacingCameraMask(player);
+                player.SetCpuFrontFacingCameraMask(cameraMask, frame);
+                if (cameraMask == 0)
+                {
+                    player.ResetFaceVisibility();
+                    player.ResetDepthVisibility();
+                    player.UpdateVisibilityState(false, unscaledTime);
+                    continue;
+                }
+                _cpuFrontFacingPlayers.Add(player);
+            }
+        }
+
+        private static ulong CalculateCpuFrontFacingCameraMask(BasisAnimatedImagePlayer player)
+        {
+            BasisImagePickupObject pickup = player.Pickup;
+            if (pickup == null || !pickup.HasFrontRenderer)
+                return 0;
+
+            Bounds bounds = pickup.FrontRendererBounds;
+            pickup.GetFrontFacePose(out Vector3 faceCenter, out Vector3 frontNormal);
+            int cameraCount = Mathf.Min(_visibilityCameras.Count, MaximumCpuFacingCameraBits);
+            ulong cameraMask = 0;
+            for (int cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++)
+            {
+                Camera camera = _visibilityCameras[cameraIndex];
+                if (
+                    !IsCpuFrontFacingCandidate(
+                        pickup.FrontRendererLayer,
+                        bounds,
+                        _visibilityFrustums[cameraIndex],
+                        frontNormal,
+                        faceCenter,
+                        _visibilityCameraPositions[cameraIndex],
+                        _visibilityCameraForwards[cameraIndex],
+                        _visibilityCameraOrthographic[cameraIndex],
+                        camera.cullingMask
+                    )
+                )
+                {
+                    continue;
+                }
+                cameraMask |= 1UL << cameraIndex;
+            }
+            return cameraMask;
+        }
+
+        internal static bool IsCpuFrontFacingCandidate(
+            int rendererLayer,
+            Bounds bounds,
+            Plane[] frustumPlanes,
+            Vector3 frontNormal,
+            Vector3 faceCenter,
+            Vector3 cameraPosition,
+            Vector3 cameraForward,
+            bool orthographic,
+            int cameraCullingMask
+        )
+        {
+            if (rendererLayer < 0 || rendererLayer > 31)
+                return false;
+            int layerMaskBit = 1 << rendererLayer;
+            if ((cameraCullingMask & layerMaskBit) == 0)
+                return false;
+            if (!IsFrontFacingCamera(frontNormal, faceCenter, cameraPosition, cameraForward, orthographic))
+            {
+                return false;
+            }
+            return frustumPlanes != null
+                && frustumPlanes.Length >= 6
+                && GeometryUtility.TestPlanesAABB(frustumPlanes, bounds);
+        }
+
+        private static void ScheduleVisiblePlayers(
+            long synchronizedTicks,
+            float unscaledTime,
+            ref int startIndex,
+            bool useDepthBufferOcclusion,
+            ref int transitionsRemaining,
+            ref long pixelsRemaining,
+            ref int raycastsRemaining,
+            ref bool gpuCommandsAdded
+        )
+        {
+            int playerCount = _players.Count;
+            if (playerCount == 0)
+                return;
+
+            int normalizedStartIndex = startIndex % playerCount;
+            if (normalizedStartIndex < 0)
+                normalizedStartIndex += playerCount;
+
+            for (int offset = 0; offset < playerCount; offset++)
+            {
+                int playerIndex = (normalizedStartIndex + offset) % playerCount;
+                BasisAnimatedImagePlayer player = _players[playerIndex];
+                if (player == null)
+                    continue;
+                if (!player.IsInitialized)
+                {
+                    _pendingRemoval.Add(player);
+                    continue;
+                }
+
+                bool hasCpuFacingMask = player.TryGetCpuFrontFacingCameraMask(
+                    Time.frameCount,
+                    out ulong cpuFacingCameraMask
+                );
+                if (player.IsHidden || !hasCpuFacingMask || cpuFacingCameraMask == 0)
+                    continue;
+
+                bool visible = useDepthBufferOcclusion
+                    ? EvaluateDepthBufferVisibility(player, unscaledTime, cpuFacingCameraMask, ref raycastsRemaining)
+                    : EvaluatePhysicsVisibility(
+                        player,
+                        unscaledTime,
+                        cpuFacingCameraMask,
+                        false,
+                        ref raycastsRemaining
+                    );
+                player.UpdateVisibilityState(visible, unscaledTime);
+                if (!visible)
+                    continue;
+
+                player.Schedule(
+                    _commands,
+                    synchronizedTicks,
+                    ref transitionsRemaining,
+                    ref pixelsRemaining,
+                    ref gpuCommandsAdded
+                );
+                if (player.HasPendingJobs)
+                    _pendingJobFlush.Add(player);
+
+                if (transitionsRemaining <= 0 || pixelsRemaining <= 0)
+                {
+                    startIndex = (playerIndex + 1) % playerCount;
+                    return;
+                }
+            }
+
+            // Rotate even when the pass completes without exhausting its budget so the
+            // same registration does not permanently receive first consideration.
+            startIndex = (normalizedStartIndex + 1) % playerCount;
+        }
+
+        private static bool EvaluatePhysicsVisibility(
+            BasisAnimatedImagePlayer player,
+            float unscaledTime,
+            ulong cpuFacingCameraMask,
+            bool skipLocalCamera,
+            ref int raycastsRemaining
+        )
+        {
+            if (
+                player.NeedsFaceOcclusionCheck(unscaledTime)
+                && TryEvaluateFaceVisibility(
+                    player,
+                    cpuFacingCameraMask,
+                    skipLocalCamera,
+                    ref raycastsRemaining,
+                    out bool evaluatedVisible
+                )
+            )
+            {
+                player.SetFaceVisibility(evaluatedVisible, unscaledTime);
+            }
+            return player.IsFaceVisible;
+        }
+
+        private static bool EvaluateDepthBufferVisibility(
+            BasisAnimatedImagePlayer player,
+            float unscaledTime,
+            ulong cpuFacingCameraMask,
+            ref int raycastsRemaining
+        )
+        {
+            if (
+                BasisAnimatedImageDepthVisibility.IsActive
+                && player.TryGetDepthVisibility(unscaledTime, out bool mainCameraVisible)
+            )
+            {
+                bool mainCameraCpuFacing =
+                    _localVisibilityCameraIndex >= 0
+                    && _localVisibilityCameraIndex < MaximumCpuFacingCameraBits
+                    && (cpuFacingCameraMask & (1UL << _localVisibilityCameraIndex))
+                        != 0;
+                if (mainCameraVisible && mainCameraCpuFacing)
+                    return true;
+
+                // Registered secondary cameras do not share the main camera depth texture.
+                return EvaluatePhysicsVisibility(
+                    player,
+                    unscaledTime,
+                    cpuFacingCameraMask,
+                    true,
+                    ref raycastsRemaining
+                );
+            }
+
+            // Until the first asynchronous readback arrives, retain the physics path so
+            // depth mode never incorrectly freezes newly spawned or newly visible cards.
+            return EvaluatePhysicsVisibility(player, unscaledTime, cpuFacingCameraMask, false, ref raycastsRemaining);
+        }
+
+        private static bool TryEvaluateFaceVisibility(
+            BasisAnimatedImagePlayer player,
+            ulong cpuFacingCameraMask,
+            bool skipLocalCamera,
+            ref int raycastsRemaining,
+            out bool visible
+        )
+        {
+            visible = false;
+            BasisImagePickupObject pickup = player.Pickup;
+            if (pickup == null || !pickup.HasFrontRenderer)
+                return true;
+
+            pickup.GetFrontFacePose(out _, out Vector3 frontNormal);
+            int cameraCount = Mathf.Min(_visibilityCameras.Count, MaximumCpuFacingCameraBits);
+            for (int i = 0; i < cameraCount; i++)
+            {
+                if ((cpuFacingCameraMask & (1UL << i)) == 0)
+                    continue;
+                Camera camera = _visibilityCameras[i];
+                if (skipLocalCamera && ReferenceEquals(camera, BasisLocalCameraDriver.CameraInstance))
+                {
+                    continue;
+                }
+
+                if (
+                    !TryHasUnoccludedFaceSample(
+                        pickup,
+                        camera,
+                        _visibilityCameraPositions[i],
+                        _visibilityCameraForwards[i],
+                        _visibilityCameraOrthographic[i],
+                        frontNormal,
+                        ref raycastsRemaining,
+                        out bool cameraCanSeeFace
+                    )
+                )
+                {
+                    return false;
+                }
+                if (cameraCanSeeFace)
+                {
+                    visible = true;
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        internal static bool IsFrontFacingCamera(
+            Vector3 frontNormal,
+            Vector3 faceCenter,
+            Vector3 cameraPosition,
+            Vector3 cameraForward,
+            bool orthographic
+        )
+        {
+            Vector3 towardCamera = orthographic
+                ? -cameraForward
+                : cameraPosition - faceCenter;
+            return Vector3.Dot(frontNormal, towardCamera) > 0.0001f;
+        }
+
+        private static bool TryHasUnoccludedFaceSample(
+            BasisImagePickupObject pickup,
+            Camera camera,
+            Vector3 cameraPosition,
+            Vector3 cameraForward,
+            bool cameraOrthographic,
+            Vector3 frontNormal,
+            ref int raycastsRemaining,
+            out bool visible
+        )
+        {
+            visible = false;
+            for (int sampleIndex = 0; sampleIndex < FrontFaceSampleCount; sampleIndex++)
+            {
+                if (raycastsRemaining <= 0)
+                    return false;
+                raycastsRemaining--;
+
+                Vector3 sample = pickup.GetFrontFaceOcclusionSample(sampleIndex, frontNormal);
+                if (IsFaceSampleUnoccluded(pickup, camera, cameraPosition, cameraForward, cameraOrthographic, sample))
+                {
+                    visible = true;
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        private static bool IsFaceSampleUnoccluded(
+            BasisImagePickupObject pickup,
+            Camera camera,
+            Vector3 cameraPosition,
+            Vector3 cameraForward,
+            bool cameraOrthographic,
+            Vector3 sample
+        )
+        {
+            Vector3 origin;
+            Vector3 direction;
+            float distance;
+
+            if (cameraOrthographic)
+            {
+                direction = cameraForward;
+                distance = Vector3.Dot(sample - cameraPosition, direction);
+                if (distance <= 0f)
+                    return false;
+                origin = sample - direction * distance;
+            }
+            else
+            {
+                origin = cameraPosition;
+                Vector3 toSample = sample - origin;
+                distance = toSample.magnitude;
+                if (distance <= 0.0001f)
+                    return true;
+                direction = toSample / distance;
+            }
+
+            distance = Mathf.Max(
+                0f,
+                distance
+                    - BasisImagePickupSettings.AnimationFaceOcclusionSurfaceOffsetMeters
+                        * 0.5f
+            );
+            if (distance <= 0.0001f)
+                return true;
+
+            // Use the camera's own culling mask so geometry it cannot render does not occlude.
+            int layerMask = camera.cullingMask & Physics.DefaultRaycastLayers;
+            int hitCount = Physics.RaycastNonAlloc(
+                origin,
+                direction,
+                _raycastHits,
+                distance,
+                layerMask,
+                QueryTriggerInteraction.Collide
+            );
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider collider = _raycastHits[i].collider;
+                if (!IsBlockingOcclusionCollider(collider, pickup))
+                    continue;
+                return false;
+            }
+
+            return hitCount < _raycastHits.Length;
+        }
+
+        internal static bool IsBlockingOcclusionCollider(Collider collider, BasisImagePickupObject target)
+        {
+            if (collider == null || target == null || target.OwnsCollider(collider))
+                return false;
+
+            if (!collider.isTrigger)
+                return true;
+
+            // Image-card colliders are registered by their pickup owner. Unrelated trigger
+            // volumes stay invisible without component discovery in this hot path.
+            return BasisImagePickupObject.TryGetPickup(collider, out BasisImagePickupObject otherImage)
+                && otherImage != target;
+        }
+
+        private static void CollectVisibilityCameras()
+        {
+            _visibilityCameras.Clear();
+            Camera localCamera = BasisLocalCameraDriver.CameraInstance;
+            AddVisibilityCamera(localCamera);
+            _localVisibilityCameraIndex = _visibilityCameras.IndexOf(localCamera);
+
+            _registeredCameraScratch.Clear();
+            BasisCullingCameraRegistry.CollectInto(_registeredCameraScratch);
+            int registeredCameraCount = _registeredCameraScratch.Count;
+            for (int i = 0; i < registeredCameraCount; i++)
+                AddVisibilityCamera(_registeredCameraScratch[i]);
+
+            int cameraCount = _visibilityCameras.Count;
+            while (_visibilityFrustums.Count < cameraCount)
+                _visibilityFrustums.Add(new Plane[6]);
+
+            _visibilityCameraPositions.Clear();
+            _visibilityCameraForwards.Clear();
+            _visibilityCameraOrthographic.Clear();
+            for (int i = 0; i < cameraCount; i++)
+            {
+                Camera camera = _visibilityCameras[i];
+                camera.transform.GetPositionAndRotation(out Vector3 cameraPosition, out Quaternion cameraRotation);
+                _visibilityCameraPositions.Add(cameraPosition);
+                _visibilityCameraForwards.Add(cameraRotation * Vector3.forward);
+                _visibilityCameraOrthographic.Add(camera.orthographic);
+                GeometryUtility.CalculateFrustumPlanes(camera, _visibilityFrustums[i]);
+            }
+        }
+
+        private static void AddVisibilityCamera(Camera camera)
+        {
+            if (!IsGameplayVisibilityCamera(camera) || _visibilityCameras.Contains(camera))
+            {
+                return;
+            }
+            if (_visibilityCameras.Count >= MaximumCpuFacingCameraBits)
+            {
+                if (!_cameraMaskLimitWarningLogged)
+                {
+                    _cameraMaskLimitWarningLogged = true;
+                    BasisDebug.LogWarning(
+                        $"Animated image visibility supports at most {MaximumCpuFacingCameraBits} gameplay cameras; additional cameras are ignored.",
+                        RenderLogTag
+                    );
+                }
+                return;
+            }
+            _visibilityCameras.Add(camera);
+        }
+
+        internal static bool IsSupportedVisibilityCameraType(CameraType cameraType)
+        {
+            return cameraType != CameraType.SceneView
+                && cameraType != CameraType.Preview;
+        }
+
+        private static bool IsGameplayVisibilityCamera(Camera camera)
+        {
+            return camera != null
+                && camera.isActiveAndEnabled
+                && IsSupportedVisibilityCameraType(camera.cameraType);
+        }
     }
 }

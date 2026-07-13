@@ -391,5 +391,106 @@ namespace Basis.MediaPipe.Tests
             Assert.That(Vector3.Distance(elbow, wrist), Is.LessThanOrEqualTo(AvatarForeLen + 1e-3f),
                 "a straight arm must not stretch the forearm");
         }
+
+        /// <summary>Right arm straight out to the user's right (camera -X). Side-on, so its length is fully visible.</summary>
+        private static Vector3[] ArmOutSideways()
+        {
+            Vector3[] pose = ArmDown();
+            pose[MediaPipeSpace.RightElbow] = new Vector3(-0.44f, 0.40f, 0f);
+            pose[MediaPipeSpace.RightWrist] = new Vector3(-0.71f, 0.40f, 0f);
+            pose[MediaPipeSpace.RightIndex] = new Vector3(-0.78f, 0.38f, 0f);
+            pose[MediaPipeSpace.RightPinky] = new Vector3(-0.76f, 0.42f, 0f);
+            return pose;   // |sh->el| + |el->wr| = 0.26 + 0.27 = 0.53 m: the arm's true length
+        }
+
+        /// <summary>
+        /// The same right arm, pointed AT the camera (-Z) — and reported the way MediaPipe actually reports it:
+        /// short. Depth is the model's weakest axis, so the shoulder->elbow->wrist chain comes back measuring
+        /// 0.32 m instead of its true 0.53 m. The POSE is real; the LENGTH it comes back with is not.
+        /// </summary>
+        private static Vector3[] ArmForeshortened()
+        {
+            Vector3[] pose = ArmDown();
+            pose[MediaPipeSpace.RightElbow] = new Vector3(-0.18f, 0.40f, -0.16f);
+            pose[MediaPipeSpace.RightWrist] = new Vector3(-0.18f, 0.40f, -0.32f);
+            pose[MediaPipeSpace.RightIndex] = new Vector3(-0.20f, 0.38f, -0.38f);
+            pose[MediaPipeSpace.RightPinky] = new Vector3(-0.16f, 0.42f, -0.38f);
+            return pose;
+        }
+
+        /// <summary>
+        /// The arm-length error is ONE-SIDED: foreshortening makes the model read the arm short, and essentially
+        /// nothing makes it read long. So a symmetric average of the measurements does not average the ARM — it
+        /// averages the foreshortening. The estimate sags toward whatever pose you hold most, and because
+        /// reach = avatarArm / userArm, a sagging estimate inflates reach and throws the avatar's hand further
+        /// and further out — worst exactly when you reach toward the camera, which is most of the time.
+        ///
+        /// So: hold a foreshortened arm perfectly still. The landmarks never change. The retarget must not move.
+        /// </summary>
+        [Test]
+        public void AForeshortenedArm_DoesNotInflateTheRetargetOverTime()
+        {
+            MediaPipeArmConverter converter = Converter();
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+
+            // Learn the arm from a clean side-on view, where its length really is visible.
+            for (int f = 0; f < 60; f++) converter.TryGetArm(ArmOutSideways(), in rig, false, in Timing, out _, out _, out _);
+
+            // Point it at the camera, and let the one-euro filters settle on the new pose first — otherwise we
+            // would be measuring the smoother still catching up, not the arm-length estimate underneath it.
+            Vector3[] fore = ArmForeshortened();
+            for (int f = 0; f < 60; f++) converter.TryGetArm(fore, in rig, false, in Timing, out _, out _, out _);
+
+            Assert.IsTrue(converter.TryGetArm(fore, in rig, false, in Timing, out Vector3 settled, out _, out _));
+            float settledReach = Vector3.Distance(settled, rig.RightAnchor);
+
+            // Now just hold it. Identical landmarks every frame from here on, so an identical retarget every
+            // frame is the only correct answer. Whatever moves is the arm-length estimate sagging.
+            float worst = settledReach;
+            for (int f = 0; f < 600; f++)
+            {
+                converter.TryGetArm(fore, in rig, false, in Timing, out Vector3 w, out _, out _);
+                worst = Mathf.Max(worst, Vector3.Distance(w, rig.RightAnchor));
+            }
+
+            float creep = worst - settledReach;
+            Assert.That(creep, Is.LessThan(0.01f),
+                $"holding a foreshortened arm perfectly still for {600f / 15f:F0}s pushed the avatar's hand " +
+                $"{creep * 100f:F1} cm further out — the arm-length estimate is following the model's under-read " +
+                "down, and reach = avatarArm/userArm is inflating to compensate");
+        }
+
+        /// <summary>
+        /// The guardrail on the test above. Refusing to believe under-reads is only correct because an arm is a
+        /// constant — it must not decay into refusing to learn at all. Sit a genuinely longer-armed person down
+        /// and the estimate still has to follow them, or the taller user's avatar under-reaches forever.
+        /// </summary>
+        [Test]
+        public void AGenuinelyLongerArm_IsStillLearned()
+        {
+            MediaPipeArmConverter converter = Converter();
+            MediaPipeArmConverter.AvatarArmRig rig = Rig();
+
+            for (int f = 0; f < 60; f++) converter.TryGetArm(ArmOutSideways(), in rig, false, in Timing, out _, out _, out _);
+            converter.TryGetArm(ArmOutSideways(), in rig, false, in Timing, out Vector3 shortArm, out _, out _);
+
+            // Same pose, but a person with a 20% longer arm: elbow and wrist both further out.
+            Vector3[] longer = ArmOutSideways();
+            longer[MediaPipeSpace.RightElbow] = new Vector3(-0.49f, 0.40f, 0f);
+            longer[MediaPipeSpace.RightWrist] = new Vector3(-0.82f, 0.40f, 0f);
+            for (int f = 0; f < 120; f++) converter.TryGetArm(longer, in rig, false, in Timing, out _, out _, out _);
+            converter.TryGetArm(longer, in rig, false, in Timing, out Vector3 longArm, out _, out _);
+
+            // A longer real arm at the same fraction of extension retargets to the SAME avatar reach — that is
+            // the entire point of normalising by the user's own arm. If the estimate had not been re-learned,
+            // the longer arm would read as "reaching further" and the avatar's hand would shoot out past it.
+            float shortReach = Vector3.Distance(shortArm, rig.RightAnchor);
+            float longReach = Vector3.Distance(longArm, rig.RightAnchor);
+
+            Assert.That(longReach, Is.EqualTo(shortReach).Within(0.02f),
+                $"a 20% longer arm retargeted to {longReach * 100f:F1} cm of avatar reach instead of " +
+                $"{shortReach * 100f:F1} cm — the arm-length estimate stopped adapting, so body size is leaking " +
+                "into the pose");
+        }
     }
 }

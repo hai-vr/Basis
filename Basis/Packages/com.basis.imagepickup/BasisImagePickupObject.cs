@@ -31,7 +31,7 @@ namespace Basis.ImagePickup
         private Material _material;
         private MeshRenderer _frontRenderer;
         private Transform _cardTransform;
-        private BasisImagePickupManager _manager;
+        private bool _managed;
         private BasisAnimatedImagePlayer _animatedImagePlayer;
 
         private bool _hidden;
@@ -69,7 +69,7 @@ namespace Basis.ImagePickup
             _frontRenderer != null ? _frontRenderer.gameObject.layer : gameObject.layer;
         public BasisAnimatedImagePlayer AnimatedImagePlayer => _animatedImagePlayer;
 
-        public static BasisImagePickupObject Build(BasisImagePickupManager manager, Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
+        public static BasisImagePickupObject Build(Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
         {
             var root = new GameObject($"BasisImagePickup_{ShortId(id)}");
             root.transform.SetPositionAndRotation(position, rotation);
@@ -78,7 +78,7 @@ namespace Basis.ImagePickup
             if (interactableLayer >= 0) root.layer = interactableLayer;
 
             var pickup = root.AddComponent<BasisImagePickupObject>();
-            pickup._manager = manager;
+            pickup._managed = true;
             pickup.ImageId = id;
             pickup.OwnerId = ownerId;
             pickup.OwnerName = string.IsNullOrEmpty(ownerName) ? "Unknown" : ownerName;
@@ -159,7 +159,7 @@ namespace Basis.ImagePickup
         private void OnLocalGrabbed(BasisInput input)
         {
             if (_interactable != null) _interactable._previousKinematicValue = false;
-            if (!_isController && _manager != null) _manager.ClaimControl(ImageId);
+            if (!_isController && _managed) BasisImagePickupManager.ClaimControl(ImageId);
         }
 
         public void SetController(bool value)
@@ -360,7 +360,7 @@ namespace Basis.ImagePickup
 
             CancelInvoke(nameof(DisarmDelete));
             _deleteArmed = false;
-            if (_manager != null) _manager.RequestDespawn(ImageId);
+            if (_managed) BasisImagePickupManager.RequestDespawn(ImageId);
         }
 
         private void DisarmDelete()
@@ -483,9 +483,11 @@ namespace Basis.ImagePickup
 
         private void OnDestroy()
         {
-            if (_manager != null)
-                _manager.OnPickupDestroyed(this);
-            _manager = null;
+            if (_managed)
+            {
+                _managed = false;
+                BasisImagePickupManager.OnPickupDestroyed(this);
+            }
             UnregisterCollider(_ownCollider);
             if (_material != null)
             {

@@ -39,7 +39,10 @@ namespace Basis.MediaPipe
         private const float DepthCutoffScale = 0.4f;
         private const float Beta = 3.25f;
         private const float DerivativeCutoff = 1f;
-        private const float ArmLengthTrackingHz = 0.5f;
+        // Asymmetric, because the measurement error is asymmetric — see TrackUserArm.
+        private const float ArmLengthRiseHz = 3f;        // a straight side-on arm locks in within ~a third of a second
+        private const float ArmLengthFallHz = 0.1f;      // ~10s to let go: only for a bad initial lock or a new user
+        private const float ArmLengthMaxJump = 1.25f;    // an arm cannot grow 25% between samples; that is a blown landmark
 
         private ArmFilter _leftWrist, _leftElbow, _rightWrist, _rightElbow;
         private float _leftUserArm, _rightUserArm;
@@ -290,9 +293,21 @@ namespace Basis.MediaPipe
             return distance > max && distance > 1e-6f ? anchor + delta * (max / distance) : target;
         }
 
-        // Arm length is a body constant, so this rejects sample noise while still adapting if the model's metric
-        // estimate drifts. It advances on the CAMERA clock — stepping it every rendered frame over a held sample
-        // would make it converge many times faster than intended.
+        // Arm length is a body CONSTANT, and the error in measuring it is ONE-SIDED. MediaPipe estimates depth
+        // from a single camera, and depth is its weakest axis: point your arm at the lens and the
+        // shoulder->elbow->wrist chain reads short. It essentially never reads LONG. So an averaging filter does
+        // not average the arm — it averages the foreshortening. The estimate sags toward whatever pose you hold
+        // most, `reach = avatarArm / userArm` inflates to compensate, and the avatar's hand overshoots exactly
+        // when you reach toward the camera, which is most of the time.
+        //
+        // Track the longest arm we have recently had good reason to believe in instead. Rise quickly — a
+        // side-on straight arm is the truth and no average should be allowed to dilute it — and decay slowly,
+        // which is all that is needed to let go of a bad initial lock or re-learn after a different person sits
+        // down. This is an asymmetric EMA rather than a plain running max so that a single blown landmark moves
+        // it a few percent instead of latching it high for the rest of the session.
+        //
+        // Advances on the CAMERA clock: stepping it every rendered frame over a held sample would converge it
+        // many times faster than intended.
         //
         // The range test is written as `!(measured > lo && measured < hi)` on purpose. A NaN fails EVERY ordered
         // comparison, so it takes the reject branch here; phrased the natural way round it would sail through, and
@@ -304,8 +319,21 @@ namespace Basis.MediaPipe
             if (!timing.IsNewSample) return stored;
             if (!(measured > 1e-3f && measured < 100f)) return stored;
 
-            float alpha = 1f - Mathf.Exp(-ArmLengthTrackingHz * timing.SampleDelta);
-            float updated = stored > 1e-4f ? Mathf.Lerp(stored, measured, alpha) : measured;
+            float updated;
+            if (!(stored > 1e-4f))
+            {
+                updated = measured;   // first believable sample: take it
+            }
+            else
+            {
+                // An arm does not get a quarter longer between two samples. A reading that says it did is a
+                // landmark that has come off the elbow, not a longer arm — and because the rise is the fast
+                // direction, believing it even briefly is what would latch the estimate high.
+                if (measured > stored * ArmLengthMaxJump) return stored;
+
+                float hz = measured > stored ? ArmLengthRiseHz : ArmLengthFallHz;
+                updated = Mathf.Lerp(stored, measured, 1f - Mathf.Exp(-hz * timing.SampleDelta));
+            }
 
             if (left) _leftUserArm = updated;
             else _rightUserArm = updated;

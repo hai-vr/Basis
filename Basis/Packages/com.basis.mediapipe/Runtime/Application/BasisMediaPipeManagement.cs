@@ -47,7 +47,8 @@ namespace Basis.MediaPipe
         private float _leftHandIK;
         private float _rightHandIK;
         private double _lastSampleMs;
-        private float _sampleDelta = 1f / 15f;
+        private float _sampleDelta = 1f / 15f;   // a PRIOR, not a measurement -- see _rateMeasured
+        private bool _rateMeasured;
         private bool _armPosePathActive;
         private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
@@ -500,9 +501,17 @@ namespace Basis.MediaPipe
             if (_lastSampleMs > 0.0)
             {
                 float delta = (float)((timestampMs - _lastSampleMs) / 1000.0);
-                if (delta > 1e-3f && delta < 0.5f)
+
+                // Accept anything physically possible. The old ceiling was 0.5s, so a pipeline that had actually
+                // collapsed to 1-2 Hz had every one of its samples thrown away, and _sampleDelta just sat where
+                // it was -- at the 15 Hz it is SEEDED with, if nothing valid ever landed. An instrument that
+                // fails toward "healthy" is worse than no instrument: it reports the number you hoped for
+                // exactly when it is wrong. And _sampleDelta is not decoration -- it is the clock every
+                // converter's one-euro filter tunes its cutoff against, so a stale one mis-smooths the hands too.
+                if (delta > 1e-3f && delta < 10f)
                 {
                     _sampleDelta = Mathf.Lerp(_sampleDelta, delta, 0.2f);
+                    _rateMeasured = true;
                 }
             }
             _lastSampleMs = timestampMs;
@@ -839,7 +848,16 @@ namespace Basis.MediaPipe
             {
                 status += $"\nFace: {_latest.HasFace}   L-Hand: {_latest.HasLeftHand}   R-Hand: {_latest.HasRightHand}   Pose: {_latest.HasPose}";
                 status += $"\nArm rig: {(_armRigValid ? "ready" : "unavailable")}";
-                status += $"\nTracking: {1f / Mathf.Max(_sampleDelta, 1e-4f):F1} Hz (camera set to {Config.TargetFps})";
+                status += _rateMeasured
+                    ? $"\nTracking: {1f / Mathf.Max(_sampleDelta, 1e-4f):F1} Hz (camera set to {Config.TargetFps})"
+                    : $"\nTracking: not measured yet (camera set to {Config.TargetFps})";
+
+                // Where the milliseconds actually go. The stages are serial, so the biggest one IS the bottleneck.
+                string breakdown = _backend.TimingBreakdown();
+                if (!string.IsNullOrEmpty(breakdown))
+                {
+                    status += $"\n  {breakdown}";
+                }
             }
             else
             {

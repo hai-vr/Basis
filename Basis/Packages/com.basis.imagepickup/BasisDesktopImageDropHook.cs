@@ -12,10 +12,9 @@ namespace Basis.ImagePickup
     /// <summary>
     /// Windows-only OS file-drop bridge. Subclasses the player window to intercept WM_DROPFILES and forwards
     /// dropped file paths to the image pickup manager on the Unity main thread. The manager validates supported
-    /// image formats. The native callbacks are static (IL2CPP cannot marshal instance-method delegates) and reach
-    /// instance state through <see cref="_instance"/>.
+    /// image formats. The native callbacks are static (IL2CPP cannot marshal instance-method delegates).
     /// </summary>
-    public class BasisDesktopImageDropHook : MonoBehaviour
+    public static class BasisDesktopImageDropHook
     {
         private const int GWLP_WNDPROC = -4;
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
@@ -35,25 +34,22 @@ namespace Basis.ImagePickup
         [DllImport("shell32.dll", CharSet = CharSet.Auto)] private static extern uint DragQueryFile(IntPtr hDrop, uint file, StringBuilder buffer, uint length);
         [DllImport("shell32.dll")] private static extern void DragFinish(IntPtr hDrop);
 
-        private static BasisDesktopImageDropHook _instance;
         private static readonly WndProcDelegate _wndProcDelegate = HookedWndProc;
+        private static readonly ConcurrentQueue<string[]> _pendingBatches = new();
         private static IntPtr _foundWindow;
-        private static IntPtr _activePreviousWndProc = IntPtr.Zero;
-        private static IntPtr _activeWindowHandle = IntPtr.Zero;
+        private static IntPtr _windowHandle = IntPtr.Zero;
+        private static IntPtr _previousWndProc = IntPtr.Zero;
+        private static bool _installed;
 
-        private IntPtr _windowHandle = IntPtr.Zero;
-        private IntPtr _previousWndProc = IntPtr.Zero;
-        private bool _hookInstalled;
-        private readonly ConcurrentQueue<string[]> _pendingBatches = new();
-
-        private void OnEnable()
+        public static void Install()
         {
-            _instance = this;
+            if (_installed)
+                return;
+
             _windowHandle = FindPlayerWindow();
             if (_windowHandle == IntPtr.Zero)
             {
                 BasisDebug.LogWarning("Image pickup: could not find the player window; file drop disabled.", LogTag);
-                enabled = false;
                 return;
             }
 
@@ -64,41 +60,35 @@ namespace Basis.ImagePickup
             {
                 BasisDebug.LogWarning($"Image pickup: failed to subclass the player window ({error}); file drop disabled.", LogTag);
                 _windowHandle = IntPtr.Zero;
-                if (_instance == this) _instance = null;
-                enabled = false;
                 return;
             }
 
-            _hookInstalled = true;
-            _activeWindowHandle = _windowHandle;
-            _activePreviousWndProc = _previousWndProc;
+            _installed = true;
             DragAcceptFiles(_windowHandle, true);
             BasisEventDriver.OnUpdate += Simulate;
+            Application.quitting += Uninstall;
         }
 
-        private void OnDisable()
+        public static void Uninstall()
         {
+            if (!_installed)
+                return;
+            _installed = false;
+
             BasisEventDriver.OnUpdate -= Simulate;
+            Application.quitting -= Uninstall;
+
             if (_windowHandle != IntPtr.Zero)
             {
-                if (_hookInstalled)
-                {
-                    SetWindowLongPtr(_windowHandle, GWLP_WNDPROC, _previousWndProc);
-                }
+                SetWindowLongPtr(_windowHandle, GWLP_WNDPROC, _previousWndProc);
                 DragAcceptFiles(_windowHandle, false);
-            }
-            if (_activeWindowHandle == _windowHandle)
-            {
-                _activeWindowHandle = IntPtr.Zero;
-                _activePreviousWndProc = IntPtr.Zero;
             }
             _windowHandle = IntPtr.Zero;
             _previousWndProc = IntPtr.Zero;
-            _hookInstalled = false;
-            if (_instance == this) _instance = null;
+            while (_pendingBatches.TryDequeue(out _)) { }
         }
 
-        private void Simulate()
+        private static void Simulate()
         {
             try
             {
@@ -110,18 +100,15 @@ namespace Basis.ImagePickup
             }
         }
 
-        private void SimulateBody()
+        private static void SimulateBody()
         {
-            BasisImagePickupManager manager = BasisImagePickupManager.Instance;
-            if (manager == null) return;
-
             int batchCount = _pendingBatches.Count;
             for (int i = 0; i < batchCount; i++)
             {
                 if (!_pendingBatches.TryDequeue(out string[] paths)) break;
                 try
                 {
-                    manager.SpawnFromFiles(paths);
+                    BasisImagePickupManager.SpawnFromFiles(paths);
                 }
                 catch (Exception exception)
                 {
@@ -133,14 +120,13 @@ namespace Basis.ImagePickup
         [AOT.MonoPInvokeCallback(typeof(WndProcDelegate))]
         private static IntPtr HookedWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
-            BasisDesktopImageDropHook instance = _instance;
-            IntPtr previous = instance != null ? instance._previousWndProc : _activePreviousWndProc;
+            IntPtr previous = _previousWndProc;
 
-            if (instance != null && msg == WM_DROPFILES)
+            if (_installed && msg == WM_DROPFILES)
             {
                 try
                 {
-                    instance.CollectDroppedFiles(wParam);
+                    CollectDroppedFiles(wParam);
                 }
                 catch (Exception exception)
                 {
@@ -162,7 +148,7 @@ namespace Basis.ImagePickup
                 : DefWindowProc(hWnd, msg, wParam, lParam);
         }
 
-        private void CollectDroppedFiles(IntPtr hDrop)
+        private static void CollectDroppedFiles(IntPtr hDrop)
         {
             var droppedPaths = new List<string>();
             try

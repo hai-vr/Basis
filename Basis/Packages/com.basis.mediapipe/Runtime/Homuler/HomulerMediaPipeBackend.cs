@@ -60,6 +60,33 @@ namespace Basis.MediaPipe.Homuler
         private long _pendingTs;
         private RenderTexture _readbackRT;
 
+        // Stage timings, in ms, for the diagnostics readout. Written by the worker, read by the main thread --
+        // deliberately unsynchronised, because they steer a human reading a menu, never any control flow.
+        //
+        // The stages are strictly SERIAL, which is the point of measuring them apart. A submit blocks on
+        // _readbackPending until the GPU hands the frame back (1-3 render frames), and then on _busy until all
+        // three models have run on the single worker thread. Nothing overlaps, so the tracking period really is
+        // the sum of these, and whichever one is biggest is the one worth attacking.
+        private long _submitTicks;
+        private volatile float _readbackMs;
+        private volatile float _flipMs;
+        private volatile float _faceMs;
+        private volatile float _poseMs;
+        private volatile float _handMs;
+        private volatile float _worstPeriodMs;
+
+        private static float MsSince(long startTicks) =>
+            (float)((System.Diagnostics.Stopwatch.GetTimestamp() - startTicks) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+
+        public string TimingBreakdown()
+        {
+            float infer = _faceMs + _poseMs + _handMs;
+            float period = _readbackMs + _flipMs + infer;
+            if (!(period > 0f)) return string.Empty;
+
+            return $"readback {_readbackMs:F0} + flip {_flipMs:F0} + face {_faceMs:F0} + pose {_poseMs:F0} + hands {_handMs:F0} = {period:F0}ms (worst {_worstPeriodMs:F0}ms)";
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Register() =>
             BasisMediaPipeBackendRegistry.Register(() => new HomulerMediaPipeBackend());
@@ -158,6 +185,8 @@ namespace Basis.MediaPipe.Homuler
             if (ts <= _lastTimestamp) ts = _lastTimestamp + 1;
             _lastTimestamp = ts;
 
+            _submitTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+
             if (_useAsyncReadback)
             {
                 // WebCamTexture's GPU format usually can't be read back directly, so blit it into a
@@ -199,6 +228,7 @@ namespace Basis.MediaPipe.Homuler
         private void OnReadback(AsyncGPUReadbackRequest req)
         {
             _readbackPending = false;
+            _readbackMs = MsSince(_submitTicks);
             if (!_running) return;
             if (req.hasError)
             {
@@ -244,6 +274,7 @@ namespace Basis.MediaPipe.Homuler
         {
             int w = _w;
             int h = _h;
+            long stage = System.Diagnostics.Stopwatch.GetTimestamp();
 
             // WebCamTexture origin is bottom-left; MediaPipe expects top-left. Flip rows,
             // and mirror columns for a selfie-style camera.
@@ -284,19 +315,31 @@ namespace Basis.MediaPipe.Homuler
             }
 
             _native.CopyFrom(_rgba);
+            _flipMs = MsSince(stage);
 
             BasisMediaPipeResult result = new BasisMediaPipeResult { TimestampMs = _ts };
             // DetectForVideo consumes (disposes) the Image it is given, so build a fresh one per call.
+            stage = System.Diagnostics.Stopwatch.GetTimestamp();
             if (_face != null)
             {
                 FaceLandmarkerResult faceResult = _face.DetectForVideo(NewImage(w, h), _ts);
                 ParseFace(faceResult, ref result);
                 if (result.HasFace) result.TongueOut = ComputeTongueOut(faceResult, w, h);
             }
+            _faceMs = _face != null ? MsSince(stage) : 0f;
+
             // Pose before hands: the hand landmarker's left/right label is a guess, and the pose (whose sides
             // are repaired from geometry) is what the hands get matched against to settle it.
+            stage = System.Diagnostics.Stopwatch.GetTimestamp();
             if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
+            _poseMs = _pose != null ? MsSince(stage) : 0f;
+
+            stage = System.Diagnostics.Stopwatch.GetTimestamp();
             if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
+            _handMs = _hand != null ? MsSince(stage) : 0f;
+
+            float period = _readbackMs + _flipMs + _faceMs + _poseMs + _handMs;
+            if (period > _worstPeriodMs) _worstPeriodMs = period;
 
             lock (_resultLock)
             {

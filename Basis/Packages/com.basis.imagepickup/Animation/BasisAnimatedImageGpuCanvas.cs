@@ -131,17 +131,25 @@ namespace Basis.ImagePickup
             return allRequiredCanvasesCreated;
         }
 
+        public bool HasPendingAtlasPage => _frameAtlas != null && _frameAtlas.HasPendingPage;
+
         public bool TryPrepareFrameAtlas(ref long pixelsRemaining)
         {
             ThrowIfDisposed();
             if (_frameAtlas == null)
                 return false;
-            bool ready = _frameAtlas.TryBuildNextPage(
+            bool ready = _frameAtlas.BeginNextPage(
                 pixelsRemaining,
                 out long pixelsUsed
             );
             pixelsRemaining = Math.Max(0, pixelsRemaining - pixelsUsed);
             return ready;
+        }
+
+        /// <summary>Completes a scheduled atlas page and uploads it to the GPU.</summary>
+        public void FlushPendingAtlasPage()
+        {
+            _frameAtlas?.FlushPendingPage();
         }
 
         private bool TryRebuildFrameAtlas()
