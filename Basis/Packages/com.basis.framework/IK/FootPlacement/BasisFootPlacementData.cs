@@ -11,6 +11,9 @@ public struct BasisFootNativeState
     public quaternion plantedRot;
     public float3 plantedBodyFwd;   // body forward at plant time — the yaw trigger's reference
     public float3 stepStartPos, stepTargetPos;
+    /// <summary>Foot rotation at the instant this step began. The swing blends FROM here, exactly as the
+    /// position blends from stepStartPos -- see BasisFootSimulateJob's swing branch for why that matters.</summary>
+    public quaternion stepStartRot;
     public float stepTimer, stepDur;
     public float plantedTime;       // seconds since this foot landed; gates the double-support window
 

@@ -248,8 +248,11 @@ public partial class BasisLocalFootDriver
         //
         // The bone's own world rotation is already in the frame everything downstream expects, and it is literally
         // "where the animation currently has the foot" -- which is what this re-engage snapshot is FOR.
-        if (left.bone != null) left.currentRot = left.plantedRot = left.bone.rotation;
-        if (right.bone != null) right.currentRot = right.plantedRot = right.bone.rotation;
+        // stepStartRot seeded too: a default Quaternion is (0,0,0,0), not identity, and slerping from a
+        // zero quaternion produces garbage. FinalizeStep is the only path into the swing and it always
+        // seeds this -- but seeding it here as well means no future path can reach the job without it.
+        if (left.bone != null) left.currentRot = left.plantedRot = left.stepStartRot = left.bone.rotation;
+        if (right.bone != null) right.currentRot = right.plantedRot = right.stepStartRot = right.bone.rotation;
 
         // Zero, don't seed: the sim reseeds it from the live body forward on the next tick. These feet
         // were just picked up from the animation (which is aligned to the body), so "no turn owed" is
@@ -456,6 +459,7 @@ public partial class BasisLocalFootDriver
             plantedBodyFwd = f.plantedBodyFwd,
             stepStartPos = f.stepStartPos,
             stepTargetPos = f.stepTargetPos,
+            stepStartRot = f.stepStartRot,
             stepTimer = f.stepTimer,
             stepDur = f.stepDur,
             idealPos = f.idealPos,
@@ -473,6 +477,7 @@ public partial class BasisLocalFootDriver
         f.plantedBodyFwd = n.plantedBodyFwd;
         f.stepStartPos = n.stepStartPos;
         f.stepTargetPos = n.stepTargetPos;
+        f.stepStartRot = n.stepStartRot;
         f.stepTimer = n.stepTimer;
         f.stepDur = n.stepDur;
         f.idealPos = n.idealPos;
@@ -942,6 +947,10 @@ public partial class BasisLocalFootDriver
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;
+        // Freeze the lift-off rotation alongside the lift-off position, so the swing can blend from a
+        // FIXED start instead of chasing its own previous output (which converged by frame count, not
+        // time -- see the swing branch in BasisFootSimulateJob).
+        f.stepStartRot = f.currentRot;
         f.stepTimer = 0f;
         f.stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
@@ -1261,7 +1270,7 @@ public partial class BasisLocalFootDriver
             f.filteredNormal = cachedPlayerUp;
         }
         Vector3 fwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
-        f.currentRot = f.plantedRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);
+        f.currentRot = f.plantedRot = f.stepStartRot = FootRotation(fwd, f.filteredNormal, f.sideSign < 0 ? footAlignLeft : footAlignRight);
         f.phase = BasisFootPhase.Planted;
         f.kneeHint = (hips.position + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
     }

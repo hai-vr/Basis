@@ -135,8 +135,7 @@ namespace Basis.MediaPipe
                 return false;
             }
 
-            float userArm = TrackUserArm(avatarLeft,
-                Vector3.Distance(shoulder, elbow) + Vector3.Distance(elbow, wrist), timing);
+            float userArm = TrackUserArm(avatarLeft, shoulder, elbow, wrist, timing);
             float upperLen = avatarLeft ? rig.LeftUpperLen : rig.RightUpperLen;
             float foreLen = avatarLeft ? rig.LeftForeLen : rig.RightForeLen;
             float avatarArm = upperLen + foreLen;
@@ -313,31 +312,71 @@ namespace Basis.MediaPipe
         // comparison, so it takes the reject branch here; phrased the natural way round it would sail through, and
         // the old `Mathf.Max(stored, NaN)` returned NaN — poisoning the arm length PERMANENTLY, which made
         // `reach = avatarArm / NaN` NaN and every target after it, ending in a Burst abort inside the IK.
-        private float TrackUserArm(bool left, float measured, in MediaPipeTiming timing)
+        private float TrackUserArm(bool left, Vector3 shoulder, Vector3 elbow, Vector3 wrist, in MediaPipeTiming timing)
         {
             float stored = left ? _leftUserArm : _rightUserArm;
             if (!timing.IsNewSample) return stored;
+
+            Vector3 upper = elbow - shoulder;
+            Vector3 fore = wrist - elbow;
+            float measured = upper.magnitude + fore.magnitude;
             if (!(measured > 1e-3f && measured < 100f)) return stored;
 
-            float updated;
             if (!(stored > 1e-4f))
             {
-                updated = measured;   // first believable sample: take it
+                // Nothing to compare against yet. Take whatever we have, even if it is a poor look — a first
+                // reading that is too short is corrected within a third of a second of the first good one.
+                if (left) _leftUserArm = measured;
+                else _rightUserArm = measured;
+                return measured;
             }
-            else
-            {
-                // An arm does not get a quarter longer between two samples. A reading that says it did is a
-                // landmark that has come off the elbow, not a longer arm — and because the rise is the fast
-                // direction, believing it even briefly is what would latch the estimate high.
-                if (measured > stored * ArmLengthMaxJump) return stored;
 
-                float hz = measured > stored ? ArmLengthRiseHz : ArmLengthFallHz;
-                updated = Mathf.Lerp(stored, measured, 1f - Mathf.Exp(-hz * timing.SampleDelta));
-            }
+            // Learn only from readings the camera was actually in a position to take. `trust` is 1 for an arm
+            // lying in the image plane, where its length is plainly visible, and falls to 0 as the arm swings
+            // round to point at the lens, where MediaPipe is guessing at depth and reads it short.
+            //
+            // This is why a slower decay could never have been the fix: foreshortening lasts as long as you hold
+            // your arms out in front of you, which is minutes, so any time constant slow enough to survive it is
+            // indistinguishable from never adapting at all. The estimate must decay on EVIDENCE, not on a clock.
+            // Simply decline to learn from a measurement that cannot know what it is measuring.
+            float trust = 1f - Foreshortening(upper, fore);
+            if (!(trust > 0f)) return stored;   // NaN-safe: this frame teaches us nothing
+
+            // An arm does not get a quarter longer between two samples. A reading that says it did is a landmark
+            // that has come off the elbow, not a longer arm — and because the rise is the fast direction,
+            // believing it even briefly is what would latch the estimate high.
+            if (measured > stored * ArmLengthMaxJump) return stored;
+
+            // Partial foreshortening still biases short, so on top of the gate, prefer the longest credible
+            // reading: rise readily, let go reluctantly.
+            float hz = (measured > stored ? ArmLengthRiseHz : ArmLengthFallHz) * trust;
+            float updated = Mathf.Lerp(stored, measured, 1f - Mathf.Exp(-hz * timing.SampleDelta));
 
             if (left) _leftUserArm = updated;
             else _rightUserArm = updated;
             return updated;
+        }
+
+        /// <summary>
+        /// How much of the arm points AT the camera: 0 when it lies in the image plane (its length is fully
+        /// visible), 1 when it aims straight down the lens. Depth is MediaPipe's weakest axis, so a segment lying
+        /// along camera Z is precisely the segment whose length it cannot see — and it reads it SHORT. The worse
+        /// of the two segments governs, because either one coming back short shortens the whole chain.
+        /// </summary>
+        private static float Foreshortening(Vector3 upper, Vector3 fore)
+        {
+            float worst = Mathf.Max(DepthAlignment(upper), DepthAlignment(fore));
+
+            // Within ~20 deg of the image plane the reading is honest enough to learn from at full rate; past
+            // ~70 deg it says almost nothing about its own length. Ramp smoothly between, so the estimate never
+            // flips between learning and not learning from one frame to the next.
+            return Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((worst - 0.34f) / 0.60f));
+        }
+
+        private static float DepthAlignment(Vector3 segment)
+        {
+            float len = segment.magnitude;
+            return len > 1e-4f ? Mathf.Abs(segment.z) / len : 1f;   // degenerate segment: trust it with nothing
         }
 
         private static Quaternion LookFrom(Vector3 forward, Vector3 up) =>

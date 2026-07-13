@@ -102,7 +102,44 @@ namespace Basis.IK.Mocap
         // Rebuild a joint from a pair of solved rotations over the fixed bone lengths.
         static Vector3 RebuildMid(in Limb l, Vector3 root, Quaternion rootRot) => root + (rootRot * l.UpperDirLocal) * l.UpperLen;
 
+        /// <summary>
+        /// Per-frame joint tracks from a mocap run: what the human's joint did, and what the solver's did,
+        /// frame by frame, in the same units.
+        ///
+        /// The accuracy layer above reduces those two tracks to a distance. That answers "is the pose
+        /// right" and is deliberately blind to "is the MOTION right" -- a solved elbow can sit 2 cm from
+        /// the truth on every single frame while buzzing at 30 Hz, plateauing, or arriving 150 ms late,
+        /// and the mean error will not budge. Handing the raw tracks out lets BasisMocapMotionQuality
+        /// score the thing the distance throws away.
+        ///
+        /// Left side only, matching the side the ElbowPops/KneePops detectors already sample.
+        /// </summary>
+        public sealed class BasisMocapTracks
+        {
+            public float Dt, ArmLen, LegLen;
+            public Vector3[] TruthElbow, SolvedElbow;
+            public Vector3[] TruthKnee, SolvedKnee;
+            public Vector3[] TruthHand, TruthFoot;
+
+            /// <summary>The elbow HINT the lookup path hands the solver, captured at two stages so the noise
+            /// can be localised instead of guessed at. HintRaw is the lookup table's own output; HintFlared is
+            /// that same bend after BasisElbowFlareCore.ApplyChickenWingFlare, which is what actually reaches
+            /// the solver. Comparing their jitter says immediately WHICH stage invents the buzz -- the table,
+            /// the flare, or (if both are clean) the two-bone solve amplifying a clean hint.
+            /// Populated only when hint == Lookup. Left side.</summary>
+            public Vector3[] HintRaw, HintFlared;
+
+            /// <summary>Flare internals, for localising its noise: the engagement scalar it drives the bend with,
+            /// and the down-pole projection the whole swivel angle is measured from (collapses when the forearm
+            /// goes vertical -- i.e. an arm hanging at your side).</summary>
+            public float[] FlareEngage, FlareDownProj;
+        }
+
         public static BasisMocapAccuracySummary Run(BasisMotionClip clip, BasisMocapHintSource hint, string csvPath)
+            => Run(clip, hint, csvPath, null);
+
+        public static BasisMocapAccuracySummary Run(BasisMotionClip clip, BasisMocapHintSource hint, string csvPath,
+                                                    BasisMocapTracks tracks)
         {
             var s = new BasisMocapAccuracySummary { Hint = hint, Path = csvPath };
 
@@ -127,8 +164,24 @@ namespace Basis.IK.Mocap
                 float dt = Mathf.Max(clip.FrameTime, 1e-4f);
                 var csv = new StringBuilder("clip,frame,limb,err_m,truth_x,truth_y,truth_z,solved_x,solved_y,solved_z,reach,eff_err_m,axis\n");
 
+                if (tracks != null)
+                {
+                    int n = clip.FrameCount;
+                    tracks.Dt = dt;
+                    tracks.TruthElbow = new Vector3[n]; tracks.SolvedElbow = new Vector3[n];
+                    tracks.TruthKnee = new Vector3[n]; tracks.SolvedKnee = new Vector3[n];
+                    tracks.TruthHand = new Vector3[n]; tracks.TruthFoot = new Vector3[n];
+                    tracks.HintRaw = new Vector3[n]; tracks.HintFlared = new Vector3[n];
+                    tracks.FlareEngage = new float[n]; tracks.FlareDownProj = new float[n];
+                }
+
                 var arms = new Limb[2];
                 var legs = new Limb[2];
+
+                // Elbow-swivel One-Euro state, carried frame to frame exactly as the job's NativeArray slots
+                // are. The BONE pose is never carried (see the header); the FILTER state always is.
+                var armSwivel = new BasisSwivelFilterState[2];
+                var armSwivelSeeded = new bool[2];
                 Quaternion hipSpringRot = Quaternion.identity;
                 Vector3 hipSpringVel = Vector3.zero;
                 bool hipSpringSeeded = false;
@@ -153,9 +206,11 @@ namespace Basis.IK.Mocap
                     for (int side = 0; side < 2; side++)
                     {
                         bool isLeft = side == 0;
-                        SolveArm(clip, f, isLeft, ref arms[side], bendFrame, chestRot, playerUp, hint, lookup, dt,
+                        SolveArm(clip, f, isLeft, ref arms[side], bendFrame, chestRot, playerUp, hipsRot, hint, lookup, dt,
+                                 ref armSwivel[side], ref armSwivelSeeded[side],
                                  out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float aLen,
-                                 out float armRigid, out byte armAxis);
+                                 out float armRigid, out byte armAxis, out Vector3 hintRaw, out Vector3 hintFlared,
+                                 out float flareEngage, out float flareDownProj);
                         armLen = aLen;
                         s.RigidityMaxM = Mathf.Max(s.RigidityMaxM, armRigid);
                         float e = Vector3.Distance(truthElbow, solvedElbow);
@@ -190,8 +245,20 @@ namespace Basis.IK.Mocap
                             prevFoot0 = foot;
                         }
                         if (side == 0) { prevKnee0 = solvedKnee; if (f == 0) prevFoot0 = clip.Get(0, BasisMocapJoint.LeftFoot).Position; }
+
+                        if (side == 0 && tracks != null)
+                        {
+                            tracks.TruthElbow[f] = truthElbow; tracks.SolvedElbow[f] = solvedElbow;
+                            tracks.TruthKnee[f] = truthKnee; tracks.SolvedKnee[f] = solvedKnee;
+                            tracks.TruthHand[f] = clip.Get(f, BasisMocapJoint.LeftHand).Position;
+                            tracks.TruthFoot[f] = clip.Get(f, BasisMocapJoint.LeftFoot).Position;
+                            tracks.HintRaw[f] = hintRaw; tracks.HintFlared[f] = hintFlared;
+                            tracks.FlareEngage[f] = flareEngage; tracks.FlareDownProj[f] = flareDownProj;
+                        }
                     }
                 }
+
+                if (tracks != null) { tracks.ArmLen = armLen; tracks.LegLen = legLen; }
 
                 elbowErr.Sort();
                 kneeErr.Sort();
@@ -233,10 +300,15 @@ namespace Basis.IK.Mocap
         }
 
         static void SolveArm(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion bendFrame, Quaternion chestRot,
-                             Vector3 playerUp, BasisMocapHintSource hint, NativeArray<Vector3> lookup, float dt,
+                             Vector3 playerUp, Quaternion hipsRot, BasisMocapHintSource hint, NativeArray<Vector3> lookup, float dt,
+                             ref BasisSwivelFilterState swivelState, ref bool swivelSeeded,
                              out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float armLen,
-                             out float rigidity, out byte axis)
+                             out float rigidity, out byte axis, out Vector3 hintRaw, out Vector3 hintFlared,
+                             out float flareEngage, out float flareDownProj)
         {
+            hintRaw = Vector3.zero;
+            hintFlared = Vector3.zero;
+            flareEngage = 0f; flareDownProj = 1f;
             BasisMocapJoint jS = isLeft ? BasisMocapJoint.LeftUpperArm : BasisMocapJoint.RightUpperArm;
             BasisMocapJoint jE = isLeft ? BasisMocapJoint.LeftLowerArm : BasisMocapJoint.RightLowerArm;
             BasisMocapJoint jH = isLeft ? BasisMocapJoint.LeftHand : BasisMocapJoint.RightHand;
@@ -276,10 +348,13 @@ namespace Basis.IK.Mocap
                     break;
                 case BasisMocapHintSource.Lookup:
                 {
-                    Vector3 bend = ComputeArmBendFromLookup(lookup, bendFrame, shoulder, truthHand, truthHandRot, armLen, isLeft, playerUp);
+                    Vector3 bend = ComputeArmBendFromLookup(lookup, bendFrame, shoulder, truthHand, truthHandRot, armLen, isLeft, playerUp,
+                                                            out Vector3 preFlare, out flareEngage, out flareDownProj);
                     i.HintPosition = shoulder + 0.5f * armLen * bend;
                     i.HintWeight = true;
                     i.HintIsTracker = false;   // the job passes hintIsTracker = hasHint && !usedLookup
+                    hintFlared = i.HintPosition;
+                    hintRaw = shoulder + 0.5f * armLen * preFlare;
                     break;
                 }
                 default:
@@ -295,13 +370,59 @@ namespace Basis.IK.Mocap
 
             // Nothing is carried: next frame rebuilds the pre-IK arm from the bind pose again.
             rigidity = Vector3.Distance(RebuildMid(limb, shoulder, r.RootRotationSolved), r.ElbowSolved);
+
+            // ⚠ THE LIVE RIG DOES NOT SHIP THE RAW LOOKUP. BasisFullBodyIK.SmoothElbowSwivel One-Euro-filters
+            // the elbow SWIVEL whenever the pole came from the lookup table (gated on `usedLookup`, so an elbow
+            // TRACKER bypasses it entirely). Leaving it out here would measure a system the runtime never
+            // produces -- which is precisely the blind spot the foot sweep already paid for, where the sweep
+            // seeded state differently from the runtime and therefore could not see the runtime's bug.
+            //
+            // Same core the job calls, same constants, same body-frame reference. The one thing that is a
+            // MIRROR and not a shared call is the input wiring below; if SmoothElbowSwivel is retuned, retune
+            // this too. (Same lock-step caveat as ArmBendFrame / ComputeArmBendFromLookup.)
+            //
+            // The swivel state is CARRIED between frames -- unlike the bone pose, which is deliberately not.
+            // That distinction is the whole point: the runtime re-evaluates the base layer every frame so the
+            // constraint never sees its own previous POSE, but its FILTERS keep their state. Model both or the
+            // temporal behaviour is fiction.
+            if (hint == BasisMocapHintSource.Lookup)
+            {
+                BasisSwivelSmootherInput sw = default;
+                sw.Root = shoulder;
+                sw.Mid = solvedElbow;
+                sw.Tip = r.HandSolved;
+                sw.BodyRotation = hipsRot;
+                sw.ReferenceLocal = Vector3.down;   // arm reference; the leg uses forward
+                sw.FallbackLocal = Vector3.zero;
+                sw.Dt = dt;
+                sw.MinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+                sw.Beta = BasisSwivelFilterCore.Beta;
+                sw.DerivCutoffHz = BasisSwivelFilterCore.DerivCutoffHz;
+                sw.ConditionOnPole = false;         // the arm leaves this off; only the leg conditions on the pole
+                sw.State = swivelState;
+                sw.Seeded = swivelSeeded;
+
+                BasisSwivelSmootherCore.Solve(sw, out BasisSwivelSmootherResult sr);
+                if (sr.WriteState)
+                {
+                    swivelState = sr.State;
+                    swivelSeeded = true;
+                }
+                // Degenerate frame => the job declines to move the bone, so neither do we.
+                if (sr.Valid) solvedElbow = sr.DesiredMid;
+            }
         }
 
         // Mirror of BasisFullIKConstraintJob.ComputeArmBendFromLookup. Same lock-step caveat as ArmBendFrame.
+        // `preFlare` is the table's own output before the chicken-wing flare is applied -- captured purely so
+        // the motion-quality layer can tell which stage of this path is inventing the elbow buzz.
         static Vector3 ComputeArmBendFromLookup(NativeArray<Vector3> lookup, Quaternion frameRot, Vector3 shoulder,
-                                                Vector3 handTarget, Quaternion handTargetRot, float armLength, bool isLeft, Vector3 playerUp)
+                                                Vector3 handTarget, Quaternion handTargetRot, float armLength, bool isLeft, Vector3 playerUp,
+                                                out Vector3 preFlare, out float engage01, out float downProj)
         {
-            if (armLength < 1e-5f) return isLeft ? Vector3.left : Vector3.right;
+            preFlare = isLeft ? Vector3.left : Vector3.right;
+            engage01 = 0f; downProj = 1f;
+            if (armLength < 1e-5f) return preFlare;
 
             Quaternion invFrame = Quaternion.Inverse(frameRot);
             Vector3 shoulderToHand = handTarget - shoulder;
@@ -312,7 +433,20 @@ namespace Basis.IK.Mocap
             if (isLeft) localBend.x = -localBend.x;
 
             Vector3 worldBend = (frameRot * localBend).normalized;
+            preFlare = worldBend;
             Vector3 outward = frameRot * (isLeft ? Vector3.left : Vector3.right);
+
+            // Diagnostics, so the flare's noise source can be LOCALISED rather than guessed at. Two hypotheses
+            // have already been tested and killed by measurement (the trilinear cell-crossing discontinuity,
+            // and the hand-up projection collapse in RollEngagement01) -- both changed the numbers by nothing.
+            // These expose the remaining candidates: the engagement scalar itself, and the down-pole that the
+            // whole swivel angle is measured FROM, which collapses when the forearm goes vertical (an arm
+            // hanging at your side, which is not an edge case, it is the resting pose).
+            Vector3 axis = shoulderToHand.sqrMagnitude > 1e-10f ? shoulderToHand.normalized : Vector3.down;
+            downProj = Vector3.ProjectOnPlane(-playerUp, axis).magnitude;   // sin(angle of forearm off vertical)
+            engage01 = BasisElbowFlareCore.RollEngagement01(handTargetRot, shoulderToHand, outward, playerUp,
+                                                            k_FlareInwardGain, k_FlareFullRollDeg);
+
             return BasisElbowFlareCore.ApplyChickenWingFlare(worldBend, shoulderToHand, outward, playerUp, handTargetRot,
                                                              k_FlareInwardGain, k_FlareFullRollDeg, k_FlareMaxDeg);
         }

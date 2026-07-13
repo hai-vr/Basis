@@ -576,7 +576,9 @@ public class BasisLocalVirtualSpineDriver
         }
 
         float targetFollow = s.TorsoYawBroken != 0 ? 1f : 0f;
-        s.TorsoFollow = math.lerp(s.TorsoFollow, targetFollow, math.saturate(dt * math.max(0f, blendSpeed)));
+        // Framerate-independent, for the same reason as SmoothSlerpBurst: this blend gates how fast the
+        // torso catches up to a broken yaw anchor, and it must not run at a different speed per headset.
+        s.TorsoFollow = math.lerp(s.TorsoFollow, targetFollow, FramerateIndependentAlpha(blendSpeed, dt));
 
         // Re-center only once the blend has fully engaged, so swapping the anchor can't jump the
         // blended target and bring back the click this easing removes.
@@ -667,11 +669,47 @@ public class BasisLocalVirtualSpineDriver
     // Burst-compiled static helpers
     // -----------------------------
 
+    /// <summary>
+    /// The framerate at which the *RotationSpeed settings were tuned, and the rate whose behaviour
+    /// FramerateIndependentAlpha reproduces exactly. Changing this re-tunes every user's spine.
+    /// </summary>
+    private const float SmoothingReferenceFps = 90f;
+
+    /// <summary>
+    /// Converts a legacy "speed" (which the old code used as a per-frame lerp fraction: alpha = dt*speed)
+    /// into a framerate-independent alpha with the same time constant at ANY dt.
+    ///
+    /// The old form was `alpha = saturate(dt * speed)`, and its time constant was a function of the
+    /// user's GPU. Smaller dt gives a smaller alpha gives a SLOWER filter, so the fingerprint was
+    /// perverse: a 144 Hz headset got ~60% MORE neck lag than a 72 Hz one (18 ms vs 11 ms at 1 Hz) from
+    /// the very same setting. And `saturate` clamps once dt*speed >= 1, so at the default
+    /// NeckRotationSpeed of 40 the smoothing VANISHED below 40 fps -- the neck snapped every frame,
+    /// exactly when the framerate was bad enough to need smoothing most (standalone under load, desktop).
+    ///
+    /// The speeds are user-facing sliders with persisted values, so the number's MEANING is preserved
+    /// rather than redefined: it is still read as "the per-frame fraction at the reference rate", then
+    /// converted to the true exponential rate that reproduces it. This is therefore a bit-for-bit no-op
+    /// at SmoothingReferenceFps and a correction at every other framerate -- nobody's tuning changes, it
+    /// just stops depending on their hardware. Same discipline as the foot-IK scale fix: exactly a no-op
+    /// at the reference, proportional everywhere else.
+    ///
+    /// Gated by BasisBlendSpeedTests.
+    /// </summary>
+    public static float FramerateIndependentAlpha(float speed, float dt)
+    {
+        float alphaAtRef = math.saturate(math.max(0f, speed) / SmoothingReferenceFps);
+        // The legacy form snapped outright at and above the reference rate; preserve that endpoint
+        // rather than dividing by zero on the way to it.
+        if (alphaAtRef >= 0.999f) return 1f;
+        if (alphaAtRef <= 0f) return 0f;
+        float rate = -SmoothingReferenceFps * math.log(1f - alphaAtRef);
+        return 1f - math.exp(-rate * math.max(0f, dt));
+    }
+
     [BurstCompile]
     private static void SmoothSlerpBurst(in quaternion current, in quaternion target, float speed, float dt, out quaternion result)
     {
-        float t = math.saturate(dt * math.max(0f, speed));
-        result = math.slerp(current, target, t);
+        result = math.slerp(current, target, FramerateIndependentAlpha(speed, dt));
     }
 
     [BurstCompile]

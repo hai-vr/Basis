@@ -145,13 +145,34 @@ namespace Basis.Tests.IK
                 {
                     foreach (float amp in new[] { 0.005f, 0.02f, 0.05f })
                     {
-                        var res = RunSweep(ext, axis, amp, 61, 1f, out _, out _);
-                        foreach (var r in res)
+                        var res = RunSweep(ext, axis, amp, 61, 1f, out _, out Vector3 hip0);
+                        for (int s = 0; s < res.Count; s++)
                         {
+                            BasisLegSolveResult r = res[s];
                             Assert.That(IsFinite(r.KneeSolved) && IsFinite(r.FootSolved) && IsFinite(r.KneeAngleDeg),
                                 Is.True, $"{axis} ext {ext:0.000} amp {amp:0.000}: a leg-solve output is non-finite.");
-                            Assert.That(r.KneeSolved.z, Is.GreaterThan(-0.02f),
-                                $"{axis} ext {ext:0.000} amp {amp:0.000}: knee bent backward to z={r.KneeSolved.z:0.000} (inverted).");
+
+                            // "The knee must not invert" means the knee must stay forward OF THE HIP->FOOT LINE.
+                            // Measure it against that line, not against world z: RunSweep translates the whole leg
+                            // by up to +-amp while pinning the foot to the plant, so at ext 0.999 / amp 5cm the hip
+                            // sways back far enough to over-extend the leg, the knee is commanded dead straight, and
+                            // it lands at z = -0.025 for the sole reason that the HIP moved back 5cm and took it
+                            // along. That is a translation, not an inversion -- and it is what this assert used to
+                            // fail on. Projecting onto the leg's own axis is invariant to the sway the harness
+                            // itself applies, so it tests the thing it means to test.
+                            Vector3 hip = hip0 + Offset(axis, Mathf.Lerp(-amp, amp, s / 60f), hip0.y);
+                            Vector3 legAxis = r.FootSolved - hip;
+                            float axisLen = legAxis.magnitude;
+                            if (axisLen < 1e-5f) continue;
+
+                            legAxis /= axisLen;
+                            Vector3 kneeVec = r.KneeSolved - hip;
+                            Vector3 offAxis = kneeVec - legAxis * Vector3.Dot(kneeVec, legAxis);
+                            float forward = Vector3.Dot(offAxis, Vector3.forward);
+
+                            Assert.That(forward, Is.GreaterThan(-0.02f),
+                                $"{axis} ext {ext:0.000} amp {amp:0.000}: knee bent {-forward * 100f:0.0}cm BEHIND the " +
+                                $"hip->foot line (inverted).");
                         }
                     }
                 }

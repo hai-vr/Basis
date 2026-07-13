@@ -92,6 +92,7 @@ namespace UnityEngine.Animations.Rigging
         static float ClampToGrid(float v) =>
             v > 0f ? (v < GridSize - 1.001f ? v : GridSize - 1.001f) : 0f;
 
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 SampleTrilinear(NativeArray<Vector3> table, Vector3 normalizedPos)
         {
@@ -104,6 +105,20 @@ namespace UnityEngine.Animations.Rigging
             int y0 = (int)fy; int y1 = Mathf.Min(y0 + 1, GridSize - 1);
             int z0 = (int)fz; int z1 = Mathf.Min(z0 + 1, GridSize - 1);
 
+            // ⚠ MEASURED, NOT A GUESS: fading these weights does NOT fix the elbow buzz.
+            //
+            // Raw-fraction trilinear is C0 but not C1 -- the gradient jumps at every cell boundary -- so the
+            // obvious theory was that a hand sweeping across cells steps the bend direction's derivative, and
+            // a step in the elbow's velocity is exactly what buzz is. Perlin's quintic fade
+            // (t*t*t*(t*(t*6-15)+10), C2, node values preserved exactly) was tried here and measured against
+            // the 20-clip CMU corpus: worst-case elbow jitter moved 1.360% -> 1.359% of arm length. Nothing.
+            // Jerk ratio and pop count did not move at all.
+            //
+            // The C1 discontinuity is real but it is NOT the dominant term: the grid is 11^3 over the whole
+            // workspace, so a reach crosses only a handful of cells, and the resulting step is small next to
+            // whatever is actually generating the noise. Left as raw fractions rather than shipping a change
+            // that cannot be justified with data. If the real source is fixed and this then becomes the
+            // largest remaining term, re-test it and the fade is three multiply-adds away.
             float tx = fx - x0;
             float ty = fy - y0;
             float tz = fz - z0;

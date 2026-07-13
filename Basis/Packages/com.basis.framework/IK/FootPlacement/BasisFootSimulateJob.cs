@@ -504,7 +504,24 @@ public struct BasisFootSimulateJob : IJob
             quaternion footAlign = f.sideSign < 0 ? p.footAlignLeft : p.footAlignRight;
 
             quaternion liveRot = FootRotation(rawFwd, f.filteredNormal, up, footAlign, SwingAnklePitchDeg(t));
-            f.currentRot = math.slerp(f.currentRot, liveRot, ease);
+
+            // Blend FROM the rotation the foot had at lift-off, parameterised by step progress -- exactly
+            // what the line above does for position (lerp(stepStartPos, stepTargetPos, ease)).
+            //
+            // This used to be `slerp(f.currentRot, liveRot, ease)`: a SELF-REFERENTIAL slerp, re-applied
+            // every frame, using a step-progress curve as if it were a per-frame smoothing alpha. That
+            // converges by FRAME COUNT, not by elapsed time, so the foot's orientation part-way through an
+            // identical 0.35 s swing depended on the framerate: 74% of the way there at 30 fps, 94% at
+            // 72 Hz, 99.7% at 144 Hz. The foot was literally in a different pose mid-stride on a faster GPU.
+            //
+            // It hid because the ENDPOINT always converges (ease reaches 1, so the last frame snaps it home
+            // regardless) -- the error only exists while the foot is moving, which is the only time anyone
+            // is looking at it. And no rate constant could have fixed it: the FORM was wrong, not the tuning.
+            //
+            // Latent today (BasisLocalRigDriver.FootRotationFromDriver is false, so this rotation is computed
+            // and discarded) -- but foot rotation is the next naturalness win, and this would have shipped
+            // underneath it. Gated by BasisBlendSpeedTests.
+            f.currentRot = math.slerp(f.stepStartRot, liveRot, ease);
 
             if (t >= 1f)
             {
