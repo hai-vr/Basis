@@ -122,6 +122,8 @@ typedef struct {
 
     int64_t pos;          /* absolute stream offset consumed so far */
     int     mdat_skipped; /* media data streamed past before any index arrived */
+    int64_t mdat_seek_pos;/* first skipped mdat's payload start, -1 until one is skipped;
+                             a range-capable source seeks back here for a trailing moov */
 
     /* runs from the last moof (one per traf/trun), consumed against its mdat */
     mp4_frag_t frags[MP4_MAX_FRAGS];
@@ -925,6 +927,7 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
     mp4_t m; memset(&m, 0, sizeof(m));
     m.sink = sink; m.read = read; m.ctx = ctx;
     m.reseek = reseek; m.reseek_ctx = reseek_ctx;
+    m.mdat_seek_pos = -1;
 
     while (sink->is_running(sink->user)) {
         uint32_t type; int64_t body;
@@ -947,9 +950,11 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                 continue;
             }
             /* media data with no index yet: the moov may still follow (trailing-
-             * moov progressive file). Skip it, and report if the moov proves that
-             * these bytes were the media. */
+             * moov progressive file). Skip it, but remember where the first one
+             * started so a range-capable source can seek back once the moov's
+             * sample tables arrive. */
             m.mdat_skipped = 1;
+            if (m.mdat_seek_pos < 0) m.mdat_seek_pos = m.pos;
             if (body < 0 || skip_bytes(&m, body) != 0) break;
             continue;
         }
@@ -975,15 +980,34 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                             "MP4 uses a compact (stz2) sample-size table, which isn't supported; remux (ffmpeg -c copy) to rewrite the sample tables");
                         break;
                     }
-                if (m.mdat_skipped && classic_ready(&m))
+                if (m.mdat_skipped && classic_ready(&m)) {
+                    /* Trailing-moov progressive: the media streamed past before its
+                     * index arrived. On a range-capable source (reseek wired) the
+                     * mdat is still reachable — seek back to the first one and stream
+                     * from there now that the sample tables are in hand; the walk is
+                     * offset-driven, so a single mdat or several play alike. A one-way
+                     * stream can't reach it, so it keeps the remux refusal. */
+                    if (m.reseek && m.mdat_seek_pos >= 0 &&
+                        m.reseek(m.reseek_ctx, m.mdat_seek_pos) == 0) {
+                        m.pos = m.mdat_seek_pos;
+                        if (sink->on_duration) {
+                            int64_t dur_us = m.movie_duration > 0
+                                ? ticks_to_us(m.movie_duration, m.movie_timescale > 0 ? m.movie_timescale : 1000)
+                                : classic_total_duration_us(&m);
+                            if (dur_us > 0) sink->on_duration(sink->user, dur_us);
+                        }
+                        free(buf);
+                        consume_progressive(&m, INT64_MAX);
+                        goto done; /* played to EOF (or stopped); the trailing moov is behind us */
+                    }
                     sink->on_error(sink->user,
                         "progressive MP4 stores its index (moov) after the media data, which can't play over a one-way stream; remux with faststart (ffmpeg -movflags +faststart)");
-                /* Progressive files have a complete timeline in hand — report it,
-                 * but only when the byte source can honour seeks (a non-zero
-                 * duration is the managed layer's seekability signal) and the file
-                 * wasn't just refused above (a raised error stops is_running, so a
-                 * rejected file publishes no duration). fMP4 durations come from the
-                 * layer that knows them (HLS VOD). */
+                    break;
+                }
+                /* Faststart progressive: complete timeline in hand — report it, but
+                 * only when the byte source can honour seeks (a non-zero duration is
+                 * the managed layer's seekability signal). fMP4 durations come from
+                 * the layer that knows them (HLS VOD). */
                 if (sink->is_running(sink->user) && classic_ready(&m) && m.reseek && sink->on_duration) {
                     int64_t dur_us = m.movie_duration > 0
                         ? ticks_to_us(m.movie_duration, m.movie_timescale > 0 ? m.movie_timescale : 1000)
@@ -1000,6 +1024,7 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
         free(buf);
     }
 
+done:
     for (int k = 0; k < MP4_MAX_FRAGS; ++k) {
         free(m.frags[k].sizes); free(m.frags[k].durs); free(m.frags[k].ctos);
     }
