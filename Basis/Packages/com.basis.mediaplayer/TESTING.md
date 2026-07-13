@@ -137,12 +137,13 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | H.264 + AAC stereo | The baseline — everything else assumes this passes |
 | H.265/HEVC | Windows needs the system HEVC codec present; absence degrades cleanly |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
+| AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
 | PCE-signalled / >6-ch AAC | **Graceful refusal** on Windows (mute or clean error, never a crash) |
 | Trailing-moov progressive MP4 | Non-faststart file (`ffmpeg -i in.mp4 -c copy out.mp4` leaves `moov` after `mdat`): on a range/`206` server it plays with seek + duration; over a one-way stream (no ranges) it refuses cleanly with a faststart-remux hint |
 | CEA-608 captions | Stack caption fixture: cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
 | 44.1 kHz audio | Resamples cleanly to the DSP rate (dominant path is 48 kHz — don't let 44.1k rot) |
-| 1080p video | No thin black strip along the top edge on Windows (720p is unaffected — test 1080p specifically) |
+| Non-16-aligned coded height | No pad strip on the video edge (a thin top strip on Windows, a grey bottom strip on Android) and the RenderTexture matches the display aspect. 720p and other 16-aligned heights are clean, so test a padded height specifically — 1080p (→1088) on Windows, 640×360 (→368) on Android |
 
 ### Platforms and backends
 
@@ -150,7 +151,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | --- | --- |
 | Windows D3D11 | Default editor/player path |
 | Windows D3D12 | Launch with `-force-d3d12`; shared-handle texture path is separate code — video must appear, no `dxgi-fmt` errors in the log |
-| Android/Quest | Vulkan path, `AMediaCodec`; https for TS/HLS lanes; check `adb logcat` for codec errors; AAC 5.1 arrives in WAVE order |
+| Android/Quest | Vulkan path, `AMediaCodec`; https for TS/HLS lanes; check `adb logcat` for codec errors; AAC 5.1 arrives in WAVE order. 5.1 AAC in a progressive MP4 decodes discretely (see the codec row); the coded-height pad is cropped off the present (grey bottom strip) |
 | Desktop ↔ VR swap | Toggle mode mid-playback — the external texture must survive the graphics-device swap |
 
 ### Behaviour checklists

@@ -269,6 +269,41 @@ static const mp4_sidx_ref_t* sidx_find_ref(const mp4_sidx_index_t* idx, int64_t 
 
 /* ---- moov parsing ------------------------------------------------------- */
 
+/* Reads an MP4 expandable descriptor length (7 bits/byte, high bit continues,
+ * up to 4 bytes) at *j, advancing *j past it. */
+static uint32_t esds_desc_len(const uint8_t* p, int el, int* j) {
+    uint32_t v = 0; int n = 0, b;
+    do { if (*j >= el) break; b = p[(*j)++]; v = (v << 7) | (uint32_t)(b & 0x7F); }
+    while ((b & 0x80) && n++ < 3);
+    return v;
+}
+
+/* Extracts the AudioSpecificConfig from an esds payload (after the box's 4-byte
+ * version/flags) by walking the descriptor tree: ES_Descriptor (0x03) ->
+ * DecoderConfigDescriptor (0x04) -> DecoderSpecificInfo (0x05). Returns the ASC
+ * length (>=2) or 0. A flat scan for the 0x05 tag byte false-matches a 0x05
+ * inside the DecoderConfig's bufferSizeDB/bitrate fields (e.g. maxBitrate
+ * 0x000534xx), reads a bogus length and drops the config — so the tree must be
+ * walked by tag+length. */
+static int esds_extract_asc(const uint8_t* ep, int el, uint8_t* asc, int cap) {
+    int j = 0;
+    if (j >= el || ep[j++] != 0x03) return 0;                 /* ES_Descriptor */
+    esds_desc_len(ep, el, &j);
+    if (j + 3 > el) return 0;
+    int flags = ep[j + 2]; j += 3;                            /* ES_ID(2) + flags(1) */
+    if (flags & 0x80) j += 2;                                 /* streamDependenceFlag */
+    if (flags & 0x40) { if (j >= el) return 0; j += 1 + ep[j]; } /* URL_flag */
+    if (flags & 0x20) j += 2;                                 /* OCRstreamFlag */
+    if (j >= el || ep[j++] != 0x04) return 0;                 /* DecoderConfigDescriptor */
+    esds_desc_len(ep, el, &j);
+    j += 13;                                                  /* objType+streamType+bufSize(3)+maxBR(4)+avgBR(4) */
+    if (j >= el || ep[j++] != 0x05) return 0;                 /* DecoderSpecificInfo */
+    uint32_t dlen = esds_desc_len(ep, el, &j);
+    if (dlen < 2 || (int)dlen > cap || j > el - (int)dlen) return 0;
+    memcpy(asc, ep + j, dlen);
+    return (int)dlen;
+}
+
 static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
     /* stsd: version/flags(4) entry_count(4) then sample entries */
     if (len < 8) return;
@@ -309,29 +344,16 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                 uint32_t ct = rd32(ent + co + 4);
                 if (csz < 8 || csz > esize - co) break;
                 if (ct == 0x65736473 /*esds*/ && csz >= 12) {
-                    /* find DecoderSpecificInfo (tag 0x05) inside esds */
+                    /* esds payload after the box's 4-byte version/flags */
                     const uint8_t* ep = ent + co + 12; int el = csz - 12;
-                    for (int i = 0; i + 2 < el; ++i) {
-                        if (ep[i] == 0x05) {
-                            /* descriptor length: 7 bits/byte, high bit continues. Accumulate
-                             * unsigned and cap at the legal four length bytes so a run of
-                             * continuation bytes can't overflow. Need >= 2 config bytes (the
-                             * AudioObjectType/sampleRateIndex fields read just below), and the
-                             * payload must fit both the buffer and the remaining descriptor. */
-                            int j = i + 1, nbytes = 0, b;
-                            uint32_t dlen = 0;
-                            do { b = ep[j++]; dlen = (dlen << 7) | (uint32_t)(b & 0x7F); }
-                            while ((b & 0x80) && j < el && ++nbytes < 4);
-                            if (dlen >= 2 && dlen <= sizeof(t->asc) && j <= el - (int)dlen) {
-                                memcpy(t->asc, ep + j, dlen); t->asc_len = (int)dlen;
-                                int aot = (t->asc[0] >> 3) & 0x1F;
-                                int sri = ((t->asc[0] & 7) << 1) | (t->asc[1] >> 7);
-                                t->obj = aot;
-                                if (!t->sr) t->sr = basis_aac_sample_rate_from_index(sri);
-                                if (!t->ch) t->ch = basis_aac_channels_from_config((t->asc[1] >> 3) & 0xF);
-                            }
-                            break;
-                        }
+                    int n = esds_extract_asc(ep, el, t->asc, (int)sizeof(t->asc));
+                    if (n >= 2) {
+                        t->asc_len = n;
+                        int aot = (t->asc[0] >> 3) & 0x1F;
+                        int sri = ((t->asc[0] & 7) << 1) | (t->asc[1] >> 7);
+                        t->obj = aot;
+                        if (!t->sr) t->sr = basis_aac_sample_rate_from_index(sri);
+                        if (!t->ch) t->ch = basis_aac_channels_from_config((t->asc[1] >> 3) & 0xF);
                     }
                 }
                 co += csz;

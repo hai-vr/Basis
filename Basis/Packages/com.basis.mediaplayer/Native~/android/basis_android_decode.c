@@ -204,7 +204,9 @@ struct basis_decoder {
     int video_track, audio_track;
 
     basis_codec_t vc;
-    int vw, vh;
+    int vw, vh;               /* coded frame dims (buffer size, macroblock-padded) */
+    int dispW, dispH;         /* display dims from the codec crop rect; 0 until first frame */
+    int fcValid, fcL, fcT, fcR, fcB; /* MediaFormat display-crop rect (authoritative when present) */
     int vconfigured, aconfigured;
 
     int asr, ach;
@@ -229,6 +231,7 @@ struct basis_decoder {
     AImage* vimg[VRING];
     int64_t vpts[VRING];
     int vfw[VRING], vfh[VRING];
+    float vuv[VRING][4];      /* per-frame crop UV transform (scale.xy, offset.zw) */
     pthread_mutex_t vm;
 
     /* presentation clock (render thread), mirroring basis_win_decode.cpp */
@@ -281,13 +284,61 @@ static void on_image(void* ctx, AImageReader* reader) {
         int32_t aw = 0, ah = 0;
         AImage_getWidth(img, &aw); AImage_getHeight(img, &ah);
 
+        /* Crop the coded buffer to the display rectangle. The coded height is
+         * padded up to a macroblock multiple (360->368, 1080->1088); sampling
+         * the whole buffer draws the pad rows as an edge strip. The denominator
+         * must be the true buffer geometry Vulkan imports — AImage width/height
+         * report the display crop on some devices (Quest gives 360 for a 368-row
+         * buffer), so the pad-crop is taken from the hardware buffer, not the
+         * image. The visible region comes from the codec display-crop, then the
+         * AImage crop (exclusive), then the AImage size when it's already the
+         * display region, else the whole buffer. A full texel is trimmed off
+         * each cropped edge so bilinear taps can't pull the subsampled chroma of
+         * a pad texel into the last valid row — matching the platform
+         * GLConsumer's YUV420 inset that the SurfaceTexture path bakes in. */
+        int bufW = 0, bufH = 0;
+        AHardwareBuffer* dahb = NULL;
+        if (AImage_getHardwareBuffer(img, &dahb) == AMEDIA_OK && dahb) {
+            AHardwareBuffer_Desc dsc; AHardwareBuffer_describe(dahb, &dsc);
+            bufW = (int)dsc.width; bufH = (int)dsc.height;
+        }
+        if (bufW <= 0) bufW = d->vw > 0 ? d->vw : (aw > 0 ? aw : 1);
+        if (bufH <= 0) bufH = d->vh > 0 ? d->vh : (ah > 0 ? ah : 1);
+
+        int cw = bufW, ch = bufH, cl = 0, ct = 0;
+        AImageCropRect cr; int haveImgCrop = (AImage_getCropRect(img, &cr) == AMEDIA_OK);
+        if (d->fcValid) {
+            /* MediaFormat crop right/bottom are inclusive (w = right-left+1);
+             * fall back to exclusive if the inclusive read overshoots the buffer. */
+            int rw = d->fcR - d->fcL + 1, rh = d->fcB - d->fcT + 1;
+            if (rw <= 0 || rw > bufW) rw = d->fcR - d->fcL;
+            if (rh <= 0 || rh > bufH) rh = d->fcB - d->fcT;
+            if (rw > 0 && rh > 0 && d->fcL >= 0 && d->fcT >= 0 && rw <= bufW && rh <= bufH) {
+                cw = rw; ch = rh; cl = d->fcL; ct = d->fcT;
+            }
+        } else if (haveImgCrop && (cr.right - cr.left) > 0 && (cr.bottom - cr.top) > 0 &&
+                   cr.left >= 0 && cr.top >= 0 &&
+                   (cr.right - cr.left) <= bufW && (cr.bottom - cr.top) <= bufH) {
+            cw = cr.right - cr.left; ch = cr.bottom - cr.top; cl = cr.left; ct = cr.top;
+        } else if (aw > 0 && ah > 0 && aw <= bufW && ah <= bufH && (aw < bufW || ah < bufH)) {
+            cw = aw; ch = ah;   /* AImage reports the display size directly */
+        }
+        float uvsx = (float)cw / bufW, uvsy = (float)ch / bufH;
+        float uvox = (float)cl / bufW, uvoy = (float)ct / bufH;
+        if (cw < bufW) { float tx = 1.0f / bufW; uvsx -= 2.0f * tx; uvox += tx; }
+        if (ch < bufH) { float ty = 1.0f / bufH; uvsy -= 2.0f * ty; uvoy += ty; }
+        __atomic_store_n(&d->dispW, cw, __ATOMIC_RELAXED);
+        __atomic_store_n(&d->dispH, ch, __ATOMIC_RELAXED);
+
         pthread_mutex_lock(&d->vm);
         int slot = -1; for (int i = 0; i < VRING; ++i) if (!d->vimg[i]) { slot = i; break; }
         if (slot >= 0) {
             d->vimg[slot] = img;
             d->vpts[slot] = pts;
-            d->vfw[slot] = aw > 0 ? aw : d->vw;
-            d->vfh[slot] = ah > 0 ? ah : d->vh;
+            d->vfw[slot] = bufW;   /* import extent must match the AHB */
+            d->vfh[slot] = bufH;
+            d->vuv[slot][0] = uvsx; d->vuv[slot][1] = uvsy;
+            d->vuv[slot][2] = uvox; d->vuv[slot][3] = uvoy;
             /* frame-period EMA, for the jitter-buffer ceiling */
             if (d->prevWritePts != INT64_MIN) {
                 int64_t dpts = pts - d->prevWritePts;
@@ -334,6 +385,13 @@ static void drain_video_output(basis_decoder_t* d) {
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_WIDTH, &w);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_HEIGHT, &h);
             if (w > 0 && h > 0) { d->vw = w; d->vh = h; }
+            /* Display crop: the coded buffer pads to a macroblock multiple; this
+             * rect is the visible region. Authoritative when the codec sets it
+             * (AImage_getCropRect is unreliable on some devices). */
+            int32_t cl = 0, ct = 0, crr = 0, cb = 0;
+            if (AMediaFormat_getRect(f, AMEDIAFORMAT_KEY_DISPLAY_CROP, &cl, &ct, &crr, &cb)) {
+                d->fcL = cl; d->fcT = ct; d->fcR = crr; d->fcB = cb; d->fcValid = 1;
+            }
             AMediaFormat_delete(f);
         } else {
             break; /* try again later / no buffer */
@@ -575,6 +633,46 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
     return 0;
 }
 
+/* Big-endian bit cursor over an AudioSpecificConfig; -1 past the end. */
+static int asc_bits(const uint8_t* a, int len, int* pos, int n) {
+    int v = 0;
+    for (int i = 0; i < n; ++i) {
+        int b = (*pos)++;
+        if (b >= len * 8) return -1;
+        v = (v << 1) | ((a[b >> 3] >> (7 - (b & 7))) & 1);
+    }
+    return v;
+}
+
+/* An AudioSpecificConfig from an MP4 esds can carry a backward-compatible SBR
+ * sync extension (0x2b7) with sbrPresentFlag=0 — SBR advertised but absent.
+ * C2SoftAacDec rejects a multichannel LC config with that inert tail
+ * (aacDecoder_DecodeFrame 0x1001, "Invalid AAC stream" -> substituted silence),
+ * while the same audio over TS decodes fine: ADTS framing can't express the
+ * extension, so the decoder never sees it. Return the config length to hand the
+ * decoder — the 2-byte core for AAC-LC with an inert SBR/PS tail, otherwise the
+ * config unchanged so real HE-AAC keeps its SBR signalling and PCE /
+ * explicit-rate configs are left alone. */
+static int aac_core_asc_len(const uint8_t* asc, int asc_len) {
+    if (!asc || asc_len < 2) return asc_len;
+    int p = 0;
+    if (asc_bits(asc, asc_len, &p, 5) != 2) return asc_len;    /* AAC-LC only */
+    if (asc_bits(asc, asc_len, &p, 4) == 15) return asc_len;   /* explicit rate: leave */
+    if (asc_bits(asc, asc_len, &p, 4) < 1) return asc_len;     /* channelConfig 0 = PCE: leave */
+    /* GASpecificConfig (AAC-LC) */
+    asc_bits(asc, asc_len, &p, 1);                             /* frameLengthFlag */
+    if (asc_bits(asc, asc_len, &p, 1) == 1)                    /* dependsOnCoreCoder */
+        asc_bits(asc, asc_len, &p, 14);                        /* coreCoderDelay */
+    asc_bits(asc, asc_len, &p, 1);                             /* extensionFlag (0 for LC) */
+    if (p < 0 || p > asc_len * 8) return asc_len;
+    int core_len = (p + 7) / 8;
+    if (asc_bits(asc, asc_len, &p, 11) == 0x2b7 &&             /* SBR sync extension */
+        asc_bits(asc, asc_len, &p, 5) == 5 &&                  /* extensionAudioObjectType = SBR */
+        asc_bits(asc, asc_len, &p, 1) == 0)                    /* sbrPresentFlag = 0: inert */
+        return core_len;
+    return asc_len;
+}
+
 int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
                                    int sample_rate, int channels, const uint8_t* asc, int asc_len) {
     if (!d || d->aconfigured) return 0;
@@ -615,7 +713,11 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
      * smaller, so large 5.1 frames were fed truncated and the decoder rejected
      * them (0x4004 -> silence). Give it headroom so whole multichannel frames fit. */
     AMediaFormat_setInt32(fmt, "max-input-size", 32768);
-    if (asc && asc_len > 0) AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, asc_len);
+    int csd_len = aac_core_asc_len(asc, asc_len);
+    if (csd_len != asc_len)
+        __android_log_print(ANDROID_LOG_INFO, "basis_media",
+            "AAC config: dropped inert SBR sync extension (%d -> %d bytes)", asc_len, csd_len);
+    if (asc && csd_len > 0) AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, csd_len);
     AMediaCodec* c = AMediaCodec_createDecoderByType("audio/mp4a-latm");
     if (!c || AMediaCodec_configure(c, fmt, NULL, NULL, 0) != AMEDIA_OK ||
         AMediaCodec_start(c) != AMEDIA_OK) {
@@ -894,7 +996,7 @@ static void present_select(basis_decoder_t* d) {
     AHardwareBuffer* ahb = NULL;
     int fw = d->vfw[best], fh = d->vfh[best];
     if (AImage_getHardwareBuffer(d->vimg[best], &ahb) == AMEDIA_OK && ahb && d->vk)
-        basis_vk_set_hardware_buffer(d->vk, ahb, fw, fh); /* present acquires its own ref */
+        basis_vk_set_hardware_buffer(d->vk, ahb, fw, fh, d->vuv[best]); /* present acquires its own ref */
 
     d->lastPresentedPts = bestPts;
     __atomic_store_n(&d->presentedPosUs, bestPts, __ATOMIC_RELAXED);
@@ -921,7 +1023,15 @@ void* basis_decoder_get_texture(basis_decoder_t* d, int* w, int* h) {
 }
 uint64_t basis_decoder_get_frame_counter(basis_decoder_t* d) { return d && d->vk ? basis_vk_frame_counter(d->vk) : 0; }
 int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
-    if (!d || d->vw <= 0) return -1; if (w) *w = d->vw; if (h) *h = d->vh; return 0;
+    if (!d) return -1;
+    /* Report the display (crop) size, not the coded buffer, so the Unity RT is
+     * sized to the visible region — no pad rows, exact aspect. The crop is only
+     * known once the first frame decodes; until then decline so C# keeps polling
+     * and latches the RT on the display size rather than the coded one. */
+    int dw = __atomic_load_n(&d->dispW, __ATOMIC_RELAXED);
+    int dh = __atomic_load_n(&d->dispH, __ATOMIC_RELAXED);
+    if (dw <= 0 || dh <= 0) return -1;
+    if (w) *w = dw; if (h) *h = dh; return 0;
 }
 /* The Vulkan resolve always flips to upright via a negative-height viewport, so
  * the published frame is bottom-left origin on every Android GPU. */
