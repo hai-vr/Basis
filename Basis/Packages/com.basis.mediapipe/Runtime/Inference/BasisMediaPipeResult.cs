@@ -32,6 +32,12 @@ namespace Basis.MediaPipe
         /// <summary>Metric body landmarks in metres. The arm retarget runs off these, not the image landmarks.</summary>
         public Vector3[] PoseWorldLandmarks;
 
+        /// <summary>Per-landmark visibility. The pose model extrapolates limbs it cannot see, so this is the
+        /// only thing separating a tracked arm from confident-looking phantom data.</summary>
+        public float[] PoseVisibility;
+
+        public bool PoseSidesSwapped;
+
         public double TimestampMs;
     }
 }

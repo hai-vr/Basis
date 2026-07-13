@@ -514,6 +514,11 @@ namespace Basis.IK.Debugging
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
             if (s.Rows <= 0 || s.Scenarios <= 0) return (false, "no rows");
             if (s.HadNaN) return (false, "NaN foot position / knee hint (the sim blew up)");
+            // Checked EARLY and before hover on purpose: a false airborne makes the feet abandon the floor for a
+            // hips-relative fallback (the whole avatar hovers) AND suppresses the hover metric that would have
+            // reported it, so it can mask itself. Standing still is not airborne.
+            if (s.SimAirborneWhileGroundedTicks > 0)
+                return (false, $"sim reported AIRBORNE for {s.SimAirborneWhileGroundedTicks} ticks in scenarios where the hips never left standing height (first: {s.SimAirborneWorstScenario}) -- the feet abandon the floor and the avatar hovers");
             if (s.BothSteppingTicks > 0)
                 return (false, $"both feet airborne for {s.BothSteppingTicks} ticks (worst: {s.BothSteppingWorstScenario} {s.BothSteppingWorstTicks}) -- a foot must never lift while the other is stepping");
             if (s.Crossovers - s.CrossoversTolerated > 0)

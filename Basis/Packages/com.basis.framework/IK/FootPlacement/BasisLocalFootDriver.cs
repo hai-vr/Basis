@@ -1219,14 +1219,24 @@ public partial class BasisLocalFootDriver
         f.kneeHint = (hips.position + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
     }
     /// <summary>
-    /// Returns a vertical hip offset for natural walk bob. Dips when a foot is mid-step
-    /// (weight transfer) and rises when both feet are planted. Amplitude scales with
-    /// avatar leg length and current speed.
+    /// Vertical hip offset for the walk bob. RISES at mid-swing -- mid-swing of one leg is mid-STANCE of the
+    /// other, and a human's COM is at its highest there (you vault over the straight stance leg); it is lowest
+    /// at double support, where both legs are splayed. Scales with the avatar's leg and current speed.
     /// </summary>
     public float ComputeHipBob()
     {
         if (!IsInitialized || !_nativeOutput.IsCreated) return 0f;
         return _nativeOutput[0].hipBob;
+    }
+
+    /// <summary>
+    /// Lateral hip offset (signed, along body-right) for the walk sway. A human rocks the pelvis OVER the loaded
+    /// leg each step rather than tracking a straight rail; with no sway the walk reads as a glide.
+    /// </summary>
+    public Vector3 ComputeHipSway()
+    {
+        if (!IsInitialized || !_nativeOutput.IsCreated) return Vector3.zero;
+        return _nativeOutput[0].hipSway;
     }
 
     public bool LeftIsPlanted => left.phase == BasisFootPhase.Planted;

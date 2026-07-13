@@ -140,6 +140,7 @@ namespace Basis.IK.Debugging
         public float StrideSum; public int StrideN;
         public float StepDurSum, StepDurMin, StepDurMax; public int StepDurN;
         public int AirborneTicks;
+        public int SimAirborneTicks;   // ticks the JOB declared airborne (ground out of reach)
         public int BothSteppingTicks, BothEpisodes; public float BothFirstTime;
 
         public BasisFootPeak SlideMm, ExtRatio, PenMm, HoverMm, TiltDeg, YawDeg, PlantDriftM, CrossSepM, StepLiftMm;
@@ -165,6 +166,12 @@ namespace Basis.IK.Debugging
         public float WorstExtensionRatio;
         public float WorstPenetrationMm;
         public float WorstPlantedHoverMm;
+        // Ticks the job declared AIRBORNE in a scenario whose hips never left standing height. Must be 0:
+        // an airborne avatar stops using the floor and rides a hips-relative fallback, so a false airborne
+        // silently lifts the whole player off the ground -- AND suppresses the hover metric that would have
+        // caught it. This exists because exactly that happened (legLen-based reach test; hipToFoot > legLen).
+        public int SimAirborneWhileGroundedTicks;
+        public string SimAirborneWorstScenario;
         public int Crossovers, CrossoversTolerated;
         public int BothSteppingTicks;
         public string BothSteppingWorstScenario;
@@ -265,6 +272,12 @@ namespace Basis.IK.Debugging
                     summary.WorstExtensionRatio = Mathf.Max(summary.WorstExtensionRatio, r.ExtRatio.Value);
                     summary.WorstPenetrationMm = Mathf.Max(summary.WorstPenetrationMm, r.PenMm.Value);
                     summary.WorstPlantedHoverMm = Mathf.Max(summary.WorstPlantedHoverMm, r.HoverMm.Value);
+                    // Hips never left standing height in this scenario => the sim must never call it airborne.
+                    if (r.HipUpMax - r.HipUpMin < 0.02f && r.SimAirborneTicks > 0)
+                    {
+                        summary.SimAirborneWhileGroundedTicks += r.SimAirborneTicks;
+                        if (string.IsNullOrEmpty(summary.SimAirborneWorstScenario)) summary.SimAirborneWorstScenario = r.Name;
+                    }
                     summary.Crossovers += r.CrossoverTicks;
                     summary.CrossoversTolerated += r.CrossoverTicksFastRot;
                     summary.BothSteppingTicks += r.BothSteppingTicks;
@@ -424,6 +437,7 @@ namespace Basis.IK.Debugging
                     // Read the flag the job itself set rather than re-deriving it here -- a mirrored copy of that
                     // rule is exactly what let the last two foot bugs hide from this sweep.
                     bool simAirborne = output[0].airborne;
+                    if (simAirborne) res.SimAirborneTicks++;
                     if (lp) { res.PenMm.Consider(lm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(lm.hoverMm, t, speed); }
                     if (rp) { res.PenMm.Consider(rm.penMm, t, speed); if (!simAirborne) res.HoverMm.Consider(rm.hoverMm, t, speed); }
                     res.TiltDeg.Consider(lm.tilt, t, speed); res.TiltDeg.Consider(rm.tilt, t, speed);

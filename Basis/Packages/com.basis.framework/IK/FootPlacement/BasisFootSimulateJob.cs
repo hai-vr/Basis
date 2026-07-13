@@ -6,6 +6,22 @@ using Unity.Mathematics;
 [BurstCompile]
 public struct BasisFootSimulateJob : IJob
 {
+    // ── Gait constants (biomechanics, not taste) ──
+    // Scale-free by construction: every one is a FRACTION, so they hold for a chibi and a giant alike.
+
+    // Double support as a fraction of one step's duration. Real walking spends 20-25% of the CYCLE (= two steps)
+    // with both feet down, so ~0.45 of a single step. Falls to 0 with speed -- a run has a flight phase instead.
+    const float k_DoubleSupportWalkFrac = 0.45f;
+
+    // Step width at top speed, as a fraction of the walking stance. Walkers plant ~0.13 leg-lengths apart
+    // laterally; runners land nearly on one line as the COM spends less time shifted over each stance leg.
+    const float k_StanceNarrowAtSpeed = 0.35f;
+
+    // Lateral COM sway toward the STANCE leg, as a fraction of leg length. Humans shift ~2-3 cm sideways per step
+    // (~0.03 leg) at a normal walk -- you rock over the loaded leg. With zero sway the pelvis tracks a dead
+    // straight line and the walk reads as a glide on rails, which is a large part of "unnatural".
+    const float k_HipSwayFraction = 0.03f;
+
     public BasisFootSimParams p;
     public NativeArray<BasisFootNativeState> feet;   // length 2: [0]=left, [1]=right
     public NativeArray<BasisFootSimState> simState;   // length 1
@@ -119,14 +135,21 @@ public struct BasisFootSimulateJob : IJob
         // avatar (a fixed jump impulse is a far bigger fraction of a short leg -- this is a large part of
         // "does not do well with small avatars"). Zero horizontal drift, zero steps, pure vertical tearing.
         //
-        // You are airborne the moment the floor is further below the hips than the leg can reach. Standing,
-        // hips sit hipToFoot + ankleHeight above the ground and legLen >= hipToFoot by construction (a bone
-        // chain's length is never less than its vertical span), so this cannot false-positive -- but the two
-        // are EQUAL for a perfectly straight vertical leg rig, which would leave a standing avatar sitting
-        // exactly on the boundary for float noise to flip. The 2% slack (~1.7 cm of leg) keeps it off the knife
-        // edge; a jump smaller than that stretches the leg by 1.02x, which is nothing.
-        float maxLegReach = math.max(p.leftLegLen, p.rightLegLen) * 1.02f + p.ankleHeight;
-        bool groundInReach = inp.groundHit && (hipsUpComponent - math.dot(inp.groundPoint, up)) <= maxLegReach;
+        // You are airborne once the hips rise meaningfully ABOVE the height they stand at with straight legs.
+        //
+        // Do NOT compare against legLen (thigh+shin). legLen is the UPPER-LEG->foot chain, but hipToFoot is
+        // HIPS->foot, and the hips bone sits ABOVE the hip sockets -- so hipToFoot > legLen on every rig, and a
+        // legLen-based reach test reads "airborne" while the avatar is simply STANDING. The feet then stop using
+        // the floor and ride the hips-relative fallback, which parks them slightly high: the whole avatar hovers.
+        //
+        // hipToFoot + ankleHeight IS the straight-leg standing height (that is how both are measured, off the
+        // T-pose), so it is the correct reference by construction. Real standing sits a touch BELOW it (knees are
+        // never perfectly locked), which gives free margin. The margin only has to clear the hip bob (a few cm)
+        // while staying far below a real jump (>= ~0.35 leg), so 15% of leg separates them with room to spare.
+        float standHipsAboveGround = p.hipToFoot + p.ankleHeight;
+        float avgLegReach = (p.leftLegLen + p.rightLegLen) * 0.5f;
+        bool groundInReach = inp.groundHit &&
+            (hipsUpComponent - math.dot(inp.groundPoint, up)) <= standHipsAboveGround + avgLegReach * 0.15f;
 
         float groundUpComponent;
         bool airborne;
@@ -154,7 +177,12 @@ public struct BasisFootSimulateJob : IJob
         float maxOffset = avgLeg * p.maxVelocityOffsetFraction;
         float baseBias = math.min(speed * p.velocityBiasFactor, maxOffset);
         float3 center = hipsFlat + up * groundUpComponent + moveDir * baseBias;
-        float halfStance = p.stanceWidth * 0.5f;
+
+        // Step width NARROWS as you speed up. A walking human plants ~0.13 leg-lengths apart laterally; a runner
+        // lands almost on a single line (the COM has less time to shift sideways over each stance leg, so the feet
+        // converge under it). Holding one width at every speed is what makes a fast gait read as a WADDLE.
+        float speedFrac = math.saturate(speed / p.fastSpeedRef);
+        float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac);
 
         float leadAmount = math.min(speed * p.velocityBiasFactor * p.leadOffsetFactor, maxOffset * 0.5f);
         float3 leadOffset = moveDir * leadAmount;
@@ -202,6 +230,16 @@ public struct BasisFootSimulateJob : IJob
         float threshold = math.min(p.stepTriggerDist + speed * p.strideScale + idleBoost, avgLegT * 0.55f);
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, speedT);
 
+        // DOUBLE SUPPORT -- both feet on the ground together, which is what makes a walk read as WEIGHTED.
+        // Real walking spends ~20-25% of the gait cycle in double support; the sweep says we spend ~3% (at least
+        // one foot is in swing for 97% of a walk), because a foot may lift the very tick the other lands. Always
+        // being on one leg is exactly what "floaty" feels like.
+        //
+        // A gait cycle is two steps, so 20-25% of the cycle is ~0.45 of a stepDur. It must fall to ZERO with
+        // speed: at a run there is no double support at all (there is a flight phase instead), and holding a
+        // stance window at speed would starve the step rate and strand the foot.
+        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportWalkFrac, 0f, speedT);
+
         // ── Vertical correction ──
         if (airborne)
         {
@@ -239,8 +277,8 @@ public struct BasisFootSimulateJob : IJob
         }
 
         // ── Update feet ──
-        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg);
-        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg);
+        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg, doubleSupportSec);
+        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, sim.smoothedYawRateDeg, doubleSupportSec);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -289,9 +327,10 @@ public struct BasisFootSimulateJob : IJob
         if (left.phase == 1) EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
         if (right.phase == 1) EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
 
-        // ── Hip bob ──
+        // ── Hip bob + lateral sway ──
         var outp = output[0];
         outp.hipBob = ComputeHipBob(ref left, ref right, speed);
+        outp.hipSway = bodyRight * ComputeHipSway(ref left, ref right, speed);
         outp.airborne = airborne;
         output[0] = outp;
 
@@ -303,7 +342,7 @@ public struct BasisFootSimulateJob : IJob
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
         float3 rawFwd, float3 smoothedVelocity, float speed, float threshold, float stepDur, float dt, float3 up,
-        float3 hipsGround, float yawRateDeg)
+        float3 hipsGround, float yawRateDeg, float doubleSupportSec)
     {
         float3 bodyFlat = rawFwd - up * math.dot(rawFwd, up);
         bool bodyFlatValid = math.lengthsq(bodyFlat) > 1e-6f;
@@ -311,6 +350,8 @@ public struct BasisFootSimulateJob : IJob
 
         if (f.phase == 0) // Planted
         {
+            f.plantedTime += dt;
+
             float a = 1f - math.exp(-p.plantedLerpSpeed * dt);
             f.currentPos = math.lerp(f.currentPos, f.plantedPos, a);
 
@@ -340,7 +381,12 @@ public struct BasisFootSimulateJob : IJob
                 yawTrigger = yawDiff > p.maxPlantedYawDegrees;
             }
 
-            if ((dist > threshold || yawTrigger) && other.phase == 0)
+            // The other foot must be not just DOWN but SETTLED -- it has to have carried the weight for the
+            // double-support window before this one is allowed to leave the ground. Without the plantedTime test
+            // a foot can lift on the very tick the other lands, so the body is never actually on two legs.
+            bool otherSettled = other.phase == 0 && other.plantedTime >= doubleSupportSec;
+
+            if ((dist > threshold || yawTrigger) && otherSettled)
             {
                 f.wantsStep = true;
                 f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up, hipsGround, yawRateDeg);
@@ -398,6 +444,7 @@ public struct BasisFootSimulateJob : IJob
                 f.plantedRot = FootRotation(rawFwd, f.filteredNormal, up);
                 f.plantedBodyFwd = bodyFlatValid ? bodyFlat : f.plantedBodyFwd;
                 f.currentPos = f.stepTargetPos;
+                f.plantedTime = 0f;   // starts the double-support window for the OTHER foot
             }
         }
     }
@@ -465,6 +512,37 @@ public struct BasisFootSimulateJob : IJob
         }
 
         return math.max(leftRise, rightRise) * amplitude;
+    }
+
+    // Lateral pelvis sway, signed along body-right, in metres.
+    //
+    // A human does not walk down a rail: each step rocks the COM sideways OVER THE LOADED LEG, because the body
+    // has to balance on it. Whichever foot is SWINGING, the other is the stance leg, so the pelvis leans toward
+    // the stance side. It peaks at mid-swing (mid-stance of the other leg) and passes through zero at double
+    // support, where the weight is shared. Same phase as the vertical bob, one axis over.
+    //
+    // Sign: a swinging LEFT foot means the RIGHT leg is loaded, so the body sways to +right. And vice versa.
+    // Amplitude scales with the avatar's own leg and fades out at a standstill, exactly like the bob.
+    private float ComputeHipSway(ref BasisFootNativeState left, ref BasisFootNativeState right, float speed)
+    {
+        if (speed < 0.02f * p.fastSpeedRef) return 0f;
+
+        float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
+        float amplitude = avgLeg * k_HipSwayFraction * math.saturate(speed / p.fastSpeedRef);
+
+        float sway = 0f;
+        if (left.phase == 1)
+        {
+            float t = math.saturate(left.stepTimer / left.stepDur);
+            sway += math.sin(t * math.PI);    // left swings => right leg loaded => lean +right
+        }
+        if (right.phase == 1)
+        {
+            float t = math.saturate(right.stepTimer / right.stepDur);
+            sway -= math.sin(t * math.PI);    // right swings => left leg loaded => lean -right
+        }
+
+        return sway * amplitude;
     }
 
     // ── Helpers ──

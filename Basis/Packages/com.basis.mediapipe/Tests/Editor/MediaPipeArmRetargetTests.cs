@@ -5,54 +5,82 @@ using UnityEngine;
 namespace Basis.MediaPipe.Tests
 {
     /// <summary>
-    /// Ground truth for the webcam arm retarget. The landmarks here are already in the converter's space
-    /// (Unity y-up, un-mirrored, anatomically labelled) — the same space <see cref="MediaPipeSpace"/> puts
-    /// raw MediaPipe output into.
+    /// Ground truth for the webcam arm retarget.
+    ///
+    /// These landmarks are in CAMERA space, which is what the converters actually receive: the user stands in
+    /// front of the camera FACING it, so their forward is -Z, their right hand is at -X (camera-right is the
+    /// user's left), and their nose is nearer the camera (-Z) than their ears. Building the body the other way
+    /// round — as if it were an avatar facing +Z — is self-consistent and hides a whole class of sign bugs,
+    /// which is exactly how the "arms end up behind the body" regression slipped through.
     ///
     /// The user is a ~1.75 m person with a 0.55 m arm; the avatar is deliberately shorter with a 0.47 m arm,
     /// so nothing passes by accident on matched proportions.
     /// </summary>
     public class MediaPipeArmRetargetTests
     {
-        private const float UserHipY = 1.00f;
-        private const float UserShoulderY = 1.40f;
-        private const float UserNoseY = 1.58f;
-
         private const float AvatarHipY = 0.88f;
         private const float AvatarShoulderY = 1.24f;
         private const float AvatarHeadY = 1.42f;
         private const float AvatarUpperLen = 0.24f;
         private const float AvatarForeLen = 0.23f;
 
-        private static Vector3[] Body()
+        /// <summary>
+        /// Hip-centred metric landmarks, as MediaPipe reports world landmarks. User faces the camera, arms
+        /// hanging. Both arms are posed symmetrically so that reversing the left/right labels changes nothing
+        /// but the sides — which isolates the forward flip the reversal causes.
+        /// </summary>
+        internal static Vector3[] ArmDown()
         {
             Vector3[] pose = new Vector3[MediaPipeSpace.PoseCount];
-            pose[MediaPipeSpace.Nose] = new Vector3(0f, UserNoseY, 0.10f);
-            pose[MediaPipeSpace.LeftEar] = new Vector3(-0.08f, 1.62f, -0.02f);
-            pose[MediaPipeSpace.RightEar] = new Vector3(0.08f, 1.62f, -0.02f);
-            pose[MediaPipeSpace.LeftShoulder] = new Vector3(-0.18f, UserShoulderY, 0f);
-            pose[MediaPipeSpace.RightShoulder] = new Vector3(0.18f, UserShoulderY, 0f);
-            pose[MediaPipeSpace.LeftHip] = new Vector3(-0.12f, UserHipY, 0f);
-            pose[MediaPipeSpace.RightHip] = new Vector3(0.12f, UserHipY, 0f);
+            pose[MediaPipeSpace.Nose] = new Vector3(0f, 0.58f, -0.10f);
+            pose[MediaPipeSpace.LeftEar] = new Vector3(0.08f, 0.62f, 0.02f);
+            pose[MediaPipeSpace.RightEar] = new Vector3(-0.08f, 0.62f, 0.02f);
+            pose[MediaPipeSpace.LeftShoulder] = new Vector3(0.18f, 0.40f, 0f);
+            pose[MediaPipeSpace.RightShoulder] = new Vector3(-0.18f, 0.40f, 0f);
+            pose[MediaPipeSpace.LeftHip] = new Vector3(0.12f, 0f, 0f);
+            pose[MediaPipeSpace.RightHip] = new Vector3(-0.12f, 0f, 0f);
+            pose[MediaPipeSpace.LeftElbow] = new Vector3(0.22f, 0.14f, -0.03f);
+            pose[MediaPipeSpace.LeftWrist] = new Vector3(0.24f, -0.12f, -0.06f);
+            pose[MediaPipeSpace.LeftIndex] = new Vector3(0.27f, -0.20f, -0.05f);
+            pose[MediaPipeSpace.LeftPinky] = new Vector3(0.21f, -0.20f, -0.07f);
+            pose[MediaPipeSpace.RightElbow] = new Vector3(-0.22f, 0.14f, -0.03f);
+            pose[MediaPipeSpace.RightWrist] = new Vector3(-0.24f, -0.12f, -0.06f);
+            pose[MediaPipeSpace.RightIndex] = new Vector3(-0.27f, -0.20f, -0.05f);
+            pose[MediaPipeSpace.RightPinky] = new Vector3(-0.21f, -0.20f, -0.07f);
             return pose;
         }
 
-        /// <summary>Right arm hanging down at the side.</summary>
-        private static Vector3[] ArmDown()
+        /// <summary>Both hands held up beside the face: elbows out and up, wrists at the jaw, in front of the chest.</summary>
+        internal static Vector3[] HandAtFace()
         {
-            Vector3[] pose = Body();
-            pose[MediaPipeSpace.RightElbow] = new Vector3(0.22f, 1.14f, 0.03f);
-            pose[MediaPipeSpace.RightWrist] = new Vector3(0.24f, 0.88f, 0.06f);
+            Vector3[] pose = ArmDown();
+            pose[MediaPipeSpace.LeftElbow] = new Vector3(0.38f, 0.26f, -0.12f);
+            pose[MediaPipeSpace.LeftWrist] = new Vector3(0.24f, 0.50f, -0.16f);
+            pose[MediaPipeSpace.LeftIndex] = new Vector3(0.22f, 0.58f, -0.18f);
+            pose[MediaPipeSpace.LeftPinky] = new Vector3(0.28f, 0.57f, -0.14f);
+            pose[MediaPipeSpace.RightElbow] = new Vector3(-0.38f, 0.26f, -0.12f);
+            pose[MediaPipeSpace.RightWrist] = new Vector3(-0.24f, 0.50f, -0.16f);
+            pose[MediaPipeSpace.RightIndex] = new Vector3(-0.22f, 0.58f, -0.18f);
+            pose[MediaPipeSpace.RightPinky] = new Vector3(-0.28f, 0.57f, -0.14f);
             return pose;
         }
 
-        /// <summary>Right hand held up beside the face: elbow out and up, wrist level with the jaw.</summary>
-        private static Vector3[] HandAtFace()
+        private static Vector3[] WithReversedLabels(Vector3[] pose)
         {
-            Vector3[] pose = Body();
-            pose[MediaPipeSpace.RightElbow] = new Vector3(0.38f, 1.26f, 0.12f);
-            pose[MediaPipeSpace.RightWrist] = new Vector3(0.24f, 1.50f, 0.16f);
-            return pose;
+            Vector3[] copy = (Vector3[])pose.Clone();
+            MediaPipeSpace.SwapPoseSidesInPlace(copy);
+            return copy;
+        }
+
+        /// <summary>What the backend does per frame: repair the sides from geometry before anything reads them.</summary>
+        private static Vector3[] ResolveSides(Vector3[] pose)
+        {
+            Vector3[] copy = (Vector3[])pose.Clone();
+            if (MediaPipeSpace.SideSwapNeeded(copy) > 0f)
+            {
+                MediaPipeSpace.SwapPoseSidesInPlace(copy);
+            }
+            return copy;
         }
 
         private static MediaPipeArmConverter.AvatarArmRig Rig()
@@ -185,6 +213,66 @@ namespace Basis.MediaPipe.Tests
 
             Assert.LessOrEqual(reach, AvatarUpperLen + AvatarForeLen,
                 $"target {reach:F3} m exceeds the avatar's {AvatarUpperLen + AvatarForeLen:F3} m arm");
+        }
+
+        [Test]
+        public void CorrectlyLabelledBody_NeedsNoSideSwap()
+        {
+            Assert.AreEqual(-1f, MediaPipeSpace.SideSwapNeeded(HandAtFace()),
+                "facing the camera, the user's left shoulder sits at the larger x; these labels are already right");
+        }
+
+        [Test]
+        public void ReversedLabels_AreDetectedAndRepaired()
+        {
+            Vector3[] reversed = WithReversedLabels(HandAtFace());
+            Assert.AreEqual(1f, MediaPipeSpace.SideSwapNeeded(reversed), "reversed sides must be detected");
+
+            Vector3 repaired = Retarget(ResolveSides(reversed));
+            Vector3 expected = Retarget(HandAtFace());
+
+            Assert.That(Vector3.Distance(repaired, expected), Is.LessThan(1e-4f),
+                "after repair the reversed body must retarget identically to the correct one");
+            Assert.Greater(repaired.z, 0.02f, "hand must stay in front of the avatar");
+            Assert.Greater(repaired.x, 0f, "hand must stay on the avatar's right");
+        }
+
+        /// <summary>
+        /// The reported regression, pinned. Reversed left/right labels flip the shoulder axis, which flips the
+        /// body frame's forward, which throws a hand held at the chest out behind the avatar's back — while the
+        /// side and the height still look correct, so it reads as "the arms work but they're behind me".
+        /// </summary>
+        [Test]
+        public void TrustingReversedLabels_PutsTheHandBehindTheBody()
+        {
+            Vector3 wrist = Retarget(WithReversedLabels(HandAtFace()));
+
+            Assert.Less(wrist.z, 0f,
+                "this is the bug the geometric side check exists to prevent");
+            Assert.Greater(wrist.x, 0f,
+                "and it is nasty precisely because the side still looks right");
+        }
+
+        [Test]
+        public void ArmVisibility_ReportsTheWeakestJoint()
+        {
+            float[] visibility = new float[MediaPipeSpace.PoseCount];
+            for (int i = 0; i < visibility.Length; i++)
+            {
+                visibility[i] = 0.9f;
+            }
+            visibility[MediaPipeSpace.RightElbow] = 0.2f;
+
+            Assert.AreEqual(0.2f, MediaPipeSpace.ArmVisibility(visibility, false), 1e-5f,
+                "an unseen elbow must drag the arm's confidence down, not be averaged away");
+            Assert.AreEqual(0.9f, MediaPipeSpace.ArmVisibility(visibility, true), 1e-5f);
+        }
+
+        [Test]
+        public void ArmVisibility_OptsOutWhenTheModelReportsNothing()
+        {
+            Assert.AreEqual(-1f, MediaPipeSpace.ArmVisibility(null, true),
+                "no visibility data must mean 'do not gate', not 'never track'");
         }
 
         [Test]

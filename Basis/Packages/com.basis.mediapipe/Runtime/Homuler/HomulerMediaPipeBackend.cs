@@ -29,8 +29,7 @@ namespace Basis.MediaPipe.Homuler
         public bool IsAvailable { get; private set; }
         public string BackendName => "homuler MediaPipe Unity Plugin";
         private bool _swapHands;
-        private bool _invertDepth;
-        private float _depthSign = 1f;
+        private bool _poseSidesSwapped;
 
         private FaceLandmarker _face;
         private HandLandmarker _hand;
@@ -69,7 +68,6 @@ namespace Basis.MediaPipe.Homuler
         {
             _mirror = config.MirrorHorizontally;
             _swapHands = config.SwapHands;
-            _invertDepth = config.InvertDepth;
             _useAsyncReadback = SystemInfo.supportsAsyncGPUReadback;
             TryCreateLandmarkers(config);
             IsAvailable = _face != null || _hand != null || _pose != null;
@@ -295,9 +293,10 @@ namespace Basis.MediaPipe.Homuler
                 ParseFace(faceResult, ref result);
                 if (result.HasFace) result.TongueOut = ComputeTongueOut(faceResult, w, h);
             }
-            if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
+            // Pose before hands: the hand landmarker's left/right label is a guess, and the pose (whose sides
+            // are repaired from geometry) is what the hands get matched against to settle it.
             if (_pose != null) ParsePose(_pose.DetectForVideo(NewImage(w, h), _ts), ref result);
-            ResolveDepth(ref result);
+            if (_hand != null) ParseHands(_hand.DetectForVideo(NewImage(w, h), _ts), ref result);
 
             lock (_resultLock)
             {
@@ -347,7 +346,11 @@ namespace Basis.MediaPipe.Homuler
         {
             if (result.handLandmarks == null) return;
 
-            for (int h = 0; h < result.handLandmarks.Count; h++)
+            Vector3[] firstImage = null, firstWorld = null, secondImage = null, secondWorld = null;
+            bool firstLabelLeft = true;
+            int found = 0;
+
+            for (int h = 0; h < result.handLandmarks.Count && found < 2; h++)
             {
                 var landmarks = result.handLandmarks[h].landmarks;
                 if (landmarks == null) continue;
@@ -372,49 +375,93 @@ namespace Basis.MediaPipe.Homuler
                     }
                 }
 
-                bool isLeft = IsLeftHand(result, h);
-                if (_swapHands) isLeft = !isLeft;
-                if (isLeft)
+                if (found == 0)
                 {
-                    output.LeftHandLandmarks = image;
-                    output.LeftHandWorldLandmarks = world;
-                    output.HasLeftHand = true;
+                    firstImage = image;
+                    firstWorld = world;
+                    firstLabelLeft = LabelSaysLeft(result, h);
                 }
                 else
                 {
-                    output.RightHandLandmarks = image;
-                    output.RightHandWorldLandmarks = world;
-                    output.HasRightHand = true;
+                    secondImage = image;
+                    secondWorld = world;
                 }
+                found++;
+            }
+
+            if (found == 0) return;
+
+            bool firstIsLeft = ResolveHandSide(output.PoseLandmarks, firstImage, secondImage, firstLabelLeft, found);
+            Assign(ref output, firstImage, firstWorld, firstIsLeft);
+            if (found == 2)
+            {
+                Assign(ref output, secondImage, secondWorld, !firstIsLeft);
             }
         }
 
-        private static bool IsLeftHand(HandLandmarkerResult result, int index)
+        private static void Assign(ref BasisMediaPipeResult output, Vector3[] image, Vector3[] world, bool left)
         {
+            if (left)
+            {
+                output.LeftHandLandmarks = image;
+                output.LeftHandWorldLandmarks = world;
+                output.HasLeftHand = true;
+            }
+            else
+            {
+                output.RightHandLandmarks = image;
+                output.RightHandWorldLandmarks = world;
+                output.HasRightHand = true;
+            }
+        }
+
+        // Which physical hand this is decides whether TryPalmFrame negates the palm normal, so getting it wrong
+        // rolls the avatar's wrist 180 degrees while the position still looks right. The handedness label is a
+        // guess that depends on the mirror and on the model, so settle it against the pose wrists instead —
+        // those sides are already repaired from geometry. Falls back to the label when there is no pose.
+        private bool ResolveHandSide(Vector3[] pose, Vector3[] first, Vector3[] second, bool labelLeft, int found)
+        {
+            if (pose == null || pose.Length < MediaPipeSpace.PoseCount) return labelLeft;
+
+            float firstToLeft = WristGap(first, pose, true);
+            float firstToRight = WristGap(first, pose, false);
+            if (firstToLeft < 0f || firstToRight < 0f) return labelLeft;
+
+            if (found == 2)
+            {
+                float secondToLeft = WristGap(second, pose, true);
+                float secondToRight = WristGap(second, pose, false);
+                if (secondToLeft >= 0f && secondToRight >= 0f)
+                {
+                    return firstToLeft + secondToRight <= firstToRight + secondToLeft;
+                }
+            }
+
+            if (Mathf.Abs(firstToLeft - firstToRight) < 0.02f) return labelLeft;
+            return firstToLeft < firstToRight;
+        }
+
+        private static float WristGap(Vector3[] hand, Vector3[] pose, bool left)
+        {
+            if (hand == null || hand.Length <= MediaPipeSpace.HandWrist) return -1f;
+
+            Vector3 wrist = hand[MediaPipeSpace.HandWrist];
+            Vector3 poseWrist = pose[left ? MediaPipeSpace.LeftWrist : MediaPipeSpace.RightWrist];
+            return new Vector2(wrist.x - poseWrist.x, wrist.y - poseWrist.y).magnitude;
+        }
+
+        private bool LabelSaysLeft(HandLandmarkerResult result, int index)
+        {
+            bool isLeft = index == 0;
             if (result.handedness != null && index < result.handedness.Count)
             {
                 var categories = result.handedness[index].categories;
                 if (categories != null && categories.Count > 0)
                 {
-                    return categories[0].categoryName == "Left";
+                    isLeft = categories[0].categoryName == "Left";
                 }
             }
-            return index == 0;
-        }
-
-        // MediaPipe's depth axis sign is not something we can assume, so it is resolved from the body itself
-        // and held across frames where the head is too degenerate to call it. Both the pose and the hands are
-        // reported in the same camera frame, so one sign covers all of them.
-        private void ResolveDepth(ref BasisMediaPipeResult output)
-        {
-            float sign = MediaPipeSpace.DepthSign(output.PoseWorldLandmarks);
-            if (sign != 0f) _depthSign = sign;
-
-            float applied = _invertDepth ? -_depthSign : _depthSign;
-            MediaPipeSpace.ApplyDepthSign(output.PoseWorldLandmarks, applied);
-            MediaPipeSpace.ApplyDepthSign(output.PoseLandmarks, applied);
-            MediaPipeSpace.ApplyDepthSign(output.LeftHandWorldLandmarks, applied);
-            MediaPipeSpace.ApplyDepthSign(output.RightHandWorldLandmarks, applied);
+            return _swapHands ? !isLeft : isLeft;
         }
 
         private void ParsePose(PoseLandmarkerResult result, ref BasisMediaPipeResult output)
@@ -430,7 +477,6 @@ namespace Basis.MediaPipe.Homuler
                     {
                         arr[i] = MediaPipeSpace.World(new Vector3(world[i].x, world[i].y, world[i].z), _mirror);
                     }
-                    if (_mirror) MediaPipeSpace.SwapPoseSidesInPlace(arr);
                     output.PoseWorldLandmarks = arr;
                 }
             }
@@ -442,14 +488,37 @@ namespace Basis.MediaPipe.Homuler
                 {
                     output.HasPose = true;
                     Vector3[] arr = new Vector3[image.Count];
+                    float[] visibility = new float[image.Count];
                     for (int i = 0; i < image.Count; i++)
                     {
                         arr[i] = MediaPipeSpace.Image(new Vector3(image[i].x, image[i].y, image[i].z), _mirror);
+                        visibility[i] = image[i].visibility ?? -1f;
                     }
-                    if (_mirror) MediaPipeSpace.SwapPoseSidesInPlace(arr);
                     output.PoseLandmarks = arr;
+                    output.PoseVisibility = visibility;
                 }
             }
+
+            ResolveSides(ref output);
+        }
+
+        // The pose model names landmarks from appearance, so whether its left/right come back reversed depends
+        // on the mirror AND on the model, and getting it wrong flips the body frame's forward (arms end up
+        // behind the back). Decide it from the shoulder geometry instead, and hold the last call while the user
+        // is turned too far side-on to tell.
+        private void ResolveSides(ref BasisMediaPipeResult output)
+        {
+            float decision = MediaPipeSpace.SideSwapNeeded(output.PoseWorldLandmarks);
+            if (decision == 0f) decision = MediaPipeSpace.SideSwapNeeded(output.PoseLandmarks);
+            if (decision != 0f) _poseSidesSwapped = decision > 0f;
+
+            if (_poseSidesSwapped)
+            {
+                MediaPipeSpace.SwapPoseSidesInPlace(output.PoseWorldLandmarks);
+                MediaPipeSpace.SwapPoseSidesInPlace(output.PoseLandmarks);
+                MediaPipeSpace.SwapPoseSidesInPlace(output.PoseVisibility);
+            }
+            output.PoseSidesSwapped = _poseSidesSwapped;
         }
 
         // Tongue isn't a landmark; estimate it from pink/red pixels filling the lower mouth

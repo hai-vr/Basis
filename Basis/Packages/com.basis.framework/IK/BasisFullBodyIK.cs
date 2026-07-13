@@ -2402,27 +2402,29 @@ w20, w54;
             //    jitter via the bend normal -> heavy 1 Hz floor (the original leg-twist fix).
             if (legSwivelSmoothing.Get(stream))
             {
-                if (hintIsTrackerProp.Get(stream))
+                if (hintIsTrackerProp.Get(stream) || !preserveTip)
                 {
-                    // A real knee/lower-leg tracker: the user's own input, so track it responsively.
+                    // Something REAL drives this leg -- a knee/lower-leg tracker, or (no knee tracker but) a FOOT
+                    // tracker. Track it responsively.
+                    //
+                    // The foot-tracker case must NOT get the heavy standing floor below. That floor is justified by
+                    // "a turn moves the whole leg, so the swivel angle is ~unchanged" -- which only holds when the
+                    // foot moves WITH the body. A tracked foot is welded to the user's REAL foot, so a
+                    // character-controller turn rotates the hips while the foot stays put in the world: the leg's
+                    // body-frame geometry genuinely swings, the swivel angle really does change, and a 1 Hz
+                    // low-pass drags the knee visibly behind the turn. The pole is still invented and still needs
+                    // damping -- just at the responsive rate, not the fabricated-leg rate.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz);
                 }
                 else
                 {
-                    // NO knee tracker => the pole is INVENTED (BendNormal = hipsRot * right), so it inherits every
-                    // wobble of the hips and must be damped. This used to be gated on `preserveTip`, which is the
-                    // "position-only foot IK" sentinel -- i.e. it really meant "no FOOT tracker". So the one
-                    // configuration that got NO smoothing at all was FOOT TRACKERS WITHOUT KNEE TRACKERS:
-                    // hintIsTracker is false (no knee tracker) and preserveTip is false (a real foot tracker sends
-                    // a real rotation), so both branches missed. That config is also the worst possible one for it
-                    // -- under stick locomotion the real legs stand straight, so reach -> 1.0 and the pole sits on
-                    // its singularity, where hips jitter is amplified hardest. Raw synthetic pole + no damping +
-                    // worst conditioning = the legs twist about the hip->foot axis and the feet read as sliding.
-                    //
-                    // The right question was never "is there a foot tracker" but "is the pole REAL or INVENTED".
-                    // An invented pole always needs damping. Safe to widen now that the swivel is measured in the
-                    // BODY frame (BasisSwivelSmootherCore) -- it damps jitter without lagging a real turn.
+                    // Nothing real drives this leg: no knee tracker AND no foot tracker, so the pole is invented
+                    // (BendNormal = hipsRot * right) and the foot rides the body. A near-full-extension standing
+                    // leg sits on the pole singularity, where hips-yaw jitter is amplified hardest into knee
+                    // swivel -> heavy 1 Hz floor (the original leg-twist fix). Safe here precisely BECAUSE the
+                    // foot moves with the body: a turn carries the whole leg, so the body-frame swivel angle
+                    // barely changes and there is nothing real for the filter to lag.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz);
                 }

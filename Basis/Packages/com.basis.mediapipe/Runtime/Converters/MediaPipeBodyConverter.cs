@@ -3,10 +3,12 @@ using UnityEngine;
 namespace Basis.MediaPipe
 {
     /// <summary>
-    /// EXPERIMENTAL torso lean/twist from PoseLandmarker world landmarks. Rotation only (no
-    /// noisy monocular translation): builds a chest orientation from the shoulder line + spine
-    /// direction, relative to a calibrated neutral. Expect to flip Invert* and tune gains on a
-    /// real body.
+    /// EXPERIMENTAL torso lean/twist from PoseLandmarker world landmarks. Rotation only (no noisy monocular
+    /// translation): reads the same body frame the arms retarget against, and reports how far it has turned
+    /// from a calibrated neutral.
+    ///
+    /// What comes out is an OFFSET, not a chest orientation — the caller composes it onto the avatar's own body
+    /// so the chest keeps following the body and only picks up your lean and twist on top.
     /// </summary>
     public sealed class MediaPipeBodyConverter
     {
@@ -15,11 +17,6 @@ namespace Basis.MediaPipe
         public bool InvertTwist = false;
         public bool InvertLean = false;
         public float Smoothing = 0.6f;
-
-        private const int LeftShoulder = 11;
-        private const int RightShoulder = 12;
-        private const int LeftHip = 23;
-        private const int RightHip = 24;
 
         private Quaternion _neutralInverse = Quaternion.identity;
         private bool _calibrated;
@@ -34,9 +31,16 @@ namespace Basis.MediaPipe
             }
         }
 
-        public bool TryGetChestRotation(in BasisMediaPipeResult result, out Quaternion rotation)
+        public void Reset()
         {
-            rotation = Quaternion.identity;
+            _calibrated = false;
+            _smoothed = Quaternion.identity;
+        }
+
+        /// <summary>Torso lean/twist relative to the calibrated neutral, in the avatar's body axes.</summary>
+        public bool TryGetTorsoOffset(in BasisMediaPipeResult result, out Quaternion offset)
+        {
+            offset = Quaternion.identity;
             if (!TryTorsoRotation(result, out Quaternion rot)) return false;
 
             if (!_calibrated)
@@ -53,32 +57,16 @@ namespace Basis.MediaPipe
 
             float t = 1f - Mathf.Clamp01(Smoothing);
             _smoothed = Quaternion.Slerp(_smoothed, target, t);
-            rotation = _smoothed;
+            offset = _smoothed;
             return true;
         }
 
         private static bool TryTorsoRotation(in BasisMediaPipeResult result, out Quaternion rot)
         {
             rot = Quaternion.identity;
-            Vector3[] lm = result.PoseWorldLandmarks;
-            if (!result.HasPose || lm == null || lm.Length <= RightHip) return false;
-
-            Vector3 ls = Flip(lm[LeftShoulder]);
-            Vector3 rs = Flip(lm[RightShoulder]);
-            Vector3 lh = Flip(lm[LeftHip]);
-            Vector3 rh = Flip(lm[RightHip]);
-
-            Vector3 up = ((ls + rs) * 0.5f - (lh + rh) * 0.5f).normalized;
-            Vector3 right = (rs - ls).normalized;
-            Vector3 forward = Vector3.Cross(right, up);
-            if (forward.sqrMagnitude < 1e-4f || up.sqrMagnitude < 1e-4f) return false;
-
-            rot = Quaternion.LookRotation(forward.normalized, up);
-            return true;
+            if (!result.HasPose) return false;
+            return MediaPipeSpace.TryBodyFrame(result.PoseWorldLandmarks, out _, out rot);
         }
-
-        // MediaPipe world landmarks are y-down; flip to Unity y-up.
-        private static Vector3 Flip(Vector3 v) => new Vector3(v.x, -v.y, v.z);
 
         private static float NormalizeAngle(float angle) => angle > 180f ? angle - 360f : angle;
     }

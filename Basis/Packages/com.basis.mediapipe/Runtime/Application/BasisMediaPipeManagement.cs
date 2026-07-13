@@ -41,6 +41,8 @@ namespace Basis.MediaPipe
         private bool _armRigValid;
         private bool _handRigValid;
         private BasisAvatar _armRigAvatar;
+        private bool _leftArmTracked;
+        private bool _rightArmTracked;
         private bool _armPosePathActive;
         private bool _armDiagLogged;
         public override bool IsDeviceBootable(string BootRequest) => BootRequest == SubSystem;
@@ -72,7 +74,6 @@ namespace Basis.MediaPipe
             Config.TargetFps = BasisMediaPipeSettings.CameraFps.RawValue;
             Config.EnableChest = BasisMediaPipeSettings.EnableBody.RawValue;
             Config.EnableArmElbowPole = BasisMediaPipeSettings.EnableArmElbowPole.RawValue;
-            Config.InvertDepth = BasisMediaPipeSettings.InvertArmDepth.RawValue;
             Config.EnablePose = Config.EnableChest || Config.EnableHandTracking;
             ApplyTuning();
         }
@@ -184,6 +185,7 @@ namespace Basis.MediaPipe
             CacheArmRig();
             _armConverter.Reset();
             _handConverter.Reset();
+            _bodyConverter.Reset();
             CalibrateHead();
         }
 
@@ -211,6 +213,7 @@ namespace Basis.MediaPipe
         private void CacheArmRig()
         {
             _armRigValid = false;
+            _handRigValid = false;
             BasisAvatar avatar = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.BasisAvatar : null;
             _armRigAvatar = avatar;
             Animator anim = avatar != null ? avatar.Animator : null;
@@ -441,7 +444,10 @@ namespace Basis.MediaPipe
                 {
                     _armDiagLogged = true;
                     _armPosePathActive = posePath;
-                    BasisDebug.Log($"BasisMediaPipe arms: EnablePose={Config.EnablePose} HasPose={result.HasPose} armRig={_armRigValid} handRig={_handRigValid} poseWorld={(result.PoseWorldLandmarks != null ? result.PoseWorldLandmarks.Length : 0)} -> {(posePath ? "pose retarget" : "hand fallback")}");
+                    BasisDebug.Log($"BasisMediaPipe arms: HasPose={result.HasPose} armRig={_armRigValid} handRig={_handRigValid}"
+                        + $" sidesSwapped={result.PoseSidesSwapped}"
+                        + $" visL={MediaPipeSpace.ArmVisibility(result.PoseVisibility, true):F2} visR={MediaPipeSpace.ArmVisibility(result.PoseVisibility, false):F2}"
+                        + $" -> {(posePath ? "pose retarget" : "hand fallback")}");
                 }
                 ApplyHandTracker(in result, true);
                 ApplyHandTracker(in result, false);
@@ -456,9 +462,10 @@ namespace Basis.MediaPipe
 
             if (Config.EnableChest)
             {
-                if (result.HasPose && BasisLocalBoneDriver.ChestControl != null && _bodyConverter.TryGetChestRotation(in result, out Quaternion chestRotation))
+                if (result.HasPose && _bodyConverter.TryGetTorsoOffset(in result, out Quaternion torsoOffset)
+                    && TryComposeChest(torsoOffset, out Vector3 chestPosition, out Quaternion chestRotation))
                 {
-                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(BasisLocalBoneDriver.ChestControl.TposeLocal.position, chestRotation);
+                    EnsureTracker(BasisBoneTrackedRole.Chest).FollowMovement.SetLocalPositionAndRotation(chestPosition, chestRotation);
                 }
                 else
                 {
@@ -471,6 +478,55 @@ namespace Basis.MediaPipe
             }
         }
 
+        /// <summary>
+        /// Places the chest by carrying it on the hips and adding the webcam's lean/twist on top. The converter
+        /// hands back an OFFSET from neutral; writing that straight onto the tracker (as this used to) pinned the
+        /// chest to a fixed rotation in player space, so it stopped turning with the body altogether.
+        /// </summary>
+        private static bool TryComposeChest(Quaternion torsoOffset, out Vector3 position, out Quaternion rotation)
+        {
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+
+            BasisLocalBoneControl hips = BasisLocalBoneDriver.HipsControl;
+            BasisLocalBoneControl chest = BasisLocalBoneDriver.ChestControl;
+            if (hips == null || chest == null) return false;
+
+            Quaternion hipsRest = hips.TposeLocal.rotation;
+            Quaternion chestRest = chest.TposeLocal.rotation;
+            if (!IsUsable(hipsRest) || !IsUsable(chestRest)) return false;
+
+            Basis.Scripts.Common.BasisCalibratedCoords hipsNow = hips.OutGoingData;
+            Quaternion body = hipsNow.rotation * Quaternion.Inverse(hipsRest);
+
+            position = hipsNow.position + body * (chest.TposeLocal.position - hips.TposeLocal.position);
+            rotation = body * torsoOffset * chestRest;
+            return true;
+        }
+
+        private static bool IsUsable(Quaternion q) =>
+            q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w > 0.5f;
+
+        // The pose model always emits all 33 landmarks, extrapolating any limb it cannot actually see, so an arm
+        // out of frame or tucked behind the back still yields a confident-looking wrist. Gate on the reported
+        // visibility, with hysteresis so an arm hovering at the threshold does not strobe in and out, and drop
+        // the tracker entirely when it goes — a released arm falls back to normal IK instead of chasing noise.
+        private const float ArmVisibilityGain = 0.7f;
+        private const float ArmVisibilityLose = 0.5f;
+
+        private bool ArmIsTrackable(in BasisMediaPipeResult result, bool avatarLeft)
+        {
+            bool srcLeft = avatarLeft ^ _armConverter.SwapArms;
+            float visibility = MediaPipeSpace.ArmVisibility(result.PoseVisibility, srcLeft);
+            if (visibility < 0f) return true;
+
+            bool tracked = avatarLeft ? _leftArmTracked : _rightArmTracked;
+            tracked = visibility >= (tracked ? ArmVisibilityLose : ArmVisibilityGain);
+            if (avatarLeft) _leftArmTracked = tracked;
+            else _rightArmTracked = tracked;
+            return tracked;
+        }
+
         private void ApplyHandTracker(in BasisMediaPipeResult result, bool left)
         {
             Vector3[] landmarks = left ? result.LeftHandLandmarks : result.RightHandLandmarks;
@@ -478,12 +534,19 @@ namespace Basis.MediaPipe
             BasisBoneTrackedRole handRole = left ? BasisBoneTrackedRole.LeftHand : BasisBoneTrackedRole.RightHand;
             BasisBoneTrackedRole elbowRole = left ? BasisBoneTrackedRole.LeftLowerArm : BasisBoneTrackedRole.RightLowerArm;
 
+            if (Config.EnablePose && result.HasPose && !ArmIsTrackable(in result, left))
+            {
+                RemoveTracker(handRole);
+                RemoveTracker(elbowRole);
+                return;
+            }
+
             if (Config.EnablePose && result.HasPose && TryBuildArmRig(out MediaPipeArmConverter.AvatarArmRig rig)
                 && _armConverter.TryGetArm(result.PoseWorldLandmarks, in rig, left,
                     out Vector3 wristLocal, out Vector3 elbowLocal, out Quaternion forearmRotation))
             {
                 Quaternion wristRotation = forearmRotation;
-                if (handDetected && TryBuildHandRig(in rig, out MediaPipeHandConverter.AvatarHandRig handRig)
+                if (TryBuildHandRig(in rig, out MediaPipeHandConverter.AvatarHandRig handRig)
                     && _handConverter.TryGetHandRotation(in result, in handRig, left, out Quaternion handRotation))
                 {
                     wristRotation = handRotation;

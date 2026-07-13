@@ -12,6 +12,7 @@ public struct BasisFootNativeState
     public float3 plantedBodyFwd;   // body forward at plant time — the yaw trigger's reference
     public float3 stepStartPos, stepTargetPos;
     public float stepTimer, stepDur;
+    public float plantedTime;       // seconds since this foot landed; gates the double-support window
 
     public float3 idealPos, filteredNormal;
     public float3 currentPos;
@@ -129,5 +130,6 @@ public struct BasisFootSimParams
 public struct BasisFootSimOutput
 {
     public float hipBob;
+    public float3 hipSway;  // lateral COM shift TOWARD the stance leg, as a world offset (already * body-right)
     public bool airborne;   // ground is out of leg reach; planted feet ride the hips instead of the floor
 }

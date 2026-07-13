@@ -54,9 +54,16 @@ namespace Basis.MediaPipe
             rotation = Quaternion.identity;
             if (!UseRotation || !rig.Valid) return false;
 
-            Vector3[] hand = left ? result.LeftHandWorldLandmarks : result.RightHandWorldLandmarks;
-            if (!MediaPipeSpace.TryHandFrame(hand, left, out Quaternion handFrame)) return false;
+            // The body frame is what makes this a retarget rather than a copy of the camera's idea of the hand,
+            // so without it there is no meaningful rotation to hand back at all.
             if (!MediaPipeSpace.TryBodyFrame(result.PoseWorldLandmarks, out _, out Quaternion bodyFrame)) return false;
+
+            Vector3[] hand = left ? result.LeftHandWorldLandmarks : result.RightHandWorldLandmarks;
+            bool detected = left ? result.HasLeftHand : result.HasRightHand;
+            if (!detected || !MediaPipeSpace.TryHandFrame(hand, left, out Quaternion handFrame))
+            {
+                if (!MediaPipeSpace.TryPoseHandFrame(result.PoseWorldLandmarks, left, out handFrame)) return false;
+            }
 
             Quaternion handInBody = Quaternion.Inverse(bodyFrame) * handFrame;
             Quaternion correction = left ? rig.LeftCorrection : rig.RightCorrection;

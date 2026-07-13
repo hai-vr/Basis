@@ -555,10 +555,13 @@ namespace Basis.Scripts.Drivers
                             (Quaternion)rOut[S_RightFoot], footDriverReady ? footDriver.RightFootRotation : Quaternion.identity);
                 }
 
-                // ── HIP BOB ──
+                // ── HIP BOB + LATERAL SWAY ──
+                // Both are gated on !hipsHaveTracker: with a hip tracker the pelvis is the user's own, and
+                // synthesising gait motion on top of it would fight their real body.
                 if (footIKBlendWeight > 0.001f && footDriverReady && !hipsHaveTracker)
                 {
                     data.PositionHips += playerUpDir * (footDriver.ComputeHipBob() * footIKBlendWeight);
+                    data.PositionHips += footDriver.ComputeHipSway() * footIKBlendWeight;
                 }
 
                 // ── CHEST (head hint) ──
