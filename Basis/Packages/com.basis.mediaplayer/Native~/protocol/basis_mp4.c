@@ -372,7 +372,6 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                     const uint8_t* ep = ent + co + 12; int el = csz - 12;
                     int n = esds_extract_asc(ep, el, t->asc, (int)sizeof(t->asc));
                     if (n >= 2) {
-                        t->asc_len = n;
                         /* Walk the ASC bit fields so the escape forms parse
                          * correctly: audioObjectType 31 carries 6 extra bits
                          * (AOT = 32 + value), and samplingFrequencyIndex 15 a
@@ -386,6 +385,7 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                                            : basis_aac_sample_rate_from_index(sri);
                         int chcfg = asc_read_bits(t->asc, n, &bit, 4);
                         if (bit >= 0) {   /* every field fit inside the ASC */
+                            t->asc_len = n;   /* only publish a fully-parsed config */
                             t->obj = aot;
                             if (!t->sr && sr > 0) t->sr = sr;
                             if (!t->ch) t->ch = basis_aac_channels_from_config(chcfg);
