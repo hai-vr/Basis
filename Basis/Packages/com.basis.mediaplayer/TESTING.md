@@ -159,7 +159,10 @@ Run the rows your change plausibly touches; run everything before a release-boun
 different URL mid-play. No stale frames, no orphaned audio, position resets correctly.
 
 **Seek (VOD)** — slider to arbitrary positions; rapid successive seeks (input is debounced);
-seek-then-pause shows the sought frame.
+seek-then-pause shows the sought frame. The byte-source ranged refetch that backs a seek now
+runs on **Android** too (JNI `HttpsURLConnection`), not just Windows — run the same slider
+checks on a Quest against a range/`206` VOD host (`https://`), watching `adb logcat` for a clean
+reposition (no decoder error, playback resumes at the target).
 
 > On-demand multiplayer sync is **start-together, not catch-up**: the native backend exposes
 > no absolute seek, so a client that falls behind stays behind until the next shared (re)load.
