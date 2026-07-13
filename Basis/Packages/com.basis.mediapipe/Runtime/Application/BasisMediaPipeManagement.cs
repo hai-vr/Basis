@@ -101,7 +101,6 @@ namespace Basis.MediaPipe
             _armConverter.HeadAnchor = BasisMediaPipeSettings.ArmHeadAnchor.RawValue;
             _armConverter.ElbowRestBias = BasisMediaPipeSettings.ElbowRestBias.RawValue;
             _bodyConverter.Strength = BasisMediaPipeSettings.ChestMotion.RawValue;
-            _bodyConverter.ShoulderStrength = BasisMediaPipeSettings.ShoulderMotion.RawValue;
             _bodyConverter.Smoothing = BasisMediaPipeSettings.HeadSmoothing.RawValue;
             _headConverter.PositionGain = BasisMediaPipeSettings.HeadPositionStrength.RawValue;
             _headConverter.HeightOffset = BasisMediaPipeSettings.HeadHeight.RawValue;
@@ -581,54 +580,13 @@ namespace Basis.MediaPipe
                     RemoveTracker(BasisBoneTrackedRole.Chest);
                 }
 
-                if (result.HasPose && _bodyConverter.TryGetShrug(in result, in timing, out float leftShrug, out float rightShrug))
-                {
-                    ApplyShoulder(true, leftShrug);
-                    ApplyShoulder(false, rightShrug);
-                }
-                else
-                {
-                    RemoveTracker(BasisBoneTrackedRole.LeftShoulder);
-                    RemoveTracker(BasisBoneTrackedRole.RightShoulder);
-                }
             }
             else
             {
                 RemoveTracker(BasisBoneTrackedRole.Chest);
-                RemoveTracker(BasisBoneTrackedRole.LeftShoulder);
-                RemoveTracker(BasisBoneTrackedRole.RightShoulder);
             }
         }
 
-        /// <summary>
-        /// Swings the clavicle to raise or drop the shoulder. The rig driver feeds the shoulder bone from this
-        /// control's ROTATION alone (`posPtr[S_LeftShoulder] = float3.zero`), so nothing else here is load-bearing.
-        /// The offset rides the chest, so a shrug adds to your torso lean rather than replacing it.
-        /// </summary>
-        private void ApplyShoulder(bool left, float shrug)
-        {
-            BasisBoneTrackedRole role = left ? BasisBoneTrackedRole.LeftShoulder : BasisBoneTrackedRole.RightShoulder;
-            BasisLocalBoneControl shoulder = left
-                ? BasisLocalBoneDriver.LeftShoulderControl
-                : BasisLocalBoneDriver.RightShoulderControl;
-            BasisLocalBoneControl hips = BasisLocalBoneDriver.HipsControl;
-
-            if (shoulder == null || hips == null || !IsUsable(shoulder.TposeLocal.rotation)
-                || !TryBodyDelta(out Quaternion body))
-            {
-                RemoveTracker(role);
-                return;
-            }
-
-            // The clavicle points away from the sternum, so the same swing about the body's forward axis raises one
-            // shoulder and drops the other — hence the sign flip.
-            float angle = shrug * _bodyConverter.MaxShrugDegrees * (left ? -1f : 1f);
-            Quaternion rotation = body * Quaternion.AngleAxis(angle, Vector3.forward) * shoulder.TposeLocal.rotation;
-            Vector3 position = hips.OutGoingData.position
-                + body * (shoulder.TposeLocal.position - hips.TposeLocal.position);
-
-            WriteTracker(role, position, rotation);
-        }
 
         /// <summary>Torso orientation in player space, as a delta from the avatar's rest pose.</summary>
         private static bool TryBodyDelta(out Quaternion body)

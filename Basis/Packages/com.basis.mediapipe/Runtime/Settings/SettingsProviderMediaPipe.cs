@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Basis.BasisUI;
 using UnityEngine;
@@ -176,16 +176,6 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.Instance.ApplyTuning();
             };
 
-            PanelSlider shoulderMotion = PanelSlider.CreateNew(content);
-            shoulderMotion.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1.5f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            shoulderMotion.Descriptor.SetTitle("Shoulder Motion");
-            shoulderMotion.Descriptor.SetDescription("Shrugs. Each shoulder rises and drops on its own, so a one-sided shrug carries. Needs Body Lean/Twist on; set to 0 to leave the shoulders alone.");
-            shoulderMotion.SetValueWithoutNotify(BasisMediaPipeSettings.ShoulderMotion.RawValue);
-            shoulderMotion.OnValueChanged += value =>
-            {
-                BasisMediaPipeSettings.ShoulderMotion.SetValue(value);
-                BasisMediaPipeManagement.Instance.ApplyTuning();
-            };
 
             PanelSlider elbowRest = PanelSlider.CreateNew(content);
             elbowRest.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });

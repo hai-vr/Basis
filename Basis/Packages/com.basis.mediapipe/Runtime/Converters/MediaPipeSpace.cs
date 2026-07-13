@@ -129,34 +129,6 @@ namespace Basis.MediaPipe
             return Mathf.Min(shoulder, Mathf.Min(elbow, wrist));
         }
 
-        /// <summary>
-        /// How far each shoulder sits BELOW the head, along the torso's up axis, as a fraction of shoulder width.
-        /// A shrug shows up as this shrinking.
-        ///
-        /// Two traps make this the only reference that works. It cannot be measured against the shoulder centre,
-        /// because the body frame is BUILT from the shoulders — shrug both and the reference rises with the
-        /// signal, so a symmetric shrug reads as nothing at all. And it should not be measured against the hips:
-        /// a webcam crop is head-and-shoulders, so the hips are pure extrapolation, while the ears and shoulders
-        /// are both genuinely in frame. Normalising by shoulder width (a body constant) makes it scale-free, and
-        /// it leans on the image-plane axes rather than depth, which is the half of the data worth trusting.
-        /// </summary>
-        public static bool TryShoulderDrop(Vector3[] pose, out float left, out float right)
-        {
-            left = 0f;
-            right = 0f;
-            if (pose == null || pose.Length < PoseCount) return false;
-            if (!TryBodyFrame(pose, out _, out Quaternion frame)) return false;
-
-            float width = Vector3.Distance(pose[LeftShoulder], pose[RightShoulder]);
-            if (!(width > 1e-3f)) return false;
-
-            Vector3 up = frame * Vector3.up;
-            Vector3 earCenter = (pose[LeftEar] + pose[RightEar]) * 0.5f;
-
-            left = Vector3.Dot(earCenter - pose[LeftShoulder], up) / width;
-            right = Vector3.Dot(earCenter - pose[RightShoulder], up) / width;
-            return true;
-        }
 
         /// <summary>
         /// Confidence in the body frame itself. Both shoulders define its right axis, so losing either one turns

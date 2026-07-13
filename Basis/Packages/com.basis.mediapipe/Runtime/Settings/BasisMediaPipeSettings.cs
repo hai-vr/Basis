@@ -55,9 +55,6 @@ namespace Basis.MediaPipe
         public static readonly BasisSettingsBinding<float> ChestMotion =
             new BasisSettingsBinding<float>("mediapipe_chestmotion", new BasisPlatformDefault<float>(0.6f));
 
-        public static readonly BasisSettingsBinding<float> ShoulderMotion =
-            new BasisSettingsBinding<float>("mediapipe_shouldermotion", new BasisPlatformDefault<float>(0.6f));
-
         public static readonly BasisSettingsBinding<bool> InvertBlink =
             new BasisSettingsBinding<bool>("mediapipe_invertblink", new BasisPlatformDefault<bool>(false));
 
@@ -131,7 +128,6 @@ namespace Basis.MediaPipe
             EnableArmElbowPole.LoadBindingValue();
             ElbowRestBias.LoadBindingValue();
             ChestMotion.LoadBindingValue();
-            ShoulderMotion.LoadBindingValue();
             Mirror.LoadBindingValue();
             InvertBlink.LoadBindingValue();
             InvertHeadYaw.LoadBindingValue();

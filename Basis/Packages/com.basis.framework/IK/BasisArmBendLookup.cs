@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Unity.Collections;
 
 namespace UnityEngine.Animations.Rigging
@@ -77,18 +77,28 @@ namespace UnityEngine.Animations.Rigging
         /// <summary>
         /// Trilinear interpolation lookup. Position should be in normalized space [-1, 1].
         /// </summary>
+        /// <remarks>
+        /// This is inside a Burst job, so an out-of-range index is not an exception you catch — it aborts the
+        /// process. It therefore must not trust its caller. <see cref="Mathf.Clamp"/> did: it reads
+        /// <c>if (v &lt; min) v = min; else if (v &gt; max) v = max;</c>, and a NaN fails BOTH comparisons, so it
+        /// passed straight through to <c>(int)NaN</c> == int.MinValue and indexed the table at -2147483648.
+        /// Anything non-finite now lands on the grid origin instead: a slightly wrong elbow for one frame beats
+        /// killing the editor.
+        /// </remarks>
+        // Ordered so that NaN fails BOTH tests and falls out at 0. Phrased the natural way round (v < 0 ? 0 :
+        // v > hi ? hi : v) a NaN takes neither branch and escapes the clamp entirely -- which is exactly how
+        // Mathf.Clamp let one through into (int)NaN == int.MinValue.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static float ClampToGrid(float v) =>
+            v > 0f ? (v < GridSize - 1.001f ? v : GridSize - 1.001f) : 0f;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector3 SampleTrilinear(NativeArray<Vector3> table, Vector3 normalizedPos)
         {
             // Map [-1,1] to [0, GridSize-1]
-            float fx = (normalizedPos.x * 0.5f + 0.5f) * (GridSize - 1);
-            float fy = (normalizedPos.y * 0.5f + 0.5f) * (GridSize - 1);
-            float fz = (normalizedPos.z * 0.5f + 0.5f) * (GridSize - 1);
-
-            // Clamp to valid grid range
-            fx = Mathf.Clamp(fx, 0f, GridSize - 1.001f);
-            fy = Mathf.Clamp(fy, 0f, GridSize - 1.001f);
-            fz = Mathf.Clamp(fz, 0f, GridSize - 1.001f);
+            float fx = ClampToGrid((normalizedPos.x * 0.5f + 0.5f) * (GridSize - 1));
+            float fy = ClampToGrid((normalizedPos.y * 0.5f + 0.5f) * (GridSize - 1));
+            float fz = ClampToGrid((normalizedPos.z * 0.5f + 0.5f) * (GridSize - 1));
 
             int x0 = (int)fx; int x1 = Mathf.Min(x0 + 1, GridSize - 1);
             int y0 = (int)fy; int y1 = Mathf.Min(y0 + 1, GridSize - 1);
