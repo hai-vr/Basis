@@ -143,9 +143,10 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     // re-read the payload. See BasisMediaMetadata.
     public event Action<BasisMediaMetadata> OnMetadataChanged;
 
-    // The active in-band caption cue changed (CEA-608 CC1). Cue.Text is null when
-    // the caption clears. Raised even while CaptionsEnabled is false so a display
-    // can stay primed; honour CaptionsEnabled for visibility.
+    // The active caption cue changed — in-band (CEA-608 CC1) by default, or the
+    // selected sidecar subtitle track's cues while one is selected. Cue.Text is
+    // null when the caption clears. Raised even while CaptionsEnabled is false
+    // so a display can stay primed; honour CaptionsEnabled for visibility.
     public event Action<BasisCaptionCue> OnCaptionCueChanged;
 
     // CaptionsEnabled toggled. Client-side only — does not affect playback or sync.
@@ -379,6 +380,62 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     public bool SelectAudioTrack(int index) => nativeEngine != null && nativeEngine.SelectAudioTrack(index);
 
+    // Out-of-band subtitle tracks for the current media, supplied by whoever
+    // enriched the metadata (e.g. a resolver); empty for media without any.
+    public System.Collections.Generic.IReadOnlyList<BasisSubtitleTrack> SubtitleTracks =>
+        metadata?.SubtitleTracks != null
+            ? metadata.SubtitleTracks
+            : (System.Collections.Generic.IReadOnlyList<BasisSubtitleTrack>)System.Array.Empty<BasisSubtitleTrack>();
+
+    // Index into SubtitleTracks, or -1 for the default: no sidecar track, with
+    // in-band captions (CEA-608) flowing as they always have. While a sidecar
+    // track is selected, in-band cues are suppressed. Client-side only — track
+    // choice is a per-viewer setting, like CaptionsEnabled.
+    public int SelectedSubtitleTrackIndex { get; private set; } = -1;
+
+    // Selection changed (including the automatic revert to -1 when a track
+    // fetch fails or a new load resets state). Payload is the new index.
+    public event Action<int> OnSubtitleTrackChanged;
+
+    // Selects a sidecar subtitle track by SubtitleTracks index, or -1 to return
+    // to in-band captions. The track is fetched once (through the media URL
+    // security gate); on failure the selection reverts to -1 with a warning.
+    public void SelectSubtitleTrack(int index)
+    {
+        var tracks = metadata?.SubtitleTracks;
+        if (index < 0 || tracks == null || index >= tracks.Count) index = -1;
+        if (index == SelectedSubtitleTrackIndex) return;
+
+        SelectedSubtitleTrackIndex = index;
+        // Whatever cue is on screen belongs to the previous selection; the
+        // in-band feed (index -1) repaints at its next cue change.
+        ClearCaptionDisplay();
+        if (index < 0)
+        {
+            subtitleEngine.Clear();
+            OnSubtitleTrackChanged?.Invoke(-1);
+            return;
+        }
+        OnSubtitleTrackChanged?.Invoke(index);
+        _ = LoadSubtitleTrackAsync(tracks[index], index);
+    }
+
+    private async System.Threading.Tasks.Task LoadSubtitleTrackAsync(BasisSubtitleTrack track, int index)
+    {
+        int loadGeneration = LoadGeneration;
+        bool loaded = await subtitleEngine.LoadTrackAsync(track);
+        if (loaded) return;
+        // Only the selection that started this fetch may revert it: a newer
+        // load or a newer selection has already taken over otherwise.
+        if (loadGeneration != LoadGeneration || SelectedSubtitleTrackIndex != index) return;
+        BasisDebug.LogWarning(
+            $"BasisMediaPlayer subtitle track '{track.Label}' failed to load from {BasisMediaUrlRouter.Redact(track.Url)}; reverting to embedded captions.",
+            BasisDebug.LogTag.Video);
+        SelectedSubtitleTrackIndex = -1;
+        subtitleEngine.Clear();
+        OnSubtitleTrackChanged?.Invoke(-1);
+    }
+
     public bool TrySeekBack(TimeSpan back)
     {
         if (back <= TimeSpan.Zero) return false;
@@ -458,6 +515,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     private BasisBitrateTrack pendingBitrateTrack;
     private BasisAudioTrack pendingAudioTrack;
     private BasisCaptionCue? pendingCaptionCue;
+    private readonly BasisSidecarSubtitleEngine subtitleEngine = new BasisSidecarSubtitleEngine();
     private Exception pendingError;
     private bool firstFrameEmittedThisPlay;
     private bool audioRateMismatchReported;
@@ -964,6 +1022,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     private void OnDestroy()
     {
         BasisMediaPlayerRegistry.Remove(this);
+        subtitleEngine.Clear();
         TeardownNativeEngine();
         DetachSource();
         try { source?.Dispose(); } catch { }
@@ -1090,6 +1149,12 @@ public sealed class BasisMediaPlayer : MonoBehaviour
         LastErrorMessage = null;
         pendingVideoSize = 0;
         audioRateMismatchReported = false;
+        subtitleEngine.Clear();
+        if (SelectedSubtitleTrackIndex != -1)
+        {
+            SelectedSubtitleTrackIndex = -1;
+            OnSubtitleTrackChanged?.Invoke(-1);
+        }
     }
 
     private void ResetCounters()
@@ -1192,6 +1257,10 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     private void HandleCaptionCueChanged(BasisCaptionCue cue)
     {
+        // A selected sidecar track owns the caption surface; in-band cues
+        // resume when the selection returns to -1 (at their next text change —
+        // the native poll dedups by text, so the current cue isn't re-sent).
+        if (SelectedSubtitleTrackIndex >= 0) return;
         pendingCaptionCue = cue;
     }
 
@@ -1201,6 +1270,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
     private void ClearCaptionDisplay()
     {
         pendingCaptionCue = null;
+        subtitleEngine.ResetCueTracking();
         OnCaptionCueChanged?.Invoke(new BasisCaptionCue(null, 0, 0));
     }
 
@@ -1471,6 +1541,14 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             var cue = pendingCaptionCue.Value;
             pendingCaptionCue = null;
             OnCaptionCueChanged?.Invoke(cue);
+        }
+
+        // Sidecar subtitles: match the fetched cue list against the playback
+        // position. Stateless lookup, so seeks/stop/loop need no handling here.
+        if (SelectedSubtitleTrackIndex >= 0 &&
+            subtitleEngine.TryGetCueChange(Position.Ticks / 10L, out BasisCaptionCue sidecarCue))
+        {
+            OnCaptionCueChanged?.Invoke(sidecarCue);
         }
 
         if (sourceEndOfStreamPending)
