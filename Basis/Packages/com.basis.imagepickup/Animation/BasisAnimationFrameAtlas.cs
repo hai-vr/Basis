@@ -23,9 +23,16 @@ namespace Basis.ImagePickup
     {
         private const int PreferredMaximumPageSize = 2048;
 
+        private readonly BasisAnimatedImageData _data;
         private Texture2D[] _pages;
+        private int[] _pageWidths;
+        private int[] _pageHeights;
         private NativeArray<BasisAnimationFrameAtlasLocation> _locations;
+        private int _nextPageIndex;
         private bool _disposed;
+
+        public bool IsReady =>
+            !_disposed && _pages != null && _nextPageIndex >= _pages.Length;
 
         public Texture2D GetPage(int index)
         {
@@ -43,6 +50,7 @@ namespace Basis.ImagePickup
         {
 			if (data == null || !data.IsCreated)
                 throw new ArgumentNullException(nameof(data));
+            _data = data;
             int frameCount = data.FrameCount;
             int pageLimit = math.min(PreferredMaximumPageSize, math.max(1, SystemInfo.maxTextureSize));
 
@@ -85,46 +93,12 @@ namespace Basis.ImagePickup
                     throw new NotSupportedException("Animation frame does not fit in the device atlas limit.");
                 int pageCount = result[1];
                 _pages = new Texture2D[pageCount];
+                _pageWidths = new int[pageCount];
+                _pageHeights = new int[pageCount];
                 for (int page = 0; page < pageCount; page++)
                 {
-                    int width = math.max(1, usedWidth[page]);
-                    int height = math.max(1, usedHeight[page]);
-                    var pagePixels = new NativeArray<Color32>(
-                        checked(width * height),
-                        Allocator.TempJob,
-                        NativeArrayOptions.ClearMemory
-                    );
-                    try
-                    {
-                        var populateAtlasJob = new BasisAnimationAtlasPopulateJob
-                        {
-                            PageIndex = page,
-                            PageWidth = width,
-                            Frames = data.FramesNative,
-                            SourcePixels = data.PixelsNative,
-                            Locations = _locations,
-                            PagePixels = pagePixels,
-                        };
-                        populateAtlasJob
-                            .ScheduleParallelByRef(frameCount, 1, default)
-                            .Complete();
-
-                        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false, false)
-                        {
-                            name = $"Basis Animated Image Burst Atlas {page}",
-                            wrapMode = TextureWrapMode.Clamp,
-                            filterMode = FilterMode.Bilinear,
-                            anisoLevel = 0,
-                            hideFlags = HideFlags.HideAndDontSave,
-                        };
-                        _pages[page] = texture;
-                        texture.SetPixelData(pagePixels, 0);
-                        texture.Apply(false, true);
-                    }
-                    finally
-                    {
-                        pagePixels.Dispose();
-                    }
+                    _pageWidths[page] = math.max(1, usedWidth[page]);
+                    _pageHeights[page] = math.max(1, usedHeight[page]);
                 }
             }
             catch
@@ -149,6 +123,75 @@ namespace Basis.ImagePickup
             }
         }
 
+        public bool TryBuildNextPage(long pixelBudget, out long pixelsUsed)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(BasisAnimationFrameAtlas));
+            pixelsUsed = 0;
+            if (IsReady)
+                return true;
+
+            int page = _nextPageIndex;
+            int width = _pageWidths[page];
+            int height = _pageHeights[page];
+            long pagePixelsLong = (long)width * height;
+            if (pagePixelsLong > pixelBudget)
+                return false;
+            int pagePixelsCount = checked((int)pagePixelsLong);
+            var pagePixels = new NativeArray<Color32>(
+                pagePixelsCount,
+                Allocator.TempJob,
+                NativeArrayOptions.ClearMemory
+            );
+            try
+            {
+                new BasisAnimationAtlasPopulateJob
+                {
+                    PageIndex = page,
+                    PageWidth = width,
+                    Frames = _data.FramesNative,
+                    SourcePixels = _data.PixelsNative,
+                    Locations = _locations,
+                    PagePixels = pagePixels,
+                }
+                    .ScheduleParallelByRef(_data.FrameCount, 1, default)
+                    .Complete();
+
+                var texture = new Texture2D(width, height, TextureFormat.RGBA32, false, false)
+                {
+                    name = $"Basis Animated Image Burst Atlas {page}",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                    anisoLevel = 0,
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+                _pages[page] = texture;
+                texture.SetPixelData(pagePixels, 0);
+                texture.Apply(false, true);
+                _nextPageIndex++;
+                pixelsUsed = pagePixelsLong;
+                return IsReady;
+            }
+            catch
+            {
+                if (_pages[page] != null)
+                {
+#if UNITY_EDITOR
+                    if (!Application.isPlaying)
+                        UnityEngine.Object.DestroyImmediate(_pages[page]);
+                    else
+#endif
+                        UnityEngine.Object.Destroy(_pages[page]);
+                    _pages[page] = null;
+                }
+                throw;
+            }
+            finally
+            {
+                pagePixels.Dispose();
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed)
@@ -156,6 +199,8 @@ namespace Basis.ImagePickup
             _disposed = true;
             if (_locations.IsCreated)
                 _locations.Dispose();
+            _pageWidths = null;
+            _pageHeights = null;
             if (_pages == null)
                 return;
             int pageCount = _pages.Length;

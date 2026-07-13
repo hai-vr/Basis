@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Jobs;
@@ -84,6 +85,65 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void CpuCompositionAdvancesWithinTransitionBudget()
+        {
+            using BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                ),
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Green }
+                ),
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Blue }
+                )
+            );
+            using var canvas = new BasisAnimatedImageCpuCanvas(data);
+
+            Assert.That(canvas.UpdateToState(0, 2, 1, long.MaxValue, out _), Is.EqualTo(1));
+            Assert.That(((Texture2D)canvas.OutputTexture).GetPixels32()[0], Is.EqualTo(Red));
+            Assert.That(canvas.UpdateToState(0, 2, 1, long.MaxValue, out _), Is.EqualTo(1));
+            Assert.That(((Texture2D)canvas.OutputTexture).GetPixels32()[0], Is.EqualTo(Green));
+            Assert.That(canvas.UpdateToState(0, 2, 1, long.MaxValue, out _), Is.EqualTo(1));
+            Assert.That(((Texture2D)canvas.OutputTexture).GetPixels32()[0], Is.EqualTo(Blue));
+        }
+
+        [Test]
+        public void FrameAtlasUploadsIncrementally()
+        {
+            using BasisAnimatedImageData data = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                )
+            );
+            using var atlas = new BasisAnimationFrameAtlas(data);
+
+            Assert.That(atlas.IsReady, Is.False);
+            Assert.That(atlas.TryBuildNextPage(0, out long blockedPixels), Is.False);
+            Assert.That(blockedPixels, Is.EqualTo(0));
+            Assert.That(atlas.TryBuildNextPage(long.MaxValue, out long uploadedPixels), Is.True);
+            Assert.That(uploadedPixels, Is.GreaterThan(0));
+            Assert.That(atlas.IsReady, Is.True);
+            Assert.That(atlas.GetPage(0), Is.Not.Null);
+        }
+
+        [Test]
         public void AnimatedPlayerCreatesResourcesLazilyAndSuspendsOffscreen()
         {
             var host = new GameObject("BasisAnimatedImagePlayerTest");
@@ -116,7 +176,7 @@ namespace Basis.ImagePickup.Tests
                 int transitionsRemaining = 16;
                 long pixelsRemaining = 1024;
                 bool gpuCommandsAdded = false;
-                player.Schedule(commands, 1, ref transitionsRemaining, ref pixelsRemaining, true, ref gpuCommandsAdded);
+                player.Schedule(commands, 1, ref transitionsRemaining, ref pixelsRemaining, ref gpuCommandsAdded);
 
                 Assert.That(player.HasAllocatedCompositor, Is.True);
                 float resumeTime =
@@ -134,7 +194,6 @@ namespace Basis.ImagePickup.Tests
                     500001,
                     ref transitionsRemaining,
                     ref pixelsRemaining,
-                    true,
                     ref gpuCommandsAdded
                 );
                 Assert.That(player.HasAllocatedCompositor, Is.True);
@@ -403,7 +462,6 @@ namespace Basis.ImagePickup.Tests
                         500001,
                         ref transitionsRemaining,
                         ref pixelsRemaining,
-                        true,
                         ref gpuCommandsAdded
                     );
                     JobHandle.ScheduleBatchedJobs();
@@ -444,6 +502,50 @@ namespace Basis.ImagePickup.Tests
                 "Packages/com.basis.imagepickup/Resources/BasisImageDepthVisibility.compute"
             );
             Assert.That(compute, Is.Not.Null);
+        }
+
+        [Test]
+        public void AnimationCompositorShaderHasRequiredPasses()
+        {
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(
+                "Packages/com.basis.imagepickup/Resources/BasisImageAnimationComposite.shader"
+            );
+            Assert.That(shader, Is.Not.Null);
+            Assert.That(
+                shader.passCount,
+                Is.GreaterThanOrEqualTo(
+                    BasisImagePickupRuntimeUtility.RequiredAnimationCompositorPassCount
+                )
+            );
+            Assert.That(
+                BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(shader),
+                Is.EqualTo(shader.isSupported)
+            );
+            Assert.That(
+                BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(null),
+                Is.False
+            );
+        }
+
+        [Test]
+        public void DesktopRendererTemplatesIncludeDepthVisibilityFeature()
+        {
+            const string rendererRoot =
+                "Packages/com.basis.setup/Templates~/Assets/Basis/Settings/"
+                + "Unity Rendering Defaults/";
+            string[] rendererPaths =
+            {
+                rendererRoot + "DesktopRenderer.asset",
+                rendererRoot + "DesktopRendererCamera.asset",
+            };
+            int rendererCount = rendererPaths.Length;
+            for (int i = 0; i < rendererCount; i++)
+            {
+                string rendererYaml = File.ReadAllText(rendererPaths[i]);
+                Assert.That(rendererYaml, Does.Contain("BasisImageDepthVisibilityFeature"));
+                Assert.That(rendererYaml, Does.Contain("820949bd2ba14c7699a6b5d0dbee4869"));
+                Assert.That(rendererYaml, Does.Contain("- {fileID: -7061326814219087741}"));
+            }
         }
 
         [Test]
@@ -833,6 +935,29 @@ namespace Basis.ImagePickup.Tests
             );
         }
 
+        [TestCase(1, 1, 1, 1, true)]
+        [TestCase(1, 1, 2048, 2048, false)]
+        [TestCase(2048, 2048, 1, 1, false)]
+        [TestCase(1024, 512, 1024, 513, false)]
+        public void InboundImageDimensionsMustMatchClaim(
+            int claimedWidth,
+            int claimedHeight,
+            int decodedWidth,
+            int decodedHeight,
+            bool expected
+        )
+        {
+            Assert.That(
+                BasisImagePickupManager.MatchesClaimedDimensions(
+                    claimedWidth,
+                    claimedHeight,
+                    decodedWidth,
+                    decodedHeight
+                ),
+                Is.EqualTo(expected)
+            );
+        }
+
         [Test]
         public void InboundTransferBudgetCapsAllSendersTogether()
         {
@@ -881,8 +1006,44 @@ namespace Basis.ImagePickup.Tests
             long estimate = BasisAnimatedImageData.EstimateGifDecodeWorkingBytes(
                 BasisImagePickupSettings.MaxAnimationSourceBytes
             );
+            BasisImagePickupSettings.AnimationMemoryLimits desktopLimits =
+                BasisImagePickupSettings.CalculateAnimationMemoryLimits(16384, false);
             Assert.That(estimate, Is.GreaterThan(BasisImagePickupSettings.MaxAnimationDecodedFramePixels * 4L));
-            Assert.That(estimate, Is.LessThan(BasisImagePickupSettings.MaxAnimationNativeWorkingSetBytes));
+            Assert.That(estimate, Is.LessThan(desktopLimits.NativeWorkingSetBytes));
+        }
+
+        [TestCase(16384, true, 64, 16, 256, 256, 512)]
+        [TestCase(4096, false, 64, 16, 256, 256, 512)]
+        [TestCase(8192, false, 128, 64, 768, 512, 1536)]
+        [TestCase(16384, false, -1, 128, 2048, 1024, 3072)]
+        public void AnimationMemoryLimitsScaleByDeviceTier(
+            int systemMemoryMegabytes,
+            bool mobile,
+            int expectedDecodedBodyMiB,
+            int expectedDecodedCacheMiPixels,
+            int expectedResidentNativeMiB,
+            int expectedCompositorMiB,
+            int expectedWorkingSetMiB
+        )
+        {
+            BasisImagePickupSettings.AnimationMemoryLimits limits =
+                BasisImagePickupSettings.CalculateAnimationMemoryLimits(
+                    systemMemoryMegabytes,
+                    mobile
+                );
+            const long mib = 1024L * 1024L;
+            long expectedDecodedBodyBytes =
+                expectedDecodedBodyMiB < 0
+                    ? BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes
+                    : expectedDecodedBodyMiB * mib;
+            Assert.That(limits.DecodedBodyBytes, Is.EqualTo(expectedDecodedBodyBytes));
+            Assert.That(
+                limits.DecodedFramePixelsPerSender,
+                Is.EqualTo(expectedDecodedCacheMiPixels * 1024L * 1024L)
+            );
+            Assert.That(limits.ResidentNativeBytes, Is.EqualTo(expectedResidentNativeMiB * mib));
+            Assert.That(limits.ResidentCompositorBytes, Is.EqualTo(expectedCompositorMiB * mib));
+            Assert.That(limits.NativeWorkingSetBytes, Is.EqualTo(expectedWorkingSetMiB * mib));
         }
 
         [TestCase(-1, 1)]
@@ -901,20 +1062,20 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
-        public void ImageManagerHandlesServerAndDirectNetworkRoutes()
+        public void ImageManagerHandlesDirectAndServerFallbackNetworkRoutes()
         {
             System.Type managerType = typeof(BasisImagePickupManager);
-            Assert.That(
-                managerType
-                    .GetMethod(nameof(BasisImagePickupManager.OnNetworkMessage))
-                    ?.DeclaringType,
-                Is.EqualTo(managerType)
-            );
             Assert.That(
                 managerType
                     .GetMethod(nameof(BasisImagePickupManager.OnDirectNetworkMessage))
                     ?.DeclaringType,
                 Is.EqualTo(managerType)
+            );
+            Assert.That(
+                managerType
+                    .GetMethod(nameof(BasisImagePickupManager.OnNetworkMessage))
+                    ?.DeclaringType,
+                Is.EqualTo(typeof(BasisNetworkBehaviour))
             );
         }
 
@@ -1515,7 +1676,6 @@ namespace Basis.ImagePickup.Tests
                     1,
                     ref transitionsRemaining,
                     ref pixelsRemaining,
-                    true,
                     ref gpuCommandsAdded
                 );
 
@@ -1727,7 +1887,6 @@ namespace Basis.ImagePickup.Tests
                 1,
                 ref transitionsRemaining,
                 ref pixelsRemaining,
-                true,
                 ref gpuCommandsAdded
             );
         }

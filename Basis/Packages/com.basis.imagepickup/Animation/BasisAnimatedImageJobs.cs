@@ -464,15 +464,38 @@ namespace Basis.ImagePickup
             _readTask = null;
             _posterEncodeTask = null;
             _posterPixels = null;
-            _animationPayload?.Dispose();
-            _animationPayload = null;
-
-            _encodeRequest?.Dispose();
-            _encodeRequest = null;
-            _decodeResult?.Dispose();
-            _decodeResult = null;
-            _decodeRequest?.Dispose();
-            _decodeRequest = null;
+            try
+            {
+                _animationPayload?.Dispose();
+            }
+            finally
+            {
+                _animationPayload = null;
+                try
+                {
+                    _encodeRequest?.Dispose();
+                }
+                finally
+                {
+                    _encodeRequest = null;
+                    try
+                    {
+                        _decodeResult?.Dispose();
+                    }
+                    finally
+                    {
+                        _decodeResult = null;
+                        try
+                        {
+                            _decodeRequest?.Dispose();
+                        }
+                        finally
+                        {
+                            _decodeRequest = null;
+                        }
+                    }
+                }
+            }
         }
 
         public void Dispose()
@@ -480,9 +503,15 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            _result?.Dispose();
-            _result = null;
-            DisposeRequests();
+            try
+            {
+                _result?.Dispose();
+            }
+            finally
+            {
+                _result = null;
+                DisposeRequests();
+            }
         }
     }
 
@@ -648,15 +677,21 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            _handle.Complete();
-            if (_header.IsCreated)
-                _header.Dispose();
-            if (_packets.IsCreated)
-                _packets.Dispose();
-            if (_packetOffsets.IsCreated)
-                _packetOffsets.Dispose();
-            if (_packetLengths.IsCreated)
-                _packetLengths.Dispose();
+            try
+            {
+                _handle.Complete();
+            }
+            finally
+            {
+                if (_header.IsCreated)
+                    _header.Dispose();
+                if (_packets.IsCreated)
+                    _packets.Dispose();
+                if (_packetOffsets.IsCreated)
+                    _packetOffsets.Dispose();
+                if (_packetLengths.IsCreated)
+                    _packetLengths.Dispose();
+            }
         }
     }
 

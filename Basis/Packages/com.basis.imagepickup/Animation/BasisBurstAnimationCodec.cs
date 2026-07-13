@@ -386,12 +386,18 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            if (_completed == null)
-                _handle.Complete();
-            if (!_resultClaimed)
-                _completed?.TakePayload()?.Dispose();
-            _completed = null;
-            DisposeNative(true);
+            try
+            {
+                if (_completed == null)
+                    _handle.Complete();
+                if (!_resultClaimed)
+                    _completed?.TakePayload()?.Dispose();
+            }
+            finally
+            {
+                _completed = null;
+                DisposeNative(true);
+            }
         }
     }
 
@@ -747,12 +753,18 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            if (_state != DecodeState.Complete)
-                _handle.Complete();
-            if (!_resultClaimed)
-                _completed?.TakeAnimation()?.Dispose();
-            _completed = null;
-            DisposeAllNative();
+            try
+            {
+                if (_state != DecodeState.Complete)
+                    _handle.Complete();
+                if (!_resultClaimed)
+                    _completed?.TakeAnimation()?.Dispose();
+            }
+            finally
+            {
+                _completed = null;
+                DisposeAllNative();
+            }
         }
 
         private static NativeArray<byte> ToNative(byte[] payload)
@@ -830,7 +842,7 @@ namespace Basis.ImagePickup
             if (
                 decodedLength <= 0
                 || decodedLength
-                    > BasisImagePickupSettings.MaxAnimationNetworkDecodedBytes
+                    > BasisImagePickupSettings.MaxInboundAnimationDecodedBodyBytes
                 || compressedLength <= 0
                 || compressedLength != length - OuterHeaderBytes
             )

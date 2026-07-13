@@ -420,12 +420,18 @@ namespace Basis.ImagePickup
             if (_disposed)
                 return;
             _disposed = true;
-            if (_state != RequestState.Complete)
-                _handle.Complete();
-            if (!_resultClaimed)
-                _result?.Dispose();
-            _result = null;
-            DisposeAllNative();
+            try
+            {
+                if (_state != RequestState.Complete)
+                    _handle.Complete();
+                if (!_resultClaimed)
+                    _result?.Dispose();
+            }
+            finally
+            {
+                _result = null;
+                DisposeAllNative();
+            }
         }
     }
 
@@ -663,6 +669,15 @@ namespace Basis.ImagePickup
                     {
                         Fail(ref result, BasisGifErrorCode.SubBlocksTruncated, offset);
                         break;
+                    }
+                    if (extensionLabel == 0x01)
+                    {
+                        // A Graphic Control Extension applies to the next graphic-rendering
+                        // block. Plain Text is such a block even though this decoder skips it.
+                        pendingDelayHundredths = 0;
+                        pendingTransparentIndex = 0;
+                        pendingHasTransparency = 0;
+                        pendingDisposal = BasisAnimationDisposal.None;
                     }
                     continue;
                 }

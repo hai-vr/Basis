@@ -205,7 +205,6 @@ namespace Basis.ImagePickup
             long synchronizedUtcTicks,
             ref int transitionsRemaining,
             ref long pixelsRemaining,
-            bool allowOversizedJob,
             ref bool gpuCommandsAdded
         )
         {
@@ -216,8 +215,6 @@ namespace Basis.ImagePickup
             long elapsedMicroseconds = elapsedTicks <= 0 ? 0 : elapsedTicks / 10L;
             _data.GetPlaybackState(elapsedMicroseconds, out long targetPlayIndex, out int targetFrameIndex, out _);
 
-            int transitions;
-            long pixels;
 			if (_gpuCanvas != null)
             {
 				if (!_gpuCanvas.EnsureCreated())
@@ -226,40 +223,76 @@ namespace Basis.ImagePickup
 					if (_cpuCanvas == null)
                         return;
                 }
+                else
+                {
+                    try
+                    {
+                        if (!_gpuCanvas.TryPrepareFrameAtlas(ref pixelsRemaining))
+                            return;
+                    }
+                    catch (Exception exception)
+                    {
+                        BasisDebug.LogWarning(
+                            $"Animated image atlas upload failed; using CPU fallback: "
+                                + $"{exception.Message}",
+                            LogTag
+                        );
+                        SwitchToCpuFallback();
+                        if (_cpuCanvas == null)
+                            return;
+                    }
+                }
 			}
 
-                if (_gpuCanvas != null)
-                    _gpuCanvas.EstimateWork(targetPlayIndex, targetFrameIndex, out transitions, out pixels);
-			else
-                    _cpuCanvas.EstimateWork(targetPlayIndex, targetFrameIndex, out transitions, out pixels);
+            int transitions;
+            if (_gpuCanvas != null)
+                _gpuCanvas.EstimateWork(targetPlayIndex, targetFrameIndex, out transitions, out _);
+            else if (_cpuCanvas != null)
+                _cpuCanvas.EstimateWork(targetPlayIndex, targetFrameIndex, out transitions, out _);
+            else
+                return;
 
             if (transitions == 0)
             {
                 BindDisplayTexture();
                 return;
             }
-            if (!allowOversizedJob && (transitions > transitionsRemaining || pixels > pixelsRemaining))
-                return;
 
+            int processedTransitions;
+            long pixelsUsed;
 			if (_gpuCanvas != null)
             {
-                int appended = _gpuCanvas.AppendToState(commands, targetPlayIndex, targetFrameIndex);
-                if (appended <= 0)
-                    return;
-                gpuCommandsAdded = true;
-            }
-            else if (_cpuCanvas != null)
-            {
-                _cpuCanvas.UpdateToState(targetPlayIndex, targetFrameIndex);
+                processedTransitions = _gpuCanvas.AppendToState(
+                    commands,
+                    targetPlayIndex,
+                    targetFrameIndex,
+                    transitionsRemaining,
+                    pixelsRemaining,
+                    out pixelsUsed
+                );
+                if (processedTransitions > 0)
+                    gpuCommandsAdded = true;
             }
             else
             {
-                return;
+                processedTransitions = _cpuCanvas.UpdateToState(
+                    targetPlayIndex,
+                    targetFrameIndex,
+                    transitionsRemaining,
+                    pixelsRemaining,
+                    out pixelsUsed
+                );
             }
+            if (processedTransitions <= 0)
+                return;
 
-            BindDisplayTexture();
-            transitionsRemaining = Math.Max(0, transitionsRemaining - transitions);
-            pixelsRemaining = Math.Max(0, pixelsRemaining - pixels);
+            transitionsRemaining = Math.Max(
+                0,
+                transitionsRemaining - processedTransitions
+            );
+            pixelsRemaining = Math.Max(0, pixelsRemaining - pixelsUsed);
+            if (processedTransitions >= transitions)
+                BindDisplayTexture();
         }
 
         private bool EnsureAnimationData()

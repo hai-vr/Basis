@@ -92,6 +92,47 @@ namespace Basis.ImagePickup.Tests
             Assert.That(result.Animation.BackgroundColor, Is.EqualTo(new Color32(0, 255, 0, 255)));
         }
 
+        [Test]
+        public void SkippedPlainTextConsumesPendingGraphicControl()
+        {
+            byte[] source = Convert.FromBase64String(AnimatedGif);
+            int graphicControl = FindGraphicControlExtension(source, 0);
+            Assert.That(graphicControl, Is.GreaterThanOrEqualTo(0));
+            byte[] plainTextExtension =
+            {
+                0x21,
+                0x01,
+                0x0C,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x00,
+                0x01,
+                0x00,
+                0x08,
+                0x08,
+                0x01,
+                0x00,
+                0x01,
+                0x41,
+                0x00,
+            };
+            source = InsertBytes(source, graphicControl + 8, plainTextExtension);
+
+            using BasisBurstGifDecodeRequest request = BasisBurstGifDecoder.Schedule(source);
+            using BasisBurstGifDecodeResult result = request.Complete();
+            Assert.That(result.Ok, Is.True, result.Error);
+            BasisAnimatedImageFrame firstFrame = result.Animation.GetFrame(0);
+            Assert.That(
+                firstFrame.DurationMicroseconds,
+                Is.EqualTo(BasisImagePickupSettings.MinAnimationFrameDurationMicroseconds)
+            );
+            Assert.That(firstFrame.Disposal, Is.EqualTo(BasisAnimationDisposal.None));
+            Assert.That(firstFrame.Blend, Is.EqualTo(BasisAnimationBlend.Source));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void ClaimedAnimationEncodeResultSurvivesRequestDisposal(bool useTryComplete)
@@ -522,6 +563,21 @@ namespace Basis.ImagePickup.Tests
                 if (File.Exists(path))
                     File.Delete(path);
             }
+        }
+
+        private static byte[] InsertBytes(byte[] source, int offset, byte[] inserted)
+        {
+            var combined = new byte[source.Length + inserted.Length];
+            Buffer.BlockCopy(source, 0, combined, 0, offset);
+            Buffer.BlockCopy(inserted, 0, combined, offset, inserted.Length);
+            Buffer.BlockCopy(
+                source,
+                offset,
+                combined,
+                offset + inserted.Length,
+                source.Length - offset
+            );
+            return combined;
         }
 
         private static int FindGraphicControlExtension(byte[] source, int startIndex)

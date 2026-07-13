@@ -216,7 +216,7 @@ namespace Basis.ImagePickup
                 result.Error = capError;
                 return result;
             }
-            return BuildFromBytes(bytes, SourceImageFormat.Png, false, false);
+            return BuildFromBytes(bytes, SourceImageFormat.Png, true, false);
         }
 
         private static BasisImageValidationResult BuildFromBytes(

@@ -307,6 +307,44 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void ValidateBytesReencodesNetworkPngAndStripsTrailingData()
+        {
+            var source = new Texture2D(2, 2, TextureFormat.RGBA32, false, false);
+            BasisImageValidationResult result = default;
+            try
+            {
+                source.SetPixels32(
+                    new[]
+                    {
+                        new Color32(255, 0, 0, 255),
+                        new Color32(0, 255, 0, 255),
+                        new Color32(0, 0, 255, 255),
+                        new Color32(255, 255, 255, 255),
+                    }
+                );
+                source.Apply(false, false);
+                byte[] clean = source.EncodeToPNG();
+                byte[] marker = System.Text.Encoding.ASCII.GetBytes("BASIS_TRAILING_MARKER");
+                var tainted = new byte[clean.Length + marker.Length];
+                Buffer.BlockCopy(clean, 0, tainted, 0, clean.Length);
+                Buffer.BlockCopy(marker, 0, tainted, clean.Length, marker.Length);
+
+                result = BasisImageSecurity.ValidateBytes(tainted);
+
+                Assert.That(result.Ok, Is.True, result.Error);
+                Assert.That(result.CleanPng, Is.Not.Null.And.Not.Empty);
+                Assert.That(result.CleanPng.Length, Is.LessThan(tainted.Length));
+                Assert.That(ContainsSequence(result.CleanPng, marker), Is.False);
+            }
+            finally
+            {
+                if (result.Texture != null)
+                    UnityEngine.Object.DestroyImmediate(result.Texture);
+                UnityEngine.Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void ValidateFileAcceptsGifThroughQueuedPipeline()
         {
             string path = Path.Combine(Path.GetTempPath(), $"BasisImagePickup_{Guid.NewGuid():N}.gif");
@@ -375,6 +413,21 @@ namespace Basis.ImagePickup.Tests
                 if (File.Exists(path))
                     File.Delete(path);
             }
+        }
+        private static bool ContainsSequence(byte[] source, byte[] value)
+        {
+            if (source == null || value == null || value.Length == 0 || value.Length > source.Length)
+                return false;
+            int finalStart = source.Length - value.Length;
+            for (int start = 0; start <= finalStart; start++)
+            {
+                int index = 0;
+                while (index < value.Length && source[start + index] == value[index])
+                    index++;
+                if (index == value.Length)
+                    return true;
+            }
+            return false;
         }
     }
 }

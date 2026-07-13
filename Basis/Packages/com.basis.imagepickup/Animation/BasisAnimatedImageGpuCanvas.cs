@@ -37,10 +37,19 @@ namespace Basis.ImagePickup
         public BasisAnimatedImageGpuCanvas(BasisAnimatedImageData data, Material compositorMaterial)
         {
 			_data = data ?? throw new ArgumentNullException(nameof(data));
-            _compositorMaterial =
-                compositorMaterial != null
-                    ? compositorMaterial
-                    : throw new ArgumentNullException(nameof(compositorMaterial));
+            if (
+                compositorMaterial == null
+                || !BasisImagePickupRuntimeUtility.CanUseAnimationCompositorShader(
+                    compositorMaterial.shader
+                )
+            )
+            {
+                throw new ArgumentException(
+                    "Animated image compositor material is unsupported or missing required passes.",
+                    nameof(compositorMaterial)
+                );
+            }
+            _compositorMaterial = compositorMaterial;
             _canCopyRenderTextureRegions =
                 (SystemInfo.copyTextureSupport & CopyTextureSupport.Basic) != 0;
 
@@ -122,6 +131,19 @@ namespace Basis.ImagePickup
             return allRequiredCanvasesCreated;
         }
 
+        public bool TryPrepareFrameAtlas(ref long pixelsRemaining)
+        {
+            ThrowIfDisposed();
+            if (_frameAtlas == null)
+                return false;
+            bool ready = _frameAtlas.TryBuildNextPage(
+                pixelsRemaining,
+                out long pixelsUsed
+            );
+            pixelsRemaining = Math.Max(0, pixelsRemaining - pixelsUsed);
+            return ready;
+        }
+
         private bool TryRebuildFrameAtlas()
         {
             BasisAnimationFrameAtlas replacement = null;
@@ -162,18 +184,65 @@ namespace Basis.ImagePickup
             );
         }
 
-        public int AppendToState(CommandBuffer commands, long targetPlayIndex, int targetFrameIndex)
+        public int AppendToState(
+            CommandBuffer commands,
+            long targetPlayIndex,
+            int targetFrameIndex,
+            int transitionBudget,
+            long pixelBudget,
+            out long pixelsUsed
+        )
         {
             if (commands == null)
                 throw new ArgumentNullException(nameof(commands));
             ThrowIfDisposed();
             ValidateTarget(targetPlayIndex, targetFrameIndex);
+            pixelsUsed = 0;
 
-            if (!EnsureCreated())
+            if (
+                transitionBudget <= 0
+                || pixelBudget <= 0
+                || !EnsureCreated()
+                || _frameAtlas == null
+                || !_frameAtlas.IsReady
+            )
+            {
+                return 0;
+            }
+
+            bool reset =
+                !_stateValid
+                || targetPlayIndex != _currentPlayIndex
+                || targetFrameIndex < _currentFrameIndex;
+            int startFrame = reset ? -1 : _currentFrameIndex;
+            long requiredPixels =
+                reset ? BasisAnimatedImageWorkEstimator.ResetPixelCost(_data) : 0;
+            if (requiredPixels > pixelBudget)
                 return 0;
 
+            int partialTargetFrame = startFrame;
             int transitions = 0;
-            if (!_stateValid || targetPlayIndex != _currentPlayIndex || targetFrameIndex < _currentFrameIndex)
+            while (
+                partialTargetFrame < targetFrameIndex
+                && transitions < transitionBudget
+            )
+            {
+                int nextFrameIndex = partialTargetFrame + 1;
+                long transitionPixels = BasisAnimatedImageWorkEstimator.TransitionPixelCost(
+                    _data,
+                    partialTargetFrame,
+                    nextFrameIndex
+                );
+                if (transitionPixels > pixelBudget - requiredPixels)
+                    break;
+                requiredPixels += transitionPixels;
+                partialTargetFrame = nextFrameIndex;
+                transitions++;
+            }
+            if (transitions <= 0)
+                return 0;
+
+            if (reset)
             {
                 AppendReset(commands);
                 _currentPlayIndex = targetPlayIndex;
@@ -181,7 +250,7 @@ namespace Basis.ImagePickup
                 _stateValid = true;
             }
 
-            while (_currentFrameIndex < targetFrameIndex)
+            while (_currentFrameIndex < partialTargetFrame)
             {
                 int nextFrameIndex = _currentFrameIndex + 1;
                 if (_currentFrameIndex >= 0)
@@ -193,9 +262,9 @@ namespace Basis.ImagePickup
 
                 AppendFrame(commands, nextFrameIndex, nextFrame);
                 _currentFrameIndex = nextFrameIndex;
-                transitions++;
             }
 
+            pixelsUsed = requiredPixels;
             return transitions;
         }
 

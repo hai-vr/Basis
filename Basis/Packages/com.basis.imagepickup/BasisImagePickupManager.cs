@@ -534,12 +534,44 @@ namespace Basis.ImagePickup
             for (int index = pendingGifSpawnCount - 1; index >= 0; index--)
             {
                 PendingGifSpawn pending = _pendingGifSpawns[index];
-                if (!pending.Job.TryComplete(out BasisGifDecodeJobResult workerResult))
+                BasisGifDecodeJobResult workerResult;
+                try
+                {
+                    if (!pending.Job.TryComplete(out workerResult))
+                        continue;
+                }
+                catch (Exception exception)
+                {
+                    _pendingGifSpawns.RemoveAt(index);
+                    DisposeRequest(pending.Job, "GIF decode request");
+                    string failureReason = BasisLocalization.Get(
+                        "imagePickup.popup.reason.animationStartFailed",
+                        exception.GetBaseException().Message
+                    );
+                    BasisImagePickupRejectionPopup.Show(pending.Path, failureReason);
+                    BasisDebug.LogWarning(
+                        $"Image pickup rejected after GIF completion failed: {failureReason}",
+                        LogTag
+                    );
                     continue;
+                }
                 _pendingGifSpawns.RemoveAt(index);
 
                 try
                 {
+                    if (
+                        BasisNetworkModeration.GlobalImagesLocked
+                        && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()
+                    )
+                    {
+                        string lockedReason = BasisLocalization.Get(
+                            "imagePickup.popup.reason.adminLockedDuringDecode"
+                        );
+                        BasisImagePickupRejectionPopup.Show(pending.Path, lockedReason);
+                        BasisDebug.LogWarning($"Image pickup rejected: {lockedReason}", LogTag);
+                        continue;
+                    }
+
                     BasisImageValidationResult result =
                         BasisAnimatedImageJobs.FinalizeGifDecode(workerResult);
                     if (result.Ok)
@@ -558,7 +590,7 @@ namespace Basis.ImagePickup
                 }
                 finally
                 {
-                    pending.Job.Dispose();
+                    DisposeRequest(pending.Job, "GIF decode request");
                 }
             }
 
@@ -793,7 +825,14 @@ namespace Basis.ImagePickup
             }
             catch (Exception exception)
             {
-                BasisDebug.LogErrorOnce($"Image pickup manager simulation failed: {exception}", LogTag);
+                BasisDebug.LogErrorOnce(
+                    $"Image pickup manager simulation failed with {_images.Count:N0} images, "
+                        + $"{_pendingGifSpawns.Count:N0} active GIF decodes, "
+                        + $"{_pendingInboundAnimationDecodes.Count:N0} active inbound animation decodes, "
+                        + $"and {_reservedInboundTransferBytes / (1024L * 1024L):N0} MiB reserved: "
+                        + $"{exception}",
+                    LogTag
+                );
             }
         }
 
@@ -1121,10 +1160,27 @@ namespace Basis.ImagePickup
                 );
                 return;
             }
+            if (
+                !MatchesClaimedDimensions(
+                    transfer.Width,
+                    transfer.Height,
+                    result.Width,
+                    result.Height
+                )
+            )
+            {
+                DisposeRejectedValidationResult(ref result);
+                BasisDebug.LogWarning(
+                    $"Image pickup from {transfer.Sender} failed validation: "
+                        + $"claimed {transfer.Width}x{transfer.Height}, decoded "
+                        + $"{result.Width}x{result.Height}.",
+                    LogTag
+                );
+                return;
+            }
             if (_images.ContainsKey(transfer.Id))
             {
-                if (result.Texture != null)
-                    Destroy(result.Texture);
+                DisposeRejectedValidationResult(ref result);
                 return;
             }
 
@@ -1170,7 +1226,15 @@ namespace Basis.ImagePickup
             long playbackEpochUtcTicks = reader.ReadInt64();
 
             if (format != AnimationFormatNativeLz4)
+            {
+                BasisDebug.LogWarningOnce(
+                    "BasisImagePickup.UnsupportedAnimationFormat",
+                    $"Image pickup ignored unsupported animation format {format} from "
+                        + $"player {senderId}.",
+                    LogTag
+                );
                 return;
+            }
             if (_inboundAnimations.ContainsKey(id) || _animationAttempted.Contains(id))
                 return;
             if (!CanAcceptAnimation(senderId, id, totalBytes, totalChunks, playbackEpochUtcTicks, out string reason))
@@ -1540,8 +1604,27 @@ namespace Basis.ImagePickup
                 PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[
                     index
                 ];
-                if (!pending.Job.TryComplete(out BasisBurstAnimationDecodeResult workerResult))
+                BasisBurstAnimationDecodeResult workerResult;
+                try
                 {
+                    if (!pending.Job.TryComplete(out workerResult))
+                        continue;
+                }
+                catch (Exception exception)
+                {
+                    _pendingInboundAnimationDecodes.RemoveAt(index);
+                    _animationAttempted.Remove(pending.Id);
+                    DisposeRequest(pending.Job, "inbound animation decode request");
+                    pending.Job = null;
+                    pending.Payload?.Dispose();
+                    pending.Payload = null;
+                    ReleaseInboundTransferBytes(pending.ReservedBytes);
+                    pending.ReservedBytes = 0;
+                    BasisDebug.LogWarning(
+                        $"Image pickup animation from {pending.Sender} failed while completing "
+                            + $"Burst validation: {exception.GetBaseException().Message}.",
+                        LogTag
+                    );
                     continue;
                 }
                 _pendingInboundAnimationDecodes.RemoveAt(index);
@@ -1626,8 +1709,10 @@ namespace Basis.ImagePickup
                 finally
                 {
                     workerResult?.TakeAnimation()?.Dispose();
-                    pending.Job.Dispose();
+                    DisposeRequest(pending.Job, "inbound animation decode request");
+                    pending.Job = null;
                     pending.Payload?.Dispose();
+                    pending.Payload = null;
                     ReleaseInboundTransferBytes(pending.ReservedBytes);
                     pending.ReservedBytes = 0;
                 }
@@ -1739,6 +1824,11 @@ namespace Basis.ImagePickup
                 aggregatePixels += (long)transfer.Width * transfer.Height;
                 aggregateBytes += transfer.Buffer?.Length ?? 0;
             }
+            foreach (InboundAnimationTransfer transfer in _inboundAnimations.Values)
+            {
+                if (transfer.Sender == sender)
+                    activeTransfers++;
+            }
 
             if (!IsWithinRemoteImageBudget(imageCount, aggregatePixels, aggregateBytes, out reason))
             {
@@ -1773,6 +1863,16 @@ namespace Basis.ImagePickup
             }
 
             return IsWithinRemoteImageBudget(imageCount, aggregatePixels, aggregateBytes, out reason);
+        }
+
+        internal static bool MatchesClaimedDimensions(
+            int claimedWidth,
+            int claimedHeight,
+            int decodedWidth,
+            int decodedHeight
+        )
+        {
+            return claimedWidth == decodedWidth && claimedHeight == decodedHeight;
         }
 
         internal static bool IsWithinRemoteImageBudget(
@@ -1940,6 +2040,11 @@ namespace Basis.ImagePickup
                     continue;
                 activeTransfers++;
                 activeTransferBytes += transfer.Buffer.Length;
+            }
+            foreach (InboundTransfer transfer in _inbound.Values)
+            {
+                if (transfer.Sender == sender)
+                    activeTransfers++;
             }
             int queuedInboundDecodeCount = _queuedInboundAnimationDecodes.Count;
             for (int i = 0; i < queuedInboundDecodeCount; i++)
@@ -2474,11 +2579,24 @@ namespace Basis.ImagePickup
                         }
                     }
 
-                    if (!transfer.PacketJob.TryComplete(out BasisAnimationPacketBatch packetBatch))
+                    BasisAnimationPacketBatch packetBatch;
+                    try
                     {
-                        return;
+                        if (!transfer.PacketJob.TryComplete(out packetBatch))
+                            return;
                     }
-                    transfer.PacketJob.Dispose();
+                    catch (Exception exception)
+                    {
+                        BasisDebug.LogWarning(
+                            $"Image pickup: animation packet worker failed while completing "
+                                + $"({exception.GetBaseException().Message}).",
+                            LogTag
+                        );
+                        _outboundAnimations.Dequeue();
+                        DisposeOutboundAnimationTransfer(transfer);
+                        continue;
+                    }
+                    DisposeRequest(transfer.PacketJob, "animation packet request");
                     transfer.PacketJob = null;
                     if (
                         packetBatch == null
@@ -2571,9 +2689,6 @@ namespace Basis.ImagePickup
                     batchIndex++;
                     chunksRemaining--;
                 }
-                if (transfer == null)
-                    continue;
-
                 if (transfer.NextChunkIndex >= transfer.Packets.TotalChunks)
                 {
                     _outboundAnimations.Dequeue();
@@ -2640,8 +2755,30 @@ namespace Basis.ImagePickup
 
         private static void DisposeOutboundAnimationTransfer(OutboundAnimationTransfer transfer)
         {
-            transfer?.PacketJob?.Dispose();
-            transfer?.Packets?.Dispose();
+            if (transfer == null)
+                return;
+            DisposeRequest(transfer.PacketJob, "animation packet request");
+            transfer.PacketJob = null;
+            DisposeRequest(transfer.Packets, "animation packet batch");
+            transfer.Packets = null;
+        }
+
+        private static void DisposeRequest(IDisposable request, string description)
+        {
+            if (request == null)
+                return;
+            try
+            {
+                request.Dispose();
+            }
+            catch (Exception exception)
+            {
+                BasisDebug.LogWarning(
+                    $"Image pickup could not fully dispose {description}: "
+                        + $"{exception.GetBaseException().Message}",
+                    LogTag
+                );
+            }
         }
 
         private static string ResolveOwnerName(ushort senderId)
