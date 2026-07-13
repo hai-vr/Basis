@@ -157,6 +157,143 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void CompositorPressureStartsClosestAnimationAfterReleasingFarthest()
+        {
+            Camera previousCamera = BasisLocalCameraDriver.CameraInstance;
+            BasisAnimatedImageScheduler previousScheduler = BasisAnimatedImageScheduler.Instance;
+            var cameraHost = new GameObject("BasisAnimatedImageCompositorCamera");
+            var nearHost = new GameObject("BasisAnimatedImageCompositorNear");
+            var middleHost = new GameObject("BasisAnimatedImageCompositorMiddle");
+            var farHost = new GameObject("BasisAnimatedImageCompositorFar");
+            BasisAnimatedImageData nearData = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                )
+            );
+            BasisAnimatedImageData middleData = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Green }
+                )
+            );
+            BasisAnimatedImageData farData = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Blue }
+                )
+            );
+            var commands = new CommandBuffer();
+            bool nearInitialized = false;
+            bool middleInitialized = false;
+            bool farInitialized = false;
+            bool compositorReservationHeld = false;
+            long compositorReservation = 0;
+            try
+            {
+                BasisLocalCameraDriver.CameraInstance = cameraHost.AddComponent<Camera>();
+                nearHost.transform.position = new Vector3(0f, 0f, 1f);
+                middleHost.transform.position = new Vector3(0f, 0f, 5f);
+                farHost.transform.position = new Vector3(0f, 0f, 10f);
+
+                var middlePlayer = middleHost.AddComponent<BasisAnimatedImagePlayer>();
+                var farPlayer = farHost.AddComponent<BasisAnimatedImagePlayer>();
+                var nearPlayer = nearHost.AddComponent<BasisAnimatedImagePlayer>();
+                middleInitialized = middlePlayer.Initialize(
+                    middleData,
+                    middleHost.AddComponent<BasisImagePickupObject>(),
+                    1,
+                    true
+                );
+                farInitialized = farPlayer.Initialize(
+                    farData,
+                    farHost.AddComponent<BasisImagePickupObject>(),
+                    1,
+                    true
+                );
+                nearInitialized = nearPlayer.Initialize(
+                    nearData,
+                    nearHost.AddComponent<BasisImagePickupObject>(),
+                    1,
+                    true
+                );
+                Assert.That(nearInitialized && middleInitialized && farInitialized, Is.True);
+
+                SchedulePlayerOnce(middlePlayer, commands);
+                SchedulePlayerOnce(farPlayer, commands);
+                Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
+                Assert.That(farPlayer.HasAllocatedCompositor, Is.True);
+                Assert.That(nearPlayer.HasAllocatedCompositor, Is.False);
+
+                compositorReservation =
+                    BasisImagePickupSettings.MaxResidentAnimationCompositorBytes
+                    - BasisAnimatedImageData.TotalResidentCompositorBytes;
+                Assert.That(compositorReservation, Is.GreaterThan(0));
+                compositorReservationHeld = BasisAnimatedImageData.TryReserveCompositorBytes(
+                    compositorReservation,
+                    out string reservationError
+                );
+                Assert.That(compositorReservationHeld, Is.True, reservationError);
+
+                SchedulePlayerOnce(nearPlayer, commands);
+                Assert.That(nearPlayer.HasAllocatedCompositor, Is.False);
+                Assert.That(farPlayer.HasAllocatedCompositor, Is.True);
+
+                BasisAnimatedImageScheduler scheduler = BasisAnimatedImageScheduler.Instance;
+                Assert.That(scheduler, Is.Not.Null);
+                scheduler.ApplyPendingCompositorReleases();
+                Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
+                Assert.That(farPlayer.HasAllocatedCompositor, Is.False);
+
+                FieldInfo startIndexField = typeof(BasisAnimatedImageScheduler).GetField(
+                    "_visiblePassStartIndex",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(startIndexField, Is.Not.Null);
+                startIndexField.SetValue(scheduler, 0);
+                scheduler.PrioritizeDeferredCompositorCandidate();
+                Assert.That(startIndexField.GetValue(scheduler), Is.EqualTo(2));
+
+                SchedulePlayerOnce(nearPlayer, commands);
+                Assert.That(nearPlayer.HasAllocatedCompositor, Is.True);
+                Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
+
+                scheduler.RequestCompositorMemory(farPlayer);
+                scheduler.ApplyPendingCompositorReleases();
+                Assert.That(nearPlayer.HasAllocatedCompositor, Is.True);
+                Assert.That(middlePlayer.HasAllocatedCompositor, Is.True);
+            }
+            finally
+            {
+                if (compositorReservationHeld)
+                    BasisAnimatedImageData.ReleaseCompositorBytes(compositorReservation);
+                BasisLocalCameraDriver.CameraInstance = previousCamera;
+                commands.Release();
+                Object.DestroyImmediate(nearHost);
+                Object.DestroyImmediate(middleHost);
+                Object.DestroyImmediate(farHost);
+                Object.DestroyImmediate(cameraHost);
+                if (!nearInitialized)
+                    nearData.Dispose();
+                if (!middleInitialized)
+                    middleData.Dispose();
+                if (!farInitialized)
+                    farData.Dispose();
+                if (previousScheduler == null && BasisAnimatedImageScheduler.Instance != null)
+                    Object.DestroyImmediate(BasisAnimatedImageScheduler.Instance.gameObject);
+            }
+        }
+
+        [Test]
 		public void ReloadableAnimatedPlayerReleasesAndRestoresDecodedFrames()
         {
             var host = new GameObject("BasisAnimatedImageReloadTest");
@@ -1522,6 +1659,21 @@ namespace Basis.ImagePickup.Tests
             );
             pixels[0] = Blue;
             Assert.That(data.CopyFramePixelsToManaged(0)[0], Is.EqualTo(Red));
+        }
+
+        private static void SchedulePlayerOnce(BasisAnimatedImagePlayer player, CommandBuffer commands)
+        {
+            int transitionsRemaining = 16;
+            long pixelsRemaining = 1024;
+            bool gpuCommandsAdded = false;
+            player.Schedule(
+                commands,
+                1,
+                ref transitionsRemaining,
+                ref pixelsRemaining,
+                true,
+                ref gpuCommandsAdded
+            );
         }
 
         private static void WriteFrame(

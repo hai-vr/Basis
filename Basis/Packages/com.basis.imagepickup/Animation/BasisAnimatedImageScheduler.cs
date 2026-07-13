@@ -35,6 +35,7 @@ namespace Basis.ImagePickup
         private readonly List<BasisAnimatedImagePlayer> _players = new(64);
         private readonly List<BasisAnimatedImagePlayer> _pendingRemoval = new(8);
         private readonly List<BasisAnimatedImagePlayer> _pendingDecodedReleases = new(4);
+        private readonly List<BasisAnimatedImagePlayer> _pendingCompositorReleases = new(4);
         private readonly List<BasisAnimatedImagePlayer> _cpuFrontFacingPlayers = new(64);
         private readonly List<BasisAnimatedImagePlayer> _reloadDecodePlayers = new(2);
         private readonly List<Camera> _visibilityCameras = new(8);
@@ -49,6 +50,7 @@ namespace Basis.ImagePickup
         private CommandBuffer _commands;
         private Material _compositorMaterial;
         private BasisAnimatedImageDepthVisibility _depthVisibility;
+        private BasisAnimatedImagePlayer _compositorPriorityCandidate;
         private int _localVisibilityCameraIndex = -1;
         private int _activeReloadDecodes;
         private int _visiblePassStartIndex;
@@ -130,9 +132,61 @@ namespace Basis.ImagePickup
         {
             if (player == null)
                 return;
+            _pendingDecodedReleases.Remove(player);
+            _pendingCompositorReleases.Remove(player);
+            if (ReferenceEquals(_compositorPriorityCandidate, player))
+                _compositorPriorityCandidate = null;
             int playerIndex = _players.IndexOf(player);
             if (playerIndex >= 0)
                 RemovePlayerAt(playerIndex);
+        }
+
+        internal void RequestCompositorMemory(BasisAnimatedImagePlayer candidate)
+        {
+            Camera localCamera = BasisLocalCameraDriver.CameraInstance;
+            if (candidate == null || localCamera == null)
+                return;
+
+            Vector3 cameraPosition = localCamera.transform.position;
+            float candidateDistanceSquared = candidate.GetDistanceSquared(cameraPosition);
+            if (
+                _compositorPriorityCandidate == null
+                || candidateDistanceSquared
+                    < _compositorPriorityCandidate.GetDistanceSquared(cameraPosition)
+            )
+            {
+                _compositorPriorityCandidate = candidate;
+            }
+            if (_pendingCompositorReleases.Count > 0)
+                return;
+
+            candidate = _compositorPriorityCandidate;
+            candidateDistanceSquared = candidate.GetDistanceSquared(cameraPosition);
+            BasisAnimatedImagePlayer farthest = null;
+            float farthestDistanceSquared = candidateDistanceSquared;
+            int playerCount = _players.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _players[i];
+                if (
+                    player == null
+                    || ReferenceEquals(player, candidate)
+                    || !player.HasAllocatedCompositor
+                )
+                {
+                    continue;
+                }
+
+                float distanceSquared = player.GetDistanceSquared(cameraPosition);
+                if (distanceSquared <= farthestDistanceSquared)
+                    continue;
+                farthest = player;
+                farthestDistanceSquared = distanceSquared;
+            }
+
+            // Release after the current command buffer is no longer referencing the canvas.
+            if (farthest != null)
+                _pendingCompositorReleases.Add(farthest);
         }
 
         internal bool TryAcquireReloadDecodeSlot(BasisAnimatedImagePlayer player, long nativeBytes)
@@ -346,6 +400,29 @@ namespace Basis.ImagePickup
             _pendingDecodedReleases.Clear();
         }
 
+        internal void ApplyPendingCompositorReleases()
+        {
+            int pendingReleaseCount = _pendingCompositorReleases.Count;
+            for (int i = 0; i < pendingReleaseCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _pendingCompositorReleases[i];
+                if (player != null)
+                    player.ReleaseCompositorForMemoryPressure();
+            }
+            _pendingCompositorReleases.Clear();
+        }
+
+        internal void PrioritizeDeferredCompositorCandidate()
+        {
+            BasisAnimatedImagePlayer candidate = _compositorPriorityCandidate;
+            _compositorPriorityCandidate = null;
+            if (candidate == null)
+                return;
+            int candidateIndex = _players.IndexOf(candidate);
+            if (candidateIndex >= 0)
+                _visiblePassStartIndex = candidateIndex;
+        }
+
         private void Simulate()
         {
             try
@@ -363,6 +440,8 @@ namespace Basis.ImagePickup
             if (_players.Count == 0)
             {
                 _pendingDecodedReleases.Clear();
+                _pendingCompositorReleases.Clear();
+                _compositorPriorityCandidate = null;
                 return;
             }
 
@@ -375,9 +454,16 @@ namespace Basis.ImagePickup
                         RemovePlayerAt(i);
                 }
                 if (_players.Count == 0)
+                {
+                    _pendingDecodedReleases.Clear();
+                    _pendingCompositorReleases.Clear();
+                    _compositorPriorityCandidate = null;
                     return;
+                }
 
                 _commands.Clear();
+                // Canvas disposal is safe only after commands from the previous pass are discarded.
+                ApplyPendingCompositorReleases();
                 ApplyPendingDecodedReleases();
                 EnforceResidentNativeBudget();
                 _pendingRemoval.Clear();
@@ -405,6 +491,8 @@ namespace Basis.ImagePickup
                     BasisImagePickupSettings.MaxAnimationFaceOcclusionRaycastsPerFrame;
                 bool gpuCommandsAdded = false;
                 long synchronizedTicks = BasisNetworkManagement.RemoteUtcTime().Ticks;
+                // Give released memory to the nearest blocked animation before farther players retry.
+                PrioritizeDeferredCompositorCandidate();
 
 				ScheduleVisiblePlayers(
                     synchronizedTicks,
@@ -948,6 +1036,8 @@ namespace Basis.ImagePickup
             _players.Clear();
             _pendingRemoval.Clear();
             _pendingDecodedReleases.Clear();
+            _pendingCompositorReleases.Clear();
+            _compositorPriorityCandidate = null;
             _cpuFrontFacingPlayers.Clear();
             _reloadDecodePlayers.Clear();
             _visibilityCameras.Clear();

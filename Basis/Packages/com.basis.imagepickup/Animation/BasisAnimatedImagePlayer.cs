@@ -411,6 +411,7 @@ namespace Basis.ImagePickup
                 {
 					_gpuCanvas?.Dispose();
 					_gpuCanvas = null;
+                    _scheduler?.RequestCompositorMemory(this);
                     LogCompositorBudgetDeferred(exception.Message);
                     return false;
                 }
@@ -433,6 +434,7 @@ namespace Basis.ImagePickup
                 {
                     _cpuCanvas?.Dispose();
                     _cpuCanvas = null;
+                    _scheduler?.RequestCompositorMemory(this);
                     LogCompositorBudgetDeferred(exception.Message);
                     return false;
                 }
@@ -474,6 +476,7 @@ namespace Basis.ImagePickup
             {
                 _cpuCanvas?.Dispose();
                 _cpuCanvas = null;
+                _scheduler?.RequestCompositorMemory(this);
                 LogCompositorBudgetDeferred(exception.Message);
             }
             catch (Exception exception)
@@ -491,6 +494,13 @@ namespace Basis.ImagePickup
                 return;
             _compositorBudgetDeferredLogged = true;
             BasisDebug.LogWarning($"Animated image compositor deferred until memory is available: {reason}", LogTag);
+        }
+
+        internal void ReleaseCompositorForMemoryPressure()
+        {
+            if (!_initialized || !HasAllocatedCompositor)
+                return;
+            SuspendToPoster(false);
         }
 
         private void SuspendToPoster(bool releaseDecodedData)
