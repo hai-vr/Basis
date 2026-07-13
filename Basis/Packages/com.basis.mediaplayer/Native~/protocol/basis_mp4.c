@@ -113,7 +113,6 @@ typedef struct {
     int64_t start_us;
     int64_t end_us;
     uint64_t offset; /* absolute top-level box boundary for this subsegment */
-    uint32_t size;
 } mp4_sidx_ref_t;
 
 typedef struct {
@@ -556,7 +555,6 @@ static void parse_sidx(mp4_t* m, const uint8_t* p, int len, int64_t box_end) {
         r.start_us = ticks_to_us((int64_t)pts, (int)timescale);
         r.end_us = ticks_to_us((int64_t)(pts + dur), (int)timescale);
         r.offset = ref_offset;
-        r.size = size;
         if (r.end_us <= r.start_us || !sidx_add_ref(&next, &r)) {
             sidx_clear(&next);
             return;
