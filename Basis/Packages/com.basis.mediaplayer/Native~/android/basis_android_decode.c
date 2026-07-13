@@ -307,25 +307,26 @@ static void on_image(void* ctx, AImageReader* reader) {
 
         int cw = bufW, ch = bufH, cl = 0, ct = 0;
         AImageCropRect cr; int haveImgCrop = (AImage_getCropRect(img, &cr) == AMEDIA_OK);
-        /* Snapshot the crop rect written on the decode thread: acquire on
-         * fcValid pairs with the release store in drain_video_output, and the
-         * coordinates go into locals so the checks below see one consistent rect. */
-        if (__atomic_load_n(&d->fcValid, __ATOMIC_ACQUIRE)) {
-            int fl = __atomic_load_n(&d->fcL, __ATOMIC_RELAXED);
-            int ft = __atomic_load_n(&d->fcT, __ATOMIC_RELAXED);
-            int fr = __atomic_load_n(&d->fcR, __ATOMIC_RELAXED);
-            int fb = __atomic_load_n(&d->fcB, __ATOMIC_RELAXED);
+        /* Snapshot the MediaFormat crop rect as a unit under d->vm so a format
+         * change on the decode thread can't leave us combining old and new
+         * coordinates (drain_video_output publishes it the same way). */
+        pthread_mutex_lock(&d->vm);
+        int fcv = d->fcValid, fl = d->fcL, ft = d->fcT, fr = d->fcR, fb = d->fcB;
+        pthread_mutex_unlock(&d->vm);
+        if (fcv) {
             /* MediaFormat crop right/bottom are inclusive (w = right-left+1);
              * fall back to exclusive if the inclusive read overshoots the buffer. */
             int rw = fr - fl + 1, rh = fb - ft + 1;
             if (rw <= 0 || rw > bufW) rw = fr - fl;
             if (rh <= 0 || rh > bufH) rh = fb - ft;
-            if (rw > 0 && rh > 0 && fl >= 0 && ft >= 0 && rw <= bufW && rh <= bufH) {
+            /* Require the whole rectangle inside the buffer: a non-zero offset
+             * plus the extent must not run past the edge. */
+            if (rw > 0 && rh > 0 && fl >= 0 && ft >= 0 && fl <= bufW - rw && ft <= bufH - rh) {
                 cw = rw; ch = rh; cl = fl; ct = ft;
             }
         } else if (haveImgCrop && (cr.right - cr.left) > 0 && (cr.bottom - cr.top) > 0 &&
                    cr.left >= 0 && cr.top >= 0 &&
-                   (cr.right - cr.left) <= bufW && (cr.bottom - cr.top) <= bufH) {
+                   cr.right <= bufW && cr.bottom <= bufH) {
             cw = cr.right - cr.left; ch = cr.bottom - cr.top; cl = cr.left; ct = cr.top;
         } else if (aw > 0 && ah > 0 && aw <= bufW && ah <= bufH && (aw < bufW || ah < bufH)) {
             cw = aw; ch = ah;   /* AImage reports the display size directly */
@@ -394,19 +395,16 @@ static void drain_video_output(basis_decoder_t* d) {
             if (w > 0 && h > 0) { d->vw = w; d->vh = h; }
             /* Display crop: the coded buffer pads to a macroblock multiple; this
              * rect is the visible region. Authoritative when the codec sets it
-             * (AImage_getCropRect is unreliable on some devices). */
+             * (AImage_getCropRect is unreliable on some devices). Publish it as a
+             * unit under d->vm (on_image reads it on the listener thread), and
+             * clear on every format change so a format that drops the crop rect
+             * doesn't leave a stale one active. */
             int32_t cl = 0, ct = 0, crr = 0, cb = 0;
-            if (AMediaFormat_getRect(f, AMEDIAFORMAT_KEY_DISPLAY_CROP, &cl, &ct, &crr, &cb)) {
-                /* on_image reads this rect on the AImageReader listener thread;
-                 * store the coordinates then publish fcValid with release so a
-                 * reader that sees it valid sees the matching coordinates (the
-                 * same cross-thread pattern as dispW/dispH above). */
-                __atomic_store_n(&d->fcL, cl,  __ATOMIC_RELAXED);
-                __atomic_store_n(&d->fcT, ct,  __ATOMIC_RELAXED);
-                __atomic_store_n(&d->fcR, crr, __ATOMIC_RELAXED);
-                __atomic_store_n(&d->fcB, cb,  __ATOMIC_RELAXED);
-                __atomic_store_n(&d->fcValid, 1, __ATOMIC_RELEASE);
-            }
+            int haveCrop = AMediaFormat_getRect(f, AMEDIAFORMAT_KEY_DISPLAY_CROP, &cl, &ct, &crr, &cb);
+            pthread_mutex_lock(&d->vm);
+            d->fcValid = haveCrop ? 1 : 0;
+            if (haveCrop) { d->fcL = cl; d->fcT = ct; d->fcR = crr; d->fcB = cb; }
+            pthread_mutex_unlock(&d->vm);
             AMediaFormat_delete(f);
         } else {
             break; /* try again later / no buffer */
