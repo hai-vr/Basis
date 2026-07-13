@@ -191,8 +191,10 @@ namespace Basis.Tests.IK
         [Test]
         public void ElbowPath_IsBitwiseUnchanged_WhenConditioningIsOff()
         {
-            // The arm shares this core and did NOT opt in. Prove the off-path is untouched, so fixing the knee
-            // cannot have silently moved the elbow (arm tweaks have been reverted here before).
+            // The OFF path must reproduce the raw One-Euro exactly. The arm has since opted in
+            // (k_ConditionElbowSwivelOnPole), so this no longer guards the live elbow -- it guards the REVERT: flip
+            // that switch back and the elbow returns to the legacy filter bit-for-bit, with no residue left behind.
+            // Arm tweaks have been reverted in this repo before, so the way back has to be provably exact.
             BasisSwivelSmootherInput a = MakeLeg(0.95f, 0f, conditionOnPole: false);
             BasisSwivelSmootherCore.Solve(a, out BasisSwivelSmootherResult seeded);
 

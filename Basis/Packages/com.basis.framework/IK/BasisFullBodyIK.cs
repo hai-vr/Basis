@@ -2459,6 +2459,19 @@ w20, w54;
                 }
             }
         }
+        // Elbow opt-in for the pole-conditioned One-Euro (see SmoothElbowSwivel below for the measured numbers).
+        //
+        // Deliberately its OWN switch, separate from the knee's, and deliberately a named constant rather than an
+        // inline `true`: arm IK tweaks have been built and reverted in this repo before, so the revert has to be one
+        // obvious edit rather than an archaeology exercise. Flip to false and the elbow is bit-for-bit the legacy
+        // filter -- BasisKneeSwivelConditioningTests.ElbowPath_IsBitwiseUnchanged_WhenConditioningIsOff pins that.
+        //
+        // Only reaches the LOOKUP (no elbow tracker) path: SolveTwoBoneIKArms calls SmoothElbowSwivel under
+        // `if (usedLookup)`, because a real elbow tracker is the user's own input and damping it just mutes the hint
+        // they are moving. So this changes the DESKTOP / no-tracker elbow, which is the common case, and leaves a
+        // tracked elbow untouched.
+        const bool k_ConditionElbowSwivelOnPole = true;
+
         // OneEuro smoothing of the ELBOW SWIVEL output (the angle the elbow makes around the shoulder->hand
         // axis). The hand stays exactly on target -- only the swivel is damped. The velocity is low-passed
         // FIRST, so frame-to-frame jitter (zero-mean swivel velocity) leaves the cutoff at its floor (heavy
@@ -2484,6 +2497,29 @@ w20, w54;
             input.MinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
             input.Beta = BasisSwivelFilterCore.Beta;
             input.DerivCutoffHz = BasisSwivelFilterCore.DerivCutoffHz;
+
+            // Condition the One-Euro on the elbow's own lever arm -- the same singularity the knee has, and for the
+            // same reason. As the arm straightens, the elbow's perpendicular stand-off from the shoulder->hand axis
+            // collapses, so the swivel this core measures degenerates into the direction of a vanishing vector, i.e.
+            // pure noise. A One-Euro is SPEED-ADAPTIVE, so it reads that noise velocity as intent and throws the
+            // cutoff open on it. Measured on the real filter at the elbow's own constants (MinCutoff 1 Hz, Beta 0.05,
+            // 90 Hz):
+            //        noise 353 deg/s -> cutoff 18.6 Hz, alpha 0.566   (57% of the garbage through in ONE frame)
+            //        noise 500 deg/s -> cutoff 26.0 Hz, alpha 0.645
+            // Conditioned (arm ~1 deg off straight, c = 0.02) the same noise gives alpha 0.086 and 0.095. The filter
+            // stops chasing the singularity instead of amplifying it.
+            //
+            // The payoff is not visible while the arm is straight -- the elbow's circle has collapsed, so it has
+            // nowhere to go. It is visible the moment the arm BENDS again: the circle reopens and the elbow whips to
+            // whatever the noise last flung the filter state to. Holding the swivel steady while straight means the
+            // state is already sane when the bend arrives.
+            //
+            // SingularMinCutoffHz is the elbow's own floor, so the cutoff lerp is deliberately a no-op here and only
+            // BETA is scaled. That is the whole defect: unlike the tracked knee, the elbow's floor was never the
+            // problem -- it already sits at the heavy 1 Hz standing floor. What opened the gate was beta.
+            input.ConditionOnPole = k_ConditionElbowSwivelOnPole;
+            input.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+
             input.State = new BasisSwivelFilterState { Raw = armLookupRaw[slot].x, Vel = armLookupRaw[slot].y, Smooth = armLookupSmooth[slot].x };
             input.Seeded = armLookupInit[slot] != 0;
 
