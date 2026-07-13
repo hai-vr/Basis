@@ -194,6 +194,22 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
+        public void StampInterval_PassesElapsedThrough_WhileStreaming()
+        {
+            Assert.AreEqual(0.05, BasisSyncedObject.StampInterval(0.05, 0.05, false), 1e-9, "normal cadence passes through");
+            Assert.AreEqual(0.08, BasisSyncedObject.StampInterval(0.08, 0.05, false), 1e-9, "frame jitter is real pacing");
+            Assert.AreEqual(2.55, BasisSyncedObject.StampInterval(2.55, 2.55, false), 1e-9, "distance-reduced cadence is legitimate");
+        }
+
+        [Test]
+        public void StampInterval_CollapsesIdleGaps_ToCadence()
+        {
+            Assert.AreEqual(0.05, BasisSyncedObject.StampInterval(7.5, 0.05, true), 1e-9, "first packet after idle keyframes resumes at cadence");
+            Assert.AreEqual(0.05, BasisSyncedObject.StampInterval(612.0, 0.05, false), 1e-9, "a gap that dwarfs the cadence is dead time, not motion");
+            Assert.AreEqual(2.55, BasisSyncedObject.StampInterval(30.0, 2.55, true), 1e-9, "idle resume at a reduced cadence stamps that cadence");
+        }
+
+        [Test]
         public void ReceiverValuesDirty_OnlyAfterFrameAdvance()
         {
             var s = new BasisSyncSchema();

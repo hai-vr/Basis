@@ -84,6 +84,9 @@ namespace Basis.Scripts.Networking.Sync
         private float _rotDotThreshold = 0.99999f;
         private int _idleKeyframeBackoff;
         private const int MaxKeyframeBackoffShift = 4;
+        private bool _lastSendWasIdle;
+        private ushort _lastKnownOwnerId;
+        private bool _haveKnownOwner;
 
         internal BasisSyncSchema Schema => _schema;
         internal BasisSyncReceiver Receiver => _receiver;
@@ -446,11 +449,23 @@ namespace Basis.Scripts.Networking.Sync
 
         public override void OnOwnershipTransfer(BasisNetworkPlayer newOwner)
         {
+            // A new owner is a new packet stream: its sequence numbering has no relation to the previous
+            // owner's, and everything buffered belongs to the old stream. Without this reset the sequence
+            // high-water-mark silently drops the new owner's packets (up to ~127 of them) about half the
+            // time, and playback first has to drain the previous owner's stale frames — together the
+            // "grabbed pickup freezes, then rushes to catch up" bug. Resetting re-seeds from the new
+            // owner's forced keyframe instead. Owner-id tracking keeps re-fires (e.g. late owner-player
+            // resolution) from resetting a healthy stream.
+            bool ownerChanged = !_haveKnownOwner || CurrentOwnerId != _lastKnownOwnerId;
+            _haveKnownOwner = true;
+            _lastKnownOwnerId = CurrentOwnerId;
+            if (ownerChanged && !IsOwnedLocallyOnClient) _receiver?.Reset();
             RefreshRole();
         }
 
         public override void OnServerOwnershipDestroyed()
         {
+            _haveKnownOwner = false;
             RefreshRole();
         }
 
@@ -544,7 +559,7 @@ namespace Basis.Scripts.Networking.Sync
             if (!keyframe && !anyChange) return;
             if (anyChange) _idleKeyframeBackoff = 0;
 
-            double elapsed = _lastSendTime > 0 ? (time - _lastSendTime) : baseInterval;
+            double elapsed = _lastSendTime > 0 ? StampInterval(time - _lastSendTime, effectiveInterval, _lastSendWasIdle) : baseInterval;
             ushort intervalMs = (ushort)math.clamp((int)math.round(elapsed * 1000.0), 1, 65535);
 
             _lastSendTime = time;
@@ -562,6 +577,7 @@ namespace Basis.Scripts.Networking.Sync
             }
 
             _lastSent.CopyFrom(_local);
+            _lastSendWasIdle = !anyChange;
             if (keyframe)
             {
                 _lastKeyframeTime = time;
@@ -580,6 +596,19 @@ namespace Basis.Scripts.Networking.Sync
         {
             int shift = idleCount < 0 ? 0 : (idleCount > maxShift ? maxShift : idleCount);
             return baseInterval * (1 << shift);
+        }
+
+        /// <summary>
+        /// Interval stamp for the next outgoing packet. While streaming it's the real elapsed time (that's the
+        /// motion's true pacing, including distance-reduced cadences), but a quiet stretch — the last send was
+        /// an unchanged idle keyframe, or the gap dwarfs the current cadence — is dead time, not motion. Those
+        /// stamp the cadence instead, so remotes step across the gap rather than replaying it in real time
+        /// (the "grabbed pickup lags for seconds after sitting idle" bug).
+        /// </summary>
+        public static double StampInterval(double elapsed, double effectiveInterval, bool lastSendWasIdle)
+        {
+            if (lastSendWasIdle || elapsed > effectiveInterval * 8.0) return effectiveInterval;
+            return elapsed;
         }
 
         private bool FieldChanged(int fi)
@@ -611,6 +640,12 @@ namespace Basis.Scripts.Networking.Sync
                 if (_isRemoteRegistered) { BasisSyncDriver.UnregisterRemote(this); _isRemoteRegistered = false; _receiver.Reset(); }
                 if (!_isOwnedRegistered) { BasisSyncDriver.RegisterOwned(this); _isOwnedRegistered = true; }
                 _forceKeyframe = true;
+                // Stale from any previous tenure as owner — left alone, the first packet after re-grabbing
+                // would stamp the whole ownerless gap (up to 65.5 s) as its interval and remotes would
+                // interpolate across it.
+                _lastSendTime = 0;
+                _idleKeyframeBackoff = 0;
+                _lastSendWasIdle = false;
             }
             else
             {
