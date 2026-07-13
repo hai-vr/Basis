@@ -145,7 +145,7 @@ namespace Basis.ImagePickup
             );
             try
             {
-                new BasisAnimationAtlasPopulateJob
+                var populateAtlasJob = new BasisAnimationAtlasPopulateJob
                 {
                     PageIndex = page,
                     PageWidth = width,
@@ -153,7 +153,8 @@ namespace Basis.ImagePickup
                     SourcePixels = _data.PixelsNative,
                     Locations = _locations,
                     PagePixels = pagePixels,
-                }
+                };
+                populateAtlasJob
                     .ScheduleParallelByRef(_data.FrameCount, 1, default)
                     .Complete();
 
