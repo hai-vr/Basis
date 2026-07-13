@@ -13,9 +13,10 @@ namespace Basis.IK.Mocap
     // invention lands to where a real human's elbow actually was.
     public enum BasisMocapHintSource
     {
-        None,       // no hint at all -- the two-bone core's internal fallback
-        Lookup,     // WHAT SHIPS for an untracked arm: ArmBendFrame -> BasisArmBendLookup -> chicken-wing flare
-        TruthJoint, // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
+        None,          // no hint at all -- the two-bone core's internal fallback
+        Lookup,        // WHAT SHIPS for an untracked arm: ArmBendFrame -> BasisArmBendLookup -> chicken-wing flare
+        LookupNoFlare, // the same lookup, with the chicken-wing flare switched off. Isolates what the flare COSTS.
+        TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
     }
 
     public struct BasisMocapAccuracySummary
@@ -150,7 +151,9 @@ namespace Basis.IK.Mocap
             NativeArray<Vector3> lookup = default;
             try
             {
-                if (hint == BasisMocapHintSource.Lookup)
+                // BOTH lookup modes need the table -- LookupNoFlare disables the FLARE, not the table. Miss this
+                // and SampleTrilinear indexes a default (length-0) NativeArray.
+                if (hint == BasisMocapHintSource.Lookup || hint == BasisMocapHintSource.LookupNoFlare)
                 {
                     // Persistent, not Temp: Temp is frame-scoped and this table has to outlive a many-thousand
                     // frame sweep that never yields to a frame boundary.
@@ -347,9 +350,12 @@ namespace Basis.IK.Mocap
                     i.HintIsTracker = true;
                     break;
                 case BasisMocapHintSource.Lookup:
+                case BasisMocapHintSource.LookupNoFlare:
                 {
+                    // inwardGain = 0 is the flare's own documented off-switch (RollEngagement01 early-returns).
+                    float flareGain = hint == BasisMocapHintSource.LookupNoFlare ? 0f : k_FlareInwardGain;
                     Vector3 bend = ComputeArmBendFromLookup(lookup, bendFrame, shoulder, truthHand, truthHandRot, armLen, isLeft, playerUp,
-                                                            out Vector3 preFlare, out flareEngage, out flareDownProj);
+                                                            flareGain, out Vector3 preFlare, out flareEngage, out flareDownProj);
                     i.HintPosition = shoulder + 0.5f * armLen * bend;
                     i.HintWeight = true;
                     i.HintIsTracker = false;   // the job passes hintIsTracker = hasHint && !usedLookup
@@ -385,7 +391,7 @@ namespace Basis.IK.Mocap
             // That distinction is the whole point: the runtime re-evaluates the base layer every frame so the
             // constraint never sees its own previous POSE, but its FILTERS keep their state. Model both or the
             // temporal behaviour is fiction.
-            if (hint == BasisMocapHintSource.Lookup)
+            if (hint == BasisMocapHintSource.Lookup || hint == BasisMocapHintSource.LookupNoFlare)
             {
                 BasisSwivelSmootherInput sw = default;
                 sw.Root = shoulder;
@@ -418,7 +424,7 @@ namespace Basis.IK.Mocap
         // the motion-quality layer can tell which stage of this path is inventing the elbow buzz.
         static Vector3 ComputeArmBendFromLookup(NativeArray<Vector3> lookup, Quaternion frameRot, Vector3 shoulder,
                                                 Vector3 handTarget, Quaternion handTargetRot, float armLength, bool isLeft, Vector3 playerUp,
-                                                out Vector3 preFlare, out float engage01, out float downProj)
+                                                float flareInwardGain, out Vector3 preFlare, out float engage01, out float downProj)
         {
             preFlare = isLeft ? Vector3.left : Vector3.right;
             engage01 = 0f; downProj = 1f;
@@ -445,10 +451,10 @@ namespace Basis.IK.Mocap
             Vector3 axis = shoulderToHand.sqrMagnitude > 1e-10f ? shoulderToHand.normalized : Vector3.down;
             downProj = Vector3.ProjectOnPlane(-playerUp, axis).magnitude;   // sin(angle of forearm off vertical)
             engage01 = BasisElbowFlareCore.RollEngagement01(handTargetRot, shoulderToHand, outward, playerUp,
-                                                            k_FlareInwardGain, k_FlareFullRollDeg);
+                                                            flareInwardGain, k_FlareFullRollDeg);
 
             return BasisElbowFlareCore.ApplyChickenWingFlare(worldBend, shoulderToHand, outward, playerUp, handTargetRot,
-                                                             k_FlareInwardGain, k_FlareFullRollDeg, k_FlareMaxDeg);
+                                                             flareInwardGain, k_FlareFullRollDeg, k_FlareMaxDeg);
         }
 
         static void SolveLeg(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion hipsRot,

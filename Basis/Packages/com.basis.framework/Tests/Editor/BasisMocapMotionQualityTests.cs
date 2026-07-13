@@ -124,13 +124,21 @@ namespace Basis.Tests.IK
             List<BasisMotionClip> clips = LoadCorpus();
 
             var report = new StringBuilder();
-            report.AppendLine("Elbow MOTION quality by hint source (the accuracy suite already covers POSITION).");
+            report.AppendLine("Elbow, by hint source. NATURALNESS and ACCURACY side by side -- because a change that");
+            report.AppendLine("buys smoothness by giving up accuracy is not a win, and this is the only place you can");
+            report.AppendLine("see both at once.");
             report.AppendLine();
-            report.AppendLine($"{"clip",-12} {"hint",-11} {"jerk x",7} {"jit+%L",7} {"shape",6} {"pops+",5} {"sparc",7}");
-            report.AppendLine(new string('-', 62));
+            report.AppendLine("  None          no hint at all -- the two-bone core's own fallback");
+            report.AppendLine("  Lookup        WHAT SHIPS: bend lookup + chicken-wing flare");
+            report.AppendLine("  LookupNoFlare the same lookup with the flare switched off -- isolates what it COSTS");
+            report.AppendLine("  TruthJoint    handed the real elbow (a tracker). The ceiling.");
+            report.AppendLine();
+            report.AppendLine($"{"clip",-12} {"hint",-14} {"jit+%L",7} {"pops+",6} {"jerk x",7} | {"err %arm",9} {"engage",8}");
+            report.AppendLine(new string('-', 64));
 
             var truthShape = new Dictionary<string, float>();
             var lookupShape = new Dictionary<string, float>();
+            var agg = new Dictionary<BasisMocapHintSource, (float jit, int pops, float err, float jerk, int n)>();
 
             foreach (BasisMotionClip clip in clips)
             {
@@ -138,24 +146,39 @@ namespace Basis.Tests.IK
                          {
                              BasisMocapHintSource.None,
                              BasisMocapHintSource.Lookup,
+                             BasisMocapHintSource.LookupNoFlare,
                              BasisMocapHintSource.TruthJoint,
                          })
                 {
                     BasisMocapMotionSummary s = BasisMocapMotionQuality.Run(clip, hint);
                     if (!s.Ok)
                     {
-                        report.AppendLine($"{clip.Name,-12} {hint,-11} ERROR: {s.Error}");
+                        report.AppendLine($"{clip.Name,-12} {hint,-14} ERROR: {s.Error}");
                         continue;
                     }
 
                     report.AppendLine(
-                        $"{clip.Name,-12} {hint,-11} {s.ElbowJerkRatio,7:F2} {s.ElbowJitterExcess * 100f,7:F3} " +
-                        $"{s.ElbowShape,6:F3} {s.ElbowPopExcess,5} {s.SolvedElbow.Sparc,7:F2}");
+                        $"{clip.Name,-12} {hint,-14} {s.ElbowJitterExcess * 100f,7:F3} {s.ElbowPopExcess,6} " +
+                        $"{s.ElbowJerkRatio,7:F2} | {s.ElbowErrFracArm * 100f,9:F2} {s.FlareEngageMean,8:F3}");
+
+                    agg.TryGetValue(hint, out var a);
+                    agg[hint] = (a.jit + s.ElbowJitterExcess, a.pops + s.ElbowPopExcess,
+                                 a.err + s.ElbowErrFracArm, a.jerk + s.ElbowJerkRatio, a.n + 1);
 
                     if (hint == BasisMocapHintSource.TruthJoint) truthShape[clip.Name] = s.ElbowShape;
                     if (hint == BasisMocapHintSource.Lookup) lookupShape[clip.Name] = s.ElbowShape;
                 }
                 report.AppendLine();
+            }
+
+            report.AppendLine(new string('=', 64));
+            report.AppendLine("MEAN ACROSS THE CORPUS -- what each hint source actually buys and costs");
+            report.AppendLine(new string('=', 64));
+            report.AppendLine($"{"hint",-16} {"jitter %L",10} {"pops",6} {"jerk x",8} | {"err %arm",9}");
+            foreach (KeyValuePair<BasisMocapHintSource, (float jit, int pops, float err, float jerk, int n)> kv in agg)
+            {
+                (float jit, int pops, float err, float jerk, int n) = kv.Value;
+                report.AppendLine($"{kv.Key,-16} {jit / n * 100f,10:F3} {pops,6} {jerk / n,8:F3} | {err / n * 100f,9:F2}");
             }
 
             Debug.Log(report.ToString());

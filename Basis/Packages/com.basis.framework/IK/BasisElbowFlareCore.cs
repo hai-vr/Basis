@@ -35,6 +35,15 @@ namespace UnityEngine.Animations.Rigging
         const float k_BasisFadeStart = 0.05f;
         const float k_BasisFadeFull = 0.20f;
 
+        // Confidence fade for the BEND's own stand-off from the limb axis -- the pole singularity. See ApplyFlare.
+        // Same units (a sine): no confidence within ~3 deg of the limb axis, full past ~11.5 deg.
+        const float k_BendProjFadeStart = 0.05f;
+        const float k_BendProjFadeFull = 0.20f;
+
+        // Degrees of roll over which the engagement fades out as it approaches the +-180 atan2 seam, so the two
+        // sides of the same hand pose meet at zero instead of stepping 1 -> 0. See RollEngagement01.
+        const float k_RollWrapFadeDeg = 40f;
+
         // Re-aims a no-tracker bend direction for the chicken-wing, given an explicit engagement in [0,1].
         // engage=0 returns bend unchanged. engage=1 lands the pole exactly at +maxFlareDeg of swivel (out to
         // the half-T-pose mark). Between, the pole is pushed toward the cap and clamped so it never exceeds it.
@@ -56,10 +65,21 @@ namespace UnityEngine.Animations.Rigging
             float cap = Mathf.Max(0f, maxFlareDeg);
 
             // Current pole's swivel in the (downPole=0 deg, outPole=+90 deg) plane: + out, - across body, +-180 up.
+            //
+            // THE THIRD COLLAPSE IN THIS FUNCTION, same family as the other two. `bendProj` is the bend direction
+            // projected off the limb axis, so it vanishes when the pole sits ON that axis -- the pole singularity.
+            // The old code hard-gated it at 1e-10 (magnitude 1e-5) and, on the far side of that cliff, substituted
+            // s0 = 0 exactly: a silent jump from a noisy angle to "the elbow hangs straight down". Fade instead.
+            // When the bend has no measurable stand-off from the limb axis there is no swivel to re-aim, so the
+            // honest answer is to hand back the natural pole and let the two-bone solver's own pole guards deal
+            // with the singularity -- which is precisely what r -> 0 does below.
             Vector3 bendProj = Vector3.ProjectOnPlane(bend, axis);
-            float s0 = bendProj.sqrMagnitude < 1e-10f
-                ? 0f
-                : Mathf.Atan2(Vector3.Dot(bendProj, outPole), Vector3.Dot(bendProj, downPole)) * Mathf.Rad2Deg;
+            float bendMag = bendProj.magnitude;   // bend is unit-length, so this is sin(angle off the limb axis)
+            r *= Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((bendMag - k_BendProjFadeStart) / (k_BendProjFadeFull - k_BendProjFadeStart)));
+            if (r <= 0f) return bend;
+
+            float s0 = Mathf.Atan2(Vector3.Dot(bendProj, outPole), Vector3.Dot(bendProj, downPole)) * Mathf.Rad2Deg;
 
             // Aim at +cap: a tucked elbow is pushed OUT toward the half-T-pose mark, a wider one pulled IN to it.
             float s = Mathf.Lerp(s0, cap, r);
@@ -118,10 +138,24 @@ namespace UnityEngine.Animations.Rigging
             float aDeg = Mathf.Atan2(Vector3.Dot(hUp, outPole), Vector3.Dot(hUp, -downPole)) * Mathf.Rad2Deg;
             float engage = Mathf.Clamp01((aDeg / Mathf.Max(1f, fullRollDeg)) * inwardGain);
 
+            // ⚠ THE WRAP SEAM. atan2 returns (-180, 180], and Clamp01 saturates this ramp at 1 all the way out to
+            // +180 while pinning the negative half at 0. So the two ends of the SAME angle -- +180 and -180, which
+            // are the same hand pose -- come out as engage = 1 and engage = 0. Roll a hand through that seam
+            // (turning your palm over: entirely ordinary while manipulating something) and the engagement STEPS
+            // from full to none in one frame, which pops the elbow. Not buzz -- a pop; a different signature and a
+            // different bug, hiding behind the same Clamp01.
+            //
+            // Fade the engagement out as the roll approaches the seam so both sides meet at zero and it is
+            // continuous across it. Only bites past 140 deg of roll -- twice the "fully engaged" angle, i.e. a
+            // hand rolled so far the chicken-wing reading has stopped meaning anything anyway.
+            float wrapFade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((180f - Mathf.Abs(aDeg)) / k_RollWrapFadeDeg));
+
             // How much to believe that angle at all. At proj = 0 the roll is undefined; at proj = 1 the hand's
             // up-axis is square to the forearm and the reading is exact.
-            float confidence = Mathf.Clamp01((proj - k_RollProjFadeStart) / (k_RollProjFadeFull - k_RollProjFadeStart));
-            return engage * confidence * basisConfidence;
+            float confidence = Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((proj - k_RollProjFadeStart) / (k_RollProjFadeFull - k_RollProjFadeStart)));
+
+            return engage * confidence * basisConfidence * wrapFade;
         }
 
         // Runtime convenience: derive engagement from the controller rotation, then flare.
@@ -187,8 +221,16 @@ namespace UnityEngine.Animations.Rigging
 
             // How much this basis is worth. Keyed on the WEAKER of the two projections, because the swivel is
             // only as well-defined as its worst reference axis.
+            //
+            // SMOOTHSTEP, not a raw Clamp01 ramp, and this is not cosmetic. A raw ramp has a DERIVATIVE KINK at
+            // each end of the window, and the forearm sweeps through this window every time you reach down --
+            // so the fade would modulate the bend direction with its own kinks and hand back a fresh noise
+            // source in place of the one it removed. Measured: the first cut of this fade (raw Clamp01) fixed
+            // the worst clips but made `waving` WORSE, 0.049 -> 0.178 %L. Smoothstep is C1 across the window,
+            // so the fade adds nothing of its own.
             float weakest = Mathf.Min(dpMag, opMag);
-            confidence = Mathf.Clamp01((weakest - k_BasisFadeStart) / (k_BasisFadeFull - k_BasisFadeStart));
+            confidence = Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((weakest - k_BasisFadeStart) / (k_BasisFadeFull - k_BasisFadeStart)));
             return true;
         }
     }

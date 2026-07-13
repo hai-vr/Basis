@@ -55,6 +55,15 @@ namespace Basis.IK.Motion
         /// swivel is measured from has collapsed, and everything built on it is noise.</summary>
         public float FlareEngageJitter, FlareDownProjP05, FlareDownProjMin;
 
+        /// <summary>MEAN engagement. The flare's own docs say it must be ~0 on normal reaches ("0 is an exact
+        /// no-op so normal reaches are untouched"). If this is not ~0 on a walk, it is firing when it should not.</summary>
+        public float FlareEngageMean;
+
+        /// <summary>Mean elbow POSITION error as a fraction of arm length. Carried here so naturalness and
+        /// accuracy can be read off the same row -- a change that buys smoothness by giving up accuracy is not
+        /// a win, and this is the only place both numbers appear together.</summary>
+        public float ElbowErrFracArm;
+
         public override string ToString() =>
             $"{Clip}/{Hint}: elbow jerk x{ElbowJerkRatio:F2} jitter+{ElbowJitterExcess * 100f:F2}%L " +
             $"shape {ElbowShape:F3} pops+{ElbowPopExcess} | knee jerk x{KneeJerkRatio:F2} " +
@@ -142,6 +151,7 @@ namespace Basis.IK.Motion
             var tracks = new BasisMocapAccuracy.BasisMocapTracks();
             BasisMocapAccuracySummary acc = BasisMocapAccuracy.Run(clip, hint, null, tracks);
             if (!acc.Ok) { s.Error = acc.Error; return s; }
+            s.ElbowErrFracArm = acc.ElbowMeanFracArm;
 
             float dt = tracks.Dt;
 
@@ -175,7 +185,7 @@ namespace Basis.IK.Motion
             s.FlareEngageJitter = float.NaN;
             s.FlareDownProjP05 = float.NaN;
             s.FlareDownProjMin = float.NaN;
-            if (hint == BasisMocapHintSource.Lookup && tracks.HintRaw != null)
+            if ((hint == BasisMocapHintSource.Lookup || hint == BasisMocapHintSource.LookupNoFlare) && tracks.HintRaw != null)
             {
                 BasisMotionQualitySummary raw = BasisMotionQuality.Analyze(tracks.HintRaw, tracks.ArmLen, dt, "hint.raw");
                 BasisMotionQualitySummary fla = BasisMotionQuality.Analyze(tracks.HintFlared, tracks.ArmLen, dt, "hint.flared");
@@ -188,6 +198,9 @@ namespace Basis.IK.Motion
                 var res = new float[eng.Length];
                 for (int i = 0; i < eng.Length; i++) res[i] = eng[i] - lo[i];
                 s.FlareEngageJitter = BasisMotionSignal.Rms(res);
+
+                double sum = 0; foreach (float e in eng) sum += e;
+                s.FlareEngageMean = (float)(sum / System.Math.Max(1, eng.Length));
 
                 s.FlareDownProjP05 = BasisMotionSignal.Quantile(tracks.FlareDownProj, 0.05f);
                 s.FlareDownProjMin = BasisMotionSignal.Quantile(tracks.FlareDownProj, 0f);
