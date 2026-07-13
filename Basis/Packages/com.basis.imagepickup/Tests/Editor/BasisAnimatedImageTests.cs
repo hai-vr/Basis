@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Jobs;
@@ -1091,6 +1092,122 @@ namespace Basis.ImagePickup.Tests
         }
 
         [Test]
+        public void DecodedPixelBudgetKeepsClosestPayloadBackedAnimation()
+        {
+            Camera previousCamera = BasisLocalCameraDriver.CameraInstance;
+            BasisAnimatedImageScheduler previousScheduler = BasisAnimatedImageScheduler.Instance;
+            var cameraHost = new GameObject("BasisAnimatedImageBudgetCamera");
+            var farHost = new GameObject("BasisAnimatedImageBudgetFar");
+            var nearHost = new GameObject("BasisAnimatedImageBudgetNear");
+            BasisAnimatedImageData farData = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Red }
+                )
+            );
+            BasisAnimatedImageData nearData = Create(
+                new BasisAnimatedImageFrameSource(
+                    new RectInt(0, 0, 1, 1),
+                    50000,
+                    BasisAnimationBlend.Source,
+                    BasisAnimationDisposal.None,
+                    new[] { Blue }
+                )
+            );
+            BasisNativeAnimationPayload farPayload = null;
+            BasisNativeAnimationPayload nearPayload = null;
+            BasisAnimatedImagePlayer farPlayer = null;
+            BasisAnimatedImagePlayer nearPlayer = null;
+            BasisAnimatedImageScheduler scheduler = null;
+            bool reloadSlotAcquired = false;
+            long farNativeBytes = farData.NativeByteCount;
+            try
+            {
+                BasisLocalCameraDriver.CameraInstance = cameraHost.AddComponent<Camera>();
+                cameraHost.transform.position = Vector3.zero;
+                farHost.transform.position = new Vector3(0f, 0f, 10f);
+                nearHost.transform.position = new Vector3(0f, 0f, 1f);
+
+                using (var farEncode = new BasisBurstAnimationEncodeRequest(farData))
+                {
+                    BasisBurstAnimationEncodeResult encoded = farEncode.Complete();
+                    Assert.That(encoded.Ok, Is.True, encoded.Error);
+                    farPayload = encoded.TakePayload();
+                }
+                using (var nearEncode = new BasisBurstAnimationEncodeRequest(nearData))
+                {
+                    BasisBurstAnimationEncodeResult encoded = nearEncode.Complete();
+                    Assert.That(encoded.Ok, Is.True, encoded.Error);
+                    nearPayload = encoded.TakePayload();
+                }
+
+                var farPickup = farHost.AddComponent<BasisImagePickupObject>();
+                var nearPickup = nearHost.AddComponent<BasisImagePickupObject>();
+                farPickup.OwnerId = 77;
+                nearPickup.OwnerId = 77;
+                farPlayer = farHost.AddComponent<BasisAnimatedImagePlayer>();
+                nearPlayer = nearHost.AddComponent<BasisAnimatedImagePlayer>();
+                Assert.That(farPlayer.Initialize(farData, farPickup, 1, false, farPayload), Is.True);
+                farData = null;
+                Assert.That(nearPlayer.Initialize(nearData, nearPickup, 1, false, nearPayload), Is.True);
+                nearData = null;
+
+                scheduler = BasisAnimatedImageScheduler.Instance;
+                Assert.That(scheduler, Is.Not.Null);
+                scheduler.EnforceDecodedPixelBudget(nearPlayer, nearPlayer.DecodedFramePixels);
+                Assert.That(farPlayer.Data, Is.Null);
+                Assert.That(nearPlayer.Data, Is.Not.Null);
+
+                farHost.transform.position = new Vector3(0f, 0f, 0.5f);
+                nearHost.transform.position = new Vector3(0f, 0f, 10f);
+                reloadSlotAcquired = scheduler.TryAcquireReloadDecodeSlot(
+                    farPlayer,
+                    farNativeBytes,
+                    farPlayer.DecodedFramePixels
+                );
+                Assert.That(reloadSlotAcquired, Is.False);
+                Assert.That(nearPlayer.Data, Is.Not.Null);
+
+                scheduler.ApplyPendingDecodedReleases();
+                Assert.That(nearPlayer.Data, Is.Null);
+                reloadSlotAcquired = scheduler.TryAcquireReloadDecodeSlot(
+                    farPlayer,
+                    farNativeBytes,
+                    farPlayer.DecodedFramePixels
+                );
+                Assert.That(reloadSlotAcquired, Is.True);
+                scheduler.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
+                reloadSlotAcquired = false;
+            }
+            finally
+            {
+                if (reloadSlotAcquired)
+                    scheduler?.ReleaseReloadDecodeSlot(farPlayer, farNativeBytes);
+                BasisLocalCameraDriver.CameraInstance = previousCamera;
+                farPlayer?.ClearReloadPayload();
+                nearPlayer?.ClearReloadPayload();
+                Object.DestroyImmediate(farHost);
+                Object.DestroyImmediate(nearHost);
+                Object.DestroyImmediate(cameraHost);
+                farPayload?.Dispose();
+                nearPayload?.Dispose();
+                farData?.Dispose();
+                nearData?.Dispose();
+                BasisAnimatedImageScheduler currentScheduler = BasisAnimatedImageScheduler.Instance;
+                if (previousScheduler == null && currentScheduler != null)
+                {
+                    if (currentScheduler.gameObject.name == "BasisAnimatedImageScheduler")
+                        Object.DestroyImmediate(currentScheduler.gameObject);
+                    else
+                        Object.DestroyImmediate(currentScheduler);
+                }
+            }
+        }
+
+        [Test]
         public void AnimationNativeMemoryBudgetHonorsExactBoundary()
         {
             Assert.That(BasisAnimatedImageData.FitsMemoryBudget(100, 50, 25, 175), Is.True);
@@ -1305,6 +1422,77 @@ namespace Basis.ImagePickup.Tests
                 Object.DestroyImmediate(pickupHost);
                 Assert.That(images.Contains(id), Is.False);
                 Assert.That(ownedImages.Contains(id), Is.False);
+                Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.EqualTo(payloadBytesBefore));
+            }
+            finally
+            {
+                payload?.Dispose();
+                if (pickupHost != null)
+                    Object.DestroyImmediate(pickupHost);
+                if (managerHost != null)
+                    Object.DestroyImmediate(managerHost);
+                if (BasisImagePickupManager.Instance == manager)
+                    BasisImagePickupManager.Instance = null;
+            }
+        }
+
+        [Test]
+        public void DestroyedRemotePickupReleasesRetainedAnimationPayload()
+        {
+            long payloadBytesBefore = BasisNativeAnimationPayload.TotalAllocatedBytes;
+            var managerHost = new GameObject("BasisRemoteImagePickupManagerDisposeTest");
+            var pickupHost = new GameObject("BasisRemoteImagePickupDisposeTest");
+            BasisImagePickupManager manager = null;
+            BasisNativeAnimationPayload payload = null;
+            try
+            {
+                Assert.That(BasisImagePickupManager.Instance, Is.Null);
+                using BasisAnimatedImageData data = Create(
+                    new BasisAnimatedImageFrameSource(
+                        new RectInt(0, 0, 1, 1),
+                        50000,
+                        BasisAnimationBlend.Source,
+                        BasisAnimationDisposal.None,
+                        new[] { Red }
+                    )
+                );
+                using var encode = new BasisBurstAnimationEncodeRequest(data);
+                BasisBurstAnimationEncodeResult encoded = encode.Complete();
+                Assert.That(encoded.Ok, Is.True, encoded.Error);
+                payload = encoded.TakePayload();
+                Assert.That(payload, Is.Not.Null);
+
+                manager = managerHost.AddComponent<BasisImagePickupManager>();
+                var pickup = pickupHost.AddComponent<BasisImagePickupObject>();
+                System.Guid id = System.Guid.NewGuid();
+                pickup.ImageId = id;
+
+                FieldInfo managerField = typeof(BasisImagePickupObject).GetField(
+                    "_manager",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(managerField, Is.Not.Null);
+                managerField.SetValue(pickup, manager);
+
+                FieldInfo imagesField = typeof(BasisImagePickupManager).GetField(
+                    "_images",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(imagesField, Is.Not.Null);
+                var images = (IDictionary)imagesField.GetValue(manager);
+                images.Add(id, pickup);
+
+                FieldInfo payloadsField = typeof(BasisImagePickupManager).GetField(
+                    "_remoteAnimationPayloads",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                Assert.That(payloadsField, Is.Not.Null);
+                var payloads = (IDictionary)payloadsField.GetValue(manager);
+                payloads.Add(id, payload);
+
+                Object.DestroyImmediate(pickupHost);
+                Assert.That(images.Contains(id), Is.False);
+                Assert.That(payloads.Contains(id), Is.False);
                 Assert.That(BasisNativeAnimationPayload.TotalAllocatedBytes, Is.EqualTo(payloadBytesBefore));
             }
             finally

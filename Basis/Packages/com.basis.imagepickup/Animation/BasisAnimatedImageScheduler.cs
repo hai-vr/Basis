@@ -34,7 +34,9 @@ namespace Basis.ImagePickup
 
         private readonly List<BasisAnimatedImagePlayer> _players = new(64);
         private readonly List<BasisAnimatedImagePlayer> _pendingRemoval = new(8);
+        private readonly List<BasisAnimatedImagePlayer> _pendingDecodedReleases = new(4);
         private readonly List<BasisAnimatedImagePlayer> _cpuFrontFacingPlayers = new(64);
+        private readonly List<BasisAnimatedImagePlayer> _reloadDecodePlayers = new(2);
         private readonly List<Camera> _visibilityCameras = new(8);
         private readonly List<Vector3> _visibilityCameraPositions = new(8);
         private readonly List<Vector3> _visibilityCameraForwards = new(8);
@@ -133,25 +135,215 @@ namespace Basis.ImagePickup
                 RemovePlayerAt(playerIndex);
         }
 
-        internal bool TryAcquireReloadDecodeSlot(long nativeBytes)
+        internal bool TryAcquireReloadDecodeSlot(BasisAnimatedImagePlayer player, long nativeBytes)
+        {
+            return TryAcquireReloadDecodeSlot(
+                player,
+                nativeBytes,
+                BasisImagePickupSettings.MaxRemoteAnimationDecodedFramePixelsPerSender
+            );
+        }
+
+        internal bool TryAcquireReloadDecodeSlot(
+            BasisAnimatedImagePlayer player,
+            long nativeBytes,
+            long decodedPixelLimit
+        )
         {
             if (
-                _activeReloadDecodes
-                    >= BasisImagePickupSettings.MaxConcurrentAnimationDecodeJobs
+                player == null
+                || _activeReloadDecodes >= BasisImagePickupSettings.MaxConcurrentAnimationDecodeJobs
+                || _reloadDecodePlayers.Contains(player)
+                || _pendingDecodedReleases.Count > 0
+                || !TryMakeRoomForDecodedPixels(player, decodedPixelLimit)
                 || !BasisAnimatedImageData.TryReserveRestoreBytes(nativeBytes)
             )
             {
                 return false;
             }
             _activeReloadDecodes++;
+            _reloadDecodePlayers.Add(player);
             return true;
         }
 
-        internal void ReleaseReloadDecodeSlot(long nativeBytes)
+        internal void ReleaseReloadDecodeSlot(BasisAnimatedImagePlayer player, long nativeBytes)
         {
-            if (_activeReloadDecodes > 0)
-                _activeReloadDecodes--;
+            int playerIndex = _reloadDecodePlayers.IndexOf(player);
+            if (playerIndex >= 0)
+            {
+                _reloadDecodePlayers.RemoveAt(playerIndex);
+                if (_activeReloadDecodes > 0)
+                    _activeReloadDecodes--;
+            }
             BasisAnimatedImageData.ReleaseRestoreBytes(nativeBytes);
+        }
+
+        internal void EnforceDecodedPixelBudget(BasisAnimatedImagePlayer candidate)
+        {
+            EnforceDecodedPixelBudget(
+                candidate,
+                BasisImagePickupSettings.MaxRemoteAnimationDecodedFramePixelsPerSender
+            );
+        }
+
+        internal void EnforceDecodedPixelBudget(BasisAnimatedImagePlayer candidate, long decodedPixelLimit)
+        {
+            if (candidate == null || !candidate.HasDecodedData)
+                return;
+            TrimDecodedPixelBudget(candidate, false, false, decodedPixelLimit);
+        }
+
+        private bool TryMakeRoomForDecodedPixels(
+            BasisAnimatedImagePlayer candidate,
+            long decodedPixelLimit
+        )
+        {
+            return TrimDecodedPixelBudget(candidate, true, true, decodedPixelLimit);
+        }
+
+        private bool TrimDecodedPixelBudget(
+            BasisAnimatedImagePlayer candidate,
+            bool candidateNeedsDecode,
+            bool deferReleases,
+            long decodedPixelLimit
+        )
+        {
+            long limit = decodedPixelLimit;
+            long candidatePixels = candidate.DecodedFramePixels;
+            if (limit <= 0)
+                return false;
+            if (candidatePixels <= 0 || candidatePixels > limit)
+                return false;
+
+            ushort ownerId = candidate.OwnerId;
+            long decodedPixels = candidateNeedsDecode ? candidatePixels : 0;
+            int playerCount = _players.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _players[i];
+                if (player == null || player.OwnerId != ownerId || !player.HasDecodedData)
+                    continue;
+                decodedPixels += player.DecodedFramePixels;
+            }
+
+            int reloadDecodeCount = _reloadDecodePlayers.Count;
+            for (int i = 0; i < reloadDecodeCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _reloadDecodePlayers[i];
+                if (
+                    player == null
+                    || ReferenceEquals(player, candidate)
+                    || player.OwnerId != ownerId
+                    || player.HasDecodedData
+                )
+                {
+                    continue;
+                }
+                decodedPixels += player.DecodedFramePixels;
+            }
+
+            Camera localCamera = BasisLocalCameraDriver.CameraInstance;
+            Vector3 cameraPosition = localCamera != null ? localCamera.transform.position : Vector3.zero;
+            float candidateDistanceSquared =
+                localCamera != null ? candidate.GetDistanceSquared(cameraPosition) : float.PositiveInfinity;
+
+            if (candidateNeedsDecode && decodedPixels > limit)
+            {
+                long reclaimablePixels = 0;
+                playerCount = _players.Count;
+                for (int i = 0; i < playerCount; i++)
+                {
+                    BasisAnimatedImagePlayer player = _players[i];
+                    if (
+                        player == null
+                        || player.OwnerId != ownerId
+                        || !player.HasDecodedData
+                        || !player.CanReleaseDecodedData
+                    )
+                    {
+                        continue;
+                    }
+
+                    float distanceSquared =
+                        localCamera != null
+                            ? player.GetDistanceSquared(cameraPosition)
+                            : 0f;
+                    if (distanceSquared <= candidateDistanceSquared)
+                        continue;
+                    reclaimablePixels += player.DecodedFramePixels;
+                }
+
+                if (decodedPixels - reclaimablePixels > limit)
+                    return false;
+            }
+
+            bool releaseDeferred = false;
+            while (decodedPixels > limit)
+            {
+                BasisAnimatedImagePlayer farthest = null;
+                float farthestDistanceSquared = -1f;
+                playerCount = _players.Count;
+                for (int i = 0; i < playerCount; i++)
+                {
+                    BasisAnimatedImagePlayer player = _players[i];
+                    if (
+                        player == null
+                        || player.OwnerId != ownerId
+                        || !player.HasDecodedData
+                        || !player.CanReleaseDecodedData
+                        || (deferReleases && _pendingDecodedReleases.Contains(player))
+                    )
+                    {
+                        continue;
+                    }
+
+                    float distanceSquared;
+                    if (localCamera != null)
+                        distanceSquared = player.GetDistanceSquared(cameraPosition);
+                    else
+                        distanceSquared = ReferenceEquals(player, candidate) ? float.PositiveInfinity : 0f;
+                    if (distanceSquared <= farthestDistanceSquared)
+                        continue;
+                    farthest = player;
+                    farthestDistanceSquared = distanceSquared;
+                }
+
+                if (
+                    farthest == null
+                    || (
+                        candidateNeedsDecode
+                        && farthestDistanceSquared <= candidateDistanceSquared
+                    )
+                )
+                {
+                    return false;
+                }
+
+                decodedPixels -= farthest.DecodedFramePixels;
+                if (deferReleases)
+                {
+                    _pendingDecodedReleases.Add(farthest);
+                    releaseDeferred = true;
+                }
+                else
+                {
+                    farthest.ReleaseDecodedDataForMemoryPressure();
+                }
+            }
+
+            return !releaseDeferred;
+        }
+
+        internal void ApplyPendingDecodedReleases()
+        {
+            int pendingReleaseCount = _pendingDecodedReleases.Count;
+            for (int i = 0; i < pendingReleaseCount; i++)
+            {
+                BasisAnimatedImagePlayer player = _pendingDecodedReleases[i];
+                if (player != null)
+                    player.ReleaseDecodedDataForMemoryPressure();
+            }
+            _pendingDecodedReleases.Clear();
         }
 
         private void Simulate()
@@ -169,7 +361,10 @@ namespace Basis.ImagePickup
         private void SimulateBody()
         {
             if (_players.Count == 0)
+            {
+                _pendingDecodedReleases.Clear();
                 return;
+            }
 
             using (ScheduleMarker.Auto())
             {
@@ -182,8 +377,9 @@ namespace Basis.ImagePickup
                 if (_players.Count == 0)
                     return;
 
-                EnforceResidentNativeBudget();
                 _commands.Clear();
+                ApplyPendingDecodedReleases();
+                EnforceResidentNativeBudget();
                 _pendingRemoval.Clear();
 
                 bool useDepthBufferOcclusion =
@@ -751,7 +947,9 @@ namespace Basis.ImagePickup
             _depthVisibility = null;
             _players.Clear();
             _pendingRemoval.Clear();
+            _pendingDecodedReleases.Clear();
             _cpuFrontFacingPlayers.Clear();
+            _reloadDecodePlayers.Clear();
             _visibilityCameras.Clear();
             _visibilityCameraPositions.Clear();
             _visibilityCameraForwards.Clear();

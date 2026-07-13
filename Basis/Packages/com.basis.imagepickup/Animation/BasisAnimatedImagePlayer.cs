@@ -8,7 +8,7 @@ namespace Basis.ImagePickup
     /// <summary>
     /// Per-pickup animation state. Playback position is derived from an absolute synchronized
     /// epoch; no frame-by-frame network messages or accumulated delta time are required.
-    /// Animation compositor resources are created lazily. Reloadable local animations also release
+    /// Animation compositor resources are created lazily. Payload-backed animations also release
     /// decoded frame data after remaining outside or occluded from gameplay cameras for a grace period.
     /// </summary>
     public sealed class BasisAnimatedImagePlayer : MonoBehaviour
@@ -49,7 +49,9 @@ namespace Basis.ImagePickup
         public bool IsInitialized => _initialized;
         public bool IsHidden => _pickup == null || _pickup.IsHidden;
         internal BasisImagePickupObject Pickup => _pickup;
+        internal ushort OwnerId => _pickup != null ? _pickup.OwnerId : (ushort)0;
         internal bool IsFaceVisible => _faceVisible;
+        internal bool HasDecodedData => _data != null;
         public long PlaybackEpochUtcTicks => _playbackEpochUtcTicks;
         public BasisAnimatedImageData Data => _data;
         internal long DecodedFramePixels => _decodedFramePixels;
@@ -99,6 +101,7 @@ namespace Basis.ImagePickup
             // images that spawn behind the player or outside every rendering camera frustum.
             _initialized = true;
             _scheduler.Register(this);
+            _scheduler.EnforceDecodedPixelBudget(this);
             return true;
         }
 
@@ -268,7 +271,7 @@ namespace Basis.ImagePickup
 
             if (_reloadRequest != null)
                 return CompleteReload(true);
-            if (!_scheduler.TryAcquireReloadDecodeSlot(_reloadNativeByteEstimate))
+            if (!_scheduler.TryAcquireReloadDecodeSlot(this, _reloadNativeByteEstimate))
                 return false;
 
             _reloadDecodeSlotHeld = true;
@@ -369,9 +372,14 @@ namespace Basis.ImagePickup
             long reservedBytes = _reservedReloadNativeBytes;
             _reservedReloadNativeBytes = 0;
             if (_scheduler != null)
-                _scheduler.ReleaseReloadDecodeSlot(reservedBytes);
+                _scheduler.ReleaseReloadDecodeSlot(this, reservedBytes);
             else
                 BasisAnimatedImageData.ReleaseRestoreBytes(reservedBytes);
+        }
+
+        internal float GetDistanceSquared(Vector3 position)
+        {
+            return (transform.position - position).sqrMagnitude;
         }
 
         /// <summary>

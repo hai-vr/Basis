@@ -103,7 +103,7 @@ namespace Basis.ImagePickup
         {
             public ushort Sender;
             public Guid Id;
-            public NativeArray<byte> Buffer;
+            public BasisNativeAnimationPayload Payload;
             public long ReservedBytes;
             public int PayloadBytes;
             public int DecodedBytes;
@@ -114,6 +114,7 @@ namespace Basis.ImagePickup
         {
             public ushort Sender;
             public Guid Id;
+            public BasisNativeAnimationPayload Payload;
             public long ReservedBytes;
             public int PayloadBytes;
             public int DecodedBytes;
@@ -155,6 +156,7 @@ namespace Basis.ImagePickup
 
         private readonly Dictionary<Guid, BasisImagePickupObject> _images = new();
         private readonly Dictionary<Guid, OwnedImage> _owned = new();
+        private readonly Dictionary<Guid, BasisNativeAnimationPayload> _remoteAnimationPayloads = new();
         private readonly Dictionary<Guid, InboundTransfer> _inbound = new();
         private readonly Dictionary<Guid, InboundAnimationTransfer> _inboundAnimations =
             new();
@@ -222,8 +224,7 @@ namespace Basis.ImagePickup
             for (int i = 0; i < queuedInboundDecodeCount; i++)
             {
                 QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[i];
-                if (queued.Buffer.IsCreated)
-                    queued.Buffer.Dispose();
+                queued.Payload?.Dispose();
                 ReleaseInboundTransferBytes(queued.ReservedBytes);
             }
             _queuedInboundAnimationDecodes.Clear();
@@ -235,6 +236,7 @@ namespace Basis.ImagePickup
                     i
                 ];
                 pending.Job?.Dispose();
+                pending.Payload?.Dispose();
                 ReleaseInboundTransferBytes(pending.ReservedBytes);
             }
             _pendingInboundAnimationDecodes.Clear();
@@ -260,6 +262,9 @@ namespace Basis.ImagePickup
                 owned.AnimationPayload?.Dispose();
             }
             _owned.Clear();
+            foreach (BasisNativeAnimationPayload payload in _remoteAnimationPayloads.Values)
+                payload?.Dispose();
+            _remoteAnimationPayloads.Clear();
             _reservedInboundTransferBytes = 0;
 
             base.OnDestroy();
@@ -634,7 +639,7 @@ namespace Basis.ImagePickup
                         LogTag
                     );
                 }
-                else if (!CanAttachLocalAnimation(candidateAnimation, out string animationBudgetReason))
+                else if (!CanAttachLocalAnimation(candidateAnimation, true, out string animationBudgetReason))
                 {
                     playbackEpochUtcTicks = 0;
                     BasisDebug.LogWarning(
@@ -648,10 +653,15 @@ namespace Basis.ImagePickup
                     animationPayload = candidatePayload;
                     candidateAnimation = null;
                     candidatePayload = null;
-                    BasisDebug.Log(
-                        $"Image pickup: GIF animation attached locally; Burst packet batches will use the compact persistent native payload ({frameCount} frames, {animationPayload.Length} LZ4 bytes).",
-                        LogTag
-                    );
+                    bool decodedDataDeferred = pickup.AnimatedImagePlayer?.Data == null;
+                    string attachmentMessage = decodedDataDeferred
+                        ? "Image pickup: GIF animation retained as a compact payload and deferred to "
+                            + $"the closest-animation decoded-data budget ({frameCount} frames, "
+                            + $"{animationPayload.Length} LZ4 bytes)."
+                        : "Image pickup: GIF animation attached locally; Burst packet batches will use "
+                            + $"the compact persistent native payload ({frameCount} frames, "
+                            + $"{animationPayload.Length} LZ4 bytes).";
+                    BasisDebug.Log(attachmentMessage, LogTag);
                 }
                 else
                 {
@@ -741,8 +751,8 @@ namespace Basis.ImagePickup
 
             string reason;
             bool withinBudget = _owned.ContainsKey(id)
-                ? CanAttachLocalAnimation(data, out reason)
-                : CanAttachRemoteAnimation(pickup.OwnerId, data, out reason);
+                ? CanAttachLocalAnimation(data, false, out reason)
+                : CanAttachRemoteAnimation(pickup.OwnerId, data, false, out reason);
             if (!withinBudget)
             {
                 BasisDebug.LogWarning($"Image pickup animation could not be attached: {reason}.", LogTag);
@@ -915,8 +925,7 @@ namespace Basis.ImagePickup
                 QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[i];
                 if (queued.Sender != left)
                     continue;
-                if (queued.Buffer.IsCreated)
-                    queued.Buffer.Dispose();
+                queued.Payload?.Dispose();
                 ReleaseInboundTransferBytes(queued.ReservedBytes);
                 queued.ReservedBytes = 0;
                 _animationAttempted.Remove(queued.Id);
@@ -932,6 +941,7 @@ namespace Basis.ImagePickup
                 if (pending.Sender != left)
                     continue;
                 pending.Job?.Dispose();
+                pending.Payload?.Dispose();
                 ReleaseInboundTransferBytes(pending.ReservedBytes);
                 pending.ReservedBytes = 0;
                 _animationAttempted.Remove(pending.Id);
@@ -1312,24 +1322,46 @@ namespace Basis.ImagePickup
             }
 
             int payloadBytes = transfer.Buffer.Length;
-            var queued = new QueuedInboundAnimationDecode
+            if (!BasisNativeAnimationPayload.TryReserveBytes(payloadBytes, out string payloadError))
             {
-                Sender = transfer.Sender,
-                Id = transfer.Id,
-                Buffer = transfer.Buffer,
-                ReservedBytes = transfer.ReservedBytes,
-                PayloadBytes = payloadBytes,
-                DecodedBytes = decodedBytes,
-                PlaybackEpochUtcTicks = transfer.PlaybackEpochUtcTicks,
-            };
+                transfer.Buffer.Dispose();
+                ReleaseInboundTransferBytes(transfer.ReservedBytes);
+                transfer.ReservedBytes = 0;
+                _animationAttempted.Remove(transfer.Id);
+                BasisDebug.LogWarning(
+                    $"Image pickup animation from {transfer.Sender} dropped: {payloadError}",
+                    LogTag
+                );
+                return;
+            }
+
+            BasisNativeAnimationPayload payload = null;
+            bool payloadReservationHeld = true;
             try
             {
-                _queuedInboundAnimationDecodes.Add(queued);
+                payload = new BasisNativeAnimationPayload(transfer.Buffer, payloadBytes, true);
+                payloadReservationHeld = false;
                 transfer.Buffer = default;
+                _queuedInboundAnimationDecodes.Add(
+                    new QueuedInboundAnimationDecode
+                    {
+                        Sender = transfer.Sender,
+                        Id = transfer.Id,
+                        Payload = payload,
+                        ReservedBytes = transfer.ReservedBytes,
+                        PayloadBytes = payloadBytes,
+                        DecodedBytes = decodedBytes,
+                        PlaybackEpochUtcTicks = transfer.PlaybackEpochUtcTicks,
+                    }
+                );
+                payload = null;
                 transfer.ReservedBytes = 0;
             }
             catch (Exception exception)
             {
+                payload?.Dispose();
+                if (payloadReservationHeld)
+                    BasisNativeAnimationPayload.ReleaseReservation(payloadBytes);
                 if (transfer.Buffer.IsCreated)
                     transfer.Buffer.Dispose();
                 ReleaseInboundTransferBytes(transfer.ReservedBytes);
@@ -1383,13 +1415,17 @@ namespace Basis.ImagePickup
                 BasisBurstAnimationDecodeRequest job = null;
                 try
                 {
-                    job = new BasisBurstAnimationDecodeRequest(queued.Buffer, queued.PayloadBytes, true);
-                    queued.Buffer = default;
+                    job = new BasisBurstAnimationDecodeRequest(
+                        queued.Payload.Bytes,
+                        queued.Payload.Length,
+                        false
+                    );
                     _pendingInboundAnimationDecodes.Add(
                         new PendingInboundAnimationDecode
                         {
                             Sender = queued.Sender,
                             Id = queued.Id,
+                            Payload = queued.Payload,
                             ReservedBytes = queued.ReservedBytes,
                             PayloadBytes = queued.PayloadBytes,
                             DecodedBytes = queued.DecodedBytes,
@@ -1397,6 +1433,7 @@ namespace Basis.ImagePickup
                             Job = job,
                         }
                     );
+                    queued.Payload = null;
                     job = null;
                 }
                 catch (BasisAnimationMemoryBudgetException)
@@ -1408,8 +1445,7 @@ namespace Basis.ImagePickup
                 catch (Exception exception)
                 {
                     job?.Dispose();
-                    if (queued.Buffer.IsCreated)
-                        queued.Buffer.Dispose();
+                    queued.Payload?.Dispose();
                     ReleaseInboundTransferBytes(queued.ReservedBytes);
                     queued.ReservedBytes = 0;
                     _animationAttempted.Remove(queued.Id);
@@ -1490,8 +1526,7 @@ namespace Basis.ImagePickup
         {
             QueuedInboundAnimationDecode queued = _queuedInboundAnimationDecodes[index];
             _queuedInboundAnimationDecodes.RemoveAt(index);
-            if (queued.Buffer.IsCreated)
-                queued.Buffer.Dispose();
+            queued.Payload?.Dispose();
             ReleaseInboundTransferBytes(queued.ReservedBytes);
             queued.ReservedBytes = 0;
             _animationAttempted.Remove(queued.Id);
@@ -1536,7 +1571,8 @@ namespace Basis.ImagePickup
                     }
 
                     BasisAnimatedImageData animation = workerResult.Animation;
-                    if (!CanAttachRemoteAnimation(pending.Sender, animation, out string budgetReason))
+                    int frameCount = animation.FrameCount;
+                    if (!CanAttachRemoteAnimation(pending.Sender, animation, true, out string budgetReason))
                     {
                         BasisDebug.LogWarning(
                             $"Image pickup animation from {pending.Sender} dropped: "
@@ -1546,30 +1582,52 @@ namespace Basis.ImagePickup
                         continue;
                     }
 
-                    if (!pickup.TrySetAnimation(animation, pending.PlaybackEpochUtcTicks))
+                    _remoteAnimationPayloads.Add(pending.Id, pending.Payload);
+                    try
                     {
-                        BasisDebug.LogWarning(
-                            $"Image pickup animation from {pending.Sender} could not be "
-                                + "attached to its poster.",
-                            LogTag
-                        );
-                        continue;
+                        if (
+                            !pickup.TrySetAnimation(
+                                animation,
+                                pending.PlaybackEpochUtcTicks,
+                                pending.Payload
+                            )
+                        )
+                        {
+                            _remoteAnimationPayloads.Remove(pending.Id);
+                            BasisDebug.LogWarning(
+                                $"Image pickup animation from {pending.Sender} could not be "
+                                    + "attached to its poster.",
+                                LogTag
+                            );
+                            continue;
+                        }
+                    }
+                    catch
+                    {
+                        _remoteAnimationPayloads.Remove(pending.Id);
+                        throw;
                     }
 
+                    pending.Payload = null;
                     workerResult.TakeAnimation();
                     double workerMilliseconds =
                         workerResult.WorkerElapsedTicks * 1000d / Stopwatch.Frequency;
-                    BasisDebug.Log(
-                        $"Image pickup animation replicated from {pending.Sender} "
-                            + $"({animation.FrameCount} frames, {pending.PayloadBytes} bytes, "
-                            + $"decoded by Burst in {workerMilliseconds:0.###} ms).",
-                        LogTag
-                    );
+                    bool decodedDataDeferred = pickup.AnimatedImagePlayer?.Data == null;
+                    string replicationMessage = decodedDataDeferred
+                        ? $"Image pickup animation from {pending.Sender} retained as a compact payload "
+                            + "and deferred to the closest-animation decoded-data budget "
+                            + $"({frameCount} frames, {pending.PayloadBytes} bytes, decoded by "
+                            + $"Burst in {workerMilliseconds:0.###} ms)."
+                        : $"Image pickup animation replicated from {pending.Sender} "
+                            + $"({frameCount} frames, {pending.PayloadBytes} bytes, decoded by "
+                            + $"Burst in {workerMilliseconds:0.###} ms).";
+                    BasisDebug.Log(replicationMessage, LogTag);
                 }
                 finally
                 {
                     workerResult?.TakeAnimation()?.Dispose();
                     pending.Job.Dispose();
+                    pending.Payload?.Dispose();
                     ReleaseInboundTransferBytes(pending.ReservedBytes);
                     pending.ReservedBytes = 0;
                 }
@@ -1863,6 +1921,19 @@ namespace Basis.ImagePickup
 
             int activeTransfers = 0;
             long activeTransferBytes = totalBytes;
+            foreach (KeyValuePair<Guid, BasisNativeAnimationPayload> entry in _remoteAnimationPayloads)
+            {
+                if (
+                    entry.Value == null
+                    || !_images.TryGetValue(entry.Key, out BasisImagePickupObject retainedPickup)
+                    || retainedPickup == null
+                    || retainedPickup.OwnerId != sender
+                )
+                {
+                    continue;
+                }
+                activeTransferBytes += entry.Value.Length;
+            }
             foreach (InboundAnimationTransfer transfer in _inboundAnimations.Values)
             {
                 if (transfer.Sender != sender)
@@ -1893,65 +1964,80 @@ namespace Basis.ImagePickup
             }
             if (activeTransferBytes > BasisImagePickupSettings.MaxInboundAnimationNetworkBytesPerSender)
             {
-                reason = "aggregate animation transfer budget";
+                reason = "aggregate animation payload budget";
                 return false;
             }
 
             return true;
         }
 
-        private bool CanAttachLocalAnimation(BasisAnimatedImageData candidate, out string reason)
+        private bool CanAttachLocalAnimation(
+            BasisAnimatedImageData candidate,
+            bool reloadable,
+            out string reason
+        )
         {
             if (
-                BasisAnimatedImageData.TotalResidentNativeBytes
-                > BasisImagePickupSettings.MaxResidentAnimationNativeBytes
+                !reloadable
+                && BasisAnimatedImageData.TotalResidentNativeBytes
+                    > BasisImagePickupSettings.MaxResidentAnimationNativeBytes
             )
             {
                 reason = "global resident animation memory budget exceeded";
                 return false;
             }
 
-            long decodedFramePixels = candidate.DecodedFramePixels;
+            long decodedFramePixels = reloadable ? 0 : candidate.DecodedFramePixels;
             long canvasPixels = (long)candidate.CanvasWidth * candidate.CanvasHeight;
             foreach (OwnedImage owned in _owned.Values)
             {
                 BasisAnimatedImagePlayer existing = owned?.Object?.AnimatedImagePlayer;
                 if (existing == null)
                     continue;
-                decodedFramePixels += existing.DecodedFramePixels;
+                if (!reloadable)
+                    decodedFramePixels += existing.DecodedFramePixels;
                 canvasPixels += existing.CanvasPixels;
             }
 
-            return IsWithinRemoteAnimationBudget(decodedFramePixels, canvasPixels, out reason);
+            return reloadable
+                ? IsWithinRemoteAnimationCanvasBudget(canvasPixels, out reason)
+                : IsWithinRemoteAnimationBudget(decodedFramePixels, canvasPixels, out reason);
         }
 
-        private bool CanAttachRemoteAnimation(ushort sender, BasisAnimatedImageData candidate, out string reason)
+        private bool CanAttachRemoteAnimation(
+            ushort sender,
+            BasisAnimatedImageData candidate,
+            bool reloadable,
+            out string reason
+        )
         {
             if (
-                BasisAnimatedImageData.TotalResidentNativeBytes
-                > BasisImagePickupSettings.MaxResidentAnimationNativeBytes
+                !reloadable
+                && BasisAnimatedImageData.TotalResidentNativeBytes
+                    > BasisImagePickupSettings.MaxResidentAnimationNativeBytes
             )
             {
                 reason = "global resident animation memory budget exceeded";
                 return false;
             }
 
-            long decodedFramePixels = candidate.DecodedFramePixels;
+            long decodedFramePixels = reloadable ? 0 : candidate.DecodedFramePixels;
             long canvasPixels = (long)candidate.CanvasWidth * candidate.CanvasHeight;
 
             foreach (BasisImagePickupObject pickup in _images.Values)
             {
                 if (pickup == null || pickup.OwnerId != sender || pickup.AnimatedImagePlayer == null)
-                {
                     continue;
-                }
 
                 BasisAnimatedImagePlayer existing = pickup.AnimatedImagePlayer;
-                decodedFramePixels += existing.DecodedFramePixels;
+                if (!reloadable)
+                    decodedFramePixels += existing.DecodedFramePixels;
                 canvasPixels += existing.CanvasPixels;
             }
 
-            return IsWithinRemoteAnimationBudget(decodedFramePixels, canvasPixels, out reason);
+            return reloadable
+                ? IsWithinRemoteAnimationCanvasBudget(canvasPixels, out reason)
+                : IsWithinRemoteAnimationBudget(decodedFramePixels, canvasPixels, out reason);
         }
 
         internal static bool IsWithinRemoteAnimationBudget(
@@ -1965,6 +2051,18 @@ namespace Basis.ImagePickup
                 reason = "aggregate decoded animation pixel budget exceeded";
                 return false;
             }
+            if (canvasPixels > BasisImagePickupSettings.MaxRemoteAnimationCanvasPixelsPerSender)
+            {
+                reason = "aggregate animation canvas budget exceeded";
+                return false;
+            }
+
+            reason = null;
+            return true;
+        }
+
+        private static bool IsWithinRemoteAnimationCanvasBudget(long canvasPixels, out string reason)
+        {
             if (canvasPixels > BasisImagePickupSettings.MaxRemoteAnimationCanvasPixelsPerSender)
             {
                 reason = "aggregate animation canvas budget exceeded";
@@ -2083,6 +2181,9 @@ namespace Basis.ImagePickup
             if (_owned.TryGetValue(id, out OwnedImage owned))
                 owned.AnimationPayload?.Dispose();
             _owned.Remove(id);
+            if (_remoteAnimationPayloads.TryGetValue(id, out BasisNativeAnimationPayload remotePayload))
+                remotePayload?.Dispose();
+            _remoteAnimationPayloads.Remove(id);
             RemoveInboundTransfer(id);
             RemoveInboundAnimationTransfer(id);
             int queuedInboundDecodeCount = _queuedInboundAnimationDecodes.Count;
@@ -2099,6 +2200,7 @@ namespace Basis.ImagePickup
                     continue;
                 PendingInboundAnimationDecode pending = _pendingInboundAnimationDecodes[i];
                 pending.Job?.Dispose();
+                pending.Payload?.Dispose();
                 ReleaseInboundTransferBytes(pending.ReservedBytes);
                 pending.ReservedBytes = 0;
                 _pendingInboundAnimationDecodes.RemoveAt(i);

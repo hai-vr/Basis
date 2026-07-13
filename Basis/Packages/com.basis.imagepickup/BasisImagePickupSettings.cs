@@ -85,8 +85,13 @@ namespace Basis.ImagePickup
             MaxConcurrentAnimationDecodeJobs;
         public const long MaxPendingInboundAnimationDecodedBytesPerSender =
             320L * 1024L * 1024L;
+
+        // Includes retained remote compressed payloads plus accepted in-flight transfers and decodes.
         public const long MaxInboundAnimationNetworkBytesPerSender =
             128L * 1024L * 1024L;
+
+        // Payload-backed players share this decoded-data cache per owner. The scheduler keeps the
+        // closest animations decoded and restores them from compressed payloads as proximity changes.
         public const long MaxRemoteAnimationDecodedFramePixelsPerSender =
             128L * 1024L * 1024L;
         public const long MaxRemoteAnimationCanvasPixelsPerSender = 16L * 1024L * 1024L;

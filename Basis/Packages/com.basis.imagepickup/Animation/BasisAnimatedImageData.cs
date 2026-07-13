@@ -68,8 +68,8 @@ namespace Basis.ImagePickup
     }
 
     /// <summary>
-    /// Native animation owner used by every runtime stage while an animation is resident. Reloadable
-    /// local pickups may dispose this decoded pool and reconstruct it later from their compact payload.
+    /// Native animation owner used by every runtime stage while an animation is resident. Payload-backed
+    /// pickups may dispose this decoded pool and reconstruct it later from their compact payload.
     /// </summary>
     public sealed class BasisAnimatedImageData : IDisposable
     {
