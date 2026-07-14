@@ -207,19 +207,40 @@ namespace UnityEngine.Animations.Rigging
                     }
                     hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
 
-                    // The ramp above fades ahProj -- the HINT's stand-off from the arm axis. A strapped-on elbow
-                    // tracker keeps that well clear of zero (that is the whole point of the HintIsTracker floor
-                    // right above), so for a real tracker it never actually reaches zero. The quantity that DOES
-                    // collapse is abProj: the ELBOW's own lever arm, which sweeps continuously to zero as the arm
-                    // straightens -- and it was gated with a boolean cliff. Full hint one frame, none the next:
-                    // the elbow teleported around the bend circle at 295x the hand's own travel in a single step,
-                    // on the way out and again on the way back. The floor made it worse, holding hintFade pinned
-                    // at 1.0 right up to the instant the cliff tripped.
+                    // ==========================================================================================
+                    // ⭐ THE abProj FADE, AND WHY THE MODEL MUST NOT BE SUBJECT TO IT.
                     //
-                    // So ramp abProj as well. The window OPENS at the old cliff, so nothing the solver already
-                    // ignored starts counting; the step just stops being a step. Same fix as BasisLegSolveCore.
-                    float bendNorm = (totalLen > k_Epsilon) ? abProj.magnitude / totalLen : 0f;
-                    hintFade *= Mathf.Clamp01((bendNorm - k_HintBendFadeStart) / (k_HintBendFadeFull - k_HintBendFadeStart));
+                    // abProj is the ELBOW'S OWN LEVER ARM -- its perpendicular stand-off from the shoulder->hand
+                    // axis -- and it collapses to zero as the arm STRAIGHTENS. Fading the hint on it means: the
+                    // straighter the arm, the less the commanded pole is obeyed, until past ~99.8% extension it
+                    // is obeyed NOT AT ALL and the elbow is left wherever the base animation happened to put it.
+                    //
+                    // THAT IS THE "ELBOW ON THE WRONG SIDE" BUG, and it is why it was CALIBRATION-DEPENDENT:
+                    // give the avatar arms shorter than the user's and their hand sits at full reach on almost
+                    // every frame, so hintFade is pinned near zero and the swivel model never gets to drive the
+                    // elbow at all. Re-assign trackers, the arm scale changes, and the elbow flips sides.
+                    // "Sometimes it's perfect" was simply the calibrations where the arm stayed bent.
+                    //
+                    // THE FADE IS GUARDING THE WRONG QUANTITY, and BasisLegSolveCore already worked this out and
+                    // deleted its copy. What goes to noise as the limb straightens is abProj -- the MEASURED
+                    // direction of the current elbow, whose lever arm is vanishing. The POLE does not: it is
+                    // commanded, and it stays perfectly well-defined at every extension. And because this swivel
+                    // rotates abProj ONTO the pole, THE ELBOW'S FINAL DIRECTION DOES NOT DEPEND ON WHERE IT
+                    // STARTED. A noisy abProj buys a noisy swivel ANGLE and still lands the elbow exactly on the
+                    // pole -- and as the circle collapses, the POSITION that angle corresponds to collapses with
+                    // it, continuously, on its own. There is nothing here to fade.
+                    //
+                    // A TRACKER IS DIFFERENT and keeps the fade. Its hint is a physical thing a few centimetres
+                    // off the bone; when the arm straightens, that stand-off becomes a lever the solve amplifies
+                    // into degrees of swivel from millimetres of tracker noise. The MODEL's hint is not measured,
+                    // it is CONSTRUCTED perpendicular to the arm axis (BasisArmSwivelModel.BendDirection), so it
+                    // has no noise to amplify and nothing to protect against.
+                    // ==========================================================================================
+                    if (i.HintIsTracker)
+                    {
+                        float bendNorm = (totalLen > k_Epsilon) ? abProj.magnitude / totalLen : 0f;
+                        hintFade *= Mathf.Clamp01((bendNorm - k_HintBendFadeStart) / (k_HintBendFadeFull - k_HintBendFadeStart));
+                    }
 
                     if (hintFade > 0f && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {

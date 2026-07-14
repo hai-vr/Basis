@@ -83,10 +83,17 @@ public class BasisLocalVirtualSpineDriver
 
     // Hybrid hips XZ model — replaces the former HipsXZFollowBlend lerp with an anatomy-aware
     // counterbalance + foot-pendulum. See ComputeRealisticHipsXZBurst for details.
-    /// <summary>Cutoff (Hz) for the head-position low-pass that defines the body's "baseline" XZ.
-    /// ~1 Hz means quick head moves (leans) leave the baseline behind so hips counter-balance,
-    /// while sustained translations (walking) drag the baseline along so hips follow.</summary>
-    private const float HeadBaselineHz = 1.0f;
+
+    /// <summary>How far the head may get from the support base without the user having stepped, as a
+    /// fraction of their standing head height. Inside it the head is leaning and the support base holds;
+    /// beyond it the user must have stepped, so the base follows.</summary>
+    private const float StanceRadiusFrac = 0.12f;
+
+    /// <summary>Rate (s⁻¹) the support base follows the head once the head is a full stance radius outside
+    /// it. Stiff on purpose: a soft pull lags the head through a step and then creeps into the leftover
+    /// error after it stops, which is the drift this replaces.</summary>
+    private const float HeadBaselinePullRate = 200f;
+
     /// <summary>How much hips track the head's deviation from baseline. 0 = pure counterbalance
     /// (hips never move from baseline), 1 = legacy "follow head fully". 0.25 keeps a small forward
     /// translation while still reading as a real spine bend.</summary>
@@ -444,7 +451,7 @@ public class BasisLocalVirtualSpineDriver
             float biasScale = P.HipsForwardBias * P.Scale;
 
             float3 headPosWorld = head.OutgoingPosition;
-            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
+            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.StandingHeadLocalY, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
 
             ComputeHipsPosition(
                 in neckPosWorld,
@@ -610,18 +617,19 @@ public class BasisLocalVirtualSpineDriver
 
     /// <summary>
     /// Anatomy-aware hips XZ. Two layers:
-    ///   (1) Counterbalance: a low-pass head-XZ baseline approximates the user's body center.
-    ///       Hips sit at baseline + a small fraction of the head's deviation, so quick leans
-    ///       counter-balance (hips stay back) while sustained translations (walking) drag the
-    ///       baseline along and the hips follow.
+    ///   (1) Counterbalance: a leashed head-XZ baseline estimates the user's support base (where they are
+    ///       standing). Hips sit at baseline + a small fraction of the head's deviation, so leaning
+    ///       counter-balances (hips stay back and hold there) while stepping drags the base along and the
+    ///       hips follow.
     ///   (2) Foot pendulum: if both feet are tracked, override with feet-midpoint + a small lean
-    ///       toward the head — closer to a real inverted-pendulum stance.
+    ///       toward the head — closer to a real inverted-pendulum stance. With roles on the feet the
+    ///       support base is known outright, so no estimate is used.
     /// </summary>
     // `supportXZ` is the SUPPORT BASE -- where the user is standing. It is already computed here (it is what
     // the pelvis is lerped away from), so it is handed back rather than recomputed: the posture model measures
     // the head's forward LEAN against it, and two copies of that definition is exactly the kind of quiet
     // disagreement that has bitten this codebase before.
-    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
+    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
     {
         float3 headXZ = new float3(headPosWorld.x, 0f, headPosWorld.z);
 
@@ -632,9 +640,16 @@ public class BasisLocalVirtualSpineDriver
         }
         else
         {
-            // Frame-rate-coherent low-pass: alpha = 1 - exp(-2π·hz·dt).
+            // The support base only moves when the user STEPS, so the discriminator is spatial, not
+            // temporal: a lean and a step are indistinguishable in head-XZ-over-time (both move the head
+            // and leave it there), but a lean cannot reach past a stance radius. The pull scales with the
+            // SQUARED exceedance so tracker jitter across the boundary cannot ratchet the base outward.
             float safeDt = math.max(dt, 1e-6f);
-            float alpha = 1f - math.exp(-2f * math.PI * HeadBaselineHz * safeDt);
+            float radius = math.max(StanceRadiusFrac * standingHeadY, 1e-3f);
+
+            float3 offset = headXZ - s.HeadBaselineXZ;
+            float over = math.max(0f, math.length(offset) - radius) / radius;
+            float alpha = 1f - math.exp(-HeadBaselinePullRate * over * over * safeDt);
             s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, alpha);
         }
 
@@ -648,7 +663,8 @@ public class BasisLocalVirtualSpineDriver
             return math.lerp(feetMidXZ, headXZ, FootPendulumLeanFrac);
         }
 
-        // No feet: the slow head baseline IS the standing spot, which is the best support base available.
+        // No feet with roles: the leashed head baseline IS the standing spot — the best support base
+        // available when nothing is measuring the feet.
         supportXZ = s.HeadBaselineXZ;
         return math.lerp(s.HeadBaselineXZ, headXZ, CounterbalanceFollowFrac);
     }
