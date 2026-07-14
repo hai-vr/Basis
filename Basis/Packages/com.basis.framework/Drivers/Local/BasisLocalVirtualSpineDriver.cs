@@ -751,14 +751,31 @@ public class BasisLocalVirtualSpineDriver
         result = math.slerp(current, target, FramerateIndependentAlpha(speed, dt));
     }
 
+    // Yaw about world up, as the TWIST half of a swing-twist decomposition.
+    //
+    // Do NOT "simplify" this back to flattening head-forward into the horizontal plane and taking its
+    // azimuth. Forward carries no azimuth at all once the gaze is vertical, and the azimuth's gain is
+    // 1/cos(gazePitch) -- 4.7x at 80 degrees of look-down, 180x at 90 -- so sweeping the head across the
+    // middle of the chest whipped the entire torso around (this yaw is what hips/spine/chest are aimed
+    // by). Same defect at the look-up pole. The old 1e-12 guard was orders of magnitude too small to fire;
+    // the damage is done long before the projection is literally zero.
+    //
+    // The twist has no projection to collapse. It is EXACTLY the old azimuth for any roll-free head
+    // rotation, so ordinary look-around -- which is what every spine tuning was set against -- is
+    // unchanged, and it stays continuous and bounded through both poles. Its own singularity is a
+    // 180-degree pitch (upside down, facing backwards), which a head cannot reach.
     [BurstCompile]
-    internal static void ExtractYawBurst(in quaternion rotation, out quaternion result)
+    public static void ExtractYawBurst(in quaternion rotation, out quaternion result)
     {
-        float3 f = math.mul(rotation, new float3(0f, 0f, 1f));
-        f.y = 0f;
-        if (math.lengthsq(f) < 1e-12f) f = new float3(0f, 0f, 1f);
-        f = math.normalize(f);
-        result = quaternion.LookRotationSafe(f, new float3(0f, 1f, 0f));
+        float4 q = rotation.value;
+        float lenSq = q.y * q.y + q.w * q.w;
+        if (lenSq < 1e-12f)
+        {
+            result = quaternion.identity;
+            return;
+        }
+        float inv = math.rsqrt(lenSq);
+        result = new quaternion(0f, q.y * inv, 0f, q.w * inv);
     }
 
     [BurstCompile]
@@ -876,7 +893,7 @@ public class BasisLocalVirtualSpineDriver
     }
 
     [BurstCompile]
-    internal static void YawDegrees(in quaternion yawOnly, out float result)
+    public static void YawDegrees(in quaternion yawOnly, out float result)
     {
         float3 f = math.mul(yawOnly, new float3(0f, 0f, 1f));
         result = math.degrees(math.atan2(f.x, f.z));

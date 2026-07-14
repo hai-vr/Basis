@@ -454,7 +454,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKMode = new("ikmode", new BasisPlatformDefault<string>("auto"));
 
-        public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v2", new BasisPlatformDefault<string>("lock both"));
+        public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v3", new BasisPlatformDefault<string>("lock head"));
 
         public static BasisSettingsBinding<bool> PitchCalibration = new("pitchcalibration", new BasisPlatformDefault<bool>(false));
 

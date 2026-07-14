@@ -54,9 +54,6 @@ namespace UnityEngine.Animations.Rigging
 
         // Elbow-lever fade window, as a fraction of the arm's reach that the elbow stands off the shoulder->hand
         // axis. Start = sqrt(0.001), the exact threshold the old boolean gate cliffed at, so the fade only
-        // replaces the step and never grants the hint authority the solver was previously withholding.
-        const float k_HintBendFadeStart = 0.0316228f;
-        const float k_HintBendFadeFull = 0.12f;
 
         // Anatomical elbow flexion range, as the angle at the elbow between the upper arm and the forearm.
         // 180 deg = arm straight; small = forearm folded toward the upper arm. A human elbow cannot
@@ -183,6 +180,8 @@ namespace UnityEngine.Animations.Rigging
                     Vector3 ah = i.HintPosition - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
+                    Vector3 elbowDir = Vector3.Cross(acNorm, rootDelta * axis);
+                    elbowDir -= acNorm * Vector3.Dot(elbowDir, acNorm);
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
 
@@ -210,25 +209,60 @@ namespace UnityEngine.Animations.Rigging
                     // THE FADES WERE GUARDING THE WRONG QUANTITY. What goes to noise as the limb straightens is
                     // abProj -- the MEASURED direction of the current elbow, whose lever arm is vanishing. The
                     // POLE does not: it is COMMANDED, by a tracker or by the swivel model, and it stays
-                    // perfectly well-defined at every extension. And because this swivel rotates abProj ONTO the
-                    // pole, THE ELBOW'S FINAL DIRECTION DOES NOT DEPEND ON WHERE IT STARTED. A noisy abProj buys
-                    // a noisy swivel ANGLE and still lands the elbow exactly on the pole -- and as the circle
-                    // collapses, the POSITION that angle corresponds to collapses with it, continuously, on its
-                    // own. A wrong swivel on a straight arm is a wrong TWIST, for one frame, on a limb that has
-                    // nowhere to put its elbow anyway.
+                    // perfectly well-defined at every extension. And because this swivel rotates the elbow ONTO
+                    // the pole, THE ELBOW'S FINAL DIRECTION DOES NOT DEPEND ON WHERE IT STARTED.
                     //
                     // BasisLegSolveCore worked this out and deleted its copy long ago, and its comment says so
                     // in as many words -- "the POLE is commanded, BY A TRACKER OR BY BendNormal". The leg has
                     // shipped without these fades ever since. The arm's survived, and it is what has been
                     // breaking the elbow.
                     //
-                    // The ONE guard that stays is the hard epsilon below: a pole shorter than ~2 cm has no
-                    // reliable DIRECTION at all, and there the solve declines to swivel rather than swivel
-                    // toward noise. That is a singularity, not a taste.
+                    // What the deletion left behind was the SECOND half of the same defect, and it is why the
+                    // angle below is measured from elbowDir and not from abProj. Deleting the fade correctly
+                    // stopped abProj's collapse from stealing the pole's AUTHORITY -- but the swivel ANGLE was
+                    // still being read off abProj's DIRECTION, and that direction is gone at full extension.
+                    // The resulting rotation is about acNorm, which at full extension IS the upper arm's own
+                    // long axis, so a noisy angle is not a harmless "wrong twist for one frame" -- it is the arm
+                    // ROLLING, at full magnitude, on a limb whose elbow has no lever arm left to show it.
+                    // Measured on a 0.6 m arm: a 1 mm nudge of the hand target rolled the upper arm and the
+                    // forearm 180 deg, with the hand still on target. The median roll at 99.95% extension was
+                    // 20 deg. A VR user reaching or pointing lives there -- 57% of the corpus is past 95%.
+                    //
+                    // elbowDir is that same direction RECONSTRUCTED from the plane the bend just used, via the
+                    // identity Cross(ac, Cross(ab, bc)) == |ac|^2 * abProj. The bend axis is perpendicular to ac
+                    // by construction, so the cross product is a UNIT vector at every extension: identical to
+                    // abProj wherever abProj exists, and still there when it does not. See BasisLegSolveCore,
+                    // which carries the same fix and the same identity.
+                    //
+                    // The ONE guard that stays is the hard epsilon below, and note WHAT it guards: ahProj, the
+                    // POLE. A pole shorter than ~2 cm has no reliable direction, and there the solve declines to
+                    // swivel rather than swivel toward noise. That is a singularity, not a taste. It was never a
+                    // guard on the elbow, which is why the elbow's collapse went unnoticed.
                     // ==========================================================================================
                     hintFade = 1f;
 
-                    if (hintFade > 0f && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
+                    // ==========================================================================================
+                    // ⚠ A NUMERICAL EPSILON, NOT A BEHAVIOURAL GATE. This test used to read
+                    //
+                    //      ahProj.sqrMagnitude > totalLen * totalLen * 0.001f
+                    //
+                    // which on a 0.6 m arm is |ahProj| > 1.9 CENTIMETRES -- and it is a BOOLEAN. Below it the
+                    // hint was not faded, it was DROPPED, in a single frame, leaving the elbow wherever the base
+                    // animation happened to have left it. And |ahProj| is the pole's stand-off from the
+                    // shoulder->hand axis, which COLLAPSES as the arm straightens -- so an ordinary extended
+                    // reach walked straight through the cliff. Measured by BasisArmTrackerHintAuthorityTests:
+                    // the elbow travelled 2582x the hand's own distance in one step as it crossed.
+                    //
+                    // Geometry alone gets you to about 12x near full extension. Hundreds is not geometry -- it
+                    // is a pole being switched off between two frames, which is the definition of a pop.
+                    //
+                    // The pole's DIRECTION is perfectly well-defined at 1.9 cm; it is well-defined at 1.9
+                    // millimetres. It only becomes noise at true numerical zero. So the guard belongs where
+                    // BasisLegSolveCore has always had it -- at 1e-8, a genuine singularity check -- and nowhere
+                    // else. (And below it, SignedAngleRad returns 0 anyway, so the elbow simply is not swivelled:
+                    // a straight arm whose circle has collapsed has nowhere to put its elbow regardless.)
+                    // ==========================================================================================
+                    if (ahProj.sqrMagnitude > k_SqrEpsilon)
                     {
                         // A near-180 deg bend->hint swivel is direction-ambiguous when applied PARTIALLY: as
                         // the geometry crosses anti-parallel the signed angle flips +179 -> -179, and at half

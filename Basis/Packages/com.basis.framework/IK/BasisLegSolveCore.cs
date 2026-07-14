@@ -253,6 +253,26 @@ namespace UnityEngine.Animations.Rigging
             // which the sweep reaches every single revolution -- Unity's implementation abandons the plane and
             // returns 180 deg about Cross(from, Vector3.right), an arbitrary WORLD axis. Spinning the leg about
             // that carries the ankle straight off its target.
+            //
+            // The angle is measured from kneeDir: the knee's direction RECONSTRUCTED from the plane the BEND
+            // just used, rather than MEASURED off the knee's own lever arm. The two are the same vector --
+            //     Cross(ac, Cross(ab, bc)) == |ac|^2 * abProj
+            // is an identity (expand the triple product with ac = ab + bc) -- but only one of them survives a
+            // straight leg. abProj is the knee's stand-off from the hip->ankle axis, so it VANISHES as the leg
+            // extends, and its direction with it. The bend axis is perpendicular to that axis by construction,
+            // so their cross product is a UNIT vector at every extension and cannot go to noise.
+            //
+            // That distinction is the whole bug. The BEND chooses a plane and then flattens the leg into it --
+            // destroying the very quantity the SWIVEL then reads back to find that same plane. At full reach
+            // TriangleAngle saturates at 180 deg, the leg is commanded dead straight, abProj collapses to float
+            // residue, and SignedAngleRad reads a direction that is pure noise. The resulting swivel is applied
+            // about acNorm -- which at full extension IS the thigh's own long axis -- so it lands as a PURE ROLL
+            // of the thigh and the calf. Measured: a 1 mm nudge of the foot target rolled both bones 180 deg,
+            // with the foot still exactly on target and the knee, having no lever arm left, barely moving. Every
+            // gate in this repo scores positions, so all of them passed while the leg spun.
+            //
+            // And standing lives there: footHeightOffset is clamped so the legs fully extend, which parks
+            // hip->foot at ~= thigh + shin permanently.
             // ---------------------------------------------------------------------------------------------
             Quaternion hintR = Quaternion.identity;
             bool hintApplied = false;
@@ -262,8 +282,8 @@ namespace UnityEngine.Animations.Rigging
             if (acFinalSqr > k_SqrEpsilon)
             {
                 Vector3 acNorm = acFinal / Mathf.Sqrt(acFinalSqr);
-                Vector3 abFinal = bPosition - aPosition;
-                Vector3 abProj = abFinal - acNorm * Vector3.Dot(abFinal, acNorm);
+                Vector3 kneeDir = Vector3.Cross(acNorm, rootDelta * bendAxis);
+                kneeDir -= acNorm * Vector3.Dot(kneeDir, acNorm);
 
                 // The pole BendNormal implies: bending about BendNormal swings the knee THIS way.
                 // (Leg: BendNormal = hips-right, acNorm = down, so bendPole = forward. As it should be.)
@@ -351,26 +371,23 @@ namespace UnityEngine.Animations.Rigging
                 // here, and both were guarding the WRONG QUANTITY -- the same mistake, one level up, that the
                 // snap fix was about.
                 //
-                // What goes to noise as the leg straightens is abProj: the MEASURED direction of the current
-                // knee, whose lever arm is collapsing. The POLE does not -- it is commanded, by a tracker or by
-                // BendNormal, and it stays perfectly well-defined at every extension. And because this swivel
-                // rotates abProj ONTO the pole, the knee's final direction does not depend on where it started:
-                // a noisy abProj buys a noisy swivel ANGLE, but still lands the knee exactly on the pole. Only
-                // the leg's twist is affected, and only for the one frame it takes to converge.
-                //
-                // So fading here bought nothing and cost plenty. It let go of the knee exactly where the knee
-                // most needed holding: at 95.7% extension it was surrendering 57% of a real butterfly hint, and
-                // at 99.9% it switched the swivel off entirely and left the knee wherever the bend had put it --
+                // Fading bought nothing and cost plenty. It let go of the knee exactly where the knee most
+                // needed holding: at 95.7% extension it was surrendering 57% of a real butterfly hint, and at
+                // 99.9% it switched the swivel off entirely and left the knee wherever the bend had put it --
                 // including bent BACKWARD through the joint, which is the inversion the guard was there to stop.
                 //
-                // The snap it was originally added for cannot happen in this structure. The knee is always on
-                // its commanded pole; as the leg straightens, the CIRCLE it sits on shrinks to nothing on its
-                // own, continuously. Nothing is ever released to go and find a different pole.
+                // Nor is a fade the right answer to the ill-conditioning that IS here. A fade would have had to
+                // ramp on |abProj|, and |abProj| is not a confidence -- it is a LEVER ARM. It vanishes on a leg
+                // that is merely straight, which is a perfectly ordinary, perfectly well-determined pose, not an
+                // uncertain one. Reconstructing kneeDir from the bend plane removes the collapse instead of
+                // ramping across it: the pole keeps full authority at every extension, the knee is always on it,
+                // and the CIRCLE it sits on shrinks to nothing on its own, continuously. Nothing is released to
+                // go and find a different pole, and nothing is left for a tuning constant to get wrong.
                 float weight = hasHint ? hintWeight : 1f;
 
-                if (weight > 0f && abProj.sqrMagnitude > k_SqrEpsilon && pole.sqrMagnitude > k_SqrEpsilon)
+                if (weight > 0f && kneeDir.sqrMagnitude > k_SqrEpsilon && pole.sqrMagnitude > k_SqrEpsilon)
                 {
-                    float swivel = ScaleSwivel(SignedAngleRad(abProj, pole, acNorm), weight);
+                    float swivel = ScaleSwivel(SignedAngleRad(kneeDir, pole, acNorm), weight);
                     hintR = AngleAxisRad(swivel, acNorm);
 
                     rootRot = hintR * rootRot;

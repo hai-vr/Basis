@@ -268,11 +268,12 @@ public static class BasisContentShareManager
         {
             return;
         }
-        var InSceneOrb = Addressables.InstantiateAsync(orbKey, position, Quaternion.identity, BasisDeviceManagement.Instance.transform).WaitForCompletion();
+        GameObject InSceneOrb = Addressables.InstantiateAsync(orbKey, BasisDeviceManagement.Instance.transform, false).WaitForCompletion();
         if (InSceneOrb == null)
         {
             return;
         }
+        InSceneOrb.transform.position = position;
         // Add the content sphere component
         if (InSceneOrb.TryGetComponent<BasisContentSphere>(out BasisContentSphere Sphere))
         {

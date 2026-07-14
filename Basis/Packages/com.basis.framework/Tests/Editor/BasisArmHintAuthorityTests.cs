@@ -194,36 +194,139 @@ namespace Basis.Tests.IK
         }
 
         /// <summary>
-        /// A REAL ELBOW TRACKER KEEPS ITS FADE, and this pins that the fix did not quietly take it away.
+        /// ⭐ A REAL ELBOW TRACKER GETS FULL AUTHORITY TOO -- and getting this wrong is what has been inverting
+        /// the elbow for anyone who actually straps a tracker on.
         ///
-        /// The distinction is physical, not stylistic: a tracker's hint is a MEASURED thing strapped a few
-        /// centimetres off the bone, so as the arm straightens that stand-off becomes a lever which turns
-        /// millimetres of tracker noise into degrees of elbow swing. The model's hint is CONSTRUCTED
-        /// perpendicular to the arm axis -- it has no noise to amplify, so it has nothing to protect against.
+        /// I first fixed the fade for the MODEL path only and deliberately LEFT THE TRACKER'S IN PLACE,
+        /// reasoning that a tracker hint is "measured, a few centimetres off the bone, so it has noise to
+        /// amplify". That reasoning was wrong, and BasisLegSolveCore had already said so in as many words:
+        /// "the POLE is commanded, BY A TRACKER OR BY BendNormal, and it stays perfectly well-defined at every
+        /// extension."
+        ///
+        /// The fade was never keyed on the tracker's noise. It was keyed on abProj -- the CURRENT ELBOW's lever
+        /// arm -- which collapses as the arm straightens and has nothing whatsoever to do with the tracker. So
+        /// the authority the solver actually granted a real tracker was:
+        ///
+        ///      94% extension -> 1.00     98.5% -> 0.62     99.5% -> 0.21     99.9% -> 0.00
+        ///
+        /// and 57% of the corpus sits above 95% extension. On most frames of most sessions the user's real
+        /// elbow was being blended toward an idle animation they were not performing.
         /// </summary>
         [Test]
-        public void ATrackerHint_StillFadesNearFullExtension()
+        public void ARealTracker_GetsFullAuthority_AtEveryExtension()
         {
-            // A near-straight arm, and a tracker hint sitting almost ON the bone line (the noisy case).
-            Vector3 dir = new Vector3(0.92f, 0f, 0.39f).normalized;
-            Vector3 target = k_Shoulder + dir * (0.999f * k_ArmLen);
+            const float commanded = 35f;
 
-            Vector3 hintPos = HintOnCircle(target, 30f);
-            Vector3 animElbow = ElbowOnCircle(target, 210f);   // a REAL elbow, wrong side, lever arm collapsed
+            foreach (float reach in new[] { 0.80f, 0.94f, 0.97f, 0.985f, 0.995f, 0.999f })
+            {
+                Vector3 dir = new Vector3(0.92f, 0f, 0.39f).normalized;
+                Vector3 target = k_Shoulder + dir * (reach * k_ArmLen);
+
+                Vector3 hintPos = HintOnCircle(target, commanded);
+                Vector3 animElbow = ElbowOnCircle(target, commanded + 180f);   // wrong side, as an idle anim leaves it
+
+                BasisArmSolveInput i = Input(animElbow, target, target, hintPos);
+                i.HintIsTracker = true;                       // A REAL TRACKER
+                BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+                Assert.AreEqual(1f, r.HintFade, 1e-4f,
+                    $"a real elbow tracker must be obeyed at FULL weight at {reach:P1} extension -- it got " +
+                    $"{r.HintFade:F2}. Partial weight lands the elbow neither on the tracker NOR on the " +
+                    "animation, but BETWEEN them -- and that is the inversion.");
+
+                Assert.AreEqual(0f, Vector3.Distance(r.HandSolved, target), 2e-3f,
+                    $"and the hand must stay on target at {reach:P1}");
+
+                Vector3 axis = (r.HandSolved - k_Shoulder).normalized;
+                Vector3 got = r.ElbowSolved - k_Shoulder; got -= axis * Vector3.Dot(got, axis);
+                Vector3 want = hintPos - k_Shoulder; want -= axis * Vector3.Dot(want, axis);
+                Assert.Less(Vector3.Angle(got.normalized, want.normalized), 10f,
+                    $"the tracked elbow must actually land where the tracker says, at {reach:P1} extension");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ AND THE SOLVER MUST NOT OVERRULE THE TRACKER WITH A GUESS.
+        ///
+        /// The pole-collapse stabilizer eases the elbow toward WORLD-DOWN. It was written for the old invented
+        /// lookup pole, which genuinely could point backward along the arm and flip. A TRACKER is the user's
+        /// actual elbow -- and because the stabilizer engages on |ahProj|, which collapses as the arm
+        /// straightens, it engaged HARDEST exactly where the user spends most of their time.
+        ///
+        /// Here the tracker says "elbow out to the side, level", which is a perfectly ordinary human pose. The
+        /// solver must not drag it downward.
+        /// </summary>
+        [Test]
+        public void TheStabilizer_DoesNotDragATrackedElbowTowardWorldDown()
+        {
+            Vector3 dir = new Vector3(0.92f, 0f, 0.39f).normalized;
+            Vector3 target = k_Shoulder + dir * (0.99f * k_ArmLen);
+
+            Vector3 hintPos = HintOnCircle(target, 88f);      // elbow out to the side: 88 deg off body-down
+            Vector3 animElbow = ElbowOnCircle(target, 0f);
 
             BasisArmSolveInput i = Input(animElbow, target, target, hintPos);
-            i.HintIsTracker = true;                            // <- the tracker path
-            BasisArmSolveCore.Solve(i, out BasisArmSolveResult tracker);
+            i.HintIsTracker = true;
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
 
-            i.HintIsTracker = false;                           // <- the model path
-            BasisArmSolveCore.Solve(i, out BasisArmSolveResult model);
+            Vector3 axis = (r.HandSolved - k_Shoulder).normalized;
+            Vector3 got = r.ElbowSolved - k_Shoulder; got -= axis * Vector3.Dot(got, axis);
+            Vector3 want = hintPos - k_Shoulder; want -= axis * Vector3.Dot(want, axis);
 
-            Assert.Less(tracker.HintFade, model.HintFade,
-                $"a TRACKER hint must still be damped near full extension (tracker {tracker.HintFade:F3} vs " +
-                $"model {model.HintFade:F3}) -- the model gets full authority precisely because its hint is " +
-                "constructed rather than measured, and the two must not be conflated");
-            Assert.AreEqual(1f, model.HintFade, 1e-4f,
-                "the MODEL's hint must be applied at full weight, at any extension");
+            Assert.Less(Vector3.Angle(got.normalized, want.normalized), 12f,
+                "the solver must not pull a TRACKED elbow toward world-down: the tracker is a measurement of " +
+                "the user's actual arm, and overruling a measurement with a guess is exactly the 'not very " +
+                "human movement' report");
+        }
+
+        /// <summary>
+        /// ⭐ THE REALISTIC TRACKER: a puck strapped a few centimetres OFF the bone, with tracking jitter.
+        ///
+        /// The harness's TruthJoint row feeds the solver the EXACT elbow joint and scores 1.06% -- which is
+        /// precisely why none of this ever showed up in the corpus numbers. A real tracker is not the joint. It
+        /// stands off the bone (limb radius + strap), calibration leaves a residual, and it jitters.
+        ///
+        /// The property that MUST hold is this: the same tracker reading must produce the same elbow, no matter
+        /// where the base ANIMATION happened to leave it. When it does not, the elbow flickers between the
+        /// animation and the tracker frame to frame -- and that is the reported inversion.
+        /// </summary>
+        [Test]
+        public void ARealisticOffsetTracker_GivesTheSameElbow_WhereverTheAnimationLeftIt()
+        {
+            var rng = new System.Random(6060);
+
+            foreach (float reach in new[] { 0.85f, 0.94f, 0.975f, 0.99f })
+            {
+                Vector3 dir = new Vector3(0.85f, -0.20f, 0.49f).normalized;
+                Vector3 target = k_Shoulder + dir * (reach * k_ArmLen);
+
+                // The true elbow, and a tracker sitting ~2.5 cm off it (the residual a real calibration leaves)
+                // plus 3 mm of jitter: a realistic strapped-on puck.
+                Vector3 trueElbow = ElbowOnCircle(target, 30f);
+                Vector3 off = new Vector3(0.018f, 0.014f, -0.008f);
+                Vector3 jitter = new Vector3(
+                    (float)(rng.NextDouble() - 0.5) * 0.003f,
+                    (float)(rng.NextDouble() - 0.5) * 0.003f,
+                    (float)(rng.NextDouble() - 0.5) * 0.003f);
+                Vector3 tracker = trueElbow + off + jitter;
+
+                // THE SAME TRACKER READING, from four different animated starting poses.
+                Vector3 first = Vector3.zero;
+                for (int k = 0; k < 4; k++)
+                {
+                    Vector3 animElbow = ElbowOnCircle(target, 30f + k * 90f);   // including the wrong side
+                    BasisArmSolveInput i = Input(animElbow, target, target, tracker);
+                    i.HintIsTracker = true;
+                    BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+                    if (k == 0) { first = r.ElbowSolved; continue; }
+
+                    Assert.AreEqual(0f, Vector3.Distance(first, r.ElbowSolved), 2e-3f,
+                        $"the same tracker reading must give the SAME elbow regardless of where the animation " +
+                        $"left it (reach {reach:P1}, start {30f + k * 90f:F0} deg). If it does not, the elbow " +
+                        "flickers between the animation and the tracker, which is the reported inversion.");
+                }
+            }
         }
     }
 }

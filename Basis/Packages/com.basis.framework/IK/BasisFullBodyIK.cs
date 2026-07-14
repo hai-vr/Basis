@@ -638,7 +638,7 @@ namespace UnityEngine.Animations.Rigging
             m_HasHipsTracker = false;
             m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
             m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
-            m_IKLockMode = (float)BasisIKLockMode.LockHips;
+            m_IKLockMode = (float)BasisIKLockMode.LockHead;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = 1f;
@@ -1201,19 +1201,21 @@ w20, w54;
 
             // Lock mode determines how hips position relates to head position:
             // 0 = LockHips:  Hips are the anchor; apply hips directly, no head-relative clamping.
-            // 1 = LockHead:  Head is the anchor; derive hips position below head.
+            // 1 = LockHead:  Head is the anchor; hips ride at rest spine length along the spine's own axis.
             // 2 = LockBoth:  Both independently positioned; spine must accommodate (original behavior).
             switch (lockMode)
             {
                 case 0: // LockHips - hips are authoritative, skip head-relative clamping
                     break;
 
-                case 1: // LockHead - head is the anchor; push hips down only if within restDist, allow sinking further
+                case 1: // LockHead - head is the anchor; the spine may not compress below its rest length, allow stretching further
                     {
-                        float gap = Vector3.Dot(headTargetPos - hipsTargetPos, up);
-                        if (gap < restDist)
+                        Vector3 headToHips = hipsTargetPos - headTargetPos;
+                        float spineLen = headToHips.magnitude;
+                        if (spineLen < restDist)
                         {
-                            hipsTargetPos -= up * (restDist - gap);
+                            Vector3 spineDir = spineLen > k_Epsilon ? headToHips / spineLen : hipDesired * Vector3.down;
+                            hipsTargetPos = headTargetPos + spineDir * restDist;
                         }
                     }
                     break;
