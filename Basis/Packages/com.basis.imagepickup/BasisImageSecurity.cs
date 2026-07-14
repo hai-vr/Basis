@@ -117,34 +117,9 @@ namespace Basis.ImagePickup
 
             if (sourceFormat == SourceImageFormat.Gif)
             {
-                byte[] header = new byte[10];
-            try
-            {
-                    using FileStream stream = File.OpenRead(path);
-                    int offset = 0;
-                    while (offset < header.Length)
-                    {
-                        int read = stream.Read(header, offset, header.Length - offset);
-                        if (read <= 0)
-                            break;
-                        offset += read;
-                    }
-                    if (offset < header.Length)
-                    {
-                        result.Error = "GIF header truncated";
-                        return result;
-                    }
-                }
-                catch (Exception e)
-                {
-                    result.Error = "Read failed: " + e.Message;
-                    return result;
-            }
-
                 if (
-                    !TryReadSourceDimensions(
-                        header,
-                        sourceFormat,
+                    !TryReadGifFileDimensions(
+                        path,
                         out int gifWidth,
                         out int gifHeight,
                         out string gifHeaderError
@@ -422,7 +397,44 @@ namespace Basis.ImagePickup
             );
         }
 
-        private static bool AnimationDimensionsWithinCaps(int width, int height, out string error)
+        /// <summary>
+        /// Reads a GIF's canvas size from its 10-byte logical screen descriptor without decoding it.
+        /// The Burst decoder emits its poster at exactly these dimensions, so a pickup card sized from
+        /// this header needs no resize once the decode lands.
+        /// </summary>
+        internal static bool TryReadGifFileDimensions(string path, out int width, out int height, out string error)
+        {
+            width = 0;
+            height = 0;
+
+            byte[] header = new byte[10];
+            try
+            {
+                using FileStream stream = File.OpenRead(path);
+                int offset = 0;
+                while (offset < header.Length)
+                {
+                    int read = stream.Read(header, offset, header.Length - offset);
+                    if (read <= 0)
+                        break;
+                    offset += read;
+                }
+                if (offset < header.Length)
+                {
+                    error = "GIF header truncated";
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                error = "Read failed: " + e.Message;
+                return false;
+            }
+
+            return TryReadSourceDimensions(header, SourceImageFormat.Gif, out width, out height, out error);
+        }
+
+        internal static bool AnimationDimensionsWithinCaps(int width, int height, out string error)
         {
             long pixels = (long)width * height;
             if (

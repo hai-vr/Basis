@@ -22,8 +22,16 @@ namespace UnityEngine.Animations.Rigging
     }
 
     /// <summary>
-    /// Builds the exact inputs BasisArmSwivelModel / BasisLegSwivelModel were FITTED on, and turns their
-    /// predicted swivel angle into the hint position the two-bone solvers want.
+    /// Builds the exact inputs BasisElbowFieldModel (arm) and BasisLegSwivelModel (leg) were FITTED on, and
+    /// turns their prediction into the hint position the two-bone solvers want.
+    ///
+    /// The two limbs no longer answer the same KIND of question, and that is deliberate. The leg still
+    /// predicts a swivel ANGLE; the arm predicts the elbow's POSITION and projects it onto the reachable
+    /// circle. An angle must be measured from a reference direction, and every choice of reference vanishes
+    /// somewhere on the sphere of tip directions -- the arm's old one vanished when the arm hung straight
+    /// down, which is 29.7% of real human frames and the commonest pose in VR. The leg's reference is body
+    /// OUTWARD, and a leg does not point sideways out of the hip, so its zero sits outside the reachable set.
+    /// The arm had nowhere safe to put it. See BasisElbowFieldModel.
     ///
     /// ================================================================================================
     /// THIS FILE EXISTS SO THE RUNTIME AND THE FIT CANNOT DISAGREE.
@@ -53,11 +61,17 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
 
         /// <summary>
-        /// Below this the model is telling you IT DOES NOT KNOW, and atan2 near the origin does not fail -- it
-        /// SPINS. Measured across the corpus the arm falls under this on 0.004 % of frames and the leg on none,
-        /// so it essentially never fires; it is here because the failure it prevents is a spinning elbow.
+        /// THE ARM NO LONGER HAS ONE, AND THAT IS THE FIX, NOT AN OMISSION.
+        ///
+        /// This used to be a HARD GATE at 0.20 in BasisFullBodyIK.SolveHand: below it the hint was dropped
+        /// ENTIRELY and the elbow fell back to whatever the animation clip happened to be doing. Two
+        /// unrelated poles, switched between on a boolean -- which is the definition of a pop, and which
+        /// LegHint's own comment below already says in as many words.
+        ///
+        /// It is gone because BasisElbowFieldModel has nothing to be unconfident ABOUT: it predicts a
+        /// POSITION, so its only degeneracy is geometric (the predicted elbow landing on the arm's own
+        /// axis), it is measurable, and it is FADED inside the model rather than gated outside it.
         /// </summary>
-        public const float MinConfidence = 0.20f;
 
         /// <summary>|(s,c)| at or below which the leg model has no usable opinion and the solve should
         /// fall back to its own anatomical bend pole.</summary>
@@ -139,10 +153,13 @@ namespace UnityEngine.Animations.Rigging
         /// <summary>
         /// Where the ELBOW goes with no elbow tracker. `hintPos` sits half an arm-length off the shoulder along
         /// the predicted bend -- the same convention the old lookup used, so the solver is handed the same shape
-        /// of thing it always was.
+        /// of thing it always was, and the pole-collapse stabilizer in BasisArmSolveCore stays dead on this
+        /// path (poleCond lands at 0.5, well clear of its 0.15 window).
         ///
-        /// The swivel's zero is body DOWN (an elbow hangs down). Passing +up instead of -up put the elbow ABOVE
-        /// the shoulder and cost 34.98 % error, so the sign is load-bearing rather than cosmetic.
+        /// There is no swivel angle here and no reference direction to get the sign of. See
+        /// BasisElbowFieldModel: an angle needs something to be measured FROM, every such reference vanishes
+        /// somewhere on the sphere of hand directions, and the one this used to use vanished when the arm
+        /// hung down -- 29.7 % of real human frames.
         ///
         /// Returns false on a degenerate/NaN frame: the caller then leaves `hasHint` false and the two-bone core
         /// falls back to its own internal pole, which is what it did before any of this existed.
@@ -168,27 +185,25 @@ namespace UnityEngine.Animations.Rigging
                 return false;
             }
 
-            // The model clamps its own domain. It has to: the raw controller target routinely exceeds the
-            // avatar's reach, and a cubic outside its fit box is a random number generator. See
-            // BasisArmSwivelModel -- that omission is what put the elbows up by the ears.
-            float swivel = BasisArmSwivelModel.SwivelRad(tipLocal, out confidence);
-            if (isLeft)
-            {
-                swivel = -swivel;   // un-mirror: the model answers in the mirrored frame
-            }
-
-            Vector3 s2h = handPos - shoulder;
-            float3 bend = BasisArmSwivelModel.BendDirection(
-                new float3(s2h.x, s2h.y, s2h.z),
-                new float3(-frameNow.Up.x, -frameNow.Up.y, -frameNow.Up.z),   // body DOWN, UN-mirrored
-                swivel);
+            float3 elbowLocal = BasisElbowFieldModel.Elbow(tipLocal);
+            float3 bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
 
             if (!IsFinite(bend))
             {
                 return false;
             }
 
-            hintPos = shoulder + 0.5f * armLen * new Vector3(bend.x, bend.y, bend.z);
+            // Back to world through the SAME mirrored triad the features were built in. It is orthonormal,
+            // so it carries perpendicularity across unchanged: `bend` is perpendicular to tipLocal in the
+            // body frame, therefore bendWorld is perpendicular to shoulder->hand in world, exactly.
+            //
+            // And nothing is un-mirrored here. A POSITION maps through a mirror; an ANGLE is a pseudo-scalar
+            // and flips sign, which is a trap that has silently poisoned this model twice (once for 145
+            // degrees). Predicting a position rather than an angle deletes the trap along with the sign.
+            Vector3 bOut = isLeft ? -frameNow.Right : frameNow.Right;
+            Vector3 bendWorld = bend.x * bOut + bend.y * frameNow.Up + bend.z * frameNow.Forward;
+
+            hintPos = shoulder + 0.5f * armLen * bendWorld;
             return true;
         }
 

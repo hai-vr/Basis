@@ -2559,9 +2559,14 @@ w20, w54;
                 // flip a geometric test and mirror the model mid-session).
                 bool isLeft = swingSlot == k_SwingLeftElbow;
 
+                // NO CONFIDENCE GATE. There used to be one -- `conf > 0.20` -- and it was a boolean cliff:
+                // below it the hint was dropped ENTIRELY and the elbow was handed back to whatever the
+                // animation clip was doing. Switching between two unrelated poles IS the pop, and the LEG
+                // worked this out long ago and deleted its copy (see BasisSwivelHintCore.LegHint's comment,
+                // which says exactly this). The arm's survived. BasisElbowFieldModel has nothing to be
+                // unconfident about anyway: its only degeneracy is geometric and it fades it internally.
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
-                                                out Vector3 modelHint, out float conf)
-                    && conf > BasisSwivelHintCore.MinConfidence)
+                                                out Vector3 modelHint, out _))
                 {
                     hint = new AffineTransform(modelHint, hintRot);
                     hasHint = true;

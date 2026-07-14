@@ -25,6 +25,14 @@ namespace Basis.IK.Mocap
         // and do not reason about it, because a One-Euro is speed-adaptive and its behaviour on a signal it was
         // not tuned for is not something anyone can predict from the armchair.
         SwivelModelSmoothed,
+        // WHAT SHIPS NOW: BasisElbowFieldModel. Predicts the elbow's POSITION and projects it onto the
+        // reachable circle -- no reference direction, no atan2, no confidence gate.
+        //
+        // SwivelModel above predicted the swivel ANGLE, which has to be measured FROM something, and every
+        // choice of reference vanishes somewhere on the sphere of hand directions (hairy ball). Its choice --
+        // body-DOWN -- vanished when the arm hangs down, which is 29.7% of real human frames and the commonest
+        // pose in VR. Keep the row: it is the A/B that proves the difference is the frame and not the fit.
+        ElbowField,
         TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
     }
 
@@ -408,6 +416,30 @@ namespace Basis.IK.Mocap
                     i.HintWeight = true;
                     i.HintIsTracker = true;
                     break;
+                case BasisMocapHintSource.ElbowField:
+                {
+                    // WHAT SHIPS. It calls BasisSwivelHintCore.ArmHint -- the RUNTIME's own entry point --
+                    // rather than re-deriving the features here, so the harness and the rig cannot disagree
+                    // about handedness, body frame or mirror. Every previous disagreement about one of those
+                    // three produced confident garbage that a green test suite waved through (once by 145
+                    // degrees, once by putting the elbows up beside the ears in a headset).
+                    //
+                    // No confidence gate: the field predicts a POSITION, and fades its one geometric
+                    // degeneracy internally. See BasisElbowFieldModel.
+                    BasisSwivelFrame sf = BasisSwivelHintCore.BuildFrame(
+                        clip.Get(f, BasisMocapJoint.LeftUpperArm).Position,
+                        clip.Get(f, BasisMocapJoint.RightUpperArm).Position,
+                        clip.Get(f, BasisMocapJoint.Chest).Position,
+                        clip.Get(f, BasisMocapJoint.Neck).Position);
+                    if (BasisSwivelHintCore.ArmHint(sf, shoulder, truthHand, armLen, isLeft,
+                                                    out Vector3 fieldHint, out _))
+                    {
+                        i.HintPosition = fieldHint;
+                        i.HintWeight = true;
+                        i.HintIsTracker = false;
+                    }
+                    break;
+                }
                 case BasisMocapHintSource.Lookup:
                 case BasisMocapHintSource.LookupNoFlare:
                 {

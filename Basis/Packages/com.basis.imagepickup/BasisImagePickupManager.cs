@@ -123,6 +123,9 @@ namespace Basis.ImagePickup
             public Vector3 Position;
             public Quaternion Rotation;
             public BasisGifDecodeJobRequest Job;
+            public Guid Id;
+            /// <summary>The placeholder card raised at drop time; the spawn fills it in once the decode lands.</summary>
+            public BasisImagePickupObject Pickup;
         }
 
         private sealed class QueuedInboundAnimationDecode
@@ -517,12 +520,61 @@ namespace Basis.ImagePickup
             if (BasisAnimatedImageJobs.IsGifPath(path))
                 return QueueGifSpawn(path, position, rotation);
 
-            return SpawnValidatedFile(path, BasisImageSecurity.ValidateFile(path), position, rotation);
+            return SpawnValidatedFile(
+                path,
+                BasisImageSecurity.ValidateFile(path),
+                position,
+                rotation,
+                Guid.NewGuid(),
+                null
+            );
         }
 
+        /// <summary>
+        /// Raises the card before the Burst decode runs, so a dropped GIF occupies its batch slot immediately
+        /// instead of appearing seconds later behind the decode queue. The 10-byte logical screen descriptor
+        /// gives the decoder's exact poster size, so the placeholder already has the GIF's true aspect and the
+        /// card never resizes when <see cref="ProcessCompletedGifSpawns"/> swaps the poster in.
+        /// </summary>
         private static bool QueueGifSpawn(string path, Vector3 position, Quaternion rotation)
         {
-            _queuedGifSpawns.Enqueue(new PendingGifSpawn { Path = path, Position = position, Rotation = rotation });
+            if (
+                !BasisImageSecurity.TryReadGifFileDimensions(
+                    path,
+                    out int width,
+                    out int height,
+                    out string headerError
+                )
+                || !BasisImageSecurity.AnimationDimensionsWithinCaps(width, height, out headerError)
+            )
+            {
+                BasisImagePickupRejectionPopup.Show(path, headerError);
+                BasisDebug.LogWarning($"Image pickup rejected: {headerError}", LogTag);
+                return false;
+            }
+
+            Guid id = Guid.NewGuid();
+            BasisImagePickupObject placeholder = BuildLoadingPickup(
+                id,
+                LocalPlayerId(),
+                LocalOwnerName(),
+                true,
+                width,
+                height,
+                position,
+                rotation
+            );
+
+            _queuedGifSpawns.Enqueue(
+                new PendingGifSpawn
+                {
+                    Path = path,
+                    Position = position,
+                    Rotation = rotation,
+                    Id = id,
+                    Pickup = placeholder,
+                }
+            );
             BasisDebug.Log(
                 $"Image pickup: queued GIF '{Path.GetFileName(path)}' "
                     + $"({_queuedGifSpawns.Count:N0} waiting, "
@@ -531,6 +583,90 @@ namespace Basis.ImagePickup
             );
             StartQueuedGifSpawns();
             return true;
+        }
+
+        /// <summary>
+        /// Creates a card that is live in the world — grabbable, movable, deletable — while its poster is
+        /// still decoding or still arriving over the network, and tracks it in <c>_images</c> so transform,
+        /// claim, and despawn messages for it apply from the moment it exists rather than being dropped.
+        /// </summary>
+        private static BasisImagePickupObject BuildLoadingPickup(
+            Guid id,
+            ushort ownerId,
+            string ownerName,
+            bool isOwner,
+            int width,
+            int height,
+            Vector3 position,
+            Quaternion rotation
+        )
+        {
+            BasisImagePickupObject pickup = BasisImagePickupObject.Build(
+                id,
+                ownerId,
+                ownerName,
+                isOwner,
+                width,
+                height,
+                null,
+                null,
+                false,
+                position,
+                rotation
+            );
+            _images[id] = pickup;
+            RegisterShareable(id, width, height, ownerName);
+            return pickup;
+        }
+
+        /// <summary>
+        /// Whether a placeholder raised earlier is still the card this spawn is filling. Tracks
+        /// <c>_images</c> rather than the Unity-null of <paramref name="placeholder"/> because
+        /// <see cref="UnityEngine.Object.Destroy"/> only takes effect at end of frame: a user who deletes a
+        /// GIF in the same frame its decode lands would otherwise still read as alive here, and the spawn
+        /// would replicate an image that is about to vanish.
+        /// </summary>
+        private static bool IsPlaceholderAlive(Guid id, BasisImagePickupObject placeholder)
+        {
+            return placeholder != null
+                && _images.TryGetValue(id, out BasisImagePickupObject tracked)
+                && ReferenceEquals(tracked, placeholder);
+        }
+
+        private static void RegisterShareable(Guid id, int width, int height, string ownerName)
+        {
+            BasisShareableRegistry.Register(
+                new BasisShareableEntry
+                {
+                    Id = id.ToString(),
+                    Kind = BasisShareableKind.Image,
+                    Title = $"{width}x{height}",
+                    SharerName = ownerName,
+                    Actions = new List<BasisShareableAction>
+                    {
+                        new BasisShareableAction
+                        {
+                            Style = BasisShareableActionStyle.Destructive,
+                            Invoke = () => RequestDespawn(id),
+                        },
+                    },
+                });
+        }
+
+        private static ushort LocalPlayerId()
+        {
+            return BasisNetworkPlayer.LocalPlayer != null
+                ? BasisNetworkPlayer.LocalPlayer.playerId
+                : (ushort)0;
+        }
+
+        private static string LocalOwnerName()
+        {
+            return NormalizeOwnerNameForNetwork(
+                BasisLocalPlayer.Instance != null
+                    ? BasisLocalPlayer.Instance.SafeDisplayName
+                    : "Unknown"
+            );
         }
 
         private static void StartQueuedGifSpawns()
@@ -553,6 +689,11 @@ namespace Basis.ImagePickup
             )
             {
                 PendingGifSpawn pending = _queuedGifSpawns.Peek();
+                if (!IsPlaceholderAlive(pending.Id, pending.Pickup))
+                {
+                    _queuedGifSpawns.Dequeue();
+                    continue;
+                }
                 if (ShouldDeferGifDecodeForMemory(pending.Path))
                 {
                     LogGifDecodePausedForMemory();
@@ -581,6 +722,7 @@ namespace Basis.ImagePickup
                 }
                 catch (Exception exception)
                 {
+                    RemoveImage(pending.Id);
                     string reason = BasisLocalization.Get(
                         "imagePickup.popup.reason.animationStartFailed",
                         exception.Message
@@ -645,6 +787,7 @@ namespace Basis.ImagePickup
                 {
                     _pendingGifSpawns.RemoveAt(index);
                     DisposeRequest(pending.Job, "GIF decode request");
+                    RemoveImage(pending.Id);
                     string failureReason = BasisLocalization.Get(
                         "imagePickup.popup.reason.animationStartFailed",
                         exception.GetBaseException().Message
@@ -665,6 +808,7 @@ namespace Basis.ImagePickup
                         && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()
                     )
                     {
+                        RemoveImage(pending.Id);
                         string lockedReason = BasisLocalization.Get(
                             "imagePickup.popup.reason.adminLockedDuringDecode"
                         );
@@ -675,6 +819,14 @@ namespace Basis.ImagePickup
 
                     BasisImageValidationResult result =
                         BasisAnimatedImageJobs.FinalizeGifDecode(workerResult);
+
+                    // Deleted while it decoded: the poster has nowhere to land, so drop it and stay silent.
+                    if (!IsPlaceholderAlive(pending.Id, pending.Pickup))
+                    {
+                        DisposeRejectedValidationResult(ref result);
+                        continue;
+                    }
+
                     if (result.Ok)
                     {
                         double workerMilliseconds =
@@ -687,7 +839,14 @@ namespace Basis.ImagePickup
                             LogTag
                         );
                     }
-                    SpawnValidatedFile(pending.Path, result, pending.Position, pending.Rotation);
+                    SpawnValidatedFile(
+                        pending.Path,
+                        result,
+                        pending.Position,
+                        pending.Rotation,
+                        pending.Id,
+                        pending.Pickup
+                    );
                 }
                 finally
                 {
@@ -698,15 +857,24 @@ namespace Basis.ImagePickup
             StartQueuedGifSpawns();
         }
 
+        /// <summary>
+        /// Completes a local spawn once its poster is decoded. <paramref name="placeholder"/> is the card the
+        /// GIF path already raised at drop time — it is adopted in place so the pickup keeps the identity,
+        /// pose, and grab state it accumulated while decoding; a null placeholder (the synchronous static-image
+        /// path) builds the card here instead. Rejections tear the placeholder back down.
+        /// </summary>
         private static bool SpawnValidatedFile(
             string path,
             BasisImageValidationResult result,
             Vector3 position,
-            Quaternion rotation
+            Quaternion rotation,
+            Guid id,
+            BasisImagePickupObject placeholder
         )
         {
             if (!result.Ok)
             {
+                RemoveImage(id);
                 BasisImagePickupRejectionPopup.Show(path, result.Error);
                 BasisDebug.LogWarning($"Image pickup rejected: {result.Error}", LogTag);
                 return false;
@@ -721,33 +889,48 @@ namespace Basis.ImagePickup
             )
             {
                 DisposeRejectedValidationResult(ref result);
+                RemoveImage(id);
                 BasisImagePickupRejectionPopup.Show(path, imageBudgetReason);
                 BasisDebug.LogWarning($"Image pickup rejected: {imageBudgetReason}", LogTag);
                 return false;
             }
 
-            Guid id = Guid.NewGuid();
-            ushort ownerId =
-                BasisNetworkPlayer.LocalPlayer != null
-                    ? BasisNetworkPlayer.LocalPlayer.playerId
-                    : (ushort)0;
-            string ownerName = NormalizeOwnerNameForNetwork(
-                BasisLocalPlayer.Instance != null
-                    ? BasisLocalPlayer.Instance.SafeDisplayName
-                    : "Unknown"
-            );
+            ushort ownerId = LocalPlayerId();
+            string ownerName = LocalOwnerName();
 
-            var pickup = BasisImagePickupObject.Build(
-                id,
-                ownerId,
-                ownerName,
-                true,
-                result.Texture,
-                result.CleanPng,
-                result.HasAlpha,
-                position,
-                rotation
-            );
+            BasisImagePickupObject pickup;
+            if (placeholder != null)
+            {
+                pickup = placeholder;
+                pickup.OwnerId = ownerId;
+                pickup.OwnerName = ownerName;
+                // The card was live while it decoded, so its current pose — not the drop pose — is the one
+                // peers must spawn it at.
+                pickup.transform.GetPositionAndRotation(out position, out rotation);
+                pickup.ApplyLoadedImage(
+                    result.Texture,
+                    result.CleanPng,
+                    result.HasAlpha,
+                    result.Width,
+                    result.Height
+                );
+            }
+            else
+            {
+                pickup = BasisImagePickupObject.Build(
+                    id,
+                    ownerId,
+                    ownerName,
+                    true,
+                    result.Width,
+                    result.Height,
+                    result.Texture,
+                    result.CleanPng,
+                    result.HasAlpha,
+                    position,
+                    rotation
+                );
+            }
             BasisNativeAnimationPayload animationPayload = null;
             long playbackEpochUtcTicks = 0;
             if (result.Animation != null && result.Animation.FrameCount <= 1)
@@ -819,22 +1002,7 @@ namespace Basis.ImagePickup
             };
             _owned[id] = owned;
 
-            BasisShareableRegistry.Register(
-                new BasisShareableEntry
-                {
-                    Id = id.ToString(),
-                    Kind = BasisShareableKind.Image,
-                    Title = $"{result.Width}x{result.Height}",
-                    SharerName = ownerName,
-                    Actions = new List<BasisShareableAction>
-                    {
-                        new BasisShareableAction
-                        {
-                            Style = BasisShareableActionStyle.Destructive,
-                            Invoke = () => RequestDespawn(id),
-                        },
-                    },
-                });
+            RegisterShareable(id, result.Width, result.Height, ownerName);
 
             if (HasNetworkID)
             {
@@ -957,6 +1125,11 @@ namespace Basis.ImagePickup
             {
                 BasisImagePickupObject pickup = entry.Value;
                 if (pickup == null || !pickup.IsController)
+                    continue;
+                // A local card that is still decoding has not been announced to anyone yet, so peers have no
+                // image to move. Its spawn header carries the pose it ends up at, and the first post-decode
+                // tick sends a transform anyway because LastSent* still hold their defaults.
+                if (pickup.IsOwner && pickup.IsLoading)
                     continue;
                 if (now - pickup.LastSendTime < interval)
                     continue;
@@ -1170,6 +1343,7 @@ namespace Basis.ImagePickup
                 return;
             }
 
+            string ownerName = ResolveOwnerName(senderId);
             try
             {
                 _inbound[id] = new InboundTransfer
@@ -1184,7 +1358,7 @@ namespace Basis.ImagePickup
                     Width = width,
                     Height = height,
                     OwnerId = senderId,
-                    OwnerName = ResolveOwnerName(senderId),
+                    OwnerName = ownerName,
                     Deadline =
                         Time.unscaledTime
                         + BasisImagePickupSettings.InboundTransferTimeoutSeconds,
@@ -1195,6 +1369,20 @@ namespace Basis.ImagePickup
             catch
             {
                 ReleaseInboundTransferBytes(totalBytes);
+                throw;
+            }
+
+            // Raise the card now rather than when the last chunk lands. The header already carries the pose
+            // and the poster's dimensions, so the receiver can place a correctly shaped card immediately and
+            // then apply transform, claim, and despawn messages for it throughout the transfer, instead of
+            // discarding them and finally popping the image in at a pose the sender has since moved away from.
+            try
+            {
+                BuildLoadingPickup(id, senderId, ownerName, false, width, height, position, rotation);
+            }
+            catch
+            {
+                RemoveInboundTransfer(id);
                 throw;
             }
         }
@@ -1252,6 +1440,7 @@ namespace Basis.ImagePickup
             BasisImageValidationResult result = BasisImageSecurity.ValidateBytes(transfer.Buffer);
             if (!result.Ok)
             {
+                RemoveImage(transfer.Id);
                 BasisDebug.LogWarning(
                     $"Image pickup from {transfer.Sender} failed validation: {result.Error}.",
                     LogTag
@@ -1268,6 +1457,7 @@ namespace Basis.ImagePickup
             )
             {
                 DisposeRejectedValidationResult(ref result);
+                RemoveImage(transfer.Id);
                 BasisDebug.LogWarning(
                     $"Image pickup from {transfer.Sender} failed validation: "
                         + $"claimed {transfer.Width}x{transfer.Height}, decoded "
@@ -1276,42 +1466,24 @@ namespace Basis.ImagePickup
                 );
                 return;
             }
-            if (_images.ContainsKey(transfer.Id))
+
+            // The card was deleted, or its sender left, while the bytes were still arriving.
+            if (
+                !_images.TryGetValue(transfer.Id, out BasisImagePickupObject pickup)
+                || pickup == null
+            )
             {
                 DisposeRejectedValidationResult(ref result);
                 return;
             }
 
-            var pickup = BasisImagePickupObject.Build(
-                transfer.Id,
-                transfer.OwnerId,
-                transfer.OwnerName,
-                false,
+            pickup.ApplyLoadedImage(
                 result.Texture,
                 result.CleanPng,
                 result.HasAlpha,
-                transfer.Position,
-                transfer.Rotation
+                result.Width,
+                result.Height
             );
-            _images[transfer.Id] = pickup;
-
-            Guid imageId = transfer.Id;
-            BasisShareableRegistry.Register(
-                new BasisShareableEntry
-                {
-                    Id = imageId.ToString(),
-                    Kind = BasisShareableKind.Image,
-                    Title = $"{transfer.Width}x{transfer.Height}",
-                    SharerName = transfer.OwnerName,
-                    Actions = new List<BasisShareableAction>
-                    {
-                        new BasisShareableAction
-                        {
-                            Style = BasisShareableActionStyle.Destructive,
-                            Invoke = () => RequestDespawn(imageId),
-                        },
-                    },
-                });
         }
 
         private static void HandleAnimationSpawn(ushort senderId, BinaryReader reader)
@@ -1560,6 +1732,15 @@ namespace Basis.ImagePickup
                 {
                     RemoveQueuedInboundAnimationDecode(index);
                     queuedDecodeCount--;
+                    continue;
+                }
+
+                // Attaching an animation matches its canvas against the poster, so this cannot start until the
+                // poster lands. Hold the payload instead of dropping it: a sender offers an animation once, so
+                // a drop here would strand the GIF on its first frame for the rest of the session.
+                if (pickup.IsLoading)
+                {
+                    index++;
                     continue;
                 }
 
@@ -1904,7 +2085,10 @@ namespace Basis.ImagePickup
 
             foreach (BasisImagePickupObject pickup in _images.Values)
             {
-                if (pickup == null || pickup.OwnerId != sender)
+                // A loading card has a live transfer backing it, and that transfer carries the authoritative
+                // claimed size while the card itself still has no poster. Counting it here too would charge
+                // the sender twice for one image and halve their effective limit.
+                if (pickup == null || pickup.OwnerId != sender || pickup.IsLoading)
                     continue;
                 imageCount++;
                 aggregatePixels += pickup.PosterPixelCount;
@@ -2291,8 +2475,10 @@ namespace Basis.ImagePickup
                         _scratchIds.Add(entry.Key);
                 }
                 int expiredTransferCount = _scratchIds.Count;
+                // RemoveImage, not RemoveInboundTransfer: a stalled transfer now has a placeholder card
+                // standing in the world, and dropping only the transfer would strand it there empty forever.
                 for (int i = 0; i < expiredTransferCount; i++)
-                    RemoveInboundTransfer(_scratchIds[i]);
+                    RemoveImage(_scratchIds[i]);
             }
 
             if (_inboundAnimations.Count > 0)

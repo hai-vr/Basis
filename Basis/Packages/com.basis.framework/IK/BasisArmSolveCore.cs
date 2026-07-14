@@ -234,10 +234,8 @@ namespace UnityEngine.Animations.Rigging
                     // abProj wherever abProj exists, and still there when it does not. See BasisLegSolveCore,
                     // which carries the same fix and the same identity.
                     //
-                    // The ONE guard that stays is the hard epsilon below, and note WHAT it guards: ahProj, the
-                    // POLE. A pole shorter than ~2 cm has no reliable direction, and there the solve declines to
-                    // swivel rather than swivel toward noise. That is a singularity, not a taste. It was never a
-                    // guard on the elbow, which is why the elbow's collapse went unnoticed.
+                    // And note WHAT the surviving epsilon below guards: ahProj, the POLE. It was never a guard on
+                    // the ELBOW, which is why the elbow's collapse ran unnoticed for so long.
                     // ==========================================================================================
                     hintFade = 1f;
 
@@ -262,7 +260,7 @@ namespace UnityEngine.Animations.Rigging
                     // else. (And below it, SignedAngleRad returns 0 anyway, so the elbow simply is not swivelled:
                     // a straight arm whose circle has collapsed has nowhere to put its elbow regardless.)
                     // ==========================================================================================
-                    if (ahProj.sqrMagnitude > k_SqrEpsilon)
+                    if (ahProj.sqrMagnitude > k_SqrEpsilon && elbowDir.sqrMagnitude > k_SqrEpsilon)
                     {
                         // A near-180 deg bend->hint swivel is direction-ambiguous when applied PARTIALLY: as
                         // the geometry crosses anti-parallel the signed angle flips +179 -> -179, and at half
@@ -272,8 +270,8 @@ namespace UnityEngine.Animations.Rigging
                         float effFade = hintFade;
                         if (effFade < 1f)
                         {
-                            float denom = Mathf.Sqrt(abProj.sqrMagnitude * ahProj.sqrMagnitude);
-                            float cosBA = denom > k_Epsilon ? Mathf.Clamp(Vector3.Dot(abProj, ahProj) / denom, -1f, 1f) : 1f;
+                            float denom = Mathf.Sqrt(elbowDir.sqrMagnitude * ahProj.sqrMagnitude);
+                            float cosBA = denom > k_Epsilon ? Mathf.Clamp(Vector3.Dot(elbowDir, ahProj) / denom, -1f, 1f) : 1f;
                             float flipDeg = Mathf.Acos(cosBA) * Mathf.Rad2Deg;
                             float commit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((flipDeg - 90f) / 80f));
                             // Only commit when the hint is already strong. Committing as it merely emerges
@@ -293,7 +291,7 @@ namespace UnityEngine.Animations.Rigging
                         // throws the hand clean off its target. A 12-iteration bisection used to sit right here,
                         // walking the hint back toward identity until the hand came home. Naming the axis
                         // deletes the failure and the search for it together.
-                        swivelUsedRad = SignedAngleRad(abProj, ahProj, acNorm) * effFade;
+                        swivelUsedRad = SignedAngleRad(elbowDir, ahProj, acNorm) * effFade;
                         float swivel = swivelUsedRad;
 
                         // Rate-limit so the elbow eases toward the pole rather than swinging ~180 deg the frame

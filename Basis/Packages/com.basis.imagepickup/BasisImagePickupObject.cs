@@ -28,6 +28,7 @@ namespace Basis.ImagePickup
         private Texture2D _posterTexture;
         private byte[] _cleanPng;
         private bool _posterHasAlpha;
+        private bool _isLoading;
         private Material _material;
         private MeshRenderer _frontRenderer;
         private Transform _cardTransform;
@@ -38,7 +39,7 @@ namespace Basis.ImagePickup
         private bool _deleteArmed;
         private bool _isController;
         private Rigidbody _body;
-        private Collider _ownCollider;
+        private BoxCollider _ownCollider;
         private BasisPickupInteractable _interactable;
         private bool _hasRemoteTarget;
         private Vector3 _targetPosition;
@@ -58,6 +59,11 @@ namespace Basis.ImagePickup
         public byte[] CleanPng => _cleanPng;
         internal long PosterPixelCount => _posterTexture != null ? (long)_posterTexture.width * _posterTexture.height : 0L;
         public bool IsHidden => _hidden;
+        /// <summary>
+        /// True between <see cref="Build"/> and <see cref="ApplyLoadedImage"/>: the card is showing the
+        /// placeholder while its poster is still decoding locally or still arriving over the network.
+        /// </summary>
+        public bool IsLoading => _isLoading;
         internal bool HasFrontRenderer =>
             _frontRenderer != null
             && _cardTransform != null
@@ -69,7 +75,13 @@ namespace Basis.ImagePickup
             _frontRenderer != null ? _frontRenderer.gameObject.layer : gameObject.layer;
         public BasisAnimatedImagePlayer AnimatedImagePlayer => _animatedImagePlayer;
 
-        public static BasisImagePickupObject Build(Guid id, ushort ownerId, string ownerName, bool isOwner, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
+        /// <summary>
+        /// Builds a pickup card. Pass a null <paramref name="texture"/> to raise the card immediately in its
+        /// loading state — it shows the placeholder until <see cref="ApplyLoadedImage"/> supplies the poster.
+        /// <paramref name="width"/> and <paramref name="height"/> are the poster's final dimensions, so the
+        /// card carries its true aspect from the first frame and never resizes under the viewer.
+        /// </summary>
+        public static BasisImagePickupObject Build(Guid id, ushort ownerId, string ownerName, bool isOwner, int width, int height, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
         {
             var root = new GameObject($"BasisImagePickup_{ShortId(id)}");
             root.transform.SetPositionAndRotation(position, rotation);
@@ -86,10 +98,9 @@ namespace Basis.ImagePickup
             pickup._posterTexture = texture;
             pickup._cleanPng = cleanPng;
             pickup._posterHasAlpha = cutout;
+            pickup._isLoading = texture == null;
 
-            float aspect = texture.height > 0 ? (float)texture.width / texture.height : 1f;
-            float panelHeight = BasisImagePickupSettings.BaseHeightMeters;
-            float panelWidth = panelHeight * Mathf.Max(0.05f, aspect);
+            CalculateCardSize(width, height, out float panelWidth, out float panelHeight);
 
             var card = new GameObject("Card");
             if (interactableLayer >= 0) card.layer = interactableLayer;
@@ -99,10 +110,9 @@ namespace Basis.ImagePickup
             card.AddComponent<MeshFilter>().sharedMesh = GetCardMesh();
 
             pickup._material = new Material(BundledContentHolder.Instance.UnlitUrpShader);
-            if (pickup._material.HasProperty(BaseMapId)) pickup._material.SetTexture(BaseMapId, texture);
-            else pickup._material.mainTexture = texture;
             if (pickup._material.HasProperty(BaseColorId)) pickup._material.SetColor(BaseColorId, Color.white);
-            if (cutout) ConfigureCutout(pickup._material);
+            pickup.SetDisplayTexture(texture != null ? texture : GetPlaceholderTexture());
+            if (cutout && texture != null) ConfigureCutout(pickup._material);
 
             pickup._frontRenderer = card.AddComponent<MeshRenderer>();
             pickup._frontRenderer.allowOcclusionWhenDynamic = true;
@@ -137,6 +147,40 @@ namespace Basis.ImagePickup
 
             BasisImagePickupBackPanel.Build(root.transform, pickup, panelWidth, panelHeight);
             return pickup;
+        }
+
+        /// <summary>
+        /// Swaps a loading card over to its decoded poster: the local GIF pipeline calls this when its Burst
+        /// decode lands, and receivers call it when the final network chunk arrives. Callers guarantee the
+        /// poster matches the dimensions the card was built with, so this is a texture swap, not a respawn —
+        /// the pickup keeps its identity, pose, and any movement authority a grabber took while it loaded.
+        /// </summary>
+        internal void ApplyLoadedImage(Texture2D texture, byte[] cleanPng, bool cutout, int width, int height)
+        {
+            if (texture == null)
+                return;
+
+            _posterTexture = texture;
+            _cleanPng = cleanPng;
+            _posterHasAlpha = cutout;
+            _isLoading = false;
+
+            CalculateCardSize(width, height, out float panelWidth, out float panelHeight);
+            if (_cardTransform != null) _cardTransform.localScale = new Vector3(panelWidth, panelHeight, 1f);
+            if (_ownCollider != null) _ownCollider.size = new Vector3(panelWidth, panelHeight, 0.02f);
+
+            if (_material == null)
+                return;
+            SetDisplayTexture(texture);
+            if (cutout) ConfigureCutout(_material);
+            else ConfigureOpaque(_material);
+        }
+
+        private static void CalculateCardSize(int width, int height, out float panelWidth, out float panelHeight)
+        {
+            float aspect = height > 0 ? (float)width / height : 1f;
+            panelHeight = BasisImagePickupSettings.BaseHeightMeters;
+            panelWidth = panelHeight * Mathf.Max(0.05f, aspect);
         }
 
         internal void SimulateRemoteTransform(float deltaTime)
@@ -380,6 +424,28 @@ namespace Basis.ImagePickup
 
         private static Mesh _cardMesh;
         private static Material _sharedBackMaterial;
+        private static Texture2D _placeholderTexture;
+
+        /// <summary>
+        /// The neutral fill shown while a poster decodes or downloads. Shared across every loading card and
+        /// never assigned to <c>_posterTexture</c>, so <see cref="OnDestroy"/> cannot destroy it out from
+        /// under the cards still using it.
+        /// </summary>
+        private static Texture2D GetPlaceholderTexture()
+        {
+            if (_placeholderTexture != null) return _placeholderTexture;
+
+            _placeholderTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false, false)
+            {
+                name = "BasisImagePickupPlaceholder",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 0,
+            };
+            _placeholderTexture.SetPixel(0, 0, new Color(0.16f, 0.17f, 0.20f, 1f));
+            _placeholderTexture.Apply(false, true);
+            return _placeholderTexture;
+        }
 
         private static Mesh GetCardMesh()
         {

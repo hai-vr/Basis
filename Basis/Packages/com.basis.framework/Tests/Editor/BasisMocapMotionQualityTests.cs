@@ -156,6 +156,7 @@ namespace Basis.Tests.IK
                              BasisMocapHintSource.LookupNoFlare,
                              BasisMocapHintSource.SwivelModel,
                              BasisMocapHintSource.SwivelModelSmoothed,
+                             BasisMocapHintSource.ElbowField,
                              BasisMocapHintSource.TruthJoint,
                          })
                 {
