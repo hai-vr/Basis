@@ -302,7 +302,7 @@ namespace Basis.Tests.IK
             restPerp = restPerp.sqrMagnitude > 1e-6f ? restPerp.normalized : Vector3.ProjectOnPlane(Vector3.forward, axis).normalized;
             Vector3 restKnee = (i.HipPosition + i.FootPosition) * 0.5f + restPerp * 0.05f;
 
-            BasisLegSolveInput li;
+            BasisLegSolveInput li = default;
             li.Root = i.HipPosition;
             li.Mid = restKnee;
             li.Tip = i.FootPosition;

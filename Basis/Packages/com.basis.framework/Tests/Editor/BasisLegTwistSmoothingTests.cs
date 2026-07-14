@@ -287,7 +287,7 @@ namespace Basis.Tests.IK
                 float t = i * Dt;
                 Quaternion yaw = Quaternion.AngleAxis(yawDeg(t), Up);
 
-                BasisLegSolveInput li;
+                BasisLegSolveInput li = default;
                 li.Root = hip;
                 li.Mid = knee;
                 li.Tip = foot;
@@ -327,7 +327,7 @@ namespace Basis.Tests.IK
             for (int i = 0; i < steps; i++)
             {
                 float t = i * Dt;
-                BasisLegSolveInput li;
+                BasisLegSolveInput li = default;
                 li.Root = hip;
                 li.Mid = knee;
                 li.Tip = foot;

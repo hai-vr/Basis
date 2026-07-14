@@ -51,7 +51,10 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> CustomScale = new("customscale", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<bool> FootIKEnabled = new("footik", new BasisPlatformDefault<bool>(false));
+        // Key bumped to _v2: BasisSettingsSystem.LoadString persists a default the first time it is read, so
+        // "footik" is already pinned to false on every install that has ever launched. Flipping the value
+        // alone would only reach fresh installs.
+        public static BasisSettingsBinding<bool> FootIKEnabled = new("footik_v2", new BasisPlatformDefault<bool>(true));
 
         /// <summary>
         /// When enabled, suppresses jump/landing Mecanim animations and the landing hip dip

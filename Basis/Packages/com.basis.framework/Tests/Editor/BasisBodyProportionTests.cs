@@ -549,7 +549,7 @@ namespace Basis.Tests.IK
 
         static BasisLegSolveResult SolveLegCore(Vector3 hip, Vector3 knee, Vector3 ankle, Vector3 target, Vector3 hint, float hintWeight)
         {
-            BasisLegSolveInput input;
+            BasisLegSolveInput input = default;
             input.Root = hip;
             input.Mid = knee;
             input.Tip = ankle;

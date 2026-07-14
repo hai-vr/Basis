@@ -2274,9 +2274,9 @@ w20, w54;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal)
+        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f)
         {
-            BasisLegSolveInput input;
+            BasisLegSolveInput input = default;
             input.Root = root.GetPosition(stream);
             input.Mid = mid.GetPosition(stream);
             input.Tip = tip.GetPosition(stream);
@@ -2286,6 +2286,7 @@ w20, w54;
             input.TargetRotation = target.rotation;
             input.HintPosition = hint.translation;
             input.HintWeight = hintWeight;
+            input.HintDistrust = hintDistrust;
             input.TargetOffset = targetOffset;
             input.BendNormal = BendNormal;
 
@@ -2334,6 +2335,7 @@ w20, w54;
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), Quaternion.identity);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
+            float hintDistrust = 0f;
             if (!(hintW > 0f))
             {
                 // NO KNEE TRACKER. The leg used to have no hint model AT ALL here -- it fell through to
@@ -2355,20 +2357,19 @@ w20, w54;
                 float legLen = upperLen + lowerLen;
                 bool isLeft = legSlot == 0;
 
-                // NO confidence gate, unlike the arm. Fading the hint weight does not avoid a pop, it CREATES
-                // one -- a faded knee falls back to the BendNormal pole, which points somewhere unrelated, and
-                // swinging between two unrelated poles IS a pop (measured: 70 -> 65, it merely moved). The cure
-                // is BasisLegSwivelModel's biased constant term, which keeps (sin,cos) away from the origin so
-                // atan2 can never spin in the first place.
+                // The confidence is used as POLE distrust, never as a fade of hintW -- hintW is discontinuous
+                // at zero, and that jump is the pop the earlier weight-fade attempt measured (70 -> 65) and
+                // wrongly blamed on the idea rather than the mechanism. See BasisSwivelHintCore.LegModelTrust.
                 if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft,
-                                                out Vector3 modelHint, out float _))
+                                                out Vector3 modelHint, out float conf))
                 {
                     hint = new AffineTransform(modelHint, Quaternion.identity);
                     hintW = 1f;
+                    hintDistrust = 1f - BasisSwivelHintCore.LegModelTrust(conf);
                 }
             }
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal);
+            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
             // translate bones off the FK chain (dislocated foot) mid-fade.
             if (posWeight < 1f)

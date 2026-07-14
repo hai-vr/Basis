@@ -249,15 +249,14 @@ public static class BasisNetworkModeration
                     BasisMainMenu.Close();
                 }
             });
-            BasisDebug.LogError(message);
+            BasisDebug.Log(message);
         }
     }
 
     /// <summary>
     /// Like <see cref="DisplayMessage"/> but adds an "open folder" button that reveals
-    /// <paramref name="folderPath"/> in the OS file browser. This is an informational popup
-    /// (e.g. "logs saved"), so unlike <see cref="DisplayMessage"/> it does not log at error
-    /// level — the caller logs at whatever level fits.
+    /// <paramref name="folderPath"/> in the OS file browser. As with <see cref="DisplayMessage"/>,
+    /// the popup itself is not an error — the caller logs at whatever level fits.
     /// </summary>
     public static void DisplayMessageWithFolder(string message, string folderPath)
     {

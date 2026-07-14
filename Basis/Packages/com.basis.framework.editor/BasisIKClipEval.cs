@@ -254,7 +254,7 @@ namespace Basis.IK.Debugging
             if (limb.Root == null || limb.Mid == null || limb.Tip == null || limb.TTip == null) return;
             bool hasHint = hintMode == BasisIKHintMode.Truth && limb.TMid != null;
 
-            BasisLegSolveInput input;
+            BasisLegSolveInput input = default;
             input.Root = limb.Root.position;
             input.Mid = limb.Mid.position;
             input.Tip = limb.Tip.position;

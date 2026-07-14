@@ -199,7 +199,7 @@ namespace Basis.Tests.IK
                 float t = steps == 1 ? 0f : Mathf.Lerp(-amp, amp, s / (float)(steps - 1));
                 Vector3 o = Offset(axis, t, h);
 
-                BasisLegSolveInput i;
+                BasisLegSolveInput i = default;
                 i.Root = hip + o;
                 i.Mid = knee + o;
                 i.Tip = foot + o;

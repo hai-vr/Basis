@@ -564,7 +564,7 @@ namespace Basis.IK.Debugging
 
         static BasisLegSolveResult SolveOne(Vector3 hip, Vector3 knee, Vector3 foot, Vector3 target, Vector3 hint, Vector3 bendNormal)
         {
-            BasisLegSolveInput input;
+            BasisLegSolveInput input = default;
             input.Root = hip;
             input.Mid = knee;
             input.Tip = foot;

@@ -37,7 +37,7 @@ namespace Basis.BasisUI
         private TweenCanvasGroupAlpha _tooltipTween;
         private const float TooltipFadeDuration = 0.15f;
 
-        public override Component ProviderButtonParent => HorizontalLayout.ContentParent;
+        public override Component ProviderButtonParent => HorizontalLayout ? HorizontalLayout.ContentParent : null;
 
         public BasisMainMenu()
         {

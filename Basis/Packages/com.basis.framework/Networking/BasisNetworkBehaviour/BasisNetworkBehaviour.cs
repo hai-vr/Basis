@@ -330,9 +330,23 @@ namespace Basis
         public async Task<BasisOwnershipResult> TakeOwnershipAsync(int Timeout = 5000)
         {
             IsOwnedLocallyOnClient = true;
-            CurrentOwnerId = BasisNetworkPlayer.LocalPlayer.playerId;
-            currentOwnedPlayer = BasisNetworkPlayer.LocalPlayer;
-            BasisOwnershipResult Result = await BasisNetworkOwnership.TakeOwnershipAsync(clientIdentifier, BasisNetworkConnection.LocalPlayerPeer.RemoteId, Timeout);
+            BasisNetworkPlayer LocalPlayer = BasisNetworkPlayer.LocalPlayer;
+
+            if (!HasNetworkID)
+            {
+                CurrentOwnerId = LocalPlayer != null ? LocalPlayer.playerId : (ushort)0;
+                currentOwnedPlayer = LocalPlayer;
+                return new BasisOwnershipResult(true, CurrentOwnerId);
+            }
+
+            if (LocalPlayer == null || !BasisNetworkConnection.TryGetLocalPlayerID(out ushort LocalId))
+            {
+                return BasisOwnershipResult.Failed;
+            }
+
+            CurrentOwnerId = LocalPlayer.playerId;
+            currentOwnedPlayer = LocalPlayer;
+            BasisOwnershipResult Result = await BasisNetworkOwnership.TakeOwnershipAsync(clientIdentifier, LocalId, Timeout);
             return Result;
         }
         /// <summary>

@@ -186,61 +186,47 @@ namespace UnityEngine.Animations.Rigging
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
 
-                    // Fade only when the pole genuinely collapses onto the shoulder->hand axis,
-                    // keyed on the projection magnitude itself, not raw extension (which discarded
-                    // tracker follow on 21% of the workspace).
-                    float projNorm = (totalLen > k_Epsilon) ? ahProj.magnitude / totalLen : 0f;
-                    // A real elbow tracker sits a physical stand-off (limb radius + strap) OFF the bone, so even
-                    // a short swing-plane projection is genuine out-direction signal, not noise. Re-condition it
-                    // (floor the effective projection) so the elbow FOLLOWS the tracker instead of fading toward
-                    // the rest bend -- the "tracker looks unnatural for some mounts/body sizes" fix. Keyed only
-                    // on ahProj (shoulder/hand/hint positions), so unlike a tracker-LOCAL offset it does NOT
-                    // swing with forearm pronation. Below a small floor the tracker is essentially on the bone
-                    // line (direction is noise) so it still fades. Lookup (no-tracker) path is untouched.
-                    // The floor blends in over [0.05, 0.10] rather than gating at 0.05: a hard gate is a
-                    // one-frame 0<->0.30 cliff in tracker influence (nothing rate-limits the live tracker
-                    // path), so a tracker orbiting the bone line made the elbow snap between follow/ignore.
-                    if (i.HintIsTracker)
-                    {
-                        float floorBlend = Mathf.Clamp01((projNorm - 0.05f) / 0.05f);
-                        projNorm = Mathf.Lerp(projNorm, Mathf.Max(projNorm, 0.30f), floorBlend);
-                    }
-                    hintFade = Mathf.Clamp01((projNorm - 0.06f) / 0.12f);
-
                     // ==========================================================================================
-                    // ⭐ THE abProj FADE, AND WHY THE MODEL MUST NOT BE SUBJECT TO IT.
+                    // ⭐ THE POLE IS COMMANDED. IT IS OBEYED. THERE IS NOTHING HERE TO FADE.
                     //
-                    // abProj is the ELBOW'S OWN LEVER ARM -- its perpendicular stand-off from the shoulder->hand
-                    // axis -- and it collapses to zero as the arm STRAIGHTENS. Fading the hint on it means: the
-                    // straighter the arm, the less the commanded pole is obeyed, until past ~99.8% extension it
-                    // is obeyed NOT AT ALL and the elbow is left wherever the base animation happened to put it.
+                    // This block used to hold TWO fades, and between them they were the reason a real elbow
+                    // tracker inverted:
                     //
-                    // THAT IS THE "ELBOW ON THE WRONG SIDE" BUG, and it is why it was CALIBRATION-DEPENDENT:
-                    // give the avatar arms shorter than the user's and their hand sits at full reach on almost
-                    // every frame, so hintFade is pinned near zero and the swivel model never gets to drive the
-                    // elbow at all. Re-assign trackers, the arm scale changes, and the elbow flips sides.
-                    // "Sometimes it's perfect" was simply the calibrations where the arm stayed bent.
+                    //   projNorm  faded on |ahProj| -- how far the POLE stands off the shoulder->hand axis.
+                    //   bendNorm  faded on |abProj| -- how far the CURRENT ELBOW stands off that same axis.
                     //
-                    // THE FADE IS GUARDING THE WRONG QUANTITY, and BasisLegSolveCore already worked this out and
-                    // deleted its copy. What goes to noise as the limb straightens is abProj -- the MEASURED
-                    // direction of the current elbow, whose lever arm is vanishing. The POLE does not: it is
-                    // commanded, and it stays perfectly well-defined at every extension. And because this swivel
-                    // rotates abProj ONTO the pole, THE ELBOW'S FINAL DIRECTION DOES NOT DEPEND ON WHERE IT
-                    // STARTED. A noisy abProj buys a noisy swivel ANGLE and still lands the elbow exactly on the
-                    // pole -- and as the circle collapses, the POSITION that angle corresponds to collapses with
-                    // it, continuously, on its own. There is nothing here to fade.
+                    // BOTH of those collapse to zero as the arm STRAIGHTENS, and a VR user holds their arms
+                    // mostly straight: 57% of the corpus sits above 95% extension. Measured on a 0.6 m arm with
+                    // a real tracker, the authority the solver granted it was
                     //
-                    // A TRACKER IS DIFFERENT and keeps the fade. Its hint is a physical thing a few centimetres
-                    // off the bone; when the arm straightens, that stand-off becomes a lever the solve amplifies
-                    // into degrees of swivel from millimetres of tracker noise. The MODEL's hint is not measured,
-                    // it is CONSTRUCTED perpendicular to the arm axis (BasisArmSwivelModel.BendDirection), so it
-                    // has no noise to amplify and nothing to protect against.
+                    //      94% extension -> 1.00     98.5% -> 0.62     99.5% -> 0.21     99.9% -> 0.00
+                    //
+                    // At partial authority the elbow does not land on the tracker and it does not land on the
+                    // animation -- it lands BETWEEN them, at a point that depends on the noisy, collapsing
+                    // abProj. Cross the threshold and it snaps from one to the other. THAT is "the elbow
+                    // inverts with a real tracker attached", and "it is not very human movement": the elbow was
+                    // being blended toward an idle animation the user is not performing.
+                    //
+                    // THE FADES WERE GUARDING THE WRONG QUANTITY. What goes to noise as the limb straightens is
+                    // abProj -- the MEASURED direction of the current elbow, whose lever arm is vanishing. The
+                    // POLE does not: it is COMMANDED, by a tracker or by the swivel model, and it stays
+                    // perfectly well-defined at every extension. And because this swivel rotates abProj ONTO the
+                    // pole, THE ELBOW'S FINAL DIRECTION DOES NOT DEPEND ON WHERE IT STARTED. A noisy abProj buys
+                    // a noisy swivel ANGLE and still lands the elbow exactly on the pole -- and as the circle
+                    // collapses, the POSITION that angle corresponds to collapses with it, continuously, on its
+                    // own. A wrong swivel on a straight arm is a wrong TWIST, for one frame, on a limb that has
+                    // nowhere to put its elbow anyway.
+                    //
+                    // BasisLegSolveCore worked this out and deleted its copy long ago, and its comment says so
+                    // in as many words -- "the POLE is commanded, BY A TRACKER OR BY BendNormal". The leg has
+                    // shipped without these fades ever since. The arm's survived, and it is what has been
+                    // breaking the elbow.
+                    //
+                    // The ONE guard that stays is the hard epsilon below: a pole shorter than ~2 cm has no
+                    // reliable DIRECTION at all, and there the solve declines to swivel rather than swivel
+                    // toward noise. That is a singularity, not a taste.
                     // ==========================================================================================
-                    if (i.HintIsTracker)
-                    {
-                        float bendNorm = (totalLen > k_Epsilon) ? abProj.magnitude / totalLen : 0f;
-                        hintFade *= Mathf.Clamp01((bendNorm - k_HintBendFadeStart) / (k_HintBendFadeFull - k_HintBendFadeStart));
-                    }
+                    hintFade = 1f;
 
                     if (hintFade > 0f && ahProj.sqrMagnitude > (totalLen * totalLen * 0.001f))
                     {
@@ -305,7 +291,17 @@ namespace UnityEngine.Animations.Rigging
             // it if a backward flip survives, lower it if forward/up reaches drift). Folded into HintDelta so
             // the runtime applies it; the hand stays exactly on target -- only the ill-conditioned swivel DOF
             // is replaced by a stable attractor. Perpendicular hint poles (forward / up reaches) are untouched.
-            if (i.HintWeight)
+            // ⚠ NOT WHEN THE ELBOW IS TRACKED. This stabilizer eases the elbow toward WORLD-DOWN, and it was
+            // written for the old invented lookup pole, which really could point backward along the arm and
+            // flip. A TRACKER is the user's actual elbow. Dragging it toward world-down is the solver
+            // overruling a measurement with a guess -- and because it engages on |ahProj|, which collapses as
+            // the arm straightens, it engaged hardest exactly where the user spends most of their time. It is
+            // half of "the elbow is not doing very human movement": the other half was the fades above.
+            //
+            // The swivel model does not need it either (its pole is perpendicular by construction, so
+            // poleCond == 0.5 and collapse == 0 -- this block has been dead code on that path since the model
+            // landed). So it now guards only what it was built for, and nothing else.
+            if (i.HintWeight && !i.HintIsTracker)
             {
                 float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
                 // Same physical-stand-off reasoning as the hintFade floor above: a real tracker's short pole is
@@ -355,6 +351,46 @@ namespace UnityEngine.Animations.Rigging
                         midRot = stab * midRot;
                         hintR = stab * hintR; // fold into the hint delta the runtime applies
                     }
+                }
+            }
+
+            // =============================================================================================
+            // ⭐ THE ANATOMY GUARD, AND IT IS THE LAST THING THAT HAPPENS.
+            //
+            // An elbow cannot point at the sky. Measured on 55,140 frames of real human arm motion: THE ELBOW
+            // NEVER RISES ABOVE THE SHOULDER, NOR ABOVE THE HAND, WHICHEVER IS HIGHER -- worst violation in the
+            // entire corpus, nine millimetres. You cannot lift your elbow over your shoulder while your hand
+            // hangs low; the humerus will not do it. See BasisElbowAnatomyCore.
+            //
+            // The KNEE has had a guard of exactly this status for a long time (BasisLegSolveCore's anterior
+            // half-space: "a knee behind that axis is not unnatural, it is anatomically unrepresentable").
+            // THE ARM HAD NONE. Nothing whatsoever stopped this solver placing the elbow anywhere on its
+            // circle, and "the arms get into rotations that are not possible, the elbows point at the sky" is
+            // what that costs.
+            //
+            // IT GUARDS THE OUTCOME, NOT THE HINT, and that is the whole point of putting it HERE, after
+            // everything else has had its say. A guard on the hint would protect the arm from a bad hint. A
+            // guard on the RESULT protects it from a bad hint, a mis-strapped elbow tracker, the pole-collapse
+            // stabilizer above, and the animated pose the solve started from -- so there is no path by which
+            // the arm can end a frame outside the envelope, because this is the end of the frame.
+            //
+            // It costs no reach, structurally: the correction is a swivel about the shoulder->hand axis, and
+            // the hand LIES on that axis. A rotation about a line cannot move a point on that line.
+            // =============================================================================================
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, i.PlayerUp, totalLen);
+            if (guardSwivel != 0f)   // exact 0 inside the envelope: legal poses take the untouched path
+            {
+                Vector3 acGuard = cPosition - aPosition;
+                if (acGuard.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 acGuardN = acGuard.normalized;
+                    Quaternion guard = AngleAxisRad(guardSwivel, acGuardN);
+
+                    rootRot = guard * rootRot;
+                    bPosition = aPosition + guard * (bPosition - aPosition);
+                    cPosition = aPosition + guard * (cPosition - aPosition);
+                    midRot = guard * midRot;
+                    hintR = guard * hintR;   // fold into the hint delta the runtime applies
                 }
             }
 

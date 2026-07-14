@@ -41,6 +41,46 @@ public static class BasisDebug
         if (!ShouldEmit(logTag, MessageType.Error)) return;
         Debug.unityLogger.LogError("", FormatMessage($"{message.Message} {message.StackTrace}", logTag, MessageType.Error));
     }
+    /// <summary>
+    /// Logs at error level but marks the emission as not-reportable, so BasisExceptionNotifier
+    /// skips the user-facing dialogue and the crash report sent to the server. Use for genuine
+    /// errors that are caused by remote content or the environment rather than a client defect
+    /// (bad media URL, unapproved component in someone else's avatar, no XR runtime present) —
+    /// they belong in the log, but they are not this client crashing.
+    /// Thread-safe: the flag is per-thread, and Unity raises the log callback synchronously on
+    /// the thread that emitted it.
+    /// </summary>
+    [ThreadStatic] private static bool _reportSuppressed;
+    public static bool ReportSuppressed => _reportSuppressed;
+
+    [HideInCallstack]
+    public static void LogErrorUnreported(string message, LogTag logTag = LogTag.System)
+    {
+        _reportSuppressed = true;
+        try
+        {
+            LogError(message, logTag);
+        }
+        finally
+        {
+            _reportSuppressed = false;
+        }
+    }
+
+    [HideInCallstack]
+    public static void LogErrorUnreported(string message, UnityEngine.Object Object, LogTag logTag = LogTag.System)
+    {
+        _reportSuppressed = true;
+        try
+        {
+            LogError(message, Object, logTag);
+        }
+        finally
+        {
+            _reportSuppressed = false;
+        }
+    }
+
     [HideInCallstack]
     public static void LogWarning(string message, LogTag logTag = LogTag.System)
     {

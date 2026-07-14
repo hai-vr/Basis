@@ -171,7 +171,7 @@ namespace Basis.IK.Debugging
             Vector3 root = new Vector3(0f, hipsY, 0f);
             Vector3 mid = new Vector3(0f, hipsY - thigh, 0f);
             Vector3 tip = new Vector3(0f, hipsY - thigh - shin, 0f);
-            BasisLegSolveInput input;
+            BasisLegSolveInput input = default;
             input.Root = root;
             input.Mid = mid;
             input.Tip = tip;

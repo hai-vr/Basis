@@ -1215,7 +1215,7 @@ public sealed class BasisMediaPlayer : MonoBehaviour
 
     private void HandleError(Exception ex)
     {
-        BasisDebug.LogError($"BasisMediaPlayer source error: {ex.Message}", BasisDebug.LogTag.Video);
+        BasisDebug.LogErrorUnreported($"BasisMediaPlayer source error: {ex.Message}", BasisDebug.LogTag.Video);
         pendingError = ex;
     }
 

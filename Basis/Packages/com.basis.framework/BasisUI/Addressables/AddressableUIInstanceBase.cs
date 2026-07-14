@@ -21,6 +21,7 @@ namespace Basis.BasisUI
         {
             get
             {
+                if (this == null) return null;
                 if (!_rectTransform) _rectTransform = GetComponent<RectTransform>();
                 return _rectTransform;
             }

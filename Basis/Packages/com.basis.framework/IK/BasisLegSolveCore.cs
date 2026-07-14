@@ -11,6 +11,11 @@ namespace UnityEngine.Animations.Rigging
         public Quaternion TargetRotation;
         public Vector3 HintPosition;
         public float HintWeight;
+
+        /// <summary>How much to DISTRUST HintPosition's direction, 0..1. Zero (the struct default) trusts it
+        /// completely, so every existing caller is unchanged. Eases the pole onto the BendNormal pole, which
+        /// is NOT the same as fading HintWeight — that is discontinuous at zero (see the blend in Solve).</summary>
+        public float HintDistrust;
         public Quaternion TargetOffset;
         public Vector3 BendNormal;
     }
@@ -288,6 +293,16 @@ namespace UnityEngine.Animations.Rigging
                         float blend = 1f - poleSin / k_PoleColinearSin;
                         pole = Vector3.Slerp(pole.normalized, bendPole.normalized, blend);
                         axisSource = 4;
+                    }
+
+                    // Same easing, second reason: the hint above is untrustworthy GEOMETRICALLY (it has closed
+                    // on the leg axis); HintDistrust says it is untrustworthy STATISTICALLY. Applied to the POLE
+                    // and never to HintWeight -- the weight is discontinuous at zero, because the solve stops
+                    // steering as w->0+ and then jumps onto bendPole at w==0.
+                    if (i.HintDistrust > 0f && hasBendPole && pole.sqrMagnitude > k_SqrEpsilon)
+                    {
+                        pole = Vector3.Slerp(pole.normalized, bendPole.normalized, Mathf.Clamp01(i.HintDistrust));
+                        axisSource = 5;
                     }
                 }
 

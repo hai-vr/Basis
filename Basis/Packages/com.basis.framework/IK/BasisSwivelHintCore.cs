@@ -59,6 +59,31 @@ namespace UnityEngine.Animations.Rigging
         /// </summary>
         public const float MinConfidence = 0.20f;
 
+        /// <summary>|(s,c)| at or below which the leg model has no usable opinion and the solve should
+        /// fall back to its own anatomical bend pole.</summary>
+        public const float LegTrustLo = 0.30f;
+
+        /// <summary>|(s,c)| at or above which the leg model is trusted outright. Above this LegModelTrust
+        /// returns exactly 1, so everything inside the fitted domain is bit-for-bit unchanged.</summary>
+        public const float LegTrustHi = 0.70f;
+
+        /// <summary>
+        /// How far to trust <see cref="BasisLegSwivelModel"/>, read off its own |(s,c)|.
+        ///
+        /// The magnitude is the model's opinion STRENGTH, and the domain clamp in SwivelRad bounds the
+        /// radius but cannot bound the DIRECTION — so leg ABDUCTION (standing with the feet apart) walks
+        /// straight out of a fit whose corpus is CMU walk/idle/reach/sit. Measured on a 22° abduction:
+        /// confidence 0.98 → 0.28 while the predicted swivel runs 4° → 70°, rotating the knee out of the
+        /// sagittal plane and back inward. Out there the answer is not approximate, it is invented.
+        ///
+        /// Smoothstep so the pole it feeds is C1 and cannot kink.
+        /// </summary>
+        public static float LegModelTrust(float confidence)
+        {
+            float t = Mathf.Clamp01((confidence - LegTrustLo) / (LegTrustHi - LegTrustLo));
+            return t * t * (3f - 2f * t);
+        }
+
         /// <summary>
         /// `up` runs upFrom -> upTo (chest -> neck for the arm; hips -> chest for the leg).
         /// `right` runs leftAnchor -> rightAnchor (the shoulder line; the hip line), orthogonalised against up.

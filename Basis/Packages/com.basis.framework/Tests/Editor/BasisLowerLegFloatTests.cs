@@ -8,254 +8,395 @@ namespace Basis.Tests.IK
     /// <summary>
     /// PROBE — "the lower leg floats around when I move the feet."
     ///
-    /// Config: FOOT trackers, NO knee/lower-leg trackers. That is the ordinary 6-point FBT setup, and it
-    /// routes the knee through TWO stacked smoothers that nothing currently gates for responsiveness:
+    /// Config: FOOT trackers, NO knee/lower-leg trackers — the ordinary 6-point FBT setup.
     ///
-    ///   1. BasisLocalRigDriver.TryComputeButterflyKnee -- FBIKButterflyKnees defaults TRUE, and with a foot
-    ///      tracker and no knee tracker it is the branch that wins. It low-passes the knee hint as a WORLD
-    ///      POSITION at ButterflyKneeSmoothRate = 8 (tau = 125 ms).
-    ///   2. BasisFullBodyIK.SmoothKneeSwivel -- the output One-Euro. Reached via `!preserveTip` (a real foot
-    ///      rotation IS supplied), so it takes the "tracked" cutoffs 1.5 Hz / beta 0.20 -- but ConditionOnPole
-    ///      scales beta by the pole lever arm, and a near-straight leg has almost none, so beta collapses to
-    ///      ~0 and the floor falls to SingularMinCutoffHz = 1.0 Hz (tau = 159 ms) with NO speed adaptation
-    ///      left to open it.
+    /// Reproduces the SHIPPING knee path faithfully, which matters because the obvious guess is wrong:
+    /// FBIKButterflyKnees defaults TRUE, but the butterfly core gates on FOOT TILT (insteps rolled
+    /// outward). With flat feet engage = 0, HintWeight = 0, and TryComputeButterflyKnee returns false —
+    /// so butterfly is correctly OFF while you walk around, and the knee hint instead comes from
+    /// SolveLegs' fallback: BasisSwivelHintCore.LegHint (the fitted BasisLegSwivelModel), at hintW = 1.
     ///
-    /// Moving your foot while standing is exactly the near-straight case. This measures how far the knee
-    /// actually lags, stage by stage, against the zero-lag solve.
+    /// The pipeline actually under test, per frame:
+    ///     butterfly (weight 0 when flat) -> LegHint model fallback -> BasisLegSolveCore -> SmoothKneeSwivel
+    ///
+    /// The suspect is SmoothKneeSwivel's ConditionOnPole: it scales the One-Euro's beta by the knee's
+    /// lever arm off the hip->ankle axis, and a standing leg has almost none — so beta collapses toward 0
+    /// and the filter loses the speed-adaptivity that is the entire point of a One-Euro. It then cannot
+    /// tell real foot motion from jitter, and lags both.
     /// </summary>
     public sealed class BasisLowerLegFloatTests
     {
         const float Dt = 1f / 90f;
         const float Thigh = 0.42f, Shin = 0.42f;
-        static readonly Vector3 Hip = new Vector3(-0.09f, 0.90f, 0f);   // left hip socket
+        const float LegLen = Thigh + Shin;
+
+        static readonly Vector3 Hips = new Vector3(0f, 0.95f, 0f);
+        static readonly Vector3 Chest = new Vector3(0f, 1.25f, 0f);
+        static readonly Vector3 LeftHip = new Vector3(-0.09f, 0.90f, 0f);
+        static readonly Vector3 RightHip = new Vector3(0.09f, 0.90f, 0f);
         static readonly Quaternion HipsRot = Quaternion.identity;
 
-        // Live constants, mirrored (lock-step with the shipping code).
-        const float ButterflyRate = 8f;                                     // BasisLocalRigDriver.ButterflyKneeSmoothRate
-        const float TrackedMinCutoffHz = 1.5f, TrackedBeta = 0.20f, TrackedDerivHz = 1.0f;  // k_TrackedKneeSwivel*
-        const float MaxOpenDeg = 60f;                                       // FBIKButterflyKneeMaxOpenDeg
+        // Lock-step with the shipping constants.
+        const float ButterflyRate = 8f;                                                    // BasisLocalRigDriver.ButterflyKneeSmoothRate
+        const float TrackedMinCutoffHz = 1.5f, TrackedBeta = 0.20f, TrackedDerivHz = 1.0f; // k_TrackedKneeSwivel*
+        const float MaxOpenDeg = 60f;                                                      // FBIKButterflyKneeMaxOpenDeg
 
-        /// <summary>One frame of the real lower-leg pipeline. `smoothHint`/`smoothSwivel` select the stages.</summary>
-        static Vector3 Step(Vector3 footPos, Quaternion footRot, float dt,
-                            bool smoothHint, bool smoothSwivel,
-                            ref Vector3 hintState, ref float weightState,
-                            ref BasisSwivelFilterState swivelState, ref bool swivelSeeded,
-                            ref Vector3 kneeState)
+        struct Legs
         {
-            // ---- 1. butterfly knee hint (the branch a foot tracker with no knee tracker actually takes)
-            BasisButterflyKneeInput bi = default;
-            bi.HipPosition = Hip;
-            bi.FootPosition = footPos;
-            bi.FootInstepDir = footRot * Vector3.up;
-            bi.OutwardDir = -(HipsRot * Vector3.right);      // left leg
-            bi.DefaultBendDir = HipsRot * Vector3.forward;
-            bi.PlayerUp = Vector3.up;
-            bi.TorsoFacingDir = HipsRot * Vector3.forward;
-            bi.UpperLength = Vector3.Distance(Hip, kneeState);
-            bi.LowerLength = Vector3.Distance(kneeState, footPos);
-            bi.MaxOpenDeg = MaxOpenDeg;
-            bi.Strength = 1f;
-            bi.SupineFloor = 1f;
-            BasisButterflyKneeCore.Solve(bi, out BasisButterflyKneeResult br);
+            public Vector3 HintState;
+            public float WeightState;
+            public BasisSwivelFilterState Swivel;
+            public bool Seeded;
+        }
 
-            Vector3 hint;
-            float weight;
-            if (smoothHint)
+        /// <summary>Result of one shipping frame.</summary>
+        struct Frame
+        {
+            public Vector3 KneeRigid;    // the solve's knee, BEFORE the output One-Euro
+            public Vector3 KneeFinal;    // after it — what actually renders
+            public float RawSwivelDeg;
+            public float SmoothSwivelDeg;
+            public float Conditioning;
+            public float ButterflyWeight;
+            public float ModelConfidence;
+        }
+
+        /// <summary>One frame of the REAL pipeline. `swivelSmoothing` toggles SmoothKneeSwivel.</summary>
+        static Frame Step(Vector3 footPos, Quaternion footRot, ref Legs s, bool butterflyOn, bool swivelSmoothing,
+                          bool trustModelBlindly = false)
+        {
+            Frame f = default;
+
+            // ---- BasisLocalRigDriver: butterfly branch (foot tracker, no knee tracker)
+            float hintW = 0f;
+            Vector3 hint = Vector3.zero;
+            if (butterflyOn)
             {
-                float a = 1f - Mathf.Exp(-ButterflyRate * dt);
-                hintState = Vector3.Lerp(hintState, br.KneeHint, a);
-                weightState = Mathf.Lerp(weightState, br.HintWeight, a);
-                hint = hintState;
-                weight = weightState;
+                BasisButterflyKneeInput bi = default;
+                bi.HipPosition = LeftHip;
+                bi.FootPosition = footPos;
+                bi.FootInstepDir = footRot * Vector3.up;
+                bi.OutwardDir = -(HipsRot * Vector3.right);   // left leg
+                bi.DefaultBendDir = HipsRot * Vector3.forward;
+                bi.PlayerUp = Vector3.up;
+                bi.TorsoFacingDir = HipsRot * Vector3.forward;
+                bi.UpperLength = Thigh;
+                bi.LowerLength = Shin;
+                bi.MaxOpenDeg = MaxOpenDeg;
+                bi.Strength = 1f;
+                bi.SupineFloor = 1f;
+                BasisButterflyKneeCore.Solve(bi, out BasisButterflyKneeResult br);
+
+                float a = 1f - Mathf.Exp(-ButterflyRate * Dt);
+                if (s.WeightState <= 0.0001f && br.HintWeight <= 0.0001f)
+                {
+                    s.HintState = br.KneeHint;
+                    s.WeightState = 0f;
+                }
+                else
+                {
+                    s.HintState = Vector3.Lerp(s.HintState, br.KneeHint, a);
+                    s.WeightState = Mathf.Lerp(s.WeightState, br.HintWeight, a);
+                }
+                if (s.WeightState > 0.001f) { hint = s.HintState; hintW = s.WeightState; }
             }
-            else
+            f.ButterflyWeight = hintW;
+
+            // ---- BasisFullBodyIK.SolveLegs: no hint => synthesize one from the fitted leg swivel model,
+            //      and hand its confidence to the solve as POLE DISTRUST (never as a hintW fade).
+            float hintDistrust = 0f;
+            if (!(hintW > 0f))
             {
-                hintState = br.KneeHint;
-                weightState = br.HintWeight;
-                hint = br.KneeHint;
-                weight = br.HintWeight;
+                BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(LeftHip, RightHip, Hips, Chest);
+                if (BasisSwivelHintCore.LegHint(frame, LeftHip, footPos, LegLen, true, out Vector3 modelHint, out float conf))
+                {
+                    hint = modelHint;
+                    hintW = 1f;
+                    hintDistrust = trustModelBlindly ? 0f : 1f - BasisSwivelHintCore.LegModelTrust(conf);
+                    f.ModelConfidence = conf;
+                }
             }
 
-            // ---- 2. the real two-bone leg solve
+            // ---- the real two-bone leg solve. Mid is the ANIMATION's knee: the stream is re-posed by the
+            // animator every frame, so the filter's output does NOT feed back into the solve input.
             BasisLegSolveInput li = default;
-            li.Root = Hip;
-            li.Mid = kneeState;
-            li.Tip = footPos;
+            li.Root = LeftHip;
+            li.Mid = LeftHip + Vector3.down * Thigh + Vector3.forward * 0.03f;
+            li.Tip = LeftHip + Vector3.down * LegLen;
             li.RootRotation = Quaternion.identity;
             li.MidRotation = Quaternion.identity;
             li.TargetPosition = footPos;
             li.TargetRotation = footRot;
             li.TargetOffset = Quaternion.identity;
             li.HintPosition = hint;
-            li.HintWeight = weight;
+            li.HintWeight = hintW;
+            li.HintDistrust = hintDistrust;
             li.BendNormal = HipsRot * Vector3.right;
             BasisLegSolveCore.Solve(li, out BasisLegSolveResult lr);
 
-            Vector3 knee = lr.KneeSolved;
+            f.KneeRigid = lr.KneeSolved;
+            f.KneeFinal = lr.KneeSolved;
 
-            // ---- 3. the output knee-swivel One-Euro (SmoothKneeSwivel), tracked cutoffs + pole conditioning
-            if (smoothSwivel)
-            {
-                BasisSwivelSmootherInput si = default;
-                si.Root = Hip;
-                si.Mid = knee;
-                si.Tip = footPos;
-                si.BodyRotation = HipsRot;
-                si.ReferenceLocal = Vector3.forward;
-                si.FallbackLocal = Vector3.right;
-                si.Dt = dt;
-                si.MinCutoffHz = TrackedMinCutoffHz;
-                si.Beta = TrackedBeta;
-                si.DerivCutoffHz = TrackedDerivHz;
-                si.ConditionOnPole = true;
-                si.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
-                si.GuardAnteriorHalfSpace = true;
-                si.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
-                si.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
-                si.State = swivelState;
-                si.Seeded = swivelSeeded;
+            // ---- BasisFullBodyIK.SmoothKneeSwivel (tracked cutoffs + pole conditioning)
+            BasisSwivelSmootherInput si = default;
+            si.Root = LeftHip;
+            si.Mid = lr.KneeSolved;
+            si.Tip = lr.FootSolved;
+            si.BodyRotation = HipsRot;
+            si.ReferenceLocal = Vector3.forward;
+            si.FallbackLocal = Vector3.right;
+            si.Dt = Dt;
+            si.MinCutoffHz = TrackedMinCutoffHz;
+            si.Beta = TrackedBeta;
+            si.DerivCutoffHz = TrackedDerivHz;
+            si.ConditionOnPole = true;
+            si.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+            si.GuardAnteriorHalfSpace = true;
+            si.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
+            si.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
+            si.State = s.Swivel;
+            si.Seeded = s.Seeded;
 
-                BasisSwivelSmootherCore.Solve(si, out BasisSwivelSmootherResult sr);
-                if (sr.WriteState) { swivelState = sr.State; swivelSeeded = sr.Seeded; }
-                if (sr.Valid) knee = sr.DesiredMid;
-            }
+            BasisSwivelSmootherCore.Solve(si, out BasisSwivelSmootherResult sr);
+            if (sr.WriteState) { s.Swivel = sr.State; s.Seeded = sr.Seeded; }
 
-            kneeState = knee;
-            return knee;
+            f.RawSwivelDeg = sr.RawSwivelDeg;
+            f.SmoothSwivelDeg = sr.SmoothSwivelDeg;
+            f.Conditioning = sr.Conditioning;
+            if (swivelSmoothing && sr.Valid) f.KneeFinal = sr.DesiredMid;
+
+            return f;
         }
 
-        /// <summary>Runs a foot trajectory through the pipeline; returns the knee position each frame.</summary>
-        static Vector3[] Run(System.Func<int, (Vector3 pos, Quaternion rot)> footAt, int frames,
-                             bool smoothHint, bool smoothSwivel)
+        static Frame[] Run(System.Func<int, (Vector3 pos, Quaternion rot)> footAt, int frames,
+                           bool butterflyOn, bool swivelSmoothing)
         {
+            var s = new Legs();
             (Vector3 p0, Quaternion r0) = footAt(0);
+            for (int i = 0; i < 120; i++) Step(p0, r0, ref s, butterflyOn, swivelSmoothing);   // settle at rest
 
-            // Seed the knee at the rest solve so nothing is converging from a cold start.
-            Vector3 knee = Hip + Vector3.down * Thigh + Vector3.forward * 0.02f;
-            Vector3 hintState = Vector3.zero;
-            float weightState = 0f;
-            BasisSwivelFilterState swivelState = default;
-            bool swivelSeeded = false;
-
-            for (int i = 0; i < 60; i++)   // settle at rest
-                Step(p0, r0, Dt, smoothHint, smoothSwivel, ref hintState, ref weightState,
-                     ref swivelState, ref swivelSeeded, ref knee);
-
-            var track = new Vector3[frames];
+            var track = new Frame[frames];
             for (int i = 0; i < frames; i++)
             {
                 (Vector3 fp, Quaternion fr) = footAt(i);
-                track[i] = Step(fp, fr, Dt, smoothHint, smoothSwivel, ref hintState, ref weightState,
-                                ref swivelState, ref swivelSeeded, ref knee);
+                track[i] = Step(fp, fr, ref s, butterflyOn, swivelSmoothing);
             }
             return track;
         }
 
-        // --------------------------------------------------------------- the motions
+        // --------------------------------------------------------------- motions
 
         const float MoveSecs = 0.45f, HoldSecs = 1.5f;
         static int Frames => Mathf.RoundToInt((MoveSecs + HoldSecs) / Dt);
         static int StopFrame => Mathf.RoundToInt(MoveSecs / Dt);
         static float T(int i) => Mathf.Clamp01(i * Dt / MoveSecs);
 
-        /// <summary>Foot slides 35 cm forward along the floor. Leg stays NEAR-EXTENDED — the low-conditioning
-        /// case, where the swivel filter's beta collapses and it stops adapting to speed at all.</summary>
-        static (Vector3, Quaternion) SlideForward(int i)
-        {
-            Vector3 rest = Hip + Vector3.down * (Thigh + Shin - 0.02f);
-            return (rest + Vector3.forward * (0.35f * T(i)), Quaternion.identity);
-        }
+        // A REACHABLE envelope. The hips do not move in this probe, so the foot must stay inside the leg:
+        // sliding a foot 30 cm sideways from a standing 0.82 m drop puts it 0.87 m from the hip, past the
+        // 0.84 m leg, and the solver simply pins the leg straight -- conditioning 0, swivel meaningless, and
+        // the probe measures nothing. A real person's hips move; here the foot swings on an ARC instead, at a
+        // constant leg length, which is the same thing from the leg's point of view.
+        const float StandReach = 0.95f;                       // a standing leg carries a slight knee bend
+        static float LegDist => StandReach * LegLen;          // 0.80 m hip->ankle
+        static Vector3 FootAt(float outDeg, float fwdDeg) =>
+            LeftHip + (Quaternion.AngleAxis(outDeg, Vector3.forward) * Quaternion.AngleAxis(fwdDeg, Vector3.right)
+                       * Vector3.down) * LegDist;
 
-        /// <summary>Foot swings 30 cm out to the side. Also near-extended, but it swings the leg's plane —
-        /// which is exactly what the knee swivel measures.</summary>
-        static (Vector3, Quaternion) SwingOut(int i)
-        {
-            Vector3 rest = Hip + Vector3.down * (Thigh + Shin - 0.02f);
-            return (rest + Vector3.left * (0.30f * T(i)), Quaternion.identity);
-        }
+        /// <summary>Foot swings 22° laterally out on its arc (~30 cm of travel). Near-extended leg — the
+        /// low-conditioning case — and it swings the leg PLANE, which is exactly what the swivel measures.</summary>
+        static (Vector3, Quaternion) SwingOut(int i) => (FootAt(22f * T(i), 0f), Quaternion.identity);
 
-        /// <summary>Knee lifted: foot comes up and back, so the leg genuinely BENDS (high conditioning).
-        /// The contrast case — here the filter is supposed to recover its responsiveness.</summary>
+        /// <summary>Foot steps forward and out — a realistic shifting-about motion.</summary>
+        static (Vector3, Quaternion) StepAbout(int i) => (FootAt(12f * T(i), 22f * T(i)), Quaternion.identity);
+
+        /// <summary>Knee lifted: the leg genuinely bends (conditioning recovers). The contrast case.</summary>
         static (Vector3, Quaternion) LiftKnee(int i)
         {
-            Vector3 rest = Hip + Vector3.down * (Thigh + Shin - 0.02f);
             float t = T(i);
-            return (rest + Vector3.up * (0.35f * t) + Vector3.forward * (0.20f * t), Quaternion.identity);
+            Vector3 rest = FootAt(0f, 0f);
+            return (rest + (Vector3.up * 0.35f + Vector3.forward * 0.20f) * t, Quaternion.identity);
         }
 
         // --------------------------------------------------------------- the probe
 
+        /// <summary>
+        /// THE HEADLINE GATE. Swing the foot out to the side — an ordinary wide stance — and the knee must
+        /// keep pointing FORWARD and keep tracking the foot. It must not be flung.
+        ///
+        /// As shipped it was: the model's confidence collapsed 0.98 -> 0.28 across the swing, its predicted
+        /// swivel ran 4 -> 70 deg, the knee reversed direction laterally and its forward offset collapsed
+        /// from 13.4 cm to 5.5 cm. That is the reported "lower leg floats around when I move the feet", and
+        /// it is not a smoothing problem at all — it is the model being read outside the domain it was fit in.
+        /// </summary>
         [Test]
-        public void Probe_HowFarDoesTheKneeLagWhenTheFootMoves()
+        public void Abduction_DoesNotFlingTheKnee()
         {
-            var sb = new StringBuilder("[LOWER LEG] knee lag vs the ZERO-LAG solve, per smoothing stage.\n"
-                                     + "            (foot tracker, no knee tracker, butterfly ON -- the 6-point FBT default)\n\n");
+            var s = new Legs();
+            BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(LeftHip, RightHip, Hips, Chest);
 
-            foreach ((string name, System.Func<int, (Vector3, Quaternion)> motion) in new (string, System.Func<int, (Vector3, Quaternion)>)[]
-                     {
-                         ("foot SLIDES 35cm forward (leg near-straight)", SlideForward),
-                         ("foot SWINGS 30cm out to the side", SwingOut),
-                         ("knee LIFTED 35cm (leg genuinely bends)", LiftKnee),
-                     })
+            float restFwd = 0f, worstFwdLoss = 0f, prevLat = float.NaN, worstReversal = 0f, minConf = 99f;
+            for (int i = 0; i <= 90; i++)
             {
-                Vector3[] rigid = Run(motion, Frames, smoothHint: false, smoothSwivel: false);
-                Vector3[] hintOnly = Run(motion, Frames, smoothHint: true, smoothSwivel: false);
-                Vector3[] swivelOnly = Run(motion, Frames, smoothHint: false, smoothSwivel: true);
-                Vector3[] shipping = Run(motion, Frames, smoothHint: true, smoothSwivel: true);
+                Vector3 foot = FootAt(22f * (i / 90f), 0f);
+                Frame f = Step(foot, Quaternion.identity, ref s, butterflyOn: true, swivelSmoothing: true);
+                BasisSwivelHintCore.LegHint(frame, LeftHip, foot, LegLen, true, out _, out float conf);
+                minConf = Mathf.Min(minConf, conf);
 
-                sb.AppendLine($"  {name}");
-                sb.AppendLine($"      {"stage",-34} {"worst err",9} {"err @ stop",11} {"settle after stop",18}");
-                Row(sb, "butterfly hint smoothing ONLY", hintOnly, rigid);
-                Row(sb, "swivel One-Euro ONLY", swivelOnly, rigid);
-                Row(sb, "BOTH (what ships)", shipping, rigid);
-                sb.AppendLine();
+                Vector3 rel = f.KneeFinal - LeftHip;
+                float fwd = Vector3.Dot(rel, Vector3.forward);
+                float lat = Vector3.Dot(rel, Vector3.left);
+                if (i == 0) restFwd = fwd;
+                worstFwdLoss = Mathf.Max(worstFwdLoss, restFwd - fwd);
+                if (!float.IsNaN(prevLat)) worstReversal = Mathf.Max(worstReversal, prevLat - lat);
+                prevLat = lat;
             }
-            Debug.Log(sb.ToString());
-            Assert.Pass();
+
+            Assert.Less(minConf, BasisSwivelHintCore.LegTrustHi,
+                "test wiring: this swing is supposed to walk the model OUT of its fitted domain "
+                + $"(worst confidence {minConf:F2}); if it no longer does, the gate proves nothing");
+
+            Assert.Less(worstFwdLoss, 0.03f,
+                $"the knee lost {worstFwdLoss * 100f:F1} cm of its FORWARD offset during a plain leg abduction "
+                + "-- it is being rotated out of the sagittal plane and flung backwards");
+
+            Assert.Less(worstReversal, 0.01f,
+                $"the knee REVERSED direction by {worstReversal * 100f:F1} cm while the foot kept swinging one way. "
+                + "A knee that backs up while the foot goes out is the 'floating' the user sees.");
         }
 
-        static void Row(StringBuilder sb, string label, Vector3[] got, Vector3[] rigid)
+        /// <summary>
+        /// The paired negative: drive the same swing with the confidence gate switched OFF and assert the
+        /// knee IS flung. Without this, a change that made the model always confident would leave the gate
+        /// above green and silently dead.
+        /// </summary>
+        [Test]
+        public void TrustingTheModelBlindly_Fails_SoTheGateCannotRotIntoATautology()
         {
-            float worst = 0f;
-            for (int i = 0; i < got.Length; i++) worst = Mathf.Max(worst, Vector3.Distance(got[i], rigid[i]));
+            var s = new Legs();
+            float restFwd = 0f, worstFwdLoss = 0f;
+            for (int i = 0; i <= 90; i++)
+            {
+                Frame f = Step(FootAt(22f * (i / 90f), 0f), Quaternion.identity, ref s,
+                               butterflyOn: true, swivelSmoothing: true, trustModelBlindly: true);
+                float fwd = Vector3.Dot(f.KneeFinal - LeftHip, Vector3.forward);
+                if (i == 0) restFwd = fwd;
+                worstFwdLoss = Mathf.Max(worstFwdLoss, restFwd - fwd);
+            }
 
-            float atStop = Vector3.Distance(got[StopFrame], rigid[StopFrame]);
-
-            // How long after the foot stops before the knee is within 2 mm of where it ends up.
-            Vector3 settled = got[got.Length - 1];
-            float restMs = 0f;
-            for (int i = got.Length - 1; i >= StopFrame; i--)
-                if (Vector3.Distance(got[i], settled) > 0.002f) { restMs = (i + 1 - StopFrame) * Dt * 1000f; break; }
-
-            sb.AppendLine($"      {label,-34} {worst * 100f,7:F2}cm {atStop * 100f,9:F2}cm {restMs,15:F0} ms");
+            Assert.Greater(worstFwdLoss, 0.05f,
+                $"trusting BasisLegSwivelModel blindly is supposed to fling the knee (it lost {worstFwdLoss * 100f:F1} cm "
+                + "of forward offset); if it no longer does, the gate above is testing nothing");
         }
 
-        /// <summary>The mechanism, isolated: what does pole conditioning do to the filter as the leg straightens?</summary>
+        /// <summary>
+        /// THE NO-REGRESSION GATE, and the reason this fix is safe. Inside the fitted domain — confidence at
+        /// or above LegTrustHi, which is where every corpus frame lives — the trust is exactly 1, the pole is
+        /// untouched, and the solve is bit-for-bit what it was. The change can only act where the model has
+        /// already admitted it does not know.
+        /// </summary>
         [Test]
-        public void Probe_WhatDoesPoleConditioningDoToTheFilterWhileStanding()
+        public void InsideTheFittedDomain_TheGateIsExactlyANoOp()
         {
-            var sb = new StringBuilder("[LOWER LEG] SmoothKneeSwivel's effective cutoffs vs leg extension.\n"
-                                     + "            beta *= conditioning, minCutoff = lerp(1.0Hz, 1.5Hz, conditioning)\n"
-                                     + "            conditioning = sin(angle between thigh and the hip->ankle axis)\n\n");
-            sb.AppendLine($"      {"reach",6} {"knee bend",10} {"conditioning",13} {"beta",7} {"minCut",8} {"tau@100deg/s",13}");
-
-            foreach (float reach in new[] { 0.999f, 0.99f, 0.97f, 0.94f, 0.90f, 0.80f, 0.70f })
+            foreach (float conf in new[] { BasisSwivelHintCore.LegTrustHi, 0.75f, 0.85f, 0.95f, 1.0f, 1.4f })
             {
-                float d = reach * (Thigh + Shin);
-                // Law of cosines: interior knee angle, then the thigh's angle off the hip->ankle axis.
-                float cosKnee = Mathf.Clamp((Thigh * Thigh + Shin * Shin - d * d) / (2f * Thigh * Shin), -1f, 1f);
-                float kneeDeg = Mathf.Acos(cosKnee) * Mathf.Rad2Deg;
-                float sinHip = Mathf.Clamp01(Shin * Mathf.Sin(Mathf.Acos(cosKnee)) / Mathf.Max(d, 1e-4f));
-
-                float beta = TrackedBeta * sinHip;
-                float minCut = Mathf.Lerp(BasisSwivelFilterCore.MinCutoffHz, TrackedMinCutoffHz, sinHip);
-                float cutoffAt100 = minCut + beta * 100f;              // 100 deg/s of real swivel motion
-                float tau = 1f / (2f * Mathf.PI * cutoffAt100) * 1000f;
-
-                sb.AppendLine($"      {reach,6:F3} {kneeDeg,8:F0}deg {sinHip,13:F3} {beta,7:F3} {minCut,6:F2}Hz {tau,10:F0} ms");
+                Assert.AreEqual(1f, BasisSwivelHintCore.LegModelTrust(conf), 1e-6f,
+                    $"a confident model (|s,c| = {conf:F2}) must be trusted completely -- anything less silently "
+                    + "re-tunes the knee everywhere the model actually works");
             }
-            Debug.Log(sb.ToString());
-            Assert.Pass();
+            Assert.AreEqual(0f, BasisSwivelHintCore.LegModelTrust(BasisSwivelHintCore.LegTrustLo), 1e-6f,
+                "at the floor the model has no opinion and the solve must fall back to its own bend pole");
+
+            // ...and it must be CONTINUOUS in between, or the pole kinks and the knee pops.
+            float prev = 0f;
+            for (float c = 0f; c <= 1.2f; c += 0.005f)
+            {
+                float t = BasisSwivelHintCore.LegModelTrust(c);
+                Assert.LessOrEqual(t - prev, 0.02f, $"LegModelTrust jumps at |s,c| = {c:F3} -- a step in the trust is a pop in the knee");
+                Assert.GreaterOrEqual(t, prev - 1e-6f, "LegModelTrust must be monotonic in confidence");
+                prev = t;
+            }
+        }
+
+        /// <summary>Same solve with the hint suppressed entirely — the knee falls back to the BendNormal pole.</summary>
+        static Frame StepNoHint(Vector3 footPos, ref Legs s)
+        {
+            BasisLegSolveInput li = default;
+            li.Root = LeftHip;
+            li.Mid = LeftHip + Vector3.down * Thigh + Vector3.forward * 0.03f;
+            li.Tip = LeftHip + Vector3.down * LegLen;
+            li.RootRotation = Quaternion.identity;
+            li.MidRotation = Quaternion.identity;
+            li.TargetPosition = footPos;
+            li.TargetRotation = Quaternion.identity;
+            li.TargetOffset = Quaternion.identity;
+            li.HintPosition = Vector3.zero;
+            li.HintWeight = 0f;
+            li.HintDistrust = 0f;
+            li.BendNormal = HipsRot * Vector3.right;
+            BasisLegSolveCore.Solve(li, out BasisLegSolveResult lr);
+
+            BasisSwivelSmootherInput si = default;
+            si.Root = LeftHip; si.Mid = lr.KneeSolved; si.Tip = lr.FootSolved;
+            si.BodyRotation = HipsRot;
+            si.ReferenceLocal = Vector3.forward; si.FallbackLocal = Vector3.right;
+            si.Dt = Dt;
+            si.MinCutoffHz = TrackedMinCutoffHz; si.Beta = TrackedBeta; si.DerivCutoffHz = TrackedDerivHz;
+            si.ConditionOnPole = true; si.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+            si.GuardAnteriorHalfSpace = true;
+            si.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
+            si.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
+            si.State = s.Swivel; si.Seeded = s.Seeded;
+            BasisSwivelSmootherCore.Solve(si, out BasisSwivelSmootherResult sr);
+            if (sr.WriteState) { s.Swivel = sr.State; s.Seeded = sr.Seeded; }
+
+            return new Frame
+            {
+                KneeRigid = lr.KneeSolved,
+                KneeFinal = sr.Valid ? sr.DesiredMid : lr.KneeSolved,
+                RawSwivelDeg = sr.RawSwivelDeg,
+                Conditioning = sr.Conditioning,
+            };
+        }
+
+        /// <summary>
+        /// THE BUTTERFLY MUST STILL WORK. Lie back, roll the insteps outward — the knees must splay.
+        /// This is the feature the whole butterfly path exists for; it is pinned before anything is changed
+        /// so that "still works" is a measurement and not a hope.
+        /// </summary>
+        [Test]
+        public void Probe_ButterflyStillSplaysTheKnee()
+        {
+            // The butterfly gate is dot(instep, outward). For the LEFT leg outward is -X, so the foot's up
+            // vector must lean toward -X: a POSITIVE roll about +Z. (Negative rolls it toward +X, the gate
+            // reads Max(0, dot) = 0, and the butterfly never engages -- which is how the first version of
+            // this test managed to "prove" the feature was off.)
+            Quaternion tilted = Quaternion.AngleAxis(55f, Vector3.forward);
+            Assert.Greater(Vector3.Dot(tilted * Vector3.up, -(HipsRot * Vector3.right)), 0.5f,
+                "test wiring: the foot's instep must actually lean OUTWARD or the butterfly cannot engage");
+
+            Vector3 pulledIn = LeftHip + Vector3.down * 0.45f + Vector3.forward * 0.25f;   // foot pulled toward the hip
+
+            var s = new Legs();
+            Frame f = default;
+            for (int i = 0; i < 400; i++) f = Step(pulledIn, tilted, ref s, butterflyOn: true, swivelSmoothing: true);
+
+            // ...and the same pose with butterfly OFF, for the contrast.
+            var s2 = new Legs();
+            Frame off = default;
+            for (int i = 0; i < 400; i++) off = Step(pulledIn, tilted, ref s2, butterflyOn: false, swivelSmoothing: true);
+
+            Vector3 outward = -(HipsRot * Vector3.right);
+            float splayOn = Vector3.Dot(f.KneeFinal - LeftHip, outward);
+            float splayOff = Vector3.Dot(off.KneeFinal - LeftHip, outward);
+
+            Debug.Log($"[BUTTERFLY] insteps rolled out 55 deg, foot pulled in:\n"
+                    + $"   butterfly weight     {f.ButterflyWeight:F2}\n"
+                    + $"   knee OUTWARD splay   {splayOn * 100f:F1} cm   (butterfly OFF: {splayOff * 100f:F1} cm)\n"
+                    + $"   delta                {(splayOn - splayOff) * 100f:F1} cm of splay attributable to butterfly");
+
+            Assert.Greater(f.ButterflyWeight, 0.5f, "butterfly did not engage on a proper butterfly pose");
+            Assert.Greater(splayOn - splayOff, 0.05f,
+                "butterfly is engaged but the knee is not actually splaying outward -- the feature is broken");
         }
     }
 }

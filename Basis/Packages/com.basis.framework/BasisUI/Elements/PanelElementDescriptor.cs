@@ -78,6 +78,7 @@ namespace Basis.BasisUI
             {
                 // If a custom content parent hasn't been assigned, just use itself.
                 if (!_contentParent) _contentParent = rectTransform;
+                if (!_contentParent) return null;
                 // If the content parent is needed, turn it on.
                 // We leave this off by default to better line up out canvas layouts.
                 _contentParent.gameObject.SetActive(true);

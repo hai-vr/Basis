@@ -1010,7 +1010,7 @@ namespace Basis.IK.Debugging
                     var rf = feet[1]; if (rf.wantsStep) { FinalizeStep(ref rf, simState[0], p, sc, hips); rf.wantsStep = false; feet[1] = rf; }
 
                     float3 d = hips - hips0;   // pre-IK leg translates with the body; the solver pulls the foot back to the plant
-                    BasisLegSolveInput li;
+                    BasisLegSolveInput li = default;
                     li.Root = root0 + d; li.Mid = knee0 + d; li.Tip = foot0 + d;
                     li.RootRotation = Quaternion.identity; li.MidRotation = Quaternion.identity;
                     li.TargetPosition = feet[0].currentPos; li.TargetRotation = Quaternion.identity;
