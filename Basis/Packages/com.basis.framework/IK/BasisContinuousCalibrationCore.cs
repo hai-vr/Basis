@@ -76,16 +76,20 @@ public static class BasisContinuousCalibrationCore
     }
 
     /// <summary>
-    /// True when the head sits at standing height: within <see cref="HeadHeightBandFraction"/> of the
-    /// calibrated standing eye height. Rejects seated/crouched play and a degenerate eye height.
+    /// True when the head sits at its calibration standing height: within
+    /// <see cref="HeadHeightBandFraction"/> (of the standing eye height) of the head pose captured at
+    /// ritual calibration. The gated quantity is the head CONTROL, which rides an avatar-proportional
+    /// eye-to-head-bone offset below the raw eye — comparing head-to-head cancels that offset, where
+    /// gating against the eye height itself sat the band off-center by the gap (often the whole band).
+    /// Rejects seated/crouched play and a degenerate eye height.
     /// </summary>
-    public static bool IsStandingHeight(float headHeight, float standingEyeHeight)
+    public static bool IsStandingHeight(float headHeight, float calibrationHeadHeight, float standingEyeHeight)
     {
         if (standingEyeHeight < 0.5f)
         {
             return false;
         }
-        return Mathf.Abs(headHeight - standingEyeHeight) <= standingEyeHeight * HeadHeightBandFraction;
+        return Mathf.Abs(headHeight - calibrationHeadHeight) <= standingEyeHeight * HeadHeightBandFraction;
     }
 
     /// <summary>Fraction of the remaining error one frame closes for an exponential blend of time constant tau.</summary>

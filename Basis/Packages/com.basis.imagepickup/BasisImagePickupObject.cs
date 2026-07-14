@@ -40,6 +40,7 @@ namespace Basis.ImagePickup
         private bool _isController;
         private Rigidbody _body;
         private BoxCollider _ownCollider;
+        private GameObject _backPanel;
         private BasisPickupInteractable _interactable;
         private bool _hasRemoteTarget;
         private Vector3 _targetPosition;
@@ -64,6 +65,7 @@ namespace Basis.ImagePickup
         /// placeholder while its poster is still decoding locally or still arriving over the network.
         /// </summary>
         public bool IsLoading => _isLoading;
+        internal bool BackPanelVisible => _backPanel != null && _backPanel.activeSelf;
         internal bool HasFrontRenderer =>
             _frontRenderer != null
             && _cardTransform != null
@@ -145,8 +147,38 @@ namespace Basis.ImagePickup
             pickup._interactable = interactable;
             interactable.OnInteractStartEvent.AddListener(pickup.OnLocalGrabbed);
 
-            BasisImagePickupBackPanel.Build(root.transform, pickup, panelWidth, panelHeight);
             return pickup;
+        }
+
+        /// <summary>
+        /// Shows or hides the Hide/Save/Delete controls on the card's back, following the main menu. The panel
+        /// is a world-space canvas with its own graphic raycaster, so it is built on first show and only
+        /// toggled after that: a room full of pickups would otherwise each keep a live canvas, and each
+        /// raycast against controls nobody can click while the menu is shut. Grabbing and moving the card is
+        /// unaffected — that runs off the pickup's own collider, not this canvas.
+        /// </summary>
+        internal void SetBackPanelVisible(bool visible)
+        {
+            if (!visible)
+            {
+                if (_backPanel == null)
+                    return;
+                CancelInvoke(nameof(DisarmDelete));
+                DisarmDelete();
+                _backPanel.SetActive(false);
+                return;
+            }
+
+            if (_backPanel == null)
+            {
+                _backPanel = BasisImagePickupBackPanel.Build(
+                    transform,
+                    this,
+                    BasisImagePickupSettings.BaseHeightMeters
+                );
+                return;
+            }
+            _backPanel.SetActive(true);
         }
 
         /// <summary>

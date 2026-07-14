@@ -23,10 +23,12 @@ namespace Basis.Scripts.Avatar
     /// position-only). Everything is gated behind BasisSettingsDefaults.ContinuousCalibration
     /// (off by default); when the toggle is off the per-frame hook is a single early-out.
     ///
-    /// Baselines are captured at the end of every FullBodyCalibration against the same head snapshot
-    /// the reprojection pipeline stores, so a snapshot write here stays paired with the frame
-    /// reprojection rebuilds from. A tracker whose snapshot changes underneath us (device-reconnect
-    /// recapture) is re-adopted against the live body frame with a fresh correction budget.
+    /// Baselines are captured at the end of every FullBodyCalibration. Each tracker is adopted in the
+    /// body frame of ITS OWN capture-time head anchor (BasisInput.CalibratedUnscaledHead*) — the frame
+    /// reprojection rebuilds that tracker from — so a ritual tracker anchors to the ritual frame and a
+    /// mid-session recapture (reconnect restore, matcher-pinned tracker) anchors to its own capture
+    /// frame, never to wherever the player happens to be standing when it comes online. A tracker
+    /// whose snapshot changes underneath us is re-adopted the same way with a fresh correction budget.
     /// </summary>
     public static class BasisContinuousCalibration
     {
@@ -87,17 +89,13 @@ namespace Basis.Scripts.Avatar
                 CorrectionActive = false;
                 TotalCorrectedMeters = 0f;
 
-                if (BasisAvatarIKStageCalibration.TryGetCalibrationHeadSnapshot(out Vector3 headPos, out Quaternion headRot)
-                    && BasisContinuousCalibrationCore.TryComputeBodyFrame(headPos, headRot, out Vector3 origin, out Quaternion rotation))
+                BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
+                if (devices != null)
                 {
-                    BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
-                    if (devices != null)
+                    int count = devices.Count;
+                    for (int Index = 0; Index < count; Index++)
                     {
-                        int count = devices.Count;
-                        for (int Index = 0; Index < count; Index++)
-                        {
-                            TryAdopt(devices[Index], origin, rotation);
-                        }
+                        TryAdopt(devices[Index]);
                     }
                 }
                 EnsureRegistered();
@@ -130,7 +128,12 @@ namespace Basis.Scripts.Avatar
                 && input.Control.UseInverseOffset;
         }
 
-        private static void TryAdopt(BasisInput input, Vector3 origin, Quaternion rotation)
+        // Adoption frame = the body frame of the head anchor THIS tracker's snapshot was captured
+        // against (a ritual tracker gets the ritual frame; a mid-session recapture gets its own capture
+        // frame). Adopting against the LIVE frame instead expressed a ritual-era snapshot in wherever
+        // the player currently stands, which read as permanent out-of-pose drift and deadlocked the
+        // shared gates. Refuses when the anchor's yaw frame is degenerate (captured pitched >60°).
+        private static void TryAdopt(BasisInput input)
         {
             if (!IsEligible(input, out BasisBoneTrackedRole role))
             {
@@ -142,6 +145,10 @@ namespace Basis.Scripts.Avatar
                 {
                     return;
                 }
+            }
+            if (!BasisContinuousCalibrationCore.TryComputeBodyFrame(input.CalibratedUnscaledHeadPosition, input.CalibratedUnscaledHeadRotation, out Vector3 origin, out Quaternion rotation))
+            {
+                return;
             }
             TrackerState state = new TrackerState
             {
@@ -155,13 +162,18 @@ namespace Basis.Scripts.Avatar
             s_states.Add(state);
         }
 
-        private static void ReAdopt(TrackerState state, Vector3 origin, Quaternion rotation)
+        private static bool ReAdopt(TrackerState state)
         {
+            if (!BasisContinuousCalibrationCore.TryComputeBodyFrame(state.Input.CalibratedUnscaledHeadPosition, state.Input.CalibratedUnscaledHeadRotation, out Vector3 origin, out Quaternion rotation))
+            {
+                return false;
+            }
             state.AnchorOrigin = origin;
             state.AnchorRotation = rotation;
             state.LastWrittenSnapshot = state.Input.CalibratedUnscaledPosition;
             state.HasLoggedDrift = false;
             BasisContinuousCalibrationCore.ToBodyLocal(origin, rotation, state.Input.CalibratedUnscaledPosition, state.Input.CalibratedUnscaledRotation, out state.HomeRelPosition, out state.HomeRelRotation);
+            return true;
         }
 
         private static void OnRender()
@@ -208,18 +220,23 @@ namespace Basis.Scripts.Avatar
                 if (!IsEligible(state.Input, out BasisBoneTrackedRole role) || role != state.Role)
                 {
                     s_states.RemoveAt(Index);
+                    continue;
+                }
+                // Snapshot rewritten underneath us (reconnect heal, fresh recapture): re-adopt in the
+                // new snapshot's own capture frame; drop the state when that frame is degenerate.
+                if ((state.Input.CalibratedUnscaledPosition - state.LastWrittenSnapshot).magnitude > BasisContinuousCalibrationCore.ExternalSnapshotEpsilonMeters
+                    && !ReAdopt(state))
+                {
+                    s_states.RemoveAt(Index);
                 }
             }
-            if (frameValid)
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
+            if (devices != null)
             {
-                BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance.AllInputDevices : null;
-                if (devices != null)
+                int count = devices.Count;
+                for (int Index = 0; Index < count; Index++)
                 {
-                    int count = devices.Count;
-                    for (int Index = 0; Index < count; Index++)
-                    {
-                        TryAdopt(devices[Index], origin, rotation);
-                    }
+                    TryAdopt(devices[Index]);
                 }
             }
             if (s_states.Count == 0)
@@ -229,18 +246,18 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
+            // The standing gate references the ritual head snapshot (same head CONTROL, same unscale),
+            // so the avatar's eye-to-head-bone offset cancels. Gating against PlayerEyeHeight compared
+            // the head BONE to the raw EYE, sitting the band off-center by that offset — often the
+            // entire band, which kept the gate shut while standing perfectly still.
             bool gates = frameValid
-                && BasisContinuousCalibrationCore.IsStandingHeight(headUnscaled.y, BasisHeightDriver.PlayerEyeHeight)
+                && BasisAvatarIKStageCalibration.TryGetCalibrationHeadSnapshot(out Vector3 calibrationHeadUnscaled, out _)
+                && BasisContinuousCalibrationCore.IsStandingHeight(headUnscaled.y, calibrationHeadUnscaled.y, BasisHeightDriver.PlayerEyeHeight)
                 && headSpeed <= BasisContinuousCalibrationCore.HeadStillSpeedMetersPerSecond;
 
             for (int Index = 0; Index < s_states.Count; Index++)
             {
                 TrackerState state = s_states[Index];
-
-                if (frameValid && (state.Input.CalibratedUnscaledPosition - state.LastWrittenSnapshot).magnitude > BasisContinuousCalibrationCore.ExternalSnapshotEpsilonMeters)
-                {
-                    ReAdopt(state, origin, rotation);
-                }
 
                 Vector3 unscaled = state.Input.UnscaledDeviceCoord.position;
                 float speed = state.HasLastSample ? (unscaled - state.LastUnscaledPosition).magnitude / deltaTime : float.MaxValue;

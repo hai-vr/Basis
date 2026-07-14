@@ -385,6 +385,12 @@ namespace Basis.Scripts.Device_Management.Devices
         public bool HasCalibratedOffsetSnapshot;
         public Vector3 CalibratedUnscaledPosition;
         public Quaternion CalibratedUnscaledRotation = Quaternion.identity;
+        // Head anchor the snapshot above was captured against, in the same unscaled space. Each
+        // tracker pairs with its OWN capture-time head so reprojection and continuous-calibration
+        // adoption rebuild the geometry of THIS capture — a mid-session recapture (device reconnect,
+        // matcher-pinned tracker) must not be rebuilt against the ritual-calibration head.
+        public Vector3 CalibratedUnscaledHeadPosition;
+        public Quaternion CalibratedUnscaledHeadRotation = Quaternion.identity;
 
         /// <summary>
         /// Computes and applies the inverse offset from the driven bone so that the tracker maintains
@@ -443,10 +449,21 @@ namespace Basis.Scripts.Device_Management.Devices
             Control.SetInverseOffset(InverseOffsetPosition, InverseOffsetRotation);
             Control.UseInverseOffset = true;
 
-            // Scale-free snapshot of where this tracker sat at calibration, so the position offset can
-            // be re-derived for a new avatar/DeviceScale without redoing the T-pose.
-            BasisCalibrationMath.UnscaleDeviceCoord(tracker.position, tracker.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledPosition, out CalibratedUnscaledRotation);
-            HasCalibratedOffsetSnapshot = true;
+            // Scale-free snapshot of where this tracker sat at calibration, paired with the head
+            // anchor it was captured against, so the position offset can be re-derived for a new
+            // avatar/DeviceScale without redoing the T-pose.
+            BasisLocalBoneControl anchorHeadControl = BasisLocalBoneDriver.HeadControl;
+            if (anchorHeadControl != null)
+            {
+                BasisCalibrationMath.UnscaleDeviceCoord(tracker.position, tracker.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledPosition, out CalibratedUnscaledRotation);
+                BasisCalibratedCoords anchorHeadOut = anchorHeadControl.OutGoingData;
+                BasisCalibrationMath.UnscaleDeviceCoord(anchorHeadOut.position, anchorHeadOut.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledHeadPosition, out CalibratedUnscaledHeadRotation);
+                HasCalibratedOffsetSnapshot = true;
+            }
+            else
+            {
+                HasCalibratedOffsetSnapshot = false;
+            }
 
             BasisCalibrationDebugRecorder.OffsetCapture(this, Control);
         }

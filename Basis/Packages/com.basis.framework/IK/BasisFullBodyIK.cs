@@ -345,6 +345,9 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_AnatShoulderSlide;
         [SyncSceneToStream, SerializeField] bool m_AnatCervicalLordosis;
         [SyncSceneToStream, SerializeField] bool m_AnatPelvicTwistRouting;
+        // The anatomical range-of-motion envelope on every solved vertebra. Default ON: what it replaces
+        // is not a safe fallback, it is a measured error (BasisSpineAnatomy).
+        [SyncSceneToStream, SerializeField] bool m_SpineAnatomicalRom;
         // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
         // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
         [SyncSceneToStream, SerializeField] bool m_LegSwivelSmoothing;
@@ -537,6 +540,7 @@ namespace UnityEngine.Animations.Rigging
         public bool AnatShoulderSlide { get => m_AnatShoulderSlide; set => m_AnatShoulderSlide = value; }
         public bool AnatCervicalLordosis { get => m_AnatCervicalLordosis; set => m_AnatCervicalLordosis = value; }
         public bool AnatPelvicTwistRouting { get => m_AnatPelvicTwistRouting; set => m_AnatPelvicTwistRouting = value; }
+        public bool SpineAnatomicalRom { get => m_SpineAnatomicalRom; set => m_SpineAnatomicalRom = value; }
         public bool LegSwivelSmoothing { get => m_LegSwivelSmoothing; set => m_LegSwivelSmoothing = value; }
         public string SpineBendPitchFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendPitch));
         public string SpineBendYawFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendYaw));
@@ -562,6 +566,7 @@ namespace UnityEngine.Animations.Rigging
         public string AnatShoulderSlideProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatShoulderSlide));
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
+        public string SpineAnatomicalRomProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineAnatomicalRom));
         public string LegSwivelSmoothingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LegSwivelSmoothing));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
@@ -698,6 +703,7 @@ namespace UnityEngine.Animations.Rigging
             m_AnatShoulderSlide = false;
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
+            m_SpineAnatomicalRom = true;
             m_LegSwivelSmoothing = true;
             m_LordosisPitchGainDeg = 8f;
             m_LordosisBaseDeg = 5f;
@@ -1002,6 +1008,12 @@ w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
         public NativeArray<ReadWriteTransformHandle> ChainHeadToSpine;
+        // The anatomical envelope, PARALLEL TO ChainHeadToSpine so a chain index guards itself. The head
+        // (index 0) and the hips (the last) carry Valid=false frames -- the head is welded to the HMD and
+        // the hips are the anchor, so neither is a DOF the solver invents, and neither is guarded. Every
+        // other entry is a real vertebral segment with its own ROM. See BasisSpineAnatomy.
+        public NativeArray<BasisSpineRestFrame> ChainSpineRestFrames;
+        public NativeArray<BasisSpineRom> ChainSpineRoms;
         // optional tuning (can be constants or properties)
         public CacheIndex spineToleranceIdx;
         public CacheIndex spineMaxIterationsIdx;
@@ -1026,6 +1038,7 @@ w20, w54;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting, legSwivelSmoothing;
+        public BoolProperty spineAnatomicalRom;
         public BoolProperty hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public FloatProperty lordosisPitchGainDeg;
         public FloatProperty lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
@@ -1260,6 +1273,7 @@ w20, w54;
 
                 DistributeSpineBend(stream, headPos);
                 BiasSpineTowardChest(stream);
+                GuardSpineChain(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
             else if (HandleChest.IsValid(stream) && HandleNeck.IsValid(stream) && HandleHead.IsValid(stream))
@@ -1269,6 +1283,7 @@ w20, w54;
 
                 DistributeSpineBend(stream, headPos);
                 ApplyArmSwingChestFollow(stream);
+                GuardSpineChain(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
         }
@@ -1348,10 +1363,80 @@ w20, w54;
                     {
                         ClampChestCone(stream, i, chestCone);
                     }
+
+                    // LAST, so it sees the outcome of every other constraint on this joint, not just the
+                    // CCD's own step. The cones above are reach heuristics; this is anatomy.
+                    GuardSpineJoint(stream, i);
                 }
             }
 
             ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+        }
+        // ==============================================================================================
+        // THE ANATOMICAL ENVELOPE. Pulls one spine joint back inside the range of motion its real vertebrae
+        // have. See BasisSpineAnatomyCore for the measurements and BasisSpineAnatomy for the table.
+        //
+        // WHY IT LIVES INSIDE THE CCD LOOP. The CCD is what actually places the head, and before this it
+        // rotated the spine, chest and upperChest with NO per-joint limit whatsoever -- its only constraints
+        // were a cone on the neck and a cone on the chest. So a limit applied BEFORE the CCD is a suggestion
+        // the CCD is free to ignore, which is exactly what happened to BasisSpineBendCore.ClampAsymmetric.
+        // And a limit applied AFTER the CCD would drag the head off the HMD, which is not negotiable.
+        //
+        // Applied per-joint INSIDE the loop, the residual simply redistributes onto the other vertebrae on
+        // the next sweep -- which is what a real spine does when you ask one segment for more than it has.
+        // The head still converges, because the CCD still gets the last word on it.
+        //
+        // The chain runs head -> hips, so joint `i`'s PARENT is `i + 1`.
+        // ==============================================================================================
+        void GuardSpineJoint(AnimationStream stream, int i)
+        {
+            if (!spineAnatomicalRom.Get(stream))
+            {
+                return;
+            }
+            if (!ChainSpineRestFrames.IsCreated || i < 0 || i >= ChainSpineRestFrames.Length)
+            {
+                return;
+            }
+
+            BasisSpineRestFrame frame = ChainSpineRestFrames[i];
+            if (!frame.Valid)
+            {
+                return;   // the head and the hips: commanded, not solved. Never guarded.
+            }
+
+            int parent = i + 1;
+            if (parent >= ChainHeadToSpine.Length || !ChainHeadToSpine[parent].IsValid(stream) || !ChainHeadToSpine[i].IsValid(stream))
+            {
+                return;
+            }
+
+            Quaternion parentRot = ChainHeadToSpine[parent].GetRotation(stream);
+            Quaternion boneRot = ChainHeadToSpine[i].GetRotation(stream);
+            Quaternion local = BasisSpineAnatomyCore.Conj(parentRot) * boneRot;
+
+            Quaternion clamped = BasisSpineAnatomyCore.Clamp(local, frame, ChainSpineRoms[i], out BasisSpineClampInfo info);
+            if (!info.Touched)
+            {
+                return;   // legal pose: the bone is not written at all, so it cannot be perturbed.
+            }
+
+            ChainHeadToSpine[i].SetRotation(stream, parentRot * clamped);
+        }
+
+        // A full sweep of the envelope over every solved vertebra. Run right after DistributeSpineBend so
+        // the CCD starts from a legal spine -- the CCD breaks out early when the head is already on target,
+        // and on those frames it would otherwise never look at the pre-bend's output at all.
+        void GuardSpineChain(AnimationStream stream)
+        {
+            if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 3)
+            {
+                return;
+            }
+            for (int i = 1; i <= ChainHeadToSpine.Length - 2; i++)
+            {
+                GuardSpineJoint(stream, i);
+            }
         }
         // Constrains the neck (chain index neckIdx) to within maxConeDeg of the chest→neck
         // direction. Enforced in-loop so chest/spine take the slack on the next CCD sweep.
@@ -2774,6 +2859,7 @@ w20, w54;
                 anatShoulderSlide = BoolProperty.Bind(animator, component, data.AnatShoulderSlideProperty),
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
+                spineAnatomicalRom = BoolProperty.Bind(animator, component, data.SpineAnatomicalRomProperty),
                 legSwivelSmoothing = BoolProperty.Bind(animator, component, data.LegSwivelSmoothingProperty),
                 hintIsTrackerLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyLeftLowerLeg),
                 hintIsTrackerRightLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyRightLowerLeg),
@@ -2933,6 +3019,71 @@ w20, w54;
 
             return job;
         }
+        // Bakes each vertebra's anatomical rest frame + ROM, PARALLEL TO THE CHAIN, so the guard can be
+        // applied by chain index alone. Runs in the same T-pose window as TposeHeadToNeckLocal below.
+        //
+        // The chain is [head, neck, (upperChest,) chest, spine, hips]. The head and the hips get an INVALID
+        // frame on purpose -- the head is welded to the HMD and the hips are the anchor, so neither is a DOF
+        // the solver invents. Guarding a commanded bone would fight the tracker. Same doctrine as the arm:
+        // guard the elbow, never the hand.
+        //
+        // The segment a bone stands for depends on whether the avatar HAS an upperChest. With one, chest is
+        // the lower thorax and upperChest the upper. Without one, the single `chest` bone spans the whole
+        // thorax, so it inherits the LOWER thoracic ROM -- the more permissive of the two, because it is now
+        // doing both jobs and clamping it to the stiffer upper-thoracic envelope would rob the avatar of
+        // bend it genuinely has.
+        static void BuildSpineAnatomy(Transform[] chain, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
+        {
+            int n = chain.Length;
+            job.ChainSpineRestFrames = new NativeArray<BasisSpineRestFrame>(n, Allocator.Persistent);
+            job.ChainSpineRoms = new NativeArray<BasisSpineRom>(n, Allocator.Persistent);
+
+            // The subject's RIGHT, from the shoulders. A body-wide fact -- NOT a bone's local axis, which is
+            // a rig convention and does not transfer between avatars. This project has been bitten by that
+            // repeatedly; it is why the arm swivel model is position-only.
+            if (data.leftUpperArm == null || data.RightUpperArm == null)
+            {
+                return;   // every frame stays Valid=false, so the guard is a no-op. Decline, never guess.
+            }
+            Vector3 hipsRight = data.RightUpperArm.position - data.leftUpperArm.position;
+
+            for (int i = 1; i <= n - 2; i++)   // skip the head (0) and the hips (n-1)
+            {
+                Transform bone = chain[i];
+                Transform child = chain[i - 1];    // the chain runs tip -> root, so the CHILD is i-1
+                Transform parent = chain[i + 1];
+                if (bone == null || child == null || parent == null)
+                {
+                    continue;
+                }
+
+                BasisSpineSegment segment;
+                if (bone == data.spine)
+                {
+                    segment = BasisSpineSegment.Lumbar;
+                }
+                else if (bone == data.chest)
+                {
+                    segment = BasisSpineSegment.LowerThoracic;
+                }
+                else if (bone == data.upperChest)
+                {
+                    segment = BasisSpineSegment.UpperThoracic;
+                }
+                else if (bone == data.neck)
+                {
+                    segment = BasisSpineSegment.Cervical;
+                }
+                else
+                {
+                    continue;
+                }
+
+                job.ChainSpineRestFrames[i] = BasisSpineAnatomy.BuildRestFrame(
+                    bone.position, child.position, bone.rotation, parent.rotation, hipsRight);
+                job.ChainSpineRoms[i] = BasisSpineAnatomy.Rom(segment);
+            }
+        }
         public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
             var HeadToSpine = data.upperChest != null
@@ -2940,6 +3091,7 @@ w20, w54;
                 : new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
+            BuildSpineAnatomy(HeadToSpine, ref job, ref data);
 
             for (int i = 0; i < SpineToHeadLength; i++)
             {
@@ -2986,6 +3138,8 @@ w20, w54;
         public override void Destroy(BasisFullIKConstraintJob job)
         {
             if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
+            if (job.ChainSpineRestFrames.IsCreated) job.ChainSpineRestFrames.Dispose();
+            if (job.ChainSpineRoms.IsCreated) job.ChainSpineRoms.Dispose();
 
             if (job.chestSpringState.IsCreated) job.chestSpringState.Dispose();
             if (job.chestSpringInit.IsCreated) job.chestSpringInit.Dispose();

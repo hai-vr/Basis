@@ -61,6 +61,20 @@ namespace Basis.ImagePickup
 
         public const float SpawnDistance = 1.5f;
         public const float BaseHeightMeters = 0.5f;
+        /// <summary>
+        /// How many dropped files may be imported in one frame. A static image is decoded, downscaled, and
+        /// re-encoded to PNG on the main thread, so importing a whole drag-and-drop batch at once stalls for
+        /// as long as every image in it takes together. Kept at one so a big drop degrades into a slower fill
+        /// rather than a freeze.
+        /// </summary>
+        public const int MaxFileImportsPerFrame = 1;
+        /// <summary>
+        /// How many pickup back panels may be raised or dropped in one frame. Toggling the menu in a busy
+        /// instance would otherwise touch every card's world-space canvas at once — up to
+        /// <see cref="MaxConcurrentImagesPerSender"/> per player, each a canvas, a graphic raycaster and four
+        /// TMP labels — so panels follow the menu over a few frames instead of in one.
+        /// </summary>
+        public const int MaxBackPanelUpdatesPerFrame = 1;
         public const int BatchSpawnColumns = 4;
         public const int BatchSpawnMaximumColumns = 16;
         public const float BatchSpawnHorizontalSpacingMeters = 1.0f;

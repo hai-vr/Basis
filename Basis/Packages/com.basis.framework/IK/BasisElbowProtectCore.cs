@@ -56,6 +56,36 @@ namespace UnityEngine.Animations.Rigging
         const float k_ClearMargin = 0.003f;   // land a hair (3 mm) outside the torso surface
         const int k_SwivelSteps = 48;
 
+        // =============================================================================================
+        // THE PROTECT'S ONLY AUTHORITY IS THE ELBOW'S CIRCLE RADIUS, AND IT MUST FADE OUT WITH IT.
+        //
+        // This whole file clears the torso by SWIVELLING the elbow about the shoulder->hand axis. That
+        // rotation does two things:
+        //
+        //     it MOVES THE ELBOW ...... by rho * theta      <- the point of the exercise
+        //     it ROLLS THE UPPER ARM .. by theta            <- an unavoidable side effect
+        //
+        // rho is the elbow's stand-off from the shoulder->hand axis, and IT COLLAPSES AS THE ARM
+        // STRAIGHTENS. So at full extension the benefit goes to zero and THE COST DOES NOT: the swivel
+        // axis IS the arm's own long axis there, and the entire correction lands as ROLL.
+        //
+        // Measured, on the user's report ("fully extend the arm, then cross it over the body as far as
+        // humanly possible -- the elbow does a nasty rotation"): the protect engages (crossing your body
+        // is exactly what presses the upper arm into the chest), commands a steady ~47 degree swing, and
+        // at extension >= 0.999 that swing is PURE ROLL -- 47 to 51 degrees of upper-arm spin per
+        // MILLIMETRE of hand travel. With the protect disabled the same sweep measures 0.0.
+        //
+        // FADE ON THE REACH RATIO, NOT ON rho. rho = sqrt(upper^2 - (d/2)^2) is SQUARE-ROOT SINGULAR in
+        // the hand position -- its own gradient blows up exactly where we need the fade to be gentle, so
+        // fading on it just converts a cliff into a steep ramp (measured: 9-10 deg/mm, versus 2-3 for
+        // this). The reach ratio is smooth and its derivative is bounded by 1/armLen.
+        //
+        // Below Start the protect is BIT-IDENTICAL to what it always was. It reaches zero authority at
+        // End, where rho is 3 cm and falling and there is nothing left for a swivel to achieve anyway.
+        // =============================================================================================
+        const float k_AuthorityFadeStart = 0.95f;   // rho = 9.4 cm: the elbow can still travel 18.7 cm
+        const float k_AuthorityFadeEnd = 0.995f;    // rho = 3.0 cm: a swivel is mostly roll by here
+
         public static void Solve(in BasisElbowProtectInput i, out BasisElbowProtectResult r)
         {
             r = default;
@@ -148,6 +178,17 @@ namespace UnityEngine.Animations.Rigging
             // naturalness (the elbow flares out sooner on cross-body reaches) for smoothness.
             float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(thetaOut) - 100f) / 80f));
             chosenT += (1f - chosenT) * flipCommit;
+
+            // Bones do not stretch, so the FK chain gives the arm's true length whatever pose it is in.
+            float totalLen = (elbowPos - shoulderPos).magnitude + (handPos - elbowPos).magnitude;
+            float reach = totalLen > k_Epsilon ? Mathf.Sqrt(acSqr) / totalLen : 1f;
+            float authority = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.Clamp01((reach - k_AuthorityFadeStart) / (k_AuthorityFadeEnd - k_AuthorityFadeStart)));
+            chosenT *= authority;
+
+            // At zero authority chosenT is exactly 0, so `dir` is exactly `currentDir` and DesiredElbow is
+            // exactly the elbow we were handed. SwingElbowAroundAC then sees v1 == v2 and applies the
+            // identity. The no-op is structural, not a tolerance -- there is no residual roll to leak.
             Vector3 dir = Quaternion.AngleAxis(thetaOut * chosenT, acDir) * currentDir;
 
             r.DesiredElbow = elbowCenter + dir * elbowRadius;

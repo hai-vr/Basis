@@ -83,11 +83,24 @@ namespace Basis.Tests.IK
         public void StandingHeight_AcceptsTheBand_AndRejectsSeated()
         {
             const float eye = 1.65f;
-            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(eye, eye), Is.True);
-            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(eye * (1f + BasisContinuousCalibrationCore.HeadHeightBandFraction * 0.9f), eye), Is.True);
-            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(eye * (1f - BasisContinuousCalibrationCore.HeadHeightBandFraction * 0.9f), eye), Is.True);
-            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(eye * 0.8f, eye), Is.False, "a seated head must never pass the standing gate.");
-            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(1.2f, 0f), Is.False, "a degenerate eye height must never pass.");
+            // The gated quantity is the head CONTROL, which rides the avatar's eye-to-head-bone offset
+            // below the raw eye. The gap here is deliberately LARGER than the ±6% band: referencing the
+            // ritual head snapshot cancels it, where the old eye-referenced gate failed exactly this
+            // case (standing perfectly still never passed).
+            const float boneGap = 0.12f;
+            const float calibratedHead = eye - boneGap;
+            float halfBand = eye * BasisContinuousCalibrationCore.HeadHeightBandFraction;
+
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(calibratedHead, calibratedHead, eye), Is.True,
+                "standing exactly at the calibrated height must pass regardless of the eye-to-head-bone gap.");
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(calibratedHead + halfBand * 0.9f, calibratedHead, eye), Is.True);
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(calibratedHead - halfBand * 0.9f, calibratedHead, eye), Is.True);
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(calibratedHead + halfBand * 1.1f, calibratedHead, eye), Is.False,
+                "outside the band must not count as the calibration stance.");
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(eye * 0.8f - boneGap, calibratedHead, eye), Is.False,
+                "a seated head must never pass the standing gate.");
+            Assert.That(BasisContinuousCalibrationCore.IsStandingHeight(1.2f, 1.2f, 0f), Is.False,
+                "a degenerate eye height must never pass.");
         }
 
         // ---------- Step fraction ----------

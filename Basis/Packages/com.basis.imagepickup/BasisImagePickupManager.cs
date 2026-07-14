@@ -117,6 +117,13 @@ namespace Basis.ImagePickup
             public float Deadline;
         }
 
+        private sealed class QueuedFileSpawn
+        {
+            public string Path;
+            public Vector3 Position;
+            public Quaternion Rotation;
+        }
+
         private sealed class PendingGifSpawn
         {
             public string Path;
@@ -190,6 +197,7 @@ namespace Basis.ImagePickup
         private static readonly Dictionary<Guid, InboundAnimationTransfer> _inboundAnimations = new();
         private static readonly Queue<OutboundImageTransfer> _outboundImages = new();
         private static readonly Queue<OutboundAnimationTransfer> _outboundAnimations = new();
+        private static readonly Queue<QueuedFileSpawn> _queuedFileSpawns = new();
         private static readonly Queue<PendingGifSpawn> _queuedGifSpawns = new();
         private static readonly List<PendingGifSpawn> _pendingGifSpawns = new();
         private static readonly List<QueuedInboundAnimationDecode> _queuedInboundAnimationDecodes = new();
@@ -197,6 +205,8 @@ namespace Basis.ImagePickup
         private static readonly HashSet<Guid> _animationAttempted = new();
         private static long _reservedInboundTransferBytes;
         private static bool _gifDecodePausedForMemory;
+        private static bool _backPanelsVisible;
+        private static bool _backPanelSyncPending;
         private static bool _destroying;
         private static readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender = new();
         private static readonly List<Guid> _scratchIds = new();
@@ -257,6 +267,8 @@ namespace Basis.ImagePickup
         {
             _initialized = false;
             _destroying = true;
+            _backPanelsVisible = false;
+            _backPanelSyncPending = false;
 
             BasisEventDriver.OnUpdate -= SimulateUpdate;
             BasisNetworkPlayer.OnLocalPlayerJoined -= HandleLocalPlayerJoined;
@@ -282,6 +294,7 @@ namespace Basis.ImagePickup
                 _pendingGifSpawns[i].Job?.Dispose();
             _pendingGifSpawns.Clear();
             _queuedGifSpawns.Clear();
+            _queuedFileSpawns.Clear();
 
             foreach (InboundTransfer transfer in _inbound.Values)
                 ReleaseInboundTransferBytes(transfer.ReservedBytes);
@@ -437,7 +450,7 @@ namespace Basis.ImagePickup
             int currentCount = GetLocalReservedImageCount();
             int availableSlots = CalculateAvailableLocalImageSlots(
                 _owned.Count,
-                _queuedGifSpawns.Count,
+                _queuedFileSpawns.Count + _queuedGifSpawns.Count,
                 _pendingGifSpawns.Count
             );
             if (availableSlots <= 0)
@@ -488,14 +501,17 @@ namespace Basis.ImagePickup
 
         private static int GetLocalReservedImageCount()
         {
-            return _owned.Count + _queuedGifSpawns.Count + _pendingGifSpawns.Count;
+            return _owned.Count
+                + _queuedFileSpawns.Count
+                + _queuedGifSpawns.Count
+                + _pendingGifSpawns.Count;
         }
 
-        internal static int CalculateAvailableLocalImageSlots(int ownedCount, int queuedGifCount, int activeGifCount)
+        internal static int CalculateAvailableLocalImageSlots(int ownedCount, int queuedSpawnCount, int activeGifCount)
         {
             long reserved =
                 Math.Max(0, ownedCount)
-                + (long)Math.Max(0, queuedGifCount)
+                + (long)Math.Max(0, queuedSpawnCount)
                 + Math.Max(0, activeGifCount);
             long available =
                 BasisImagePickupSettings.MaxConcurrentImagesPerSender - reserved;
@@ -515,19 +531,73 @@ namespace Basis.ImagePickup
             return false;
         }
 
+        /// <summary>
+        /// Admits one dropped file to the paced import queue. The batch's grid slot is captured here, so a
+        /// drop keeps the layout it was given no matter what order the imports finish in.
+        /// </summary>
         private static bool SpawnFromFileAtPose(string path, Vector3 position, Quaternion rotation)
         {
-            if (BasisAnimatedImageJobs.IsGifPath(path))
-                return QueueGifSpawn(path, position, rotation);
-
-            return SpawnValidatedFile(
-                path,
-                BasisImageSecurity.ValidateFile(path),
-                position,
-                rotation,
-                Guid.NewGuid(),
-                null
+            _queuedFileSpawns.Enqueue(
+                new QueuedFileSpawn
+                {
+                    Path = path,
+                    Position = position,
+                    Rotation = rotation,
+                }
             );
+            return true;
+        }
+
+        /// <summary>
+        /// Imports dropped files a few per frame. Importing a static image decodes it, downscales it, and
+        /// re-encodes it to PNG, all on the main thread — tens of milliseconds for a large one — so importing
+        /// a whole drag-and-drop batch in the frame it lands stalls for as long as the entire batch takes.
+        /// A multi-second main-thread stall is bad on desktop and worse in VR, where it is long enough for the
+        /// compositor to take the headset over. Pacing turns that freeze into a progressive fill.
+        /// </summary>
+        private static void ProcessQueuedFileSpawns()
+        {
+            if (_queuedFileSpawns.Count == 0)
+                return;
+
+            if (
+                BasisNetworkModeration.GlobalImagesLocked
+                && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass()
+            )
+            {
+                // Locked after the drop was admitted but before it drained — the same window the GIF decode
+                // path already guards. One notice for the whole batch rather than one popup per queued file.
+                string lockedReason = BasisLocalization.Get(
+                    "imagePickup.popup.reason.adminLockedDuringDecode"
+                );
+                string firstPath = _queuedFileSpawns.Peek().Path;
+                _queuedFileSpawns.Clear();
+                BasisImagePickupRejectionPopup.Show(firstPath, lockedReason);
+                BasisDebug.LogWarning($"Image pickup rejected: {lockedReason}", LogTag);
+                return;
+            }
+
+            int budget = BasisImagePickupSettings.MaxFileImportsPerFrame;
+            while (budget > 0 && _queuedFileSpawns.Count > 0)
+            {
+                QueuedFileSpawn queued = _queuedFileSpawns.Dequeue();
+                budget--;
+
+                if (BasisAnimatedImageJobs.IsGifPath(queued.Path))
+                {
+                    QueueGifSpawn(queued.Path, queued.Position, queued.Rotation);
+                    continue;
+                }
+
+                SpawnValidatedFile(
+                    queued.Path,
+                    BasisImageSecurity.ValidateFile(queued.Path),
+                    queued.Position,
+                    queued.Rotation,
+                    Guid.NewGuid(),
+                    null
+                );
+            }
         }
 
         /// <summary>
@@ -614,7 +684,7 @@ namespace Basis.ImagePickup
                 position,
                 rotation
             );
-            _images[id] = pickup;
+            TrackImage(id, pickup);
             RegisterShareable(id, width, height, ownerName);
             return pickup;
         }
@@ -989,7 +1059,7 @@ namespace Basis.ImagePickup
             }
             candidateAnimation?.Dispose();
             candidatePayload?.Dispose();
-            _images[id] = pickup;
+            TrackImage(id, pickup);
             var owned = new OwnedImage
             {
                 Object = pickup,
@@ -1104,9 +1174,58 @@ namespace Basis.ImagePickup
             }
         }
 
+        /// <summary>
+        /// Tracks a card and flags its back panel for the paced sync below. Cards are always born without a
+        /// panel — raising one builds a world-space canvas, so that cost is queued like any other rather than
+        /// paid inline on whatever frame the card happens to spawn.
+        /// </summary>
+        private static void TrackImage(Guid id, BasisImagePickupObject pickup)
+        {
+            _images[id] = pickup;
+            _backPanelSyncPending = true;
+        }
+
+        /// <summary>
+        /// Follows the main menu and shows the pickups' back-panel controls only while it is open. Polls
+        /// rather than hooking an open/close event because the menu exposes none — it simply assigns and nulls
+        /// its static instance — and because polling stays correct for every teardown path, including ones
+        /// that never route through <c>BasisMainMenu.Close</c>. This mirrors how the nameplate driver gates
+        /// its own menu-only work.
+        ///
+        /// Cards converge on the menu's state a few per frame, in both directions: toggling the menu in a busy
+        /// instance would otherwise build or tear down every card's canvas at once, which is the very stall
+        /// this gating exists to avoid. The scan stops as soon as every card agrees with the menu, so the
+        /// steady-state cost is one static null check per frame.
+        /// </summary>
+        private static void UpdateBackPanelVisibility()
+        {
+            bool menuOpen = BasisMainMenu.Instance != null;
+            if (menuOpen != _backPanelsVisible)
+            {
+                _backPanelsVisible = menuOpen;
+                _backPanelSyncPending = true;
+            }
+
+            if (!_backPanelSyncPending)
+                return;
+
+            int budget = BasisImagePickupSettings.MaxBackPanelUpdatesPerFrame;
+            foreach (BasisImagePickupObject pickup in _images.Values)
+            {
+                if (pickup == null || pickup.BackPanelVisible == _backPanelsVisible)
+                    continue;
+                pickup.SetBackPanelVisible(_backPanelsVisible);
+                if (--budget <= 0)
+                    return;
+            }
+            _backPanelSyncPending = false;
+        }
+
         private static void SimulateUpdateBody()
         {
             CleanupDestroyedImages();
+            UpdateBackPanelVisibility();
+            ProcessQueuedFileSpawns();
             ProcessCompletedGifSpawns();
             ProcessCompletedInboundAnimationDecodes();
             StartQueuedInboundAnimationDecodes();

@@ -611,6 +611,8 @@ namespace Basis.Scripts.Device_Management
                         input.HasCalibratedOffsetSnapshot = prev.HasCalibratedOffsetSnapshot;
                         input.CalibratedUnscaledPosition = prev.CalibratedUnscaledPosition;
                         input.CalibratedUnscaledRotation = prev.CalibratedUnscaledRotation;
+                        input.CalibratedUnscaledHeadPosition = prev.CalibratedUnscaledHeadPosition;
+                        input.CalibratedUnscaledHeadRotation = prev.CalibratedUnscaledHeadRotation;
                         BasisAvatarIKStageCalibration.ReprojectTrackerOffsetsForCurrentAvatar();
                     }
                     else
@@ -676,7 +678,9 @@ namespace Basis.Scripts.Device_Management
                     InverseOffsetFromBone = device.Control.InverseOffsetFromBone,
                     HasCalibratedOffsetSnapshot = device.HasCalibratedOffsetSnapshot,
                     CalibratedUnscaledPosition = device.CalibratedUnscaledPosition,
-                    CalibratedUnscaledRotation = device.CalibratedUnscaledRotation
+                    CalibratedUnscaledRotation = device.CalibratedUnscaledRotation,
+                    CalibratedUnscaledHeadPosition = device.CalibratedUnscaledHeadPosition,
+                    CalibratedUnscaledHeadRotation = device.CalibratedUnscaledHeadRotation
                 });
             }
         }

@@ -59,7 +59,48 @@ namespace UnityEngine.Animations.Rigging
         // 180 deg = arm straight; small = forearm folded toward the upper arm. A human elbow cannot
         // hyperextend past straight, nor fold the forearm fully into the upper arm (~25-30 deg is the limit).
         public const float MinElbowAngleDeg = 23f;
-        public const float MaxElbowAngleDeg = 180f;
+
+        // =============================================================================================
+        // ⭐ WHY THIS IS 170 AND NOT 180, AND WHY IT IS THE MOST IMPORTANT CONSTANT IN THIS FILE.
+        //
+        // AT 180 DEGREES THE ELBOW HAS NO LEVER ARM. Its distance from the shoulder->hand axis is
+        //
+        //     rho = sqrt(upper^2 - (d/2)^2),   d = 2*L*sin(theta/2)
+        //
+        // and at theta = 180 that is EXACTLY ZERO. The elbow lies ON the axis. A pole can then no longer
+        // POSITION it -- every direction on its circle is the same point -- so everything the hint, the
+        // swivel, the anatomy guard and the elbow protect ask for is paid out as ROLL of the upper arm
+        // and forearm about their own long axis. A dead-straight arm is a FREE-SPINNING STICK, and that
+        // is what "the elbows are messing up" looks like.
+        //
+        // AND THE ARM LIVES THERE. A relaxed human arm hangs at ~170-175 deg, which is already 99.6% of
+        // full reach. Any target at or past the avatar's reach is clamped by TriangleAngle to a flat 180.
+        //
+        // ⚠️ AND YOU CANNOT CALIBRATE YOUR WAY OUT OF IT. Reach is STATIONARY in the elbow angle near
+        // straight (dr/dtheta -> 0), so the mapping from a length error to an angle error EXPLODES:
+        //
+        //         1 mm of arm-length error  ->  the elbow is already 6.6 deg away from where it should be
+        //         2 mm                      ->  9.4 deg
+        //         0 mm (a PERFECT calibration) -> the target sits exactly AT reach, theta = 180, rho = 0
+        //
+        // A person T-poses with ~10 deg of residual elbow flexion, so a straight-line span under-measures
+        // their true arm by ~2.3 mm on its own. The singularity sits exactly where the user wants to
+        // reach, so no calibration -- however good -- keeps the arm off it.
+        //
+        // ⭐ BUT THE SAME STATIONARITY MAKES THE FIX ALMOST FREE, IN REVERSE:
+        //
+        //         180 -> 170 deg  costs  2.3 MILLIMETRES of reach
+        //                         buys   2.61 CENTIMETRES of guaranteed lever arm      (a 12x trade)
+        //
+        // rho can now never be zero, so the pole always has something to push on, and the roll
+        // singularities this codebase has chased through three separate files become UNREACHABLE:
+        // they all live below rho ~ 1.3 cm (extension >= 0.999), and 170 deg floors rho at 2.61 cm.
+        //
+        // It is also the more ANATOMICAL number. A human elbow does not lock out at 180 under load, and
+        // an avatar whose arm snaps dead straight reads as robotic. 10 deg of flex is what a real arm
+        // does at full stretch.
+        // =============================================================================================
+        public const float MaxElbowAngleDeg = 170f;
 
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
