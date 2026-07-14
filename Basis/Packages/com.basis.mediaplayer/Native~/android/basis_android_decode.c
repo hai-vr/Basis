@@ -205,7 +205,7 @@ struct basis_decoder {
 
     basis_codec_t vc;
     int vw, vh;               /* coded frame dims (buffer size, macroblock-padded) */
-    int dispW, dispH;         /* display dims from the codec crop rect; 0 until first frame */
+    uint64_t dispWH;          /* display dims (w<<32)|h, published as one atomic; 0 until first frame */
     int fcValid, fcL, fcT, fcR, fcB; /* MediaFormat display-crop rect (authoritative when present) */
     int vconfigured, aconfigured;
 
@@ -302,23 +302,32 @@ static void on_image(void* ctx, AImageReader* reader) {
             AHardwareBuffer_Desc dsc; AHardwareBuffer_describe(dahb, &dsc);
             bufW = (int)dsc.width; bufH = (int)dsc.height;
         }
-        if (bufW <= 0) bufW = d->vw > 0 ? d->vw : (aw > 0 ? aw : 1);
-        if (bufH <= 0) bufH = d->vh > 0 ? d->vh : (ah > 0 ? ah : 1);
+        /* Snapshot the coded dims and the MediaFormat crop rect as a unit under
+         * d->vm: both are written on the decode thread, and a format change must
+         * not leave us mixing old and new values here. */
+        pthread_mutex_lock(&d->vm);
+        int vw = d->vw, vh = d->vh;
+        int fcv = d->fcValid, fl = d->fcL, ft = d->fcT, fr = d->fcR, fb = d->fcB;
+        pthread_mutex_unlock(&d->vm);
+        if (bufW <= 0) bufW = vw > 0 ? vw : (aw > 0 ? aw : 1);
+        if (bufH <= 0) bufH = vh > 0 ? vh : (ah > 0 ? ah : 1);
 
         int cw = bufW, ch = bufH, cl = 0, ct = 0;
         AImageCropRect cr; int haveImgCrop = (AImage_getCropRect(img, &cr) == AMEDIA_OK);
-        if (d->fcValid) {
+        if (fcv) {
             /* MediaFormat crop right/bottom are inclusive (w = right-left+1);
              * fall back to exclusive if the inclusive read overshoots the buffer. */
-            int rw = d->fcR - d->fcL + 1, rh = d->fcB - d->fcT + 1;
-            if (rw <= 0 || rw > bufW) rw = d->fcR - d->fcL;
-            if (rh <= 0 || rh > bufH) rh = d->fcB - d->fcT;
-            if (rw > 0 && rh > 0 && d->fcL >= 0 && d->fcT >= 0 && rw <= bufW && rh <= bufH) {
-                cw = rw; ch = rh; cl = d->fcL; ct = d->fcT;
+            int rw = fr - fl + 1, rh = fb - ft + 1;
+            if (rw <= 0 || rw > bufW) rw = fr - fl;
+            if (rh <= 0 || rh > bufH) rh = fb - ft;
+            /* Require the whole rectangle inside the buffer: a non-zero offset
+             * plus the extent must not run past the edge. */
+            if (rw > 0 && rh > 0 && fl >= 0 && ft >= 0 && fl <= bufW - rw && ft <= bufH - rh) {
+                cw = rw; ch = rh; cl = fl; ct = ft;
             }
         } else if (haveImgCrop && (cr.right - cr.left) > 0 && (cr.bottom - cr.top) > 0 &&
                    cr.left >= 0 && cr.top >= 0 &&
-                   (cr.right - cr.left) <= bufW && (cr.bottom - cr.top) <= bufH) {
+                   cr.right <= bufW && cr.bottom <= bufH) {
             cw = cr.right - cr.left; ch = cr.bottom - cr.top; cl = cr.left; ct = cr.top;
         } else if (aw > 0 && ah > 0 && aw <= bufW && ah <= bufH && (aw < bufW || ah < bufH)) {
             cw = aw; ch = ah;   /* AImage reports the display size directly */
@@ -327,8 +336,9 @@ static void on_image(void* ctx, AImageReader* reader) {
         float uvox = (float)cl / bufW, uvoy = (float)ct / bufH;
         if (cw < bufW) { float tx = 1.0f / bufW; uvsx -= 2.0f * tx; uvox += tx; }
         if (ch < bufH) { float ty = 1.0f / bufH; uvsy -= 2.0f * ty; uvoy += ty; }
-        __atomic_store_n(&d->dispW, cw, __ATOMIC_RELAXED);
-        __atomic_store_n(&d->dispH, ch, __ATOMIC_RELAXED);
+        /* Publish w and h as one value so a reader can't latch a mixed pair
+         * (new width, old height) across a format change and size the RT wrong. */
+        __atomic_store_n(&d->dispWH, ((uint64_t)(uint32_t)cw << 32) | (uint32_t)ch, __ATOMIC_RELAXED);
 
         pthread_mutex_lock(&d->vm);
         int slot = -1; for (int i = 0; i < VRING; ++i) if (!d->vimg[i]) { slot = i; break; }
@@ -384,14 +394,19 @@ static void drain_video_output(basis_decoder_t* d) {
             int32_t w = 0, h = 0;
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_WIDTH, &w);
             AMediaFormat_getInt32(f, AMEDIAFORMAT_KEY_HEIGHT, &h);
-            if (w > 0 && h > 0) { d->vw = w; d->vh = h; }
             /* Display crop: the coded buffer pads to a macroblock multiple; this
              * rect is the visible region. Authoritative when the codec sets it
-             * (AImage_getCropRect is unreliable on some devices). */
+             * (AImage_getCropRect is unreliable on some devices). Publish the
+             * coded dims and crop rect together under d->vm (on_image reads them
+             * on the listener thread), clearing the crop on every format change
+             * so a format that drops it doesn't leave a stale one active. */
             int32_t cl = 0, ct = 0, crr = 0, cb = 0;
-            if (AMediaFormat_getRect(f, AMEDIAFORMAT_KEY_DISPLAY_CROP, &cl, &ct, &crr, &cb)) {
-                d->fcL = cl; d->fcT = ct; d->fcR = crr; d->fcB = cb; d->fcValid = 1;
-            }
+            int haveCrop = AMediaFormat_getRect(f, AMEDIAFORMAT_KEY_DISPLAY_CROP, &cl, &ct, &crr, &cb);
+            pthread_mutex_lock(&d->vm);
+            if (w > 0 && h > 0) { d->vw = w; d->vh = h; }
+            d->fcValid = haveCrop ? 1 : 0;
+            if (haveCrop) { d->fcL = cl; d->fcT = ct; d->fcR = crr; d->fcB = cb; }
+            pthread_mutex_unlock(&d->vm);
             AMediaFormat_delete(f);
         } else {
             break; /* try again later / no buffer */
@@ -664,8 +679,11 @@ static int aac_core_asc_len(const uint8_t* asc, int asc_len) {
     if (asc_bits(asc, asc_len, &p, 1) == 1)                    /* dependsOnCoreCoder */
         asc_bits(asc, asc_len, &p, 14);                        /* coreCoderDelay */
     asc_bits(asc, asc_len, &p, 1);                             /* extensionFlag (0 for LC) */
-    if (p < 0 || p > asc_len * 8) return asc_len;
-    int core_len = (p + 7) / 8;
+    /* Only the byte-aligned two-byte AAC-LC core is trimmed: a set
+     * dependsOnCoreCoder pushes p to 30 bits, where (p+7)/8 would keep two bits
+     * of the sync extension and hand the decoder a malformed csd-0. */
+    if (p != 16) return asc_len;
+    int core_len = 2;
     if (asc_bits(asc, asc_len, &p, 11) == 0x2b7 &&             /* SBR sync extension */
         asc_bits(asc, asc_len, &p, 5) == 5 &&                  /* extensionAudioObjectType = SBR */
         asc_bits(asc, asc_len, &p, 1) == 0)                    /* sbrPresentFlag = 0: inert */
@@ -1028,8 +1046,8 @@ int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) {
      * sized to the visible region — no pad rows, exact aspect. The crop is only
      * known once the first frame decodes; until then decline so C# keeps polling
      * and latches the RT on the display size rather than the coded one. */
-    int dw = __atomic_load_n(&d->dispW, __ATOMIC_RELAXED);
-    int dh = __atomic_load_n(&d->dispH, __ATOMIC_RELAXED);
+    uint64_t wh = __atomic_load_n(&d->dispWH, __ATOMIC_RELAXED);
+    int dw = (int)(uint32_t)(wh >> 32), dh = (int)(uint32_t)wh;
     if (dw <= 0 || dh <= 0) return -1;
     if (w) *w = dw; if (h) *h = dh; return 0;
 }

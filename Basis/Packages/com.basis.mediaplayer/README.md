@@ -94,11 +94,12 @@ to the live path only.
 
 ## Seeking
 
-Sources with a known duration (`BasisMediaPlayer.Duration > 0` — a progressive MP4, a WAV)
-are seekable. `Seek(TimeSpan position)` requests an **absolute** seek; the demuxer
-repositions at the next sample boundary and resumes from the preceding keyframe, so playback
-lands **at or shortly before** the target — watch `Position`, and `OnSeekCompleted` fires
-once it settles. `TrySeekBack(TimeSpan)` is a relative rewind. Seeking a live or unindexed
+Sources that report a duration (`BasisMediaPlayer.Duration > 0` — a progressive MP4, a WAV, a
+finished TS-segment HLS VOD playlist) are seekable. A duration is necessary but not on its own
+a guarantee: a source whose transport can't reposition still refuses the seek. `Seek(TimeSpan
+position)` requests an **absolute** seek; the demuxer repositions at the next sample (or
+segment) boundary and resumes from the preceding keyframe, so playback lands **at or shortly
+before** the target — watch `Position`, and `OnSeekCompleted` fires once it settles. `TrySeekBack(TimeSpan)` is a relative rewind. Seeking a live or unindexed
 source throws `NotSupportedException`.
 
 ```csharp

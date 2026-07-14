@@ -165,9 +165,28 @@ runs on **Android** too (JNI `HttpsURLConnection`), not just Windows — run the
 checks on a Quest against a range/`206` VOD host (`https://`), watching `adb logcat` for a clean
 reposition (no decoder error, playback resumes at the target).
 
-> On-demand multiplayer sync is **start-together, not catch-up**: the native backend exposes
-> no absolute seek, so a client that falls behind stays behind until the next shared (re)load.
-> Late-joiner-starts-at-zero on VOD is a known limit, not a regression.
+**Seek (HLS-TS VOD)** — on the Mux master (`https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`),
+seek both directions and confirm playback resumes **paced at 1x from the target**: a forward
+seek must not freeze for the jump distance, and a backward seek must not fast-forward through
+the intervening segments back to the pre-seek position. The segment producer repositions and
+the demux leg re-anchors delivery pacing at the flushed boundary, so a mis-anchored pace clock
+(stall forward / flood backward) is the failure to watch for. Shared clock, so check both the
+Editor (Windows) and Quest.
+
+**Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
+`sidx`) served from a range/`206` host — e.g.
+`https://zipline.space.superneko.net/raw/bbb_sunflower_1080p_30fps_normal_idfmp4.mp4` — confirm
+`Delivery=Auto` detects OnDemand and seeks in both directions reposition cleanly and resume at the
+target with no decoder error. This is the `sidx`-driven byte-source reseek; it shares the
+byte-source seek path with progressive/trailing-moov MP4, so a regression here usually surfaces on
+those too. Distinct from fMP4 carried *in HLS*, which isn't seekable — a mid-fragment ring flush
+can't resynchronise the box parser. Check the Editor (Windows) and Quest.
+
+> On-demand multiplayer sync **drift-corrects by seeking**: the owner broadcasts its playhead
+> and a client that drifts past `DriftSeekThresholdSeconds` seeks to catch up (set 0 to
+> disable). Catch-up needs a seekable source — TS-segment HLS VOD, progressive/trailing-moov
+> MP4, and integrated fMP4 qualify; a live source can't seek, so those clients converge
+> independently to the live edge rather than using playhead-seek correction.
 
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each

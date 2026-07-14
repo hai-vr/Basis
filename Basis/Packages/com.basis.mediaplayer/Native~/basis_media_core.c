@@ -700,8 +700,10 @@ static void run_hls(demux_ctx_t* c) {
     c->e->pace_delivery = 1;
     c->sink->on_state(c->sink->user, BASIS_MEDIA_STATE_BUFFERING);
     /* Seeks reposition inside the HLS source (segment granularity) via
-     * basis_media_seek_us -> basis_hls_seek_ms, so the demuxer gets no
-     * byte-level reseek here. */
+     * basis_media_seek_us -> basis_hls_request_seek. There is no byte-level
+     * reseek: the segment producer rebuilds its fetch queue and, at the flushed
+     * boundary, basis_hls_read raises BASIS_READ_REPOSITION so the demuxer drops
+     * its pre-seek state and re-anchors pacing before the target segment plays. */
     mutex_lock(&c->e->lock);
     c->e->active_hls = hls;
     mutex_unlock(&c->e->lock);
@@ -1237,15 +1239,17 @@ BASIS_API int BASIS_CALL basis_media_seek_us(basis_media_engine_t* e, int64_t ta
     if (dur <= 0) return -1;                 /* no seekable timeline (live / unindexed) */
     if (target_us > dur) target_us = dur;
     mutex_lock(&e->lock);
+    /* Publish the seek generation before arming the HLS producer below. Both
+     * the byte-source and HLS legs take this generation on their own demux
+     * thread and re-anchor pacing there (take_seek_common), atomically with
+     * dropping their pre-seek buffers: the byte source via a ranged reseek, the
+     * HLS/TS leg on the BASIS_READ_REPOSITION boundary the segment source raises.
+     * Ordering seek_seq ahead of request_seek keeps the producer from signalling
+     * that boundary before the generation is visible. */
     e->seek_target_us = target_us;
     e->seek_seq++;
     void* hls = e->active_hls;
     int rc = hls ? basis_hls_request_seek(hls, target_us / 1000) : 0;
-    /* HLS repositions inside the segment source — the TS demuxer never sees a
-     * take_seek, so re-anchor pacing here. A stray pre-flush sample can win the
-     * re-anchor, but it costs one more re-anchor when the flushed data lands,
-     * not a stall. */
-    if (hls && rc == 0) e->pace_started = 0;
     mutex_unlock(&e->lock);
     return rc;
 }
