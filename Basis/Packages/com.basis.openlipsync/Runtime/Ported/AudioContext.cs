@@ -25,11 +25,13 @@ namespace OpenLipSync.Inference
         private readonly float[] _probabilityBuffer;
         private readonly int _melBands;
 
-        // Smoothing is a one-pole filter with a TIME CONSTANT, evaluated once per mel frame
-        // (a fixed 100 Hz). The old code applied a fixed 0.3 blend once per audio callback,
-        // so the effective smoothing silently varied with buffer size and sample rate.
-        private float _smoothingTauSeconds = 0.025f;
-        private float _frameAlpha;
+        // Smoothing keeps its historical meaning -- arg1/100 is the weight kept on the previous
+        // value -- but is now applied once per MEL FRAME (a fixed 100 Hz) instead of once per
+        // audio callback. Callbacks deliver a variable number of samples, so the old code's
+        // effective smoothing silently changed with buffer size and output sample rate; the
+        // same "0.7" meant a different time constant on different machines.
+        // At 100 Hz, 0.7 corresponds to a ~28 ms time constant.
+        private float _frameAlpha = 0.3f;
 
         private int _frameNumber;
         private bool _disposed;
@@ -66,21 +68,12 @@ namespace OpenLipSync.Inference
             _streaming = streaming;
             _multiLabel = multiLabel;
 
-            float fps = audioConfig.Fps > 0f ? audioConfig.Fps : 100f;
-            _frameAlpha = ComputeAlpha(_smoothingTauSeconds, fps);
-
             if (_streaming == null)
             {
                 _maxMelFrames = 150;
                 _melSequence = new float[_maxMelFrames * _melBands];
                 _inferenceInputBuffer = new float[_maxMelFrames * _melBands];
             }
-        }
-
-        private static float ComputeAlpha(float tauSeconds, float fps)
-        {
-            if (tauSeconds <= 0f) return 0f;            // no smoothing
-            return MathF.Exp(-1f / (tauSeconds * fps)); // weight kept on the previous value
         }
 
         public void ProcessAudio(ReadOnlySpan<float> audioSamples)
@@ -176,10 +169,11 @@ namespace OpenLipSync.Inference
             switch (signal)
             {
                 case Signals.VisemeSmoothing:
-                    // arg1 stays on its historical 0..100 scale, but now means a time
-                    // constant in milliseconds rather than an opaque per-callback blend.
-                    _smoothingTauSeconds = Math.Clamp(arg1, 0, 200) / 1000f;
-                    _frameAlpha = ComputeAlpha(_smoothingTauSeconds, 100f);
+                    // Same 0..100 scale and same meaning as before (weight kept on the previous
+                    // value), so existing callers -- e.g. BasisOpenLipSyncContext passes 70 --
+                    // keep their tuning. What changed is that it is now applied once per mel
+                    // frame at a fixed 100 Hz rather than once per variable-sized audio callback.
+                    _frameAlpha = Math.Clamp(arg1 / 100f, 0f, 0.99f);
                     return Result.Success;
 
                 default:

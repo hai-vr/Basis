@@ -1200,14 +1200,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKChestSpringDamping = new("fbikchestspringdamping", new BasisPlatformDefault<float>(1f));
         // Hip relax: hip-frame follow spring -- decouples the no-elbow-tracker derived elbow pole from hip
         // jitter/sway (lower Hz = more decoupling; 0 = off). No effect for users WITH elbow trackers.
-        public static BasisSettingsBinding<float> FBIKHipFrameSpringHz = new("fbikhipframespringhz", new BasisPlatformDefault<float>(8f));
-        public static BasisSettingsBinding<float> FBIKHipFrameSpringDamping = new("fbikhipframespringdamping", new BasisPlatformDefault<float>(1f));
         // Arm: chicken-wing elbow flare (no elbow tracker) -- turning the controllers inward pushes the derived
         // elbow OUT to the half-T-pose mark and caps it there. MaxDeg = the cap; InwardGain is signed (negative
         // flips the roll direction, 0 = off); FullRollDeg = the controller roll that is a full chicken-wing.
-        public static BasisSettingsBinding<float> FBIKElbowFlareMaxDeg = new("fbikelbowflaremaxdeg", new BasisPlatformDefault<float>(45f));
-        public static BasisSettingsBinding<float> FBIKElbowFlareInwardGain = new("fbikelbowflareinwardgain", new BasisPlatformDefault<float>(1f));
-        public static BasisSettingsBinding<float> FBIKElbowFlareFullRollDeg = new("fbikelbowflarefullrolldeg", new BasisPlatformDefault<float>(70f));
         // Spine relax: asymmetric flexion clamps (apply to spine + upperChest contributions)
         public static BasisSettingsBinding<float> FBIKSpineMaxForwardDeg = new("fbikspinemaxforwarddeg", new BasisPlatformDefault<float>(60f));
         public static BasisSettingsBinding<float> FBIKSpineMaxBackwardDeg = new("fbikspinemaxbackwarddeg", new BasisPlatformDefault<float>(25f));
@@ -1315,6 +1310,25 @@ namespace Basis.BasisUI
         // chest scrunches and the pelvis stays up. Strength 0 = rigid (legacy), 1 = full saturation.
         public static BasisSettingsBinding<float> VSpineHipsCompressionStrength = new("vspinehipscompressionstrength", new BasisPlatformDefault<float>(0.85f));
         public static BasisSettingsBinding<float> VSpineHipsMaxDropMeters = new("vspinehipsmaxdropmeters", new BasisPlatformDefault<float>(0.3f));
+
+        // ⭐ THE PELVIS POSTURE MODEL -- replaces the two knobs above with a law fitted to real humans.
+        //
+        // The saturation above cannot be right, because it answers a question with one number that has two
+        // answers. A low head is either a WAIST-BEND (spine folds, pelvis stays high) or a SQUAT (spine
+        // stays stacked, pelvis rides the head down), and measured on 44 CMU clips the real pelvis coupling
+        // is 0.02-0.14 for the first and 0.78-0.99 for the second. One constant serves neither: on a squat
+        // the saturation holds the pelvis 32.8 cm ABOVE where a real one goes, and since the head is welded
+        // to the HMD, the spine and neck have to find those centimetres by rotating -- the "gamer neck /
+        // tortoise" users report when they bend over.
+        //
+        // BasisPelvisPostureModel tells the two apart using the head's FORWARD LEAN, the input the old law
+        // never had. Pelvis-height error against a real human: 8.3 cm -> 4.5 cm (5.2 cm leave-one-clip-out).
+        //
+        // A TOGGLE, not a slider: these are two different laws, not two ends of one, so there is nothing
+        // meaningful in between. ON by default because the old law is a measured 32.8 cm error rather than a
+        // safe fallback -- but it is one switch to A/B in a headset, and one switch to revert.
+        // The two knobs above are consulted ONLY when this is off.
+        public static BasisSettingsBinding<bool> VSpinePostureModel = new("vspineposturemodel", new BasisPlatformDefault<bool>(true));
 
         // Torso yaw "play": degrees the head can turn before the synthesized chest/spine/hips begin
         // following. The torso holds inside this cone, catches up once the head leaves it, then the
@@ -1951,11 +1965,6 @@ namespace Basis.BasisUI
             FBIKHipHingeMaxAddDeg.LoadBindingValue();
             FBIKChestSpringHz.LoadBindingValue();
             FBIKChestSpringDamping.LoadBindingValue();
-            FBIKHipFrameSpringHz.LoadBindingValue();
-            FBIKHipFrameSpringDamping.LoadBindingValue();
-            FBIKElbowFlareMaxDeg.LoadBindingValue();
-            FBIKElbowFlareInwardGain.LoadBindingValue();
-            FBIKElbowFlareFullRollDeg.LoadBindingValue();
             FBIKSpineMaxForwardDeg.LoadBindingValue();
             FBIKSpineMaxBackwardDeg.LoadBindingValue();
             FBIKSpineMaxLateralDeg.LoadBindingValue();
@@ -2007,6 +2016,7 @@ namespace Basis.BasisUI
             VSpineHipsForwardBias.LoadBindingValue();
             VSpineHipsCompressionStrength.LoadBindingValue();
             VSpineHipsMaxDropMeters.LoadBindingValue();
+            VSpinePostureModel.LoadBindingValue();
             VSpineTorsoYawDeadzoneDeg.LoadBindingValue();
             VSpineTorsoYawBlendSpeed.LoadBindingValue();
             VSpineTorsoYawPlayInVR.LoadBindingValue();

@@ -448,18 +448,11 @@ namespace Basis.IK.Mocap
                         Vector3.Dot(s2h, bUp) / armLen,
                         Vector3.Dot(s2h, bFwd) / armLen);
 
-                    // Hand orientation RELATIVE TO ITS T-POSE, in the body frame. A BVH's rest pose has
-                    // identity rotations on every joint, so the T-pose divides out to nothing here -- but
-                    // the LIVE rig must use handRot * inverse(handTposeRot) or it is fitted to CMU's rig
-                    // and nothing else. Columns are the hand's own axes, written in the body frame.
-                    Vector3 hX = truthHandRot * Vector3.right;
-                    Vector3 hY = truthHandRot * Vector3.up;
-                    Vector3 hZ = truthHandRot * Vector3.forward;
-                    Unity.Mathematics.float3 InBody(Vector3 v) => new Unity.Mathematics.float3(
-                        Vector3.Dot(v, bOut), Vector3.Dot(v, bUp), Vector3.Dot(v, bFwd));
-                    var handOrient = new Unity.Mathematics.float3x3(InBody(hX), InBody(hY), InBody(hZ));
-
-                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, handOrient, out float aconf);
+                    // POSITIONS ONLY. The hand's ROTATION used to be 27 more features here, divided by its own
+                    // T-pose -- and it put the elbows up by the ears in a headset while every test stayed green.
+                    // See BasisArmSwivelModel: a bone's rotation is a rig convention, and the live rig's T-pose
+                    // bake was not reliably a T-pose. Anatomy transfers; conventions do not.
+                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, out float aconf);
                     if (isLeft) swivel = -swivel;   // un-mirror
 
                     // DIAGNOSTIC: what IS the true swivel on this frame? A prediction that is right looks
@@ -490,9 +483,6 @@ namespace Basis.IK.Mocap
                             var sb = s_swivelDump;
                             sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
                             sb.Append(F(handLocal.x)).Append(',').Append(F(handLocal.y)).Append(',').Append(F(handLocal.z));
-                            for (int cc = 0; cc < 3; cc++)
-                                for (int rr = 0; rr < 3; rr++)
-                                    sb.Append(',').Append(F(handOrient[cc][rr]));
                             sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
                         }
                     }
@@ -651,13 +641,6 @@ namespace Basis.IK.Mocap
             var legLocal = new Unity.Mathematics.float3(
                 Vector3.Dot(h2f, gOut) / legLen, Vector3.Dot(h2f, gUp) / legLen, Vector3.Dot(h2f, gFwd) / legLen);
 
-            Vector3 fX = truthFootRot * Vector3.right;
-            Vector3 fY = truthFootRot * Vector3.up;
-            Vector3 fZ = truthFootRot * Vector3.forward;
-            Unity.Mathematics.float3 InBodyL(Vector3 v) => new Unity.Mathematics.float3(
-                Vector3.Dot(v, gOut), Vector3.Dot(v, gUp), Vector3.Dot(v, gFwd));
-            var legOrient = new Unity.Mathematics.float3x3(InBodyL(fX), InBodyL(fY), InBodyL(fZ));
-
             // A knee points FORWARD, so that is the swivel's zero. (The arm's is body-down.)
             if (hint == BasisMocapHintSource.TruthJoint)
             {
@@ -668,7 +651,7 @@ namespace Basis.IK.Mocap
             {
                 // The KNEE is identical in both rows -- SwivelModelSmoothed varies only the ARM's output filter,
                 // which is the one shipping question this row exists to settle.
-                float kneeSwivel = BasisLegSwivelModel.SwivelRad(legLocal, legOrient, out float conf);
+                float kneeSwivel = BasisLegSwivelModel.SwivelRad(legLocal, out float conf);   // POSITIONS ONLY -- see BasisLegSwivelModel
                 if (isLeft) kneeSwivel = -kneeSwivel;
                 Unity.Mathematics.float3 kb = BasisLegSwivelModel.BendDirection(
                     new Unity.Mathematics.float3(h2f.x, h2f.y, h2f.z),
@@ -710,9 +693,6 @@ namespace Basis.IK.Mocap
                 var sb = s_legDump;
                 sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
                 sb.Append(F(legLocal.x)).Append(',').Append(F(legLocal.y)).Append(',').Append(F(legLocal.z));
-                for (int cc = 0; cc < 3; cc++)
-                    for (int rr = 0; rr < 3; rr++)
-                        sb.Append(',').Append(F(legOrient[cc][rr]));
                 sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
             }
 

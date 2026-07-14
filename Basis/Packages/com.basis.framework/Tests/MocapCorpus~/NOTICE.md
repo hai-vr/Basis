@@ -61,6 +61,44 @@ misleading measurements:
 What the corpus IS unimpeachable for: joint POSITIONS and their time-derivatives. Those are anatomy, and
 they transfer.
 
+## `posture/` — the pelvis corpus (44 clips)
+
+A SECOND corpus, in a subfolder, and the subfolder is the point: the tests above use a non-recursive
+`Directory.GetFiles`, so these clips are invisible to them and **the arm/knee numbers quoted all over this
+project stay byte-identical**. Mixing them in would have silently re-based every measurement in the IK suite
+to buy nothing — the arm and the knee do not care what the pelvis is doing.
+
+Used by `BasisPostureCorpusTests`, `BasisPelvisPostureModelTests` and `BasisSpineBendOverGroundTruthTests` to
+fit and validate `BasisPelvisPostureModel` — where the pelvis goes when a VR user's head gets low.
+
+Chosen from the CMU index BY DESCRIPTION to span the one axis that matters, because a low head is **two**
+different bodies and the old rig could not tell them apart:
+
+- **SQUAT / SIT — the pelvis rides the head down** (measured coupling 0.78–0.99)
+  `13_29` (squats), `75_17`/`75_18`/`75_19`/`75_20` (sits, graded by seat height — the cleanest signal in
+  the database), `13_01`/`13_04`/`13_05`, `14_27`/`14_29`/`14_31`, `15_10`, `74_07`/`74_08` (lifting),
+  `139_16` (getting up off the ground), `77_09` (ducking)
+- **WAIST-BEND — the pelvis stays high and the spine folds** (measured coupling 0.02–0.14)
+  `64_26`…`64_30` (picking a ball off the floor — the purest waist-bends here), `13_23`/`14_16` (sweeping),
+  `14_13` (mopping), `26_10`/`26_11` (bend + lift), `02_06`, `80_08`, `77_06`/`77_07`/`77_08`
+- **UPRIGHT ANCHORS — and these are the most important files in the folder**
+  `08_01`, `08_02`, `12_02`, `17_01`, `35_01`, `49_02`, `56_07`. Without clips of a human doing *nothing*,
+  a fit has never seen "standing" and will cheerfully drop the pelvis of a user who is simply stood there.
+  (The model is also fitted *through the origin* for the same reason, so zero head drop gives exactly zero
+  pelvis drop as an algebraic identity rather than as a hope. Belt and braces: this failure would be worse
+  than the bug it fixes.)
+
+Same CMU source, same conversion, same licence as above — the licence covers the whole database, not a
+selection from it.
+
+### ⚠ One fidelity limit specific to this corpus
+
+`82_05` (sitting on the ground) and `139_16` (getting up off the ground) reach poses where the "support
+base" — the midpoint of the feet — stops meaning anything, because the legs are stretched out in front and
+the feet are nowhere near under the body. Those frames sit outside the model's fit domain
+(`BasisPelvisPostureModel.MaxDrop` / `MaxLean`) and the runtime clamps into it, so they inform the fit at
+their edges without poisoning it. A standing VR user cannot reach them.
+
 ## Adding more clips
 
 Drop any `.bvh` into this folder and the tests pick it up automatically. The loader expects the standard

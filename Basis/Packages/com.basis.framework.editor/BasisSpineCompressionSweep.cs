@@ -101,10 +101,13 @@ namespace Basis.IK.Debugging
                         float headDrop = Mathf.Lerp(-0.1f, cfg.MaxHeadDropM, i / (float)(steps - 1));
                         float3 neck = new float3(0f, restNeckY - headDrop, 0f);
 
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, up, lenTotal, yaw, 0f, float3.zero,
-                            false, tposeHips, standingHipsY, cfg.CompressionStrength, cfg.MaxDropM, out float3 hipsOn);
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, up, lenTotal, yaw, 0f, float3.zero,
-                            false, tposeHips, standingHipsY, 0f, 0f, out float3 hipsOff);
+                        // usePostureModel:false -- this sweep exists to characterise the LEGACY saturation law,
+                        // so it keeps calling it. The posture model that now ships by default is covered by
+                        // BasisPelvisPostureModelTests, against real humans rather than against a synthetic sweep.
+                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
+                            false, tposeHips, standingHipsY, 0f, false, cfg.CompressionStrength, cfg.MaxDropM, out float3 hipsOn);
+                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
+                            false, tposeHips, standingHipsY, 0f, false, 0f, 0f, out float3 hipsOff);
 
                         if (IsNan(hipsOn.y) || IsNan(hipsOff.y)) s.NanCount++;
 

@@ -9,166 +9,186 @@ namespace UnityEngine.Animations.Rigging
     /// ================================================================================================
     /// THE REFRAME: the elbow is not free, so stop predicting a direction. Predict ONE ANGLE.
     ///
-    /// With the shoulder and the hand both fixed, the elbow cannot go wherever it likes -- it is confined
-    /// to a CIRCLE. (Korein's swivel-angle formulation; the standard result for a redundant limb.) So the
-    /// limb's entire redundancy collapses to ONE SCALAR: the swivel angle about the shoulder->hand axis.
-    /// Predicting the elbow IS predicting that angle.
+    /// With the shoulder and the hand both fixed, the elbow is confined to a CIRCLE (Korein's swivel angle;
+    /// the standard result for a redundant limb). The limb's entire redundancy collapses to ONE SCALAR: the
+    /// swivel about the shoulder->hand axis. Predicting the elbow IS predicting that angle.
     ///
-    /// This is not tidiness, it is THE FIX FOR THE SNAP AT FULL EXTENSION. Any angle you predict lands ON
-    /// the reachable circle by construction. A 3-vector "bend direction" does not -- so the solver needs
-    /// projections, fades, pole guards and clamps to drag it back on, AND AS THE LIMB STRAIGHTENS THAT
-    /// CIRCLE SHRINKS TO A POINT. The swivel becomes undefined, the fades switch the hint OFF, and the pole
-    /// is handed to a fallback direction. That handoff is the snap users report past ~95% extension.
-    ///
-    /// Predict the angle and it cannot happen: the angle stays defined and continuous at any extension, and
-    /// as the circle collapses the resulting POSITION change goes to zero on its own. Nothing to fade,
-    /// nothing to hand off, nothing to snap.
+    /// This is THE FIX FOR THE SNAP AT FULL EXTENSION. Any angle you predict lands ON the reachable circle by
+    /// construction. A 3-vector "bend direction" does not -- so the solver needs projections, fades and pole
+    /// guards to drag it back on, AND AS THE LIMB STRAIGHTENS THAT CIRCLE SHRINKS TO A POINT. The swivel
+    /// becomes undefined, the fades switch the hint OFF, and the pole is handed to a fallback. That handoff is
+    /// the snap users report past ~95% extension. Predict the angle and it cannot happen: the angle stays
+    /// defined at any extension, and as the circle collapses the resulting POSITION change goes to zero on its
+    /// own. Nothing to fade, nothing to hand off, nothing to snap.
     /// ================================================================================================
     ///
-    /// WHAT IT REPLACES. An 11^3 trilinear lookup of bend VECTORS, filled by six hand-authored lerps over
-    /// invented factors and never fitted to anything. Measured against 20 CMU clips it landed the elbow
-    /// 6.62% of an arm length from where the human's actually was, with 34 pops. A single CONSTANT swivel
-    /// angle, ignoring the hand entirely, scores 6.41%: the table was worse than not looking.
+    /// THIS MODEL READS POSITIONS ONLY, AND THAT IS A SCAR RATHER THAN A SIMPLIFICATION.
     ///
-    /// A polynomial in the hand's pose, fitted by weighted least squares to real human motion,
-    /// leave-one-clip-out. 59 coefficients for sin(phi), 59 for cos(phi), then atan2.
+    /// It briefly carried 27 more features describing the hands ORIENTATION (its rotation relative to its own
+    /// T-pose, in the body frame). They measured beautifully -- 2.12 % against this model's 3.45 % -- and IN A
+    /// HEADSET THEY PUT THE ELBOWS UP BY THE EARS, near-inverted, on almost every frame. Two things were wrong,
+    /// and both were knowable in advance:
     ///
-    /// Three things earn their place in the fit, each for a measured reason:
-    ///   * SPHERICAL coordinates alongside Cartesian. Soechting and Flanders (1989) found human limb posture
-    ///     is approximately LINEAR in the target's spherical coordinates. The corpus agrees.
-    ///   * hand ORIENTATION, as its rotation relative to its own T-POSE, in the body frame.
-    ///   * The fit is WEIGHTED BY THE CIRCLE RADIUS. We are judged on elbow POSITION error, and position
-    ///     error ~= radius * angular error. The radius collapses to zero as the limb straightens, so a
-    ///     near-straight limb's swivel hardly matters and a bent one's matters a lot. Weighting makes the
-    ///     regression minimise the quantity we actually measure rather than the one that is easy to write.
+    ///   1. THE T-POSE THEY DIVIDED BY WAS NOT RELIABLY A T-POSE. BasisLocalAvatarDriver calls
+    ///      ResetAvatarAnimator() -- literally commented "Exit T-Pose" -- BEFORE it builds the rig, so bone
+    ///      rotations read at job-build time are not guaranteed to be the rest pose the model was fitted
+    ///      against. Divide by the wrong rest and the orientation features are not noisy. They are CONFIDENTLY
+    ///      WRONG, which is the only kind of wrong that survives a test suite.
     ///
-    /// ACCURACY -- elbow position error, % of arm length, measured in BasisMocapMotionQualityTests:
-    ///     no hint at all .......... 21.74 %   jitter 0.207   pops  1
-    ///     the old lookup table ..... 6.62 %   jitter 0.126   pops 34
-    ///     THIS MODEL ............... 2.12 %   jitter 0.042   pops  0
-    ///     a real elbow tracker ..... 1.06 %   jitter 0.046   pops  0
-    /// It beats a real TRACKER on jitter and on jerk, and it pops zero times.
+    ///   2. THE CORPUS SAID SO, IN WRITING, BEFORE ANY OF THIS WAS BUILT. Tests/MocapCorpus~/NOTICE.md:
+    ///      "A mocap hand is not a controller... A VR controller's rotation is a GRIP convention. Anything in
+    ///      the IK that reads the hand's rotation is being fed a convention it was not designed for, and a
+    ///      result that hinges on it MUST BE CONFIRMED IN A HEADSET BEFORE IT IS BELIEVED."
     ///
-    /// SMOOTH BY CONSTRUCTION. A polynomial is C-infinity. There is no fade to tune here and no
-    /// discontinuity to fade -- the derivative simply exists, everywhere.
+    /// Neither can touch a POSITION. A limb's geometry is anatomy and it transfers; a bone's rotation is a
+    /// modelling convention and it does not. So this model needs no T-pose, reads no rotation, and has nothing
+    /// left of that kind to get wrong. If the orientation block is ever revived it needs a rest pose taken from
+    /// TposeBoneSnapshot (which is captured while the avatar is provably T-posed) and an in-headset A/B before
+    /// one word of its accuracy is believed.
     ///
-    /// ⚠ THE COEFFICIENTS ARE FITTED TO THE HARNESS'S OWN DUMPED FEATURES, and that is not an accident.
-    /// The first attempt fitted in a separate Python pipeline and scored 3.77% there and 31% in the harness
-    /// -- the two disagreed about handedness, or the body frame, or the left/right mirror, and a mismatch in
-    /// any ONE of those silently poisons the model (the predicted swivel came out 145 degrees off). The
-    /// harness now dumps the exact inputs it feeds this function, Python fits on those, and codegen emits
-    /// this file. There is only one pipeline, so the two cannot disagree. NEVER RE-FIT IN A DIFFERENT FRAME
-    /// FROM THE ONE YOU EVALUATE IN.
+    /// ACCURACY -- elbow position error, % of limb length, measured in BasisMocapMotionQualityTests:
+    ///     no hint at all ............... 21.74 %
+    ///     what this replaced ........... the bend LOOKUP + chicken-wing flare: 6.62 %, 34 pops
+    ///     THIS MODEL ................... 3.45 %   (4.76 % leave-one-CLIP-out, so it generalises)
+    ///     a real elbow tracker ........ 1.06 %
     ///
-    /// Generated by scratchpad/gen_cs2.py. DO NOT HAND-EDIT THE COEFFICIENTS -- re-fit and re-generate.
+    /// SMOOTH BY CONSTRUCTION. A polynomial is C-infinity. There is no fade to tune here and no discontinuity
+    /// to fade -- the derivative simply exists, everywhere.
+    ///
+    /// The coefficients are fitted to the HARNESS'S OWN DUMPED FEATURES, and that is not an accident. The first
+    /// attempt fitted in a separate pipeline and scored 3.77 % there and 31 % in the harness -- the two
+    /// disagreed about the mirror, and a mismatch in any ONE of handedness / body frame / mirror silently
+    /// poisons the model. The harness dumps the exact inputs it feeds this function, Python fits on those,
+    /// codegen emits this file. NEVER RE-FIT IN A DIFFERENT FRAME FROM THE ONE YOU EVALUATE IN.
+    /// DO NOT HAND-EDIT THE COEFFICIENTS -- re-fit and re-generate.
     /// </summary>
     [BurstCompile]
     public static class BasisArmSwivelModel
     {
         /// <summary>
-        /// The elbow's swivel angle, in radians, about the shoulder->hand axis. Zero points along
-        /// body DOWN (an elbow hangs down), projected into the plane perpendicular to that axis.
+        /// The elbows swivel angle, in radians, about the shoulder->hand axis.
         ///
-        /// EVERY INPUT IS IN THE BODY FRAME AND MIRRORED, so both sides share one model:
-        ///   tipLocal    (hand - shoulder), in the body frame, divided by limb length, with
-        ///               +x OUTWARD (negate x for the LEFT limb), +y UP, +z FORWARD.
-        ///   tipOrient   the hand's rotation RELATIVE TO ITS OWN T-POSE, in that same frame:
-        ///                   transpose(bodyFrame) * (tipWorldRot * inverse(tipTposeWorldRot))
-        ///               Dividing out the T-pose is what makes this RIG-INDEPENDENT and it is NOT optional --
-        ///               a bone's local axes are a rig convention. Same rest-basis map
-        ///               BasisFootSimParams.footAlign uses to stop the foot coming out toes-up.
+        /// THE INPUT IS IN THE BODY FRAME AND MIRRORED, so both sides share one model:
+        ///   tipLocal   (hand - shoulder), in the body frame, divided by limb length, with +x OUTWARD (negate x
+        ///              for the LEFT limb), +y UP, +z FORWARD.
         ///
         /// The CALLER mirrors the result back: negate the returned angle for the left limb.
         /// </summary>
-        public static float SwivelRad(in float3 tipLocal, in float3x3 tipOrient)
-            => SwivelRad(tipLocal, tipOrient, out _);
+        public static float SwivelRad(in float3 tipLocal) => SwivelRad(tipLocal, out _);
 
         /// <summary>
-        /// As above, and it also hands back HOW MUCH IT KNOWS.
-        ///
-        /// sin(phi) and cos(phi) are fitted as two independent polynomials, so nothing forces
-        /// sqrt(s*s + c*c) to stay near 1 -- and it does not. Least squares shrinks BOTH toward zero
-        /// exactly where the true swivel is UNPREDICTABLE: where a real human's joint genuinely goes to
-        /// different places for the same end-effector pose. The collapsing magnitude is not a defect. It is
-        /// the model saying "I do not know", and it says so precisely when it should.
-        ///
-        /// Feed that straight into atan2 and you get a disaster: near the origin atan2 does not fail, it
-        /// SPINS -- a hair's change of input swings the angle across the circle. Measured on the knee, the
-        /// magnitude dropped under 0.2 on 0.45% of frames, and those frames DOUBLED the pop count (36 -> 70)
-        /// even while mean accuracy more than halved. Accurate and unusable.
-        ///
-        /// So the caller must treat `confidence` as what it is and fade the HINT WEIGHT with it, never the
-        /// angle. A low-confidence frame then hands authority back to the solver's own pole smoothly,
-        /// instead of pointing it somewhere with total conviction and no basis.
+        /// As above, and it also hands back HOW MUCH IT KNOWS. sin and cos are fitted as two independent
+        /// polynomials, so nothing forces sqrt(s*s + c*c) to stay near 1. Least squares shrinks BOTH toward
+        /// zero exactly where the true swivel is genuinely UNPREDICTABLE -- and atan2 near the origin does not
+        /// fail, it SPINS. Across the corpus this magnitude falls under 0.2 on 0.004 % of frames, so the guard
+        /// essentially never fires; it is here because the failure it prevents is a spinning elbow.
         /// </summary>
-        public static float SwivelRad(in float3 tipLocal, in float3x3 tipOrient, out float confidence)
+        public static float SwivelRad(in float3 tipLocal, out float confidence)
         {
-            float x = tipLocal.x, y = tipLocal.y, z = tipLocal.z;
-            float r = math.length(tipLocal);
+            // =====================================================================================
+            // THE DOMAIN CLAMP, AND IT IS LOAD-BEARING.
+            //
+            // This is a 3rd-order polynomial with coefficients up to 15. Outside the box it was fitted in it is
+            // not "approximate" -- it is a random number generator.
+            //
+            // THE HARNESS COULD NOT HAVE CAUGHT THIS, and that is the whole lesson. In mocap the hand is ON the
+            // limb, so |tipLocal| <= 1 on every frame it has ever seen. THE LIVE RIG IS HANDED THE RAW CONTROLLER
+            // TARGET, which sails past the avatar's arm length constantly -- anyone whose arms are longer than
+            // their avatar's is outside the fit domain on essentially every frame. r = 1.0 versus r = 1.3 does
+            // not sound like much until you multiply it by these coefficients, and then it is the difference
+            // between an elbow and a coin flip.
+            //
+            // The two-bone solver has always clamped its own reach. The MODEL never did. It does now.
+            // =====================================================================================
+            float len = math.length(tipLocal);
+            float3 t = len > 1f ? tipLocal / len : tipLocal;
+
+            float x = t.x, y = t.y, z = t.z;
+            float r = math.min(len, 1f);
 
             float elev = math.asin(math.clamp(y / math.max(r, 1e-6f), -1f, 1f));
             float azim = math.atan2(x, z);
 
             float xx = x * x, yy = y * y, zz = z * z;
 
-            float h0 = tipOrient.c0.x, h1 = tipOrient.c1.x, h2 = tipOrient.c2.x;
-            float h3 = tipOrient.c0.y, h4 = tipOrient.c1.y, h5 = tipOrient.c2.y;
-            float h6 = tipOrient.c0.z, h7 = tipOrient.c1.z, h8 = tipOrient.c2.z;
-
-            // Straight-line, no array, no indirection: Burst folds the constants into the instruction
-            // stream and fuses the multiply-adds.
+            // Straight-line, no array, no indirection: Burst folds the constants into the instruction stream
+            // and fuses the multiply-adds.
             float sinPhi =
-                (+3.94378712e+00f) * 1f + (+1.06161195e+01f) * x + (-4.00300942e+00f) * y +
-                (-8.96661787e+00f) * z + (+5.10188691e-01f) * xx + (-2.49522482e+00f) * yy +
-                (+6.60908383e+00f) * zz + (+1.82963189e+00f) * x*y + (-3.94584403e-01f) * x*z +
-                (-1.08385448e+00f) * y*z + (+1.07511325e+00f) * xx*x + (+8.58384654e-01f) * yy*y +
-                (-1.21367469e+01f) * zz*z + (+3.15146954e+00f) * xx*y + (-8.05585670e+00f) * xx*z +
-                (+4.41788810e+00f) * yy*x + (-8.62501980e+00f) * yy*z + (-1.50903342e+00f) * zz*x +
-                (+2.03099862e+00f) * zz*y + (-1.48954339e+00f) * x*y*z + (-7.92408368e+00f) * r +
-                (+4.62404788e+00f) * r*r + (+4.08024377e+00f) * elev + (-3.07379420e+00f) * azim +
-                (+1.00059198e+00f) * elev*elev + (-2.70210312e-02f) * azim*azim + (-1.48895510e+00f) * elev*azim +
-                (-3.47608638e+00f) * r*elev + (+9.15422932e-01f) * r*azim + (-9.65535914e+00f) * r*x +
-                (+2.17411672e+00f) * r*y + (+1.42804125e+01f) * r*z + (+2.28743943e-01f) * h0 +
-                (-1.40812318e+00f) * h1 + (-8.50512010e-01f) * h2 + (+1.94930677e-01f) * h3 +
-                (-1.42852182e-01f) * h4 + (+2.77486797e-01f) * h5 + (+3.11710542e-02f) * h6 +
-                (+8.81399386e-01f) * h7 + (-1.38162046e+00f) * h8 + (-7.49071557e-02f) * h0*x +
-                (+1.22579726e+00f) * h1*x + (+5.22421200e-01f) * h2*x + (-3.15092728e-01f) * h3*x +
-                (+1.31425612e+00f) * h4*x + (+9.03779269e-01f) * h5*x + (-2.01137430e-01f) * h6*x +
-                (+2.61855392e-01f) * h7*x + (+1.22490143e+00f) * h8*x + (+4.63809644e-02f) * h0*y +
-                (-1.49649069e+00f) * h1*y + (-1.77130194e+00f) * h2*y + (+9.38942318e-02f) * h3*y +
-                (-1.03267059e-01f) * h4*y + (-3.88691412e-01f) * h5*y + (-8.38828497e-02f) * h6*y +
-                (-4.85973696e-01f) * h7*y + (-8.15037716e-01f) * h8*y;
+                (+4.85046596e+00f) * 1f +
+                (+8.90283261e+00f) * x +
+                (+3.07357926e+00f) * y +
+                (-1.51330608e+01f) * z +
+                (-2.31288634e+00f) * xx +
+                (+7.11251880e-01f) * yy +
+                (+2.33544551e+00f) * zz +
+                (+6.87526493e+00f) * x*y +
+                (-8.86284750e+00f) * x*z +
+                (+3.55286082e+00f) * y*z +
+                (-6.39415478e-01f) * xx*x +
+                (+4.21283105e+00f) * yy*y +
+                (-2.03854156e+01f) * zz*z +
+                (+1.61805809e+00f) * xx*y +
+                (-1.59594310e+01f) * xx*z +
+                (+2.10802270e+00f) * yy*x +
+                (-1.83086585e+01f) * yy*z +
+                (+1.21524009e+00f) * zz*x +
+                (+1.44646499e+00f) * zz*y +
+                (-4.31874597e+00f) * x*y*z +
+                (-7.28046688e+00f) * r +
+                (+7.33811054e-01f) * r*r +
+                (+1.09256348e+00f) * elev +
+                (-3.36700072e+00f) * azim +
+                (-1.53126360e-02f) * elev*elev +
+                (-6.10252578e-02f) * azim*azim +
+                (-1.86256383e+00f) * elev*azim +
+                (-1.55587489e+00f) * r*elev +
+                (+7.30125904e-01f) * r*azim +
+                (+5.68798364e-01f) * r*x +
+                (-7.90477911e+00f) * r*y +
+                (+3.49703473e+01f) * r*z;
 
             float cosPhi =
-                (+7.57779056e-01f) * 1f + (-3.54814286e+00f) * x + (+8.20523667e+00f) * y +
-                (-4.73798003e+00f) * z + (-1.75280758e+00f) * xx + (+1.52476039e+00f) * yy +
-                (-1.34338594e+00f) * zz + (-3.18653317e+00f) * x*y + (+5.11483948e+00f) * x*z +
-                (-3.69077657e+00f) * y*z + (+7.45061556e-01f) * xx*x + (-5.93762600e-02f) * yy*y +
-                (-1.76140868e+00f) * zz*z + (-3.65630839e-01f) * xx*y + (-3.44880087e+00f) * xx*z +
-                (-9.87929720e-01f) * yy*x + (-3.18874617e+00f) * yy*z + (-1.48178800e+00f) * zz*x +
-                (+1.40712240e+00f) * zz*y + (+2.03703719e+00f) * x*y*z + (+4.17061738e+00f) * r +
-                (-1.57143329e+00f) * r*r + (-2.53522027e+00f) * elev + (+1.91777472e-01f) * azim +
-                (-1.47664111e+00f) * elev*elev + (-2.32793059e-01f) * azim*azim + (+5.67307273e-01f) * elev*azim +
-                (-1.71320952e+00f) * r*elev + (+6.68708061e-01f) * r*azim + (+7.28570772e-01f) * r*x +
-                (-1.13496971e+00f) * r*y + (+5.06902707e+00f) * r*z + (-1.67344289e-01f) * h0 +
-                (+1.61661670e+00f) * h1 + (+4.12685599e-01f) * h2 + (-1.29552976e-01f) * h3 +
-                (+1.42842894e-01f) * h4 + (-6.06339215e-01f) * h5 + (-3.99930272e-02f) * h6 +
-                (-2.22498355e-01f) * h7 + (+1.32800453e+00f) * h8 + (-5.71785337e-02f) * h0*x +
-                (-5.69820349e-01f) * h1*x + (+6.32015215e-01f) * h2*x + (+3.51582100e-01f) * h3*x +
-                (-5.77555226e-01f) * h4*x + (-7.08516446e-01f) * h5*x + (+1.33861206e-01f) * h6*x +
-                (-1.64230929e+00f) * h7*x + (-6.06581543e-01f) * h8*x + (-1.74133996e-01f) * h0*y +
-                (+1.28204095e+00f) * h1*y + (+4.87688193e-01f) * h2*y + (-1.16081728e-01f) * h3*y +
-                (-4.69607541e-01f) * h4*y + (+2.20732061e-01f) * h5*y + (-1.14814054e-02f) * h6*y +
-                (+2.20237177e-01f) * h7*y + (+1.39780166e+00f) * h8*y;
+                (+9.84537763e-01f) * 1f +
+                (-3.16113670e+00f) * x +
+                (-8.04111222e+00f) * y +
+                (+7.34046089e-01f) * z +
+                (+3.48689746e+00f) * xx +
+                (-1.27489407e+00f) * yy +
+                (+1.33228252e+00f) * zz +
+                (-4.74369870e+00f) * x*y +
+                (+1.03752079e+01f) * x*z +
+                (-4.38160865e+00f) * y*z +
+                (+7.84462892e-01f) * xx*x +
+                (-7.18542834e+00f) * yy*y +
+                (+8.47199334e-01f) * zz*z +
+                (-5.22205922e+00f) * xx*y +
+                (-3.17926897e+00f) * xx*z +
+                (+1.08815818e+00f) * yy*x +
+                (+5.85072394e-01f) * yy*z +
+                (-4.47132338e+00f) * zz*x +
+                (-4.12105900e+00f) * zz*y +
+                (+4.73267686e+00f) * x*y*z +
+                (-1.59196444e+00f) * r +
+                (+3.54428591e+00f) * r*r +
+                (+1.62177672e+00f) * elev +
+                (+7.52910269e-01f) * azim +
+                (+3.67391608e-01f) * elev*elev +
+                (-2.08559102e-01f) * azim*azim +
+                (+9.14122723e-01f) * elev*azim +
+                (-9.76695565e-01f) * r*elev +
+                (+5.77396398e-01f) * r*azim +
+                (-4.87962903e+00f) * r*x +
+                (+1.57662928e+01f) * r*y +
+                (-4.91418674e+00f) * r*z;
 
             confidence = math.sqrt(sinPhi * sinPhi + cosPhi * cosPhi);
             return math.atan2(sinPhi, cosPhi);
         }
 
         /// <summary>
-        /// The bend direction the two-bone solver wants: a unit vector PERPENDICULAR to the shoulder->hand
-        /// axis, pointing at the swivel angle this model predicts. Perpendicular by construction -- the
-        /// solver has nothing to project away and no near-singular projection to guard.
+        /// The bend direction the two-bone solver wants: a unit vector PERPENDICULAR to the shoulder->hand axis,
+        /// pointing at the swivel angle this model predicts. Perpendicular by construction -- the solver has
+        /// nothing to project away and no near-singular projection to guard.
         /// </summary>
         public static float3 BendDirection(float3 rootToTip, float3 reference, float swivelRad)
         {

@@ -1188,11 +1188,6 @@ namespace Basis.Scripts.Drivers
             data.HipHingeMaxAddDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.RawValue;
             data.ChestSpringHz = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringHz.RawValue;
             data.ChestSpringDamping = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringDamping.RawValue;
-            data.HipFrameSpringHz = Basis.BasisUI.BasisSettingsDefaults.FBIKHipFrameSpringHz.RawValue;
-            data.HipFrameSpringDamping = Basis.BasisUI.BasisSettingsDefaults.FBIKHipFrameSpringDamping.RawValue;
-            data.ElbowFlareMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareMaxDeg.RawValue;
-            data.ElbowFlareInwardGain = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareInwardGain.RawValue;
-            data.ElbowFlareFullRollDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowFlareFullRollDeg.RawValue;
             data.SpineMaxForwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxForwardDeg.RawValue;
             data.SpineMaxBackwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.RawValue;
             data.SpineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;

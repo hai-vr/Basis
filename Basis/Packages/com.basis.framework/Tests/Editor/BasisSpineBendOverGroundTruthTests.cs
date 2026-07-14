@@ -4,6 +4,7 @@ using System.Text;
 using Basis.IK.Mocap;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 
 namespace Basis.Tests.IK
 {
@@ -298,18 +299,43 @@ namespace Basis.Tests.IK
             }
 
             report.AppendLine(new string('-', 54));
-            report.AppendLine($"WORST GAP: {worstGap * 100f:F1} cm, on {worstWhere}.");
-            report.AppendLine("That is how far the pelvis is being held ABOVE where a real one would be, on a bend");
-            report.AppendLine("this deep -- and since the head is welded to the HMD, the spine and neck have to");
+            report.AppendLine($"WORST GAP (legacy law): {worstGap * 100f:F1} cm, on {worstWhere}.");
+            report.AppendLine("That is how far the pelvis was being held ABOVE where a real one goes, on a bend");
+            report.AppendLine("this deep -- and since the head is welded to the HMD, the spine and neck had to");
             report.AppendLine("find every centimetre of it by ROTATING. That is the tortoise, in centimetres.");
+            report.AppendLine();
+
+            // ---------------------------------------------------------------------------------------------
+            // AND NOW THE FIX, ON THE SAME FRAMES. BasisPelvisPostureModel replaced the law above; this is
+            // the guard that says so, in the same units, on the same clips, so the claim cannot rot.
+            // ---------------------------------------------------------------------------------------------
+            float worstModelGap = 0f;
+            foreach (BasisMotionClip c in clips)
+            {
+                BasisPostureFeatures.StandingReference(c, out float sHead, out float sHips);
+                if (!(sHead > 0.1f)) continue;
+
+                for (int f = 0; f < c.FrameCount; f++)
+                {
+                    BasisPostureSample p = BasisPostureFeatures.Extract(c, f, sHead, sHips);
+                    if (!p.Valid || p.HeadDrop <= 0.10f) continue;
+
+                    float modelHips = BasisPelvisPostureModel.PelvisDrop(p.HeadDrop, p.HeadFwd) * sHead;
+                    float humanHips = p.HipsDrop * sHead;
+                    worstModelGap = Mathf.Max(worstModelGap, humanHips - modelHips);
+                }
+            }
+
+            report.AppendLine($"WORST GAP (posture model): {worstModelGap * 100f:F1} cm -- on the same frames.");
             Debug.Log(report.ToString());
 
-            // Report-only on the exact figure -- but a gap this size is the complaint, so pin that it EXISTS.
-            // When the fix lands this assertion is what should be inverted, with the new number written in.
             Assert.Greater(worstGap, 0.05f,
-                "expected the shipped compression law to hold the pelvis measurably above a real human's on a " +
-                "deep bend -- if this no longer holds, the spine has been fixed and this test should be " +
-                "rewritten as the regression guard for the new behaviour.");
+                "the shipped saturation law held the pelvis measurably above a real human's on a deep bend. " +
+                "If this no longer holds, the legacy law has been changed and the premise of the fix has moved.");
+
+            Assert.Less(worstModelGap, worstGap,
+                $"BasisPelvisPostureModel must close the gap the saturation law opened -- legacy {worstGap * 100f:F1} cm, " +
+                $"model {worstModelGap * 100f:F1} cm. This is the tortoise, and this assertion is what stops it coming back.");
         }
     }
 }

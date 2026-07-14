@@ -162,9 +162,9 @@ namespace Basis.Tests.IK
                     if (hint == BasisMocapHintSource.SwivelModel)
                     {
                         BasisMocapAccuracy.s_legDump ??= new StringBuilder(
-                            "clip,side,x,y,z,h00,h10,h20,h01,h11,h21,h02,h12,h22,phi,rad\n");
+                            "clip,side,x,y,z,phi,rad\n");
                         BasisMocapAccuracy.s_swivelDump ??= new StringBuilder(
-                            "clip,side,x,y,z,h00,h10,h20,h01,h11,h21,h02,h12,h22,phi,rad\n");
+                            "clip,side,x,y,z,phi,rad\n");
                         BasisMocapAccuracy.s_swivelDiffSum = 0f;
                         BasisMocapAccuracy.s_swivelSumSum = 0f;
                         BasisMocapAccuracy.s_swivelN = 0;

@@ -8,6 +8,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;   // BasisPelvisPostureModel
 
 /// <summary>
 /// Virtual spine solver for local avatars. It blends tracker-driven cues (head/neck)
@@ -65,6 +66,7 @@ public class BasisLocalVirtualSpineDriver
     /// <summary>Standing hips local Y = rest neck Y − total spine length: the rigid model's hips height
     /// when the head is at rest. Spine compression measures the head drop relative to this.</summary>
     private float _standingHipsLocalY;
+    private float _standingHeadLocalY;
 
     /// <summary>Set whenever cached lengths need to be recomputed (scale or TPose changed).</summary>
     private bool _lengthsDirty = true;
@@ -178,7 +180,7 @@ public class BasisLocalVirtualSpineDriver
 
         if (_lengthsDirty)
         {
-            RecomputeSegmentLengths(neck, chest, spine, hips);
+            RecomputeSegmentLengths(head, neck, chest, spine, hips);
             _lengthsDirty = false;
         }
 
@@ -251,6 +253,8 @@ public class BasisLocalVirtualSpineDriver
             TSpine = _tSpine,
 
             StandingHipsLocalY = _standingHipsLocalY,
+            StandingHeadLocalY = _standingHeadLocalY,
+            PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
             HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
             HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
         };
@@ -285,8 +289,9 @@ public class BasisLocalVirtualSpineDriver
         return c.TargetIndex >= 0 ? c.Owner.Controls[c.TargetIndex] : c;
     }
 
-    private void RecomputeSegmentLengths(BasisLocalBoneControl neck, BasisLocalBoneControl chest, BasisLocalBoneControl spine, BasisLocalBoneControl hips)
+    private void RecomputeSegmentLengths(BasisLocalBoneControl head, BasisLocalBoneControl neck, BasisLocalBoneControl chest, BasisLocalBoneControl spine, BasisLocalBoneControl hips)
     {
+        float3 pHead = head.TposeLocalScaled.position;
         float3 pNeck = neck.TposeLocalScaled.position;
         float3 pChest = chest.TposeLocalScaled.position;
         float3 pSpine = spine.TposeLocalScaled.position;
@@ -300,6 +305,9 @@ public class BasisLocalVirtualSpineDriver
         _tSpine = math.saturate((_lenNeckToChest + _lenChestToSpine) / _lenTotal);
         // Rigid-model hips Y at rest (neck at rest height): drop below this drives spine compression.
         _standingHipsLocalY = pNeck.y - _lenTotal;
+        // The posture model normalises by the user's own standing HEAD height, which is what makes it
+        // scale-free. Guarded: a rig that puts the head at the origin would otherwise divide by zero.
+        _standingHeadLocalY = math.max(pHead.y, 1e-3f);
     }
 
     /// <summary>Per-frame solver inputs packed on the main thread (settings, cues, calibration).</summary>
@@ -354,6 +362,10 @@ public class BasisLocalVirtualSpineDriver
         public float TSpine;
 
         public float StandingHipsLocalY;
+        public float StandingHeadLocalY;
+        // 1 = the fitted pelvis posture model (BasisPelvisPostureModel), 0 = the legacy exponential
+        // saturation. A toggle and not a slider: these are two different laws, not two ends of one.
+        public byte PostureModel;
         public float HipsCompressionStrength;
         public float HipsMaxDropMeters;
     }
@@ -432,10 +444,12 @@ public class BasisLocalVirtualSpineDriver
             float biasScale = P.HipsForwardBias * P.Scale;
 
             float3 headPosWorld = head.OutgoingPosition;
-            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0);
+            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
 
             ComputeHipsPosition(
                 in neckPosWorld,
+                in headPosWorld,
+                in supportXZ,
                 in worldUp,
                 P.LenTotal,
                 in torsoYawTarget,
@@ -444,6 +458,8 @@ public class BasisLocalVirtualSpineDriver
                 freeze,
                 in tposeHips,
                 P.StandingHipsLocalY,
+                P.StandingHeadLocalY,
+                P.PostureModel != 0,
                 P.HipsCompressionStrength,
                 P.HipsMaxDropMeters,
                 out float3 hipsPos);
@@ -601,7 +617,11 @@ public class BasisLocalVirtualSpineDriver
     ///   (2) Foot pendulum: if both feet are tracked, override with feet-midpoint + a small lean
     ///       toward the head — closer to a real inverted-pendulum stance.
     /// </summary>
-    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked)
+    // `supportXZ` is the SUPPORT BASE -- where the user is standing. It is already computed here (it is what
+    // the pelvis is lerped away from), so it is handed back rather than recomputed: the posture model measures
+    // the head's forward LEAN against it, and two copies of that definition is exactly the kind of quiet
+    // disagreement that has bitten this codebase before.
+    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
     {
         float3 headXZ = new float3(headPosWorld.x, 0f, headPosWorld.z);
 
@@ -624,9 +644,12 @@ public class BasisLocalVirtualSpineDriver
                 (leftFootPos.x + rightFootPos.x) * 0.5f,
                 0f,
                 (leftFootPos.z + rightFootPos.z) * 0.5f);
+            supportXZ = feetMidXZ;
             return math.lerp(feetMidXZ, headXZ, FootPendulumLeanFrac);
         }
 
+        // No feet: the slow head baseline IS the standing spot, which is the best support base available.
+        supportXZ = s.HeadBaselineXZ;
         return math.lerp(s.HeadBaselineXZ, headXZ, CounterbalanceFollowFrac);
     }
 
@@ -737,6 +760,8 @@ public class BasisLocalVirtualSpineDriver
     [BurstCompile]
     internal static void ComputeHipsPosition(
         in float3 neckPos,
+        in float3 headPos,
+        in float3 supportXZ,
         in float3 worldUp,
         float lenTotal,
         in quaternion headYaw,
@@ -745,6 +770,8 @@ public class BasisLocalVirtualSpineDriver
         bool freezeToTpose,
         in float3 tposeHips,
         float standingHipsLocalY,
+        float standingHeadLocalY,
+        bool usePostureModel,
         float compressionStrength,
         float maxDrop,
         out float3 result)
@@ -762,18 +789,54 @@ public class BasisLocalVirtualSpineDriver
             return;
         }
 
-        // Spine compression: the rigid model sinks the pelvis by the full head drop (neck − lenTotal),
-        // so leaning to touch toes or sitting buries the hips and the leg IK folds the knees. Saturate
-        // the downward travel toward maxDrop so the spine shortens (chest scrunches) and the pelvis
-        // holds near standing height. drop ≤ 0 (head at/above standing) leaves the rigid pose untouched.
-        float drop = standingHipsLocalY - hipsBase.y;
-        if (drop > 0f && compressionStrength > 0f && maxDrop > 1e-4f)
-        {
-            float softDrop = maxDrop * (1f - math.exp(-drop / maxDrop));
-            hipsBase.y = standingHipsLocalY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
-        }
+        // `hipsBase.y` is the RIGID pelvis: a fixed spine-length below the neck. It is also the FLOOR of
+        // what follows -- the pelvis may sit above it (the spine compresses, which is what a folding spine
+        // does) but never below it, because that would mean the spine has STRETCHED.
+        float rigidY = hipsBase.y;
+        float headDrop = standingHeadLocalY - headPos.y;
 
-        // Y from neck-minus-spine-length (now compressed), XZ from the realistic model, plus pelvic bias.
+        if (usePostureModel && standingHeadLocalY > 1e-3f && headDrop > 0f)
+        {
+            // ------------------------------------------------------------------------------------------
+            // THE PELVIS POSTURE MODEL. A low head is TWO different bodies -- a waist-bend (pelvis stays
+            // high, spine folds) and a squat (pelvis rides the head down) -- and the old law below could
+            // not tell them apart, because it only ever looked at HEIGHT. Fitted to 44 CMU clips, the real
+            // coupling is 0.02-0.14 for the first and 0.78-0.99 for the second: not a spread, two
+            // behaviours. The discriminator is FORWARD LEAN, and this is where it finally gets used.
+            //
+            // Everything is normalised by the user's own standing head height, so it is scale-free.
+            // ------------------------------------------------------------------------------------------
+            float3 headXZ = new float3(headPos.x, 0f, headPos.z);
+            float lean = math.length(headXZ - new float3(supportXZ.x, 0f, supportXZ.z));
+
+            float d = headDrop / standingHeadLocalY;
+            float f = lean / standingHeadLocalY;
+
+            float pelvisDrop = BasisPelvisPostureModel.PelvisDrop(d, f) * standingHeadLocalY;
+
+            // The pelvis may rise above the rigid pose (spine compresses) but never sink below it (spine
+            // cannot stretch). On a squat the model lands ON the rigid pose, which is the whole point --
+            // that is the case the old saturation was wrongly holding 32.8 cm up.
+            hipsBase.y = math.max(standingHipsLocalY - pelvisDrop, rigidY);
+        }
+        else if (!usePostureModel)
+        {
+            // LEGACY: a single exponential saturation of the pelvis's downward travel. Right-ish for a
+            // waist-bend (which is why it was added -- the rigid model buried the pelvis and folded the
+            // knees), badly wrong for a squat. Kept behind the VSpinePostureModel toggle so the change is
+            // one switch to A/B in a headset, and one switch to revert.
+            float drop = standingHipsLocalY - rigidY;
+            if (drop > 0f && compressionStrength > 0f && maxDrop > 1e-4f)
+            {
+                float softDrop = maxDrop * (1f - math.exp(-drop / maxDrop));
+                hipsBase.y = standingHipsLocalY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
+            }
+        }
+        // headDrop <= 0 (head at or above standing height -- tiptoes, a jump) leaves the RIGID pose
+        // untouched under either law: the pelvis rises with the neck, exactly as it always has.
+
+        // Y from the posture law, XZ from the realistic model (deliberately UNCHANGED -- a fit of the
+        // horizontal pelvis lost to this constant out-of-sample, so it does not ship), plus pelvic bias.
         result = new float3(desiredHipsXZ.x, hipsBase.y, desiredHipsXZ.z) + forwardBias;
     }
 

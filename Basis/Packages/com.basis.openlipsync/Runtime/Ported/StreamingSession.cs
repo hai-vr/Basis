@@ -35,6 +35,7 @@ namespace OpenLipSync.Inference
         private readonly float[][][] _cacheBuffers = new float[2][][];
         private readonly OrtValue[][] _cacheValues = new OrtValue[2][];
         private readonly OrtIoBinding[] _bindings = new OrtIoBinding[2];
+        private readonly RunOptions _runOptions = new RunOptions();
         private int _phase;
         private bool _disposed;
 
@@ -107,7 +108,10 @@ namespace OpenLipSync.Inference
             if (_disposed) throw new ObjectDisposedException(nameof(StreamingSession));
 
             melFrame.Slice(0, _nMels).CopyTo(_melBuffer);
-            _session.RunWithBinding(new RunOptions(), _bindings[_phase]);
+            // _runOptions is held for the lifetime of the context: allocating one per frame
+            // would be 100 allocations/second per player, which defeats the whole point of
+            // the ping-ponged bindings below.
+            _session.RunWithBinding(_runOptions, _bindings[_phase]);
             _phase ^= 1;   // last run's outputs become next run's inputs -- no copy
 
             if (multiLabel)
@@ -154,6 +158,7 @@ namespace OpenLipSync.Inference
                     foreach (var v in _cacheValues[p]) v?.Dispose();
             _melValue?.Dispose();
             _logitValue?.Dispose();
+            _runOptions?.Dispose();
         }
     }
 }

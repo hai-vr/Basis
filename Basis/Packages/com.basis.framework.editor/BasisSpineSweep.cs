@@ -86,13 +86,13 @@ namespace Basis.IK.Debugging
                         float biasScale = Mathf.Lerp(-0.1f, 0.1f, (float)rng.NextDouble());
                         float3 desiredXZ = RandVec(rng, 1f);
                         float3 tposeHips = RandVec(rng, 1f);
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, up, lenTotal, headYaw, biasScale, desiredXZ, false, tposeHips, 0f, 0f, 0f, out float3 hipsOut);
+                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, headYaw, biasScale, desiredXZ, false, tposeHips, 0f, 0f, false, 0f, 0f, out float3 hipsOut);
                         float3 fwdBias = math.mul(headYaw, new float3(0f, 0f, 1f)) * biasScale;
                         float hipsYErr = Mathf.Abs(hipsOut.y - (neck.y - lenTotal));
                         float hipsXZErr = Mathf.Sqrt(Sq(hipsOut.x - (desiredXZ.x + fwdBias.x)) + Sq(hipsOut.z - (desiredXZ.z + fwdBias.z)));
 
                         // --- hips position (freeze) ---
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, up, lenTotal, headYaw, biasScale, desiredXZ, true, tposeHips, 0f, 0f, 0f, out float3 hipsFreeze);
+                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, headYaw, biasScale, desiredXZ, true, tposeHips, 0f, 0f, false, 0f, 0f, out float3 hipsFreeze);
                         float3 freezeExpect = tposeHips + new float3(0f, 0f, 1f) * biasScale;
                         float freezeErr = math.distance(hipsFreeze, freezeExpect);
 

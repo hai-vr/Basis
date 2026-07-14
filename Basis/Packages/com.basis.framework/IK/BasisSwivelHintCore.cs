@@ -7,12 +7,11 @@ namespace UnityEngine.Animations.Rigging
     /// The body frame the swivel models are fitted in: a right-handed triad built from BONE POSITIONS.
     ///
     /// From POSITIONS, never from bone rotations. A bone's local axes are a RIG CONVENTION -- CMU's chest bone
-    /// is not Unity's -- so a frame taken from rotations does not transfer between rigs and the model would be
-    /// fitted to the mocap skeleton and nothing else. A shoulder line and a spine direction are ANATOMY, and
-    /// anatomy transfers.
+    /// is not Unity's -- so a frame taken from rotations is fitted to one skeleton and no other. A shoulder
+    /// line and a spine direction are ANATOMY, and anatomy transfers between rigs.
     ///
-    /// `Right` is the UN-MIRRORED body right. The mirror (+x OUTWARD for both limbs) is applied per-limb in
-    /// Features(), because the T-pose reference must NOT be mirrored -- see the note there.
+    /// `Right` is the UN-MIRRORED body right. The mirror (+x OUTWARD for both limbs, so that one model serves
+    /// both) is applied per-limb in Features().
     /// </summary>
     public struct BasisSwivelFrame
     {
@@ -29,36 +28,23 @@ namespace UnityEngine.Animations.Rigging
     /// ================================================================================================
     /// THIS FILE EXISTS SO THE RUNTIME AND THE FIT CANNOT DISAGREE.
     ///
-    /// The models are polynomials in 12 numbers. Get any ONE of handedness, body frame, mirror or T-pose
-    /// convention wrong and the model does not degrade -- it produces confident garbage. That already happened
-    /// once on this project: a fit done in a separate pipeline scored 3.77% there and 31% in the harness,
-    /// because the two disagreed about the mirror. The predicted swivel came out 145 degrees off.
+    /// The models are polynomials in three numbers. Get any ONE of handedness, body frame or mirror wrong and
+    /// the model does not degrade -- it produces CONFIDENT GARBAGE, which is the only kind of wrong that gets
+    /// past a green test suite. That has now happened twice on this project:
     ///
-    /// So the feature construction lives in ONE place, and BasisSwivelHintConformanceTests pins it against the
-    /// harness's own construction (BasisMocapAccuracy, which IS the fit pipeline) on a synthetic rig.
+    ///   * a fit done in a separate pipeline scored 3.77 % there and 31 % in the harness, because the two
+    ///     disagreed about the mirror. The predicted swivel came out 145 degrees off. Nothing crashed.
+    ///
+    ///   * an earlier version of THIS FILE fed the models 27 extra features describing the tip's ORIENTATION,
+    ///     divided by a T-pose read at job-build time. BasisLocalAvatarDriver exits T-pose BEFORE it builds the
+    ///     rig, so that "rest pose" was not reliably a rest pose -- and in a headset the elbows sat up by the
+    ///     ears, near-inverted, on almost every frame, while every test in the suite stayed green. The corpus
+    ///     had warned about exactly this in writing (NOTICE.md: "a mocap hand is not a controller").
+    ///
+    /// So the feature construction lives in ONE place, it reads POSITIONS ONLY, and
+    /// BasisSwivelHintConformanceTests pins it against the harness's own construction (BasisMocapAccuracy,
+    /// which IS the fit pipeline).
     /// ================================================================================================
-    ///
-    /// ⚠ THE T-POSE DIVISION, AND WHY IT NEEDS THE T-POSE *FRAME* AND NOT JUST THE T-POSE ROTATION.
-    ///
-    /// The orientation feature is "where do the hand's own axes point, relative to the body". In the CMU BVH the
-    /// rest pose has IDENTITY rotations on every joint, so the harness can read the hand's axes straight off
-    /// `handRot * (right|up|forward)`. A real avatar's hand bone has an arbitrary rest rotation, so the rig
-    /// convention has to be divided out: `delta = handRot * inverse(handTposeRot)`.
-    ///
-    /// That is necessary but NOT sufficient. `delta` is a WORLD-space delta, and the T-pose was captured with the
-    /// player standing at some arbitrary world yaw Q0 (BasisLocalAvatarDriver calibrates wherever the user
-    /// happens to be facing). Work it through: the live features come out equal to the fitted ones RIGHT-
-    /// MULTIPLIED BY inverse(Q0). The position features do not care -- the body frame yaws with the player, so
-    /// the yaw cancels -- but the ORIENTATION features are silently rotated by a constant, and the model has
-    /// never seen that. A user who calibrated facing east would get a different elbow from one facing north.
-    ///
-    /// The cure is to feed the T-POSE BODY FRAME back in on the right: applying `delta` to the T-pose frame's
-    /// own axes (rather than to world x/y/z) cancels Q0 exactly. In the BVH -- rest rotations identity, rest
-    /// frame world-aligned -- it reduces to `handRot * (right|up|forward)`, i.e. bit-for-bit what was fitted.
-    /// BasisSwivelHintConformanceTests.Features_AreInvariant_ToTheWorldYawAtCalibration pins that.
-    ///
-    /// The T-pose frame is the UN-MIRRORED one for BOTH limbs. Mirroring it too would conjugate the orientation
-    /// matrix (M X M) instead of merely reflecting it (M X), which is NOT the object the model was fitted on.
     /// </summary>
     [BurstCompile]
     public static class BasisSwivelHintCore
@@ -68,7 +54,8 @@ namespace UnityEngine.Animations.Rigging
 
         /// <summary>
         /// Below this the model is telling you IT DOES NOT KNOW, and atan2 near the origin does not fail -- it
-        /// SPINS. Drawn from the measured distribution across the corpus. See BasisArmSwivelModel.SwivelRad.
+        /// SPINS. Measured across the corpus the arm falls under this on 0.004 % of frames and the leg on none,
+        /// so it essentially never fires; it is here because the failure it prevents is a spinning elbow.
         /// </summary>
         public const float MinConfidence = 0.20f;
 
@@ -108,35 +95,20 @@ namespace UnityEngine.Animations.Rigging
         }
 
         /// <summary>
-        /// The 12 numbers the models eat: the tip's position in the mirrored body frame (normalised by limb
-        /// length), and the tip's orientation relative to its own T-pose, in that same frame.
+        /// The three numbers the models eat: the tip's position in the mirrored body frame, normalised by limb
+        /// length. Nothing else -- no rotation, no T-pose, nothing a rig convention can reach.
         /// </summary>
-        public static void Features(in BasisSwivelFrame frameNow, in BasisSwivelFrame frameTpose,
-                                    Vector3 rootPos, Vector3 tipPos, Quaternion tipRot, Quaternion tipTposeRot,
-                                    float limbLen, bool isLeft,
-                                    out float3 tipLocal, out float3x3 tipOrient)
+        public static void Features(in BasisSwivelFrame frameNow, Vector3 rootPos, Vector3 tipPos,
+                                    float limbLen, bool isLeft, out float3 tipLocal)
         {
             // +x is OUTWARD for both limbs, so one model serves both. The caller un-mirrors the ANGLE.
             Vector3 bOut = isLeft ? -frameNow.Right : frameNow.Right;
-            Vector3 bUp = frameNow.Up;
-            Vector3 bFwd = frameNow.Forward;
 
             Vector3 r2t = tipPos - rootPos;
             float inv = 1f / Mathf.Max(limbLen, k_Epsilon);
-            tipLocal = new float3(Vector3.Dot(r2t, bOut) * inv, Vector3.Dot(r2t, bUp) * inv, Vector3.Dot(r2t, bFwd) * inv);
-
-            // The rig convention divided out, and Q0 (the world yaw at calibration) cancelled by applying the
-            // delta to the T-POSE FRAME's axes rather than to world x/y/z. See the class comment.
-            Quaternion delta = tipRot * Quaternion.Inverse(tipTposeRot);
-            Vector3 hX = delta * frameTpose.Right;
-            Vector3 hY = delta * frameTpose.Up;
-            Vector3 hZ = delta * frameTpose.Forward;
-
-            // COLUMNS are the tip's own axes, written in the body frame.
-            tipOrient = new float3x3(
-                new float3(Vector3.Dot(hX, bOut), Vector3.Dot(hX, bUp), Vector3.Dot(hX, bFwd)),
-                new float3(Vector3.Dot(hY, bOut), Vector3.Dot(hY, bUp), Vector3.Dot(hY, bFwd)),
-                new float3(Vector3.Dot(hZ, bOut), Vector3.Dot(hZ, bUp), Vector3.Dot(hZ, bFwd)));
+            tipLocal = new float3(Vector3.Dot(r2t, bOut) * inv,
+                                  Vector3.Dot(r2t, frameNow.Up) * inv,
+                                  Vector3.Dot(r2t, frameNow.Forward) * inv);
         }
 
         /// <summary>
@@ -145,36 +117,36 @@ namespace UnityEngine.Animations.Rigging
         /// of thing it always was.
         ///
         /// The swivel's zero is body DOWN (an elbow hangs down). Passing +up instead of -up put the elbow ABOVE
-        /// the shoulder and cost 34.98% error, so the sign is load-bearing, not cosmetic.
+        /// the shoulder and cost 34.98 % error, so the sign is load-bearing rather than cosmetic.
         ///
         /// Returns false on a degenerate/NaN frame: the caller then leaves `hasHint` false and the two-bone core
         /// falls back to its own internal pole, which is what it did before any of this existed.
         /// </summary>
-        public static bool ArmHint(in BasisSwivelFrame frameNow, in BasisSwivelFrame frameTpose,
-                                   Vector3 shoulder, Vector3 handPos, Quaternion handRot, Quaternion handTposeRot,
-                                   float armLen, bool isLeft,
-                                   out Vector3 hintPos, out float confidence)
+        public static bool ArmHint(in BasisSwivelFrame frameNow, Vector3 shoulder, Vector3 handPos,
+                                   float armLen, bool isLeft, out Vector3 hintPos, out float confidence)
         {
             hintPos = default;
             confidence = 0f;
 
-            if (!frameNow.Valid || !frameTpose.Valid || !(armLen > k_Epsilon))
+            if (!frameNow.Valid || !(armLen > k_Epsilon))
             {
                 return false;
             }
 
-            Features(frameNow, frameTpose, shoulder, handPos, handRot, handTposeRot, armLen, isLeft,
-                     out float3 tipLocal, out float3x3 tipOrient);
+            Features(frameNow, shoulder, handPos, armLen, isLeft, out float3 tipLocal);
 
             // One NaN hand target used to walk all the way into BasisArmBendLookup.SampleTrilinear, become
-            // (int)NaN == int.MinValue and abort the process. There is no int cast on this path, but a NaN hint
-            // still poisons the solve, so it is stopped here.
-            if (!IsFinite(tipLocal) || !IsFinite(tipOrient))
+            // (int)NaN == int.MinValue, and abort the process with no managed stack. There is no int cast on
+            // this path, but a NaN hint still poisons the solve, so it is stopped at the door.
+            if (!IsFinite(tipLocal))
             {
                 return false;
             }
 
-            float swivel = BasisArmSwivelModel.SwivelRad(tipLocal, tipOrient, out confidence);
+            // The model clamps its own domain. It has to: the raw controller target routinely exceeds the
+            // avatar's reach, and a cubic outside its fit box is a random number generator. See
+            // BasisArmSwivelModel -- that omission is what put the elbows up by the ears.
+            float swivel = BasisArmSwivelModel.SwivelRad(tipLocal, out confidence);
             if (isLeft)
             {
                 swivel = -swivel;   // un-mirror: the model answers in the mirrored frame
@@ -203,32 +175,27 @@ namespace UnityEngine.Animations.Rigging
         ///   * NO confidence gate. Fading the hint weight toward zero does not avoid a pop, it CREATES one --
         ///     the knee falls back to the solver's BendNormal pole, which points somewhere unrelated, and
         ///     swinging between two unrelated poles over a few frames IS a pop. Measured: the fade took the knee
-        ///     from 70 pops to 65. It relocated the discontinuity, it did not remove it. The real cure is
-        ///     upstream, in BasisLegSwivelModel's biased constant term, which stops (sin,cos) ever approaching
-        ///     the origin so atan2 can never spin. `confidence` is reported for diagnostics only.
+        ///     from 70 pops to 65. It relocated the discontinuity, it did not remove it.
         /// </summary>
-        public static bool LegHint(in BasisSwivelFrame frameNow, in BasisSwivelFrame frameTpose,
-                                   Vector3 hip, Vector3 footPos, Quaternion footRot, Quaternion footTposeRot,
-                                   float legLen, bool isLeft,
-                                   out Vector3 hintPos, out float confidence)
+        public static bool LegHint(in BasisSwivelFrame frameNow, Vector3 hip, Vector3 footPos,
+                                   float legLen, bool isLeft, out Vector3 hintPos, out float confidence)
         {
             hintPos = default;
             confidence = 0f;
 
-            if (!frameNow.Valid || !frameTpose.Valid || !(legLen > k_Epsilon))
+            if (!frameNow.Valid || !(legLen > k_Epsilon))
             {
                 return false;
             }
 
-            Features(frameNow, frameTpose, hip, footPos, footRot, footTposeRot, legLen, isLeft,
-                     out float3 tipLocal, out float3x3 tipOrient);
+            Features(frameNow, hip, footPos, legLen, isLeft, out float3 tipLocal);
 
-            if (!IsFinite(tipLocal) || !IsFinite(tipOrient))
+            if (!IsFinite(tipLocal))
             {
                 return false;
             }
 
-            float swivel = BasisLegSwivelModel.SwivelRad(tipLocal, tipOrient, out confidence);
+            float swivel = BasisLegSwivelModel.SwivelRad(tipLocal, out confidence);
             if (isLeft)
             {
                 swivel = -swivel;
@@ -251,8 +218,5 @@ namespace UnityEngine.Animations.Rigging
         }
 
         static bool IsFinite(in float3 v) => math.all(math.isfinite(v));
-
-        static bool IsFinite(in float3x3 m) =>
-            math.all(math.isfinite(m.c0)) && math.all(math.isfinite(m.c1)) && math.all(math.isfinite(m.c2));
     }
 }
