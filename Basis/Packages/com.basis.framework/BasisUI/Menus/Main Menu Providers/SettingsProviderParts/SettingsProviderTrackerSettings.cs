@@ -463,19 +463,21 @@ namespace Basis.BasisUI
             state.SuppressDropdownEvents[0] = false;
         }
 
+        // Height of the pair's side-by-side identify row. Matches the action rows in the
+        // modal prompts (BasisDirectConnectionPrompt and friends), which are the only
+        // other place in the menu that puts buttons next to each other.
+        private const float PairIdentifyRowHeight = 80f;
+
         private static void BuildEntryFor(TabState state, TrackerRow row, List<TrackerRow> rows)
         {
             bool[] suppressFlag = state.SuppressDropdownEvents;
             string idA = row.A.UniqueDeviceIdentifier;
+            bool linked = row.IsPair || !string.IsNullOrEmpty(row.OfflinePartnerId);
 
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, state.TrackersContainer);
             group.SetTitle(BuildRowTitle(row));
             group.SetRichDescription(BuildRowDescription(row));
-            if (row.IsPair)
-            {
-                group.SetIcon(AddressableAssets.Sprites.Link);
-            }
 
             TabEntry entry = new TabEntry
             {
@@ -483,28 +485,25 @@ namespace Basis.BasisUI
                 Group = group,
             };
 
-            entry.IdentifyA = BuildIdentifyButton(group, row.A, row.IsPair);
             if (row.IsPair)
             {
-                entry.IdentifyB = BuildIdentifyButton(group, row.B, true);
-            }
-
-            // A pair, or a tracker whose partner is offline, gets an unlink button
-            // instead of the "linked with" dropdown: the pairing already exists, and
-            // the only thing left to say about it is whether to break it.
-            if (row.IsPair || !string.IsNullOrEmpty(row.OfflinePartnerId))
-            {
-                PanelButton unlink = PanelButton.CreateNew(group.ContentParent);
-                unlink.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.unlink"));
-                unlink.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.unlink.tooltip"));
-                unlink.SetIcon(AddressableAssets.Sprites.Unlink);
-                if (unlink.ButtonStyling != null)
-                {
-                    unlink.ButtonStyling.SetStyle("Button Danger");
-                }
-                unlink.OnClicked += () => BasisTrackerPairing.Unlink(idA);
+                // Side by side, not stacked. Two full-width buttons that differ only in
+                // which half of the pair they light up read as a pile, and they belong
+                // to each other anyway.
+                PanelTabGroup identifyRow = PanelTabGroup.CreateNew(
+                    group.ContentParent, LayoutDirection.HorizontalNoBackground);
+                identifyRow.Descriptor.SetHeight(PairIdentifyRowHeight);
+                entry.IdentifyA = BuildIdentifyButton(identifyRow.TabButtonParent, PanelButton.ButtonStyles.StandardButton, row.A, true);
+                entry.IdentifyB = BuildIdentifyButton(identifyRow.TabButtonParent, PanelButton.ButtonStyles.StandardButton, row.B, true);
             }
             else
+            {
+                entry.IdentifyA = BuildIdentifyButton(group.ContentParent, PanelButton.ButtonStyles.Default, row.A, false);
+            }
+
+            // A pairing that already exists has nothing left to pick from a dropdown —
+            // the only thing left to say about it is whether to break it.
+            if (!linked)
             {
                 entry.LinkDropdown = BuildLinkDropdown(group, row, rows, suppressFlag);
             }
@@ -540,12 +539,29 @@ namespace Basis.BasisUI
             };
 
             entry.RoleDropdown = roleDropdown;
+
+            // Unlink goes last and alone. It is the one destructive control on the row,
+            // and it has no business sitting shoulder to shoulder with a button you press
+            // casually to make a light come on.
+            if (linked)
+            {
+                PanelButton unlink = PanelButton.CreateNew(group.ContentParent);
+                unlink.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.unlink"));
+                unlink.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.unlink.tooltip"));
+                unlink.SetIcon(AddressableAssets.Sprites.Unlink);
+                if (unlink.ButtonStyling != null)
+                {
+                    unlink.ButtonStyling.SetStyle("Button Danger");
+                }
+                unlink.OnClicked += () => BasisTrackerPairing.Unlink(idA);
+            }
+
             state.Entries.Add(entry);
         }
 
-        private static PanelButton BuildIdentifyButton(PanelElementDescriptor group, BasisInput input, bool named)
+        private static PanelButton BuildIdentifyButton(Component parent, string style, BasisInput input, bool named)
         {
-            PanelButton button = PanelButton.CreateNew(group.ContentParent);
+            PanelButton button = PanelButton.CreateNew(style, parent);
             button.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.identifyLabel.tooltip"));
             ApplyIdentifyVisual(button, input, named);
             button.OnClicked += () => BasisTrackerIdentifyGizmos.Toggle(input);
@@ -611,7 +627,7 @@ namespace Basis.BasisUI
                 text = $"{text} {NoParse(BuildTrackerLabel(input))}";
             }
 
-            descriptor.SetTitle($"{Swatch(input)} <b>{Tint(color, text)}</b>");
+            descriptor.SetTitle($"<b>{Tint(color, text)}</b>");
             if (button.ButtonStyling != null)
             {
                 button.ButtonStyling.ShowIndicator(showing);
@@ -620,11 +636,9 @@ namespace Basis.BasisUI
 
         private static string BuildRowTitle(TrackerRow row)
         {
-            if (!row.IsPair)
-            {
-                return $"{Swatch(row.A)} {NoParse(BuildTrackerLabel(row.A))}";
-            }
-            return $"{Swatch(row.A)}{Swatch(row.B)} {BasisLocalization.Get("trackerLinking.pair.title")}";
+            return row.IsPair
+                ? BasisLocalization.Get("trackerLinking.pair.title")
+                : BuildTrackerLabel(row.A);
         }
 
         private static string BuildRowDescription(TrackerRow row)
@@ -635,8 +649,7 @@ namespace Basis.BasisUI
             }
 
             string plus = Tint(PaletteColor(p => p.FontColor3, MutedFallback), "+");
-            string members = $"{NoParse(BuildTrackerLabel(row.A))}  {plus}  {NoParse(BuildTrackerLabel(row.B))}";
-            return $"{members}\n{BuildStatusLine(row)}";
+            return $"{TintedName(row.A)}  {plus}  {TintedName(row.B)}\n{BuildStatusLine(row)}";
         }
 
         /// <summary>
@@ -704,13 +717,15 @@ namespace Basis.BasisUI
             => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
         /// <summary>
-        /// The tracker's identify colour as a solid block. Drawn with TMP's mark
-        /// highlight over blank space rather than a shape glyph like ●: the menu font
-        /// is a Latin SDF atlas, so a Geometric-Shapes codepoint has no guaranteed
-        /// entry in it and would come out as a missing-glyph box.
+        /// The tracker's name, in the colour its identify sphere lights up. The name
+        /// carries the colour rather than a separate swatch block — a block wants to be
+        /// a small square, and every way of drawing one in this menu is worse than not:
+        /// a shape glyph (●) has no guaranteed entry in the Latin SDF atlas, a TMP mark
+        /// highlight comes out as a bar the full height of the line, and a PanelImage
+        /// gets its own full-width row in the vertical layout.
         /// </summary>
-        private static string Swatch(BasisInput input)
-            => $"<mark=#{ColorUtility.ToHtmlStringRGB(BasisTrackerIdentifyGizmos.ColorFor(input))}FF>  </mark>";
+        private static string TintedName(BasisInput input)
+            => Tint(BasisTrackerIdentifyGizmos.ColorFor(input), NoParse(BuildTrackerLabel(input)));
 
         // Device names come off the hardware, so they are not ours to trust as markup.
         private static string NoParse(string text) => $"<noparse>{text}</noparse>";

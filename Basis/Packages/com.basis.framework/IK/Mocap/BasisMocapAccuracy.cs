@@ -17,6 +17,14 @@ namespace Basis.IK.Mocap
         Lookup,        // WHAT SHIPS for an untracked arm: ArmBendFrame -> BasisArmBendLookup -> chicken-wing flare
         LookupNoFlare, // the same lookup, with the chicken-wing flare switched off. Isolates what the flare COSTS.
         SwivelModel,   // THE CANDIDATE: BasisArmSwivelModel -- a polynomial fitted to this very corpus.
+        // The same model with the elbow's One-Euro output filter (SmoothElbowSwivel) left ON.
+        //
+        // This row exists to ANSWER A SHIPPING QUESTION rather than guess at it. The filter was added to fight
+        // the LOOKUP's jitter; the model is a polynomial and is already smoother than a real tracker, so the
+        // filter may now be pure lag. Ship whichever of SwivelModel / SwivelModelSmoothed measures better --
+        // and do not reason about it, because a One-Euro is speed-adaptive and its behaviour on a signal it was
+        // not tuned for is not something anyone can predict from the armchair.
+        SwivelModelSmoothed,
         TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
     }
 
@@ -60,8 +68,31 @@ namespace Basis.IK.Mocap
         // A pole flip: the joint jumps hard while the end effector is essentially still. Real human motion is
         // smooth, so any such jump is the solver's doing, not the human's.
         // Swivel-model diagnostics. Static because SolveArm is static and this is a temporary probe.
-        internal static float s_swivelDiffSum, s_swivelSumSum;
-        internal static int s_swivelN;
+        /// <summary>
+        /// Training-data dump: the EXACT features this harness feeds BasisArmSwivelModel, plus the true
+        /// swivel it should have predicted, plus the circle radius (the weight).
+        ///
+        /// This exists because fitting in a Python pipeline and evaluating in this one is a bug factory: the
+        /// two must agree on the handedness conversion, the body frame, the joint mapping and the left/right
+        /// mirror, and a mismatch in ANY of them silently poisons the model. The first attempt did exactly
+        /// that -- it scored 31% here and 3.77% in Python, and the probe showed the predicted swivel was
+        /// 145 degrees off, i.e. the model was being asked about a different frame than it was fitted in.
+        ///
+        /// Dumping from HERE and fitting on THAT makes the question unaskable: the model is fitted to the
+        /// literal inputs the runtime produces. Whatever the conventions are, both sides now share them.
+        /// </summary>
+        public static System.Text.StringBuilder s_swivelDump;
+        public static System.Text.StringBuilder s_legDump;
+
+        public static float s_swivelDiffSum, s_swivelSumSum;
+        public static int s_swivelN;
+
+        // Confidence window for a fitted swivel model. |sin,cos| is the model's own certainty; below the
+        // low mark the angle is meaningless and the hint must carry no weight, above the high mark it is
+        // trustworthy. Drawn from the measured distribution: the knee sits under 0.2 on ~0.4% of frames and
+        // those frames were producing every extra pop.
+        const float k_SwivelConfLo = 0.20f;
+        const float k_SwivelConfHi = 0.50f;
 
         const float k_PopJointM = 0.05f;   // 5 cm of elbow/knee travel in one frame
         const float k_PopEffectorM = 0.01f; // while the hand/foot moved under 1 cm
@@ -76,12 +107,26 @@ namespace Basis.IK.Mocap
         //     inversion at full extension compounded into 74 cm of foot error by the end of a walk cycle.
         //   - Seeding from TRUTH each frame: with no hint the two-bone core preserves the CURRENT bend plane,
         //     so handing it the true elbow makes it trivially "right". A circular measurement that proves nothing.
+        // Mirrors BasisFullIKConstraintJob's tracked-knee One-Euro constants (k_TrackedKneeSwivel*). The harness
+        // always hands the leg a real foot target, so the runtime's `preserveTip` is false and it takes this
+        // responsive branch rather than the heavy standing floor. A MIRROR, not a shared call: retune both.
+        const float k_TrackedKneeMinCutoffHz = 1.5f;
+        const float k_TrackedKneeBeta = 0.20f;
+        const float k_TrackedKneeDerivCutoffHz = 1.0f;
+
         struct Limb
         {
             public Quaternion RootLocal, MidLocal;         // bind pose relative to the parent
             public Vector3 UpperDirLocal, LowerDirLocal;   // bone axis in its own bone's frame; a bone is rigid
             public float UpperLen, LowerLen;
             public bool Seeded;
+
+            // The knee swivel One-Euro's state. Carried between frames -- unlike the bone POSE, which is
+            // deliberately rebuilt from the bind pose every frame. The runtime re-evaluates its base layer each
+            // frame so the constraint never sees its own previous pose, but its FILTERS keep their state. Model
+            // both or the temporal behaviour is fiction.
+            public BasisSwivelFilterState KneeSwivel;
+            public bool KneeSwivelSeeded;
         }
 
         static void SeedLimb(ref Limb l, Quaternion parentRot, Vector3 root, Vector3 mid, Vector3 tip, Quaternion rootRot, Quaternion midRot)
@@ -139,6 +184,13 @@ namespace Basis.IK.Mocap
             /// and the down-pole projection the whole swivel angle is measured from (collapses when the forearm
             /// goes vertical -- i.e. an arm hanging at your side).</summary>
             public float[] FlareEngage, FlareDownProj;
+
+            /// <summary>Per-frame LEG solve internals, so a knee pop can be LOCALISED instead of theorised
+            /// about. KneeReach is hip->foot distance over max reach (the pole singularity lives at 1.0);
+            /// KneeAxis is BasisLegSolveResult.AxisSource (0 plane-normal, 1 hint, 2 target, 3 bend-normal,
+            /// 4 pole blended toward bend-normal, 5 pole clamped into the anterior half-space). Left side.</summary>
+            public float[] KneeReach;
+            public byte[] KneeAxis;
         }
 
         public static BasisMocapAccuracySummary Run(BasisMotionClip clip, BasisMocapHintSource hint, string csvPath)
@@ -181,6 +233,7 @@ namespace Basis.IK.Mocap
                     tracks.TruthHand = new Vector3[n]; tracks.TruthFoot = new Vector3[n];
                     tracks.HintRaw = new Vector3[n]; tracks.HintFlared = new Vector3[n];
                     tracks.FlareEngage = new float[n]; tracks.FlareDownProj = new float[n];
+                    tracks.KneeReach = new float[n]; tracks.KneeAxis = new byte[n];
                 }
 
                 var arms = new Limb[2];
@@ -262,6 +315,7 @@ namespace Basis.IK.Mocap
                             tracks.TruthFoot[f] = clip.Get(f, BasisMocapJoint.LeftFoot).Position;
                             tracks.HintRaw[f] = hintRaw; tracks.HintFlared[f] = hintFlared;
                             tracks.FlareEngage[f] = flareEngage; tracks.FlareDownProj[f] = flareDownProj;
+                            tracks.KneeReach[f] = lReach; tracks.KneeAxis[f] = legAxis;
                         }
                     }
                 }
@@ -369,6 +423,7 @@ namespace Basis.IK.Mocap
                     break;
                 }
                 case BasisMocapHintSource.SwivelModel:
+                case BasisMocapHintSource.SwivelModelSmoothed:
                 {
                     // The elbow is confined to a CIRCLE, so predict the one angle that places it on that
                     // circle rather than a 3-vector that does not lie on it. See BasisArmSwivelModel.
@@ -404,7 +459,7 @@ namespace Basis.IK.Mocap
                         Vector3.Dot(v, bOut), Vector3.Dot(v, bUp), Vector3.Dot(v, bFwd));
                     var handOrient = new Unity.Mathematics.float3x3(InBody(hX), InBody(hY), InBody(hZ));
 
-                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, handOrient);
+                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, handOrient, out float aconf);
                     if (isLeft) swivel = -swivel;   // un-mirror
 
                     // DIAGNOSTIC: what IS the true swivel on this frame? A prediction that is right looks
@@ -420,14 +475,38 @@ namespace Basis.IK.Mocap
                         s_swivelDiffSum += Mathf.Abs(Mathf.DeltaAngle(swivel * Mathf.Rad2Deg, trueSw * Mathf.Rad2Deg));
                         s_swivelSumSum += Mathf.Abs(Mathf.DeltaAngle(-swivel * Mathf.Rad2Deg, trueSw * Mathf.Rad2Deg));
                         s_swivelN++;
+
+                        if (s_swivelDump != null)
+                        {
+                            // The fit TARGET is the MIRRORED swivel, matching the mirrored features.
+                            float phiFit = isLeft ? -trueSw : trueSw;
+
+                            // The circle radius: position error ~= radius * angular error, so this is the
+                            // weight that makes the regression minimise what we actually measure.
+                            float dist = Mathf.Clamp(s2h.magnitude, 1e-6f, armLen - 1e-6f);
+                            float aa = (limb.UpperLen * limb.UpperLen - limb.LowerLen * limb.LowerLen + dist * dist) / (2f * dist);
+                            float rad = Mathf.Sqrt(Mathf.Max(limb.UpperLen * limb.UpperLen - aa * aa, 0f)) / armLen;
+
+                            var sb = s_swivelDump;
+                            sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
+                            sb.Append(F(handLocal.x)).Append(',').Append(F(handLocal.y)).Append(',').Append(F(handLocal.z));
+                            for (int cc = 0; cc < 3; cc++)
+                                for (int rr = 0; rr < 3; rr++)
+                                    sb.Append(',').Append(F(handOrient[cc][rr]));
+                            sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
+                        }
                     }
 
+                    // -bUp: an elbow hangs DOWN, and BendDirection now takes the reference AS GIVEN rather
+                    // than negating it internally. Passing bUp put the elbow above the shoulder (34.98% error).
                     Unity.Mathematics.float3 bend = BasisArmSwivelModel.BendDirection(
                         new Unity.Mathematics.float3(s2h.x, s2h.y, s2h.z),
-                        new Unity.Mathematics.float3(bUp.x, bUp.y, bUp.z), swivel);
+                        new Unity.Mathematics.float3(-bUp.x, -bUp.y, -bUp.z), swivel);
 
                     i.HintPosition = shoulder + 0.5f * armLen * new Vector3(bend.x, bend.y, bend.z);
-                    i.HintWeight = true;
+                    // The arm's confidence never collapses in practice (min 0.37 across the corpus, vs the
+                    // knee's 0.03), but the guard is free and the failure it prevents is a spinning elbow.
+                    i.HintWeight = aconf > k_SwivelConfLo;
                     i.HintIsTracker = false;
                     break;
                 }
@@ -459,7 +538,8 @@ namespace Basis.IK.Mocap
             // That distinction is the whole point: the runtime re-evaluates the base layer every frame so the
             // constraint never sees its own previous POSE, but its FILTERS keep their state. Model both or the
             // temporal behaviour is fiction.
-            if (hint == BasisMocapHintSource.Lookup || hint == BasisMocapHintSource.LookupNoFlare)
+            if (hint == BasisMocapHintSource.Lookup || hint == BasisMocapHintSource.LookupNoFlare
+                || hint == BasisMocapHintSource.SwivelModelSmoothed)
             {
                 BasisSwivelSmootherInput sw = default;
                 sw.Root = shoulder;
@@ -554,14 +634,86 @@ namespace Basis.IK.Mocap
             i.TargetOffset = Quaternion.identity;
             i.BendNormal = hipsRot * Vector3.right;   // the runtime's no-tracker knee bend normal
 
+            // The body frame for the LEG hangs off the pelvis, not the chest. Built from POSITIONS, because a
+            // bone's local axes are a rig convention and would not transfer; hip-line and pelvis-up are anatomy.
+            Vector3 lHip = clip.Get(f, BasisMocapJoint.LeftUpperLeg).Position;
+            Vector3 rHip = clip.Get(f, BasisMocapJoint.RightUpperLeg).Position;
+            Vector3 hipsP = clip.Get(f, BasisMocapJoint.Hips).Position;
+            Vector3 chestP = clip.Get(f, BasisMocapJoint.Chest).Position;
+
+            Vector3 gUp = (chestP - hipsP).normalized;
+            Vector3 gRight = (rHip - lHip);
+            gRight = (gRight - gUp * Vector3.Dot(gRight, gUp)).normalized;
+            Vector3 gFwd = Vector3.Cross(gRight, gUp);
+            Vector3 gOut = isLeft ? -gRight : gRight;
+
+            Vector3 h2f = truthFoot - hip;
+            var legLocal = new Unity.Mathematics.float3(
+                Vector3.Dot(h2f, gOut) / legLen, Vector3.Dot(h2f, gUp) / legLen, Vector3.Dot(h2f, gFwd) / legLen);
+
+            Vector3 fX = truthFootRot * Vector3.right;
+            Vector3 fY = truthFootRot * Vector3.up;
+            Vector3 fZ = truthFootRot * Vector3.forward;
+            Unity.Mathematics.float3 InBodyL(Vector3 v) => new Unity.Mathematics.float3(
+                Vector3.Dot(v, gOut), Vector3.Dot(v, gUp), Vector3.Dot(v, gFwd));
+            var legOrient = new Unity.Mathematics.float3x3(InBodyL(fX), InBodyL(fY), InBodyL(fZ));
+
+            // A knee points FORWARD, so that is the swivel's zero. (The arm's is body-down.)
             if (hint == BasisMocapHintSource.TruthJoint)
             {
                 i.HintPosition = truthKnee;
                 i.HintWeight = 1f;
             }
+            else if (hint == BasisMocapHintSource.SwivelModel || hint == BasisMocapHintSource.SwivelModelSmoothed)
+            {
+                // The KNEE is identical in both rows -- SwivelModelSmoothed varies only the ARM's output filter,
+                // which is the one shipping question this row exists to settle.
+                float kneeSwivel = BasisLegSwivelModel.SwivelRad(legLocal, legOrient, out float conf);
+                if (isLeft) kneeSwivel = -kneeSwivel;
+                Unity.Mathematics.float3 kb = BasisLegSwivelModel.BendDirection(
+                    new Unity.Mathematics.float3(h2f.x, h2f.y, h2f.z),
+                    new Unity.Mathematics.float3(gOut.x, gOut.y, gOut.z), kneeSwivel);
+                i.HintPosition = hip + 0.5f * legLen * new Vector3(kb.x, kb.y, kb.z);
+
+                // FULL WEIGHT, and the confidence fade is deliberately GONE.
+                //
+                // Fading the hint weight toward zero does not avoid a pop -- it CREATES one. The knee then
+                // falls back to the solver's own BendNormal pole, which points somewhere completely
+                // unrelated, and swinging between two unrelated poles over a few frames IS a pop. Measured:
+                // the fade moved the knee from 70 pops to 65. It relocated the discontinuity, it did not
+                // remove it.
+                //
+                // The real fix is upstream, in the model's constant term: the direction field is BIASED away
+                // from the origin so (sin, cos) can never approach it, so atan2 can never spin, so there is
+                // nothing to fade. See BasisLegSwivelModel. `conf` is still reported for diagnostics.
+                i.HintWeight = 1f;
+            }
             else
             {
                 i.HintWeight = 0f;   // no knee tracker: the leg falls back to the bend normal
+            }
+
+            if (s_legDump != null)
+            {
+                Vector3 ax = h2f.normalized;
+                Vector3 uu = (gOut - ax * Vector3.Dot(gOut, ax)).normalized;
+                Vector3 vv = Vector3.Cross(ax, uu);
+                Vector3 rp = truthKnee - hip;
+                rp -= ax * Vector3.Dot(rp, ax);
+                float trueSw = Mathf.Atan2(Vector3.Dot(rp, vv), Vector3.Dot(rp, uu));
+                float phiFit = isLeft ? -trueSw : trueSw;
+
+                float dist = Mathf.Clamp(h2f.magnitude, 1e-6f, legLen - 1e-6f);
+                float aa = (limb.UpperLen * limb.UpperLen - limb.LowerLen * limb.LowerLen + dist * dist) / (2f * dist);
+                float rad = Mathf.Sqrt(Mathf.Max(limb.UpperLen * limb.UpperLen - aa * aa, 0f)) / legLen;
+
+                var sb = s_legDump;
+                sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
+                sb.Append(F(legLocal.x)).Append(',').Append(F(legLocal.y)).Append(',').Append(F(legLocal.z));
+                for (int cc = 0; cc < 3; cc++)
+                    for (int rr = 0; rr < 3; rr++)
+                        sb.Append(',').Append(F(legOrient[cc][rr]));
+                sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
             }
 
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);
@@ -570,6 +722,44 @@ namespace Basis.IK.Mocap
             reach = r.ReachRatio;
             axis = r.AxisSource;
             rigidity = Vector3.Distance(RebuildMid(limb, hip, r.RootRotationSolved), r.KneeSolved);
+
+            // ⚠ THE LIVE RIG DOES NOT SHIP THE RAW LEG SOLVE, AND THIS HARNESS USED TO PRETEND IT DID.
+            //
+            // BasisFullIKConstraintJob.SolveLegs One-Euro-filters the knee SWIVEL on every no-knee-tracker path
+            // (gated on the legSwivelSmoothing setting, which ships ON) and guards it into the anterior
+            // half-space afterwards. Leaving that out measured a solver the runtime never produces -- and it
+            // mattered: it was the difference between "the swivel model doubles the knee's pops" and the truth.
+            // Exactly the blind spot the arm's SmoothElbowSwivel mirror above exists to avoid, and the same one
+            // the foot sweep already paid for once.
+            //
+            // The harness always hands the leg a real foot target, so `preserveTip` is FALSE in the runtime and
+            // it takes the RESPONSIVE (foot-tracked) branch, not the heavy standing floor. These are that
+            // branch's constants. If SolveLegs is retuned, retune this too -- it is a MIRROR, not a shared call.
+            if (hint != BasisMocapHintSource.TruthJoint)
+            {
+                BasisSwivelSmootherInput sw = default;
+                sw.Root = hip;
+                sw.Mid = solvedKnee;
+                sw.Tip = r.FootSolved;
+                sw.BodyRotation = hipsRot;
+                sw.ReferenceLocal = Vector3.forward;   // the knee bulges forward; the arm references down
+                sw.FallbackLocal = Vector3.right;
+                sw.Dt = dt;
+                sw.MinCutoffHz = k_TrackedKneeMinCutoffHz;
+                sw.Beta = k_TrackedKneeBeta;
+                sw.DerivCutoffHz = k_TrackedKneeDerivCutoffHz;
+                sw.ConditionOnPole = true;
+                sw.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
+                sw.GuardAnteriorHalfSpace = true;
+                sw.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
+                sw.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
+                sw.State = limb.KneeSwivel;
+                sw.Seeded = limb.KneeSwivelSeeded;
+
+                BasisSwivelSmootherCore.Solve(sw, out BasisSwivelSmootherResult sr);
+                if (sr.WriteState) { limb.KneeSwivel = sr.State; limb.KneeSwivelSeeded = true; }
+                if (sr.Valid) solvedKnee = sr.DesiredMid;
+            }
         }
 
         static void Append(StringBuilder csv, string clip, int f, string limb, float err, Vector3 truth, Vector3 solved, float reach, float effErr, byte axis)

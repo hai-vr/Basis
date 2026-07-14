@@ -43,6 +43,18 @@ namespace Basis.IK.Motion
 
         public int ElbowPopExcess, KneePopExcess;
 
+        /// <summary>
+        /// ⭐ POPS THE SOLVER ACTUALLY INVENTED: frames where OUR joint popped and the HUMAN'S DID NOT.
+        ///
+        /// This is what *PopExcess above was always meant to mean and does not. PopExcess subtracts COUNTS, so
+        /// it cannot tell "popped on the same frames the human did" (invented nothing) from "popped the same
+        /// number of times, somewhere else entirely" (invented all of them). Measured on the corpus, 69% of the
+        /// knee's flagged frames are frames where the HUMAN'S OWN knee jumps too -- a fast motion, a foot
+        /// plant, or the BVH's own rest-to-motion discontinuity on frame 1, which is worth a quarter of a metre
+        /// in a single step and lands in BOTH tracks. The solver was being charged for the corpus's noise.
+        /// </summary>
+        public int ElbowPopsInvented, KneePopsInvented;
+
         /// <summary>Jitter of the elbow HINT itself, at two stages of the lookup path, as a fraction of arm
         /// length. This is a LOCALISER, not a gate: if HintRaw is clean and HintFlared is not, the chicken-wing
         /// flare is inventing the buzz; if both are dirty, the table (or its input frame) is; if both are clean,
@@ -63,6 +75,9 @@ namespace Basis.IK.Motion
         /// accuracy can be read off the same row -- a change that buys smoothness by giving up accuracy is not
         /// a win, and this is the only place both numbers appear together.</summary>
         public float ElbowErrFracArm;
+
+        /// <summary>Mean KNEE position error as a fraction of leg length.</summary>
+        public float KneeErrFracLeg;
 
         public override string ToString() =>
             $"{Clip}/{Hint}: elbow jerk x{ElbowJerkRatio:F2} jitter+{ElbowJitterExcess * 100f:F2}%L " +
@@ -152,6 +167,7 @@ namespace Basis.IK.Motion
             BasisMocapAccuracySummary acc = BasisMocapAccuracy.Run(clip, hint, null, tracks);
             if (!acc.Ok) { s.Error = acc.Error; return s; }
             s.ElbowErrFracArm = acc.ElbowMeanFracArm;
+            s.KneeErrFracLeg = acc.KneeMeanFracLeg;
 
             float dt = tracks.Dt;
 
@@ -179,6 +195,9 @@ namespace Basis.IK.Motion
 
             s.ElbowPopExcess = Mathf.Max(0, s.SolvedElbow.Pops - s.HumanElbow.Pops);
             s.KneePopExcess = Mathf.Max(0, s.SolvedKnee.Pops - s.HumanKnee.Pops);
+
+            s.ElbowPopsInvented = PopsInvented(s.SolvedElbow.PopFrames, s.HumanElbow.PopFrames);
+            s.KneePopsInvented = PopsInvented(s.SolvedKnee.PopFrames, s.HumanKnee.PopFrames);
 
             s.HintRawJitter = float.NaN;
             s.HintFlaredJitter = float.NaN;
@@ -211,6 +230,22 @@ namespace Basis.IK.Motion
         }
 
         static float Ratio(float solved, float human) => human > 1e-6f ? solved / human : float.NaN;
+
+        /// <summary>Frames where the SOLVED joint popped and the HUMAN'S did not -- i.e. the discontinuities the
+        /// solver is responsible for, as opposed to the ones it faithfully reproduced from the source data.
+        /// A pop the human also made is the solver doing its job, and charging it for that is how a metric ends
+        /// up reporting the same number no matter what you change.</summary>
+        static int PopsInvented(bool[] solved, bool[] human)
+        {
+            if (solved == null) return 0;
+            int n = human == null ? solved.Length : Mathf.Min(solved.Length, human.Length);
+            int invented = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (solved[i] && (human == null || !human[i])) invented++;
+            }
+            return invented;
+        }
 
         public static (bool pass, string reason) Gate(in BasisMocapMotionSummary s)
         {

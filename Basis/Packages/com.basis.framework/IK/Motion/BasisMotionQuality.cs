@@ -26,9 +26,16 @@ namespace Basis.IK.Motion
         public float JitterHz;         // where that energy sits. Diagnostic: Nyquist = feedback loop.
 
         // --- discontinuity. One-sided ceiling.
-        public int Pops;               // single-frame jumps far beyond the motion's own scale
+        public int Pops;               // single-frame jumps far beyond the motion's own scale AND big enough to see
         public float WorstPopRatio;    // worst frame-step / median frame-step
         public int WorstPopFrame;
+
+        /// <summary>Which frames popped. Needed because comparing pop COUNTS against a reference does not
+        /// answer the question anyone is actually asking: a solver that pops on exactly the frames the HUMAN
+        /// popped on has invented nothing, and one that pops the same NUMBER of times somewhere else has
+        /// invented all of them. Only a frame-by-frame comparison can tell those apart. Index i = the step
+        /// from frame i to i+1.</summary>
+        public bool[] PopFrames;
 
         // --- fidelity against a reference track (the human, or a golden run). NaN if none given.
         public float ShapeDistance;    // spectral SHAPE mismatch -- catches what smoothness rewards
@@ -80,6 +87,24 @@ namespace Basis.IK.Motion
         /// a big enough pop hides itself.</summary>
         public const float PopRatio = 8f;
 
+        /// <summary>
+        /// ...AND it must actually be big enough to SEE. A pop must clear this fraction of the limb length in
+        /// a single frame, as well as clearing PopRatio.
+        ///
+        /// ⚠ THE RATIO ALONE IS A LIAR, AND IT WAS LYING. It is scale-RELATIVE, so a joint that barely moves has
+        /// a near-zero median and ordinary motion sails past 8x. Measured on the corpus (BasisKneePopLocaliser):
+        /// of the knee's 170 flagged frames, 27 sat on tracks whose median step was under a thousandth of a leg,
+        /// where the denominator has collapsed and the metric is measuring nothing but its own noise floor. That
+        /// is how the knee scored an identical "36 excess pops" whether it was handed no hint at all, the old
+        /// lookup, or the fitted model -- a number that does not move when its supposed cause moves was never
+        /// measuring that cause.
+        ///
+        /// 1% of a limb in ONE frame is ~1.2 limb-lengths/second of instantaneous speed at 120 Hz: that is a
+        /// discontinuity. Below it there is nothing a user could see, so there is nothing to count. The teleport
+        /// BasisMotionAnalyzerTests plants is 13% of its limb and still trips this comfortably.
+        /// </summary>
+        public const float PopMinFracLimb = 0.01f;
+
         public static BasisMotionQualitySummary Analyze(
             Vector3[] joint, float limbLength, float dt, string label, Vector3[] reference = null)
         {
@@ -127,7 +152,7 @@ namespace Basis.IK.Motion
                 BasisMotionSignal.Magnitude(BasisMotionSignal.Derivative(joint, dt)),
                 dt, BasisMotionSignal.JitterBandHz);
 
-            PopStats(joint, out s.Pops, out s.WorstPopRatio, out s.WorstPopFrame);
+            PopStats(joint, limbLength, out s.Pops, out s.WorstPopRatio, out s.WorstPopFrame, out s.PopFrames);
 
             if (reference != null && reference.Length == joint.Length)
             {
@@ -144,10 +169,12 @@ namespace Basis.IK.Motion
             return s;
         }
 
-        static void PopStats(Vector3[] p, out int pops, out float worst, out int worstFrame)
+        static void PopStats(Vector3[] p, float limbLength, out int pops, out float worst, out int worstFrame,
+                             out bool[] popFrames)
         {
             pops = 0; worst = 0f; worstFrame = -1;
             int n = p.Length - 1;
+            popFrames = new bool[Mathf.Max(n, 0)];
             if (n < 8) return;
 
             var d = new float[n];
@@ -156,10 +183,18 @@ namespace Basis.IK.Motion
             float med = BasisMotionSignal.Quantile(d, 0.5f);
             if (med <= 1e-9f) med = 1e-9f;
 
+            // Both conditions, not either: far beyond the motion's own scale AND big enough to see. See
+            // PopMinFracLimb -- the ratio on its own was counting the noise floor of a stationary joint.
+            float floor = PopMinFracLimb * Mathf.Max(limbLength, 1e-6f);
+
             for (int i = 0; i < n; i++)
             {
                 float r = d[i] / med;
-                if (r > PopRatio) pops++;
+                if (r > PopRatio && d[i] > floor)
+                {
+                    pops++;
+                    popFrames[i] = true;
+                }
                 if (r > worst) { worst = r; worstFrame = i; }
             }
         }

@@ -134,6 +134,10 @@ namespace Basis.Tests.IK
             report.AppendLine("  SwivelModel   THE CANDIDATE: a polynomial fitted to this corpus, predicting the");
             report.AppendLine("                elbow's SWIVEL ANGLE (which lands on the reachable circle by");
             report.AppendLine("                construction) instead of a bend vector (which does not).");
+            report.AppendLine("  SwivelModelSmoothed  the same model with the elbow's One-Euro output filter left");
+            report.AppendLine("                ON. The filter was added to fight the LOOKUP's jitter; the model is");
+            report.AppendLine("                already smoother than a real tracker, so this row decides whether the");
+            report.AppendLine("                filter is now pure lag. SHIP WHICHEVER OF THESE TWO MEASURES BETTER.");
             report.AppendLine("  TruthJoint    handed the real elbow (a tracker). The ceiling.");
             report.AppendLine();
             report.AppendLine($"{"clip",-12} {"hint",-14} {"jit+%L",7} {"pops+",6} {"jerk x",7} | {"err %arm",9} {"engage",8}");
@@ -141,7 +145,7 @@ namespace Basis.Tests.IK
 
             var truthShape = new Dictionary<string, float>();
             var lookupShape = new Dictionary<string, float>();
-            var agg = new Dictionary<BasisMocapHintSource, (float jit, int pops, float err, float jerk, int n)>();
+            var agg = new Dictionary<BasisMocapHintSource, (float jit, int pops, float err, float jerk, float kerr, int kpops, int einv, int kinv, int n)>();
 
             foreach (BasisMotionClip clip in clips)
             {
@@ -151,14 +155,19 @@ namespace Basis.Tests.IK
                              BasisMocapHintSource.Lookup,
                              BasisMocapHintSource.LookupNoFlare,
                              BasisMocapHintSource.SwivelModel,
+                             BasisMocapHintSource.SwivelModelSmoothed,
                              BasisMocapHintSource.TruthJoint,
                          })
                 {
                     if (hint == BasisMocapHintSource.SwivelModel)
                     {
-                       // BasisMocapAccuracy.s_swivelDiffSum = 0f;
-                      // / BasisMocapAccuracy.s_swivelSumSum = 0f;
-                      ///  BasisMocapAccuracy.s_swivelN = 0;
+                        BasisMocapAccuracy.s_legDump ??= new StringBuilder(
+                            "clip,side,x,y,z,h00,h10,h20,h01,h11,h21,h02,h12,h22,phi,rad\n");
+                        BasisMocapAccuracy.s_swivelDump ??= new StringBuilder(
+                            "clip,side,x,y,z,h00,h10,h20,h01,h11,h21,h02,h12,h22,phi,rad\n");
+                        BasisMocapAccuracy.s_swivelDiffSum = 0f;
+                        BasisMocapAccuracy.s_swivelSumSum = 0f;
+                        BasisMocapAccuracy.s_swivelN = 0;
                     }
                     BasisMocapMotionSummary s = BasisMocapMotionQuality.Run(clip, hint);
                     if (!s.Ok)
@@ -166,13 +175,13 @@ namespace Basis.Tests.IK
                         report.AppendLine($"{clip.Name,-12} {hint,-14} ERROR: {s.Error}");
                         continue;
                     }
-                  //  if (hint == BasisMocapHintSource.SwivelModel && BasisMocapAccuracy.s_swivelN > 0)
+                    if (hint == BasisMocapHintSource.SwivelModel && BasisMocapAccuracy.s_swivelN > 0)
                     {
-                     //   int n = BasisMocapAccuracy.s_swivelN;
-                      // // Debug.Log($"[SWIVEL PROBE] {clip.Name}: |pred - true| = " +
-                          //        $"{BasisMocapAccuracy.s_swivelDiffSum / n:F1} deg,  " +
-                       //           $"|(-pred) - true| = {BasisMocapAccuracy.s_swivelSumSum / n:F1} deg  " +
-                             //     "(if the SECOND is small, the sign is flipped)");
+                        int n = BasisMocapAccuracy.s_swivelN;
+                        Debug.Log($"[SWIVEL PROBE] {clip.Name}: |pred - true| = " +
+                                  $"{BasisMocapAccuracy.s_swivelDiffSum / n:F1} deg,  " +
+                                  $"|(-pred) - true| = {BasisMocapAccuracy.s_swivelSumSum / n:F1} deg  " +
+                                  "(if the SECOND is small, the sign is flipped)");
                     }
 
                     report.AppendLine(
@@ -181,7 +190,9 @@ namespace Basis.Tests.IK
 
                     agg.TryGetValue(hint, out var a);
                     agg[hint] = (a.jit + s.ElbowJitterExcess, a.pops + s.ElbowPopExcess,
-                                 a.err + s.ElbowErrFracArm, a.jerk + s.ElbowJerkRatio, a.n + 1);
+                                 a.err + s.ElbowErrFracArm, a.jerk + s.ElbowJerkRatio,
+                                 a.kerr + s.KneeErrFracLeg, a.kpops + s.KneePopExcess,
+                                 a.einv + s.ElbowPopsInvented, a.kinv + s.KneePopsInvented, a.n + 1);
 
                     if (hint == BasisMocapHintSource.TruthJoint) truthShape[clip.Name] = s.ElbowShape;
                     if (hint == BasisMocapHintSource.Lookup) lookupShape[clip.Name] = s.ElbowShape;
@@ -192,14 +203,34 @@ namespace Basis.Tests.IK
             report.AppendLine(new string('=', 64));
             report.AppendLine("MEAN ACROSS THE CORPUS -- what each hint source actually buys and costs");
             report.AppendLine(new string('=', 64));
-            report.AppendLine($"{"hint",-16} {"jitter %L",10} {"pops",6} {"jerk x",8} | {"err %arm",9}");
-            foreach (KeyValuePair<BasisMocapHintSource, (float jit, int pops, float err, float jerk, int n)> kv in agg)
+            report.AppendLine("'pops' subtracts COUNTS and is kept only for continuity with the old table. 'INVENTED'");
+            report.AppendLine("is the honest one: frames where OUR joint popped and the HUMAN'S DID NOT. Most of what the");
+            report.AppendLine("count-difference charged the solver for is the corpus's own motion -- see BasisKneePopLocaliser.");
+            report.AppendLine();
+            report.AppendLine($"{"hint",-20} | {"ELBOW err",10} {"jit",7} {"pops",5} {"INVENTED",9} | {"KNEE err",9} {"pops",5} {"INVENTED",9}");
+            foreach (KeyValuePair<BasisMocapHintSource, (float jit, int pops, float err, float jerk, float kerr, int kpops, int einv, int kinv, int n)> kv in agg)
             {
-                (float jit, int pops, float err, float jerk, int n) = kv.Value;
-                report.AppendLine($"{kv.Key,-16} {jit / n * 100f,10:F3} {pops,6} {jerk / n,8:F3} | {err / n * 100f,9:F2}");
+                (float jit, int pops, float err, float jerk, float kerr, int kpops, int einv, int kinv, int n) = kv.Value;
+                report.AppendLine($"{kv.Key,-20} | {err / n * 100f,10:F2} {jit / n * 100f,7:F3} {pops,5} {einv,9} " +
+                                  $"| {kerr / n * 100f,9:F2} {kpops,5} {kinv,9}");
             }
 
             Debug.Log(report.ToString());
+
+            if (BasisMocapAccuracy.s_legDump != null)
+            {
+                string ldump = Path.Combine(Path.GetTempPath(), "basis_leg_train.csv");
+                File.WriteAllText(ldump, BasisMocapAccuracy.s_legDump.ToString());
+                Debug.Log($"[LEG TRAIN] wrote -> {ldump}");
+                BasisMocapAccuracy.s_legDump = null;
+            }
+            if (BasisMocapAccuracy.s_swivelDump != null)
+            {
+                string dump = Path.Combine(Path.GetTempPath(), "basis_swivel_train.csv");
+                File.WriteAllText(dump, BasisMocapAccuracy.s_swivelDump.ToString());
+                Debug.Log($"[SWIVEL TRAIN] wrote {BasisMocapAccuracy.s_swivelN} rows -> {dump}");
+                BasisMocapAccuracy.s_swivelDump = null;
+            }
 
             // THE SANITY CHECK, and the reason ShapeDistance is not a gate.
             //

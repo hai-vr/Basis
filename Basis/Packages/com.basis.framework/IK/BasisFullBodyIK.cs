@@ -993,10 +993,22 @@ o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
 o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
-        // Arm bend lookup table (HVR-IK inspired). One table serves both arms — the sampler
-        // mirrors X for the left arm.
-        public NativeArray<Vector3> ArmBendLookup;
-        public bool HasArmBendLookup;
+        // Swivel models: where the elbow/knee go for a user with no elbow/knee tracker.
+        //
+        // WHAT THIS REPLACED. An 11^3 trilinear lookup of bend VECTORS (BasisArmBendLookup), filled by six
+        // hand-authored lerps over invented factors and never fitted to anything, plus a "chicken-wing flare"
+        // (BasisElbowFlareCore) bolted on top of it. Measured against 20 CMU clips the table put the elbow 6.62%
+        // of an arm length from where the human's actually was, with 34 pops -- a single CONSTANT swivel angle
+        // that ignores the hand entirely scores 6.41%, so the table was worse than not looking. The flare was
+        // firing at 0.89 engagement while STANDING STILL, and switching it off improved every single metric.
+        // The fitted swivel model lands at 2.12% with ZERO pops. See BasisArmSwivelModel / BasisLegSwivelModel.
+        //
+        // Baked at job build, which is when the avatar is still physically T-posed: BasisLocalAvatarDriver
+        // calls PutAvatarIntoTPose() and only rebuilds the rig afterwards, which is the same window the shoulder
+        // solve's TposeChestRot is captured in.
+        public BasisSwivelFrame TposeArmFrame, TposeLegFrame;
+        public Quaternion TposeLeftHandRot, TposeRightHandRot;
+        public Quaternion TposeLeftFootRot, TposeRightFootRot;
 
         public Quaternion targetOffsetHead, targetOffsetChest, targetOffsetLeftToe,
             targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder, targetOffsetLeftFoot,
@@ -1071,13 +1083,14 @@ w20, w54;
         public NativeArray<int> swingCollided;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
-        // Per-swing-slot OneEuro state for elbow-swivel OUTPUT smoothing (Raw.x = prev raw swivel deg,
-        // Raw.y = prev low-passed swivel velocity, Smooth.x = prev smoothed swivel): damps the elbow jitter
-        // the solve amplifies from tiny input noise, with the hand kept exactly on target.
-        public NativeArray<Vector3> armLookupRaw;
-        public NativeArray<Vector3> armLookupSmooth;
-        public NativeArray<int> armLookupInit;
-        // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing, mirroring armLookup*.
+        // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
+        //
+        // The ARM had one of these too, and it is GONE. It was damping the jitter the old bend LOOKUP fed the
+        // solve (0.126); the fitted swivel model that replaced the lookup is a polynomial -- smooth by
+        // construction -- and measures 0.042 jitter, LOWER than a real elbow tracker's 0.046, with zero pops.
+        // Filtering it was measured and it made every metric worse: err 2.12 -> 2.55, jitter 0.042 -> 0.060,
+        // pops 0 -> 1. See BasisMocapMotionQualityTests, hint source SwivelModelSmoothed, which exists purely
+        // to keep that answer honest if anyone is tempted to add the filter back.
         public NativeArray<Vector3> legSwivelRaw;
         public NativeArray<Vector3> legSwivelSmooth;
         public NativeArray<int> legSwivelInit;
@@ -2071,70 +2084,42 @@ w20, w54;
             tip.SetRotation(stream, result.TipRotation);
         }
         /// <summary>
-        /// Computes arm bend direction using the 3D lookup table.
-        /// Converts hand position to a yaw-stable torso frame, then samples the table.
+        /// The ARM's body frame, live, from BONE POSITIONS: shoulder line for right, chest->neck for up.
+        ///
+        /// From POSITIONS, not from the chest bone's ROTATION, and that is the whole reason it transfers. A
+        /// bone's local axes are a rig convention, so a frame taken from rotations is fitted to one skeleton and
+        /// no other. It also deletes the old frame's entire problem: ArmBendFrame had to strip the chest's YAW
+        /// (or head-gaze chest twist swept the lookup and flipped the elbow pole) and then spring-smooth the hips
+        /// to stop hip sway wobbling the derived elbow. A position frame has no yaw to strip -- the shoulder line
+        /// IS the yaw -- so both the twist-extraction and the hip-frame spring go away.
         /// </summary>
-        Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, Quaternion handTargetRot, float armLength, bool isLeft)
+        BasisSwivelFrame BuildArmFrame(AnimationStream stream)
         {
-            if (!HandleChest.IsValid(stream) || armLength < k_Epsilon)
+            if (!HandleLeftUpperArm.IsValid(stream) || !HandleRightUpperArm.IsValid(stream)
+                || !HandleChest.IsValid(stream) || !HandleNeck.IsValid(stream))
             {
-                return isLeft ? Vector3.left : Vector3.right;
+                return default;   // Valid = false; the caller leaves the arm on the solver's own fallback pole
             }
 
-            Quaternion frameRot = ArmBendFrame(stream);
-            Quaternion invFrame = Quaternion.Inverse(frameRot);
-
-            // Transform hand position to torso-local, shoulder-centered, arm-length-normalized space
-            Vector3 shoulderToHand = handTargetPos - shoulderPos;
-            Vector3 localPos = invFrame * shoulderToHand / armLength;
-
-            // Mirror X for left arm (lookup table is generated for right arm perspective)
-            if (isLeft)
-            {
-                localPos.x = -localPos.x;
-            }
-
-            // Sample the lookup table
-            Vector3 localBend = BasisArmBendLookup.SampleTrilinear(ArmBendLookup, localPos);
-
-            // Mirror result back for left arm
-            if (isLeft)
-            {
-                localBend.x = -localBend.x;
-            }
-
-            // Transform bend direction back to world space
-            Vector3 worldBend = (frameRot * localBend).normalized;
-
-            // Chicken-wing flare (no elbow tracker only -- this path): turning the controller inward pushes the
-            // derived elbow OUT toward the half-T-pose mark and hard-clamps it there. Outward = the arm's
-            // away-from-body side in the bend frame; engagement comes from the controller roll. A no-op when the
-            // controller isn't rolled in (so normal reaches are untouched).
-            Vector3 outward = frameRot * (isLeft ? Vector3.left : Vector3.right);
-            return BasisElbowFlareCore.ApplyChickenWingFlare(worldBend, handTargetPos - shoulderPos, outward,
-                playerUp.Get(stream), handTargetRot, elbowFlareInwardGain.Get(stream),
-                elbowFlareFullRollDeg.Get(stream), elbowFlareMaxDeg.Get(stream));
+            return BasisSwivelHintCore.BuildFrame(
+                HandleLeftUpperArm.GetPosition(stream), HandleRightUpperArm.GetPosition(stream),
+                HandleChest.GetPosition(stream), HandleNeck.GetPosition(stream));
         }
-        // Elbow-bend reference frame: chest pitch/roll with hips yaw, so head-gaze chest yaw
-        // doesn't sweep the lookup and flip the elbow pole. Falls back to chest if no hips.
-        Quaternion ArmBendFrame(AnimationStream stream)
+        /// <summary>
+        /// The LEG's body frame hangs off the PELVIS, not the chest: hip line for right, hips->chest for up.
+        /// Same positions-only construction, same reason.
+        /// </summary>
+        BasisSwivelFrame BuildLegFrame(AnimationStream stream)
         {
-            Quaternion chestRot = HandleChest.GetRotation(stream);
-            if (!HandleHips.IsValid(stream))
+            if (!HandleLeftUpperLeg.IsValid(stream) || !HandleRightUpperLeg.IsValid(stream)
+                || !HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
             {
-                return chestRot;
+                return default;
             }
 
-            // Spring-smoothed hips rotation (UpdateHipFrameSpring): hip jitter/sway no longer wobbles the
-            // derived elbow pole. Falls back to the raw hips before the spring is seeded / when disabled.
-            Quaternion hipsRot = (hipFrameSpringInit.IsCreated && hipFrameSpringRot.IsCreated && hipFrameSpringInit[0] != 0)
-                ? hipFrameSpringRot[0]
-                : HandleHips.GetRotation(stream);
-            Quaternion chestRelative = Quaternion.Inverse(hipsRot) * chestRot;
-            // Drop the chest's yaw (twist around hips-up), keep its swing (pitch/roll).
-            Quaternion chestYaw = ExtractTwist(chestRelative, Vector3.up);
-            Quaternion chestSwing = chestRelative * Quaternion.Inverse(chestYaw);
-            return hipsRot * chestSwing;
+            return BasisSwivelHintCore.BuildFrame(
+                HandleLeftUpperLeg.GetPosition(stream), HandleRightUpperLeg.GetPosition(stream),
+                HandleHips.GetPosition(stream), HandleChest.GetPosition(stream));
         }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
@@ -2392,6 +2377,46 @@ w20, w54;
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), Quaternion.identity);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
+            if (!(hintW > 0f))
+            {
+                // NO KNEE TRACKER. The leg used to have no hint model AT ALL here -- it fell through to
+                // BendNormal = hips-right, a FIXED body axis. A fixed pole collapses precisely when the leg
+                // straightens, and standing IS a straight leg, so the knee sat on the pole singularity nearly all
+                // the time: that is why it snapped past ~95% extension and why it never tracked where a real
+                // knee was. Predict the swivel angle instead; see BasisLegSwivelModel.
+                //
+                // Fed as a HINT, deliberately, and NOT by overwriting BendNormal. BendNormal does double duty in
+                // BasisLegSolveCore: it is the no-hint fallback pole AND it is the ANTERIOR REFERENCE for the
+                // half-space guard that stops a knee bending backwards through the joint. Overwrite it and the
+                // guard starts measuring "anterior" from the model's own answer, which makes it unfalsifiable.
+                // As a hint the model steers the knee and the hips-right anterior reference still guards it.
+                BasisSwivelFrame frame = BuildLegFrame(stream);
+
+                Vector3 hipPos = root.GetPosition(stream);
+                float upperLen = (mid.GetPosition(stream) - hipPos).magnitude;
+                float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
+                float legLen = upperLen + lowerLen;
+                bool isLeft = legSlot == 0;
+
+                // tRot is already the EFFECTIVE foot rotation: the animation's own when the target rotation is
+                // the zero-quaternion sentinel (position-only foot IK), else the target. Multiply the offset in
+                // for the latter only -- preserveTip means no offset was ever applied.
+                Quaternion footWorldRot = preserveTip ? tRot : tRot * targetOffset;
+                Quaternion footTposeRot = isLeft ? TposeLeftFootRot : TposeRightFootRot;
+
+                // NO confidence gate, unlike the arm. Fading the hint weight does not avoid a pop, it CREATES
+                // one -- a faded knee falls back to the BendNormal pole, which points somewhere unrelated, and
+                // swinging between two unrelated poles IS a pop (measured: 70 -> 65, it merely moved). The cure
+                // is BasisLegSwivelModel's biased constant term, which keeps (sin,cos) away from the origin so
+                // atan2 can never spin in the first place.
+                if (BasisSwivelHintCore.LegHint(frame, TposeLegFrame, hipPos, target.translation, footWorldRot,
+                                                footTposeRot, legLen, isLeft, out Vector3 modelHint, out float _))
+                {
+                    hint = new AffineTransform(modelHint, Quaternion.identity);
+                    hintW = 1f;
+                }
+            }
+
             SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
             // translate bones off the FK chain (dislocated foot) mid-fade.
@@ -2459,88 +2484,6 @@ w20, w54;
                 }
             }
         }
-        // Elbow opt-in for the pole-conditioned One-Euro (see SmoothElbowSwivel below for the measured numbers).
-        //
-        // Deliberately its OWN switch, separate from the knee's, and deliberately a named constant rather than an
-        // inline `true`: arm IK tweaks have been built and reverted in this repo before, so the revert has to be one
-        // obvious edit rather than an archaeology exercise. Flip to false and the elbow is bit-for-bit the legacy
-        // filter -- BasisKneeSwivelConditioningTests.ElbowPath_IsBitwiseUnchanged_WhenConditioningIsOff pins that.
-        //
-        // Only reaches the LOOKUP (no elbow tracker) path: SolveTwoBoneIKArms calls SmoothElbowSwivel under
-        // `if (usedLookup)`, because a real elbow tracker is the user's own input and damping it just mutes the hint
-        // they are moving. So this changes the DESKTOP / no-tracker elbow, which is the common case, and leaves a
-        // tracked elbow untouched.
-        const bool k_ConditionElbowSwivelOnPole = true;
-
-        // OneEuro smoothing of the ELBOW SWIVEL output (the angle the elbow makes around the shoulder->hand
-        // axis). The hand stays exactly on target -- only the swivel is damped. The velocity is low-passed
-        // FIRST, so frame-to-frame jitter (zero-mean swivel velocity) leaves the cutoff at its floor (heavy
-        // smoothing -> the solve's amplification of tiny input noise is killed), while a real reach (sustained
-        // swivel velocity) opens the cutoff so the elbow tracks with no lag. Per swing slot.
-        // No hips handle means no body frame, and the swivel smoothers measure against the body frame. Skipping
-        // is the only correct answer: substituting identity would put a world-locked reference back into the
-        // measurement, which is the exact defect BasisSwivelSmootherCore exists to remove.
-        void SmoothElbowSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt)
-        {
-            if (!armLookupInit.IsCreated || slot < 0 || slot >= armLookupInit.Length || !HandleHips.IsValid(stream))
-            {
-                return;
-            }
-            BasisSwivelSmootherInput input = default;
-            input.Root = root.GetPosition(stream);
-            input.Mid = mid.GetPosition(stream);
-            input.Tip = tip.GetPosition(stream);
-            input.BodyRotation = HandleHips.GetRotation(stream);
-            input.ReferenceLocal = Vector3.down;
-            input.FallbackLocal = Vector3.zero;
-            input.Dt = dt;
-            input.MinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
-            input.Beta = BasisSwivelFilterCore.Beta;
-            input.DerivCutoffHz = BasisSwivelFilterCore.DerivCutoffHz;
-
-            // Condition the One-Euro on the elbow's own lever arm -- the same singularity the knee has, and for the
-            // same reason. As the arm straightens, the elbow's perpendicular stand-off from the shoulder->hand axis
-            // collapses, so the swivel this core measures degenerates into the direction of a vanishing vector, i.e.
-            // pure noise. A One-Euro is SPEED-ADAPTIVE, so it reads that noise velocity as intent and throws the
-            // cutoff open on it. Measured on the real filter at the elbow's own constants (MinCutoff 1 Hz, Beta 0.05,
-            // 90 Hz):
-            //        noise 353 deg/s -> cutoff 18.6 Hz, alpha 0.566   (57% of the garbage through in ONE frame)
-            //        noise 500 deg/s -> cutoff 26.0 Hz, alpha 0.645
-            // Conditioned (arm ~1 deg off straight, c = 0.02) the same noise gives alpha 0.086 and 0.095. The filter
-            // stops chasing the singularity instead of amplifying it.
-            //
-            // The payoff is not visible while the arm is straight -- the elbow's circle has collapsed, so it has
-            // nowhere to go. It is visible the moment the arm BENDS again: the circle reopens and the elbow whips to
-            // whatever the noise last flung the filter state to. Holding the swivel steady while straight means the
-            // state is already sane when the bend arrives.
-            //
-            // SingularMinCutoffHz is the elbow's own floor, so the cutoff lerp is deliberately a no-op here and only
-            // BETA is scaled. That is the whole defect: unlike the tracked knee, the elbow's floor was never the
-            // problem -- it already sits at the heavy 1 Hz standing floor. What opened the gate was beta.
-            input.ConditionOnPole = k_ConditionElbowSwivelOnPole;
-            input.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
-
-            input.State = new BasisSwivelFilterState { Raw = armLookupRaw[slot].x, Vel = armLookupRaw[slot].y, Smooth = armLookupSmooth[slot].x };
-            input.Seeded = armLookupInit[slot] != 0;
-
-            BasisSwivelSmootherCore.Solve(input, out BasisSwivelSmootherResult result);
-            if (result.WriteState)
-            {
-                armLookupRaw[slot] = new Vector3(result.State.Raw, result.State.Vel, 0f);
-                armLookupSmooth[slot] = new Vector3(result.State.Smooth, 0f, 0f);
-                armLookupInit[slot] = 1;
-            }
-            if (!result.Valid)
-            {
-                return;
-            }
-
-            Vector3 preHand = input.Tip;
-            Quaternion preHandRot = tip.GetRotation(stream);
-            SwingElbowAroundAC(stream, root, mid, tip, result.DesiredMid);
-            tip.SetPosition(stream, preHand);
-            tip.SetRotation(stream, preHandRot);
-        }
         // Tracked-knee swivel cutoffs. A One-Euro rejects rest jitter at its FLOOR, so the floor stays low
         // (near the 1 Hz standing floor) to actually kill the pole-amplified tracker jitter -- a high floor
         // would pass it straight through. The difference from the standing path is a much larger BETA: a knee
@@ -2550,7 +2493,7 @@ w20, w54;
         const float k_TrackedKneeSwivelBeta = 0.20f;        // 4x standing: opens fast so real shin motion isn't lagged
         const float k_TrackedKneeSwivelDerivCutoffHz = 1.0f;
 
-        // Leg analog of SmoothElbowSwivel: OneEuro low-pass of the knee swivel (leg roll about the
+        // OneEuro low-pass of the knee swivel (leg roll about the
         // hip->foot axis), foot kept exactly on target. Damps swivel jitter without lagging a real turn or
         // locomotion (both move the whole leg, leaving the swivel angle ~unchanged). Called on the no-foot-
         // tracker path (standing twist) and the tracked-knee path (pole-amplified tracker jitter); the
@@ -2637,35 +2580,61 @@ w20, w54;
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
-            bool usedLookup = false;
+            bool usedModel = false;
 
-            if (!hasHint && HasArmBendLookup && HandleChest.IsValid(stream))
+            if (!hasHint)
             {
+                // NO ELBOW TRACKER: predict the elbow's SWIVEL ANGLE about the shoulder->hand axis.
+                //
+                // With the shoulder and the hand both fixed the elbow is confined to a CIRCLE, so its entire
+                // redundancy is ONE SCALAR. Predicting that angle lands the elbow ON the reachable circle by
+                // construction -- which is exactly why the snap past ~95% extension cannot happen here. The old
+                // lookup predicted a 3-VECTOR, which does not lie on the circle, so the solver needed fades and
+                // pole guards to drag it back; and as the arm straightens the circle collapses, the fades
+                // switched the hint off, and the pole was handed to a fallback pointing somewhere else. THAT
+                // HANDOFF WAS THE SNAP. An angle stays defined and continuous at every extension, and the
+                // resulting POSITION change goes to zero on its own as the circle shrinks.
+                BasisSwivelFrame frame = BuildArmFrame(stream);
+
                 Vector3 shoulderPos = root.GetPosition(stream);
                 float upperLen = (mid.GetPosition(stream) - shoulderPos).magnitude;
                 float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
                 float armLen = upperLen + lowerLen;
                 // Handedness is structural — derive it from the swing slot the binding assigned,
                 // not from live chest geometry (a heavy chest roll, e.g. lying on your side, can
-                // flip a geometric test and mirror the bend lookup mid-session).
+                // flip a geometric test and mirror the model mid-session).
                 bool isLeft = swingSlot == k_SwingLeftElbow;
 
-                Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, tgtRot, armLen, isLeft);
-                hint = new AffineTransform(shoulderPos + 0.5f * armLen * lookupBend, hintRot);
-                hasHint = true;
-                usedLookup = true;
+                // The hand BONE's world rotation is target * offset -- the same product the solve writes to the
+                // tip (BasisArmSolveCore). Feeding the raw target instead would hand the model the CONTROLLER's
+                // rotation, not the hand's, and the T-pose it is divided by is a bone rotation.
+                Quaternion handWorldRot = tgtRot * targetOffset;
+                Quaternion handTposeRot = isLeft ? TposeLeftHandRot : TposeRightHandRot;
+
+                if (BasisSwivelHintCore.ArmHint(frame, TposeArmFrame, shoulderPos, tgtPos, handWorldRot, handTposeRot,
+                                                armLen, isLeft, out Vector3 modelHint, out float conf)
+                    && conf > BasisSwivelHintCore.MinConfidence)
+                {
+                    hint = new AffineTransform(modelHint, hintRot);
+                    hasHint = true;
+                    usedModel = true;
+                }
             }
-            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedLookup, targetOffset);
-            // Only damp the elbow on the lookup (no-tracker) path. A real elbow tracker is the user's
-            // intentional input -- smoothing it just mutes the hint they're moving (the knee has no such
-            // damper, which is why it feels far more responsive). Tracker present => drive the elbow directly.
-            if (usedLookup)
-            {
-                SmoothElbowSwivel(stream, root, mid, tip, swingSlot, stream.deltaTime);
-            }
+            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset);
+            // NO OUTPUT FILTER ON THE MODEL PATH, and that is a measured choice, not an oversight.
+            //
+            // SmoothElbowSwivel is a One-Euro on the elbow swivel. It existed to fight the LOOKUP's jitter
+            // (0.126) -- a table sampled by a moving hand is not smooth, so its output had to be filtered. The
+            // model is a POLYNOMIAL: C-infinity, smooth by construction, and it measures JITTER 0.042, which is
+            // lower than a real elbow TRACKER's (0.046), with zero pops. Filtering something already smoother
+            // than the hardware buys nothing and costs lag on every deliberate reach.
+            //
+            // A real elbow tracker was never filtered either (the old code gated on `usedLookup`), for the same
+            // reason it should not be: it is the user's own input, and damping it just mutes the hint they are
+            // moving. So the filter now has no caller, and the arm's One-Euro state is gone with it.
             int collisionState = 0;
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
-            bool elbowTrackerForced = hasHint && !usedLookup;
+            bool elbowTrackerForced = hasHint && !usedModel;
             if (doCollisions && protectElbow.Get(stream) && (!elbowTrackerForced || collideTrackedElbow.Get(stream)))
             {
                 // Geometry lives in BasisElbowProtectCore so the offline sweep harness runs the
@@ -2894,7 +2863,32 @@ w20, w54;
                     ? Vector3.Distance(data.LeftShoulder.position, data.LeftHand.position) : 0.6f,
                 TposeShoulderToHandRight = (data.RightShoulder != null && data.RightHand != null)
                     ? Vector3.Distance(data.RightShoulder.position, data.RightHand.position) : 0.6f,
+
+                // Baked T-pose data for the swivel models. Read straight off the live Transforms, which are
+                // still physically T-posed at this moment: BasisLocalAvatarDriver.InitialLocalCalibration calls
+                // PutAvatarIntoTPose() and only rebuilds the rig (which is what calls this) afterwards. That is
+                // the same window TposeChestRot above is captured in.
+                //
+                // These are WORLD rotations, so they carry the player's world yaw at calibration -- and they are
+                // only ever consumed RELATIVE to each other and to TposeArmFrame/TposeLegFrame (see
+                // BasisSwivelHintCore.Features), where that common yaw cancels exactly. Never use one alone.
+                TposeLeftHandRot = data.LeftHand != null ? data.LeftHand.rotation : Quaternion.identity,
+                TposeRightHandRot = data.RightHand != null ? data.RightHand.rotation : Quaternion.identity,
+                TposeLeftFootRot = data.leftFoot != null ? data.leftFoot.rotation : Quaternion.identity,
+                TposeRightFootRot = data.RightFoot != null ? data.RightFoot.rotation : Quaternion.identity,
             };
+
+            // The T-pose body frames, from the same T-posed Transforms and by the same positions-only
+            // construction the live frames use. Degenerate rig (missing bones) => Valid stays false and the
+            // swivel models simply never fire, leaving the limb on the two-bone core's own fallback pole.
+            job.TposeArmFrame = (data.leftUpperArm != null && data.RightUpperArm != null && data.chest != null && data.neck != null)
+                ? BasisSwivelHintCore.BuildFrame(data.leftUpperArm.position, data.RightUpperArm.position,
+                                                 data.chest.position, data.neck.position)
+                : default;
+            job.TposeLegFrame = (data.LeftUpperLeg != null && data.RightUpperLeg != null && data.hips != null && data.chest != null)
+                ? BasisSwivelHintCore.BuildFrame(data.LeftUpperLeg.position, data.RightUpperLeg.position,
+                                                 data.hips.position, data.chest.position)
+                : default;
             // Bind positions
             job.p0 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(0));
             job.p1 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(1));
@@ -2991,10 +2985,6 @@ w20, w54;
 
             GenerateHeadToSpine(animator, ref job, ref data);
 
-            // Generate arm bend lookup table. The sampler mirrors X per-arm, so one table serves both.
-            job.ArmBendLookup = new NativeArray<Vector3>(BasisArmBendLookup.GenerateDefaultTable(), Allocator.Persistent);
-            job.HasArmBendLookup = true;
-
             var cacheBuilder = new AnimationJobCacheBuilder();
 
             job.spineMaxIterationsIdx = cacheBuilder.Add(20);
@@ -3014,9 +3004,6 @@ w20, w54;
             job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.armLookupRaw = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.armLookupSmooth = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.armLookupInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
@@ -3051,8 +3038,6 @@ w20, w54;
         {
             if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
 
-            if (job.ArmBendLookup.IsCreated) job.ArmBendLookup.Dispose();
-
             if (job.chestSpringState.IsCreated) job.chestSpringState.Dispose();
             if (job.chestSpringInit.IsCreated) job.chestSpringInit.Dispose();
 
@@ -3066,9 +3051,6 @@ w20, w54;
             if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
             if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
             if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
-            if (job.armLookupRaw.IsCreated) job.armLookupRaw.Dispose();
-            if (job.armLookupSmooth.IsCreated) job.armLookupSmooth.Dispose();
-            if (job.armLookupInit.IsCreated) job.armLookupInit.Dispose();
             if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
             if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
             if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();
