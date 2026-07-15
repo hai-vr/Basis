@@ -16,16 +16,21 @@ namespace UnityEngine.Animations.Rigging
         public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
         public bool HintIsTracker;     // hint is a REAL elbow tracker (trust it further before the down-stabilizer overrides); false = lookup-derived
         public Quaternion TipRotation; // ANIMATED hand world rotation (pre-IK), like RootRotation/MidRotation. Zero (the default) disables wrist-roll relief.
+        public Quaternion HintRotation; // the tracker's measured lower-arm WORLD rotation (calibrated to the bone). Zero (the default) disables the tracker forearm roll.
     }
 
     public struct BasisArmSolveResult
     {
         // Apply through the AnimationStream in this order; identity steps are exact no-ops:
         //   mid.SetRotation(MidDelta * mid.GetRotation), root.SetRotation(RootDelta * ...),
-        //   root.SetRotation(HintDelta * ...), tip.SetRotation(TipRotation).
+        //   root.SetRotation(HintDelta * ...), mid.SetRotation(MidPostRoll * mid.GetRotation),
+        //   tip.SetRotation(TipRotation).
         public Quaternion MidDelta;
         public Quaternion RootDelta;
         public Quaternion HintDelta;
+        public Quaternion MidPostRoll;   // WORLD premultiply on the forearm, applied AFTER the root deltas
+                                         // have propagated: a pure roll about its own long axis, so it can
+                                         // move no joint. Always a valid quaternion (identity when unused).
         public Quaternion TipRotation;
         public bool HintApplied;
 
@@ -44,8 +49,9 @@ namespace UnityEngine.Animations.Rigging
         public float ArmProjMag;     // |elbow projected onto swing plane|; small = elbow near-straight (pole ill-defined)
         public byte AxisSource;     // 0 bend-plane, 1 hint, 2 shoulder->target, 3 playerUp
         public float HandError;
-        public float WristTwistDeg;  // signed hand-target roll vs the carried animated wrist, about the forearm axis
-        public float WristReliefDeg; // signed swivel actually spent relieving it (0 = relief not engaged)
+        public float WristTwistDeg;   // signed hand-target roll vs the carried animated wrist, about the forearm axis
+        public float WristReliefDeg;  // signed swivel actually spent relieving it (0 = relief not engaged)
+        public float ForearmRollDeg;  // signed tracker-path forearm roll applied via MidPostRoll (0 = not engaged)
     }
 
     // Stream-free geometry shared by BasisFullIKConstraintJob.SolveTwoBoneIKArms and the
@@ -121,6 +127,17 @@ namespace UnityEngine.Animations.Rigging
         // Hard bound on the relief swivel, so a pathological target (avatar/controller mismatch) is a bounded
         // wrong answer instead of an unbounded one. The anatomy guard still owns the outcome.
         public const float WristRollMaxReliefDeg = 70f;
+
+        // Tracker-path forearm roll: how much say the HAND's roll demand gets against the tracker's own
+        // measured roll. The tracker is strapped to the forearm, so its roll IS pronation, measured; the
+        // hand is where the demand actually ends. Half way keeps a slipped strap and a mis-gripped
+        // controller from each owning the forearm outright.
+        public const float TrackerRollHandBlend = 0.5f;
+
+        // Bound on the applied forearm roll vs the animated pose. Full pronation from a mid-range animated
+        // wrist is ~90-100 deg; past 120 the signal is a slipped strap or a calibration wreck, and a bounded
+        // wrong forearm beats an unbounded one.
+        public const float TrackerForearmRollMaxDeg = 120f;
 
         // The measured twist is a principal angle, so +180 and -180 are the SAME hand pose with opposite
         // relief signs. Fade the relief out approaching the seam so both sides meet at zero -- the exact

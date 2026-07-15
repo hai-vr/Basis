@@ -628,6 +628,10 @@ namespace Basis.Scripts.Drivers
                 // ── CHEST (head hint) ──
                 chestPos = pOut[S_Chest];
                 chestRot = rOut[S_Chest];
+                // The chest IK target needs the ACTUAL chest, before the head-hint bias below (which shoves it
+                // ~8cm 'up in chest frame' to steer the head solve). Pinning the chest to the biased value
+                // leaned the whole torso.
+                data.ChestPositionRaw = chestPos;
                 if (!trackerBendNormal)
                     chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
                 data.ChestPosition = chestPos;

@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 namespace UnityEngine.Animations.Rigging
 {
@@ -194,6 +194,10 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 PositionHead;
         [SyncSceneToStream, SerializeField] public Quaternion RotationHead;
         [SyncSceneToStream, SerializeField] public Vector3 ChestPosition;
+        // The chest bone's ACTUAL position, WITHOUT the chest-as-head-hint bias that ChestPosition carries
+        // (that bias pushes ~8cm 'up in chest frame' to steer the head solve -- see BasisAvatarIKStageCalibration).
+        // The chest IK target must pin to the real chest, not the hinted one, or it hauls the torso up = a lean.
+        [SyncSceneToStream, SerializeField] public Vector3 ChestPositionRaw;
         [SyncSceneToStream, SerializeField] public Quaternion ChestRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
@@ -421,6 +425,7 @@ namespace UnityEngine.Animations.Rigging
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string PropertyChestPosition => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
+        public string PropertyChestPositionRaw => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPositionRaw));
         public string PropertyChestRotation => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestRotation));
         public string PlayerUpProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PlayerUp));
         public string KneeBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefLeft));
@@ -947,7 +952,7 @@ namespace UnityEngine.Animations.Rigging
   HandleLeftUpperArmTwist, HandleLeftLowerArmTwist,
   HandleRightUpperArmTwist, HandleRightLowerArmTwist;
 
-        public Vector3Property targetPositionHead, TargetChestPosition, playerUp, KneeBendPrefLeft, KneeBendPrefRight,
+        public Vector3Property targetPositionHead, TargetChestPosition, TargetChestPositionRaw, playerUp, KneeBendPrefLeft, KneeBendPrefRight,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -1428,7 +1433,9 @@ w20, w54;
             if (chestBoneIdx < firstJoint || lastJoint <= firstJoint || lastJoint <= chestBoneIdx)
                 return;
 
-            Vector3 chestTargetPos = TargetChestPosition.Get(stream);
+            // THE RAW chest, not the head-hint-biased TargetChestPosition -- pinning to the biased one dragged
+            // the torso ~8cm up and leaned the body in desktop / no-tracker mode.
+            Vector3 chestTargetPos = TargetChestPositionRaw.Get(stream);
             Vector3 chestBonePos = ChainHeadToSpine[chestBoneIdx].GetPosition(stream);
             // A chest target that is wildly far from the FK chest is a glitching tracker or an unset target;
             // chasing it would wreck the torso. Fall back to the head-only chest. Same guard the old
@@ -2198,7 +2205,7 @@ w20, w54;
             // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
             // exact same elbow math. The core returns incremental deltas; apply them through
             // the stream in the original order (identity steps are exact no-ops).
-            BasisArmSolveInput input;
+            BasisArmSolveInput input = default;
             input.Shoulder = root.GetPosition(stream);
             input.Elbow = mid.GetPosition(stream);
             input.Hand = tip.GetPosition(stream);
@@ -2865,6 +2872,7 @@ w20, w54;
                 targetPositionHips = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHips),
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 TargetChestPosition = Vector3Property.Bind(animator, component, data.PropertyChestPosition),
+                TargetChestPositionRaw = Vector3Property.Bind(animator, component, data.PropertyChestPositionRaw),
                 playerUp = Vector3Property.Bind(animator, component, data.PlayerUpProperty),
 
                 KneeBendPrefLeft = Vector3Property.Bind(animator, component, data.KneeBendPrefLeftProperty),
