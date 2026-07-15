@@ -394,6 +394,11 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "Shared image", BasisGlobalLockManager.ToggleImages()));
                     break;
 
+                case AdminRequestMode.GlobalToggleEndEffectorIK:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Remote end-effector IK", BasisGlobalLockManager.ToggleEndEffectorIK()));
+                    break;
+
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleAvatarScaleLimitsSet(peer, reader));

@@ -219,10 +219,11 @@ namespace Basis.Scripts.Networking.Receivers
         public float PacketsPerSecond => _packetsPerSecond;
 
         /// <summary>When true, effectors the sender marked anchored (mask on the wire) are two-bone-IK'd
-        /// to their sent world targets after skeleton FK. Default off — flip on to A/B against pure-FK
-        /// playback; only world-stable effectors (tracked hands/feet) are ever anchored, so emotes and
-        /// posed limbs are untouched.</summary>
-        public static bool EndEffectorIKEnabled = false;
+        /// to their sent world targets after skeleton FK. On by default; a server admin can disable it
+        /// server-wide (BasisNetworkModeration.GlobalEndEffectorIKDisabled → BroadcastLockState). Only
+        /// world-stable effectors (tracked hands/feet) are ever anchored, so emotes and posed limbs are
+        /// untouched.</summary>
+        public static bool EndEffectorIKEnabled = true;
 
         // (root, joint, tip) slots in BONE_WRITE_ORDER per effector: LHand, RHand, LFoot, RFoot.
         static readonly int[] sEffRootSlot = { 5, 6, 7, 8 };

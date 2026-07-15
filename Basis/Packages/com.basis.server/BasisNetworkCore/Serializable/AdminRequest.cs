@@ -159,6 +159,10 @@ namespace BasisNetworkCore.Serializable
 
             SetGlobalOpusBitrate,      // admin: set the Opus encoder bitrate (bps) every client transmits with; 0 = clear back to client default. Payload: [int bps]
             GlobalGetOpusBitrateState, // server→client: current global Opus bitrate (bps, 0 = none). Payload: [int bps]
+
+            // admin: toggle remote end-effector IK anchoring globally. State (disabled) is appended as the
+            // trailing bool in GlobalGetLockState. Default false = feature on; admins flip on to disable.
+            GlobalToggleEndEffectorIK,
         }
     }
 }

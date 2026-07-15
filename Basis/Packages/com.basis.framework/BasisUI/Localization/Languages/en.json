@@ -7936,6 +7936,14 @@
       "value": "Stop non-admin players from sharing new image pickups, and from receiving images shared while this is on. Admins are unaffected."
     },
     {
+      "key": "settings.admin.title.remoteEndEffectorIK",
+      "value": "Remote End-Effector IK"
+    },
+    {
+      "key": "settings.admin.title.remoteEndEffectorIK.tooltip",
+      "value": "Two-bone-IK remote avatars' tracked hands and feet onto their sent world targets so they stop sliding. On by default; turn off to fall back to pure-FK playback for everyone."
+    },
+    {
       "key": "settings.admin.minAvatarHeight",
       "value": "Min Avatar Height"
     },

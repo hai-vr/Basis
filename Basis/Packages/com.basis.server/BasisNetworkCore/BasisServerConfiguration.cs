@@ -138,6 +138,13 @@ public class Configuration
     /// live from the admin panel, and is broadcast to clients in GlobalGetLockState. Default off.
     /// </summary>
     public bool ImagesLocked = false;
+    /// <summary>
+    /// When false (default) clients two-bone-IK anchor remote avatars' tracked hands/feet to their sent
+    /// world targets so they stop sliding; when true, every client falls back to pure-FK playback for
+    /// remotes. Seeds BasisGlobalLockManager at boot, can be toggled live from the admin panel, and is
+    /// broadcast to clients in GlobalGetLockState. Default off (feature on).
+    /// </summary>
+    public bool EndEffectorIKDisabled = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

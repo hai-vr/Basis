@@ -194,6 +194,7 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("DirectConnectLocked", " Refuse to broker direct (peer-to-peer) connections for non-admin players; clients also hide the direct-connect control. true|false; default false. "));
             t.Fields.Add(new FieldDoc("CilboxLocked", " Tell every client to block sandboxed Cilbox code on avatars from running (props/worlds keep their own). true|false; default false. "));
             t.Fields.Add(new FieldDoc("ImagesLocked", " Stop non-bypass clients from sharing new image pickups and from accepting inbound ones. Enforced client-side (image pickups ride the generic scene relay). true|false; default false. "));
+            t.Fields.Add(new FieldDoc("EndEffectorIKDisabled", " Tell every client to stop two-bone-IK anchoring remote avatars' tracked hands/feet, falling back to pure-FK playback. true|false; default false (feature on). "));
             _docs[typeof(global::Configuration)] = t;
         }
 
