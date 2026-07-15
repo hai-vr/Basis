@@ -124,7 +124,8 @@ namespace Basis.Network
                 if (peer != null)
                 {
                     peer.Tag = identity;
-                    netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
+                    int clientIndex = Index;
+                    netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, clientIndex, p, r, ch, m);
                     netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
                     Volatile.Write(ref FinalClients[Index], netClient);
@@ -184,11 +185,15 @@ namespace Basis.Network
             if (peer != null)
             {
                 peer.Tag = identity;
-                netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, p, r, ch, m);
+                netClient.listener.NetworkReceiveEvent += (p, r, ch, m) => MessageHandler.OnReceive(identity, index, p, r, ch, m);
                 netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
 
                 Interlocked.Exchange(ref FinalClients[index], netClient);
                 Interlocked.Exchange(ref FinalPeers[index], peer);
+
+                // Fresh server session — the old delta baseline is meaningless to it, so the
+                // first send after a reconnect must be a full keyframe.
+                MovementSender.RequestKeyframe(index);
 
                 BNL.Log($"Reconnected: {name} ({identity.Did}) at index {index}");
             }

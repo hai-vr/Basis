@@ -230,7 +230,7 @@ namespace Basis.IK.Debugging
             if (limb.Root == null || limb.Mid == null || limb.Tip == null || limb.TTip == null) return;
             bool hasHint = hintMode == BasisIKHintMode.Truth && limb.TMid != null;
 
-            BasisArmSolveInput input;
+            BasisArmSolveInput input = default;
             input.Shoulder = limb.Root.position;
             input.Elbow = limb.Mid.position;
             input.Hand = limb.Tip.position;

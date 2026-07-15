@@ -41,6 +41,27 @@ namespace Basis.Network
             public LocalAvatarSyncMessage Message;
             public byte SequenceByte;
             public float PhaseOffset;
+            // v42 uplink delta state — mirrors the real client: a full keyframe every
+            // UplinkKeyframeIntervalMs on the High channel (which the server snapshots as the
+            // baseline), dirty-mask deltas against it on DeltaAvatarChannel in between.
+            public byte[] Baseline;
+            public byte BaselineSeq;
+            public bool HasBaseline;
+            public long LastKeyframeTicks;
+            public byte[] DeltaScratch;
+            public bool ForceKeyframe;
+        }
+
+        // Send v42 uplink deltas like a real client (false = legacy all-keyframe uploads).
+        public static bool UseUplinkDeltas = true;
+        private const int UplinkKeyframeIntervalMs = 500;
+        private static readonly long UplinkKeyframeIntervalTicks = Stopwatch.Frequency * UplinkKeyframeIntervalMs / 1000;
+
+        /// <summary>Server NACK (DeltaControlUplinkKeyframeRequest) → next send is a keyframe.</summary>
+        public static void RequestKeyframe(int index)
+        {
+            if (ActivePlayerData == null || index < 0 || index >= ActivePlayerData.Length) return;
+            ActivePlayerData[index].ForceKeyframe = true;
         }
 
         // Precompute compressed scale once; reused for all messages.
@@ -140,19 +161,21 @@ namespace Basis.Network
         {
             if (peer == null) return;
 
+            ref PlayerData pd = ref ActivePlayerData[index];
+
             double time = AnimTimer.Elapsed.TotalSeconds;
-            float phase = ActivePlayerData[index].PhaseOffset;
+            float phase = pd.PhaseOffset;
 
             // Update position
             PlayersCurrentPosition[index] += Randomizer.GetRandomOffset();
 
-            var msg = ActivePlayerData[index].Message;
+            var msg = pd.Message;
 
             // 1) Position (first 12 bytes)
             int offset = 0;
             WritePosition(PlayersCurrentPosition[index], ref msg.array, ref offset);
 
-            // 2) Animated bone rotations (natural pose + idle animation)
+            // 2) Animated bone rotations (natural pose + idle animation, all 51 bones fresh per send)
             FakePoseGenerator.WriteBoneRotations(msg.array, RotationRegionOffset, BitQuality.High, time, phase);
 
             // 3) Scale unchanged
@@ -160,17 +183,60 @@ namespace Basis.Network
             // 4) Animated hips rotation
             FakePoseGenerator.WriteCompressedHipsRotation(msg.array, HipsRotationOffset, time, phase);
 
-            // Serialize and send — channel encodes quality (High) and no additional data
-            var writer = ActivePlayerData[index].Writer;
+            byte seq = pd.SequenceByte;
+            unchecked { pd.SequenceByte++; }
+
+            long now = Stopwatch.GetTimestamp();
+            bool keyframe = !UseUplinkDeltas
+                || pd.ForceKeyframe
+                || !pd.HasBaseline
+                || pd.Baseline == null
+                || pd.Baseline.Length != msg.array.Length
+                || now - pd.LastKeyframeTicks >= UplinkKeyframeIntervalTicks;
+
+            int deltaLen = -1;
+            if (!keyframe)
+            {
+                int cap = BasisAvatarDeltaCompression.MaxDeltaSize(BitQuality.High);
+                if (pd.DeltaScratch == null || pd.DeltaScratch.Length < cap)
+                    pd.DeltaScratch = new byte[cap];
+                deltaLen = BasisAvatarDeltaCompression.BuildDelta(pd.Baseline, msg.array, BitQuality.High, pd.DeltaScratch, 0);
+                if (deltaLen < 0 || deltaLen >= msg.array.Length) keyframe = true;
+            }
+
+            var writer = pd.Writer;
             writer.Reset();
-            writer.Put(ActivePlayerData[index].SequenceByte);
-            unchecked { ActivePlayerData[index].SequenceByte++; }
-            msg.SerializeForChannel(writer, BitQuality.High);
+            if (keyframe)
+            {
+                // Full keyframe on the High channel — the server snapshots it as this
+                // sender's uplink delta baseline.
+                writer.Put(seq);
+                msg.SerializeForChannel(writer, BitQuality.High);
+                byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)BitQuality.High, false);
+                peer.Send(writer, channel, DeliveryMethod.Unreliable);
 
-            byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)BitQuality.High, false);
-            peer.Send(writer, channel, DeliveryMethod.Unreliable);
+                if (UseUplinkDeltas)
+                {
+                    if (pd.Baseline == null || pd.Baseline.Length != msg.array.Length)
+                        pd.Baseline = new byte[msg.array.Length];
+                    System.Array.Copy(msg.array, pd.Baseline, msg.array.Length);
+                    pd.BaselineSeq = seq;
+                    pd.HasBaseline = true;
+                    pd.LastKeyframeTicks = now;
+                    pd.ForceKeyframe = false;
+                }
+            }
+            else
+            {
+                // v42 uplink delta: [hdr][seq][baseSeq][body] on DeltaAvatarChannel.
+                writer.Put(BasisNetworkCommons.BuildDeltaHeader((int)BitQuality.High, false, false));
+                writer.Put(seq);
+                writer.Put(pd.BaselineSeq);
+                writer.Put(pd.DeltaScratch, 0, deltaLen);
+                peer.Send(writer, BasisNetworkCommons.DeltaAvatarChannel, DeliveryMethod.Unreliable);
+            }
 
-            ActivePlayerData[index].Message = msg;
+            pd.Message = msg;
         }
 
         public static void WritePosition(Scripts.Networking.Compression.Vector3 position, ref byte[] buffer, ref int offset)

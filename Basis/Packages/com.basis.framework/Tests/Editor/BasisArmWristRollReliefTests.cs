@@ -16,12 +16,14 @@ namespace Basis.Tests.IK
     ///
     /// WHAT THE RELIEF PROMISES, AND WHAT THESE TESTS HOLD IT TO:
     ///   - the roll is measured against the ANIMATED wrist carried onto the SOLVED forearm, so a neutral
-    ///     hand is a structural no-op, and whatever swivel a tracker or the model already applied is
-    ///     already relieved before it is measured (nothing double-compensates);
-    ///   - in-band roll recruits the humerus at a fixed share (except on the tracker path, where the
-    ///     measured elbow already contains the user's real share, and the pole must not be second-guessed);
-    ///   - past the comfort band the humerus takes the excess ~1:1, capped, and faded to zero approaching
-    ///     the ±180° principal-angle seam so the two sides of the same pose meet at zero;
+    ///     hand is a structural no-op, and whatever swivel the hint already applied is already relieved
+    ///     before it is measured (nothing double-compensates);
+    ///   - comfortable roll is the forearm's alone: zero relief below the ramp, then a C1 quadratic ramp
+    ///     that reaches slope 1 exactly at the band edge, the excess past it 1:1, capped, and faded to zero
+    ///     approaching the ±180° principal-angle seam so the two sides of the same pose meet at zero.
+    ///     (A flat in-band share was corpus-refuted: it fed wrist jitter to the elbow as >8 Hz buzz.);
+    ///   - NOT on the tracker path: a tracker is the user's real elbow and the real humerus already
+    ///     answered — corpus-measured, relieving on top dragged the elbow 3.6-10.1 cm off a TRUE pole;
     ///   - the relief is a swivel about shoulder→hand, so the hand CANNOT leave its target (geometry, not
     ///     tolerance), and the anatomy guard still has the last word on where the elbow may sit.
     ///
@@ -37,8 +39,19 @@ namespace Basis.Tests.IK
         static readonly Vector3 Shoulder = Vector3.zero;
 
         const float Band = BasisArmSolveCore.WristRollComfortDeg;        // 80
-        const float Share = BasisArmSolveCore.WristRollInBandShare;      // 0.2
+        const float Ramp = BasisArmSolveCore.WristRollRampStartDeg;      // 55
         const float Cap = BasisArmSolveCore.WristRollMaxReliefDeg;       // 70
+
+        /// <summary>The relief curve, restated: zero to the ramp, quadratic to the band, linear past it.</summary>
+        static float ExpectedRelief(float rollDeg)
+        {
+            float a = Mathf.Abs(rollDeg);
+            float m;
+            if (a <= Ramp) m = 0f;
+            else if (a <= Band) m = (a - Ramp) * (a - Ramp) / (2f * (Band - Ramp));
+            else m = 0.5f * (Band - Ramp) + (a - Band);
+            return Mathf.Sign(rollDeg) * Mathf.Min(m, Cap);
+        }
 
         /// <summary>A RIGHT arm reaching `straight`, elbow bulged toward `bulge`, hand exactly on target and
         /// the animated hand riding the forearm (carried wrist local = identity), so TargetRotation == the
@@ -127,8 +140,7 @@ namespace Basis.Tests.IK
 
         [TestCase(40f)]
         [TestCase(-40f)]
-        [TestCase(70f)]
-        public void InBandRoll_RecruitsTheHumerus_ByTheShare(float rollDeg)
+        public void ComfortableRoll_IsTheForearmsAlone(float rollDeg)
         {
             BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
             Roll(ref i, rollDeg);
@@ -136,47 +148,63 @@ namespace Basis.Tests.IK
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
 
             Assert.That(r.WristTwistDeg, Is.EqualTo(rollDeg).Within(0.5f), "the measured roll IS the applied roll here");
-            Assert.That(SwivelDeg(i, r), Is.EqualTo(Share * rollDeg).Within(0.75f),
-                "in-band roll recruits the humerus at the fixed share, in the roll's own direction");
+            Assert.That(r.WristReliefDeg, Is.EqualTo(0f), "below the ramp the humerus must not stir");
+            Assert.That(Mathf.Abs(SwivelDeg(i, r)), Is.LessThan(0.01f),
+                "comfortable roll is rendered by the forearm and wrist alone — the corpus refuted a flat share");
+            AssertHandOnTarget(r, $"roll {rollDeg}");
+        }
+
+        [TestCase(70f)]
+        [TestCase(-70f)]
+        [TestCase(120f)]
+        [TestCase(-120f)]
+        public void PastTheRamp_TheHumerusRecruits_OnTheCurve(float rollDeg)
+        {
+            BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
+            Roll(ref i, rollDeg);
+
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+            Assert.That(SwivelDeg(i, r), Is.EqualTo(ExpectedRelief(rollDeg)).Within(1f),
+                "the humerus recruits on the ramp-then-linear curve, in the roll's own direction");
             Assert.That(Mathf.Abs(ResidualRollDeg(i, r)), Is.LessThan(Mathf.Abs(rollDeg)),
                 "recruiting the humerus must RELIEVE the wrist, not just move the elbow");
             AssertHandOnTarget(r, $"roll {rollDeg}");
         }
 
         [Test]
-        public void BeyondTheBand_TheHumerusTakesTheExcess()
+        public void BeyondTheBand_TheWristComesBackInsideIt()
         {
             BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
             Roll(ref i, 120f);
 
             BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
 
-            float expected = Share * Band + (120f - Band);   // 16 + 40 = 56
-            Assert.That(SwivelDeg(i, r), Is.EqualTo(expected).Within(1f),
-                "past the comfort band the humerus takes the excess on top of its in-band share");
             Assert.That(Mathf.Abs(ResidualRollDeg(i, r)), Is.LessThan(Band),
                 "the whole point: the wrist must be brought back inside what a forearm can render");
             AssertHandOnTarget(r, "roll 120");
         }
 
+        /// <summary>A tracker is the user's REAL elbow: twist your hand and the tracker moves — the
+        /// compensation arrives through the measurement. Relieving on top of it was corpus-measured to drag
+        /// the elbow 3.6-10.1 cm off a pole it had been HANDED, so on this path the relief stands down.</summary>
         [Test]
-        public void Tracker_InBandThePoleIsNotSecondGuessed_BeyondItTheWristIsStillSaved()
+        public void Tracker_TheMeasuredElbowIsNeverSecondGuessed()
         {
             BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
             i.HintWeight = true;
             i.HintIsTracker = true;
             i.HintPosition = i.Elbow;   // the tracker agrees with the animated elbow
 
-            Roll(ref i, 40f);
-            BasisArmSolveCore.Solve(i, out BasisArmSolveResult rIn);
-            Assert.That(Mathf.Abs(SwivelDeg(i, rIn)), Is.LessThan(0.1f),
-                "a measured elbow already contains the user's real in-band share — do not add another");
-
-            Roll(ref i, 140f);
-            BasisArmSolveCore.Solve(i, out BasisArmSolveResult rOut);
-            Assert.That(SwivelDeg(i, rOut), Is.EqualTo(140f - Band).Within(1f),
-                "past the band the avatar's wrist is broken regardless of what the tracker says — relieve it");
-            AssertHandOnTarget(rOut, "tracker roll 140");
+            foreach (float roll in new[] { 40f, 140f, -140f })
+            {
+                Roll(ref i, roll);
+                BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+                Assert.That(r.WristReliefDeg, Is.EqualTo(0f), $"relief must stand down for a tracker (roll {roll})");
+                Assert.That(Mathf.Abs(SwivelDeg(i, r)), Is.LessThan(0.1f),
+                    $"a measured elbow is not to be second-guessed (roll {roll})");
+                AssertHandOnTarget(r, $"tracker roll {roll}");
+            }
         }
 
         /// <summary>Pronation must flare the elbow toward the OUTWARD side on BOTH arms. The core has no

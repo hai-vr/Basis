@@ -10,7 +10,7 @@ namespace Basis.Network
             BNL.LogError($"Peer {peer.Id} disconnected.");
         }
 
-        public static void OnReceive(ConsoleClientIdentity identity, NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod method)
+        public static void OnReceive(ConsoleClientIdentity identity, int clientIndex, NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod method)
         {
             if (peer.Id != 0) return;
 
@@ -23,6 +23,14 @@ namespace Basis.Network
                     if (identity != null)
                     {
                         identity.Authenticated = true;
+                    }
+                    break;
+                case BasisNetworkCommons.DeltaAvatarChannel:
+                    // Server NACK: our uplink baseline is missing/stale — re-key. Other players'
+                    // delta frames also arrive here; consume those silently.
+                    if (reader.AvailableBytes >= 1 && reader.PeekByte() == BasisNetworkCommons.DeltaControlUplinkKeyframeRequest)
+                    {
+                        MovementSender.RequestKeyframe(clientIndex);
                     }
                     break;
                 case BasisNetworkCommons.PlayerAvatarVeryLowChannel:

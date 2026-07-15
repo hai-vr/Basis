@@ -473,7 +473,7 @@ namespace Basis.IK.Debugging
 
         static BasisArmSolveResult SolveArm(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 target, Vector3 hint)
         {
-            BasisArmSolveInput input;
+            BasisArmSolveInput input = default;
             input.Shoulder = shoulder;
             input.Elbow = elbow;
             input.Hand = hand;

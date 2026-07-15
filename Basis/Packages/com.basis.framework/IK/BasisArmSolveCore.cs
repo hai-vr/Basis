@@ -105,15 +105,18 @@ namespace UnityEngine.Animations.Rigging
         // =============================================================================================
         public const float MaxElbowAngleDeg = 170f;
 
-        // Hand roll the forearm+wrist render on their own before the humerus is recruited. Anatomical
-        // pronation/supination is ~80 deg each way from the thumbs-up neutral, so palm-flat either way sits
-        // right at the edge and any roll past it belongs to the upper arm.
+        // Hand roll the forearm+wrist render entirely on their own. Anatomical pronation/supination is
+        // ~80 deg each way from the thumbs-up neutral, so palm-flat either way sits right at the edge and
+        // any roll past it belongs to the upper arm.
         public const float WristRollComfortDeg = 80f;
 
-        // Fraction of the IN-BAND roll the humerus carries anyway (a real arm shares from the first degree:
-        // pronating flares the elbow out a little long before the forearm runs dry). Zero on the tracker
-        // path -- a measured elbow already contains the user's real share.
-        public const float WristRollInBandShare = 0.2f;
+        // Where humeral recruitment BEGINS. Zero relief below this; a quadratic ramp from here reaches
+        // slope 1 exactly at the comfort band, so the handover is C1 and the elbow cannot buzz on wrist
+        // jitter. A flat in-band share was tried first and the corpus refuted it: 0.2x of the wrist's roll
+        // fed the elbow high-frequency motion the human never made (09_01 buzzed 1.52%L above 8 Hz, gate
+        // 0.5), and the humans' own elbows demonstrably do not follow in-band roll at a constant gain. They
+        // recruit NEAR THE LIMIT -- which is what this ramp is.
+        public const float WristRollRampStartDeg = 55f;
 
         // Hard bound on the relief swivel, so a pathological target (avatar/controller mismatch) is a bounded
         // wrong answer instead of an unbounded one. The anatomy guard still owns the outcome.
@@ -461,9 +464,16 @@ namespace UnityEngine.Animations.Rigging
             // hand pinned is exactly the swivel DOF: the elbow swings around its circle.
             //
             // The roll is measured against the ANIMATED wrist carried onto the solved forearm
-            // (midRot * animMid^-1 * animTip), so whatever swivel a tracker or the model has already applied
-            // is already relieved before it is measured -- a tracked user whose real humerus did the work
-            // measures no excess, and nothing double-compensates.
+            // (midRot * animMid^-1 * animTip), so whatever swivel the hint has already applied is already
+            // relieved before it is measured.
+            //
+            // ⚠ NOT WHEN THE ELBOW IS TRACKED, and the corpus is why. A tracker is the user's real elbow,
+            // and the real humerus already answered: twist your hand and the tracker MOVES -- the avatar's
+            // compensation arrives through the measurement. Running the relief on top was measured on the
+            // 20-clip corpus in TruthJoint mode: real clips drift their wrist past the band against the
+            // carried neutral routinely, so the relief fired constantly and dragged the elbow 3.6-10.1 cm
+            // (MEAN, per clip) off an elbow it had been HANDED. A measured pole is not to be second-guessed
+            // -- the same law the pole-collapse stabilizer above already obeys.
             //
             // THE SIGN IS AN IDENTITY, NOT A CONVENTION: swivelling the whole arm about shoulder->hand by
             // theta rolls the carried neutral by theta about ~the forearm axis, so the residual twist drops
@@ -475,7 +485,7 @@ namespace UnityEngine.Animations.Rigging
             // =============================================================================================
             float tipRotSqr = i.TipRotation.x * i.TipRotation.x + i.TipRotation.y * i.TipRotation.y
                             + i.TipRotation.z * i.TipRotation.z + i.TipRotation.w * i.TipRotation.w;
-            if (tipRotSqr > 0.5f)
+            if (tipRotSqr > 0.5f && !i.HintIsTracker)
             {
                 Vector3 fore = cPosition - bPosition;
                 Vector3 acRelief = cPosition - aPosition;
@@ -486,9 +496,26 @@ namespace UnityEngine.Animations.Rigging
                     r.WristTwistDeg = twistRad * Mathf.Rad2Deg;
 
                     float rollAbs = Mathf.Abs(twistRad);
+                    float rampStart = WristRollRampStartDeg * Mathf.Deg2Rad;
                     float band = WristRollComfortDeg * Mathf.Deg2Rad;
-                    float share = i.HintIsTracker ? 0f : WristRollInBandShare;
-                    float relief = share * Mathf.Min(rollAbs, band) + Mathf.Max(rollAbs - band, 0f);
+
+                    // Zero below the ramp; quadratic easing that reaches slope 1 exactly at the band; the
+                    // excess past the band 1:1. C1 everywhere, so wrist jitter cannot become elbow buzz.
+                    float relief;
+                    if (rollAbs <= rampStart)
+                    {
+                        relief = 0f;
+                    }
+                    else if (rollAbs <= band)
+                    {
+                        float t = rollAbs - rampStart;
+                        relief = t * t / (2f * (band - rampStart));
+                    }
+                    else
+                    {
+                        relief = 0.5f * (band - rampStart) + (rollAbs - band);
+                    }
+
                     float reliefCap = WristRollMaxReliefDeg * Mathf.Deg2Rad;
                     if (relief > reliefCap) relief = reliefCap;
                     relief *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(

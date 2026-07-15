@@ -403,7 +403,13 @@ namespace Basis.IK.Mocap
             i.Hand = hand;
             i.RootRotation = animRootRot;
             i.MidRotation = animMidRot;
-            i.TipRotation = animTipRot;
+            // The animated wrist feeds the wrist-roll relief, so it goes to the modes that MODEL THE LIVE
+            // RIG: TruthJoint (the tracker path, where the relief stands down in-core -- fed anyway so the
+            // gate sees it if that rule ever changes) and ElbowField (what ships). The legacy baselines
+            // (Lookup, SwivelModel) stay frozen without it: they exist as fixed points of comparison, and a
+            // baseline that accretes new features stops being a baseline.
+            i.TipRotation = hint == BasisMocapHintSource.TruthJoint || hint == BasisMocapHintSource.ElbowField
+                ? animTipRot : default;
             i.TargetPosition = truthHand;
             i.TargetRotation = truthHandRot;
             i.TargetOffset = Quaternion.identity;
