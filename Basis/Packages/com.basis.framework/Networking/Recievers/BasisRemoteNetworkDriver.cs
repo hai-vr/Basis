@@ -164,6 +164,10 @@ public static class BasisRemoteNetworkDriver
     // freeze-when-slow wobble, because "still" is judged from clean sample motion, not render noise.
     public static float BoneFilterMinCutoffHz = 1.5f;
     public static float BoneFilterBeta = 250.0f;
+    // Head sits at the end of the (unanchored) spine chain, so accumulated quant shimmer shows most there.
+    // Lower still-cutoff = a bit more smoothing when the head is steady; adaptive beta still opens it fully
+    // on head turns, so no lag. Only affects the head bone.
+    public static float HeadBoneFilterMinCutoffHz = 0.8f;
 
     static int _initializedCount;
 
@@ -503,6 +507,7 @@ public static class BasisRemoteNetworkDriver
             SkipBones = _skipBones,
             OutputBones = _outBoneRotations,
             FilterMinCutoffHz = BoneFilterMinCutoffHz,
+            HeadFilterMinCutoffHz = HeadBoneFilterMinCutoffHz,
             FilterBeta = BoneFilterBeta,
             BoneCountPerAvatar = BoneCount
         }.Schedule(num * BoneCount, 128, avatarJob);
@@ -1080,12 +1085,17 @@ public static class BasisRemoteNetworkDriver
         // state) and receives this frame's filtered result. Each index touches only its own slot.
         public NativeArray<quaternion> OutputBones;
         public float FilterMinCutoffHz;
+        public float HeadFilterMinCutoffHz;
         public float FilterBeta;
         public int BoneCountPerAvatar;
+
+        // BONE_WRITE_ORDER slot 4 = Head — gets the heavier still-cutoff (end-of-chain shimmer, no anchor).
+        const int HeadSlot = 4;
 
         public void Execute(int index)
         {
             int playerIndex = index / BoneCountPerAvatar;
+            int boneSlot = index - playerIndex * BoneCountPerAvatar;
             quaternion prevFilt = OutputBones[index];
             bool unseeded = math.lengthsq(prevFilt.value) < 0.5f;   // zero sentinel = first tick
 
@@ -1101,8 +1111,9 @@ public static class BasisRemoteNetworkDriver
 
             // Motion-adaptive one-pole toward the cubic output — heavy when the joint is still
             // (hides quant shimmer), opens on real motion (no lag). Seeds on the first tick.
-            if (unseeded || FilterMinCutoffHz <= 0f) { OutputBones[index] = raw; return; }
-            float cutoff = BasisRemoteInterpolationCore.AdaptiveCutoff(PreviousBones[index], TargetBones[index], FilterMinCutoffHz, FilterBeta);
+            float minCutoff = (boneSlot == HeadSlot) ? HeadFilterMinCutoffHz : FilterMinCutoffHz;
+            if (unseeded || minCutoff <= 0f) { OutputBones[index] = raw; return; }
+            float cutoff = BasisRemoteInterpolationCore.AdaptiveCutoff(PreviousBones[index], TargetBones[index], minCutoff, FilterBeta);
             float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(cutoff, (float)math.max(DeltaTimeSeconds[playerIndex], 1e-4));
             OutputBones[index] = BasisRemoteInterpolationCore.LowPassStep(prevFilt, raw, alpha);
         }
