@@ -44,7 +44,10 @@ from the front page, plus a recent VOD from the same channel.
 | YouTube live | Single HLS playlist, plays as live |
 | Twitch live | HLS live; join near the live edge |
 | Twitch VOD | HLS VOD |
-| Format cap | Chosen video is `avc1` ≤1080p with `mp4a` audio — never VP9/AV1, even on 4K uploads |
+| Format selection, VP9-capable platform | A 4K upload resolves to the **VP9 video-only rung up to 2160p** (WebM carriage) + `mp4a` audio as a split stream; a 1080p-max upload still resolves to `avc1` (avc1 wins at equal height, so ≤1080p selection is unchanged) |
+| Format selection, no VP9 decode | On a machine where the probe fails (no Store VP9 extension, or no hardware VP9 on the GPU), selection stays `avc1` ≤1080p — the VP9 rung must never be offered somewhere it can't play |
+| HDR upload | Resolves to the parallel **SDR** VP9 ladder (or avc1), never an HDR/profile-2 rung |
+| AV1 | AV1-only rungs are never chosen |
 | Metadata | Title / uploader / thumbnail appear on the player after resolve |
 | First-ever resolution | One-off multi-second pause while the bundled Python runtime unpacks — expected, not a hang; later loads skip it |
 | Every resolution | A few seconds of in-process resolving is normal; the player shows nothing during the gap by design |

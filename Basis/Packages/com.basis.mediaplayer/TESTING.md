@@ -136,6 +136,11 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | --- | --- |
 | H.264 + AAC stereo | The baseline — everything else assumes this passes |
 | H.265/HEVC | Windows needs the system HEVC codec present; absence degrades cleanly |
+| VP9 in WebM (`https://mr.town/vod/tos_vp9.webm`) | Plays on Windows (Store "VP9 Video Extensions" + a GPU with hardware VP9 — the probe gates both) and Quest (hardware everywhere). The fixture is a two-pass encode carrying superframes, so whole-superframe feeding is exercised by playing it |
+| VP9 in MP4 (`https://mr.town/vod/tos_vp9.mp4`) | The `vp09` sample-entry lane; same decode path as WebM |
+| WebM Cues placements | `tos_vp9.webm` (Cues at front — parsed inline) and `tos_vp9_cuesend.webm` (Cues trailing — ranged-fetched at open via SeekHead) both report a duration and seek; `tos_vp9_nocues.webm` (streamed mux, no Cues) plays forward-only with **no seek bar / duration 0** — a duration on that file is a bug (duration > 0 must always mean seek works) |
+| Unsupported video codec | `https://mr.town/vod/tos_vp8.webm` and `https://mr.town/vod/tos_mp4v.mp4` refuse with a clear "video codec 'x' is not supported" error naming the codec — never silent audio under a black screen |
+| VP9 software-fallback guard | On a GPU without hardware VP9, a direct VP9 URL must produce the "video decoder produced software frames" error, not a black screen (the Store MFT silently falls back to CPU; only reproducible on a no-hw box or with the extension's fallback forced) |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
 | AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
@@ -187,6 +192,12 @@ can't resynchronise the box parser. Check the Editor (Windows) and Quest.
 > disable). Catch-up needs a seekable source — TS-segment HLS VOD, progressive/trailing-moov
 > MP4, and integrated fMP4 qualify; a live source can't seek, so those clients converge
 > independently to the live edge rather than using playhead-seek correction.
+
+**Seek (WebM Cues)** — on `https://mr.town/vod/tos_vp9.webm` and the trailing-Cues variant,
+seek both directions: playback lands at or just before the target (cue/cluster granularity, on
+a keyframe) and resumes paced at 1x — the same stall-forward / flood-backward failure shapes as
+the HLS row apply. Seek near the very end of the file as well (EOS race). The cueless variant
+must show no seek bar at all. Check the Editor (Windows) and Quest.
 
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each

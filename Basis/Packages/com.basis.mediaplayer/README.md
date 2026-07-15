@@ -2,10 +2,12 @@
 
 Live and on-demand video — and audio-only media — for Basis, decoded with the
 **operating-system hardware codecs** and presented **zero-copy** into a Unity texture. No transcode server, no
-VP9, no `UnityEngine.Video.MediaPlayer`.
+bundled codec libraries, no `UnityEngine.Video.MediaPlayer`.
 
-- **Windows (PC / VR)** — Media Foundation H.264/H.265 + AAC on a DXVA D3D11
+- **Windows (PC / VR)** — Media Foundation H.264/H.265/VP9 + AAC on a DXVA D3D11
   device; NV12 → BGRA via the D3D11 video processor into a texture Unity samples.
+  (VP9 needs the Store "VP9 Video Extensions" and a GPU with hardware VP9 —
+  `basis_media_probe_video_codec` answers for both.)
   Works on **D3D11** (primary) and **D3D12** (shared-handle interop).
 - **Android (Quest)** — `AMediaCodec`/`AMediaExtractor`; decoded frames arrive as
   `AHardwareBuffer`s imported into **Vulkan** as a `VkImage` Unity samples.
@@ -22,9 +24,14 @@ VP9, no `UnityEngine.Video.MediaPlayer`.
 | `https://…​.ts`  | MPEG-TS over HTTPS (Quest) | `https://stream.vrcdn.live/live/vrcdn.live.ts` |
 | `https://…​.m3u8` | HLS / Low-Latency HLS | `https://stream.example/live/index.m3u8` |
 | `https://….wav` | WAV audio (integer PCM, mono up to 7.1) | `https://stream.example/audio/track.wav` |
+| `https://….webm` | WebM VP9 video-only VOD (YouTube's >1080p carriage; Cues-indexed files seek) | `https://stream.example/vod/clip.webm` |
 
-The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4, RIFF/WAV) is portable C;
-the OS backends only decode + present.
+The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4, WebM, RIFF/WAV) is portable C,
+picking demuxers by content sniff so extensionless CDN URLs (googlevideo and friends)
+route correctly. On Android, eligible http(s) URLs are first offered to the OS extractor
+(`AMediaExtractor`, which demuxes as well as decodes); anything it declines falls back to
+the portable demux path. Windows always demuxes portably and only decodes + presents
+natively.
 
 ### HLS / Low-Latency HLS
 
@@ -337,4 +344,13 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
 - **RTMP** — handshake/AMF is minimal (simple handshake, no Digest auth, no rtmps).
   RTSPT and MPEG-TS are the primary, more-complete paths.
 - **HEVC on Windows** needs the system HEVC decoder MFT (HEVC Video Extensions).
+- **VP9 on Windows** needs the Store "VP9 Video Extensions" **and** a GPU with
+  hardware VP9 (2016-era or newer). Without hardware decode the source errors
+  clearly rather than falling back to CPU decode. 8-bit SDR only — a 10-bit
+  (profile 2) file surfaces a decoder error, not tone-mapped HDR.
+- **WebM** — video-only VP9 (the YouTube >1080p shape); WebM audio tracks are
+  skipped and a WebM with no supported video track refuses cleanly. Seek needs a
+  Cues index and a range-capable host; cueless/streamed WebM plays forward-only
+  with no reported duration.
+- **AV1** — not decoded; AV1 rungs are never selected by the resolver.
 - **WAV** — 16/24-bit integer PCM only (no float or 20-bit), 1–8 channels, 8–96 kHz.
