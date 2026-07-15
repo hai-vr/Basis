@@ -107,6 +107,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Quality is derived from the channel number — not stored in the payload.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
+        // Whether each quality's serialized keyframe carries an additional-data section — the
+        // send loop must pick the matching (odd/even) channel per quality, since low tiers can
+        // have their additional data stripped while High/Medium keep it.
+        public bool[] SerializedHasAdditional = new bool[4];
 
         // ── Delta compression (per sender) ──
         // Snapshot of each quality's payload bytes at the last keyframe — the baseline deltas diff against.
@@ -120,6 +124,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public byte KeyframeSequence;
         // Stopwatch ticks of the last keyframe, for the periodic-keyframe cadence.
         public long LastKeyframeTimeTicks;
+        // Adaptive keyframe stretch: a streak of small High deltas (idle-ish sender) doubles the
+        // periodic keyframe interval step by step, up to AvatarDeltaKeyframeMaxIntervalMs. Any
+        // large delta or keyframe promotion resets it. Lost keyframes are recovered on demand via
+        // DeltaControlKeyframeRequest instead of waiting out the stretched cadence.
+        public int KeyframeStretchShift;
+        public int SmallDeltaStreak;
         // True when the current generation was emitted as a keyframe (so the send loop never picks a delta).
         public bool CurrentIsKeyframe;
         // Scratch for the "is the High delta smaller than a High keyframe?" promotion probe.
@@ -185,8 +195,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // flushes either as one deflated bundle on CompressedAvatarBundleChannel or as
         // individual SendUnreliableRawMerge calls on the original quality channels.
         public static bool EnableAvatarBundleCompression = true;
-        public static int AvatarBundleMinMessages = 4;
-        public static int AvatarBundleMinBytes = 300;
+        public static int AvatarBundleMinMessages = 2;
+        public static int AvatarBundleMinBytes = 128;
 
         // Avatar delta compression (written from NetworkServer.InitializePulseSettings).
         // When on, each sender emits a full keyframe every AvatarDeltaKeyframeIntervalMs and, in
@@ -194,6 +204,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // frame is a keyframe (legacy behavior).
         public static bool EnableAvatarDeltaCompression = true;
         public static int AvatarDeltaKeyframeIntervalMs = 500;
+        // Ceiling for the adaptive keyframe stretch (0 or <= base disables stretching). While a
+        // sender's High deltas stay tiny the periodic keyframe interval doubles up to this cap;
+        // receivers that miss a keyframe request one instead of waiting the stretched period out.
+        public static int AvatarDeltaKeyframeMaxIntervalMs = 2000;
+        // Drop AdditionalAvatarData (face blendshapes, custom behaviour params) from Low and
+        // VeryLow tiers — invisible past the Medium distance; the reliable AvatarChannel path
+        // still reaches everyone.
+        public static bool StripAdditionalDataAtLowQuality = true;
+        // A High delta body at or under this size counts as "small" for the stretch streak
+        // (8B mask + position + a couple of quantized bones).
+        private const int SmallHighDeltaBytes = 40;
+        private const int SmallDeltaStreakToStretch = 4;
+        // (senderId, receiverId) pairs whose baseline must be invalidated so the next send to that
+        // receiver is a keyframe. Filled by the network thread (DeltaControlKeyframeRequest),
+        // drained by the tick thread to keep PeerTracking single-writer.
+        private static readonly ConcurrentQueue<(int senderId, int receiverId)> _pendingKeyframeRequests = new();
         // Conservative headroom subtracted from peer.Mtu before checking if a compressed
         // bundle fits in a single UDP datagram. Accounts for LiteNetLib unreliable header,
         // optional packet-layer header, and merge length prefixes.
@@ -327,6 +353,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
+            // Every full High frame doubles as the sender's uplink delta baseline (v42).
+            if (quality == 3)
+            {
+                UplinkCaptureBaseline(fromPeer.Id, message.AvatarMessage.array, sequence);
+            }
+
             // Overwrite any pending message for this peer.
             // Uses indexer instead of AddOrUpdate to avoid closure allocation on every call.
             // Do NOT return prev to the pool — the drain phase may have captured it.
@@ -336,6 +368,140 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             // Wake the loop only while it is parked (empty server). Once a player is
             // registered the loop is running, so this read short-circuits with no syscall.
+            if (Volatile.Read(ref _activePlayerCount) == 0) _tickWake.Set();
+        }
+
+        // ── Uplink avatar deltas (v42) ──
+        // Per-sender baseline of the last full keyframe the client uploaded on the High channels.
+        // Owned by the network receive thread (capture + delta apply both run there); removed on
+        // the tick thread via ProcessPendingRemovals (ConcurrentDictionary makes that safe).
+        private sealed class UplinkDeltaState
+        {
+            public byte[] Baseline;
+            public byte BaselineSeq;
+            public bool Has;
+            public long LastNackTicks;
+        }
+        private static readonly ConcurrentDictionary<int, UplinkDeltaState> _uplinkStates = new();
+        private static readonly long NackMinIntervalTicks = Stopwatch.Frequency; // 1/s per sender
+
+        /// <summary>
+        /// Snapshot a freshly-arrived full High keyframe as the sender's uplink delta baseline.
+        /// Every ch12/13 arrival is a full payload, so P2P-era full-rate senders and the load
+        /// tester feed this for free; delta-era clients send one every ~500 ms.
+        /// </summary>
+        private static void UplinkCaptureBaseline(int peerId, byte[] payload, byte sequence)
+        {
+            int size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
+            if (payload == null || payload.Length < size) return;
+            UplinkDeltaState st = _uplinkStates.GetOrAdd(peerId, static _ => new UplinkDeltaState());
+            if (st.Baseline == null || st.Baseline.Length < size) st.Baseline = new byte[size];
+            Buffer.BlockCopy(payload, 0, st.Baseline, 0, size);
+            st.BaselineSeq = sequence;
+            st.Has = true;
+        }
+
+        private static void NackUplink(NetPeer peer, UplinkDeltaState st)
+        {
+            long now = Stopwatch.GetTimestamp();
+            if (st != null)
+            {
+                if (now - st.LastNackTicks < NackMinIntervalTicks) return;
+                st.LastNackTicks = now;
+            }
+            NetDataWriter writer = NetworkServer.RentWriter();
+            try
+            {
+                writer.Put(BasisNetworkCommons.DeltaControlUplinkKeyframeRequest);
+                NetworkServer.TrySend(peer, writer, BasisNetworkCommons.DeltaAvatarChannel, DeliveryMethod.ReliableOrdered);
+            }
+            finally
+            {
+                NetworkServer.ReturnWriter(writer);
+            }
+        }
+
+        /// <summary>
+        /// Inbound DeltaAvatarChannel demux (v42). Header bit 7 = control frame: KeyframeRequest
+        /// asks the server to re-key one sender for the requesting receiver. Otherwise it is an
+        /// uplink avatar delta [hdr][seq][baseSeq][body][additional?] — reconstructed against the
+        /// sender's last uploaded keyframe and fed through the normal avatar ingest path.
+        /// </summary>
+        public static void HandleDeltaChannelInbound(NetPacketReader reader, NetPeer fromPeer)
+        {
+            if (!reader.TryGetByte(out byte header))
+            {
+                reader.Recycle();
+                return;
+            }
+
+            if (BasisNetworkCommons.IsDeltaControlHeader(header))
+            {
+                if (header == BasisNetworkCommons.DeltaControlKeyframeRequest && reader.TryGetUShort(out ushort senderId))
+                {
+                    RequestKeyframe(senderId, fromPeer.Id);
+                }
+                reader.Recycle();
+                return;
+            }
+
+            if (BasisNetworkCommons.DeltaHeaderQuality(header) != 3)
+            {
+                // Clients only ever upload High.
+                reader.Recycle();
+                return;
+            }
+            bool hasAdditional = BasisNetworkCommons.DeltaHeaderHasAdditionalData(header);
+            if (!reader.TryGetByte(out byte sequence) || !reader.TryGetByte(out byte baseSeq))
+            {
+                reader.Recycle();
+                return;
+            }
+
+            _uplinkStates.TryGetValue(fromPeer.Id, out UplinkDeltaState st);
+            if (st == null || !st.Has || st.BaselineSeq != baseSeq)
+            {
+                // Missing/stale baseline (lost keyframe or reorder) — ask for a fresh keyframe.
+                NackUplink(fromPeer, st);
+                reader.Recycle();
+                return;
+            }
+
+            int bodyLen = BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, BitQuality.High);
+            if (bodyLen < 0 || bodyLen > reader.AvailableBytes)
+            {
+                reader.Recycle();
+                return;
+            }
+
+            int payloadSize = BasisAvatarDeltaCompression.PayloadSize(BitQuality.High);
+            var message = QueuedMessagePool.Rent();
+            message.FromPeer = fromPeer;
+            message.Sequence = sequence;
+            if (message.AvatarMessage.array == null || message.AvatarMessage.array.Length != payloadSize)
+            {
+                message.AvatarMessage.array = new byte[payloadSize];
+            }
+
+            if (!BasisAvatarDeltaCompression.TryApplyDelta(st.Baseline, reader.RawData, reader.Position, bodyLen, BitQuality.High, message.AvatarMessage.array))
+            {
+                QueuedMessagePool.Return(message);
+                reader.Recycle();
+                return;
+            }
+            reader.SkipBytes(bodyLen);
+
+            message.AvatarMessage.DataQualityLevel = 3;
+            message.AvatarMessage.AdditionalAvatarDataSize = 0;
+            message.AvatarMessage.AdditionalAvatarDatas = null;
+            if (hasAdditional)
+            {
+                message.AvatarMessage.DeserializeAdditionalData(reader);
+            }
+            reader.Recycle();
+
+            // Same ingest as HandleAvatarMovement — ProcessMessage deep-copies and repacks.
+            currentMessages[fromPeer.Id] = message;
             if (Volatile.Read(ref _activePlayerCount) == 0) _tickWake.Set();
         }
 
@@ -429,6 +595,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (profiling) { BSRProfiler.processTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
             ProcessPendingRemovals();
+            ProcessPendingKeyframeRequests();
 
             // Phase 2.5: Distance cache update (runs at ~2Hz instead of every tick)
             _distanceTickCounter++;
@@ -482,6 +649,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             while (playersToRemove.TryDequeue(out int id))
             {
+                _uplinkStates.TryRemove(id, out _);
                 if (playerStates.TryRemove(id, out var removedState))
                 {
                     removedState.IsActive = false;
@@ -789,8 +957,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                             continue;
                         }
                         avatarChannel = stateJ.SmallId
-                            ? BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData)
-                            : BasisNetworkCommons.GetPlayerAvatarLargeChannelForQuality(qi, stateJ.HasAdditionalData);
+                            ? BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.SerializedHasAdditional[qi])
+                            : BasisNetworkCommons.GetPlayerAvatarLargeChannelForQuality(qi, stateJ.SerializedHasAdditional[qi]);
                         // keyframe frame layout: [playerId:1|2][interval:1]...
                         intervalOffset = (byte)(stateJ.SmallId ? 1 : 2);
                         // Receiver now holds this keyframe generation + quality; subsequent deltas apply.
@@ -1158,10 +1326,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static void CalculateIntervalFromDistanceSq(float distanceSq, out byte offsetByte, out int actualInterval)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
-            int encodedInterval = rawInterval - BSRSMillisecondDefaultInterval;
 
-            offsetByte = (byte)Math.Clamp(encodedInterval, 0, byte.MaxValue);
-            actualInterval = offsetByte + BSRSMillisecondDefaultInterval;
+            offsetByte = BasisNetworkCommons.EncodeAvatarIntervalByte(rawInterval, BSRSMillisecondDefaultInterval);
+            actualInterval = BasisNetworkCommons.DecodeAvatarIntervalMs(offsetByte, BSRSMillisecondDefaultInterval);
         }
 
         public static void Shutdown()
@@ -1188,9 +1355,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Propagates AdditionalAvatarData from the high quality message to lower quality variants.
         /// BuildAllLowerFromHighInto only handles the muscle/position/rotation payload;
         /// additional data (blendshapes, custom avatar behaviours) must be propagated separately.
-        /// VeryLow quality strips additional data entirely  face/detail data is invisible at 20m+.
+        /// When StripAdditionalDataAtLowQuality is on, Low and VeryLow drop it entirely —
+        /// face/detail data is invisible past the Medium distance, and the reliable AvatarChannel
+        /// path still carries low-frequency behaviour state to everyone.
         /// </summary>
-        private static void PropagateAdditionalData(
+        internal static void PropagateAdditionalData(
             in LocalAvatarSyncMessage high,
             ref LocalAvatarSyncMessage medium,
             ref LocalAvatarSyncMessage low,
@@ -1200,17 +1369,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             medium.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
             medium.LinkedAvatarIndex = high.LinkedAvatarIndex;
 
-            low.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
-            low.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            bool strip = StripAdditionalDataAtLowQuality;
+            low.AdditionalAvatarDatas = strip ? null : high.AdditionalAvatarDatas;
+            low.AdditionalAvatarDataSize = strip ? (byte)0 : high.AdditionalAvatarDataSize;
             low.LinkedAvatarIndex = high.LinkedAvatarIndex;
 
-            veryLow.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
-            veryLow.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            veryLow.AdditionalAvatarDatas = strip ? null : high.AdditionalAvatarDatas;
+            veryLow.AdditionalAvatarDataSize = strip ? (byte)0 : high.AdditionalAvatarDataSize;
             veryLow.LinkedAvatarIndex = high.LinkedAvatarIndex;
         }
         /// <summary>
-        /// Copies position bytes from the high-quality source to all lower quality arrays.
-        /// Position encoding is identical across all quality levels.
+        /// Carries the position from the high-quality source into all lower quality arrays.
+        /// High stores float32 (12B); lower tiers store int24 millimetres (9B), so the first
+        /// non-null lower array transcodes and the rest copy its 9 bytes.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyPositionToLowerQualities(
@@ -1219,12 +1390,23 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             ref LocalAvatarSyncMessage low,
             ref LocalAvatarSyncMessage veryLow)
         {
+            int lowerPos = BasisAvatarBitPacking.WritePositionQuantized;
+            byte[] first = null;
             if (medium.array != null)
-                Buffer.BlockCopy(highArray, 0, medium.array, 0, WritePosition);
+            {
+                BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, medium.array);
+                first = medium.array;
+            }
             if (low.array != null)
-                Buffer.BlockCopy(highArray, 0, low.array, 0, WritePosition);
+            {
+                if (first != null) Buffer.BlockCopy(first, 0, low.array, 0, lowerPos);
+                else { BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, low.array); first = low.array; }
+            }
             if (veryLow.array != null)
-                Buffer.BlockCopy(highArray, 0, veryLow.array, 0, WritePosition);
+            {
+                if (first != null) Buffer.BlockCopy(first, 0, veryLow.array, 0, lowerPos);
+                else BasisAvatarBitPacking.TranscodePositionToQuantized(highArray, veryLow.array);
+            }
         }
 
         private static void ProcessMessage(QueuedMessage message)
@@ -1435,8 +1617,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                     else
                     {
-                        // Position-only fast path: copy position bytes to all lower qualities.
-                        // Position is identical across all quality levels (no bit-width difference).
+                        // Position-only fast path: carry position to all lower qualities without
+                        // re-packing bones (float32 in High, int24-mm in the lower tiers).
                         CopyPositionToLowerQualities(high.array, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
                     }
                 }
@@ -1555,6 +1737,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 && msg.AdditionalAvatarDatas != null
                 && msg.AdditionalAvatarDatas.Length > 0
                 && msg.AdditionalAvatarDatas.Length <= 255;
+            state.SerializedHasAdditional[qi] = hasAdditional;
 
             int additionalSize = 0;
             if (hasAdditional)
@@ -1640,7 +1823,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             long now = Stopwatch.GetTimestamp();
-            long keyframeIntervalTicks = (long)(AvatarDeltaKeyframeIntervalMs * MsToTick);
+            long keyframeIntervalTicks = (long)(EffectiveKeyframeIntervalMs(state.KeyframeStretchShift) * MsToTick);
 
             bool isKeyframe = forceKeyframe
                 || state.BypassReduction
@@ -1664,7 +1847,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     if (state.DeltaProbeScratch == null || state.DeltaProbeScratch.Length < probeCap)
                         state.DeltaProbeScratch = new byte[probeCap];
                     int dl = BasisAvatarDeltaCompression.BuildDelta(state.KeyframePayload[3], highMsg.array, BitQuality.High, state.DeltaProbeScratch, 0);
-                    if (dl < 0 || dl >= highPayload) isKeyframe = true;
+                    if (dl < 0 || dl >= highPayload)
+                    {
+                        isKeyframe = true;
+                        state.KeyframeStretchShift = 0;
+                        state.SmallDeltaStreak = 0;
+                    }
+                    else
+                    {
+                        UpdateKeyframeStretch(state, dl);
+                    }
                 }
             }
 
@@ -1721,6 +1913,62 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     if ((mask & (1 << qi)) == 0) { state.SerializedDeltaLength[qi] = 0; continue; }
                     PreSerializeDelta(state, qi, QualityMsg(state, qi), playerId);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Effective periodic keyframe interval for a given stretch shift: base doubled per step,
+        /// clamped to AvatarDeltaKeyframeMaxIntervalMs. A max at or below the base disables stretching.
+        /// </summary>
+        internal static int EffectiveKeyframeIntervalMs(int stretchShift)
+        {
+            int baseMs = AvatarDeltaKeyframeIntervalMs;
+            int maxMs = AvatarDeltaKeyframeMaxIntervalMs;
+            if (maxMs <= baseMs || stretchShift <= 0) return baseMs;
+            long stretched = (long)baseMs << (stretchShift > 8 ? 8 : stretchShift);
+            return stretched >= maxMs ? maxMs : (int)stretched;
+        }
+
+        internal static void UpdateKeyframeStretch(PlayerState state, int highDeltaLength)
+        {
+            if (highDeltaLength > SmallHighDeltaBytes)
+            {
+                state.KeyframeStretchShift = 0;
+                state.SmallDeltaStreak = 0;
+                return;
+            }
+            if (EffectiveKeyframeIntervalMs(state.KeyframeStretchShift + 1) == EffectiveKeyframeIntervalMs(state.KeyframeStretchShift)) return;
+            if (++state.SmallDeltaStreak >= SmallDeltaStreakToStretch)
+            {
+                state.SmallDeltaStreak = 0;
+                state.KeyframeStretchShift++;
+            }
+        }
+
+        /// <summary>
+        /// Queues a receiver's request for a fresh keyframe from a sender (DeltaControlKeyframeRequest).
+        /// The tick thread invalidates the pair's baseline so its next send is a keyframe.
+        /// </summary>
+        public static void RequestKeyframe(int senderId, int receiverId)
+        {
+            _pendingKeyframeRequests.Enqueue((senderId, receiverId));
+            _tickWake.Set();
+        }
+
+        private static void ProcessPendingKeyframeRequests()
+        {
+            while (_pendingKeyframeRequests.TryDequeue(out var pair))
+            {
+                // PeerTracking lives on the RECEIVER, indexed by sender id.
+                if (!playerStates.TryGetValue(pair.receiverId, out PlayerState receiver)) continue;
+                var tracking = receiver.PeerTracking;
+                if (tracking == null || pair.senderId < 0 || pair.senderId >= tracking.Length) continue;
+                ref PeerTrackingData t = ref tracking[pair.senderId];
+                t.BaselineKeyframeGen = -1;
+                // Reopen the new-data and interval gates: a fully idle sender publishes no new
+                // generation, so without this the requested keyframe would wait for motion.
+                t.LastSeenGeneration = 0;
+                t.LastSentTime = 0;
             }
         }
 

@@ -383,7 +383,7 @@ namespace BasisServerHandle
                     IncreaseRate = Config.BSRSIncreaseRate,
                     SlowestSendRate = Config.BSRSlowestSendRate,
                     PeerLimit = Config.PeerLimit,
-
+                    UplinkDeltaEnabled = Config.EnableUplinkAvatarDelta,
                 };
                 ServerMetaDataMessage.SetPermissions(PermissionIntegration.Manager.GetAllAllowedRules(UUID), PermissionIntegration.Manager.GetAllDeniedRules(UUID));
                 NetDataWriter Writer = NetworkServer.RentWriter();

@@ -54,7 +54,7 @@ public class AvatarDeltaSavingsTests
         byte[] cur = (byte[])kf.Clone();
         cur[0] ^= 0xFF;
         int body = BodyFor(kf, cur, q);
-        Assert.Equal(8 + 12, body);
+        Assert.Equal(8 + S.PosBytes(q), body);
         Assert.True(Savings(q, body) >= 0.78, $"position-only savings {Savings(q, body):P1} < 78% at {q}");
     }
 

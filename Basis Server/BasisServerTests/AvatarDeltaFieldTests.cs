@@ -33,7 +33,7 @@ public class AvatarDeltaFieldTests
     [InlineData(BitQuality.Low)]
     [InlineData(BitQuality.Medium)]
     [InlineData(BitQuality.High)]
-    public void PositionOnly(BitQuality q) => AssertByteFieldOnly(q, 0, BasisBoneRotationCompression.WritePosition);
+    public void PositionOnly(BitQuality q) => AssertByteFieldOnly(q, 0, BasisAvatarBitPacking.PositionBytes(q));
 
     [Theory]
     [InlineData(BitQuality.VeryLow)]
@@ -127,7 +127,7 @@ public class AvatarDeltaFieldTests
         cur[S.HipsRotOffset(q)] ^= 0xFF;      // hips rot
         if (S.EndEffectorBytes(q) > 0) cur[S.EndEffectorOffset(q)] ^= 0xFF;   // effector block (High only)
         var (len, recon) = S.BuildApply(kf, cur, q);
-        Assert.Equal(Mask + 12 + 2 + 7 + 6 + 7 + S.EndEffectorBytes(q), len);
+        Assert.Equal(Mask + S.PosBytes(q) + 2 + 7 + 6 + 7 + S.EndEffectorBytes(q), len);
         Assert.Equal(cur, recon);
     }
 

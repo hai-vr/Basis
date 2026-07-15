@@ -30,8 +30,8 @@ public static class BasisNetworkHandleAvatar
         {
             player.AccountReceivedBytes(wireBytes);
             // Capture this full keyframe as the delta baseline (used to reconstruct later deltas on
-            // DeltaAvatarChannel). Cheap copy; harmless when the server isn't sending deltas, and it
-            // also captures P2P full frames — which is fine since those senders never send deltas.
+            // DeltaAvatarChannel). Cheap copy; P2P full frames land here too, which is exactly what
+            // v42 P2P delta senders rebaseline against.
             byte[] arr = ssm.avatarSerialization.array;
             if (arr != null)
             {

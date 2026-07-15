@@ -85,6 +85,8 @@ namespace Basis.Scripts.Networking.Sync
         private float _rotDotThreshold = 0.99999f;
         private int _idleKeyframeBackoff;
         private const int MaxKeyframeBackoffShift = 4;
+        private int _idleKeyframesAtCap;
+        private const int MaxIdleKeyframesAtCap = 2;
         private bool _lastSendWasIdle;
         private ushort _lastKnownOwnerId;
         private bool _haveKnownOwner;
@@ -569,9 +571,6 @@ namespace Basis.Scripts.Networking.Sync
             bool intervalElapsed = _lastSendTime <= 0 || (time - _lastSendTime) >= effectiveInterval;
             if (!intervalElapsed) return;
 
-            double effectiveKeyframe = KeyframeBackoffInterval(keyframeInterval, _idleKeyframeBackoff, MaxKeyframeBackoffShift);
-            bool keyframe = _forceKeyframe || _lastSendTime <= 0 || (time - _lastKeyframeTime) >= effectiveKeyframe;
-
             int dirtyBytes = _schema.DirtyMaskBytes;
             for (int i = 0; i < dirtyBytes; i++) _dirtyMask[i] = 0;
 
@@ -586,9 +585,14 @@ namespace Basis.Scripts.Networking.Sync
                 if (_schema.GetField(fi).Pool == BasisSyncPool.Discrete) discreteChange = true;
             }
 
+            double effectiveKeyframe = KeyframeBackoffInterval(keyframeInterval, _idleKeyframeBackoff, MaxKeyframeBackoffShift);
+            bool periodicDue = (time - _lastKeyframeTime) >= effectiveKeyframe
+                && (anyChange || !IdleKeyframesExhausted(_idleKeyframeBackoff, MaxKeyframeBackoffShift, _idleKeyframesAtCap, MaxIdleKeyframesAtCap));
+            bool keyframe = _forceKeyframe || _lastSendTime <= 0 || periodicDue;
+
             if (discreteChange) keyframe = true;
             if (!keyframe && !anyChange) return;
-            if (anyChange) _idleKeyframeBackoff = 0;
+            if (anyChange) { _idleKeyframeBackoff = 0; _idleKeyframesAtCap = 0; }
 
             double elapsed = _lastSendTime > 0 ? StampInterval(time - _lastSendTime, effectiveInterval, _lastSendWasIdle) : baseInterval;
             ushort intervalMs = (ushort)math.clamp((int)math.round(elapsed * 1000.0), 1, 65535);
@@ -613,9 +617,22 @@ namespace Basis.Scripts.Networking.Sync
             {
                 _lastKeyframeTime = time;
                 _forceKeyframe = false;
-                if (!anyChange && _idleKeyframeBackoff < MaxKeyframeBackoffShift) _idleKeyframeBackoff++;
+                if (!anyChange)
+                {
+                    if (_idleKeyframeBackoff < MaxKeyframeBackoffShift) _idleKeyframeBackoff++;
+                    else if (_idleKeyframesAtCap < MaxIdleKeyframesAtCap) _idleKeyframesAtCap++;
+                }
             }
         }
+
+        /// <summary>
+        /// True once an idle owner has delivered the whole backoff ladder plus <paramref name="maxAtCap"/>
+        /// keyframes at the capped interval. Keyframes are reliable, so remotes hold the converged state
+        /// without further re-sends; late joiners are covered by OnPlayerJoined (forced keyframe/snapshot)
+        /// and any change resets both counters.
+        /// </summary>
+        public static bool IdleKeyframesExhausted(int idleCount, int maxShift, int atCapCount, int maxAtCap)
+            => idleCount >= maxShift && atCapCount >= maxAtCap;
 
         /// <summary>
         /// Keyframe interval stretched by an idle backoff: after <paramref name="idleCount"/> consecutive keyframes
@@ -676,6 +693,7 @@ namespace Basis.Scripts.Networking.Sync
                 // interpolate across it.
                 _lastSendTime = 0;
                 _idleKeyframeBackoff = 0;
+                _idleKeyframesAtCap = 0;
                 _lastSendWasIdle = false;
             }
             else

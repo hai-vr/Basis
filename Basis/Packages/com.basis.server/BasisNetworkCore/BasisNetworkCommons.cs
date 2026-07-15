@@ -22,6 +22,33 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte TotalChannels = 64;
 
+        // ── Avatar send-interval byte ────────────────────────────────────────
+        // The per-receiver interval byte in avatar keyframe/delta frames encodes the send
+        // cadence relative to the server's base interval. 0..199 map 1:1 (base+b ms, the
+        // pre-v42 range); 200..255 step 12 ms each (base+200 .. base+860 ms) so very distant
+        // receivers can drop below the old 3.3 Hz floor while staying inside the receiver's
+        // 1 s interpolation-window clamp.
+        public const byte AvatarIntervalExtendedStart = 200;
+        public const int AvatarIntervalExtendedStepMs = 12;
+
+        public static byte EncodeAvatarIntervalByte(int intervalMs, int baseIntervalMs)
+        {
+            int rel = intervalMs - baseIntervalMs;
+            if (rel <= 0) return 0;
+            if (rel < AvatarIntervalExtendedStart) return (byte)rel;
+            int steps = (rel - AvatarIntervalExtendedStart + (AvatarIntervalExtendedStepMs >> 1)) / AvatarIntervalExtendedStepMs;
+            int maxSteps = byte.MaxValue - AvatarIntervalExtendedStart;
+            if (steps > maxSteps) steps = maxSteps;
+            return (byte)(AvatarIntervalExtendedStart + steps);
+        }
+
+        public static int DecodeAvatarIntervalMs(byte encoded, int baseIntervalMs)
+        {
+            if (encoded < AvatarIntervalExtendedStart) return baseIntervalMs + encoded;
+            return baseIntervalMs + AvatarIntervalExtendedStart
+                 + (encoded - AvatarIntervalExtendedStart) * AvatarIntervalExtendedStepMs;
+        }
+
         // ── Connection lifecycle ─────────────────────────────────────────────
         /// <summary>Auth Identity Message</summary>
         public const byte AuthIdentityChannel = 0;
@@ -420,6 +447,18 @@ namespace Basis.Network.Core
         public static bool DeltaHeaderHasAdditionalData(byte header) => (header & 0x4) != 0;
         /// <summary>Large (ushort) player-id flag from a DeltaAvatarChannel header byte.</summary>
         public static bool DeltaHeaderLargeId(byte header) => (header & 0x8) != 0;
+
+        // Control frames on DeltaAvatarChannel (v42): header bit 7 marks a non-delta control
+        // message so keyframe recovery is request-driven instead of purely periodic.
+        //   client→server KeyframeRequest: [hdr=0x80][senderId:ushort]  "my baseline for this
+        //     sender is missing/stale — force my next frame from them to be a keyframe".
+        //   server→client UplinkKeyframeRequest: [hdr=0xC0]  "your uplink baseline is missing —
+        //     make your next avatar send a full keyframe".
+        public const byte DeltaHeaderControlBit = 0x80;
+        public const byte DeltaControlKeyframeRequest = 0x80;
+        public const byte DeltaControlUplinkKeyframeRequest = 0xC0;
+        /// <summary>True when a DeltaAvatarChannel first byte is a control frame, not a delta.</summary>
+        public static bool IsDeltaControlHeader(byte header) => (header & DeltaHeaderControlBit) != 0;
 
         /// <summary>
         /// All 16 per-quality avatar channels (byte-ID + ushort-ID) for aggregate congestion checks.

@@ -194,6 +194,17 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
+        public void IdleKeyframes_StopOnlyAfterBackoffLadderPlusCapRepeats()
+        {
+            Assert.IsFalse(BasisSyncedObject.IdleKeyframesExhausted(0, 4, 0, 2), "fresh idle still sends");
+            Assert.IsFalse(BasisSyncedObject.IdleKeyframesExhausted(3, 4, 0, 2), "mid-ladder still sends");
+            Assert.IsFalse(BasisSyncedObject.IdleKeyframesExhausted(4, 4, 0, 2), "first keyframe at cap still sends");
+            Assert.IsFalse(BasisSyncedObject.IdleKeyframesExhausted(4, 4, 1, 2), "second keyframe at cap still sends");
+            Assert.IsTrue(BasisSyncedObject.IdleKeyframesExhausted(4, 4, 2, 2), "converged: reliable keyframes delivered, stop");
+            Assert.IsFalse(BasisSyncedObject.IdleKeyframesExhausted(0, 4, 2, 2), "any change resets the ladder and resumes");
+        }
+
+        [Test]
         public void StampInterval_PassesElapsedThrough_WhileStreaming()
         {
             Assert.AreEqual(0.05, BasisSyncedObject.StampInterval(0.05, 0.05, false), 1e-9, "normal cadence passes through");

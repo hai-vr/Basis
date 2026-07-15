@@ -57,7 +57,7 @@ public class AvatarDeltaCodecTests
                 float nz = z + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 float nw = w + (float)(rng.NextDouble() * 2 - 1) * nudge;
                 ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(nx, ny, nz, nw, bpc[s], BasisBoneRotationCompression.MAX_COMPONENT[s]);
-                BasisBoneRotationCompression.WriteBits(cur, S.BoneBaseBit + offs[s], packed, 2 + 3 * bpc[s]);
+                BasisBoneRotationCompression.WriteBits(cur, S.BoneBaseBit(q) + offs[s], packed, 2 + 3 * bpc[s]);
             }
             S.AssertRoundTrip(kf, cur, q);
         }
@@ -126,12 +126,42 @@ public class AvatarDeltaCodecTests
     [Fact]
     public void PayloadSizes_MatchExpectedLadder()
     {
-        Assert.Equal(112, S.PayloadSize(BitQuality.VeryLow));
-        Assert.Equal(131, S.PayloadSize(BitQuality.Low));
-        Assert.Equal(156, S.PayloadSize(BitQuality.Medium));
-        Assert.Equal(236, S.PayloadSize(BitQuality.High));   // 12 pos + 163 (12-bit rot) + 22 tail + 39 effector
+        Assert.Equal(109, S.PayloadSize(BitQuality.VeryLow)); // 9 pos (int24 mm) + 78 rot + 22 tail
+        Assert.Equal(128, S.PayloadSize(BitQuality.Low));     // 9 pos + 97 rot + 22 tail
+        Assert.Equal(153, S.PayloadSize(BitQuality.Medium));  // 9 pos + 122 rot + 22 tail
+        Assert.Equal(236, S.PayloadSize(BitQuality.High));    // 12 pos (float32) + 163 (12-bit rot) + 22 tail + 39 effector
         Assert.Equal(8, BasisAvatarDeltaCompression.DirtyMaskBytes);
         Assert.Equal(57, BasisAvatarDeltaCompression.FieldCount);
+    }
+
+    [Fact]
+    public void QuantizedPosition_RoundTripsWithinHalfMillimetre()
+    {
+        var buf = new byte[BasisAvatarBitPacking.WritePositionQuantized];
+        foreach (float v in new[] { 0f, 0.001f, -0.001f, 1.2345f, -987.654f, 8000f, -8000f })
+        {
+            BasisAvatarBitPacking.EncodeAxisMm(v, buf, 0);
+            Assert.Equal(v, BasisAvatarBitPacking.DecodeAxisMm(buf, 0), 0.0006f);
+        }
+
+        // Out-of-range and non-finite inputs clamp instead of wrapping.
+        BasisAvatarBitPacking.EncodeAxisMm(99999f, buf, 0);
+        Assert.Equal(8388.607f, BasisAvatarBitPacking.DecodeAxisMm(buf, 0), 0.001f);
+        BasisAvatarBitPacking.EncodeAxisMm(-99999f, buf, 0);
+        Assert.Equal(-8388.607f, BasisAvatarBitPacking.DecodeAxisMm(buf, 0), 0.001f);
+        BasisAvatarBitPacking.EncodeAxisMm(float.NaN, buf, 0);
+        Assert.Equal(0f, BasisAvatarBitPacking.DecodeAxisMm(buf, 0), 0.0001f);
+
+        // Transcode reads the High float32 triplet and writes the 9-byte int24 form.
+        var high = new byte[12];
+        BitConverter.GetBytes(1.5f).CopyTo(high, 0);
+        BitConverter.GetBytes(-2.25f).CopyTo(high, 4);
+        BitConverter.GetBytes(300.125f).CopyTo(high, 8);
+        var lower = new byte[BasisAvatarBitPacking.WritePositionQuantized];
+        BasisAvatarBitPacking.TranscodePositionToQuantized(high, lower);
+        Assert.Equal(1.5f, BasisAvatarBitPacking.DecodeAxisMm(lower, 0), 0.0006f);
+        Assert.Equal(-2.25f, BasisAvatarBitPacking.DecodeAxisMm(lower, 3), 0.0006f);
+        Assert.Equal(300.125f, BasisAvatarBitPacking.DecodeAxisMm(lower, 6), 0.0006f);
     }
 
     [Theory]

@@ -241,7 +241,7 @@ namespace Basis.Network.Core.Compression
 
         public static int ConvertToSize(BasisAvatarBitPacking.BitQuality q)
         {
-            return WritePosition + RotationBytes(q) + TailBytes + EndEffectorBytes(q);
+            return BasisAvatarBitPacking.PositionBytes(q) + RotationBytes(q) + TailBytes + EndEffectorBytes(q);
         }
 
         public static int ComputeBitOffsets(byte[] bpc, int[] outBitOffsets)

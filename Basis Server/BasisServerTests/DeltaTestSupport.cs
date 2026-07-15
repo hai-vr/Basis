@@ -15,11 +15,12 @@ public static class DeltaTestSupport
         { BitQuality.VeryLow, BitQuality.Low, BitQuality.Medium, BitQuality.High };
 
     public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51
-    public const int BoneBaseBit = 12 * 8;                                   // position occupies bytes 0..12
+    public static int PosBytes(BitQuality q) => BasisAvatarBitPacking.PositionBytes(q);
+    public static int BoneBaseBit(BitQuality q) => PosBytes(q) * 8;
 
     public static int PayloadSize(BitQuality q) => BasisAvatarBitPacking.ConvertToSize(q);
     public static int RotBytes(BitQuality q) => BasisBoneRotationCompression.RotationBytes(q);
-    public static int TailStart(BitQuality q) => BasisBoneRotationCompression.WritePosition + RotBytes(q);
+    public static int TailStart(BitQuality q) => PosBytes(q) + RotBytes(q);
     public static int ScaleOffset(BitQuality q) => TailStart(q);
     public static int BodyRotOffset(BitQuality q) => TailStart(q) + BasisBoneRotationCompression.WriteScale;
     public static int HipsDeltaOffset(BitQuality q) => BodyRotOffset(q) + BasisBoneRotationCompression.WriteRotation;
@@ -47,13 +48,13 @@ public static class DeltaTestSupport
 
     public static ulong GetBone(byte[] payload, BitQuality q, int slot)
     {
-        int pos = BoneBaseBit + BoneBitOffsets(q)[slot];
+        int pos = BoneBaseBit(q) + BoneBitOffsets(q)[slot];
         return BasisBoneRotationCompression.ReadBits(payload, ref pos, BoneWidth(q, slot));
     }
 
     public static void SetBone(byte[] payload, BitQuality q, int slot, ulong value)
     {
-        int offset = BoneBaseBit + BoneBitOffsets(q)[slot];
+        int offset = BoneBaseBit(q) + BoneBitOffsets(q)[slot];
         int width = BoneWidth(q, slot);
         for (int i = 0; i < width; i++)
         {
@@ -75,7 +76,7 @@ public static class DeltaTestSupport
     {
         int size = PayloadSize(q);
         var arr = new byte[size];
-        rng.NextBytes(new Span<byte>(arr, 0, BasisBoneRotationCompression.WritePosition));
+        rng.NextBytes(new Span<byte>(arr, 0, PosBytes(q)));
         rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
         if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
         var bpc = Bpc(q);
@@ -84,7 +85,7 @@ public static class DeltaTestSupport
         {
             int width = 2 + 3 * bpc[s];
             ulong maxv = (1UL << width) - 1UL;
-            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit + offs[s], (ulong)rng.NextInt64() & maxv, width);
+            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[s], (ulong)rng.NextInt64() & maxv, width);
         }
         return arr;
     }
@@ -94,7 +95,7 @@ public static class DeltaTestSupport
     {
         int size = PayloadSize(q);
         var arr = new byte[size];
-        rng.NextBytes(new Span<byte>(arr, 0, BasisBoneRotationCompression.WritePosition));
+        rng.NextBytes(new Span<byte>(arr, 0, PosBytes(q)));
         rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
         if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
         var bpc = Bpc(q);
@@ -103,7 +104,7 @@ public static class DeltaTestSupport
         {
             var (x, y, z, w) = RandomQuat(rng);
             ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(x, y, z, w, bpc[s], BasisBoneRotationCompression.MAX_COMPONENT[s]);
-            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit + offs[s], packed, 2 + 3 * bpc[s]);
+            BasisBoneRotationCompression.WriteBits(arr, BoneBaseBit(q) + offs[s], packed, 2 + 3 * bpc[s]);
         }
         return arr;
     }

@@ -47,8 +47,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
                 else
                 {
-                    double serverDefaultMs = BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                    effectiveIntervalSec = (serverDefaultMs + syncMessage.interval) / 1000.0;
+                    int serverDefaultMs = (int)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
+                    effectiveIntervalSec = Basis.Network.Core.BasisNetworkCommons.DecodeAvatarIntervalMs(syncMessage.interval, serverDefaultMs) / 1000.0;
                 }
 
                 if (TryCreateAvatarBuffer(data, ref offset, effectiveIntervalSec, q, out BasisAvatarBuffer avatarBuffer))
@@ -109,10 +109,25 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             basisAvatarBuffer = BasisAvatarBufferPool.Get();
 
-            // Position
-            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadPosition(ref data, ref offset, out basisAvatarBuffer.Position))
+            // Position: High = 3 × float32, lower tiers = 3 × int24 millimetres (server-repacked)
+            if (quality == BasisAvatarBitPacking.BitQuality.High)
             {
-                goto Fail;
+                if (!BasisUnityBitPackerExtensionsUnsafe.TryReadPosition(ref data, ref offset, out basisAvatarBuffer.Position))
+                {
+                    goto Fail;
+                }
+            }
+            else
+            {
+                if (data.Length - offset < BasisAvatarBitPacking.WritePositionQuantized)
+                {
+                    goto Fail;
+                }
+                basisAvatarBuffer.Position = new Unity.Mathematics.float3(
+                    BasisAvatarBitPacking.DecodeAxisMm(data, offset),
+                    BasisAvatarBitPacking.DecodeAxisMm(data, offset + 3),
+                    BasisAvatarBitPacking.DecodeAxisMm(data, offset + 6));
+                offset += BasisAvatarBitPacking.WritePositionQuantized;
             }
 
             // Bone rotations (replaces muscle decompression)

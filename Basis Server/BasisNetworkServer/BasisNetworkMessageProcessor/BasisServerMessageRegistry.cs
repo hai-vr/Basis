@@ -230,6 +230,9 @@ public static class BasisServerMessageRegistry
         RegisterCore(BasisNetworkCommons.PlayerAvatarHighChannel, avatarMovement);
         RegisterCore(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel, avatarMovement);
 
+        RegisterCore(BasisNetworkCommons.DeltaAvatarChannel, (peer, reader, channel, dm) =>
+            BasisServerReductionSystemEvents.HandleDeltaChannelInbound(reader, peer)); // recycles inside
+
         RegisterCore(BasisNetworkCommons.VoiceChannel, (peer, reader, channel, dm) =>
             BasisServerHandleEvents.HandleVoiceMessage(reader, peer)); // recycles inside
 

@@ -439,17 +439,36 @@ namespace Basis.Scripts.Networking
             if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId)) return;
 
             bool largeId = localId > byte.MaxValue;
-            byte channel = largeId
-                ? (byte)(BasisNetworkCommons.PlayerAvatarVeryLowLargeChannel
-                    + (smallChannel - BasisNetworkCommons.PlayerAvatarVeryLowChannel))
-                : smallChannel;
 
             var w = _p2pAvatarWriter ??= new NetDataWriter();
             w.Reset();
-            if (largeId) w.Put(localId);
-            else w.Put((byte)localId);
-            w.Put((byte)0);
-            w.Put(clientFormatWriter.Data, 0, clientFormatWriter.Length);
+
+            byte channel;
+            if (smallChannel == BasisNetworkCommons.DeltaAvatarChannel)
+            {
+                // Uplink delta [hdr][seq][baseSeq][body][additional?] → the standard delta frame
+                // the receive path already decodes: [hdr(+largeId)][playerId][interval][seq][baseSeq][body].
+                // Interval 0 decodes to the base cadence; P2P interp uses the announce cache anyway.
+                channel = BasisNetworkCommons.DeltaAvatarChannel;
+                byte hdr = clientFormatWriter.Data[0];
+                if (largeId) hdr |= 0x8;
+                w.Put(hdr);
+                if (largeId) w.Put(localId);
+                else w.Put((byte)localId);
+                w.Put((byte)0);
+                w.Put(clientFormatWriter.Data, 1, clientFormatWriter.Length - 1);
+            }
+            else
+            {
+                channel = largeId
+                    ? (byte)(BasisNetworkCommons.PlayerAvatarVeryLowLargeChannel
+                        + (smallChannel - BasisNetworkCommons.PlayerAvatarVeryLowChannel))
+                    : smallChannel;
+                if (largeId) w.Put(localId);
+                else w.Put((byte)localId);
+                w.Put((byte)0);
+                w.Put(clientFormatWriter.Data, 0, clientFormatWriter.Length);
+            }
 
             int sent = SendToAllConnected(w, channel, DeliveryMethod.Unreliable);
             if (sent > 0)
@@ -852,6 +871,13 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
+            if (channel == BasisNetworkCommons.DeltaAvatarChannel)
+            {
+                HandleP2PDeltaFrame(reader, expectedOtherId);
+                reader.Recycle();
+                return;
+            }
+
             bool largeId = BasisNetworkCommons.IsLargePlayerIdChannel(channel);
             int origPos = reader.Position;
             if (reader.AvailableBytes < (largeId ? 2 : 1))
@@ -885,6 +911,39 @@ namespace Basis.Scripts.Networking
             }
         }
 
+        /// <summary>
+        /// Inbound P2P DeltaAvatarChannel frame: either a control frame (a peer asking us for a
+        /// fresh uplink keyframe) or a peer's avatar delta in the standard delta layout, which the
+        /// normal delta decoder handles after the embedded-id spoof check.
+        /// </summary>
+        private static void HandleP2PDeltaFrame(NetPacketReader reader, ushort expectedOtherId)
+        {
+            if (reader.AvailableBytes < 1) return;
+            int origPos = reader.Position;
+            byte header = reader.GetByte();
+
+            if (BasisNetworkCommons.IsDeltaControlHeader(header))
+            {
+                if (header == BasisNetworkCommons.DeltaControlUplinkKeyframeRequest)
+                {
+                    Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkAvatarCompressor.ForceUplinkKeyframe();
+                }
+                return;
+            }
+
+            bool largeId = BasisNetworkCommons.DeltaHeaderLargeId(header);
+            if (reader.AvailableBytes < (largeId ? 2 : 1)) return;
+            ushort embeddedId = largeId ? reader.GetUShort() : reader.GetByte();
+            if (embeddedId != expectedOtherId)
+            {
+                BasisDebug.LogWarning($"[P2P] Delta frame id {embeddedId} doesn't match session {expectedOtherId} — dropping spoofed packet.");
+                return;
+            }
+            reader.SetPosition(origPos);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.InboundAvatarP2P, reader.AvailableBytes);
+            BasisNetworkHandleAvatarDelta.Handle(reader);
+        }
+
         private static void HandleDirectP2PPacket(byte channel, NetPacketReader reader, ushort senderPlayerId, DeliveryMethod deliveryMethod)
         {
             if (channel == BasisNetworkCommons.DirectSceneChannel)
@@ -911,7 +970,8 @@ namespace Basis.Scripts.Networking
             if (channel == BasisNetworkCommons.VoiceChannel ||
                 channel == BasisNetworkCommons.VoiceLargeChannel ||
                 channel == BasisNetworkCommons.DirectSceneChannel ||
-                channel == BasisNetworkCommons.DirectAvatarChannel)
+                channel == BasisNetworkCommons.DirectAvatarChannel ||
+                channel == BasisNetworkCommons.DeltaAvatarChannel)
                 return true;
             return (channel >= BasisNetworkCommons.PlayerAvatarVeryLowChannel &&
                     channel <= BasisNetworkCommons.PlayerAvatarHighAdditionalChannel) ||
