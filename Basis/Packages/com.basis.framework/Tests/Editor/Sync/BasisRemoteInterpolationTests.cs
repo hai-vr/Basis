@@ -192,6 +192,22 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
+        public void AdaptiveCutoff_MinimumWhenStill_OpensWithMotion()
+        {
+            quaternion a = AxisAngle(new float3(1, 0, 0), 10f);
+            float still = BasisRemoteInterpolationCore.AdaptiveCutoff(a, a, 1.5f, 250f);
+            Assert.That(still, Is.EqualTo(1.5f).Within(1e-3f), "identical snapshots => cutoff = min (heavy smoothing)");
+
+            quaternion small = AxisAngle(new float3(1, 0, 0), 13f);   // 3° of motion this window
+            float moving = BasisRemoteInterpolationCore.AdaptiveCutoff(a, small, 1.5f, 250f);
+            Assert.That(moving, Is.GreaterThan(still + 5f), "real motion must open the cutoff (no lag/wobble)");
+
+            quaternion big = AxisAngle(new float3(1, 0, 0), 40f);     // faster
+            Assert.That(BasisRemoteInterpolationCore.AdaptiveCutoff(a, big, 1.5f, 250f), Is.GreaterThan(moving),
+                "cutoff is monotonic in this window's motion");
+        }
+
+        [Test]
         public void LowPass_ConvergesToRaw_WhenTargetHeld()
         {
             float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(15f, 1f / 90f);

@@ -88,4 +88,20 @@ public static class BasisRemoteInterpolationCore
         if (math.dot(prevFiltered.value, s) < 0f) s = -s;
         return math.normalize(math.nlerp(prevFiltered, new quaternion(s), alpha));
     }
+
+    /// <summary>
+    /// Motion-adaptive low-pass cutoff: cutoff = minCutoff + beta·(angle between the two window
+    /// snapshots, radians). When the joint is still the two snapshots are equal, cutoff = minCutoff
+    /// (heavy smoothing, hides quantization shimmer); any real motion opens the cutoff so there is no
+    /// lag or wobble. The velocity estimate is the CLEAN 20Hz sample motion (prev→target), not the
+    /// noisy render-frame delta, so it distinguishes truly-still from moving perfectly — which is why
+    /// a very low floor hides the shimmer without smearing slow real motion. No per-bone state.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float AdaptiveCutoff(quaternion prevSnapshot, quaternion targetSnapshot, float minCutoffHz, float beta)
+    {
+        float d = math.min(1f, math.abs(math.dot(prevSnapshot.value, targetSnapshot.value)));
+        float moveRad = 2f * math.acos(d);
+        return minCutoffHz + beta * moveRad;
+    }
 }

@@ -147,12 +147,16 @@ public static class BasisRemoteNetworkDriver
     public static float PoseBeta = 0.15f;
     public static float PoseDerivativeCutoff = 1.5f;
 
-    // Bone quantization-shimmer low-pass: a fixed one-pole applied to the cubic bone output.
-    // 15 Hz passes all real human motion (<8 Hz) while removing the high-frequency stair-step
-    // from the ~0.08°/joint smallest-three wire quantization (the fine remote limb tremor).
-    // Folded into the interp job as a recursive in-place filter — 1 array, no extra dispatch.
-    // 0 disables. NOT the old 0.05 Hz bone filter (that was 300× heavier and caused the wobble).
-    public static float BoneFilterCutoffHz = 15.0f;
+    // Bone quantization-shimmer low-pass: a MOTION-ADAPTIVE one-pole on the cubic bone output.
+    // cutoff = MinCutoff + Beta·(this window's joint motion, radians). Still joints get heavy
+    // smoothing (cutoff→MinCutoff) which hides the quant shimmer / near-idle rotation tremor; any
+    // real motion opens the cutoff so there is no lag or wobble. The velocity comes from the clean
+    // 20Hz snapshot delta (not the noisy render frame), so the low floor is safe. Folded into the
+    // interp job (recursive in-place, no extra state/dispatch). MinCutoff ≤ 0 disables.
+    // This is what the old 0.05Hz euro was reaching for, done right: freeze-when-still WITHOUT the
+    // freeze-when-slow wobble, because "still" is judged from clean sample motion, not render noise.
+    public static float BoneFilterMinCutoffHz = 1.5f;
+    public static float BoneFilterBeta = 250.0f;
 
     static int _initializedCount;
 
@@ -487,7 +491,8 @@ public static class BasisRemoteNetworkDriver
             DeltaTimeSeconds = _deltaTimes,
             SkipBones = _skipBones,
             OutputBones = _outBoneRotations,
-            FilterCutoffHz = BoneFilterCutoffHz,
+            FilterMinCutoffHz = BoneFilterMinCutoffHz,
+            FilterBeta = BoneFilterBeta,
             BoneCountPerAvatar = BoneCount
         }.Schedule(num * BoneCount, 128, avatarJob);
 
@@ -890,7 +895,8 @@ public static class BasisRemoteNetworkDriver
         // In/out: each slot holds that bone's previous filtered value (the one-pole recursive
         // state) and receives this frame's filtered result. Each index touches only its own slot.
         public NativeArray<quaternion> OutputBones;
-        public float FilterCutoffHz;
+        public float FilterMinCutoffHz;
+        public float FilterBeta;
         public int BoneCountPerAvatar;
 
         public void Execute(int index)
@@ -909,10 +915,11 @@ public static class BasisRemoteNetworkDriver
             quaternion raw = BasisRemoteInterpolationCore.Rotation(
                 P0Bones[index], PreviousBones[index], TargetBones[index], P3Bones[index], t);
 
-            // Fixed one-pole low-pass toward the cubic output — strips the bone quantization
-            // shimmer (>~15 Hz). Seeds on the first tick so there's no blend-up from the sentinel.
-            if (unseeded || FilterCutoffHz <= 0f) { OutputBones[index] = raw; return; }
-            float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(FilterCutoffHz, (float)math.max(DeltaTimeSeconds[playerIndex], 1e-4));
+            // Motion-adaptive one-pole toward the cubic output — heavy when the joint is still
+            // (hides quant shimmer), opens on real motion (no lag). Seeds on the first tick.
+            if (unseeded || FilterMinCutoffHz <= 0f) { OutputBones[index] = raw; return; }
+            float cutoff = BasisRemoteInterpolationCore.AdaptiveCutoff(PreviousBones[index], TargetBones[index], FilterMinCutoffHz, FilterBeta);
+            float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(cutoff, (float)math.max(DeltaTimeSeconds[playerIndex], 1e-4));
             OutputBones[index] = BasisRemoteInterpolationCore.LowPassStep(prevFilt, raw, alpha);
         }
     }
