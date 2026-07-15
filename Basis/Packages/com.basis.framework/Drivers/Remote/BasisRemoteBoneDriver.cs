@@ -2,6 +2,7 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using System;
 using System.Collections.Generic;
 using Unity.Burst;
@@ -423,6 +424,49 @@ public struct ApplyAvatarScaleJob : IJobParallelForTransform
 }
 
 /// <summary>
+/// Reads every remote bone's world position/rotation + local rotation into flat buffers (parallel to
+/// the skeleton TAA) for the end-effector IK compute pass, and clears the per-bone override mask.
+/// Scheduled after the skeleton FK + hips-world apply so the world poses are final.
+/// </summary>
+[BurstCompile]
+public struct ReadBonePoseJob : IJobParallelForTransform
+{
+    [WriteOnly] public NativeArray<float3> ReadPos;
+    [WriteOnly] public NativeArray<quaternion> ReadWorldRot;
+    [WriteOnly] public NativeArray<quaternion> ReadLocalRot;
+    [WriteOnly] public NativeArray<byte> OverrideMask;
+
+    public void Execute(int index, TransformAccess transform)
+    {
+        transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+        ReadPos[index] = position;
+        ReadWorldRot[index] = rotation;
+        ReadLocalRot[index] = transform.localRotation;
+        OverrideMask[index] = 0;
+    }
+}
+
+/// <summary>
+/// Writes the end-effector IK's LOCAL rotation overrides back onto anchored limbs' bones. Only bones
+/// the compute pass flagged (OverrideMask) are touched; local writes are order-independent, so this
+/// runs as a single parallel pass. Scheduled after the compute pass, last to touch the skeleton TAA.
+/// </summary>
+[BurstCompile]
+public struct WriteBoneRotationJob : IJobParallelForTransform
+{
+    [ReadOnly] public NativeArray<quaternion> OverrideRot;
+    [ReadOnly] public NativeArray<byte> OverrideMask;
+
+    public void Execute(int index, TransformAccess transform)
+    {
+        if (OverrideMask[index] != 0)
+        {
+            transform.localRotation = OverrideRot[index];
+        }
+    }
+}
+
+/// <summary>
 /// Static orchestration layer for remote bone simulation.
 /// Manages persistent SoA buffers, TransformAccessArrays, scheduling, and disposal.
 /// </summary>
@@ -475,6 +519,12 @@ public static class RemoteBoneJobSystem
     static NativeList<byte> sSkeletonValid;
     /// <summary>Precomputed local rotations (T-pose × network delta) consumed by <see cref="ApplySkeletonRotationsJob"/>.</summary>
     static NativeArray<quaternion> sSkeletonRotations;
+    /// <summary>End-effector IK flat buffers, parallel to sSkeletonBones: read-pose outputs + local overrides.</summary>
+    static NativeArray<float3> sIkReadPos;
+    static NativeArray<quaternion> sIkReadWorldRot;
+    static NativeArray<quaternion> sIkReadLocalRot;
+    static NativeArray<quaternion> sIkOverrideRot;
+    static NativeArray<byte> sIkOverrideMask;
     /// <summary>Dummy transform for null bone slots in the TAA.</summary>
     static Transform sDummyBone;
 
@@ -620,6 +670,11 @@ public static class RemoteBoneJobSystem
         if (sSkeletonTpose.IsCreated) sSkeletonTpose.Dispose();
         if (sSkeletonValid.IsCreated) sSkeletonValid.Dispose();
         if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
+        if (sIkReadPos.IsCreated) sIkReadPos.Dispose();
+        if (sIkReadWorldRot.IsCreated) sIkReadWorldRot.Dispose();
+        if (sIkReadLocalRot.IsCreated) sIkReadLocalRot.Dispose();
+        if (sIkOverrideRot.IsCreated) sIkOverrideRot.Dispose();
+        if (sIkOverrideMask.IsCreated) sIkOverrideMask.Dispose();
         if (sDummyBone != null) { UnityEngine.Object.Destroy(sDummyBone.gameObject); sDummyBone = null; }
 
         DisposeTempBuffers();
@@ -1236,9 +1291,52 @@ public static class RemoteBoneJobSystem
             Rotations = sTmpHipsWorldRot,
         }.Schedule(sHips, hipsWorldDeps);
 
+        // End-effector IK: read the FK-posed bone worlds, two-bone-IK the anchored limbs onto their sent
+        // targets, and write the resulting local rotations back — all on workers, chained off the skeleton
+        // + hips apply and folded into `pending` so it completes at the tail with everything else.
+        JobHandle effectorIkJob = default;
+        if (BasisNetworkReceiver.EndEffectorIKEnabled && totalBones > 0)
+        {
+            if (!sIkReadPos.IsCreated || sIkReadPos.Length != totalBones)
+            {
+                if (sIkReadPos.IsCreated) sIkReadPos.Dispose();
+                if (sIkReadWorldRot.IsCreated) sIkReadWorldRot.Dispose();
+                if (sIkReadLocalRot.IsCreated) sIkReadLocalRot.Dispose();
+                if (sIkOverrideRot.IsCreated) sIkOverrideRot.Dispose();
+                if (sIkOverrideMask.IsCreated) sIkOverrideMask.Dispose();
+                sIkReadPos = new NativeArray<float3>(totalBones, Allocator.Persistent);
+                sIkReadWorldRot = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
+                sIkReadLocalRot = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
+                sIkOverrideRot = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
+                sIkOverrideMask = new NativeArray<byte>(totalBones, Allocator.Persistent);
+            }
+
+            var readPoseJob = new ReadBonePoseJob
+            {
+                ReadPos = sIkReadPos,
+                ReadWorldRot = sIkReadWorldRot,
+                ReadLocalRot = sIkReadLocalRot,
+                OverrideMask = sIkOverrideMask,
+            }.Schedule(sSkeletonBones, JobHandle.CombineDependencies(hipsWorldJob, skeletonJob));
+
+            int ikBatch = math.max(1, math.min(maxBatchSize, (AuthoringLength + workerCount - 1) / workerCount));
+            var ikComputeJob = BasisRemoteNetworkDriver.ScheduleComputeEffectorIK(
+                sKeyArray, AuthoringLength, BasisBoneRotationCompression.SyncBoneCount,
+                sTmpHipsWorldPos, sTmpHipsWorldRot,
+                sIkReadPos, sIkReadWorldRot, sIkReadLocalRot, sSkeletonValid.AsDeferredJobArray(),
+                sIkOverrideRot, sIkOverrideMask, ikBatch, readPoseJob);
+
+            effectorIkJob = new WriteBoneRotationJob
+            {
+                OverrideRot = sIkOverrideRot,
+                OverrideMask = sIkOverrideMask,
+            }.Schedule(sSkeletonBones, ikComputeJob);
+        }
+
         var pending = JobHandle.CombineDependencies(nameplateJob, mouthJob, rootApplyJob);
         pending = JobHandle.CombineDependencies(pending, hipsWorldJob);
         pending = JobHandle.CombineDependencies(pending, skeletonJob);
+        pending = JobHandle.CombineDependencies(pending, effectorIkJob);
         sPending = pending;
 
         // Kick the queued batch so workers start now and overlap the main-thread simulate

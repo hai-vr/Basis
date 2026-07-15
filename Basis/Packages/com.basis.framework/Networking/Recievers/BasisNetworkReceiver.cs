@@ -225,56 +225,34 @@ namespace Basis.Scripts.Networking.Receivers
         /// untouched.</summary>
         public static bool EndEffectorIKEnabled = true;
 
-        // (root, joint, tip) slots in BONE_WRITE_ORDER per effector: LHand, RHand, LFoot, RFoot.
-        static readonly int[] sEffRootSlot = { 5, 6, 7, 8 };
-        static readonly int[] sEffJointSlot = { 9, 10, 11, 12 };
-        static readonly int[] sEffTipSlot = { 15, 16, 17, 18 };
-
         /// <summary>
-        /// Bends each anchored limb so its tip lands on the sent world target (reconstructed from the
-        /// interpolated hips pose + hips-local offset), with the sent swivel and tip rotation. Main
-        /// thread, after the skeleton FK jobs complete; only limbs anchored in BOTH bracketing frames
-        /// are touched (a lone-frame flip falls back to FK), and missing bones are skipped.
+        /// Interpolates this player's anchored end-effector targets (hips-local offset + tip rotation +
+        /// swivel) and writes them to the remote bone job system's playerId-keyed inputs. Runs on the
+        /// pre-schedule receiver pass — no transform access; the Burst read/compute/write jobs do the
+        /// actual anchoring. Only limbs anchored in BOTH bracketing frames stay masked; the rest FK.
         /// </summary>
-        public void ApplyEndEffectorIK()
+        public unsafe void WriteEffectorJobInputs()
         {
             BasisAvatarBuffer cur = Current, nxt = Next;
-            if (cur == null || nxt == null) return;
-            int mask = cur.EffectorMask & nxt.EffectorMask;
-            if (mask == 0) return;
-            Transform[] bones = BoneTransforms;
-            if (bones == null) return;
+            int mask = (cur != null && nxt != null) ? (cur.EffectorMask & nxt.EffectorMask) : 0;
+            if (mask == 0)
+            {
+                BasisRemoteNetworkDriver.ClearEffectorMask(playerId);
+                return;
+            }
 
             float t = math.saturate((float)interpolationTime);
-            float3 hipsPos = math.lerp(cur.Position, nxt.Position, t);
-            quaternion hipsRot = BasisRemoteInterpolationCore.NlerpShortest(cur.Rotation, nxt.Rotation, t);
-            float3 refUp = math.mul(hipsRot, math.up());
-
-            for (int i = 0; i < BasisAvatarEndEffectors.EffectorCount; i++)
+            int n = BasisAvatarEndEffectors.EffectorCount;
+            float3* offsets = stackalloc float3[n];
+            quaternion* tipRots = stackalloc quaternion[n];
+            float* swivels = stackalloc float[n];
+            for (int i = 0; i < n; i++)
             {
-                if ((mask & (1 << i)) == 0) continue;
-                Transform rootT = bones[sEffRootSlot[i]];
-                Transform jointT = bones[sEffJointSlot[i]];
-                Transform tipT = bones[sEffTipSlot[i]];
-                if (rootT == null || jointT == null || tipT == null) continue;
-
-                float3 offset = math.lerp(cur.EffectorPos[i], nxt.EffectorPos[i], t);
-                quaternion tipRot = BasisRemoteInterpolationCore.NlerpShortest(cur.EffectorRot[i], nxt.EffectorRot[i], t);
-                float swivel = AngleLerpShortest(cur.EffectorSwivel[i], nxt.EffectorSwivel[i], t);
-                float3 target = hipsPos + math.mul(hipsRot, offset);
-
-                rootT.GetPositionAndRotation(out Vector3 rootPos, out Quaternion upperRot);
-                jointT.GetPositionAndRotation(out Vector3 jointPos, out Quaternion lowerRot);
-                float3 tipPos = tipT.position;
-
-                float3 pole = BasisRemoteLimbIK.PoleFromSwivel(rootPos, target, refUp, swivel);
-                BasisRemoteLimbIK.Solve(rootPos, jointPos, tipPos, upperRot, lowerRot, target, pole,
-                    out quaternion newUpper, out quaternion newLower, out _);
-
-                rootT.rotation = newUpper;
-                jointT.rotation = newLower;
-                tipT.rotation = tipRot;
+                offsets[i] = math.lerp(cur.EffectorPos[i], nxt.EffectorPos[i], t);
+                tipRots[i] = BasisRemoteInterpolationCore.NlerpShortest(cur.EffectorRot[i], nxt.EffectorRot[i], t);
+                swivels[i] = AngleLerpShortest(cur.EffectorSwivel[i], nxt.EffectorSwivel[i], t);
             }
+            BasisRemoteNetworkDriver.WriteEffectorInputs(playerId, (byte)mask, offsets, tipRots, swivels);
         }
 
         static float AngleLerpShortest(float a, float b, float t)

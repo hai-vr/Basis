@@ -88,6 +88,13 @@ public static class BasisRemoteNetworkDriver
     // LOD skip flag per player
     static NativeArray<byte> _skipBones;
 
+    // End-effector IK inputs, playerId-keyed (mask [playerId]; offset/tipRot/swivel [playerId*4 + effector]).
+    static NativeArray<byte> _effMask;
+    static NativeArray<float3> _effOffset;
+    static NativeArray<quaternion> _effTipRot;
+    static NativeArray<float> _effSwivel;
+    static IntPtr _ptrEffMask, _ptrEffOffset, _ptrEffTipRot, _ptrEffSwivel;
+
     // State
     static bool _initialized;
     static Allocator _allocator = Allocator.Persistent;
@@ -260,6 +267,10 @@ public static class BasisRemoteNetworkDriver
         _ptrPrevHipsRotDelta = (IntPtr)_prevHipsRotDelta.GetUnsafePtr();
         _ptrTargetHipsRotDelta = (IntPtr)_targetHipsRotDelta.GetUnsafePtr();
         _ptrPoseFilterSeeded = (IntPtr)_poseFilterSeeded.GetUnsafePtr();
+        _ptrEffMask = (IntPtr)_effMask.GetUnsafePtr();
+        _ptrEffOffset = (IntPtr)_effOffset.GetUnsafePtr();
+        _ptrEffTipRot = (IntPtr)_effTipRot.GetUnsafePtr();
+        _ptrEffSwivel = (IntPtr)_effSwivel.GetUnsafePtr();
     }
 
     /// <summary>
@@ -701,6 +712,145 @@ public static class BasisRemoteNetworkDriver
         }.Schedule(totalBones, batch, deps);
     }
 
+    /// <summary>
+    /// Writes a player's interpolated end-effector IK inputs (main thread, playerId-keyed). Read by
+    /// EffectorIKComputeJob via the sKeyArray remap. Writes through cached pointers like SetFrameInputs.
+    /// </summary>
+    public static unsafe void WriteEffectorInputs(int playerId, byte mask, float3* offsets, quaternion* tipRots, float* swivels)
+    {
+        if (!_initialized || (uint)playerId >= FixedCapacity) return;
+        ((byte*)(void*)_ptrEffMask)[playerId] = mask;
+        int b = playerId * 4;
+        for (int e = 0; e < 4; e++)
+        {
+            ((float3*)(void*)_ptrEffOffset)[b + e] = offsets[e];
+            ((quaternion*)(void*)_ptrEffTipRot)[b + e] = tipRots[e];
+            ((float*)(void*)_ptrEffSwivel)[b + e] = swivels[e];
+        }
+    }
+
+    /// <summary>Clears a player's end-effector IK mask so no limb anchors this frame.</summary>
+    public static unsafe void ClearEffectorMask(int playerId)
+    {
+        if (!_initialized || (uint)playerId >= FixedCapacity) return;
+        ((byte*)(void*)_ptrEffMask)[playerId] = 0;
+    }
+
+    /// <summary>
+    /// Burst two-bone IK for anchored remote limbs. One work item per dense player; per anchored effector
+    /// it reads the FK-posed shoulder/elbow/wrist world (from the read-pose pass), reconstructs the sent
+    /// world target from the applied hips + hips-local offset, solves, and writes the resulting LOCAL
+    /// rotations for upper/lower/tip into the override buffer. The upper's parent world is derived from
+    /// its own read world × inverse(local), so no rig-specific parent bone lookup is needed.
+    /// </summary>
+    [BurstCompile]
+    struct EffectorIKComputeJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<int> PlayerKeys;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> EffMask;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> EffOffset;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> EffTipRot;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float> EffSwivel;
+        [ReadOnly] public NativeArray<float3> HipsWorldPos;
+        [ReadOnly] public NativeArray<quaternion> HipsWorldRot;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> ReadPos;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> ReadWorldRot;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> ReadLocalRot;
+        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> ValidMask;
+        [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> OverrideRot;
+        [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> OverrideMask;
+        public int BoneCount;
+        public int CapacityFixed;
+
+        public void Execute(int dense)
+        {
+            int key = PlayerKeys[dense];
+            if ((uint)key >= (uint)CapacityFixed) return;
+            byte mask = EffMask[key];
+            if (mask == 0) return;
+
+            float3 hipsPos = HipsWorldPos[dense];
+            quaternion hipsRot = HipsWorldRot[dense];
+            float3 refUp = math.mul(hipsRot, math.up());
+            int baseB = dense * BoneCount;
+            int baseK = key * 4;
+
+            for (int e = 0; e < 4; e++)
+            {
+                if ((mask & (1 << e)) == 0) continue;
+
+                int rootSlot, jointSlot, tipSlot;
+                switch (e)
+                {
+                    case 0: rootSlot = 5; jointSlot = 9; tipSlot = 15; break;
+                    case 1: rootSlot = 6; jointSlot = 10; tipSlot = 16; break;
+                    case 2: rootSlot = 7; jointSlot = 11; tipSlot = 17; break;
+                    default: rootSlot = 8; jointSlot = 12; tipSlot = 18; break;
+                }
+                int fRoot = baseB + rootSlot, fJoint = baseB + jointSlot, fTip = baseB + tipSlot;
+                if (ValidMask[fRoot] == 0 || ValidMask[fJoint] == 0 || ValidMask[fTip] == 0) continue;
+
+                float3 offset = EffOffset[baseK + e];
+                quaternion tipRot = EffTipRot[baseK + e];
+                float swivel = EffSwivel[baseK + e];
+
+                float3 target = hipsPos + math.mul(hipsRot, offset);
+                float3 rootPos = ReadPos[fRoot];
+                float3 jointPos = ReadPos[fJoint];
+                float3 tipPos = ReadPos[fTip];
+                quaternion upperRot = ReadWorldRot[fRoot];
+                quaternion lowerRot = ReadWorldRot[fJoint];
+                quaternion rootLocal = ReadLocalRot[fRoot];
+
+                float3 pole = BasisRemoteLimbIK.PoleFromSwivel(rootPos, target, refUp, swivel);
+                BasisRemoteLimbIK.Solve(rootPos, jointPos, tipPos, upperRot, lowerRot, target, pole,
+                    out quaternion newUpper, out quaternion newLower, out _);
+
+                quaternion parentWorld = math.mul(upperRot, math.inverse(rootLocal));
+                OverrideRot[fRoot] = math.mul(math.inverse(parentWorld), newUpper);
+                OverrideRot[fJoint] = math.mul(math.inverse(newUpper), newLower);
+                OverrideRot[fTip] = math.mul(math.inverse(newLower), tipRot);
+                OverrideMask[fRoot] = 1;
+                OverrideMask[fJoint] = 1;
+                OverrideMask[fTip] = 1;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Schedules <see cref="EffectorIKComputeJob"/> over the dense player set, reading the driver's
+    /// playerId-keyed effector inputs. Caller supplies the read-pose buffers, applied hips pose, valid
+    /// mask, and override output (owned by RemoteBoneJobSystem, flat-parallel to its skeleton TAA).
+    /// </summary>
+    public static JobHandle ScheduleComputeEffectorIK(
+        NativeArray<int> playerKeys, int count, int boneCount,
+        NativeArray<float3> hipsWorldPos, NativeArray<quaternion> hipsWorldRot,
+        NativeArray<float3> readPos, NativeArray<quaternion> readWorldRot, NativeArray<quaternion> readLocalRot,
+        NativeArray<byte> validMask, NativeArray<quaternion> overrideRot, NativeArray<byte> overrideMask,
+        int batch, JobHandle deps = default)
+    {
+        if (!_initialized || count == 0) return deps;
+
+        return new EffectorIKComputeJob
+        {
+            PlayerKeys = playerKeys,
+            EffMask = _effMask,
+            EffOffset = _effOffset,
+            EffTipRot = _effTipRot,
+            EffSwivel = _effSwivel,
+            HipsWorldPos = hipsWorldPos,
+            HipsWorldRot = hipsWorldRot,
+            ReadPos = readPos,
+            ReadWorldRot = readWorldRot,
+            ReadLocalRot = readLocalRot,
+            ValidMask = validMask,
+            OverrideRot = overrideRot,
+            OverrideMask = overrideMask,
+            BoneCount = boneCount,
+            CapacityFixed = FixedCapacity,
+        }.Schedule(count, batch, deps);
+    }
+
     static IntPtr _ptrFilteredPositions;
 
     /// <summary>
@@ -794,6 +944,11 @@ public static class BasisRemoteNetworkDriver
         _targetBoneRotations = new NativeArray<quaternion>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
         _p3BoneRotations = new NativeArray<quaternion>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
         _outBoneRotations = new NativeArray<quaternion>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+
+        _effMask = new NativeArray<byte>(capacity, _allocator, NativeArrayOptions.ClearMemory);
+        _effOffset = new NativeArray<float3>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
+        _effTipRot = new NativeArray<quaternion>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
+        _effSwivel = new NativeArray<float>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
     }
 
     static void DisposeAll()
@@ -814,6 +969,7 @@ public static class BasisRemoteNetworkDriver
         D(ref _HasScaleChange); D(ref _lastAppliedScales); D(ref _skipBones);
         D(ref _p0BoneRotations); D(ref _prevBoneRotations);
         D(ref _targetBoneRotations); D(ref _p3BoneRotations); D(ref _outBoneRotations);
+        D(ref _effMask); D(ref _effOffset); D(ref _effTipRot); D(ref _effSwivel);
     }
 
     // ─── JOBS ───

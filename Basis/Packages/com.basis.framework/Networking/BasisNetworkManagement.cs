@@ -374,6 +374,7 @@ namespace Basis.Scripts.Networking
 #endif
 
             byte* skipPtr = BasisRemoteNetworkDriver.SkipBonesPtr();
+            bool endEffectorIK = BasisNetworkReceiver.EndEffectorIKEnabled;
 
             for (int Index = 0; Index < count; Index++)
             {
@@ -398,6 +399,7 @@ namespace Basis.Scripts.Networking
                 {
                     remote.PoseSkipCounter--;
                     if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 1;
+                    if (endEffectorIK) BasisRemoteNetworkDriver.ClearEffectorMask(receiver.playerId);
 #if UNITY_EDITOR
                     _skipped++;
 #endif
@@ -417,6 +419,7 @@ namespace Basis.Scripts.Networking
                     remote.PoseSkipCounter = SMModuleDistanceBasedReductions.PoseSkipByLod[lod];
                 }
                 if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 0;
+                if (endEffectorIK) receiver.WriteEffectorJobInputs();
             }
 #if UNITY_EDITOR
             if (p)
@@ -470,20 +473,6 @@ namespace Basis.Scripts.Networking
                 BasisEventDriverProfilerData.Net_BoneJobCompleteMs = _profilerStopwatch.Elapsed.TotalMilliseconds;
             }
 #endif
-            // Skeleton is fully posed (FK + hips placement) — anchor tracked hands/feet to their sent
-            // world targets by two-bone IK on top. Off by default; only anchored limbs cost anything.
-            if (BasisNetworkReceiver.EndEffectorIKEnabled)
-            {
-                BasisNetworkReceiver[] snap = s_finishSnapshot;
-                if (snap != null)
-                {
-                    int n = s_parallelCount;
-                    for (int i = 0; i < n; i++)
-                    {
-                        snap[i]?.ApplyEndEffectorIK();
-                    }
-                }
-            }
         }
 
         #endregion
