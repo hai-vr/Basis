@@ -203,6 +203,25 @@ int basis_aac_build_adts(uint8_t out[7], int object_type, int sample_rate,
     return 7;
 }
 
+/* ---- VP9 ----------------------------------------------------------------- */
+
+int basis_vp9_is_keyframe(const uint8_t* sample, int len) {
+    if (!sample || len < 1) return 0;
+    /* Uncompressed-header head bits, MSB first (all within the first byte —
+     * a superframe's index trails the buffer, so offset 0 is always the first
+     * sub-frame's header): frame_marker(2)=0b10, profile_low(1), profile_high(1),
+     * [reserved(1) when profile==3], show_existing_frame(1), frame_type(1)
+     * where frame_type 0 = KEY_FRAME. */
+    uint8_t b = sample[0];
+    if ((b >> 6) != 0x2) return 0;                    /* frame_marker */
+    int profile = ((b >> 4) & 1) << 1 | ((b >> 5) & 1);
+    if (profile == 3 && ((b >> 3) & 1)) return 0;     /* reserved bit must be 0 */
+    int bit = profile == 3 ? 2 : 3;                   /* skip reserved on profile 3 */
+    int show_existing = (b >> bit) & 1;
+    int frame_type = (b >> (bit - 1)) & 1;
+    return !show_existing && frame_type == 0;
+}
+
 /* ---- H.264 SPS dimensions (exp-golomb) --------------------------------- */
 
 typedef struct { const uint8_t* d; int size; int bitpos; } gb_t;

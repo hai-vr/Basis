@@ -82,6 +82,8 @@ typedef struct {
     int is_video;
     basis_codec_t codec;
     int timescale;
+    int width, height;        /* VisualSampleEntry fixed fields (codecs without
+                               * in-band parameter sets announce these) */
     int vide_handler;         /* mdia/hdlr said 'vide' (for the unsupported-codec error) */
     uint32_t stsd_fourcc;     /* first unrecognised stsd entry type, 0 if none */
     uint8_t extradata[2048];
@@ -362,6 +364,15 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                 }
                 co += csz;
             }
+        } else if (etype == 0x76703039 /*vp09*/) {
+            t->is_video = 1;
+            t->codec = BASIS_CODEC_VP9;
+            /* VisualSampleEntry fixed fields; vpcC carries nothing the decoder
+             * needs at init (VP9 has no out-of-band config), so no extradata. */
+            if (esize >= 36) {
+                t->width = rd16(ent + 32);
+                t->height = rd16(ent + 34);
+            }
         } else if (etype == 0x6d703461 /*mp4a*/ && esize >= 8 + 28) {
             t->is_video = 0;
             t->codec = BASIS_CODEC_AAC;
@@ -564,7 +575,7 @@ static void announce_tracks(mp4_t* m) {
         mp4_track_t* t = &m->tracks[i];
         if (t->announced) continue;
         if (t->is_video) {
-            int w = 0, h = 0;
+            int w = t->width, h = t->height;
             if (t->codec == BASIS_CODEC_H264 && t->extradata_len) {
                 int pos=0,no,nl;
                 while ((pos=basis_annexb_next(t->extradata,t->extradata_len,pos,&no,&nl))>=0)
@@ -954,17 +965,27 @@ static int consume_progressive(mp4_t* m, int64_t mdat_end) {
                 key = c->stss_i < c->stss_count && c->stss[c->stss_i] == c->next + 1;
                 if (key) c->stss_i++;
             }
-            int nls = rt->nal_len_size ? rt->nal_len_size : 4;
-            int outcap = basis_avcc_annexb_cap((int)ssize, nls);
-            s = (mp4_pend_t*)malloc(sizeof(*s) + (size_t)outcap);
-            if (s) {
-                int n = basis_avcc_to_annexb(buf, (int)ssize, nls, s->data, outcap);
-                if (n > 0) {
-                    if (c->stss == NULL)
-                        key = rt->codec == BASIS_CODEC_H265 ? basis_h265_is_keyframe(s->data, n) : basis_h264_is_keyframe(s->data, n);
-                    s->size = n;
-                    s->key = key;
-                } else { free(s); s = NULL; }
+            if (rt->codec == BASIS_CODEC_VP9) {
+                /* raw sample exactly as stored (superframes stay whole) */
+                s = (mp4_pend_t*)malloc(sizeof(*s) + ssize);
+                if (s) {
+                    memcpy(s->data, buf, ssize);
+                    s->size = (int)ssize;
+                    s->key = c->stss ? key : basis_vp9_is_keyframe(buf, (int)ssize);
+                }
+            } else {
+                int nls = rt->nal_len_size ? rt->nal_len_size : 4;
+                int outcap = basis_avcc_annexb_cap((int)ssize, nls);
+                s = (mp4_pend_t*)malloc(sizeof(*s) + (size_t)outcap);
+                if (s) {
+                    int n = basis_avcc_to_annexb(buf, (int)ssize, nls, s->data, outcap);
+                    if (n > 0) {
+                        if (c->stss == NULL)
+                            key = rt->codec == BASIS_CODEC_H265 ? basis_h265_is_keyframe(s->data, n) : basis_h264_is_keyframe(s->data, n);
+                        s->size = n;
+                        s->key = key;
+                    } else { free(s); s = NULL; }
+                }
             }
         } else {
             s = (mp4_pend_t*)malloc(sizeof(*s) + ssize);
@@ -1138,7 +1159,11 @@ static void consume_mdat(mp4_t* m, const uint8_t* data, int len) {
         }
         int64_t pts_us = ticks_to_us(add_i64_sat(dts[k], f->ctos[i]), t->timescale);
 
-        if (t->is_video) {
+        if (t->is_video && t->codec == BASIS_CODEC_VP9) {
+            /* raw sample exactly as stored (superframes stay whole) */
+            m->sink->on_video_au(m->sink->user, data + pos[k], (int)ssize, pts_us, best_us,
+                                 basis_vp9_is_keyframe(data + pos[k], (int)ssize));
+        } else if (t->is_video) {
             int nls = t->nal_len_size ? t->nal_len_size : 4;
             int cap = basis_avcc_annexb_cap((int)ssize, nls);
             uint8_t* out = (uint8_t*)malloc((size_t)cap);
@@ -1242,7 +1267,7 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                             if (ch >= 0x20 && ch < 0x7F) cc[i] = ch;
                         }
                         snprintf(msg, sizeof(msg),
-                                 "video codec '%s' is not supported (supported: H.264, H.265)",
+                                 "video codec '%s' is not supported (supported: H.264, H.265, VP9)",
                                  m.unsupported_video_fourcc ? cc : "unknown");
                         sink->on_error(sink->user, msg);
                     }

@@ -164,9 +164,13 @@ struct basis_media_engine {
 
     /* In-band CEA-608 caption extraction. video_hevc selects the SEI NAL layout,
      * set from the video format; the context owns the 608 decoder + cue store and
-     * is scanned per AU on the demux thread, polled from the main thread. */
+     * is scanned per AU on the demux thread, polled from the main thread.
+     * video_h26x gates the scan entirely: the caption walker is an Annex-B NAL
+     * walk, and raw VP9/AV1 samples can contain 00 00 01 runs it would misparse
+     * into the 608 decoder. */
     basis_caption_ctx_t* captions;
     int video_hevc;
+    int video_h26x;
 
     /* Set on the first on_video_format announce. Every demuxer announces its
      * track formats before payload, so audio frames arriving with this still
@@ -265,6 +269,7 @@ static void pace_gate(basis_media_engine_t* e, int64_t pts_us) {
 static void sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed, int ed_len, int w, int h) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     e->video_hevc = (codec == BASIS_CODEC_H265);
+    e->video_h26x = (codec == BASIS_CODEC_H264 || codec == BASIS_CODEC_H265);
     e->video_format_seen = 1;
     mutex_lock(&e->submit_lock);
     basis_decoder_set_video_format(e->decoder, codec, ed, ed_len, w, h);
@@ -283,8 +288,10 @@ static void sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, i
     basis_decoder_submit_video(e->decoder, au, len, pts, key);
     mutex_unlock(&e->submit_lock);
     /* Extract in-band captions from the same Annex B AU. Independent of the
-     * decoder, so outside submit_lock; the caption context locks its own store. */
-    basis_caption_scan_au(e->captions, au, len, e->video_hevc, pts);
+     * decoder, so outside submit_lock; the caption context locks its own store.
+     * H.26x only — see video_h26x. */
+    if (e->video_h26x)
+        basis_caption_scan_au(e->captions, au, len, e->video_hevc, pts);
     /* CONNECTING/BUFFERING -> PLAYING once the OS decoder is actually producing
      * frames (a few buffered), so the state doesn't sit at Buffering forever. */
     if ((e->state == BASIS_MEDIA_STATE_CONNECTING || e->state == BASIS_MEDIA_STATE_BUFFERING) &&
