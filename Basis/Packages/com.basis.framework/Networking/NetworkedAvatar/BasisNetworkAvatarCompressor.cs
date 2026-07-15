@@ -206,27 +206,28 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static byte CaptureEndEffectors(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot, float scale)
         {
             byte mask = 0;
-            if (TryCaptureEffector(0, BasisLocalBoneDriver.LeftHandControl, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, hipsWorldPos, hipsWorldRot)) mask |= 1 << 0;
-            if (TryCaptureEffector(1, BasisLocalBoneDriver.RightHandControl, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, hipsWorldPos, hipsWorldRot)) mask |= 1 << 1;
-            if (TryCaptureEffector(2, BasisLocalBoneDriver.LeftFootControl, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, hipsWorldPos, hipsWorldRot)) mask |= 1 << 2;
-            if (TryCaptureEffector(3, BasisLocalBoneDriver.RightFootControl, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, hipsWorldPos, hipsWorldRot)) mask |= 1 << 3;
+            if (TryCaptureEffector(0, BasisLocalBoneDriver.LeftHandControl, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 0;
+            if (TryCaptureEffector(1, BasisLocalBoneDriver.RightHandControl, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 1;
+            if (TryCaptureEffector(2, BasisLocalBoneDriver.LeftFootControl, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 2;
+            if (TryCaptureEffector(3, BasisLocalBoneDriver.RightFootControl, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 3;
             return mask;
         }
 
-        static bool TryCaptureEffector(int idx, BasisLocalBoneControl tip, HumanBodyBones rootBone, HumanBodyBones jointBone,
+        static bool TryCaptureEffector(int idx, BasisLocalBoneControl tipControl, HumanBodyBones rootBone, HumanBodyBones jointBone, HumanBodyBones tipBone,
             Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot)
         {
-            if (tip == null || tip.HasTracked != BasisHasTracked.HasTracker) return false;
+            if (tipControl == null || tipControl.HasTracked != BasisHasTracked.HasTracker) return false;
             if (!BasisLocalAvatarDriver.Mapping.GetTransform(rootBone, out var root)) return false;
             if (!BasisLocalAvatarDriver.Mapping.GetTransform(jointBone, out var joint)) return false;
+            if (!BasisLocalAvatarDriver.Mapping.GetTransform(tipBone, out var tip)) return false;
 
-            var coords = tip.OutgoingWorldData;
-            Unity.Mathematics.float3 tipPos = coords.position;
+            tip.GetPositionAndRotation(out var tipWorldPos, out var tipWorldRot);
+            Unity.Mathematics.float3 tipPos = tipWorldPos;
             Unity.Mathematics.float3 rootPos = root.position;
             Unity.Mathematics.float3 jointPos = joint.position;
 
             sEffectorPos[idx] = math.mul(math.conjugate(hipsWorldRot), tipPos - hipsWorldPos);
-            sEffectorRot[idx] = coords.rotation;
+            sEffectorRot[idx] = tipWorldRot;
             sEffectorSwivel[idx] = BasisRemoteLimbIK.EncodeSwivel(rootPos, jointPos, tipPos, math.mul(hipsWorldRot, math.up()));
             return true;
         }
