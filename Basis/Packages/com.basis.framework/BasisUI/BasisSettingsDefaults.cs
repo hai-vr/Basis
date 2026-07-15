@@ -1180,8 +1180,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKUpperChestBendYaw = new("fbikupperchestbendyaw", new BasisPlatformDefault<float>(0.30f));
         public static BasisSettingsBinding<float> FBIKUpperChestBendRoll = new("fbikupperchestbendroll", new BasisPlatformDefault<float>(0.20f));
         // Spine relax: hip hinge coupling
-        public static BasisSettingsBinding<float> FBIKHipHingeStartDeg = new("fbikhiphingestartdeg", new BasisPlatformDefault<float>(30f));
-        public static BasisSettingsBinding<float> FBIKHipHingeMaxAddDeg = new("fbikhiphingemaxadddeg", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> FBIKHipHingeStartDeg = new("fbikhiphingestartdeg_v2", new BasisPlatformDefault<float>(40f));
+        public static BasisSettingsBinding<float> FBIKHipHingeMaxAddDeg = new("fbikhiphingemaxadddeg_v2", new BasisPlatformDefault<float>(52f));
         // Spine relax: chest follow spring (velocity lag)
         public static BasisSettingsBinding<float> FBIKChestSpringHz = new("fbikchestspringhz", new BasisPlatformDefault<float>(12f));
         public static BasisSettingsBinding<float> FBIKChestSpringDamping = new("fbikchestspringdamping", new BasisPlatformDefault<float>(1f));

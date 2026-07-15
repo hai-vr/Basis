@@ -688,8 +688,8 @@ namespace UnityEngine.Animations.Rigging
             m_UpperChestBendPitch = 0.25f;
             m_UpperChestBendYaw = 0.30f;
             m_UpperChestBendRoll = 0.20f;
-            m_HipHingeStartDeg = 30f;
-            m_HipHingeMaxAddDeg = 15f;
+            m_HipHingeStartDeg = 40f;
+            m_HipHingeMaxAddDeg = 52f;
             m_ChestSpringHz = 12f;
             m_ChestSpringDamping = 1f;
             m_SpineMaxForwardDeg = 60f;
@@ -1251,7 +1251,16 @@ w20, w54;
             hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up);
             targetPositionHips.Set(stream, hipsTargetPos);
 
-            hipDesired = ApplyHipHinge(stream, headTargetPos, hipsTargetPos, hipDesired, up);
+            // The hinge SYNTHESISES an anterior pelvis pitch on a deep lean so the spine does not swallow the
+            // whole reach -- but only when there is no hip tracker. With one, the pelvis rotation is the
+            // user's OWN, measured, and must feed straight to IK "how we used to" (the hip-tilt-stabilization
+            // that reshaped a tracked pelvis was built and deliberately removed for exactly this reason). The
+            // hip-bob/sway synthesis in BasisLocalRigDriver is gated on the same flag, for the same reason:
+            // do not invent pelvis motion on top of a tracker.
+            if (!hasHipsTracker.Get(stream))
+            {
+                hipDesired = ApplyHipHinge(stream, headTargetPos, hipsTargetPos, hipDesired, up);
+            }
 
             // Apply hips driver if valid
             if (HandleHips.IsValid(stream))
