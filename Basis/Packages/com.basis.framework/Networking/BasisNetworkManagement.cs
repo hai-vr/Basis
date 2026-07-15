@@ -470,6 +470,20 @@ namespace Basis.Scripts.Networking
                 BasisEventDriverProfilerData.Net_BoneJobCompleteMs = _profilerStopwatch.Elapsed.TotalMilliseconds;
             }
 #endif
+            // Skeleton is fully posed (FK + hips placement) — anchor tracked hands/feet to their sent
+            // world targets by two-bone IK on top. Off by default; only anchored limbs cost anything.
+            if (BasisNetworkReceiver.EndEffectorIKEnabled)
+            {
+                BasisNetworkReceiver[] snap = s_finishSnapshot;
+                if (snap != null)
+                {
+                    int n = s_parallelCount;
+                    for (int i = 0; i < n; i++)
+                    {
+                        snap[i]?.ApplyEndEffectorIK();
+                    }
+                }
+            }
         }
 
         #endregion

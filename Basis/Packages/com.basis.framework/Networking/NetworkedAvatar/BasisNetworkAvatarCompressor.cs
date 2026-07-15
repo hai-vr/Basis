@@ -4,6 +4,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
+using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Collections;
 using static SerializableBasis;
 using Unity.Collections.LowLevel.Unsafe;
@@ -204,9 +205,30 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// </summary>
         static byte CaptureEndEffectors(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot, float scale)
         {
-            // Wired in a follow-up against BasisLocalBoneDriver's tracked-effector controls.
-            // Layout when populated: hips-local offset = qConj(hipsRot)·(tipWorld − hipsWorld)/scale.
-            return 0;
+            byte mask = 0;
+            if (TryCaptureEffector(0, BasisLocalBoneDriver.LeftHandControl, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, hipsWorldPos, hipsWorldRot)) mask |= 1 << 0;
+            if (TryCaptureEffector(1, BasisLocalBoneDriver.RightHandControl, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, hipsWorldPos, hipsWorldRot)) mask |= 1 << 1;
+            if (TryCaptureEffector(2, BasisLocalBoneDriver.LeftFootControl, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, hipsWorldPos, hipsWorldRot)) mask |= 1 << 2;
+            if (TryCaptureEffector(3, BasisLocalBoneDriver.RightFootControl, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, hipsWorldPos, hipsWorldRot)) mask |= 1 << 3;
+            return mask;
+        }
+
+        static bool TryCaptureEffector(int idx, BasisLocalBoneControl tip, HumanBodyBones rootBone, HumanBodyBones jointBone,
+            Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot)
+        {
+            if (tip == null || tip.HasTracked != BasisHasTracked.HasTracker) return false;
+            if (!BasisLocalAvatarDriver.Mapping.GetTransform(rootBone, out var root)) return false;
+            if (!BasisLocalAvatarDriver.Mapping.GetTransform(jointBone, out var joint)) return false;
+
+            var coords = tip.OutgoingWorldData;
+            Unity.Mathematics.float3 tipPos = coords.position;
+            Unity.Mathematics.float3 rootPos = root.position;
+            Unity.Mathematics.float3 jointPos = joint.position;
+
+            sEffectorPos[idx] = math.mul(math.conjugate(hipsWorldRot), tipPos - hipsWorldPos);
+            sEffectorRot[idx] = coords.rotation;
+            sEffectorSwivel[idx] = BasisRemoteLimbIK.EncodeSwivel(rootPos, jointPos, tipPos, math.mul(hipsWorldRot, math.up()));
+            return true;
         }
 
         static void CompressAvatarData(BasisStoredAvatarData AvatarData, Transform ScaleTransform)
