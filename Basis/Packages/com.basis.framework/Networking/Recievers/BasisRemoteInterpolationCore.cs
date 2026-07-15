@@ -65,4 +65,27 @@ public static class BasisRemoteInterpolationCore
         if (math.dot(a.value, b.value) < 0f) b.value = -b.value;
         return math.normalize(math.nlerp(a, b, t));
     }
+
+    /// <summary>
+    /// One-pole low-pass smoothing factor for a given cutoff (Hz) and timestep (s):
+    /// alpha = dt / (dt + tau), tau = 1/(2π·cutoff). alpha→1 as cutoff→∞ (no smoothing).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float OnePoleAlpha(float cutoffHz, float dt)
+    {
+        float tau = 1f / (2f * math.PI * math.max(cutoffHz, 0.01f));
+        return dt / (dt + math.max(tau, 1e-9f));
+    }
+
+    /// <summary>
+    /// One shortest-path one-pole low-pass step toward <paramref name="raw"/>. Used to strip the
+    /// high-frequency bone-quantization shimmer from the cubic output without reshaping real motion.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static quaternion LowPassStep(quaternion prevFiltered, quaternion raw, float alpha)
+    {
+        float4 s = raw.value;
+        if (math.dot(prevFiltered.value, s) < 0f) s = -s;
+        return math.normalize(math.nlerp(prevFiltered, new quaternion(s), alpha));
+    }
 }

@@ -147,6 +147,13 @@ public static class BasisRemoteNetworkDriver
     public static float PoseBeta = 0.15f;
     public static float PoseDerivativeCutoff = 1.5f;
 
+    // Bone quantization-shimmer low-pass: a fixed one-pole applied to the cubic bone output.
+    // 15 Hz passes all real human motion (<8 Hz) while removing the high-frequency stair-step
+    // from the ~0.08°/joint smallest-three wire quantization (the fine remote limb tremor).
+    // Folded into the interp job as a recursive in-place filter — 1 array, no extra dispatch.
+    // 0 disables. NOT the old 0.05 Hz bone filter (that was 300× heavier and caused the wobble).
+    public static float BoneFilterCutoffHz = 15.0f;
+
     static int _initializedCount;
 
     static void EnsureInitialized(int count)
@@ -198,7 +205,9 @@ public static class BasisRemoteNetworkDriver
             _prevBoneRotations[c] = quaternion.identity;
             _targetBoneRotations[c] = quaternion.identity;
             _p3BoneRotations[c] = quaternion.identity;
-            _outBoneRotations[c] = quaternion.identity;
+            // Zero (non-unit) = the shimmer filter's "unseeded" sentinel: the first tick seeds
+            // it to the raw cubic value instead of blending up from identity.
+            _outBoneRotations[c] = new quaternion(0f, 0f, 0f, 0f);
         }
 
         _initializedCount = count;
@@ -266,6 +275,21 @@ public static class BasisRemoteNetworkDriver
         if ((uint)playerId >= FixedCapacity) return;
         oneEuroJob.Complete();
         EnsureInitialized(playerId + 1);
+        ResetBoneShimmerFilter(playerId);
+    }
+
+    /// <summary>
+    /// Re-seeds the bone shimmer filter for a player by zeroing its recursive state (the
+    /// sentinel), so a (re)calibration or reused slot starts the low-pass from the first real
+    /// cubic value instead of blending up from the previous occupant's bones. Cheap (BoneCount
+    /// writes). Caller must have completed oneEuroJob (EnsureSlotInitialized does).
+    /// </summary>
+    public static unsafe void ResetBoneShimmerFilter(int index)
+    {
+        if (!_initialized || (uint)index >= FixedCapacity) return;
+        int baseOffset = index * BoneCount;
+        quaternion* p = (quaternion*)_outBoneRotations.GetUnsafePtr() + baseOffset;
+        for (int b = 0; b < BoneCount; b++) p[b] = new quaternion(0f, 0f, 0f, 0f);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -460,8 +484,10 @@ public static class BasisRemoteNetworkDriver
             TargetBones = _targetBoneRotations,
             P3Bones = _p3BoneRotations,
             InterpolationTimes = _interpolationTimes,
+            DeltaTimeSeconds = _deltaTimes,
             SkipBones = _skipBones,
             OutputBones = _outBoneRotations,
+            FilterCutoffHz = BoneFilterCutoffHz,
             BoneCountPerAvatar = BoneCount
         }.Schedule(num * BoneCount, 128, avatarJob);
 
@@ -856,23 +882,35 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly] public NativeArray<quaternion> TargetBones;
         [ReadOnly] public NativeArray<quaternion> P3Bones;
         [ReadOnly] public NativeArray<double> InterpolationTimes;
+        [ReadOnly] public NativeArray<double> DeltaTimeSeconds;
         [ReadOnly] public NativeArray<byte> SkipBones;
-        [WriteOnly] public NativeArray<quaternion> OutputBones;
+        // In/out: each slot holds that bone's previous filtered value (the one-pole recursive
+        // state) and receives this frame's filtered result. Each index touches only its own slot.
+        public NativeArray<quaternion> OutputBones;
+        public float FilterCutoffHz;
         public int BoneCountPerAvatar;
 
         public void Execute(int index)
         {
             int playerIndex = index / BoneCountPerAvatar;
+            quaternion prevFilt = OutputBones[index];
+            bool unseeded = math.lengthsq(prevFilt.value) < 0.5f;   // zero sentinel = first tick
+
             if (SkipBones[playerIndex] != 0)
             {
-                OutputBones[index] = PreviousBones[index];
-                return;
+                if (unseeded) OutputBones[index] = PreviousBones[index];   // seed even while LOD-skipped
+                return;                                                    // else hold last filtered value
             }
-            float t = (float)InterpolationTimes[playerIndex];
-            t = math.clamp(t, 0f, 1f);
 
-            OutputBones[index] = BasisRemoteInterpolationCore.Rotation(
+            float t = math.clamp((float)InterpolationTimes[playerIndex], 0f, 1f);
+            quaternion raw = BasisRemoteInterpolationCore.Rotation(
                 P0Bones[index], PreviousBones[index], TargetBones[index], P3Bones[index], t);
+
+            // Fixed one-pole low-pass toward the cubic output — strips the bone quantization
+            // shimmer (>~15 Hz). Seeds on the first tick so there's no blend-up from the sentinel.
+            if (unseeded || FilterCutoffHz <= 0f) { OutputBones[index] = raw; return; }
+            float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(FilterCutoffHz, (float)math.max(DeltaTimeSeconds[playerIndex], 1e-4));
+            OutputBones[index] = BasisRemoteInterpolationCore.LowPassStep(prevFilt, raw, alpha);
         }
     }
 

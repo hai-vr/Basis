@@ -87,11 +87,13 @@ namespace Basis.Network.Core.Compression
         public static readonly byte[] BPC_HIGH = new byte[]
         {
             // 3-DOF body (9): spine, chest, upperchest, neck, head, upper arms, upper legs
-            10,10,10,10,10,10,10,10,10,
+            // 12 bits (was 10): halves the per-joint quant step twice over vs 10-bit, cutting the
+            // slow-motion limb SHIMMER ~4x. Long-lever/proximal joints dominate hand/foot shimmer.
+            12,12,12,12,12,12,12,12,12,
             // 2-DOF limbs (4): lower arms, lower legs
-            10,10,10,10,
+            12,12,12,12,
             // 2-DOF extremities (6): shoulders(2), hands(2), feet(2)
-            10,10, 10,10, 9,9,
+            12,12, 12,12, 12,12,
             // toes (2)
             5,5,
             // finger proximal (10): L-Thumb,L-Index,L-Mid,L-Ring,L-Little, R-same

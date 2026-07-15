@@ -175,6 +175,107 @@ namespace Basis.Tests.Sync
                 $"cubic {cubErr:F3}deg should beat linear {linErr:F3}deg by >25%");
         }
 
+        // ── Bone-quantization shimmer low-pass ──
+
+        [Test]
+        public void OnePoleAlpha_MonotonicInCutoff_AndBounded()
+        {
+            float dt = 1f / 90f;
+            float aLow = BasisRemoteInterpolationCore.OnePoleAlpha(5f, dt);
+            float aMid = BasisRemoteInterpolationCore.OnePoleAlpha(15f, dt);
+            float aHigh = BasisRemoteInterpolationCore.OnePoleAlpha(90f, dt);
+            Assert.That(aLow, Is.GreaterThan(0f).And.LessThan(1f));
+            Assert.That(aHigh, Is.GreaterThan(aMid).And.LessThan(1f), "higher cutoff = less smoothing = larger alpha");
+            Assert.That(aMid, Is.GreaterThan(aLow));
+            // ~15 Hz at 90 fps is roughly a half-blend (a light, ~1-frame smoother).
+            Assert.That(aMid, Is.EqualTo(0.51f).Within(0.06f));
+        }
+
+        [Test]
+        public void LowPass_ConvergesToRaw_WhenTargetHeld()
+        {
+            float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(15f, 1f / 90f);
+            quaternion target = AxisAngle(new float3(0, 1, 0), 40f);
+            quaternion f = AxisAngle(new float3(0, 1, 0), -10f);
+            for (int i = 0; i < 200; i++) f = BasisRemoteInterpolationCore.LowPassStep(f, target, alpha);
+            Assert.That(AngleDeg(f, target), Is.LessThan(0.05f), "a held target must be reached (no steady-state bias)");
+        }
+
+        [Test]
+        public void LowPass_ReducesQuantizationShimmer_ButPassesSlowMotion()
+        {
+            const int bpc = 10; const float maxRange = InvSqrt2;
+            float alpha = BasisRemoteInterpolationCore.OnePoleAlpha(15f, 1f / 90f);
+
+            // Slow ramp through the quantizer: measure step-to-step angular jump (the shimmer),
+            // raw vs low-passed, and the lag-aligned tracking error (must stay tiny = passband).
+            quaternion prevRawQ = quaternion.identity, prevFiltQ = quaternion.identity, filt = quaternion.identity;
+            double rawJump = 0, filtJump = 0; double trackErr = 0; int n = 0;
+            bool seeded = false;
+            for (int k = 0; k < 900; k++)
+            {
+                float deg = 6f * (k / 90f);                 // 6°/s ramp, 90 fps
+                quaternion tru = AxisAngle(new float3(1, 0, 0), deg);
+                ulong p = BasisBoneRotationCompression.EncodeSmallestThree(tru.value.x, tru.value.y, tru.value.z, tru.value.w, bpc, maxRange);
+                BasisBoneRotationCompression.DecodeSmallestThree(p, bpc, out float x, out float y, out float z, out float w, maxRange);
+                quaternion rawQ = math.normalize(new quaternion(x, y, z, w));
+
+                if (!seeded) { filt = rawQ; prevRawQ = rawQ; prevFiltQ = rawQ; seeded = true; continue; }
+                filt = BasisRemoteInterpolationCore.LowPassStep(filt, rawQ, alpha);
+
+                if (k > 100)
+                {
+                    rawJump += AngleDeg(prevRawQ, rawQ);
+                    filtJump += AngleDeg(prevFiltQ, filt);
+                    trackErr += AngleDeg(filt, tru);   // low-pass tracks a ~5° lag on a 6°/s ramp -> sub-degree
+                    n++;
+                }
+                prevRawQ = rawQ; prevFiltQ = filt;
+            }
+            double rawMean = rawJump / n, filtMean = filtJump / n, trackMean = trackErr / n;
+            Assert.That(filtMean, Is.LessThan(rawMean * 0.7),
+                $"filter should cut the step-to-step shimmer >30% (raw {rawMean:F4} -> filt {filtMean:F4} deg/frame)");
+            Assert.That(trackMean, Is.LessThan(0.5),
+                $"but must still track the slow ramp (mean tracking error {trackMean:F3} deg)");
+        }
+
+        // ── RingBuffer peek used to supply p3 without consuming the staged frame ──
+
+        // ── Wire format: High bone quality raised 10→12 bits for body/limb joints (anti-shimmer) ──
+
+        [Test]
+        public void HighWireSize_Locked_AfterBitDepthBump()
+        {
+            // Body/limb joints (slots 0..18) at 12 bits, toes 5, fingers 6/5.
+            // 19×(2+36) + 2×(2+15) + fingers = 1302 bits = 163 rotation bytes; +12 pos +22 tail = 197.
+            Assert.That(BasisBoneRotationCompression.RotationBytes(BasisAvatarBitPacking.BitQuality.High), Is.EqualTo(163),
+                "High rotation-byte count changed — wire format + ServerVersion must move together");
+            Assert.That(BasisAvatarBitPacking.ConvertToSize(BasisAvatarBitPacking.BitQuality.High), Is.EqualTo(197));
+        }
+
+        [Test]
+        public void TwelveBits_HalvesQuantizationErrorVsTen()
+        {
+            _rng = 3u;
+            float worst10 = 0, worst12 = 0;
+            for (int i = 0; i < 30000; i++)
+            {
+                quaternion q = RndQ();
+                worst10 = math.max(worst10, RoundTripErr(q, 10));
+                worst12 = math.max(worst12, RoundTripErr(q, 12));
+            }
+            // Each extra bit halves the step; 12 vs 10 bits ≈ 4× finer → clearly smaller worst error.
+            Assert.That(worst12, Is.LessThan(worst10 * 0.4f), $"12-bit {worst12:F4}° should be «4× under 10-bit {worst10:F4}°");
+        }
+
+        static float RoundTripErr(quaternion q, int bpc)
+        {
+            q = math.normalize(q);
+            ulong p = BasisBoneRotationCompression.EncodeSmallestThree(q.value.x, q.value.y, q.value.z, q.value.w, bpc, InvSqrt2);
+            BasisBoneRotationCompression.DecodeSmallestThree(p, bpc, out float x, out float y, out float z, out float w, InvSqrt2);
+            return AngleDeg(q, math.normalize(new quaternion(x, y, z, w)));
+        }
+
         // ── RingBuffer peek used to supply p3 without consuming the staged frame ──
 
         [Test]
