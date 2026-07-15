@@ -293,7 +293,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Scales the head to zero, effectively hiding it (e.g., for first-person rigs).
         /// </summary>
-        public static void ScaleheadToZero()
+        public static void ScaleHeadToZero()
         {
             if (IsNormalHead == false)
             {

@@ -42249,7 +42249,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: ScaleheadToZero
+    MemberName: ScaleHeadToZero
     Kind: Method
     ParamCount: 1
     ParamNames:

@@ -801,7 +801,7 @@ namespace Basis.Scripts.Drivers
                 }
                 else
                 {
-                    BasisLocalAvatarDriver.ScaleheadToZero();
+                    BasisLocalAvatarDriver.ScaleHeadToZero();
                 }
             }
         }

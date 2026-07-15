@@ -324,7 +324,7 @@ public class BasisSDKMirror : MonoBehaviour
 
         OnCamerasFinished?.Invoke();
 
-        BasisLocalAvatarDriver.ScaleheadToZero();
+        BasisLocalAvatarDriver.ScaleHeadToZero();
     }
 
     private void RenderBothEyes(Camera camera)

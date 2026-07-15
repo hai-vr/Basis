@@ -133,7 +133,7 @@ public partial class BasisHandHeldCamera
         {
             BasisDebug.LogError("[HandHeldCamera] RenderToCubemap failed; 360 capture aborted.");
             ReleaseRT(equirect);
-            BasisLocalAvatarDriver.ScaleheadToZero();
+            BasisLocalAvatarDriver.ScaleHeadToZero();
             yield break;
         }
 
@@ -148,13 +148,13 @@ public partial class BasisHandHeldCamera
             {
                 BasisDebug.LogError("360 GPU Readback failed.");
                 ReleaseRT(readbackRT);
-                BasisLocalAvatarDriver.ScaleheadToZero();
+                BasisLocalAvatarDriver.ScaleHeadToZero();
                 return;
             }
 
             byte[] raw = request.GetData<byte>().ToArray();
             ReleaseRT(readbackRT);
-            BasisLocalAvatarDriver.ScaleheadToZero();
+            BasisLocalAvatarDriver.ScaleHeadToZero();
 
             bool anyNonZero = false;
             for (int i = 0; i < raw.Length; i += 3988)
