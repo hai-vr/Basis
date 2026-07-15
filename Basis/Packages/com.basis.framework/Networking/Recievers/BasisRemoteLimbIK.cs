@@ -56,6 +56,38 @@ public static class BasisRemoteLimbIK
     }
 
     /// <summary>
+    /// Signed swivel angle of the joint around the root→tip axis, measured from a reference direction
+    /// (the body-up projected perpendicular to the axis). Sender and receiver share the synced hips
+    /// orientation as <paramref name="refUp"/>, so they agree on the zero. Range (-π, π].
+    /// </summary>
+    public static float EncodeSwivel(float3 root, float3 joint, float3 tip, float3 refUp)
+    {
+        float3 a = math.normalizesafe(tip - root, new float3(0, 0, 1));
+        float3 r = RefPerp(a, refUp);
+        float3 e = math.normalizesafe((joint - root) - a * math.dot(joint - root, a), r);
+        return math.atan2(math.dot(math.cross(r, e), a), math.dot(r, e));
+    }
+
+    /// <summary>
+    /// Reconstructs a pole-hint point from a swivel angle: rotate the reference perpendicular by the
+    /// angle around the root→tip axis. Feed the result to <see cref="Solve"/> as poleHint.
+    /// </summary>
+    public static float3 PoleFromSwivel(float3 root, float3 tip, float3 refUp, float swivel)
+    {
+        float3 a = math.normalizesafe(tip - root, new float3(0, 0, 1));
+        float3 r = RefPerp(a, refUp);
+        float3 e = r * math.cos(swivel) + math.cross(a, r) * math.sin(swivel);   // r ⊥ a, so Rodrigues collapses
+        return root + e;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float3 RefPerp(float3 axis, float3 refUp)
+    {
+        float3 r = refUp - axis * math.dot(refUp, axis);
+        return math.length(r) < 1e-4f ? PerpAny(axis) : math.normalize(r);   // refUp ∥ axis → any perpendicular
+    }
+
+    /// <summary>
     /// Two-bone solve. Given the current FK world positions/rotations of the upper (root..joint) and
     /// lower (joint..tip) bones plus a tip target and pole hint, outputs the new WORLD rotations for the
     /// upper and lower bones that place the tip exactly on the target with the joint on the swivel circle.
