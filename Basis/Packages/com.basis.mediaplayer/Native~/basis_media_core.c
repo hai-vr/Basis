@@ -20,6 +20,7 @@
 #include "protocol/basis_rtmp.h"
 #include "protocol/basis_ts.h"
 #include "protocol/basis_mp4.h"
+#include "protocol/basis_webm.h"
 #include "protocol/basis_wav.h"
 #include "protocol/basis_http.h"
 #include "protocol/basis_hls.h"
@@ -817,10 +818,13 @@ static void run_http_like(demux_ctx_t* c) {
     prefix_src_t ps = { head, head_len, 0, rd, src };
 
     int is_mp4 = looks_like_mp4(head, head_len);
+    int is_webm = head_len >= 4 && head[0] == 0x1A && head[1] == 0x45 &&
+                  head[2] == 0xDF && head[3] == 0xA3; /* EBML magic */
     int is_wav = head_len >= 12 && memcmp(head, "RIFF", 4) == 0 && memcmp(head + 8, "WAVE", 4) == 0;
     int is_ts  = (head_len >= 1 && head[0] == 0x47);
-    if (!is_mp4 && !is_wav && !is_ts) {
+    if (!is_mp4 && !is_webm && !is_wav && !is_ts) {
         is_mp4 = ends_with_ci(c->parts->path, ".mp4") || ends_with_ci(c->parts->path, ".m4s");
+        is_webm = ends_with_ci(c->parts->path, ".webm");
         is_wav = ends_with_ci(c->parts->path, ".wav");
     }
 
@@ -869,6 +873,8 @@ static void run_http_like(demux_ctx_t* c) {
 
     if (is_mp4)
         basis_mp4_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
+    else if (is_webm)
+        basis_webm_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else if (is_wav)
         basis_wav_run(c->sink, demux_read, demux_ctx);
     else
