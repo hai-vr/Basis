@@ -168,6 +168,12 @@ public static class BasisRemoteNetworkDriver
     // Lower still-cutoff = a bit more smoothing when the head is steady; adaptive beta still opens it fully
     // on head turns, so no lag. Only affects the head bone.
     public static float HeadBoneFilterMinCutoffHz = 0.8f;
+    // Leg end-effector anchor fades to FK as the leg straightens (reach/maxReach): full IK below
+    // LegAnchorFadeBentReach, off (FK) above LegAnchorFadeStraightReach. Near full extension the 2-bone
+    // knee is at the singularity where sub-mm target noise swings the knee back-and-forth — and a nearly
+    // straight leg is the planted stance phase that barely needs anchoring. Arms are always full IK.
+    public static float LegAnchorFadeBentReach = 0.975f;
+    public static float LegAnchorFadeStraightReach = 0.995f;
 
     static int _initializedCount;
 
@@ -777,6 +783,8 @@ public static class BasisRemoteNetworkDriver
         [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> OverrideMask;
         public int BoneCount;
         public int CapacityFixed;
+        public float FadeBentReach;
+        public float FadeStraightReach;
 
         public void Execute(int dense)
         {
@@ -833,16 +841,31 @@ public static class BasisRemoteNetworkDriver
                 // Reduces to inverse(newUpper)·newLower when parent == the bone above (no intermediate). Writing
                 // LOCAL (not world) rotations makes the single write pass order-independent.
                 quaternion rootParentWorld = math.mul(upperRot, math.inverse(rootLocal));
-                OverrideRot[fRoot] = math.mul(math.inverse(rootParentWorld), newUpper);
+                quaternion oRoot = math.mul(math.inverse(rootParentWorld), newUpper);
 
                 quaternion jointParentOld = math.mul(lowerRot, math.inverse(jointLocal));
                 quaternion jointParentNew = math.mul(newUpper, math.mul(math.inverse(upperRot), jointParentOld));
-                OverrideRot[fJoint] = math.mul(math.inverse(jointParentNew), newLower);
+                quaternion oJoint = math.mul(math.inverse(jointParentNew), newLower);
 
                 quaternion tipParentOld = math.mul(tipWorldRot, math.inverse(tipLocal));
                 quaternion tipParentNew = math.mul(newLower, math.mul(math.inverse(lowerRot), tipParentOld));
-                OverrideRot[fTip] = math.mul(math.inverse(tipParentNew), tipRot);
+                quaternion oTip = math.mul(math.inverse(tipParentNew), tipRot);
 
+                // Legs (e≥2) fade to FK near full extension — the 2-bone knee is at its singularity there
+                // (tiny target noise → back-and-forth knee swing), and a near-straight leg is the planted
+                // stance that barely needs the anchor. Arms (e<2) stay full IK.
+                float ikW = 1f;
+                if (e >= 2)
+                {
+                    float reach = math.distance(rootPos, target);
+                    float maxReach = math.distance(rootPos, jointPos) + math.distance(jointPos, tipPos);
+                    float ratio = reach / math.max(maxReach, 1e-4f);
+                    ikW = 1f - math.smoothstep(FadeBentReach, FadeStraightReach, ratio);
+                }
+
+                OverrideRot[fRoot] = math.slerp(rootLocal, oRoot, ikW);
+                OverrideRot[fJoint] = math.slerp(jointLocal, oJoint, ikW);
+                OverrideRot[fTip] = math.slerp(tipLocal, oTip, ikW);
                 OverrideMask[fRoot] = 1;
                 OverrideMask[fJoint] = 1;
                 OverrideMask[fTip] = 1;
@@ -881,6 +904,8 @@ public static class BasisRemoteNetworkDriver
             OverrideMask = overrideMask,
             BoneCount = boneCount,
             CapacityFixed = FixedCapacity,
+            FadeBentReach = LegAnchorFadeBentReach,
+            FadeStraightReach = LegAnchorFadeStraightReach,
         }.Schedule(count, batch, deps);
     }
 
