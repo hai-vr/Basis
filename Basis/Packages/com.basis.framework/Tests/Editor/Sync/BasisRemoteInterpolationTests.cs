@@ -241,6 +241,25 @@ namespace Basis.Tests.Sync
 
         // ── RingBuffer peek used to supply p3 without consuming the staged frame ──
 
+        // ── Why the hips world pose uses LINEAR, not cubic (desktop WASD overshoot) ──
+
+        [Test]
+        public void UniformCubic_OvershootsASharpStop_LinearDoesNot()
+        {
+            // "walk then stop": approach a stop value then hold it (piecewise-linear, like keyboard
+            // locomotion). The hold segment's start tangent (p2-p0)/2 is still forward, so uniform
+            // Catmull-Rom leaves the stop going forward and comes back — a whole-body fore-aft twitch.
+            float3 moving = new(0, 0, 0.07f), stop = new(0, 0, 0.14f);
+            float3 cub = BasisRemoteInterpolationCore.Position(moving, stop, stop, stop, 0.5f);
+            Assert.That(cub.z, Is.GreaterThan(0.141f), "uniform cubic overshoots the stop (hips would twitch fore-aft)");
+
+            float3 lin = math.lerp(stop, stop, 0.5f);
+            Assert.That(lin.z, Is.EqualTo(stop.z).Within(1e-5f), "linear never overshoots a stop");
+            // and across the whole hold, linear stays put while cubic bulges past it
+            for (float t = 0; t <= 1f; t += 0.1f)
+                Assert.That(math.lerp(stop, stop, t).z, Is.EqualTo(stop.z).Within(1e-5f));
+        }
+
         // ── Wire format: High bone quality raised 10→12 bits for body/limb joints (anti-shimmer) ──
 
         [Test]

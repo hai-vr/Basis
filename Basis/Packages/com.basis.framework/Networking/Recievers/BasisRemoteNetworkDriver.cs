@@ -844,12 +844,15 @@ public static class BasisRemoteNetworkDriver
             float t = (float)InterpolationTimes[index];
             if (!math.isfinite(t)) t = 0f;
             t = math.clamp(t, 0f, 1f);
-            OutputPositions[index] = BasisRemoteInterpolationCore.Position(
-                P0Positions[index], PreviousPositions[index], TargetPositions[index], P3Positions[index], t);
+            // Hips world pose stays LINEAR. Desktop/keyboard locomotion is piecewise-linear (sharp
+            // start/stop), so a cubic here would smooth a corner that is genuinely there and shoot
+            // the WHOLE BODY past each stop then back (~5mm fore-aft twitch). Cubic is kept only for
+            // the bone rotations, whose motion is smooth and where it fixed the wobble/shimmer.
+            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
             float3 outScale = math.lerp(PreviousScales[index], TargetScales[index], t);
             OutputScales[index] = outScale;
-            OutputRotations[index] = BasisRemoteInterpolationCore.Rotation(
-                P0Rotations[index], PreviousRotations[index], TargetRotations[index], P3Rotations[index], t);
+            OutputRotations[index] = BasisRemoteInterpolationCore.NlerpShortest(
+                PreviousRotations[index], TargetRotations[index], t);
             OutputHipsDelta[index] = math.lerp(PreviousHipsDelta[index], TargetHipsDelta[index], t);
 
             // Shortest-path nlerp for the hips rotation delta — same approach
