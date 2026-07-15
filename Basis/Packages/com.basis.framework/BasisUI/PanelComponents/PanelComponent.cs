@@ -23,10 +23,6 @@ namespace Basis.BasisUI
         private string _disabledReason;
         private bool _pointerInside;
 
-        // The panel the pointer is currently over. Set from the same enter/exit events that
-        // drive the tooltip, so it is correct even for panels nested inside a scroll view.
-        public static PanelComponent CurrentHovered { get; private set; }
-
         /// <summary>
         /// The Selectable that owns this control's interactable state (dropdown, toggle, slider,
         /// button, input field). Null for elements that have no interactive control.
@@ -78,14 +74,12 @@ namespace Basis.BasisUI
         public virtual void OnPointerEnter(PointerEventData eventData)
         {
             _pointerInside = true;
-            CurrentHovered = this;
             BasisMainMenu.ShowTooltip(TooltipText);
         }
 
         public virtual void OnPointerExit(PointerEventData eventData)
         {
             _pointerInside = false;
-            if (CurrentHovered == this) CurrentHovered = null;
             BasisMainMenu.HideTooltip();
         }
 

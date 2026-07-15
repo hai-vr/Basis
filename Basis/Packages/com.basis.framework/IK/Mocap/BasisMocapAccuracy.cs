@@ -125,6 +125,7 @@ namespace Basis.IK.Mocap
         struct Limb
         {
             public Quaternion RootLocal, MidLocal;         // bind pose relative to the parent
+            public Quaternion TipLocal;                    // tip (hand/foot) bind rotation relative to mid
             public Vector3 UpperDirLocal, LowerDirLocal;   // bone axis in its own bone's frame; a bone is rigid
             public float UpperLen, LowerLen;
             public bool Seeded;
@@ -137,10 +138,11 @@ namespace Basis.IK.Mocap
             public bool KneeSwivelSeeded;
         }
 
-        static void SeedLimb(ref Limb l, Quaternion parentRot, Vector3 root, Vector3 mid, Vector3 tip, Quaternion rootRot, Quaternion midRot)
+        static void SeedLimb(ref Limb l, Quaternion parentRot, Vector3 root, Vector3 mid, Vector3 tip, Quaternion rootRot, Quaternion midRot, Quaternion tipRot)
         {
             l.RootLocal = Quaternion.Inverse(parentRot) * rootRot;
             l.MidLocal = Quaternion.Inverse(rootRot) * midRot;
+            l.TipLocal = Quaternion.Inverse(midRot) * tipRot;
             l.UpperLen = Vector3.Distance(root, mid);
             l.LowerLen = Vector3.Distance(mid, tip);
             l.UpperDirLocal = Quaternion.Inverse(rootRot) * (mid - root).normalized;
@@ -150,10 +152,11 @@ namespace Basis.IK.Mocap
 
         // The animated (pre-IK) pose for this frame.
         static void AnimatedPose(in Limb l, Quaternion parentRot, Vector3 root,
-                                 out Quaternion rootRot, out Quaternion midRot, out Vector3 mid, out Vector3 tip)
+                                 out Quaternion rootRot, out Quaternion midRot, out Quaternion tipRot, out Vector3 mid, out Vector3 tip)
         {
             rootRot = parentRot * l.RootLocal;
             midRot = rootRot * l.MidLocal;
+            tipRot = midRot * l.TipLocal;
             mid = root + (rootRot * l.UpperDirLocal) * l.UpperLen;
             tip = mid + (midRot * l.LowerDirLocal) * l.LowerLen;
         }
@@ -391,8 +394,8 @@ namespace Basis.IK.Mocap
 
             // The shoulder is handed to the solver from truth: the torso is not what is under test here, and
             // letting torso error leak in would confound the one number we actually want -- the elbow.
-            if (!limb.Seeded) SeedLimb(ref limb, chestRot, shoulder, truthElbow, truthHand, clip.Get(f, jS).Rotation, clip.Get(f, jE).Rotation);
-            AnimatedPose(limb, chestRot, shoulder, out Quaternion animRootRot, out Quaternion animMidRot, out Vector3 elbow, out Vector3 hand);
+            if (!limb.Seeded) SeedLimb(ref limb, chestRot, shoulder, truthElbow, truthHand, clip.Get(f, jS).Rotation, clip.Get(f, jE).Rotation, clip.Get(f, jH).Rotation);
+            AnimatedPose(limb, chestRot, shoulder, out Quaternion animRootRot, out Quaternion animMidRot, out Quaternion animTipRot, out Vector3 elbow, out Vector3 hand);
 
             BasisArmSolveInput i = default;
             i.Shoulder = shoulder;
@@ -400,6 +403,7 @@ namespace Basis.IK.Mocap
             i.Hand = hand;
             i.RootRotation = animRootRot;
             i.MidRotation = animMidRot;
+            i.TipRotation = animTipRot;
             i.TargetPosition = truthHand;
             i.TargetRotation = truthHandRot;
             i.TargetOffset = Quaternion.identity;
@@ -642,8 +646,8 @@ namespace Basis.IK.Mocap
             Quaternion truthFootRot = clip.Get(f, jF).Rotation;
             legLen = Vector3.Distance(hip, truthKnee) + Vector3.Distance(truthKnee, truthFoot);
 
-            if (!limb.Seeded) SeedLimb(ref limb, hipsRot, hip, truthKnee, truthFoot, clip.Get(f, jH).Rotation, clip.Get(f, jK).Rotation);
-            AnimatedPose(limb, hipsRot, hip, out Quaternion animRootRot, out Quaternion animMidRot, out Vector3 knee, out Vector3 foot);
+            if (!limb.Seeded) SeedLimb(ref limb, hipsRot, hip, truthKnee, truthFoot, clip.Get(f, jH).Rotation, clip.Get(f, jK).Rotation, clip.Get(f, jF).Rotation);
+            AnimatedPose(limb, hipsRot, hip, out Quaternion animRootRot, out Quaternion animMidRot, out _, out Vector3 knee, out Vector3 foot);
 
             BasisLegSolveInput i = default;
             i.Root = hip;

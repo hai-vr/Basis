@@ -15,6 +15,7 @@ namespace UnityEngine.Animations.Rigging
         public Vector3 PlayerUp;
         public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
         public bool HintIsTracker;     // hint is a REAL elbow tracker (trust it further before the down-stabilizer overrides); false = lookup-derived
+        public Quaternion TipRotation; // ANIMATED hand world rotation (pre-IK), like RootRotation/MidRotation. Zero (the default) disables wrist-roll relief.
     }
 
     public struct BasisArmSolveResult
@@ -43,6 +44,8 @@ namespace UnityEngine.Animations.Rigging
         public float ArmProjMag;     // |elbow projected onto swing plane|; small = elbow near-straight (pole ill-defined)
         public byte AxisSource;     // 0 bend-plane, 1 hint, 2 shoulder->target, 3 playerUp
         public float HandError;
+        public float WristTwistDeg;  // signed hand-target roll vs the carried animated wrist, about the forearm axis
+        public float WristReliefDeg; // signed swivel actually spent relieving it (0 = relief not engaged)
     }
 
     // Stream-free geometry shared by BasisFullIKConstraintJob.SolveTwoBoneIKArms and the
@@ -101,6 +104,26 @@ namespace UnityEngine.Animations.Rigging
         // does at full stretch.
         // =============================================================================================
         public const float MaxElbowAngleDeg = 170f;
+
+        // Hand roll the forearm+wrist render on their own before the humerus is recruited. Anatomical
+        // pronation/supination is ~80 deg each way from the thumbs-up neutral, so palm-flat either way sits
+        // right at the edge and any roll past it belongs to the upper arm.
+        public const float WristRollComfortDeg = 80f;
+
+        // Fraction of the IN-BAND roll the humerus carries anyway (a real arm shares from the first degree:
+        // pronating flares the elbow out a little long before the forearm runs dry). Zero on the tracker
+        // path -- a measured elbow already contains the user's real share.
+        public const float WristRollInBandShare = 0.2f;
+
+        // Hard bound on the relief swivel, so a pathological target (avatar/controller mismatch) is a bounded
+        // wrong answer instead of an unbounded one. The anatomy guard still owns the outcome.
+        public const float WristRollMaxReliefDeg = 70f;
+
+        // The measured twist is a principal angle, so +180 and -180 are the SAME hand pose with opposite
+        // relief signs. Fade the relief out approaching the seam so both sides meet at zero -- the exact
+        // wrap pop BasisElbowFlareCore documents. Real wrists cannot reach here; only mismatch can.
+        const float k_WristWrapFadeStartDeg = 155f;
+        const float k_WristWrapFadeEndDeg = 178f;
 
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
@@ -428,6 +451,65 @@ namespace UnityEngine.Animations.Rigging
             }
 
             // =============================================================================================
+            // ⭐ WRIST-ROLL RELIEF: THE HUMERUS ANSWERS FOR WHAT THE FOREARM CANNOT.
+            //
+            // The tip is written straight to the target rotation, so every degree of controller roll lands
+            // in the wrist joint; the twist bones can only redistribute it along the forearm MESH. Nothing
+            // upstream reads the hand's roll at all -- the field model is position-only, and a twisted-in-
+            // place hand cannot move a position-only elbow. That is "the upper arm stays rigid when I twist
+            // my hand". A real arm pronates ~80 deg each way and then ROTATES THE HUMERUS, which with the
+            // hand pinned is exactly the swivel DOF: the elbow swings around its circle.
+            //
+            // The roll is measured against the ANIMATED wrist carried onto the solved forearm
+            // (midRot * animMid^-1 * animTip), so whatever swivel a tracker or the model has already applied
+            // is already relieved before it is measured -- a tracked user whose real humerus did the work
+            // measures no excess, and nothing double-compensates.
+            //
+            // THE SIGN IS AN IDENTITY, NOT A CONVENTION: swivelling the whole arm about shoulder->hand by
+            // theta rolls the carried neutral by theta about ~the forearm axis, so the residual twist drops
+            // by theta * dot(forearm, ac) -- relief therefore swivels in the SAME signed direction as the
+            // measured twist, for either hand, with no handedness flag. (Anatomy agrees: pronating past
+            // palm-down flares the elbow up-and-out, supinating past palm-up tucks it in-and-down.) The
+            // hand lies on the swivel axis, so reach preservation is structural, and the anatomy guard
+            // below still has the last word on where the elbow may actually sit.
+            // =============================================================================================
+            float tipRotSqr = i.TipRotation.x * i.TipRotation.x + i.TipRotation.y * i.TipRotation.y
+                            + i.TipRotation.z * i.TipRotation.z + i.TipRotation.w * i.TipRotation.w;
+            if (tipRotSqr > 0.5f)
+            {
+                Vector3 fore = cPosition - bPosition;
+                Vector3 acRelief = cPosition - aPosition;
+                if (fore.sqrMagnitude > k_SqrEpsilon && acRelief.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
+                    float twistRad = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), fore.normalized);
+                    r.WristTwistDeg = twistRad * Mathf.Rad2Deg;
+
+                    float rollAbs = Mathf.Abs(twistRad);
+                    float band = WristRollComfortDeg * Mathf.Deg2Rad;
+                    float share = i.HintIsTracker ? 0f : WristRollInBandShare;
+                    float relief = share * Mathf.Min(rollAbs, band) + Mathf.Max(rollAbs - band, 0f);
+                    float reliefCap = WristRollMaxReliefDeg * Mathf.Deg2Rad;
+                    if (relief > reliefCap) relief = reliefCap;
+                    relief *= 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                        (rollAbs * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+
+                    if (relief > 0f)
+                    {
+                        float reliefSigned = twistRad < 0f ? -relief : relief;
+                        Quaternion reliefR = AngleAxisRad(reliefSigned, acRelief.normalized);
+
+                        rootRot = reliefR * rootRot;
+                        bPosition = aPosition + reliefR * (bPosition - aPosition);
+                        cPosition = aPosition + reliefR * (cPosition - aPosition);
+                        midRot = reliefR * midRot;
+                        hintR = reliefR * hintR;   // fold into the hint delta the runtime applies
+                        r.WristReliefDeg = reliefSigned * Mathf.Rad2Deg;
+                    }
+                }
+            }
+
+            // =============================================================================================
             // ⭐ THE ANATOMY GUARD, AND IT IS THE LAST THING THAT HAPPENS.
             //
             // An elbow cannot point at the sky. Measured on 55,140 frames of real human arm motion: THE ELBOW
@@ -516,6 +598,22 @@ namespace UnityEngine.Animations.Rigging
             float h = 0.5f * radians;
             float s = Mathf.Sin(h);
             return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
+        }
+
+        // Signed rotation of q about `axis` (unit), i.e. the swing-twist decomposition's twist angle,
+        // wrapped to (-180, 180]. Projecting the vector part onto the axis removes the swing; atan2 needs
+        // no normalization because a common positive scale cancels; forcing w >= 0 first picks the principal
+        // branch of the double cover. NaN-safe by shape: `!(x > eps)` rejects NaN.
+        static float TwistAngleRad(Quaternion q, Vector3 axis)
+        {
+            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
+            float c = q.w;
+            if (c < 0f) { s = -s; c = -c; }
+            if (!(s * s + c * c > k_SqrEpsilon))
+            {
+                return 0f;
+            }
+            return 2f * Mathf.Atan2(s, c);
         }
 
         static float AngleDeg(Vector3 from, Vector3 to)

@@ -2218,6 +2218,9 @@ w20, w54;
             // BasisArmSolveCore (reach stays exact), not by clamping the swivel.
             input.HintIsTracker = hintIsTracker;
             input.HintMaxStepDeg = float.MaxValue;
+            // The ANIMATED hand rotation (nothing has written the tip yet this frame): the neutral the
+            // wrist-roll relief measures the controller's roll against.
+            input.TipRotation = tip.GetRotation(stream);
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 

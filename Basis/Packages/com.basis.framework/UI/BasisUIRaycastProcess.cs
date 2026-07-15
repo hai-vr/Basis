@@ -20,9 +20,6 @@ namespace Basis.Scripts.UI
         public bool HasEvent = false;
         public const float TriggerReleaseThreshold = 0.5f;
 
-        public const float SliderJoystickDeadzone = 0.2f;
-        public const float SliderJoystickRangePerSecond = 0.6f;
-        private PanelSlider _joystickDrivenSlider;
         private Vector2 _vrScrollStick;
 
         private static bool IsTriggerDown(BasisInput input, bool wasDown)
@@ -44,12 +41,6 @@ namespace Basis.Scripts.UI
 
         public void OnDeInitialize()
         {
-            if (_joystickDrivenSlider != null)
-            {
-                _joystickDrivenSlider.EndExternalDrive();
-                _joystickDrivenSlider = null;
-            }
-
             if (HasEvent && BasisDeviceManagement != null)
             {
                 BasisDeviceManagement.AllInputDevices.OnListChanged -= AllInputDevices;
@@ -172,8 +163,6 @@ namespace Basis.Scripts.UI
                 }
             }
 
-            DriveActiveSliderFromJoystick(snapshot, DevicesCount);
-
             if (!HasTarget && EffectiveMouseAction)
             {
                 EventSystem.current.SetSelectedGameObject(null, null);
@@ -198,78 +187,6 @@ namespace Basis.Scripts.UI
                     }
                 }
             }
-        }
-
-        // Right controller stick (Y) adjusts the slider the pointer is on. Reading the stick from
-        // the right hand only keeps the left stick free for locomotion. The target comes from the
-        // panel's own hover/selection, so it resolves even when the slider is inside a scroll view.
-        private void DriveActiveSliderFromJoystick(List<BasisInput> snapshot, int DevicesCount)
-        {
-            PanelSlider target = ResolveActiveSlider();
-            if (target != null && target.SliderComponent == null)
-            {
-                target = null;
-            }
-
-            float axisY = 0f;
-            if (target != null)
-            {
-                for (int Index = 0; Index < DevicesCount; Index++)
-                {
-                    BasisInput input = snapshot[Index];
-                    if (input != null && input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.RightHand)
-                    {
-                        axisY = input.CurrentInputState.Primary2DAxisRaw.y;
-                        break;
-                    }
-                }
-            }
-
-            bool active = target != null && Mathf.Abs(axisY) >= SliderJoystickDeadzone;
-
-            // Commit the previous slider when the stick releases or the pointer moves to another one.
-            if (_joystickDrivenSlider != null && (!active || _joystickDrivenSlider != target))
-            {
-                _joystickDrivenSlider.EndExternalDrive();
-                _joystickDrivenSlider = null;
-            }
-
-            if (!active)
-            {
-                return;
-            }
-
-            float range = target.SliderComponent.maxValue - target.SliderComponent.minValue;
-            if (range <= 0f)
-            {
-                return;
-            }
-
-            float delta = axisY * SliderJoystickRangePerSecond * range * Time.unscaledDeltaTime;
-            target.DriveExternalDelta(delta);
-            _joystickDrivenSlider = target;
-        }
-
-        // Prefer the panel under the pointer; fall back to the clicked/selected one so a slider
-        // can still be dialed after the pointer drifts off it (common inside a scroll view).
-        private static PanelSlider ResolveActiveSlider()
-        {
-            if (PanelComponent.CurrentHovered is PanelSlider hovered && hovered != null)
-            {
-                return hovered;
-            }
-
-            EventSystem eventSystem = EventSystem.current;
-            if (eventSystem != null && eventSystem.currentSelectedGameObject != null)
-            {
-                PanelSlider selected = eventSystem.currentSelectedGameObject.GetComponentInParent<PanelSlider>();
-                if (selected != null)
-                {
-                    return selected;
-                }
-            }
-
-            return null;
         }
 
         private static Vector2 ReadRightHandScrollStick(List<BasisInput> snapshot, int DevicesCount)
@@ -542,11 +459,6 @@ namespace Basis.Scripts.UI
             var scrollDelta = eventData.scrollDelta;
             if (!Mathf.Approximately(scrollDelta.sqrMagnitude, 0f))
             {
-                if (_vrScrollStick.sqrMagnitude > 0f && ResolveActiveSlider() != null)
-                {
-                    return;
-                }
-
                 GameObject scrollTarget = eventData.pointerEnter;
                 if (scrollTarget == null)
                 {
