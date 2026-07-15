@@ -811,16 +811,31 @@ public static class BasisRemoteNetworkDriver
                 float3 tipPos = ReadPos[fTip];
                 quaternion upperRot = ReadWorldRot[fRoot];
                 quaternion lowerRot = ReadWorldRot[fJoint];
+                quaternion tipWorldRot = ReadWorldRot[fTip];
                 quaternion rootLocal = ReadLocalRot[fRoot];
+                quaternion jointLocal = ReadLocalRot[fJoint];
+                quaternion tipLocal = ReadLocalRot[fTip];
 
                 float3 pole = BasisRemoteLimbIK.PoleFromSwivel(rootPos, target, refUp, swivel);
                 BasisRemoteLimbIK.Solve(rootPos, jointPos, tipPos, upperRot, lowerRot, target, pole,
                     out quaternion newUpper, out quaternion newLower, out _);
 
-                quaternion parentWorld = math.mul(upperRot, math.inverse(rootLocal));
-                OverrideRot[fRoot] = math.mul(math.inverse(parentWorld), newUpper);
-                OverrideRot[fJoint] = math.mul(math.inverse(newUpper), newLower);
-                OverrideRot[fTip] = math.mul(math.inverse(newLower), tipRot);
+                // Each bone's LOCAL rotation is set from its ACTUAL parent's NEW world. The parent may be a
+                // twist/roll bone (unsynced → rigidly attached to the bone above), so it moves with that bone:
+                // parentRel = inverse(aboveWorldOld)·parentWorldOld is fixed, parentWorldNew = aboveWorldNew·parentRel.
+                // Reduces to inverse(newUpper)·newLower when parent == the bone above (no intermediate). Writing
+                // LOCAL (not world) rotations makes the single write pass order-independent.
+                quaternion rootParentWorld = math.mul(upperRot, math.inverse(rootLocal));
+                OverrideRot[fRoot] = math.mul(math.inverse(rootParentWorld), newUpper);
+
+                quaternion jointParentOld = math.mul(lowerRot, math.inverse(jointLocal));
+                quaternion jointParentNew = math.mul(newUpper, math.mul(math.inverse(upperRot), jointParentOld));
+                OverrideRot[fJoint] = math.mul(math.inverse(jointParentNew), newLower);
+
+                quaternion tipParentOld = math.mul(tipWorldRot, math.inverse(tipLocal));
+                quaternion tipParentNew = math.mul(newLower, math.mul(math.inverse(lowerRot), tipParentOld));
+                OverrideRot[fTip] = math.mul(math.inverse(tipParentNew), tipRot);
+
                 OverrideMask[fRoot] = 1;
                 OverrideMask[fJoint] = 1;
                 OverrideMask[fTip] = 1;

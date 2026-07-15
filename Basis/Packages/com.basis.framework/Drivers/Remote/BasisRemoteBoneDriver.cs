@@ -435,8 +435,6 @@ public struct ReadBonePoseJob : IJobParallelForTransform
 {
     // Bits set for BONE_WRITE_ORDER slots 5..12 (roots+joints) and 15..18 (tips). See EffectorIKComputeJob.
     const uint EffectorSlotMask = 0x79FE0u;
-    // Roots only (slots 5..8): the sole slots whose local rotation the compute pass consumes.
-    const uint RootSlotMask = 0x1E0u;
 
     [ReadOnly] public NativeArray<int> PlayerKeys;
     [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> EffMask;
@@ -461,7 +459,7 @@ public struct ReadBonePoseJob : IJobParallelForTransform
         transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
         ReadPos[index] = position;
         ReadWorldRot[index] = rotation;
-        if (((RootSlotMask >> boneSlot) & 1u) != 0) ReadLocalRot[index] = transform.localRotation;
+        ReadLocalRot[index] = transform.localRotation;
     }
 }
 
