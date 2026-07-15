@@ -1227,6 +1227,11 @@ BASIS_API int BASIS_CALL basis_media_get_state(basis_media_engine_t* e) {
     return s;
 }
 
+BASIS_API int BASIS_CALL basis_media_probe_video_codec(int codec) {
+    if (codec < BASIS_CODEC_H264 || codec > BASIS_CODEC_AV1) return 0;
+    return basis_decoder_probe_video_codec(codec) ? 1 : 0;
+}
+
 BASIS_API int BASIS_CALL basis_media_get_video_size(basis_media_engine_t* e, int* w, int* h) {
     if (!e || !e->decoder) return -1;
     return basis_decoder_get_video_size(e->decoder, w, h);

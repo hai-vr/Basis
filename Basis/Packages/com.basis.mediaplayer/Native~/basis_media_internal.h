@@ -125,6 +125,15 @@ typedef struct basis_decoder basis_decoder_t;
 basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine);
 void             basis_decoder_destroy(basis_decoder_t* dec);
 
+/* Engine-less capability probe behind basis_media_probe_video_codec: 1 if this
+ * platform decodes the codec (basis_codec_t video id). Answers for as much of
+ * the decode path as the platform can verify up front — decoder presence at
+ * minimum, hardware decode where the platform exposes it (a decoder whose
+ * internal software fallback produces frames the present path rejects should
+ * be a 0). Cached for process lifetime; safe to call concurrently from worker
+ * threads. */
+int basis_decoder_probe_video_codec(int codec);
+
 /* Configure tracks (called from the demux thread before the first submit). */
 int basis_decoder_set_video_format(basis_decoder_t* dec, basis_codec_t codec,
                                    const uint8_t* extradata, int extradata_len,

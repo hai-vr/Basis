@@ -2,8 +2,9 @@
  * basis_win_decode.cpp — Windows OS-codec backend (implements basis_decoder_*).
  *
  * Pipeline:
- *   submit_video (demux thread): feed Annex-B AUs to the Media Foundation H.264/
- *     H.265 decoder MFT running on a DXVA-enabled D3D11 device. Decoded NV12 is
+ *   submit_video (demux thread): feed video AUs (Annex-B H.264/H.265, raw VP9
+ *     samples) to the Media Foundation decoder MFT running on a DXVA-enabled
+ *     D3D11 device. Decoded NV12 is
  *     converted to BGRA by an ID3D11VideoProcessor into a keyed-mutex *shared*
  *     texture on the decode device.
  *   render_update (render thread): copy the shared BGRA into the Unity-visible
@@ -24,7 +25,8 @@
  * Notes / iterate-here:
  *   - Uses a synchronous (DXVA) decoder MFT via MFTEnumEx. Async hardware MFTs
  *     (event-driven) would lower latency further but need METransform* handling.
- *   - HEVC requires an installed HEVC decoder MFT (HEVC Video Extensions).
+ *   - HEVC requires an installed HEVC decoder MFT (HEVC Video Extensions);
+ *     VP9 likewise (Store "VP9 Video Extensions", or a vendor MFT).
  */
 
 #include "../basis_media_internal.h"
@@ -357,7 +359,9 @@ static bool create_decode_device(basis_decoder* d) {
 }
 
 static const GUID* video_subtype(basis_codec_t c) {
-    return (c == BASIS_CODEC_H265) ? &MFVideoFormat_HEVC : &MFVideoFormat_H264;
+    if (c == BASIS_CODEC_H265) return &MFVideoFormat_HEVC;
+    if (c == BASIS_CODEC_VP9)  return &MFVideoFormat_VP90;
+    return &MFVideoFormat_H264;
 }
 
 /* Finds a synchronous (DXVA-capable) decoder MFT for the codec. */
@@ -375,6 +379,116 @@ static IMFTransform* create_video_mft(basis_codec_t codec) {
     }
     CoTaskMemFree(acts);
     return mft;
+}
+
+/* ---- capability probe ---------------------------------------------------- */
+
+/* D3D11 decoder-profile GUIDs, defined locally so header vintage doesn't gate
+ * the build (the values are the documented DXVA profile GUIDs). */
+static const GUID kProfileH264VldNoFgt = {0x1b81be68,0xa0c7,0x11d3,{0xb9,0x84,0x00,0xc0,0x4f,0x2e,0x73,0xc5}};
+static const GUID kProfileHevcVldMain  = {0x5b11d51b,0x2f4c,0x4452,{0xbc,0xc3,0x09,0xf2,0xa1,0x16,0x0c,0xc0}};
+static const GUID kProfileVp9Profile0  = {0x463707f8,0xa1d0,0x4585,{0x87,0x6d,0x83,0xaa,0x6d,0x60,0xb8,0x9e}};
+
+/* Leg 1: is there a decoder MFT for the subtype? Enumerated with exactly
+ * create_video_mft's flags so a pass here means configure_video_mft will find
+ * the same MFT (nothing is activated). */
+static int probe_mft_present(const GUID* subtype) {
+    MFT_REGISTER_TYPE_INFO inType = { MFMediaType_Video, *subtype };
+    IMFActivate** acts = nullptr;
+    UINT32 count = 0;
+    UINT32 flags = MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_LOCALMFT | MFT_ENUM_FLAG_SORTANDFILTER;
+    if (FAILED(MFTEnumEx(MFT_CATEGORY_VIDEO_DECODER, flags, &inType, nullptr, &acts, &count)))
+        return 0;
+    for (UINT32 i = 0; i < count; ++i) acts[i]->Release();
+    CoTaskMemFree(acts);
+    return count > 0;
+}
+
+/* Leg 2: does the GPU hardware-decode the profile? An MFT can pass leg 1 and
+ * still decode on CPU via its internal software fallback (the Store VP9/AV1
+ * extensions do this on GPUs without hardware decode) — those samples arrive
+ * without DXGI backing and the drain rejects them, so an MFT-only probe would
+ * be a false positive. Beyond the profile GUID, the check confirms NV12
+ * output and a decoder configuration at the resolution ceiling this codec is
+ * offered at — a listed profile alone promises neither. Uses a transient
+ * device: the probe can run before any player exists. */
+static int probe_gpu_profile(const GUID* profile, UINT width, UINT height) {
+    ID3D11Device* dev = nullptr;
+    ID3D11DeviceContext* ctx = nullptr;
+    /* same flags + feature levels as create_decode_device, so a probe pass
+     * means the real decode device will also create */
+    UINT flags = D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    D3D_FEATURE_LEVEL fl[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
+    if (FAILED(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
+                                 fl, 2, D3D11_SDK_VERSION, &dev, nullptr, &ctx)))
+        return 0;
+    int found = 0;
+    ID3D11VideoDevice* vd = nullptr;
+    if (SUCCEEDED(dev->QueryInterface(__uuidof(ID3D11VideoDevice), (void**)&vd))) {
+        UINT n = vd->GetVideoDecoderProfileCount();
+        for (UINT i = 0; i < n && !found; ++i) {
+            GUID g;
+            if (SUCCEEDED(vd->GetVideoDecoderProfile(i, &g)) && g == *profile) found = 1;
+        }
+        if (found) {
+            BOOL nv12 = FALSE;
+            if (FAILED(vd->CheckVideoDecoderFormat(profile, DXGI_FORMAT_NV12, &nv12)) || !nv12)
+                found = 0;
+        }
+        if (found) {
+            D3D11_VIDEO_DECODER_DESC desc = {};
+            desc.Guid = *profile;
+            desc.SampleWidth = width;
+            desc.SampleHeight = height;
+            desc.OutputFormat = DXGI_FORMAT_NV12;
+            UINT configs = 0;
+            if (FAILED(vd->GetVideoDecoderConfigCount(&desc, &configs)) || configs == 0)
+                found = 0;
+        }
+        vd->Release();
+    }
+    SAFE_RELEASE(ctx);
+    SAFE_RELEASE(dev);
+    return found;
+}
+
+extern "C" int basis_decoder_probe_video_codec(int codec) {
+    /* Cached for process lifetime (0 unprobed / 1 no / 2 yes). Resolves run
+     * concurrently on worker threads; reads and writes go through the
+     * interlocked API so every access has defined synchronisation, and a
+     * racing recompute is harmless — both writers store the same verdict. */
+    static volatile LONG cache[BASIS_CODEC_AV1 + 1];
+    if (codec < BASIS_CODEC_H264 || codec > BASIS_CODEC_AV1) return 0;
+    LONG c = InterlockedCompareExchange(&cache[codec], 0, 0);
+    if (c) return c == 2;
+
+    int ok = 0;
+    if (codec != BASIS_CODEC_AV1) {   /* no AV1 decode path yet — probe stays 0 */
+        /* the probe may run before any decoder exists — start MF here too
+         * (CoInitializeEx is per-thread and may report an existing STA, which
+         * MF doesn't mind; MFStartup refcounts; neither is ever shut down,
+         * matching basis_decoder_create). A failed MFStartup returns 0
+         * without caching, so it doesn't become a permanent verdict. */
+        CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (FAILED(MFStartup(MF_VERSION))) return 0;
+        const GUID* sub = codec == BASIS_CODEC_H265 ? &MFVideoFormat_HEVC
+                        : codec == BASIS_CODEC_VP9  ? &MFVideoFormat_VP90
+                        : &MFVideoFormat_H264;
+        const GUID* prof = codec == BASIS_CODEC_H265 ? &kProfileHevcVldMain
+                         : codec == BASIS_CODEC_VP9  ? &kProfileVp9Profile0
+                         : &kProfileH264VldNoFgt;
+        /* 8-bit profile 0 only for VP9: 10-bit/profile-2 is deliberately
+         * unprobed — the resolver filters to SDR and the drain's software-
+         * fallback guard catches direct 10-bit files that fall back. The
+         * config check runs at each codec's offer ceiling (the resolver caps
+         * avc1 at 1080p; H.265/VP9 are offered up to 2160p), so a codec isn't
+         * failed for missing headroom it will never be asked for. */
+        UINT pw = codec == BASIS_CODEC_H264 ? 1920 : 3840;
+        UINT ph = codec == BASIS_CODEC_H264 ? 1088 : 2160;
+        ok = probe_mft_present(sub) && probe_gpu_profile(prof, pw, ph);
+    }
+    InterlockedExchange((volatile LONG*)&cache[codec], ok ? 2 : 1);
+    return ok;
 }
 
 /* Read the clean-aperture (visible) region from the MFT's current output type.
@@ -403,7 +517,12 @@ static void read_display_aperture(basis_decoder* d) {
 
 static bool configure_video_mft(basis_decoder* d) {
     d->vdec = create_video_mft(d->vcodec);
-    if (!d->vdec) { basis_engine_set_error(d->engine, "no Media Foundation decoder MFT for this codec (HEVC needs the HEVC Video Extension)"); return false; }
+    if (!d->vdec) {
+        basis_engine_set_error(d->engine, d->vcodec == BASIS_CODEC_VP9
+            ? "no Media Foundation VP9 decoder (install 'VP9 Video Extensions' from the Microsoft Store)"
+            : "no Media Foundation decoder MFT for this codec (HEVC needs the HEVC Video Extension)");
+        return false;
+    }
 
     /* bind DXVA device manager */
     d->vdec->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)d->devMgr);
@@ -733,6 +852,15 @@ static void drain_video(basis_decoder* d) {
                     dxgi->GetSubresourceIndex(&subIndex);
                     if (tex) { video_process_to_shared(d, tex, subIndex, d->lastPtsUs); tex->Release(); }
                     dxgi->Release();
+                } else {
+                    /* Only DXGI-backed samples reach the video processor. A
+                     * system-memory sample means the MFT fell back to CPU decode
+                     * (e.g. the Store VP9 extension's internal libvpx on a GPU
+                     * without hardware decode for the profile) — every frame
+                     * would be discarded and the screen would stay black, so
+                     * fail loudly instead. */
+                    basis_engine_set_error(d->engine,
+                        "video decoder produced software frames (no GPU decode path for this codec/profile)");
                 }
                 mb->Release();
             }

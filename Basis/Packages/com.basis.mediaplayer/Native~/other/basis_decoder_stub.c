@@ -19,6 +19,8 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
 }
 void basis_decoder_destroy(basis_decoder_t* d) { free(d); }
 
+int basis_decoder_probe_video_codec(int codec) { (void)codec; return 0; }
+
 int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t c, const uint8_t* e, int el, int w, int h) {
     (void)d;(void)c;(void)e;(void)el;(void)w;(void)h; return 0;
 }
