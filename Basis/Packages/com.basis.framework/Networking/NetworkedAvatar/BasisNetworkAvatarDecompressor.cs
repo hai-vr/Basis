@@ -148,6 +148,19 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 goto Fail;
             }
 
+            // End-effector anchoring block (High only; server-repacked lower qualities omit it).
+            // Length was validated >= ConvertToSize(High) by the caller, so this fixed read is in bounds.
+            if (quality == BasisAvatarBitPacking.BitQuality.High)
+            {
+                basisAvatarBuffer.EffectorMask = BasisAvatarEndEffectors.Decode(
+                    data, offset, basisAvatarBuffer.EffectorPos, basisAvatarBuffer.EffectorRot, basisAvatarBuffer.EffectorSwivel);
+                offset += BasisAvatarEndEffectors.BlockBytes;
+            }
+            else
+            {
+                basisAvatarBuffer.EffectorMask = 0;
+            }
+
             basisAvatarBuffer.Scale = BasisUnityBitPackerExtensionsUnsafe.DecompressScale(uScale);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;

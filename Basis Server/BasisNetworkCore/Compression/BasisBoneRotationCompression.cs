@@ -233,9 +233,15 @@ namespace Basis.Network.Core.Compression
             return (totalBits + 7) >> 3;
         }
 
+        // End-effector anchoring block (hand/foot world targets + swivel), High quality only —
+        // near players get precise planting; far players are repacked to lower quality without it.
+        public const int EndEffectorBlockBytes = 39;
+        public static int EndEffectorBytes(BasisAvatarBitPacking.BitQuality q)
+            => q == BasisAvatarBitPacking.BitQuality.High ? EndEffectorBlockBytes : 0;
+
         public static int ConvertToSize(BasisAvatarBitPacking.BitQuality q)
         {
-            return WritePosition + RotationBytes(q) + TailBytes;
+            return WritePosition + RotationBytes(q) + TailBytes + EndEffectorBytes(q);
         }
 
         public static int ComputeBitOffsets(byte[] bpc, int[] outBitOffsets)

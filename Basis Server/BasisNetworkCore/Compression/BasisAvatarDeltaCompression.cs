@@ -21,14 +21,15 @@ namespace Basis.Network.Core.Compression
     public static class BasisAvatarDeltaCompression
     {
         public const int BoneFieldStart = 1;
-        public const int FieldCount = 1 + BasisBoneRotationCompression.SyncBoneCount + 4; // 56
-        public const int DirtyMaskBytes = (FieldCount + 7) >> 3;                          // 7
+        public const int FieldCount = 1 + BasisBoneRotationCompression.SyncBoneCount + 5; // 57 (incl. end-effector block)
+        public const int DirtyMaskBytes = (FieldCount + 7) >> 3;                          // 8
 
         private const int FieldPosition = 0;
         private const int FieldScale = 1 + BasisBoneRotationCompression.SyncBoneCount;     // 52
         private const int FieldBodyRot = FieldScale + 1;                                   // 53
         private const int FieldHipsDelta = FieldScale + 2;                                 // 54
         private const int FieldHipsRot = FieldScale + 3;                                   // 55
+        private const int FieldEndEffector = FieldScale + 4;                               // 56 (High only)
 
         private sealed class QualityGeometry
         {
@@ -38,6 +39,8 @@ namespace Basis.Network.Core.Compression
             public int BodyRotOffset;
             public int HipsDeltaOffset;
             public int HipsRotOffset;
+            public int EndEffectorOffset;
+            public int EndEffectorBytes;  // 39 on High, 0 otherwise
             public int[] BoneBitOffset;   // 51, relative to the bone region start
             public int[] BoneWidth;       // 51
         }
@@ -66,6 +69,8 @@ namespace Basis.Network.Core.Compression
                     BodyRotOffset = tailStart + BasisBoneRotationCompression.WriteScale,
                     HipsDeltaOffset = tailStart + BasisBoneRotationCompression.WriteScale + BasisBoneRotationCompression.WriteRotation,
                     HipsRotOffset = tailStart + BasisBoneRotationCompression.WriteScale + BasisBoneRotationCompression.WriteRotation + BasisBoneRotationCompression.WriteHipsDelta,
+                    EndEffectorOffset = tailStart + BasisBoneRotationCompression.TailBytes,   // right after the 22B tail
+                    EndEffectorBytes = BasisBoneRotationCompression.EndEffectorBytes(q),
                     BoneBitOffset = offsets,
                     BoneWidth = widths,
                 };
@@ -117,6 +122,8 @@ namespace Basis.Network.Core.Compression
                 SetBit(mask, FieldHipsDelta);
             if (!SpanEqual(current, g.HipsRotOffset, keyframe, g.HipsRotOffset, BasisBoneRotationCompression.WriteHipsRotation))
                 SetBit(mask, FieldHipsRot);
+            if (g.EndEffectorBytes > 0 && !SpanEqual(current, g.EndEffectorOffset, keyframe, g.EndEffectorOffset, g.EndEffectorBytes))
+                SetBit(mask, FieldEndEffector);
 
             int o = dstStart;
             for (int i = 0; i < DirtyMaskBytes; i++) dst[o++] = mask[i];
@@ -126,6 +133,7 @@ namespace Basis.Network.Core.Compression
             if (GetBit(mask, FieldBodyRot)) { Buffer.BlockCopy(current, g.BodyRotOffset, dst, o, BasisBoneRotationCompression.WriteRotation); o += BasisBoneRotationCompression.WriteRotation; }
             if (GetBit(mask, FieldHipsDelta)) { Buffer.BlockCopy(current, g.HipsDeltaOffset, dst, o, BasisBoneRotationCompression.WriteHipsDelta); o += BasisBoneRotationCompression.WriteHipsDelta; }
             if (GetBit(mask, FieldHipsRot)) { Buffer.BlockCopy(current, g.HipsRotOffset, dst, o, BasisBoneRotationCompression.WriteHipsRotation); o += BasisBoneRotationCompression.WriteHipsRotation; }
+            if (GetBit(mask, FieldEndEffector)) { Buffer.BlockCopy(current, g.EndEffectorOffset, dst, o, g.EndEffectorBytes); o += g.EndEffectorBytes; }
 
             int boneBits = 0;
             for (int s = 0; s < g.BoneWidth.Length; s++)
@@ -174,6 +182,7 @@ namespace Basis.Network.Core.Compression
             if (GetBit(mask, FieldBodyRot)) { Buffer.BlockCopy(delta, o, outFull, g.BodyRotOffset, BasisBoneRotationCompression.WriteRotation); o += BasisBoneRotationCompression.WriteRotation; }
             if (GetBit(mask, FieldHipsDelta)) { Buffer.BlockCopy(delta, o, outFull, g.HipsDeltaOffset, BasisBoneRotationCompression.WriteHipsDelta); o += BasisBoneRotationCompression.WriteHipsDelta; }
             if (GetBit(mask, FieldHipsRot)) { Buffer.BlockCopy(delta, o, outFull, g.HipsRotOffset, BasisBoneRotationCompression.WriteHipsRotation); o += BasisBoneRotationCompression.WriteHipsRotation; }
+            if (GetBit(mask, FieldEndEffector)) { Buffer.BlockCopy(delta, o, outFull, g.EndEffectorOffset, g.EndEffectorBytes); o += g.EndEffectorBytes; }
 
             int boneBaseBit = BasisBoneRotationCompression.WritePosition * 8;
             int subBit = o * 8;
@@ -207,6 +216,7 @@ namespace Basis.Network.Core.Compression
             if (GetBit(mask, FieldBodyRot)) expected += BasisBoneRotationCompression.WriteRotation;
             if (GetBit(mask, FieldHipsDelta)) expected += BasisBoneRotationCompression.WriteHipsDelta;
             if (GetBit(mask, FieldHipsRot)) expected += BasisBoneRotationCompression.WriteHipsRotation;
+            if (GetBit(mask, FieldEndEffector)) expected += g.EndEffectorBytes;
             int boneBits = 0;
             for (int s = 0; s < g.BoneWidth.Length; s++)
                 if (GetBit(mask, BoneFieldStart + s)) boneBits += g.BoneWidth[s];

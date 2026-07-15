@@ -189,6 +189,26 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             CompressAvatarData(StoredAvatarData, animator.transform);
         }
 
+        // End-effector capture scratch (reused each frame; rot pre-seeded to identity so the codec
+        // never encodes a zero quaternion for unanchored slots).
+        static readonly Unity.Mathematics.float3[] sEffectorPos = new Unity.Mathematics.float3[BasisAvatarEndEffectors.EffectorCount];
+        static readonly quaternion[] sEffectorRot = { quaternion.identity, quaternion.identity, quaternion.identity, quaternion.identity };
+        static readonly float[] sEffectorSwivel = new float[BasisAvatarEndEffectors.EffectorCount];
+
+        /// <summary>
+        /// Fills the effector scratch arrays with hips-local target offset + tip world rotation + swivel
+        /// for each world-anchored effector and returns the mask (bit i set = effector i anchored).
+        /// An effector is anchored only when the sender's own copy is genuinely world-stable (a held
+        /// controller/tracker or a planted foot) — otherwise FK is left alone so emotes/poses survive.
+        /// Returns 0 (inert) until the per-effector rig seams are wired; see CaptureEndEffectors below.
+        /// </summary>
+        static byte CaptureEndEffectors(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot, float scale)
+        {
+            // Wired in a follow-up against BasisLocalBoneDriver's tracked-effector controls.
+            // Layout when populated: hips-local offset = qConj(hipsRot)·(tipWorld − hipsWorld)/scale.
+            return 0;
+        }
+
         static void CompressAvatarData(BasisStoredAvatarData AvatarData, Transform ScaleTransform)
         {
             int needed = BasisAvatarBitPacking.ConvertToSize(WireQuality);
@@ -250,6 +270,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 quaternion hipsLocalRotNow = BasisLocalAvatarDriver.Mapping.Hips.localRotation;
                 quaternion hipsRotDelta = math.mul(sInverseTposeHipsLocalRot, hipsLocalRotNow);
                 BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hipsRotDelta, ref AvatarData.LASM.array, ref offset);
+
+                // End-effector anchoring block (High only). CaptureEndEffectors fills the scratch
+                // arrays + returns the anchored mask from the local rig; the receiver two-bone-IKs the
+                // anchored limbs to these targets. Mask 0 (nothing world-stable) makes it inert.
+                byte effectorMask = CaptureEndEffectors(hipsWorldPos, hipsWorldRot, ScaleTransform.localScale.y);
+                BasisAvatarEndEffectors.Encode(AvatarData.LASM.array, offset, effectorMask, sEffectorPos, sEffectorRot, sEffectorSwivel);
+                offset += BasisAvatarEndEffectors.BlockBytes;
             }
         }
 

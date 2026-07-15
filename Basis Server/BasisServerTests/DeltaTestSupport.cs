@@ -24,6 +24,15 @@ public static class DeltaTestSupport
     public static int BodyRotOffset(BitQuality q) => TailStart(q) + BasisBoneRotationCompression.WriteScale;
     public static int HipsDeltaOffset(BitQuality q) => BodyRotOffset(q) + BasisBoneRotationCompression.WriteRotation;
     public static int HipsRotOffset(BitQuality q) => HipsDeltaOffset(q) + BasisBoneRotationCompression.WriteHipsDelta;
+    public static int EndEffectorOffset(BitQuality q) => TailStart(q) + BasisBoneRotationCompression.TailBytes;
+    public static int EndEffectorBytes(BitQuality q) => BasisBoneRotationCompression.EndEffectorBytes(q);
+
+    /// <summary>Flip every byte of the end-effector block (High only), guaranteeing it differs.</summary>
+    public static void FlipEndEffector(byte[] payload, BitQuality q)
+    {
+        int off = EndEffectorOffset(q), n = EndEffectorBytes(q);
+        for (int i = 0; i < n; i++) payload[off + i] ^= 0xFF;
+    }
 
     public static byte[] Bpc(BitQuality q) => BasisBoneRotationCompression.GetBpcTable(q);
     public static int BoneWidth(BitQuality q, int slot) => 2 + 3 * Bpc(q)[slot];
@@ -68,6 +77,7 @@ public static class DeltaTestSupport
         var arr = new byte[size];
         rng.NextBytes(new Span<byte>(arr, 0, BasisBoneRotationCompression.WritePosition));
         rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
+        if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
         var bpc = Bpc(q);
         var offs = BoneBitOffsets(q);
         for (int s = 0; s < bpc.Length; s++)
@@ -86,6 +96,7 @@ public static class DeltaTestSupport
         var arr = new byte[size];
         rng.NextBytes(new Span<byte>(arr, 0, BasisBoneRotationCompression.WritePosition));
         rng.NextBytes(new Span<byte>(arr, TailStart(q), BasisBoneRotationCompression.TailBytes));
+        if (EndEffectorBytes(q) > 0) rng.NextBytes(new Span<byte>(arr, EndEffectorOffset(q), EndEffectorBytes(q)));
         var bpc = Bpc(q);
         var offs = BoneBitOffsets(q);
         for (int s = 0; s < bpc.Length; s++)

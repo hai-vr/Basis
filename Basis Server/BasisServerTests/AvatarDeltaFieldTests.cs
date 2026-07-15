@@ -11,7 +11,7 @@ namespace BasisServerTests;
 /// </summary>
 public class AvatarDeltaFieldTests
 {
-    private const int Mask = 7;
+    private const int Mask = 8;   // DirtyMaskBytes (57 fields incl. end-effector)
 
     [Theory]
     [InlineData(BitQuality.VeryLow)]
@@ -125,8 +125,9 @@ public class AvatarDeltaFieldTests
         cur[S.BodyRotOffset(q)] ^= 0xFF;      // body rot
         cur[S.HipsDeltaOffset(q)] ^= 0xFF;    // hips delta
         cur[S.HipsRotOffset(q)] ^= 0xFF;      // hips rot
+        if (S.EndEffectorBytes(q) > 0) cur[S.EndEffectorOffset(q)] ^= 0xFF;   // effector block (High only)
         var (len, recon) = S.BuildApply(kf, cur, q);
-        Assert.Equal(Mask + 12 + 2 + 7 + 6 + 7, len);
+        Assert.Equal(Mask + 12 + 2 + 7 + 6 + 7 + S.EndEffectorBytes(q), len);
         Assert.Equal(cur, recon);
     }
 
@@ -146,6 +147,7 @@ public class AvatarDeltaFieldTests
         cur[S.HipsDeltaOffset(q)] ^= 0xFF;
         cur[S.HipsRotOffset(q)] ^= 0xFF;
         for (int s = 0; s < S.BoneCount; s++) S.FlipBone(cur, q, s);
+        if (S.EndEffectorBytes(q) > 0) S.FlipEndEffector(cur, q);
         var (len, recon) = S.BuildApply(kf, cur, q);
         Assert.Equal(Mask + S.PayloadSize(q), len);
         Assert.Equal(cur, recon);

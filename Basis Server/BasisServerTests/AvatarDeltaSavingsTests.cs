@@ -38,7 +38,7 @@ public class AvatarDeltaSavingsTests
         var rng = new Random((int)q);
         byte[] kf = S.MakeRealisticPayload(q, rng);
         int body = BodyFor(kf, (byte[])kf.Clone(), q);
-        Assert.Equal(7, body);
+        Assert.Equal(8, body);
         Assert.True(Savings(q, body) >= 0.88, $"idle savings {Savings(q, body):P1} < 88% at {q}");
     }
 
@@ -54,7 +54,7 @@ public class AvatarDeltaSavingsTests
         byte[] cur = (byte[])kf.Clone();
         cur[0] ^= 0xFF;
         int body = BodyFor(kf, cur, q);
-        Assert.Equal(7 + 12, body);
+        Assert.Equal(8 + 12, body);
         Assert.True(Savings(q, body) >= 0.78, $"position-only savings {Savings(q, body):P1} < 78% at {q}");
     }
 
@@ -70,7 +70,7 @@ public class AvatarDeltaSavingsTests
         byte[] cur = (byte[])kf.Clone();
         for (int s = 0; s < S.BoneCount; s++) S.FlipBone(cur, q, s);
         int body = BodyFor(kf, cur, q);
-        Assert.Equal(7 + S.RotBytes(q), body);
+        Assert.Equal(8 + S.RotBytes(q), body);
         Assert.True(Savings(q, body) > 0.10, $"all-bones savings {Savings(q, body):P1} not positive enough at {q}");
     }
 
@@ -90,6 +90,7 @@ public class AvatarDeltaSavingsTests
         cur[S.HipsDeltaOffset(q)] ^= 0xFF;
         cur[S.HipsRotOffset(q)] ^= 0xFF;
         for (int s = 0; s < S.BoneCount; s++) S.FlipBone(cur, q, s);
+        if (S.EndEffectorBytes(q) > 0) S.FlipEndEffector(cur, q);
         int body = BodyFor(kf, cur, q);
         // The server promotes to a keyframe when body >= payload — verify that guard fires here.
         Assert.True(body >= S.PayloadSize(q), $"expected promotion at {q}: body {body} < payload {S.PayloadSize(q)}");
