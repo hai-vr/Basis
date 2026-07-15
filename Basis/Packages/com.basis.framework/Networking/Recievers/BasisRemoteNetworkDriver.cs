@@ -712,6 +712,16 @@ public static class BasisRemoteNetworkDriver
         }.Schedule(totalBones, batch, deps);
     }
 
+    /// <summary>Per-key end-effector anchored mask (bit e = effector e anchored). Read by the read/compute jobs.</summary>
+    public static NativeArray<byte> EffectorMaskArray => _effMask;
+
+    /// <summary>True if any player wrote a non-zero effector mask since the last <see cref="ResetEffectorAnchored"/>.
+    /// Lets the bone-job scheduler skip the whole read→compute→write chain when nobody is anchored.</summary>
+    public static bool AnyEffectorAnchored { get; private set; }
+
+    /// <summary>Resets the per-frame anchored flag. Call once on the main thread before the gather loop.</summary>
+    public static void ResetEffectorAnchored() => AnyEffectorAnchored = false;
+
     /// <summary>
     /// Writes a player's interpolated end-effector IK inputs (main thread, playerId-keyed). Read by
     /// EffectorIKComputeJob via the sKeyArray remap. Writes through cached pointers like SetFrameInputs.
@@ -719,6 +729,7 @@ public static class BasisRemoteNetworkDriver
     public static unsafe void WriteEffectorInputs(int playerId, byte mask, float3* offsets, quaternion* tipRots, float* swivels)
     {
         if (!_initialized || (uint)playerId >= FixedCapacity) return;
+        if (mask != 0) AnyEffectorAnchored = true;
         ((byte*)(void*)_ptrEffMask)[playerId] = mask;
         int b = playerId * 4;
         for (int e = 0; e < 4; e++)

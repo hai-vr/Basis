@@ -375,6 +375,7 @@ namespace Basis.Scripts.Networking
 
             byte* skipPtr = BasisRemoteNetworkDriver.SkipBonesPtr();
             bool endEffectorIK = BasisNetworkReceiver.EndEffectorIKEnabled;
+            if (endEffectorIK) BasisRemoteNetworkDriver.ResetEffectorAnchored();
 
             for (int Index = 0; Index < count; Index++)
             {

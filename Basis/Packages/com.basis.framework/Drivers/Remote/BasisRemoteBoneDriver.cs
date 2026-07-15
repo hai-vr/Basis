@@ -424,25 +424,44 @@ public struct ApplyAvatarScaleJob : IJobParallelForTransform
 }
 
 /// <summary>
-/// Reads every remote bone's world position/rotation + local rotation into flat buffers (parallel to
-/// the skeleton TAA) for the end-effector IK compute pass, and clears the per-bone override mask.
-/// Scheduled after the skeleton FK + hips-world apply so the world poses are final.
+/// Reads the FK-posed world pose (+ root local rotation) of the bones the end-effector IK needs, into
+/// flat buffers parallel to the skeleton TAA, and clears the per-bone override mask. Only the 12 effector
+/// slots (LHand/RHand/LFoot/RFoot × root/joint/tip) of players anchored THIS frame do the expensive
+/// transform read — every other bone just clears its (cheap byte) mask and returns. Scheduled after the
+/// skeleton FK + hips-world apply so the world poses are final.
 /// </summary>
 [BurstCompile]
 public struct ReadBonePoseJob : IJobParallelForTransform
 {
-    [WriteOnly] public NativeArray<float3> ReadPos;
-    [WriteOnly] public NativeArray<quaternion> ReadWorldRot;
-    [WriteOnly] public NativeArray<quaternion> ReadLocalRot;
+    // Bits set for BONE_WRITE_ORDER slots 5..12 (roots+joints) and 15..18 (tips). See EffectorIKComputeJob.
+    const uint EffectorSlotMask = 0x79FE0u;
+    // Roots only (slots 5..8): the sole slots whose local rotation the compute pass consumes.
+    const uint RootSlotMask = 0x1E0u;
+
+    [ReadOnly] public NativeArray<int> PlayerKeys;
+    [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> EffMask;
+    [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> ReadPos;
+    [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> ReadWorldRot;
+    [WriteOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> ReadLocalRot;
     [WriteOnly] public NativeArray<byte> OverrideMask;
+    public int BoneCount;
+    public int CapacityFixed;
 
     public void Execute(int index, TransformAccess transform)
     {
+        OverrideMask[index] = 0;
+
+        int dense = index / BoneCount;
+        int boneSlot = index - dense * BoneCount;
+        if (((EffectorSlotMask >> boneSlot) & 1u) == 0) return;
+
+        int key = PlayerKeys[dense];
+        if ((uint)key >= (uint)CapacityFixed || EffMask[key] == 0) return;
+
         transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
         ReadPos[index] = position;
         ReadWorldRot[index] = rotation;
-        ReadLocalRot[index] = transform.localRotation;
-        OverrideMask[index] = 0;
+        if (((RootSlotMask >> boneSlot) & 1u) != 0) ReadLocalRot[index] = transform.localRotation;
     }
 }
 
@@ -1295,7 +1314,7 @@ public static class RemoteBoneJobSystem
         // targets, and write the resulting local rotations back — all on workers, chained off the skeleton
         // + hips apply and folded into `pending` so it completes at the tail with everything else.
         JobHandle effectorIkJob = default;
-        if (BasisNetworkReceiver.EndEffectorIKEnabled && totalBones > 0)
+        if (BasisNetworkReceiver.EndEffectorIKEnabled && BasisRemoteNetworkDriver.AnyEffectorAnchored && totalBones > 0)
         {
             if (!sIkReadPos.IsCreated || sIkReadPos.Length != totalBones)
             {
@@ -1313,10 +1332,14 @@ public static class RemoteBoneJobSystem
 
             var readPoseJob = new ReadBonePoseJob
             {
+                PlayerKeys = sKeyArray,
+                EffMask = BasisRemoteNetworkDriver.EffectorMaskArray,
                 ReadPos = sIkReadPos,
                 ReadWorldRot = sIkReadWorldRot,
                 ReadLocalRot = sIkReadLocalRot,
                 OverrideMask = sIkOverrideMask,
+                BoneCount = BasisBoneRotationCompression.SyncBoneCount,
+                CapacityFixed = BasisRemoteNetworkDriver.FixedCapacity,
             }.Schedule(sSkeletonBones, JobHandle.CombineDependencies(hipsWorldJob, skeletonJob));
 
             int ikBatch = math.max(1, math.min(maxBatchSize, (AuthoringLength + workerCount - 1) / workerCount));
