@@ -782,7 +782,6 @@ public static class BasisRemoteNetworkDriver
 
             float3 hipsPos = HipsWorldPos[dense];
             quaternion hipsRot = HipsWorldRot[dense];
-            float3 refUp = math.mul(hipsRot, math.up());
             int baseB = dense * BoneCount;
             int baseK = key * 4;
 
@@ -803,7 +802,6 @@ public static class BasisRemoteNetworkDriver
 
                 float3 offset = EffOffset[baseK + e];
                 quaternion tipRot = EffTipRot[baseK + e];
-                float swivel = EffSwivel[baseK + e];
 
                 float3 target = hipsPos + math.mul(hipsRot, offset);
                 float3 rootPos = ReadPos[fRoot];
@@ -816,7 +814,11 @@ public static class BasisRemoteNetworkDriver
                 quaternion jointLocal = ReadLocalRot[fJoint];
                 quaternion tipLocal = ReadLocalRot[fTip];
 
-                float3 pole = BasisRemoteLimbIK.PoleFromSwivel(rootPos, target, refUp, swivel);
+                // Pole = the FK joint (elbow/knee) world position, not the sent swivel: the FK joint comes
+                // from the well-synced bone rotations (stable, preserves articulation) and has no reference-
+                // axis degeneracy — the swivel referenced hips-up, which is ~parallel to a standing leg and
+                // made the knee jitter. EffSwivel is now unused on the wire.
+                float3 pole = jointPos;
                 BasisRemoteLimbIK.Solve(rootPos, jointPos, tipPos, upperRot, lowerRot, target, pole,
                     out quaternion newUpper, out quaternion newLower, out _);
 
