@@ -201,7 +201,11 @@ namespace Basis.Scripts.Networking.Receivers
 
         public bool HasCurrentBuffer = false;
         public bool HasNextBuffer = false;
+        public bool HasPreviousBuffer = false;
         public bool SentLatest = false;
+        // Catmull-Rom control points: Previous(p0) -> Current(p1) -> Next(p2) -> peek staged(p3).
+        // Previous is the retained outgoing Current; it supplies the p0 tangent for the spline.
+        public BasisAvatarBuffer Previous { get; private set; }
         public BasisAvatarBuffer Current { get; private set; }
         public BasisAvatarBuffer Next { get; private set; }
 
@@ -477,10 +481,14 @@ namespace Basis.Scripts.Networking.Receivers
 
                 while (interpolationTime >= 1.0 && _stagedRing.Count != 0)
                 {
-                    if (HasCurrentBuffer)
+                    // Retain the outgoing Current as Previous (p0 tangent) rather than releasing
+                    // it; release the stale Previous first so the buffer pool doesn't leak.
+                    if (HasPreviousBuffer)
                     {
-                        ReleaseCurrent();
+                        BasisAvatarBufferPool.Release(Previous);
                     }
+                    Previous = Current;
+                    HasPreviousBuffer = HasCurrentBuffer;
 
                     Current = Next;
                     HasCurrentBuffer = true;
@@ -522,17 +530,22 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (SentLatest)
                 {
-                    var first = Current;
-                    var last = Next;
+                    var p1 = Current;
+                    var p2 = Next;
+                    // p0 = retained Previous (duplicate p1 at cold start); p3 = peek the next
+                    // staged frame (duplicate p2 on underrun). Duplicated endpoints make the
+                    // Catmull-Rom tangents one-sided — the spline stays bounded, no branch needed.
+                    var p0 = HasPreviousBuffer ? Previous : p1;
+                    var p3 = _stagedRing.TryPeekOldest(out var peek) ? peek : p2;
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         CachedHumanScale,
-                        first.Position, last.Position,
-                        first.Scale, last.Scale,
-                        first.Rotation, last.Rotation,
-                        first.HipsLocalDelta, last.HipsLocalDelta,
-                        first.HipsLocalRotation, last.HipsLocalRotation,
-                        first.BoneRotations, last.BoneRotations
+                        p0.Position, p1.Position, p2.Position, p3.Position,
+                        p1.Scale, p2.Scale,
+                        p0.Rotation, p1.Rotation, p2.Rotation, p3.Rotation,
+                        p1.HipsLocalDelta, p2.HipsLocalDelta,
+                        p1.HipsLocalRotation, p2.HipsLocalRotation,
+                        p0.BoneRotations, p1.BoneRotations, p2.BoneRotations, p3.BoneRotations
                     );
                     IsDataReady = true;
                     SentLatest = false;
@@ -774,6 +787,14 @@ namespace Basis.Scripts.Networking.Receivers
             if (HasCurrentBuffer) return;
             if (_stagedRing.TryDequeueOldest(out var first))
             {
+                // Fresh window (cold start or recovery after starvation): any retained Previous
+                // predates the gap and would poison the p0 tangent, so drop it — p0 duplicates p1.
+                if (HasPreviousBuffer)
+                {
+                    BasisAvatarBufferPool.Release(Previous);
+                    Previous = null;
+                    HasPreviousBuffer = false;
+                }
                 Current = first;
                 SentLatest = true;
                 HasCurrentBuffer = true;
@@ -802,6 +823,12 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ClearAndRelease()
         {
+            if (HasPreviousBuffer)
+            {
+                BasisAvatarBufferPool.Release(Previous);
+                Previous = null;
+                HasPreviousBuffer = false;
+            }
             ReleaseCurrent();
             if (HasNextBuffer)
             {

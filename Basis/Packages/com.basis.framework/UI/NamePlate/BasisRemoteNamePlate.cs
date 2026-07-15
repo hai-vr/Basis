@@ -122,7 +122,7 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemotePlayer.NamePlateTransformProvider = GetSelfTransform;
 
             Self = this.transform;
-            Self.localScale = new Vector3(0.02f, 0.02f, 0.02f) * BasisRemoteNamePlateDriver.NamePlateSize;
+            Self.localScale = Vector3.one * BasisRemoteNamePlateDriver.PlateWorldScale();
 
             // Global path renders the name through the shared merged mesh; the per-plate
             // renderer stays off (the BoxCollider still drives interaction independently).

@@ -479,14 +479,13 @@ namespace Basis.IK.Debugging
         // --- calibration offset / rotation / height math tolerances ---
         public const float CalibMaxPosErrM = 5e-4f;         // offset + scale round-trip position error (metres)
         public const float CalibMaxRotErrDeg = 0.1f;        // offset + rotation-calibration round-trip error (degrees)
-        public const float CalibMaxPitchHeightErrM = 5e-3f; // pitch-calibrated eye-height recovery error (metres)
-        public const float CalibMaxFeelHeightErrM = 1e-3f;  // DeviceScale feel: viewpoint must land on the avatar eye when the denominator is true/nudged (metres)
+        public const float CalibMaxFeelHeightErrM = 1e-3f;  // DeviceScale feel: viewpoint must land on the avatar eye when the denominator is true (metres)
         public const float CalibMaxFeelFactorErr = 1e-3f;   // too-tall ratio of an under-bridged eye reference must equal E/(E-shortfall)
 
-        // Calibration math: the offset capture↔apply, device-scale, per-effector rotation, and pitch-
-        // height formulas must round-trip / land on their targets within float tolerance, and the scale
-        // modifier must sanitize bad overrides. A failure means a calibration formula changed in a way
-        // that no longer reproduces the bone/height it was derived from.
+        // Calibration math: the offset capture↔apply, device-scale, and per-effector rotation formulas
+        // must round-trip / land on their targets within float tolerance, and the scale modifier must
+        // sanitize bad overrides. A failure means a calibration formula changed in a way that no longer
+        // reproduces the bone/height it was derived from.
         public static (bool pass, string reason) GateCalibrationMath(in BasisCalibrationMathSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -495,13 +494,11 @@ namespace Basis.IK.Debugging
                 return (false, $"offset/scale round-trip off: offsetPos={s.MaxOffsetPosErr:F5} follow={s.MaxRigidFollowErr:F5} scalePos={s.MaxScalePosErr:F5} m > {CalibMaxPosErrM} m");
             if (s.MaxOffsetRotErrDeg > CalibMaxRotErrDeg || s.MaxRotCalErrDeg > CalibMaxRotErrDeg)
                 return (false, $"rotation off: offsetRot={s.MaxOffsetRotErrDeg:F3} rotCal={s.MaxRotCalErrDeg:F3} deg > {CalibMaxRotErrDeg} (rotation calibration would leak orientation)");
-            if (s.MaxPitchHeightErr > CalibMaxPitchHeightErrM)
-                return (false, $"pitch-calibrated height off by {s.MaxPitchHeightErr:F4} m > {CalibMaxPitchHeightErrM} ({s.PitchSolvable} solved, {s.PitchFallback} fallback)");
             if (s.ScaleModifierMismatches > 0)
                 return (false, $"{s.ScaleModifierMismatches} scale-modifier sanitization/FinalScale mismatches");
             if (s.MaxFeelHeightErr > CalibMaxFeelHeightErrM || s.MaxFeelFactorErr > CalibMaxFeelFactorErr)
                 return (false, $"feel height off: viewpoint err={s.MaxFeelHeightErr:F5} m > {CalibMaxFeelHeightErrM} or too-tall ratio err={s.MaxFeelFactorErr:F5} > {CalibMaxFeelFactorErr} (DeviceScale no longer lands the viewpoint on the avatar eye)");
-            return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m pitch={s.MaxPitchHeightErr:F4}m ({s.PitchSolvable}/{s.PitchFallback}) feel={s.MaxFeelHeightErr:F5}m cases={s.Cases} fails={s.Failures}");
+            return (true, $"offsetPos={s.MaxOffsetPosErr:F5}m rotCal={s.MaxRotCalErrDeg:F3}deg scalePos={s.MaxScalePosErr:F5}m feel={s.MaxFeelHeightErr:F5}m cases={s.Cases} fails={s.Failures}");
         }
 
         // Procedural foot placement (BasisFootSimulateJob): a temporal stepping system, so the gate reads

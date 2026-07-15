@@ -328,7 +328,7 @@ namespace Basis.Scripts.BasisCharacterController
                     // tracker too, and those leave the pelvis fully IK-derived -- there the dip is correct and wanted.
                     if (!(BasisAvatarIKStageCalibration.HasHipsFBIKTracker && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue))
                     {
-                        landingCrouchTarget = Mathf.Clamp(fallSpeed * landingImpactScale, 0f, maxLandingCrouchEffect);
+                        landingCrouchTarget = Mathf.Clamp(fallSpeed * landingImpactScale, 0f, maxLandingCrouchEffect) * BasisHeightDriver.AvatarToDefaultRatioScaled;
                     }
                     JustLanded?.Invoke();
                     currentVerticalSpeed = 0f;

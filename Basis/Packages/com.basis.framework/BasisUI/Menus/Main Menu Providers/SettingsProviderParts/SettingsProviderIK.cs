@@ -354,6 +354,12 @@ public static class SettingsProviderIK
             AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKAnatPelvicTwistRouting,
                 "settings.bodyTracking.anat.pelvicTwistRouting.title",
                 "settings.bodyTracking.anat.pelvicTwistRouting.description");
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKSpineAnatomicalRom,
+                "settings.bodyTracking.anat.spineRom.title",
+                "settings.bodyTracking.anat.spineRom.description");
+            AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKChestIKTarget,
+                "settings.bodyTracking.anat.chestIkTarget.title",
+                "settings.bodyTracking.anat.chestIkTarget.description");
             AddAnatomyToggle(anatomyParent, BasisSettingsDefaults.FBIKLegSwivelSmoothing,
                 "settings.bodyTracking.anat.legSwivelSmoothing.title",
                 "settings.bodyTracking.anat.legSwivelSmoothing.description");
@@ -1006,7 +1012,7 @@ public static class SettingsProviderIK
             "Player to Avatar Ratio", "Avatar to Player Ratio", "Device Scale", "Applied Up Scale", "Scaled to Match Value");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.calibrationState"),
-            "Height Mode", "Seated Mode", "Seated Height Delta", "Pitch Calibration Enabled", "Has Pitch Calibrated Height", "Pitch Calibrated Eye Height");
+            "Height Mode", "Seated Mode", "Seated Height Delta", "Height Grounding Offset");
 
         var refreshButton = PanelButton.CreateNew(debugParent);
         refreshButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.refreshDebug"));
@@ -1072,9 +1078,7 @@ public static class SettingsProviderIK
         "Height Mode" => $"{SMModuleCalibration.HeightMode}",
         "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
         "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
-        "Pitch Calibration Enabled" => SMModuleCalibration.PitchCalibrationEnabled ? "Yes" : "No",
-        "Has Pitch Calibrated Height" => BasisHeightDriver.HasPitchCalibratedHeight ? "Yes" : "No",
-        "Pitch Calibrated Eye Height" => $"{BasisHeightDriver.PitchCalibratedEyeHeight:F4} m",
+        "Height Grounding Offset" => $"{BasisHeightDriver.HeightModeGroundingOffset:F4} m",
         _ => "--"
     };
 
@@ -1187,6 +1191,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKAnatShoulderSlide.ResetToDefault();
         BasisSettingsDefaults.FBIKAnatCervicalLordosis.ResetToDefault();
         BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineAnatomicalRom.ResetToDefault();
+        BasisSettingsDefaults.FBIKChestIKTarget.ResetToDefault();
         BasisSettingsDefaults.FBIKLegSwivelSmoothing.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackerBendNormal.ResetToDefault();
 

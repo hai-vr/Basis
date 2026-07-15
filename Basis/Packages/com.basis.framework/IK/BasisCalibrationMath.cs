@@ -106,8 +106,8 @@ public static class BasisCalibrationMath
     /// <paramref name="eyeReference"/> lifts a backend's tracked point up to the eyes: OpenVR fills it
     /// from SteamVR's eye-to-head transform (BasisInput.CenterEyeVerticalOffset) because it tracks the
     /// HMD pose origin, while a backend whose tracked point is already the center-eye (OpenXR
-    /// centerEyePosition) passes 0. A shortfall in this denominator is exactly what the
-    /// AdditionalPlayerHeight "nudge" is bridging by hand.
+    /// centerEyePosition) passes 0. A shortfall in this denominator is exactly what the additive
+    /// <paramref name="additionalPlayerHeight"/> term bridges.
     /// </summary>
     public static float StandingEyeDenominator(float playerMeasuredHeight, float eyeReference, float additionalPlayerHeight)
     {
@@ -131,6 +131,23 @@ public static class BasisCalibrationMath
             return 1f;
         }
         return avatarScaledMetric / denominator;
+    }
+
+    /// <summary>
+    /// Extra tracking-space lift, in unscaled player metres, that keeps an arm-span-calibrated avatar's
+    /// feet on the floor. Arm-span DeviceScale matches reach rather than eye height, so the scaled head can
+    /// land below the avatar's standing eye and drop the body through the floor; this returns the upward
+    /// lift that, added to the tracking-space yOffset (later multiplied by DeviceScale), lands the scaled
+    /// feet on the floor. Returns 0 when the avatar would float instead — push-up only, never sinks the view.
+    /// </summary>
+    public static float ArmSpanFloorGroundingLift(float avatarUnscaledEye, float appliedUpScale, float deviceScale, float playerMeasuredEye)
+    {
+        if (deviceScale <= 1e-5f)
+        {
+            return 0f;
+        }
+        float desiredUnscaledEye = (avatarUnscaledEye * appliedUpScale) / deviceScale;
+        return Mathf.Max(0f, desiredUnscaledEye - playerMeasuredEye);
     }
 
     /// <summary>

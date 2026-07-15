@@ -784,7 +784,7 @@ namespace Basis.Scripts.UI.NamePlate
                 Frames = frames,
                 PlateSlot = plateSlot,
                 Matrices = matrices.Reinterpret<float4x4>(),
-                Scale = 0.02f * BasisRemoteNamePlateDriver.NamePlateSize,
+                Scale = BasisRemoteNamePlateDriver.PlateWorldScale(),
                 CamPos = camPos,
                 CamFwd = camFwd,
                 MaxDistSqr = maxDistSqr,

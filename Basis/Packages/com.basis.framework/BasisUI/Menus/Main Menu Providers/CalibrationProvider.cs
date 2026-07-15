@@ -34,20 +34,7 @@ namespace Basis.BasisUI
         private bool _rightPressed;
         private bool _calibrated;
 
-        // Pitch calibration state
-        private enum PitchCalibrationStep
-        {
-            None,
-            WaitingForUp,
-            WaitingForDown,
-            WaitingForForward
-        }
-        private PitchCalibrationStep _pitchStep = PitchCalibrationStep.None;
-        private Vector2 _pitchUp;
-        private Vector2 _pitchDown;
-
         public PanelButton Button;
-        private PanelButton _pitchToggleButton;
         private PanelElementDescriptor _reportGroup;
         public override void RunAction()
         {
@@ -153,50 +140,6 @@ namespace Basis.BasisUI
                 };
             }
 
-            // Nudge Standing Height: gated behind its own toggle. Quick ± buttons for a SEPARATE standing-height
-            // nudge (the old AdditionalPlayerHeight), fed through DeviceScale independently of the Eye Height Modifier.
-            var nudgeToggle = PanelToggle.CreateNewEntry(container);
-            nudgeToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.nudgeStandingHeight"));
-            nudgeToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.nudgeStandingHeight.tooltip"));
-            nudgeToggle.AssignBinding(BasisSettingsDefaults.EnableStandingHeightNudge);
-
-            var nudgeGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-
-            // Show the live nudge value (read fresh from the persisted setting) instead of a static warning, so it
-            // always matches the real value — including after avatar swaps or closing/reopening the menu.
-            void UpdateNudgeReadout() => nudgeGroup.SetDescription(FormatNudgeMeters(BasisSettingsDefaults.AdditionalPlayerHeight.RawValue));
-            UpdateNudgeReadout();
-
-            void NudgeStandingHeight(float deltaMeters)
-            {
-                float next = Mathf.Clamp(
-                    BasisSettingsDefaults.AdditionalPlayerHeight.RawValue + deltaMeters,
-                    -NudgeStandingHeightLimitMeters,
-                    NudgeStandingHeightLimitMeters);
-
-                // Adjusts only the nudge (AdditionalPlayerHeight) — fed through the DeviceScale denominator,
-                // separate from the Eye Height Modifier. SetValue persists and re-applies height via SMModuleCalibration.
-                BasisSettingsDefaults.AdditionalPlayerHeight.SetValue(next);
-                UpdateNudgeReadout();
-            }
-
-            var decreaseHeightButton = PanelButton.CreateNew(nudgeGroup.ContentParent);
-            decreaseHeightButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.decreaseHeight"));
-            decreaseHeightButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.decreaseHeight.tooltip"));
-            decreaseHeightButton.OnClicked += () => NudgeStandingHeight(-NudgeStandingHeightStepMeters);
-
-            var increaseHeightButton = PanelButton.CreateNew(nudgeGroup.ContentParent);
-            increaseHeightButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.increaseHeight"));
-            increaseHeightButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.increaseHeight.tooltip"));
-            increaseHeightButton.OnClicked += () => NudgeStandingHeight(NudgeStandingHeightStepMeters);
-
-            nudgeGroup.gameObject.SetActive(BasisSettingsDefaults.EnableStandingHeightNudge.RawValue);
-            nudgeToggle.OnValueChanged += visible =>
-            {
-                nudgeGroup.gameObject.SetActive(visible);
-                layout.ForceRebuild();
-            };
-
             // Lock-in guides toggle (shrinking spheres + foot-forward guide while calibrating).
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
             {
@@ -229,13 +172,7 @@ namespace Basis.BasisUI
                 };
             }
 
-            // Pitch calibration toggle
-            _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
-            _pitchToggleButton.OnClicked += TogglePitchCalibration;
-            _pitchToggleButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.pitchLabel.tooltip"));
-            UpdatePitchToggleLabel();
-
-            // Reset Calibration (restores defaults for calibration-only state, including hidden pitch data)
+            // Reset Calibration (restores defaults for calibration-only state)
             var resetButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             resetButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.reset"));
             resetButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.resetDescription"));
@@ -262,18 +199,8 @@ namespace Basis.BasisUI
 
         private void ResetCalibration()
         {
-            // Pitch calibration toggle (binding + module-static used by Calibrate())
-            BasisSettingsDefaults.PitchCalibration.ResetToDefault();
-            SMModuleCalibration.PitchCalibrationEnabled = BasisSettingsDefaults.PitchCalibration.RawValue;
-
-            // Captured pitch calibration result (hidden backend state)
-            BasisHeightDriver.HasPitchCalibratedHeight = false;
-            BasisHeightDriver.PitchCalibratedEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
-
             BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.ResetToDefault();
             BasisSettingsDefaults.EnableStandingEyeHeightCorrection.ResetToDefault();
-            BasisSettingsDefaults.EnableStandingHeightNudge.ResetToDefault();
-            BasisSettingsDefaults.AdditionalPlayerHeight.ResetToDefault();
             // Forget the persisted body size so the next boot (and this session) starts from a true
             // uncalibrated state instead of re-seeding the old measurements.
             BasisSettingsDefaults.SavedPlayerEyeHeight.ResetToDefault();
@@ -282,17 +209,12 @@ namespace Basis.BasisUI
             BasisHeightDriver.HasUserCalibratedHeight = false;
             BasisAutoScaleEstimator.Reset();
             BasisHeightDriver.ApplyScaleAndHeight();
-
-            UpdatePitchToggleLabel();
         }
         private static string FormatScaleMeters(float meters) => meters.ToString("0.##") + " m";
-        private static string FormatNudgeMeters(float meters) => "Current: " + meters.ToString("+0.00;-0.00;0.00") + " m";
 
         // The dropdown control prefab is sized for the wide settings page; in the slim calibration panel its
         // label gets squished. Inset the control's left edge (the RectTransform "Left" field) so the title has room.
         private const float CalibrationDropdownLeftInset = 200f;
-        private const float NudgeStandingHeightStepMeters = 0.05f;
-        private const float NudgeStandingHeightLimitMeters = 0.5f;
         private static void NarrowDropdownForPanel(PanelDropdown dropdown)
         {
             if (dropdown == null || dropdown.DropdownComponent == null)
@@ -302,21 +224,6 @@ namespace Basis.BasisUI
             if (dropdown.DropdownComponent.transform is RectTransform rt)
             {
                 rt.offsetMin = new Vector2(CalibrationDropdownLeftInset, rt.offsetMin.y);
-            }
-        }
-
-        private void TogglePitchCalibration()
-        {
-            SMModuleCalibration.PitchCalibrationEnabled = !SMModuleCalibration.PitchCalibrationEnabled;
-            UpdatePitchToggleLabel();
-        }
-
-        private void UpdatePitchToggleLabel()
-        {
-            if (_pitchToggleButton != null)
-            {
-                string state = BasisLocalization.Get(SMModuleCalibration.PitchCalibrationEnabled ? "ui.on" : "ui.off");
-                _pitchToggleButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitchLabel", state));
             }
         }
 
@@ -346,27 +253,14 @@ namespace Basis.BasisUI
             _leftPressed = false;
             _rightPressed = false;
 
-            if (SMModuleCalibration.PitchCalibrationEnabled && !SMModuleSitStand.IsSteatedMode)
-            {
-                // Start pitch calibration flow: look up → look down → look forward
-                _pitchStep = PitchCalibrationStep.WaitingForUp;
-                Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitch.up"));
-                SubscribeToTriggers();
-            }
-            else
-            {
-                // Standard single-pose calibration — clear any stale pitch data
-                _pitchStep = PitchCalibrationStep.None;
-                BasisHeightDriver.HasPitchCalibratedHeight = false;
-                Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
-                localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
-                BasisCalibrationLockInVisualizer.Begin();
-                SubscribeToTriggers();
-            }
+            Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
+            localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
+            BasisCalibrationLockInVisualizer.Begin();
+            SubscribeToTriggers();
         }
 
         // The wait-for-confirmation label must say HOW to confirm: VR completes by pulling both
-        // triggers (matching the pitch-step labels), desktop by clicking the button again.
+        // triggers, desktop by clicking the button again.
         private static string GetAwaitConfirmTitle()
         {
             return BasisLocalization.Get(BasisDeviceManagement.IsUserInDesktop()
@@ -420,7 +314,6 @@ namespace Basis.BasisUI
         {
             UnsubscribeAll();
             BasisCalibrationLockInVisualizer.End();
-            _pitchStep = PitchCalibrationStep.None;
             _leftPressed = false;
             _rightPressed = false;
 
@@ -487,72 +380,7 @@ namespace Basis.BasisUI
             if (_calibrated)
                 return;
 
-            switch (_pitchStep)
-            {
-                case PitchCalibrationStep.WaitingForUp:
-                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float upPitch, out float upY) || upY <= 0f)
-                    {
-                        // No device, fall back to standard calibration
-                        BasisDebug.LogWarning("Pitch calibration: no HMD for up sample, falling back to standard.", BasisDebug.LogTag.Avatar);
-                        StartStandardCalibration();
-                        return;
-                    }
-                    _pitchUp = new Vector2(upPitch, upY);
-                    _pitchStep = PitchCalibrationStep.WaitingForDown;
-                    Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitch.down"));
-                    // Reset trigger state for next step
-                    _leftPressed = false;
-                    _rightPressed = false;
-                    break;
-
-                case PitchCalibrationStep.WaitingForDown:
-                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float downPitch, out float downY) || downY <= 0f)
-                    {
-                        BasisDebug.LogWarning("Pitch calibration: no HMD for down sample, falling back to standard.", BasisDebug.LogTag.Avatar);
-                        StartStandardCalibration();
-                        return;
-                    }
-                    _pitchDown = new Vector2(downPitch, downY);
-                    _pitchStep = PitchCalibrationStep.WaitingForForward;
-                    Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.pitch.forward"));
-                    _leftPressed = false;
-                    _rightPressed = false;
-                    break;
-
-                case PitchCalibrationStep.WaitingForForward:
-                    if (!BasisLocalHeightCalculator.CaptureHMDPitchSample(out float forwardPitch, out float forwardY) || forwardY <= 0f)
-                    {
-                        BasisDebug.LogWarning("Pitch calibration: no HMD for forward sample, falling back to standard.", BasisDebug.LogTag.Avatar);
-                        StartStandardCalibration();
-                        return;
-                    }
-                    // Compute corrected height and store it
-                    float corrected = BasisLocalHeightCalculator.ComputePitchCalibratedHeight(_pitchUp, _pitchDown, new Vector2(forwardPitch, forwardY));
-                    BasisHeightDriver.PitchCalibratedEyeHeight = corrected;
-                    BasisHeightDriver.HasPitchCalibratedHeight = true;
-                    _pitchStep = PitchCalibrationStep.None;
-                    // Now proceed with standard full-body calibration using the corrected height
-                    StartStandardCalibration();
-                    break;
-
-                case PitchCalibrationStep.None:
-                default:
-                    CalibrateOnce();
-                    break;
-            }
-        }
-
-        private void StartStandardCalibration()
-        {
-            _pitchStep = PitchCalibrationStep.None;
-            Button.Descriptor.SetTitle(GetAwaitConfirmTitle());
-            BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
-            BasisCalibrationLockInVisualizer.Begin();
-            // Reset trigger state so they need to press again for final calibration
-            _leftPressed = false;
-            _rightPressed = false;
-            // Subscribe fresh for the final trigger press
-            SubscribeToTriggers();
+            CalibrateOnce();
         }
 
         private void CalibrateOnce()

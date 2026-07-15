@@ -483,10 +483,6 @@
       "value": "Show the in-app developer console on this page."
     },
     {
-      "key": "settings.developer.euroFilter.tooltip",
-      "value": "Show controls for tuning the network smoothing filter."
-    },
-    {
       "key": "settings.developer.netStats.tooltip",
       "value": "Show detailed network statistics on this page."
     },
@@ -569,18 +565,6 @@
     {
       "key": "calibration.calibrate.tooltip",
       "value": "Start full-body calibration; pull both triggers while standing in a T-pose."
-    },
-    {
-      "key": "calibration.decreaseHeight.tooltip",
-      "value": "Nudge your standing height down a little. Adjusts how tall you stand after calibration; it does not resize the avatar."
-    },
-    {
-      "key": "calibration.increaseHeight.tooltip",
-      "value": "Nudge your standing height up a little. Adjusts how tall you stand after calibration; it does not resize the avatar."
-    },
-    {
-      "key": "calibration.pitchLabel.tooltip",
-      "value": "Use a look up, down, and forward sequence for more accurate height calibration."
     },
     {
       "key": "calibration.bodyTrackingSettings.tooltip",
@@ -1213,18 +1197,6 @@
     {
       "key": "ui.advanced.tooltip",
       "value": "Show advanced settings with extra options for fine tuning."
-    },
-    {
-      "key": "settings.network.euro.minCutoff.tooltip",
-      "value": "Lowest smoothing applied to network movement; smaller values steady slow motion but add a little lag."
-    },
-    {
-      "key": "settings.network.euro.beta.tooltip",
-      "value": "How quickly smoothing eases off during fast movement to reduce lag."
-    },
-    {
-      "key": "settings.network.euro.derivativeCutoff.tooltip",
-      "value": "Smoothing applied to speed changes, helping suppress jitter during quick direction shifts."
     },
     {
       "key": "settings.perf.sessionBypass.toggle.tooltip",
@@ -2191,26 +2163,6 @@
       "value": "Pull Triggers to Calibrate"
     },
     {
-      "key": "calibration.decreaseHeight",
-      "value": "Decrease Height"
-    },
-    {
-      "key": "calibration.increaseHeight",
-      "value": "Increase Height"
-    },
-    {
-      "key": "calibration.nudgeStandingHeight",
-      "value": "Nudge Standing Height"
-    },
-    {
-      "key": "calibration.nudgeStandingHeight.tooltip",
-      "value": "Manually raise or lower your calibrated standing height in small steps."
-    },
-    {
-      "key": "calibration.nudgeWarning",
-      "value": "Warning: nudging over 0.2 m can throw off tracker matching."
-    },
-    {
       "key": "calibration.lockInGuides",
       "value": "Show Lock-In Guides"
     },
@@ -2221,22 +2173,6 @@
     {
       "key": "calibration.bodyTrackingSettings",
       "value": "Body Tracking Settings"
-    },
-    {
-      "key": "calibration.pitchLabel",
-      "value": "Pitch Calibration: {0}"
-    },
-    {
-      "key": "calibration.pitch.up",
-      "value": "Look UP, pull triggers"
-    },
-    {
-      "key": "calibration.pitch.down",
-      "value": "Look DOWN, pull triggers"
-    },
-    {
-      "key": "calibration.pitch.forward",
-      "value": "Look FORWARD, pull triggers"
     },
     {
       "key": "calibration.reset",
@@ -5075,6 +5011,23 @@
       "value": "Forces hip-to-chest twist to distribute 75% upper chest / 25% spine — the real anatomical ratio for axial rotation."
     },
     {
+      "key": "settings.bodyTracking.anat.spineRom.title",
+      "value": "Anatomical Spine Limits"
+    },
+    {
+      "key": "settings.bodyTracking.anat.spineRom.description",
+      "value": "Holds each spine bone inside the range of motion of the real vertebrae it stands for — the lumbar barely twists, the chest barely folds, the neck is free. Stops impossible spine poses."
+    },
+    {
+      "key": "settings.bodyTracking.anat.chestIkTarget.title",
+      "value": "Chest IK Target"
+    },
+    {
+      "key": "settings.bodyTracking.anat.chestIkTarget.description",
+      "value": "Places the chest at its own target instead of leaving it wherever the head solve happens to put it, so the torso follows your real chest (or a chest tracker) more faithfully. The head stays exactly on the headset."
+    },
+
+    {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.title",
       "value": "Leg Swivel Smoothing"
     },
@@ -6639,14 +6592,6 @@
       "value": "Show inline console log output."
     },
     {
-      "key": "settings.developer.euroFilter",
-      "value": "Network Euro Filter"
-    },
-    {
-      "key": "settings.developer.euroFilter.description",
-      "value": "Show One Euro filter tuning for remote interpolation."
-    },
-    {
       "key": "settings.developer.netStats",
       "value": "Network & Statistics"
     },
@@ -6797,18 +6742,6 @@
     {
       "key": "settings.developer.assignedTrackers.description",
       "value": "List every input device that has been assigned a tracked bone role."
-    },
-    {
-      "key": "settings.network.euro.minCutoff",
-      "value": "Min Cutoff"
-    },
-    {
-      "key": "settings.network.euro.beta",
-      "value": "Beta"
-    },
-    {
-      "key": "settings.network.euro.derivativeCutoff",
-      "value": "Derivative Cutoff"
     },
     {
       "key": "settings.network.connection",

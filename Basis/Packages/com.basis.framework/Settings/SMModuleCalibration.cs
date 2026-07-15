@@ -14,7 +14,6 @@ public class SMModuleCalibration : BasisSettingsBase
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;
-    public static bool PitchCalibrationEnabled = false;
 
     /// <summary>
     /// Per-sphere calibration scale multipliers. Default is 1.0 for each role.
@@ -46,11 +45,8 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_CUSTOM_SCALE => BasisSettingsDefaults.CustomScale.BindingKey;         // "custom scale"
     private static string K_SELECTED_SCALE => BasisSettingsDefaults.SelectedScale.BindingKey;     // "selected scale"
     private static string K_REALWORLD_EYE_HEIGHT => BasisSettingsDefaults.realworldeyeheight.BindingKey; // "real world eye height"
-    private static string K_PITCH_CALIBRATION => BasisSettingsDefaults.PitchCalibration.BindingKey;     // "pitchcalibration"
     private static string K_STANDING_EYE_CORRECTION => BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.BindingKey; // "calibrationstandingeyeheightmeters"
     private static string K_ENABLE_STANDING_EYE_CORRECTION => BasisSettingsDefaults.EnableStandingEyeHeightCorrection.BindingKey; // "enablestandingeyeheightcorrection"
-    private static string K_ADDITIONAL_PLAYER_HEIGHT => BasisSettingsDefaults.AdditionalPlayerHeight.BindingKey; // "additionalplayerheight"
-    private static string K_ENABLE_STANDING_HEIGHT_NUDGE => BasisSettingsDefaults.EnableStandingHeightNudge.BindingKey; // "enablestandingheightnudge"
 
     // One Euro globals
     private static string K_FBIK_MINCUTOFF => BasisSettingsDefaults.FBIKMinCutoff.BindingKey;                 // "fbikmincutoff"
@@ -306,13 +302,6 @@ public class SMModuleCalibration : BasisSettingsBase
                     break;
                 }
 
-            case var s when s == K_PITCH_CALIBRATION:
-                if (bool.TryParse(optionValue, out var pitchVal))
-                {
-                    PitchCalibrationEnabled = pitchVal;
-                }
-                break;
-
             case var s when s == K_STANDING_EYE_CORRECTION:
                 // Persistent standing eye-height correction changed: re-apply height/scale now so
                 // DeviceScale picks up the new denominator. Applied directly (not via the _dirty path,
@@ -322,11 +311,6 @@ public class SMModuleCalibration : BasisSettingsBase
 
             case var s when s == K_ENABLE_STANDING_EYE_CORRECTION:
                 // Toggling the correction on/off flips whether the stored metres apply; re-apply now.
-                BasisHeightDriver.ApplyScaleAndHeight();
-                break;
-
-            case var s when s == K_ADDITIONAL_PLAYER_HEIGHT || s == K_ENABLE_STANDING_HEIGHT_NUDGE:
-                // Standing-height nudge value or its gate changed: re-apply so the DeviceScale denominator updates.
                 BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 

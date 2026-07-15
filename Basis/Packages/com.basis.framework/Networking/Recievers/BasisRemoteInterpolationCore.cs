@@ -1,0 +1,68 @@
+using System.Runtime.CompilerServices;
+using Unity.Mathematics;
+
+/// <summary>
+/// Pure, Burst-friendly interpolation math for remote-avatar playback.
+///
+/// Replaces the old linear-nlerp + heavy 1€ bone filter with a C1-continuous
+/// Catmull-Rom spline through four consecutive network snapshots (p0..p3),
+/// evaluated for the segment p1->p2. C1 continuity removes the per-snapshot
+/// velocity corner that linear interpolation produced (the source of the
+/// end-of-chain wobble), without the group delay / amplitude loss the filter
+/// introduced.
+///
+/// p0 and p3 are the neighbours of the active window; the caller supplies them
+/// from the retained previous frame and a peek at the next staged frame. When a
+/// neighbour is unavailable (startup / underrun after loss) the caller passes a
+/// DUPLICATED endpoint (p0==p1 or p3==p2); the tangents then become one-sided
+/// and the curve stays bounded and monotone — no branch or validity flag needed.
+///
+/// No Unity references beyond Unity.Mathematics, so this is unit-testable off the
+/// main thread and reproducible in an offline harness.
+/// </summary>
+public static class BasisRemoteInterpolationCore
+{
+    /// <summary>Catmull-Rom position of the p1->p2 segment at t in [0,1].</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float3 Position(float3 p0, float3 p1, float3 p2, float3 p3, float t)
+    {
+        float t2 = t * t, t3 = t2 * t;
+        return 0.5f * ((2f * p1)
+            + (-p0 + p2) * t
+            + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2
+            + (-p0 + 3f * p1 - 3f * p2 + p3) * t3);
+    }
+
+    /// <summary>
+    /// Catmull-Rom rotation of the p1->p2 segment at t in [0,1].
+    /// The four quaternions are hemisphere-aligned to p1 first (so the spline
+    /// takes the short way and is immune to the codec's sign canonicalization),
+    /// interpolated component-wise, then renormalized. Cheaper than a true
+    /// SQUAD and visually indistinguishable at network step sizes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static quaternion Rotation(quaternion p0, quaternion p1, quaternion p2, quaternion p3, float t)
+    {
+        float4 a = p0.value, b = p1.value, c = p2.value, d = p3.value;
+        if (math.dot(b, a) < 0f) a = -a;
+        if (math.dot(b, c) < 0f) c = -c;
+        if (math.dot(b, d) < 0f) d = -d;
+
+        float t2 = t * t, t3 = t2 * t;
+        float4 r = 0.5f * ((2f * b)
+            + (-a + c) * t
+            + (2f * a - 5f * b + 4f * c - d) * t2
+            + (-a + 3f * b - 3f * c + d) * t3);
+
+        float len = math.length(r);
+        return len > 1e-12f ? new quaternion(r / len) : p1;
+    }
+
+    /// <summary>Shortest-path nlerp — the two-point fallback and the reference path.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static quaternion NlerpShortest(quaternion a, quaternion b, float t)
+    {
+        if (math.dot(a.value, b.value) < 0f) b.value = -b.value;
+        return math.normalize(math.nlerp(a, b, t));
+    }
+}

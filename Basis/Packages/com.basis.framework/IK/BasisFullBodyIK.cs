@@ -348,6 +348,8 @@ namespace UnityEngine.Animations.Rigging
         // The anatomical range-of-motion envelope on every solved vertebra. Default ON: what it replaces
         // is not a safe fallback, it is a measured error (BasisSpineAnatomy).
         [SyncSceneToStream, SerializeField] bool m_SpineAnatomicalRom;
+        // The chest as a secondary IK target (SolveChestTarget). Default ON.
+        [SyncSceneToStream, SerializeField] bool m_ChestIKTarget;
         // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
         // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
         [SyncSceneToStream, SerializeField] bool m_LegSwivelSmoothing;
@@ -541,6 +543,7 @@ namespace UnityEngine.Animations.Rigging
         public bool AnatCervicalLordosis { get => m_AnatCervicalLordosis; set => m_AnatCervicalLordosis = value; }
         public bool AnatPelvicTwistRouting { get => m_AnatPelvicTwistRouting; set => m_AnatPelvicTwistRouting = value; }
         public bool SpineAnatomicalRom { get => m_SpineAnatomicalRom; set => m_SpineAnatomicalRom = value; }
+        public bool ChestIKTarget { get => m_ChestIKTarget; set => m_ChestIKTarget = value; }
         public bool LegSwivelSmoothing { get => m_LegSwivelSmoothing; set => m_LegSwivelSmoothing = value; }
         public string SpineBendPitchFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendPitch));
         public string SpineBendYawFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineBendYaw));
@@ -567,6 +570,7 @@ namespace UnityEngine.Animations.Rigging
         public string AnatCervicalLordosisProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatCervicalLordosis));
         public string AnatPelvicTwistRoutingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_AnatPelvicTwistRouting));
         public string SpineAnatomicalRomProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineAnatomicalRom));
+        public string ChestIKTargetProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestIKTarget));
         public string LegSwivelSmoothingProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LegSwivelSmoothing));
         public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
         public string LordosisPitchGainDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LordosisPitchGainDeg));
@@ -704,6 +708,7 @@ namespace UnityEngine.Animations.Rigging
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
             m_SpineAnatomicalRom = true;
+            m_ChestIKTarget = true;
             m_LegSwivelSmoothing = true;
             m_LordosisPitchGainDeg = 8f;
             m_LordosisBaseDeg = 5f;
@@ -1039,6 +1044,7 @@ w20, w54;
         public FloatProperty lowerArmTwistFraction, upperArmTwistFraction;
         public BoolProperty anatDifferentialStiffness, anatShoulderSlide, anatCervicalLordosis, anatPelvicTwistRouting, legSwivelSmoothing;
         public BoolProperty spineAnatomicalRom;
+        public BoolProperty chestIkTarget;
         public BoolProperty hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public FloatProperty lordosisPitchGainDeg;
         public FloatProperty lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
@@ -1336,41 +1342,125 @@ w20, w54;
                 // shorter levers.
                 for (int i = lastJoint; i >= firstJoint; i--)
                 {
-                    Vector3 jointPos = ChainHeadToSpine[i].GetPosition(stream);
-                    Vector3 curTipPos = ChainHeadToSpine[tipIdx].GetPosition(stream);
-
-                    Vector3 cur = curTipPos - jointPos;
-                    Vector3 tgt = headTargetPos - jointPos;
-                    if (cur.sqrMagnitude < k_SqrEpsilon || tgt.sqrMagnitude < k_SqrEpsilon)
-                        continue;
-
-                    Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
-                    // Shape the reach like a real spine: grade the axial-twist allowance from the rigid
-                    // lumbar root (t=1) to the free cervical tip (t=0), and stiffen the mid-thoracic swing so
-                    // the bend distributes into a smooth curve instead of corkscrewing or kinking at a joint.
-                    float t = (i - firstJoint) / jointSpan;
-                    float jointTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, t);
-                    float jointSwingScale = 1f - k_ThoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
-                    delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
-                    delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
-                    ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
-
-                    if (i == firstJoint)
-                    {
-                        ClampNeckCone(stream, i, neckCone);
-                    }
-                    else if (chainLen >= 5 && i == chainLen - 3)
-                    {
-                        ClampChestCone(stream, i, chestCone);
-                    }
-
-                    // LAST, so it sees the outcome of every other constraint on this joint, not just the
-                    // CCD's own step. The cones above are reach heuristics; this is anatomy.
-                    GuardSpineJoint(stream, i);
+                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                        cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
                 }
             }
 
+            // ==========================================================================================
+            // PHASE B -- THE CHEST AS A SECONDARY IK TARGET. The loop above placed the HEAD (primary,
+            // welded to the HMD); the chest position fell out of it as a free FK consequence. Now pull the
+            // chest bone onto its own target and RESTORE the head with the joints above the chest, which
+            // have spare DOF. The head is never traded for the chest. Bit-identical to head-only above when
+            // the chest target is off (weight 0). See SolveChestTarget.
+            // ==========================================================================================
+            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chainLen, jointSpan,
+                cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+
             ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+        }
+        // One CCD step aiming the head tip from joint `i` -- the exact body of the Phase A loop, extracted so
+        // Phase B's head-restore reuses it verbatim (a copy would drift). Shapes the reach (twist graded root
+        // -> tip, mid-thoracic stiffened), relaxes, applies the cones, then the anatomy guard LAST.
+        void ReachHeadJoint(AnimationStream stream, int i, Vector3 headTargetPos, int firstJoint, int chainLen,
+            float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax,
+            float neckCone, float chestCone)
+        {
+            const int tipIdx = 0;
+            Vector3 jointPos = ChainHeadToSpine[i].GetPosition(stream);
+            Vector3 curTipPos = ChainHeadToSpine[tipIdx].GetPosition(stream);
+
+            Vector3 cur = curTipPos - jointPos;
+            Vector3 tgt = headTargetPos - jointPos;
+            if (cur.sqrMagnitude < k_SqrEpsilon || tgt.sqrMagnitude < k_SqrEpsilon)
+                return;
+
+            Quaternion delta = QuaternionExt.FromToRotation(cur, tgt);
+            float t = (i - firstJoint) / jointSpan;
+            float jointTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, t);
+            float jointSwingScale = 1f - k_ThoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
+            delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
+            delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
+            ChainHeadToSpine[i].SetRotation(stream, delta * ChainHeadToSpine[i].GetRotation(stream));
+
+            if (i == firstJoint)
+            {
+                ClampNeckCone(stream, i, neckCone);
+            }
+            else if (chainLen >= 5 && i == chainLen - 3)
+            {
+                ClampChestCone(stream, i, chestCone);
+            }
+
+            // LAST, so it sees the outcome of every other constraint on this joint, not just the
+            // CCD's own step. The cones above are reach heuristics; this is anatomy.
+            GuardSpineJoint(stream, i);
+        }
+        // The Chest bone in the chain sits at chainLen-3 (the index ClampChestCone uses); the one joint below
+        // it -- the Spine (lastJoint) -- is what moves it. Weight 0.5 was the corpus sweet spot: at it, BOTH
+        // the chest AND the head placement improved over head-only (the restore sweeps tighten the head).
+        // Full weight (1.0) placed the chest slightly better but loosened the head, so it is deliberately not
+        // used. Iteration budget (8 x 2 restore) captures ~all of the gain a full 20 does, for a fraction of
+        // the cost -- measured, not guessed.
+        const float k_ChestIkWeight = 0.5f;
+        const int k_ChestIkIters = 8;
+        const int k_ChestIkHeadRestoreSweeps = 2;
+        void SolveChestTarget(AnimationStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
+            int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
+            float ccdRelax, float neckCone, float chestCone)
+        {
+            // Off (toggle false -> weight 0): return before touching a single bone, so the head-only solve
+            // above is the whole story, bit for bit. This is the "same usability" guarantee.
+            if (!chestIkTarget.Get(stream))
+                return;
+
+            int chestBoneIdx = chainLen - 3;   // the Chest bone
+            // Need a real Spine joint below the chest to move it, and real upper joints to restore the head.
+            if (chestBoneIdx < firstJoint || lastJoint <= firstJoint || lastJoint <= chestBoneIdx)
+                return;
+
+            Vector3 chestTargetPos = TargetChestPosition.Get(stream);
+            Vector3 chestBonePos = ChainHeadToSpine[chestBoneIdx].GetPosition(stream);
+            // A chest target that is wildly far from the FK chest is a glitching tracker or an unset target;
+            // chasing it would wreck the torso. Fall back to the head-only chest. Same guard the old
+            // BiasSpineTowardChest used, and the anatomy guard below bounds whatever does get through.
+            if ((chestTargetPos - chestBonePos).sqrMagnitude > k_ChestPullMaxDistSqr)
+                return;
+
+            // The Spine is the root end of the chain, so its shaping params are those of index lastJoint.
+            float spineT = (lastJoint - firstJoint) / jointSpan;
+            float spineTwistKeep = Mathf.Lerp(cervicalTwistKeep, lumbarTwistKeep, spineT);
+            float spineSwingScale = 1f - k_ThoracicBendStiffen * (1f - Mathf.Abs(2f * spineT - 1f));
+
+            for (int citer = 0; citer < k_ChestIkIters; citer++)
+            {
+                // 1) rotate the Spine so the Chest bone slides toward its target.
+                Vector3 spinePos = ChainHeadToSpine[lastJoint].GetPosition(stream);
+                Vector3 cCur = ChainHeadToSpine[chestBoneIdx].GetPosition(stream) - spinePos;
+                Vector3 cTgt = chestTargetPos - spinePos;
+                if (cCur.sqrMagnitude > k_SqrEpsilon && cTgt.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Quaternion cDelta = QuaternionExt.FromToRotation(cCur, cTgt);
+                    cDelta = BasisTwistSolveCore.ShapeReachStep(cDelta, ccdUp, spineTwistKeep, spineSwingScale);
+                    // Relax x weight: a gentler chest pull lets the head-restore keep pace, which is exactly
+                    // why the moderate weight preserves the head where a full pull loosened it.
+                    cDelta = Quaternion.Slerp(Quaternion.identity, cDelta, ccdRelax * k_ChestIkWeight);
+                    ChainHeadToSpine[lastJoint].SetRotation(stream, cDelta * ChainHeadToSpine[lastJoint].GetRotation(stream));
+                    GuardSpineJoint(stream, lastJoint);
+                }
+
+                // 2) restore the head with the UPPER joints only (chest and above -- never the Spine, which
+                // now owns the chest). They have far more DOF than the head needs, so the head returns to
+                // target without disturbing the chest the Spine just placed.
+                for (int sweep = 0; sweep < k_ChestIkHeadRestoreSweeps; sweep++)
+                {
+                    for (int i = lastJoint - 1; i >= firstJoint; i--)
+                    {
+                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                            cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                    }
+                }
+            }
         }
         // ==============================================================================================
         // THE ANATOMICAL ENVELOPE. Pulls one spine joint back inside the range of motion its real vertebrae
@@ -2860,6 +2950,7 @@ w20, w54;
                 anatCervicalLordosis = BoolProperty.Bind(animator, component, data.AnatCervicalLordosisProperty),
                 anatPelvicTwistRouting = BoolProperty.Bind(animator, component, data.AnatPelvicTwistRoutingProperty),
                 spineAnatomicalRom = BoolProperty.Bind(animator, component, data.SpineAnatomicalRomProperty),
+                chestIkTarget = BoolProperty.Bind(animator, component, data.ChestIKTargetProperty),
                 legSwivelSmoothing = BoolProperty.Bind(animator, component, data.LegSwivelSmoothingProperty),
                 hintIsTrackerLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyLeftLowerLeg),
                 hintIsTrackerRightLowerLeg = BoolProperty.Bind(animator, component, data.HintIsTrackerBoolPropertyRightLowerLeg),

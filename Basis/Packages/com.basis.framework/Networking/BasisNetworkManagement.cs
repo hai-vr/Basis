@@ -194,11 +194,6 @@ namespace Basis.Scripts.Networking
             }
         }
 
-        // Parameters for Euro filter (defaults; overridden at runtime by settings bindings)
-        public static float MinCutoff = 0.05f;
-        public static float Beta = 2;
-        public static float DerivativeCutoff = 2;
-
         /// <summary>
         /// Phase 1 (main thread) then kicks off the parallel per-receiver compute (Phase 2) on a
         /// background task. Pair with <see cref="CompleteNetworkCompute"/> at the very top of the

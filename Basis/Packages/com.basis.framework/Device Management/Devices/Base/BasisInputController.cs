@@ -99,6 +99,7 @@ public abstract class BasisInputController : BasisInput
             {
                 position.y += SMModuleSitStand.MissingHeightDelta;
             }
+            position.y += BasisHeightDriver.HeightModeGroundingOffset;
         }
         return position;
     }

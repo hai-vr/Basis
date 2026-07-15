@@ -2831,11 +2831,6 @@ namespace Basis.BasisUI
 
             // ---- Network ----
             PanelSectionToggleHelpers.CreateLazyFlatSection(container,
-                BasisLocalization.Get("settings.developer.euroFilter"),
-                () => SettingsProviderNetworkTab.BuildNetworkEuroFilterGroup(container),
-                false, _ => descriptor.ForceRebuild());
-
-            PanelSectionToggleHelpers.CreateLazyFlatSection(container,
                 BasisLocalization.Get("settings.developer.netStats"),
                 () => SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out _),
                 false, _ => descriptor.ForceRebuild());
@@ -2929,9 +2924,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
             BasisSettingsDefaults.LimitAvatarPreviewRate.ResetToDefault();
             BasisSettingsDefaults.AvatarPreviewRenderHz.ResetToDefault();
-            BasisSettingsDefaults.NetEuroMinCutoff.ResetToDefault();
-            BasisSettingsDefaults.NetEuroBeta.ResetToDefault();
-            BasisSettingsDefaults.NetEuroDerivativeCutoff.ResetToDefault();
             BasisSettingsDefaults.AudioDebugEnabled.ResetToDefault();
             BasisSettingsDefaults.DisableLipSyncForFaceTracking.ResetToDefault();
             BasisSettingsDefaults.AudioDebugShowSource.ResetToDefault();

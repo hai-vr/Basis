@@ -456,8 +456,6 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v3", new BasisPlatformDefault<string>("lock head"));
 
-        public static BasisSettingsBinding<bool> PitchCalibration = new("pitchcalibration", new BasisPlatformDefault<bool>(false));
-
         // Systematic correction (metres) added to the measured standing eye height before DeviceScale.
         // It bridges a backend's HMD-pose-origin vs true-eye gap that CenterEyeVerticalOffset under-reports
         // (seen on OpenVR: avatar renders too tall). Default 0 = no-op; persists, so the gap is corrected once.
@@ -475,15 +473,6 @@ namespace Basis.BasisUI
         // eye and are never saved here.
         public static BasisSettingsBinding<float> SavedPlayerEyeHeight = new("savedplayereyeheight", new BasisPlatformDefault<float>(0f));
         public static BasisSettingsBinding<float> SavedPlayerArmSpan = new("savedplayerarmspan", new BasisPlatformDefault<float>(0f));
-
-        // Gate for the standing-height nudge in the calibration window: shows the ± buttons AND applies the value
-        // below. Off by default.
-        public static BasisSettingsBinding<bool> EnableStandingHeightNudge = new("enablestandingheightnudge", new BasisPlatformDefault<bool>(false));
-
-        // Standing-height nudge (the historical "AdditionalPlayerHeight"): metres fed straight into the DeviceScale
-        // denominator (BasisCalibrationMath.StandingEyeDenominator), separate from the eye-height modifier. The ±
-        // buttons step this; gated by EnableStandingHeightNudge.
-        public static BasisSettingsBinding<float> AdditionalPlayerHeight = new("additionalplayerheight", new BasisPlatformDefault<float>(0f));
 
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
@@ -688,11 +677,6 @@ namespace Basis.BasisUI
 
         // ---------------- NETWORKING ----------------
         public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
-
-        // Network Euro filter parameters (remote player interpolation)
-        public static BasisSettingsBinding<float> NetEuroMinCutoff = new("neteuromincutoff", new BasisPlatformDefault<float>(0.05f));
-        public static BasisSettingsBinding<float> NetEuroBeta = new("neteurobeta", new BasisPlatformDefault<float>(2f));
-        public static BasisSettingsBinding<float> NetEuroDerivativeCutoff = new("neteuroderivativecutoff", new BasisPlatformDefault<float>(2f));
 
         // Remote-player jitter buffer target depth (packets to stay behind by).
         // Higher = smoother under network jitter, more latency. Default 2 (~100ms at 50ms sync).
@@ -1246,6 +1230,10 @@ namespace Basis.BasisUI
         // once the spine CCD ran, and nothing anywhere limited axial rotation. That is not a safe fallback
         // to keep, it is a measured defect.
         public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom", new BasisPlatformDefault<bool>(true));
+        // The chest becomes a real (secondary) IK target instead of a free FK consequence of the head
+        // solve. Placed by the lower spine, with the head restored by the upper joints so it is never
+        // traded away. ON by default; the clear win is chest-tracker users, marginal-but-harmless without.
+        public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
 
@@ -1571,11 +1559,8 @@ namespace Basis.BasisUI
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();
-            PitchCalibration.LoadBindingValue();
             CalibrationStandingEyeHeightMeters.LoadBindingValue();
             EnableStandingEyeHeightCorrection.LoadBindingValue();
-            EnableStandingHeightNudge.LoadBindingValue();
-            AdditionalPlayerHeight.LoadBindingValue();
             SavedPlayerEyeHeight.LoadBindingValue();
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
@@ -1746,9 +1731,6 @@ namespace Basis.BasisUI
 
             // Networking
             AutoConnect.LoadBindingValue();
-            NetEuroMinCutoff.LoadBindingValue();
-            NetEuroBeta.LoadBindingValue();
-            NetEuroDerivativeCutoff.LoadBindingValue();
             NetworkJitterBufferOverride.LoadBindingValue();
             NetworkJitterBufferDepth.LoadBindingValue();
 
@@ -1964,6 +1946,7 @@ namespace Basis.BasisUI
             FBIKButterflyKnees.LoadBindingValue();
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
+            FBIKChestIKTarget.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();

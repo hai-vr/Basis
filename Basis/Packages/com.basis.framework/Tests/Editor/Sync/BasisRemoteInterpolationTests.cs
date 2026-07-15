@@ -1,0 +1,196 @@
+using System;
+using NUnit.Framework;
+using Unity.Mathematics;
+using Basis.Network.Core.Compression;
+
+namespace Basis.Tests.Sync
+{
+    /// <summary>
+    /// Locks the remote-avatar playback interpolation (BasisRemoteInterpolationCore):
+    /// the Catmull-Rom spline that replaced linear-nlerp + the heavy per-bone 1€ filter.
+    ///
+    /// Guards the properties the fix depends on:
+    ///   - the spline passes through the network snapshots (no bias),
+    ///   - it is C1 at snapshot boundaries (kills the velocity corner = the wobble source),
+    ///   - it survives the codec's sign canonicalization (no long-way whole-body flip),
+    ///   - duplicated endpoints (startup / packet-loss underrun) stay bounded and finite,
+    ///   - and, through the REAL bone codec, cubic tracks a moving joint markedly better
+    ///     than the old linear path.
+    /// </summary>
+    public class BasisRemoteInterpolationTests
+    {
+        const float InvSqrt2 = 0.70710678118f;
+
+        static quaternion AxisAngle(float3 axis, float deg) => quaternion.AxisAngle(math.normalize(axis), math.radians(deg));
+        static float AngleDeg(quaternion a, quaternion b)
+        {
+            float d = math.abs(math.dot(math.normalize(a).value, math.normalize(b).value));
+            return math.degrees(2f * math.acos(math.min(1f, d)));
+        }
+
+        static uint _rng;
+        static float NextSigned() { _rng = _rng * 1664525u + 1013904223u; return (_rng >> 8) / (float)(1 << 24) * 2f - 1f; }
+        static quaternion RndQ() => math.normalize(new quaternion(NextSigned(), NextSigned(), NextSigned(), NextSigned()));
+
+        // ── The spline interpolates the control points (t=0 -> p1, t=1 -> p2) ──
+
+        [Test]
+        public void Position_PassesThroughEndpoints()
+        {
+            float3 p0 = new(-1, 0, 0), p1 = new(0, 1, 0), p2 = new(2, 1, 3), p3 = new(3, -1, 2);
+            Assert.That(math.length(BasisRemoteInterpolationCore.Position(p0, p1, p2, p3, 0f) - p1), Is.LessThan(1e-5f));
+            Assert.That(math.length(BasisRemoteInterpolationCore.Position(p0, p1, p2, p3, 1f) - p2), Is.LessThan(1e-5f));
+        }
+
+        [Test]
+        public void Rotation_PassesThroughEndpoints()
+        {
+            _rng = 7u;
+            for (int i = 0; i < 200; i++)
+            {
+                quaternion p0 = RndQ(), p1 = RndQ(), p2 = RndQ(), p3 = RndQ();
+                // 0.05° tolerates float acos-near-1 noise; Catmull-Rom returns the endpoints exactly pre-normalize.
+                Assert.That(AngleDeg(BasisRemoteInterpolationCore.Rotation(p0, p1, p2, p3, 0f), p1), Is.LessThan(0.05f));
+                Assert.That(AngleDeg(BasisRemoteInterpolationCore.Rotation(p0, p1, p2, p3, 1f), p2), Is.LessThan(0.05f));
+            }
+        }
+
+        // ── C1 continuity across a snapshot boundary: the whole point of the change ──
+
+        [Test]
+        public void Position_IsC1_AcrossBoundary()
+        {
+            // A curving trajectory sampled at 5 control points; the shared knot is p2.
+            float3 P(int k) => new(k, math.sin(k * 0.7f), math.cos(k * 0.5f) * 0.5f);
+            float3 p0 = P(0), p1 = P(1), p2 = P(2), p3 = P(3), p4 = P(4);
+            const float h = 1e-3f;
+            // velocity at the END of segment (p0..p3) and START of segment (p1..p4) — must match (C1).
+            float3 vEnd = (BasisRemoteInterpolationCore.Position(p0, p1, p2, p3, 1f)
+                         - BasisRemoteInterpolationCore.Position(p0, p1, p2, p3, 1f - h)) / h;
+            float3 vStart = (BasisRemoteInterpolationCore.Position(p1, p2, p3, p4, h)
+                           - BasisRemoteInterpolationCore.Position(p1, p2, p3, p4, 0f)) / h;
+            Assert.That(math.length(vEnd - vStart), Is.LessThan(1e-2f), "position velocity is discontinuous at the knot");
+        }
+
+        [Test]
+        public void Rotation_IsApproximatelyC1_AcrossBoundary()
+        {
+            quaternion Q(int k) => AxisAngle(new float3(0, 1, 0.2f), 15f * k) ; // steady turn, 15°/snapshot
+            quaternion p0 = Q(0), p1 = Q(1), p2 = Q(2), p3 = Q(3), p4 = Q(4);
+            const float h = 1e-3f;
+            float wEnd = AngleDeg(BasisRemoteInterpolationCore.Rotation(p0, p1, p2, p3, 1f - h),
+                                  BasisRemoteInterpolationCore.Rotation(p0, p1, p2, p3, 1f)) / h;
+            float wStart = AngleDeg(BasisRemoteInterpolationCore.Rotation(p1, p2, p3, p4, 0f),
+                                    BasisRemoteInterpolationCore.Rotation(p1, p2, p3, p4, h)) / h;
+            // Component-CR + renormalize is only APPROXIMATELY C1; a linear-nlerp corner here would be a
+            // large angular-velocity jump. Require the two one-sided speeds to agree within 8%.
+            Assert.That(math.abs(wEnd - wStart) / math.max(wEnd, 1e-3f), Is.LessThan(0.08f));
+        }
+
+        // ── Immunity to the codec's sign canonicalization (the whole-body-flip bug) ──
+
+        [Test]
+        public void Rotation_SignFlippedNeighbours_TakeShortWay()
+        {
+            // p1->p2 is a small step, but the codec may hand us -p2 / -p0 / -p3 (largest component
+            // forced positive). The old linear nlerp without a dot-check flipped the whole body 180°.
+            quaternion p1 = AxisAngle(new float3(0, 1, 0), -80f);
+            quaternion p2 = AxisAngle(new float3(0, 1, 0), -100f);
+            quaternion truthMid = AxisAngle(new float3(0, 1, 0), -90f);
+
+            quaternion nP0 = new quaternion(-p1.value);   // arbitrary sign-flips on the neighbours
+            quaternion nP2 = new quaternion(-p2.value);
+            quaternion nP3 = new quaternion(-p2.value);
+            quaternion mid = BasisRemoteInterpolationCore.Rotation(nP0, p1, nP2, nP3, 0.5f);
+            Assert.That(AngleDeg(mid, truthMid), Is.LessThan(1.0f), "sign-flipped neighbours must not blow up the blend");
+        }
+
+        // ── Fallbacks: duplicated endpoints (cold start / underrun) stay finite and bounded ──
+
+        [Test]
+        public void DuplicatedEndpoints_StayBoundedAndFinite()
+        {
+            quaternion p1 = AxisAngle(new float3(1, 0, 0), 20f);
+            quaternion p2 = AxisAngle(new float3(1, 0, 0), 50f);
+            for (float t = 0; t <= 1f; t += 0.05f)
+            {
+                // p0 == p1 and p3 == p2 (the receiver's duplicate-endpoint fallback)
+                quaternion q = BasisRemoteInterpolationCore.Rotation(p1, p1, p2, p2, t);
+                Assert.That(math.all(math.isfinite(q.value)), Is.True);
+                Assert.That(math.abs(math.length(q.value) - 1f), Is.LessThan(1e-3f), "not unit length");
+                // stays within the p1..p2 arc (no overshoot when endpoints are clamped)
+                Assert.That(AngleDeg(q, p1) + AngleDeg(q, p2), Is.LessThan(AngleDeg(p1, p2) + 1.0f));
+            }
+
+            float3 a = new(0, 1, 0), b = new(0, 2, 1);
+            float3 mid = BasisRemoteInterpolationCore.Position(a, a, b, b, 0.5f);
+            Assert.That(math.length(mid - (a + b) * 0.5f), Is.LessThan(1e-5f), "clamped-endpoint midpoint should be the mean");
+        }
+
+        // ── The actual win, through the REAL bone codec: cubic tracks motion better than linear ──
+
+        [Test]
+        public void Cubic_BeatsLinear_TrackingAQuantizedMovingJoint()
+        {
+            const int bpc = 10;                 // HIGH-quality body joint
+            const float maxRange = InvSqrt2;
+            const double sendHz = 20.0, renderHz = 90.0, dur = 6.0, warmup = 1.0;
+            const double freq = 1.2;            // joint oscillation Hz (brisk arm motion)
+            const float amp = 40f;              // degrees
+
+            quaternion Truth(double t) => AxisAngle(new float3(1, 0, 0), amp * (float)Math.Sin(2 * Math.PI * freq * t));
+
+            quaternion Quantized(double t)
+            {
+                quaternion q = Truth(t);
+                ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(q.value.x, q.value.y, q.value.z, q.value.w, bpc, maxRange);
+                BasisBoneRotationCompression.DecodeSmallestThree(packed, bpc, out float x, out float y, out float z, out float w, maxRange);
+                return math.normalize(new quaternion(x, y, z, w));
+            }
+
+            double dtSend = 1.0 / sendHz, dtRender = 1.0 / renderHz;
+            double linSum = 0, cubSum = 0; int n = 0;
+
+            for (double t = warmup; t < dur; t += dtRender)
+            {
+                int k = (int)Math.Floor(t / dtSend);
+                double localT = (t - k * dtSend) / dtSend;
+                quaternion p0 = Quantized((k - 1) * dtSend);
+                quaternion p1 = Quantized(k * dtSend);
+                quaternion p2 = Quantized((k + 1) * dtSend);
+                quaternion p3 = Quantized((k + 2) * dtSend);
+
+                quaternion truth = Truth(t);
+                quaternion lin = BasisRemoteInterpolationCore.NlerpShortest(p1, p2, (float)localT);
+                quaternion cub = BasisRemoteInterpolationCore.Rotation(p0, p1, p2, p3, (float)localT);
+
+                linSum += AngleDeg(lin, truth);
+                cubSum += AngleDeg(cub, truth);
+                n++;
+            }
+
+            double linErr = linSum / n, cubErr = cubSum / n;
+            // Cubic should cut the tracking error clearly (harness showed ~2x); require at least 25% better.
+            Assert.That(cubErr, Is.LessThan(linErr * 0.75),
+                $"cubic {cubErr:F3}deg should beat linear {linErr:F3}deg by >25%");
+        }
+
+        // ── RingBuffer peek used to supply p3 without consuming the staged frame ──
+
+        [Test]
+        public void RingBuffer_PeekOldest_DoesNotConsume()
+        {
+            var rb = new BasisRingBuffer<int>(4);
+            Assert.That(rb.TryPeekOldest(out _), Is.False, "empty peek must fail");
+            rb.EnqueueOverwriteOldest(10);
+            rb.EnqueueOverwriteOldest(20);
+            Assert.That(rb.TryPeekOldest(out int p), Is.True);
+            Assert.That(p, Is.EqualTo(10), "peek returns oldest");
+            Assert.That(rb.Count, Is.EqualTo(2), "peek must not consume");
+            rb.TryDequeueOldest(out int d);
+            Assert.That(d, Is.EqualTo(10), "peeked element is still the next dequeue");
+            Assert.That(rb.TryPeekOldest(out int p2), Is.True);
+            Assert.That(p2, Is.EqualTo(20));
+        }
+    }
+}

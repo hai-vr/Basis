@@ -103,6 +103,16 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static bool _unicodeFallbacksEnsured;
 
+        private static float lastPlateWorldScale = float.NaN;
+
+        public static float LocalViewerNamePlateScale()
+        {
+            float scale = BasisHeightDriver.AppliedUpScale;
+            return (scale > 0f && scale < 1f) ? scale : 1f;
+        }
+
+        public static float PlateWorldScale() => 0.02f * NamePlateSize * LocalViewerNamePlateScale();
+
         /// <summary>
         /// Idempotent. Triggered by <see cref="Basis.Scripts.Device_Management.BasisDeviceManagement"/>
         /// after device init completes; safe to call again after <see cref="Dispose"/>.
@@ -472,7 +482,8 @@ namespace Basis.Scripts.UI.NamePlate
 
             FlushPendingStructuralChanges();
 
-            Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
+            lastPlateWorldScale = PlateWorldScale();
+            Vector3 scale = new Vector3(lastPlateWorldScale, lastPlateWorldScale, lastPlateWorldScale);
             var arr = plates;
             int n = count;
             for (int i = 0; i < n; i++)
@@ -952,6 +963,22 @@ namespace Basis.Scripts.UI.NamePlate
                 {
                     lastMenuOpenState = menuOpen;
                     SetAllPlateVisibility();
+                }
+            }
+
+            float plateScale = PlateWorldScale();
+            if (plateScale != lastPlateWorldScale)
+            {
+                lastPlateWorldScale = plateScale;
+                if (count != 0)
+                {
+                    Vector3 scaleVec = new Vector3(plateScale, plateScale, plateScale);
+                    var scaleArr = plates;
+                    for (int i = 0; i < count; i++)
+                    {
+                        var sp = scaleArr[i];
+                        if (sp != null && sp.Self != null) sp.Self.localScale = scaleVec;
+                    }
                 }
             }
 

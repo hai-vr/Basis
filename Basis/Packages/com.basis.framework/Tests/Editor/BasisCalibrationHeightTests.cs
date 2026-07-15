@@ -83,9 +83,9 @@ namespace Basis.Tests.IK
         [Test]
         public void Nudge_EqualToTheShortfall_RestoresCorrectFeel()
         {
-            // The +0.1 nudge people apply is AdditionalPlayerHeight added to the denominator. Adding exactly the
-            // measurement shortfall makes the denominator true again -- so the nudge they reach for is a direct
-            // readout of how far the eye reference under-measured. ~0.10 m of shortfall == one-to-two nudges.
+            // The third denominator term is an additive standing-height correction. Adding exactly the
+            // measurement shortfall makes the denominator true again -- so the correction that restores
+            // correct feel is a direct readout of how far the eye reference under-measured.
             foreach (float E in StandingEye)
                 foreach (float g in new[] { 0.05f, 0.10f, 0.15f })
                 {
@@ -110,6 +110,47 @@ namespace Basis.Tests.IK
             float deviceScale = BasisCalibrationMath.ComputeDeviceScale(1.61f, 1f, 0f, 0f, 0f);
             Assert.That(deviceScale, Is.EqualTo(1f).Within(1e-6f));
             Assert.That(float.IsNaN(deviceScale) || float.IsInfinity(deviceScale), Is.False);
+        }
+
+        [Test]
+        public void ArmSpanGrounding_SunkAvatar_LiftsScaledFeetToFloor()
+        {
+            // Arm-span DeviceScale matches reach, so a long-ape-index player (span > eye) scales the avatar
+            // down and the scaled head lands below its standing eye -- feet under the floor. The grounding
+            // lift must raise the tracking space so the scaled feet land exactly on the floor (y == 0).
+            const float avatarEye = 1.5f, avatarSpan = 1.5f, u = 1f;
+            foreach (float playerEye in StandingEye)
+                foreach (float apeIndex in new[] { 1.00f, 1.06f, 1.12f })
+                {
+                    float playerSpan = playerEye * apeIndex;
+                    float deviceScale = BasisCalibrationMath.ComputeDeviceScale(avatarSpan, u, playerSpan, 0f, 0f);
+                    float lift = BasisCalibrationMath.ArmSpanFloorGroundingLift(avatarEye, u, deviceScale, playerEye);
+
+                    float avatarStandingEye = avatarEye * u;
+                    float unliftedFootY = playerEye * deviceScale - avatarStandingEye;
+                    float groundedFootY = (playerEye + lift) * deviceScale - avatarStandingEye;
+
+                    if (unliftedFootY < -1e-4f)
+                        Assert.That(groundedFootY, Is.EqualTo(0f).Within(1e-4f),
+                            $"eye={playerEye} ape={apeIndex}: lift must land the scaled feet on the floor.");
+                    else
+                        Assert.That(lift, Is.EqualTo(0f).Within(1e-6f),
+                            $"eye={playerEye} ape={apeIndex}: no lift when the feet aren't below the floor.");
+                }
+        }
+
+        [Test]
+        public void ArmSpanGrounding_FloatingAvatar_PushUpOnly_NoLift()
+        {
+            // Short arms relative to height scale the avatar UP, floating the feet above the floor. The lift
+            // is push-up only: it returns 0 rather than sinking the view to chase a floating avatar.
+            const float avatarEye = 1.5f, avatarSpan = 1.5f, u = 1f;
+            const float playerEye = 1.75f, playerSpan = 1.5f;
+            float deviceScale = BasisCalibrationMath.ComputeDeviceScale(avatarSpan, u, playerSpan, 0f, 0f);
+            float unliftedFootY = playerEye * deviceScale - avatarEye * u;
+            Assert.That(unliftedFootY, Is.GreaterThan(1e-3f), "sanity: this config floats the avatar.");
+            Assert.That(BasisCalibrationMath.ArmSpanFloorGroundingLift(avatarEye, u, deviceScale, playerEye),
+                Is.EqualTo(0f).Within(1e-6f));
         }
     }
 }

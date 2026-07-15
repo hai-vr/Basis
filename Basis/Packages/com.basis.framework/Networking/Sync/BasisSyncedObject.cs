@@ -72,6 +72,7 @@ namespace Basis.Scripts.Networking.Sync
         private byte[] _dirtyMask;
         private byte[] _scratch;
         private byte[] _sendBuffer;
+        private ushort[] _snapshotRecipient;
 
         private bool _schemaLocked;
         private bool _buffersReady;
@@ -471,7 +472,37 @@ namespace Basis.Scripts.Networking.Sync
 
         public override void OnPlayerJoined(BasisNetworkPlayer player)
         {
-            _forceKeyframe = true;
+            if (IsOwnedLocallyOnClient)
+            {
+                _forceKeyframe = true;
+                return;
+            }
+
+            if (player == null || _receiver == null || !_receiver.HasData) return;
+            if (HasPresentOwner()) return;
+            if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && localId == player.playerId) return;
+            SendStateSnapshotTo(player.playerId);
+        }
+
+        private bool HasPresentOwner()
+            => BasisNetworkPlayers.OwnershipPairing.TryGetValue(clientIdentifier, out ushort ownerId)
+               && BasisNetworkPlayers.GetPlayerById(ownerId, out _);
+
+        private void SendStateSnapshotTo(ushort playerId)
+        {
+            if (!HasNetworkID) return;
+            EnsureBuffers();
+            OnBeforeTransmit();
+
+            unchecked { _seq++; }
+            ushort intervalMs = (ushort)math.clamp((int)math.round(SendIntervalSeconds * 1000.0), 1, 65535);
+            int len = BasisSyncCodec.Serialize(_schema, _local, true, _dirtyMask, _seq, intervalMs, _scratch, UseChecksum);
+
+            if (_sendBuffer == null || _sendBuffer.Length != len) _sendBuffer = new byte[len];
+            Array.Copy(_scratch, 0, _sendBuffer, 0, len);
+            if (_snapshotRecipient == null) _snapshotRecipient = new ushort[1];
+            _snapshotRecipient[0] = playerId;
+            SendCustomNetworkEvent(_sendBuffer, KeyframeDelivery, _snapshotRecipient);
         }
 
         public override void OnNetworkMessage(ushort playerID, byte[] buffer, DeliveryMethod deliveryMethod)

@@ -288,6 +288,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 {
                     yOffset += SMModuleSitStand.MissingHeightDelta;
                 }
+                yOffset += BasisHeightDriver.HeightModeGroundingOffset;
                 position.y += yOffset;
             }
             coords.position = position;

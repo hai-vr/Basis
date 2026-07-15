@@ -277,7 +277,7 @@ namespace Basis.EventDriver
 
             // Comms eye/Vixxy/activity actuation is pumped in front of the network-apply barrier so
             // its main-thread cost overlaps the in-flight BasisRemoteNetworkDriver interpolation
-            // jobs (InterpolateBoneRotationsJob + FilterBoneRotationsOneEuroJob), which
+            // jobs (UpdateAllAvatarsJob + InterpolateBoneRotationsJob), which
             // SimulateNetworkApply's Apply() completes below. Vixxy actuates blendshapes/materials,
             // so it must stay ahead of BasisBlendShapeDriver and the render. VariableNetworking is
             // split off to a later barrier (see the AuthoredMotion schedule/complete below) — it
@@ -485,11 +485,17 @@ namespace Basis.EventDriver
 
             if (BasisLocalPlayer.PlayerReady)
             {
-                BasisLocalPlayer.Instance.SimulateOnRender();
-                Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
-                BasisRemoteFaceManagement.Apply();
+                try { BasisLocalPlayer.Instance.SimulateOnRender(); }
+                catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.SimulateOnRender failed: {ex}", BasisDebug.LogTag.Event); }
+
+                try { Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
+                catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver eye-tracking simulate failed: {ex}", BasisDebug.LogTag.Event); }
+
+                try { BasisRemoteFaceManagement.Apply(); }
+                catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver remote-face apply failed: {ex}", BasisDebug.LogTag.Event); }
 #if !BASIS_DISABLE_MICROPHONE
-                BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
+                try { BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); }
+                catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver microphone-icon simulate failed: {ex}", BasisDebug.LogTag.Event); }
 #endif
             }
             StateOfOnRenderBefore = false;
