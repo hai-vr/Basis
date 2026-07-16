@@ -143,7 +143,8 @@ public static class BasisMediaUrlRouter
             || path.EndsWith(".m2ts", StringComparison.OrdinalIgnoreCase)   // Blu-ray-flavour MPEG-TS
             || path.EndsWith(".mts", StringComparison.OrdinalIgnoreCase)    // AVCHD-flavour MPEG-TS
             || path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
-            || path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase);
+            || path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".webm", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
