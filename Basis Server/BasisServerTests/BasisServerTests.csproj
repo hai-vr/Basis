@@ -16,5 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />
     <ProjectReference Include="..\BasisNetworkServer\BasisNetworkServer.csproj" />
+    <ProjectReference Include="..\Contrib\Crypto\Crypto.csproj" />
+    <ProjectReference Include="..\LiteNetLib\LiteNetLib.csproj" />
   </ItemGroup>
 </Project>

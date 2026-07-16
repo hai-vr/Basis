@@ -1,6 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
@@ -44,10 +45,14 @@ public struct JiggleJobInputInterpolation : IJobFor {
 
         var diff = timeStamp - previousTimeStamp;
         if (diff == 0) {
-            throw new UnityException($"Time difference is zero ({timeStamp}-{previousTimeStamp}), cannot interpolate.");
+            outputInterpolatedPoses[index] = newPose;
+            return;
         }
 
-        var t = (currentTime - timeCorrection - previousTimeStamp) / diff;
+        // Saturate like the output interpolation: an unclamped t goes negative at high frame
+        // rates and extrapolates the sim's target poses beyond the previous sample, feeding
+        // frame-cadence jitter into the springs.
+        var t = math.saturate((currentTime - timeCorrection - previousTimeStamp) / diff);
         var inter= JiggleTransform.Lerp(prevPose, newPose, (float)t);
 
         outputInterpolatedPoses[index] = inter;

@@ -163,6 +163,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         SubscribePreviewScreen();
 
+        RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied += SyncBackgroundFromMainCamera;
 
@@ -212,6 +213,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
+        BasisMirrorViewerRegistry.Unregister(captureCamera);
         ReleaseRenderTexture();
         if (pooledScreenshot != null) { Destroy(pooledScreenshot); pooledScreenshot = null; }
         if (actualMaterial != null) { Destroy(actualMaterial); actualMaterial = null; }
@@ -223,6 +225,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
         
 
+        RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
         BasisLocalCameraDriver.RenderSettingsApplied -= SyncBackgroundFromMainCamera;
         OnPickupUse.RemoveListener( OnPickupUseCapture );
@@ -244,6 +247,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisDebug.Log($"[HandHeldCamera] Preview reset to {PreviewCaptureWidth}x{PreviewCaptureHeight} @ {AntialiasingQuality.Low}");
         captureCamera.targetTexture = renderTexture;
         BasisCullingCameraRegistry.Register(captureCamera);
+        BasisMirrorViewerRegistry.Register(captureCamera);
     }
 
     /// <summary>
@@ -784,6 +788,20 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(
             Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue,
             BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue);
+    }
+
+    /// <summary>
+    /// URP callback before each camera render: shows the local head for this camera's renders.
+    /// The live preview goes through the normal camera loop (unlike photos, which bracket an
+    /// explicit Render call), and it renders before the main camera has set any head state —
+    /// so it must not rely on leftovers: a mirror's onBeforeRender pass leaves the head zeroed.
+    /// </summary>
+    private void OnBeginCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
+    {
+        if (ReferenceEquals(renderingCamera, captureCamera))
+        {
+            BasisLocalAvatarDriver.ScaleHeadToNormal();
+        }
     }
 
     /// <summary>

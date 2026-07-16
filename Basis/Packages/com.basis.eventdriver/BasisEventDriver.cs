@@ -256,6 +256,39 @@ namespace Basis.EventDriver
                 BasisSceneFactory.Simulate(fixedDeltaTime);
             }
         }
+        // AfterAvatarChanges carries BOTH avatar-content hooks (e.g. HVR eye reads, which run
+        // arbitrary per-avatar code) AND the local avatar transmit (TransmissionResults.Simulate
+        // → Compress → every outgoing avatar/face packet). A bare multicast Invoke lets one
+        // throwing content hook abort every later subscriber — which silently killed all avatar
+        // transmission. Invoke each subscriber under its own catch instead; the invocation list
+        // is cached and only rebuilt when the delegate instance changes.
+        private static Action _afterAvatarChangesCachedDelegate;
+        private static Delegate[] _afterAvatarChangesInvocationList = System.Array.Empty<Delegate>();
+
+        private static void InvokeAfterAvatarChangesSafely()
+        {
+            Action current = BasisNetworkTransmitter.AfterAvatarChanges;
+            if (!ReferenceEquals(current, _afterAvatarChangesCachedDelegate))
+            {
+                _afterAvatarChangesCachedDelegate = current;
+                _afterAvatarChangesInvocationList = current == null ? System.Array.Empty<Delegate>() : current.GetInvocationList();
+            }
+
+            Delegate[] list = _afterAvatarChangesInvocationList;
+            int count = list.Length;
+            for (int Index = 0; Index < count; Index++)
+            {
+                try
+                {
+                    ((Action)list[Index])();
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogErrorOnce($"AfterAvatarChanges subscriber {list[Index].Method?.DeclaringType?.Name}.{list[Index].Method?.Name} failed: {ex}", BasisDebug.LogTag.Event);
+                }
+            }
+        }
+
         /// <summary>
         /// LateUpdate step for device management loop, eye simulation, local player late sim,
         /// microphone updates (client), network apply, and JigglePhysics scheduling/pose/render.
@@ -420,7 +453,7 @@ namespace Basis.EventDriver
 
             // ── Network transmit (reads bone results via GetOutGoingMouth) ──
             ProfileBegin(PROF_NETWORK_TRANSMIT);
-            BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
+            InvokeAfterAvatarChangesSafely();
             ProfileEnd(PROF_NETWORK_TRANSMIT);
 
             // ── JigglePhysics pose ──

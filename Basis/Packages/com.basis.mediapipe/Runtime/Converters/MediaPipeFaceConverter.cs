@@ -138,15 +138,37 @@ namespace Basis.MediaPipe
             float tongue = Mathf.Clamp01(result.TongueOut * TongueGain);
             _tongueSmoothed = Mathf.Lerp(_tongueSmoothed, tongue, st);
             SubmitIfChanged(acquisition,_idTongueOut, _tongueSmoothed);
+
+            // ── Source-seam heartbeat ──
+            // The store's Submit silently drops values for addresses nobody registered, so a
+            // moving local face proves nothing about the networked pipeline. Every ~10s report
+            // how much this converter fed the store and whether the store actually HOLDS the
+            // last eyelid value we wrote (registered ⇔ readback matches) — the absence of this
+            // line means face conversion isn't running at all.
+            if (Time.realtimeSinceStartup - _diagLastLogTime >= 10f)
+            {
+                _diagLastLogTime = Time.realtimeSinceStartup;
+                bool wroteAny = _lastSubmitted.TryGetValue(_idEyeLidLeft, out float wrote);
+                float readBack = acquisition.VariableStore.GetValue(_idEyeLidLeft);
+                bool registered = wroteAny && Mathf.Approximately(readBack, wrote);
+                BasisDebug.Log($"[FaceSource] 10s window: apply={_diagApplyCalls} storeSubmits={_diagSubmits} epsilonSkipped={_diagSkipped} " +
+                               $"eyeLidRegisteredOnStore={registered} (wrote={(wroteAny ? wrote.ToString("0.###") : "none")} read={readBack:0.###})");
+                _diagApplyCalls = 0; _diagSubmits = 0; _diagSkipped = 0;
+            }
+            _diagApplyCalls++;
         }
+
+        private int _diagApplyCalls, _diagSubmits, _diagSkipped;
+        private float _diagLastLogTime;
 
         // Skip submitting near-unchanged values: avoids redundant local SetBlendShapeWeight
         // P/Invokes and network churn for a mostly-neutral face.
         private void SubmitIfChanged(AcquisitionService acquisition, int id, float value)
         {
-            if (_lastSubmitted.TryGetValue(id, out float last) && Mathf.Abs(value - last) < SubmitEpsilon) return;
+            if (_lastSubmitted.TryGetValue(id, out float last) && Mathf.Abs(value - last) < SubmitEpsilon) { _diagSkipped++; return; }
             _lastSubmitted[id] = value;
             acquisition.Submit(id, value);
+            _diagSubmits++;
         }
 
         private float EyeLid(float blink) => EyeLidIsOpenness ? Mathf.Clamp01(1f - blink) : Mathf.Clamp01(blink);

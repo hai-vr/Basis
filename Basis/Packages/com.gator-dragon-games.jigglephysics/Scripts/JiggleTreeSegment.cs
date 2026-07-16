@@ -48,6 +48,10 @@ public class JiggleTreeSegment {
         SetDirty();
     }
 
+    public bool GetHasAnimatedParameters() {
+        return jiggleTree != null && jiggleProvider.HasAnimatedParameters;
+    }
+
     public void UpdateParametersIfNeeded() {
         if (jiggleTree != null && jiggleProvider.HasAnimatedParameters) {
             jiggleRigData.UpdateParameters(jiggleTree, parametersCache);
@@ -56,6 +60,9 @@ public class JiggleTreeSegment {
     
     public void UpdateParameters() {
         if (jiggleTree != null) {
+            // Manual API entry point — the sim job may be mid-flight, and SetParameters
+            // MemCpys into a buffer it reads.
+            JigglePhysics.CompleteSimulate();
             jiggleRigData.UpdateParameters(jiggleTree, parametersCache);
         }
     }

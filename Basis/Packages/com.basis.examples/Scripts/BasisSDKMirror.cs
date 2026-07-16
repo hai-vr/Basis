@@ -4,6 +4,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -44,6 +45,10 @@ public class BasisSDKMirror : MonoBehaviour
     public bool RenderPostProcessing = false;
     public bool OcclusionCulling = false;
     public bool renderShadows = false;
+
+    [Header("Secondary Viewers")]
+    [Tooltip("Reflection resolution cap for secondary viewers (handheld cameras, Scene View)")]
+    public int SecondaryViewerMaxSize = 1024;
 
     [Header("Debug / Runtime")]
     public bool IsActive;
@@ -104,6 +109,29 @@ public class BasisSDKMirror : MonoBehaviour
     private readonly Vector3 projectionDirection = -Vector3.forward;
     private Matrix4x4 xFlip;
 
+    /// <summary>Per-viewer reflection state for cameras other than the primary (player) camera.</summary>
+    private sealed class SecondaryViewerState
+    {
+        public RenderTexture Texture;
+        public int LastCapturedFrame;
+    }
+
+    private readonly Dictionary<Camera, SecondaryViewerState> secondaryViewers = new Dictionary<Camera, SecondaryViewerState>();
+    private MaterialPropertyBlock reflectionBlock;
+    private bool primaryBound;
+#if UNITY_EDITOR
+    /// <summary>Scene View camera observed actually rendering, so hidden Scene Views don't cost a capture.</summary>
+    private Camera lastSceneViewCamera;
+    private int lastSceneViewRenderFrame = -1000;
+#endif
+    private readonly Plane[] frustumPlanes = new Plane[6];
+    private static readonly List<Camera> ViewerScratch = new List<Camera>(4);
+    private static readonly List<Camera> PruneScratch = new List<Camera>(4);
+    private static readonly int ReflectionTexLeftId = Shader.PropertyToID("_ReflectionTexLeft");
+    private static readonly int ReflectionTexRightId = Shader.PropertyToID("_ReflectionTexRight");
+    /// <summary>Frames a secondary viewer may go uncaptured before its texture is released.</summary>
+    private const int ViewerStaleFrames = 300;
+
     private void OnEnable()
     {
         IsActive = false;
@@ -144,6 +172,7 @@ public class BasisSDKMirror : MonoBehaviour
             Initialize();
 
         Application.onBeforeRender += OnBeforeRender;
+        RenderPipeline.beginCameraRendering += OnBeginCameraRendering;
     }
 
     private void OnDisable()
@@ -157,6 +186,7 @@ public class BasisSDKMirror : MonoBehaviour
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
         Application.onBeforeRender -= OnBeforeRender;
+        RenderPipeline.beginCameraRendering -= OnBeginCameraRendering;
     }
 
     private void BootModeChanged(string _) => StartCoroutine(ResetMirror());
@@ -177,6 +207,15 @@ public class BasisSDKMirror : MonoBehaviour
         if (basisMeshRendererCheck != null)
             basisMeshRendererCheck.Check -= VisibilityFlag;
 
+        // Mirror every OnEnable subscription so ResetMirror's CleanUp()+OnEnable() cycle and
+        // component toggling can't stack duplicate handlers (double mirror renders per frame).
+        Application.onBeforeRender -= OnBeforeRender;
+        RenderPipeline.beginCameraRendering -= OnBeginCameraRendering;
+        BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
+        BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
+        BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
+
+        primaryBound = false;
         DisposePortalResources();
 
         if (gazeTarget != null)
@@ -215,6 +254,22 @@ public class BasisSDKMirror : MonoBehaviour
         PortalTextureLeft = null;
         PortalTextureRight = null;
         LeftCamera = RightCamera = null;
+
+        foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
+        {
+            ReleaseViewerTexture(pair.Value);
+        }
+        secondaryViewers.Clear();
+    }
+
+    private static void ReleaseViewerTexture(SecondaryViewerState state)
+    {
+        if (state.Texture != null)
+        {
+            state.Texture.Release();
+            Destroy(state.Texture);
+            state.Texture = null;
+        }
     }
 
     private void GetEffectiveResolution(out int width, out int height)
@@ -266,6 +321,7 @@ public class BasisSDKMirror : MonoBehaviour
         IsAbleToRender = Renderer.isVisible;
         IsActive = true;
         InsideRendering = false;
+        primaryBound = false;
 
         // Set up gaze target so the eye driver focuses on the player's reflection
         if (gazeTarget == null)
@@ -322,9 +378,112 @@ public class BasisSDKMirror : MonoBehaviour
 
         RenderBothEyes(cam);
 
+        CaptureSecondaryViewers(cam);
+
         OnCamerasFinished?.Invoke();
 
         BasisLocalAvatarDriver.ScaleHeadToZero();
+
+        if ((Time.frameCount & 127) == 0)
+            PruneStaleViewers();
+    }
+
+    /// <summary>
+    /// Renders a mono reflection for every registered viewer camera (handheld capture,
+    /// Scene View) that can currently see the mirror, each into its own texture. Render
+    /// requests cannot be submitted from inside the SRP render loop, so this must happen
+    /// here in onBeforeRender; OnBeginCameraRendering later binds the matching texture
+    /// for whichever camera is about to draw the mirror.
+    /// </summary>
+    private void CaptureSecondaryViewers(Camera primary)
+    {
+        ViewerScratch.Clear();
+        BasisMirrorViewerRegistry.CollectInto(ViewerScratch);
+#if UNITY_EDITOR
+        if (lastSceneViewCamera != null && Time.frameCount - lastSceneViewRenderFrame <= 4)
+            ViewerScratch.Add(lastSceneViewCamera);
+#endif
+        int count = ViewerScratch.Count;
+        if (count == 0 || InsideRendering) return;
+        InsideRendering = true;
+
+        for (int Index = 0; Index < count; Index++)
+        {
+            Camera viewer = ViewerScratch[Index];
+            if (viewer == null || ReferenceEquals(viewer, primary)) continue;
+            if (BasisMirrorReflectionCamera.IsReflectionCamera(viewer)) continue;
+            if (!CanSeeMirror(viewer)) continue;
+
+            SecondaryViewerState state = GetOrCreateViewerState(viewer);
+            viewer.transform.GetPositionAndRotation(out Vector3 viewerPos, out Quaternion viewerRot);
+            RenderEye(viewer, MonoOrStereoscopicEye.Mono, viewerPos, viewerRot, state.Texture);
+            state.LastCapturedFrame = Time.frameCount;
+        }
+
+        InsideRendering = false;
+    }
+
+    private bool CanSeeMirror(Camera viewer)
+    {
+        if (Vector3.Dot(normal, viewer.transform.position - thisPosition) < 0f)
+            return false;
+
+        Matrix4x4 worldToProjection = viewer.projectionMatrix * viewer.worldToCameraMatrix;
+        GeometryUtility.CalculateFrustumPlanes(worldToProjection, frustumPlanes);
+        return GeometryUtility.TestPlanesAABB(frustumPlanes, Renderer.bounds);
+    }
+
+    private SecondaryViewerState GetOrCreateViewerState(Camera viewer)
+    {
+        if (!secondaryViewers.TryGetValue(viewer, out SecondaryViewerState state))
+        {
+            state = new SecondaryViewerState();
+            secondaryViewers[viewer] = state;
+        }
+        if (state.Texture == null)
+        {
+            GetEffectiveResolution(out int width, out int height);
+            var desc = new RenderTextureDescriptor(
+                Mathf.Min(width, SecondaryViewerMaxSize), Mathf.Min(height, SecondaryViewerMaxSize),
+                RenderTextureFormat.Default, depth)
+            {
+                msaaSamples = 1,
+                sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear,
+                useMipMap = false,
+                autoGenerateMips = false,
+                vrUsage = VRTextureUsage.None,
+                dimension = TextureDimension.Tex2D
+            };
+            state.Texture = new RenderTexture(desc)
+            {
+                name = $"__MirrorReflectionViewer_{GetEntityId()}",
+                anisoLevel = 0
+            };
+            state.Texture.Create();
+        }
+        return state;
+    }
+
+    private void PruneStaleViewers()
+    {
+        if (secondaryViewers.Count == 0) return;
+
+        PruneScratch.Clear();
+        foreach (KeyValuePair<Camera, SecondaryViewerState> pair in secondaryViewers)
+        {
+            if (pair.Key == null || Time.frameCount - pair.Value.LastCapturedFrame > ViewerStaleFrames)
+                PruneScratch.Add(pair.Key);
+        }
+
+        int count = PruneScratch.Count;
+        for (int Index = 0; Index < count; Index++)
+        {
+            if (secondaryViewers.TryGetValue(PruneScratch[Index], out SecondaryViewerState state))
+            {
+                ReleaseViewerTexture(state);
+                secondaryViewers.Remove(PruneScratch[Index]);
+            }
+        }
     }
 
     private void RenderBothEyes(Camera camera)
@@ -336,21 +495,24 @@ public class BasisSDKMirror : MonoBehaviour
 
         if (camera.stereoEnabled)
         {
-            RenderEye(camera, MonoOrStereoscopicEye.Left, srcPos, srcRot);
-            RenderEye(camera, MonoOrStereoscopicEye.Right, srcPos, srcRot);
+            RenderEye(camera, MonoOrStereoscopicEye.Left, srcPos, srcRot, PortalTextureLeft);
+            RenderEye(camera, MonoOrStereoscopicEye.Right, srcPos, srcRot, PortalTextureRight);
         }
         else
         {
-            RenderEye(camera, MonoOrStereoscopicEye.Mono, srcPos, srcRot);
+            RenderEye(camera, MonoOrStereoscopicEye.Mono, srcPos, srcRot, PortalTextureLeft);
         }
 
         InsideRendering = false;
     }
 
-    private void RenderEye(Camera sourceCamera, MonoOrStereoscopicEye eye, Vector3 srcPos, Quaternion srcRot)
+    private void RenderEye(Camera sourceCamera, MonoOrStereoscopicEye eye, Vector3 srcPos, Quaternion srcRot, RenderTexture destination)
     {
         Camera portalCamera = (eye == MonoOrStereoscopicEye.Right) ? RightCamera : LeftCamera;
         if (!portalCamera) return;
+
+        // Portal cameras are shared by every viewer now, so per-render state must be refreshed.
+        updateCameraClearFlags(portalCamera, sourceCamera);
 
         // --- Eye pose/projection from source camera ---
         Vector3 eyeOriginWS;
@@ -414,7 +576,50 @@ public class BasisSDKMirror : MonoBehaviour
             portalCamera.farClipPlane = FarClipPlane;
         }
 
-        SubmitRenderRequest(portalCamera, portalCamera.targetTexture);
+        SubmitRenderRequest(portalCamera, destination);
+    }
+
+    /// <summary>
+    /// URP callback before each camera render: binds the reflection captured for that
+    /// camera's viewpoint, so mirrors stay correct when drawn by handheld cameras or the
+    /// Scene View instead of the player camera. The shader samples in screen space, so a
+    /// texture is only valid for the camera whose pose produced it.
+    /// </summary>
+    private void OnBeginCameraRendering(ScriptableRenderContext context, Camera renderingCamera)
+    {
+#if UNITY_EDITOR
+        if (renderingCamera.cameraType == CameraType.SceneView)
+        {
+            lastSceneViewCamera = renderingCamera;
+            lastSceneViewRenderFrame = Time.frameCount;
+        }
+#endif
+        if (!IsActive || Renderer == null) return;
+
+        if (secondaryViewers.Count != 0 &&
+            secondaryViewers.TryGetValue(renderingCamera, out SecondaryViewerState state) &&
+            state.Texture != null)
+        {
+            BindReflectionTextures(state.Texture, state.Texture);
+            primaryBound = false;
+        }
+        else if (!primaryBound)
+        {
+            BindReflectionTextures(PortalTextureLeft, PortalTextureRight);
+            primaryBound = true;
+        }
+    }
+
+    private void BindReflectionTextures(RenderTexture left, RenderTexture right)
+    {
+        if (left == null || right == null) return;
+
+        if (reflectionBlock == null)
+            reflectionBlock = new MaterialPropertyBlock();
+
+        reflectionBlock.SetTexture(ReflectionTexLeftId, left);
+        reflectionBlock.SetTexture(ReflectionTexRightId, right);
+        Renderer.SetPropertyBlock(reflectionBlock);
     }
 
     public void SubmitRenderRequest(Camera camera, RenderTexture texture2D)
@@ -495,7 +700,7 @@ public class BasisSDKMirror : MonoBehaviour
 
     private void CreateNewCamera(Camera sourceCamera, out Camera newCamera)
     {
-        GameObject camObj = new GameObject($"MirrorCam_{GetEntityId()}_{sourceCamera.GetEntityId()}", typeof(Camera));
+        GameObject camObj = new GameObject($"MirrorCam_{GetEntityId()}_{sourceCamera.GetEntityId()}", typeof(Camera), typeof(BasisMirrorReflectionCamera));
         camObj.TryGetComponent<Camera>(out  newCamera);
         newCamera.enabled = false;
         newCamera.CopyFrom(sourceCamera);

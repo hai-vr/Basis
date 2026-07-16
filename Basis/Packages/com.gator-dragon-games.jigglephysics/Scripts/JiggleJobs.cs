@@ -189,6 +189,22 @@ public class JiggleJobs {
         freePointers.Add(pointer);
     }
 
+    public void FreeOnCommitFlip(IntPtr pointer) {
+        _memoryBus.FreeOnCommitFlip(pointer);
+    }
+
+    /// <summary>
+    /// Blocks until the in-flight simulate job (if any) has finished. Must be called before any
+    /// main-thread write to tree point/parameter buffers (JiggleTree.Set, SetParameters) — those
+    /// buffers are read and written by the job, and Simulate() only completes it after CommitTrees
+    /// has already consumed the mutated data.
+    /// </summary>
+    public void CompleteSimulate() {
+        if (hasHandleSimulate) {
+            handleSimulate.Complete();
+        }
+    }
+
     private void Free() {
         var freePointerCount = freePointers.Count;
         for (int i = 0; i < freePointerCount; i++) {

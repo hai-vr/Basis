@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Basis.BTween;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.UI;
 using Basis.Scripts.Virtual_keyboard;
 using TMPro;
 using UnityEngine;
@@ -742,7 +743,7 @@ namespace Basis.BasisUI
                     string buffer = GUIUtility.systemCopyBuffer;
                     if (!string.IsNullOrEmpty(buffer))
                     {
-                        AppendText(buffer);
+                        InsertText(buffer);
                         UpdateDisplay();
                     }
                     return;
@@ -752,7 +753,7 @@ namespace Basis.BasisUI
                     string toAppend = string.IsNullOrWhiteSpace(entry.BaseLabel)
                         ? entry.BaseLabel
                         : GetDisplayChar(entry.BaseLabel, IsCapital);
-                    AppendText(toAppend);
+                    InsertText(toAppend);
                     UpdateDisplay();
                     return;
             }
@@ -771,17 +772,9 @@ namespace Basis.BasisUI
             return string.Empty;
         }
 
-        private void AppendText(string value)
+        private void InsertText(string value)
         {
-            if (TMPInputField)
-            {
-                TMPInputField.text += value;
-                return;
-            }
-            if (InputField)
-            {
-                InputField.text += value;
-            }
+            BasisTextFieldCaret.InsertAtCaret(TMPInputField, InputField, value);
         }
 
         private void SubmitTarget()
@@ -801,15 +794,7 @@ namespace Basis.BasisUI
 
         private void DeleteCharacter()
         {
-            if (TMPInputField && TMPInputField.text.Length > 0)
-            {
-                TMPInputField.text = TMPInputField.text.Substring(0, TMPInputField.text.Length - 1);
-                return;
-            }
-            if (InputField && InputField.text.Length > 0)
-            {
-                InputField.text = InputField.text.Substring(0, InputField.text.Length - 1);
-            }
+            BasisTextFieldCaret.DeleteBeforeCaret(TMPInputField, InputField);
         }
 
         private void OnDeletePressed()

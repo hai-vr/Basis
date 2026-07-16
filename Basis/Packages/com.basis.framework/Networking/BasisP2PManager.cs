@@ -704,7 +704,7 @@ namespace Basis.Scripts.Networking
         {
             if (!_sessionsByToken.TryGetValue(token, out Session s))
             {
-                BasisDebug.LogWarning($"[P2P] NatIntroductionSuccess for unknown token {Preview(token)} from {targetEndPoint}.");
+                BasisDebug.LogWarning($"[P2P] NatIntroductionSuccess for unknown token {Preview(token)}.");
                 return;
             }
             if (s.State == P2PSessionState.Connected)
@@ -718,7 +718,7 @@ namespace Basis.Scripts.Networking
             {
                 s.ExpectedRemoteAddress = targetEndPoint.Address;
                 s.ConnectionType = type;
-                BasisDebug.Log($"[P2P] NatIntroductionSuccess: player {s.OtherPlayerId} reachable at {targetEndPoint} ({type}{(type == LiteNatAddressType.Internal ? " — same LAN" : "")}).");
+                BasisDebug.Log($"[P2P] NatIntroductionSuccess: player {s.OtherPlayerId} reachable ({type}{(type == LiteNatAddressType.Internal ? " — same LAN" : "")}).");
             }
 
             // Both sides connect to the discovered endpoint; LiteNetLib's simultaneous-open
@@ -745,7 +745,7 @@ namespace Basis.Scripts.Networking
             }
             catch (Exception ex)
             {
-                BasisDebug.LogError($"[P2P] Connect to {targetEndPoint} failed: {ex.Message}");
+                BasisDebug.LogError($"[P2P] Connect to player {s.OtherPlayerId} failed: {ex.Message}");
                 s.ConnectIssued = false;
             }
         }
@@ -769,7 +769,7 @@ namespace Basis.Scripts.Networking
                 }
                 else
                 {
-                    BasisDebug.LogWarning($"[P2P] Rejecting inbound P2P connect from {request.RemoteEndPoint} — unknown or wrong-state token {Preview(token)}.");
+                    BasisDebug.LogWarning($"[P2P] Rejecting inbound P2P connect — unknown or wrong-state token {Preview(token)}.");
                     request.Reject(new NetDataWriter());
                 }
             }
@@ -808,7 +808,7 @@ namespace Basis.Scripts.Networking
 
             if (matched == null)
             {
-                BasisDebug.LogWarning($"[P2P] PeerConnected from {peer.Address} did not match any pending session.");
+                BasisDebug.LogWarning($"[P2P] PeerConnected did not match any pending session.");
                 return;
             }
 
@@ -823,7 +823,7 @@ namespace Basis.Scripts.Networking
             ApplyState(matched, P2PSessionState.Connected);
             matched.PunchAttempts = 0;
             NotifyStateChanged(matched.OtherPlayerId, matched.State);
-            BasisDebug.Log($"[P2P] CONNECTED to player {matched.OtherPlayerId} at {peer.Address} via {(matched.ConnectionType == LiteNatAddressType.Internal ? "LAN" : "Internet")} (token {Preview(matched.Token)}); sending LinkUp to server.");
+            BasisDebug.Log($"[P2P] CONNECTED to player {matched.OtherPlayerId} via {(matched.ConnectionType == LiteNatAddressType.Internal ? "LAN" : "Internet")} (token {Preview(matched.Token)}); sending LinkUp to server.");
 
             SendSubToServer(BasisNetworkCommons.P2PSub_LinkUp, matched.OtherPlayerId, matched.Token);
             BasisAvatarRateRegistry.ForceNextAnnouncement();

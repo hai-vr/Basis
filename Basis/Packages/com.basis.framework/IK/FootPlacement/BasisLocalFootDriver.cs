@@ -548,7 +548,14 @@ public partial class BasisLocalFootDriver
     }
     private void MeasureFromCalibration(BasisTransformMapping mapping)
     {
-        var tpose = mapping.TposeFromRoot;
+        // TposeWorld, not TposeFromRoot. These lengths get multiplied by ScaledToMatchValue and
+        // compared against live world distances, and the avatar root's final scale is
+        // authoredRootScale * ScaledToMatchValue -- TposeFromRoot divides the authored root scale out,
+        // so any avatar whose prefab root is not scale 1 measured short/long by that factor. Short
+        // measurements made mere standing read as airborne (hips beyond straight-leg reach), and the
+        // feet abandoned the ground ray to float on the hips-relative fallback. TposeWorld keeps the
+        // authored scale in, the same convention ScaledToMatchValue is derived against (AvatarEyeHeight).
+        var tpose = mapping.TposeWorld;
         bool hasHips = TryTP(tpose, HumanBodyBones.Hips, out Vector3 tH);
         bool hasLUL = TryTP(tpose, HumanBodyBones.LeftUpperLeg, out Vector3 tLUL);
         bool hasRUL = TryTP(tpose, HumanBodyBones.RightUpperLeg, out Vector3 tRUL);
@@ -636,7 +643,7 @@ public partial class BasisLocalFootDriver
         }
 
         // ── Ankle height (distance from foot bone to ground plane in T-pose) ──
-        // Must be root-independent: TposeFromRoot positions include the root bone's
+        // Must be root-independent: TposeWorld positions include the root bone's
         // offset from ground, which varies wildly between avatar formats.  Using an
         // absolute Y made ankleHeight huge for avatars whose root sits below the
         // ground plane, pushing footHeightOffset to its 0.05 m clamp and lifting

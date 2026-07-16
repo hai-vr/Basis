@@ -284,7 +284,18 @@ public struct JiggleRigData {
         for (int i = 0; i < boneCount; i++) {
             var bone = bones[i];
             var cache = GetCache(bone);
-            parameters.Add(GetJiggleBoneParameter(cache.normalizedDistanceFromRoot));
+            var parameter = GetJiggleBoneParameter(cache.normalizedDistanceFromRoot);
+            // Mirror the pinned override CreateJiggleTree's Visit assigns, otherwise every
+            // animated-parameter push unpins an excluded root and the whole chain sways.
+            if ((excludeRoot && bone == rootBone) || GetIsExcluded(bone)) {
+                parameter = new JigglePointParameters() {
+                    angleElasticity = 1f,
+                    lengthElasticity = 1f,
+                    rootElasticity = 1f,
+                    elasticitySoften = 0f
+                };
+            }
+            parameters.Add(parameter);
         }
         tree.SetParameters(parameters);
     }
@@ -358,9 +369,12 @@ public struct JiggleRigData {
         Gizmos.DrawLine(boneHead, boneTail);
         var boneDirection = (boneTail - boneHead).normalized;
         var angleLimitScale = 0.05f;
-        DrawWireDisc(boneHead + boneDirection * (angleLimitScale * Mathf.Cos(jigglePointParameters.angleLimit * Mathf.Deg2Rad)),
+        // angleLimit is normalized 0..1 of a 90 degree half-angle (see the simulate job's
+        // `angleLimit * PI * 0.5`), not degrees.
+        var angleLimitRadians = jigglePointParameters.angleLimit * Mathf.PI * 0.5f;
+        DrawWireDisc(boneHead + boneDirection * (angleLimitScale * Mathf.Cos(angleLimitRadians)),
             boneDirection,
-            angleLimitScale * Mathf.Sin(jigglePointParameters.angleLimit * Mathf.Deg2Rad));
+            angleLimitScale * Mathf.Sin(angleLimitRadians));
     }
 #if UNITY_EDITOR
 #endif

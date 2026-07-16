@@ -190,7 +190,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
             transmitter.storedAvatarData.LASM.LinkedAvatarIndex = transmitter.LastLinkedAvatarIndex;
 
-            bool hasAdditional = data != null && data.Length > 0;
+            // Must mirror SerializeAdditionalOnly's guard exactly: with >255 entries the serializer
+            // writes nothing, so claiming an additional section via the channel/header would desync
+            // the receiver's parse. (256 is reachable — SendingOutAvatarData is byte-keyed.)
+            bool hasAdditional = data != null && data.Length > 0 && data.Length <= 255;
             byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)WireQuality, hasAdditional);
 
             // Drop redundant, additional-free frames (a still avatar) until the heartbeat is due:
@@ -259,6 +262,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 // Promotion: a delta that isn't smaller than the keyframe is pointless overhead.
                 if (deltaLen < 0 || deltaLen >= payloadLen) keyframe = true;
             }
+
+            if (hasAdditional)
+            {
+                System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesWithAdditional);
+                if (keyframe) System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesKeyframe);
+                else System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesDelta);
+            }
+            BasisAdditionalDataDiagnostics.MaybeReport();
 
             byte sendChannel;
             if (keyframe)

@@ -55,15 +55,26 @@ public unsafe struct JiggleTreeJobData {
         this.colliderCount = (uint)colliderCount;
         rootID = newRootID;
         if (inputPoints.Length != pointCount) {
-            Dispose();
+            // A committed copy of this struct (holding the old pointers) can stay in the memory
+            // bus until the next tree-commit flip, and the sim job keeps dereferencing it every
+            // tick until then — so the old buffers must outlive that flip. FreeOnComplete frees
+            // on the very next Simulate, which is too early.
+            if (points != null) {
+                JigglePhysics.FreeOnCommitFlip((IntPtr)points);
+                points = null;
+            }
+            if (parameters != null) {
+                JigglePhysics.FreeOnCommitFlip((IntPtr)parameters);
+                parameters = null;
+            }
             pointCount = (uint)inputPoints.Length;
             points = (JiggleSimulatedPoint*)UnsafeUtility.Malloc(
-                Marshal.SizeOf<JiggleSimulatedPoint>() * pointCount,
+                sizeof(JiggleSimulatedPoint) * pointCount,
                 UnsafeUtility.AlignOf<JiggleSimulatedPoint>(),
                 Allocator.Persistent
             );
             parameters = (JigglePointParameters*)UnsafeUtility.Malloc(
-                Marshal.SizeOf<JigglePointParameters>() * pointCount,
+                sizeof(JigglePointParameters) * pointCount,
                 UnsafeUtility.AlignOf<JigglePointParameters>(),
                 Allocator.Persistent
             );

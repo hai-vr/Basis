@@ -26,7 +26,7 @@ public class JiggleMemoryFragmenter {
     
     public int GetHighestAllocatedIndex() {
         if (fragments.Count <= 0) {
-            return currentSize;
+            return currentSize - 1;
         }
         var lastFragment = fragments[^1];
         return lastFragment.startIndex - 1;

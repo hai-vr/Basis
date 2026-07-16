@@ -245,6 +245,7 @@ public static class BasisNetworkGenericMessages
 
                         if (withinNextFour)
                         {
+                            System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDeferred);
                             // Store the message for delayed playback
                             player.NextMessages[output.messageIndex] = new BasisNetworkPlayer.ServerAvatarDataMessageQueue()
                             {
@@ -253,11 +254,17 @@ public static class BasisNetworkGenericMessages
                                 Direct = direct
                             };
                         }
+                        else
+                        {
+                            System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDropped);
+                        }
                     }
                     else
                     {
                         if (output.messageIndex < player.NetworkBehaviourCount)
                         {
+                            System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDispatched);
+                            Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordReceivedAvatarChannel(SADM.playerIdMessage.playerID, output.messageIndex, output.payload);
                             if (direct)
                             {
                                 player.NetworkBehaviours[output.messageIndex].OnDirectNetworkMessageReceived(SADM.playerIdMessage.playerID, output.payload, Method);
@@ -269,6 +276,7 @@ public static class BasisNetworkGenericMessages
                         }
                         else
                         {
+                            System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDropped);
                             BasisDebug.LogError($"this Should never occur Message Index did not exist {output.messageIndex}");
                         }
                     }
