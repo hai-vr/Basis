@@ -35,6 +35,10 @@ int   basis_jni_https_is_seekable(void* ctx);
  * the demuxer's reseek hook. Stricter than is_seekable. */
 int   basis_jni_https_can_reseek(void* ctx);
 
+/* Body size in bytes, or -1 when unknown (chunked / open-ended / live). From the
+ * Content-Length captured at open; used by the Ogg demuxer for granule seek. */
+long long basis_jni_https_content_length(void* ctx);
+
 /* Interrupts a read parked in InputStream.read() on another thread (disconnects
  * the connection so the blocked read throws and returns). The caller uses this to
  * unblock a read-ahead reader before reseeking; a racing read reports error. */

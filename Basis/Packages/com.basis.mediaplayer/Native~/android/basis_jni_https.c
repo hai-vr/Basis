@@ -264,6 +264,7 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
         if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
             len = atoll(clen);
         h->seekable = (rangeable && len > 0) ? 1 : 0;
+        h->total_bytes = len > 0 ? len : -1;
     }
 
     jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
@@ -308,6 +309,11 @@ static int ensure_scratch(JNIEnv* env, https_ctx* h, int want) {
 int basis_jni_https_is_seekable(void* ctx) {
     https_ctx* h = (https_ctx*)ctx;
     return h ? h->seekable : 0;
+}
+
+long long basis_jni_https_content_length(void* ctx) {
+    https_ctx* h = (https_ctx*)ctx;
+    return h ? h->total_bytes : -1;
 }
 
 int basis_jni_https_can_reseek(void* ctx) {

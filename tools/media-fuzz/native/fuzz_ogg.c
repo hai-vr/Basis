@@ -22,6 +22,7 @@ typedef struct {
     size_t size;
     size_t pos;
     long long aus;
+    int seeked;
 } fuzz_ctx;
 
 static volatile uint8_t g_sink_byte;
@@ -72,6 +73,13 @@ static void s_state(void* u, basis_media_state_t s) { (void)u; (void)s; }
 static void s_error(void* u, const char* m) { (void)u; (void)m; }
 static void s_eos(void* u) { (void)u; }
 static int s_is_running(void* u) { fuzz_ctx* c = (fuzz_ctx*)u; return c->aus < FUZZ_AU_CAP; }
+/* Request one seek so the granule bisection path is exercised; the target is
+ * derived from the input so it varies across cases. */
+static int s_take_seek(void* u, int64_t* out) {
+    fuzz_ctx* c = (fuzz_ctx*)u;
+    if (!c->seeked) { c->seeked = 1; *out = (int64_t)(c->size ? (c->data[0] * 100000) : 0); return 1; }
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     fuzz_ctx c;
@@ -87,8 +95,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     sink.on_state = s_state;
     sink.on_error = s_error;
     sink.on_end_of_stream = s_eos;
+    sink.take_seek = s_take_seek;
     sink.is_running = s_is_running;
 
-    basis_ogg_run(&sink, fz_read, &c, fz_reseek, &c);
+    basis_ogg_run(&sink, fz_read, &c, fz_reseek, &c, (int64_t)size);
     return 0;
 }

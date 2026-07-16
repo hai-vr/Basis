@@ -858,12 +858,14 @@ static void run_http_like(demux_ctx_t* c) {
      * absolute seeks with a ranged refetch; everything else demuxes as before. */
     basis_reseek_fn reseek = NULL;
     void* reseek_ctx = NULL;
+    int64_t stream_size = -1;   /* total body size for the Ogg granule seek; -1 = unknown */
 #if defined(_WIN32)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_win_http_abort, basis_win_http_reseek };
     if (c->e->paced && basis_win_http_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
+        stream_size = basis_win_http_content_length(src);
     }
 #elif defined(__ANDROID__)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
@@ -871,6 +873,7 @@ static void run_http_like(demux_ctx_t* c) {
     if (c->e->paced && basis_jni_https_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
+        stream_size = basis_jni_https_content_length(src);
     }
 #endif
 
@@ -881,7 +884,7 @@ static void run_http_like(demux_ctx_t* c) {
     else if (is_wav)
         basis_wav_run(c->sink, demux_read, demux_ctx);
     else if (is_ogg)
-        basis_ogg_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
+        basis_ogg_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx, stream_size);
     else
         basis_ts_run(c->sink, demux_read, demux_ctx); /* default to MPEG-TS */
 

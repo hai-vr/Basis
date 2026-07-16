@@ -9,11 +9,15 @@
  *
  * Scope: one logical Opus bitstream. First packet = OpusHead (identification),
  * second = OpusTags (comments, skipped), then audio packets. Per-packet PTS
- * accumulates from Opus TOC-derived durations starting at zero (the encoder
- * pre-skip is a decode-layer concern, matching the WebM lane). Chained streams
- * (a new serial after EOS) are treated as end-of-stream. Each page's CRC-32 is
- * verified; a page that fails is dropped and the walk resyncs on the next
- * "OggS". Forward playback only — no granulepos seek, so no duration.
+ * accumulates from Opus TOC-derived durations (the encoder pre-skip stays a
+ * decode-layer concern, matching the WebM lane). Chained streams (a new serial
+ * after EOS) are treated as end-of-stream. Each page's CRC-32 is verified; a
+ * page that fails is dropped and the walk resyncs on the next "OggS".
+ *
+ * Seek: Ogg has no index, so seeking is granule bisection over the byte range
+ * (the caller must supply a reseek and the total size). Duration is the last
+ * page's granule, read once at open by seeking to the tail. Both are gated on a
+ * seekable source; a live/unknown-size stream plays forward with no duration.
  *
  * Everything here parses attacker-controlled bytes, so every length is bounded
  * before use (this is a fuzz target: tools/media-fuzz/fuzz_ogg).
@@ -26,11 +30,16 @@
 #define OGG_HDR 27                       /* fixed page header size */
 #define OGG_MAX_BODY (255 * 255)         /* max page body (255 segments * 255) */
 #define OGG_MAX_PACKET (8 * 1024 * 1024) /* runaway guard for reassembled packets */
+#define OGG_TAIL 65536                    /* tail window scanned for the last page */
 
 typedef struct {
     basis_media_sink_t* sink;
     basis_read_fn read;
     void* ctx;
+    basis_reseek_fn reseek;
+    void* reseek_ctx;
+    int64_t size;             /* total stream size, or -1 when unknown (no seek) */
+    int64_t pos;              /* absolute read offset */
 
     uint32_t serial;
     int have_serial;
@@ -44,6 +53,17 @@ typedef struct {
     uint8_t* pkt;             /* packet reassembled across segments/pages */
     int pkt_len, pkt_cap;
 } ogg_t;
+
+/* One parsed, CRC-valid page. */
+typedef struct {
+    int64_t granule;
+    uint32_t serial;
+    uint8_t htype;
+    uint8_t segtab[255];
+    int nsegs;
+    uint8_t body[OGG_MAX_BODY];
+    int bodylen;
+} ogg_page_t;
 
 /* ---- Ogg CRC-32 (poly 0x04c11db7, MSB-first, no reflection, no final xor) --
  * Chainable so header + segment table + body hash contiguously across regions. */
@@ -63,8 +83,60 @@ static int oread(ogg_t* o, uint8_t* buf, int n) {
         int r = o->read(o->ctx, buf + got, n - got);
         if (r <= 0) return 0;
         got += r;
+        o->pos += r;
     }
     return 1;
+}
+
+static int64_t rd_le64(const uint8_t* p) {
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; --i) v = (v << 8) | p[i];
+    return (int64_t)v;
+}
+static uint32_t rd_le32(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+/* Scan to the next "OggS", read the whole page, verify its CRC. Returns 1 with
+ * *pg filled, or 0 at EOF. A CRC failure drops the page and resyncs. */
+static int read_page(ogg_t* o, ogg_page_t* pg) {
+    for (;;) {
+        int match = 0;
+        static const char cap[4] = { 'O', 'g', 'g', 'S' };
+        while (match < 4) {                    /* find the capture pattern */
+            uint8_t c;
+            if (!oread(o, &c, 1)) return 0;
+            if (c == (uint8_t)cap[match]) match++;
+            else match = (c == 'O') ? 1 : 0;
+        }
+
+        uint8_t hdr[OGG_HDR];
+        memcpy(hdr, cap, 4);
+        if (!oread(o, hdr + 4, OGG_HDR - 4)) return 0;
+        pg->nsegs = hdr[26];
+        if (pg->nsegs > 0 && !oread(o, pg->segtab, pg->nsegs)) return 0;
+        pg->bodylen = 0;
+        for (int i = 0; i < pg->nsegs; ++i) pg->bodylen += pg->segtab[i];
+        if (pg->bodylen > 0 && !oread(o, pg->body, pg->bodylen)) return 0;
+
+        uint32_t stored = rd_le32(hdr + 22);
+        hdr[22] = hdr[23] = hdr[24] = hdr[25] = 0;
+        uint32_t crc = ogg_crc(0, hdr, OGG_HDR);
+        crc = ogg_crc(crc, pg->segtab, pg->nsegs);
+        crc = ogg_crc(crc, pg->body, pg->bodylen);
+        if (crc != stored) continue;           /* damaged page: keep scanning */
+
+        pg->htype = hdr[5];
+        pg->granule = rd_le64(hdr + 6);
+        pg->serial = rd_le32(hdr + 14);
+        return 1;
+    }
+}
+
+static int64_t granule_to_us(int64_t granule, int pre_skip) {
+    int64_t s = granule - pre_skip;
+    if (s < 0) s = 0;
+    return s * 1000000LL / 48000;
 }
 
 /* Opus TOC -> samples at 48 kHz (frame size * frame count). */
@@ -73,21 +145,19 @@ static const int kOpusFrame48k[32] = {
     480, 960,  480,  960,  120, 240,  480,  960,  120, 240,  480,  960,
     120, 240,  480,  960,  120, 240,  480,  960
 };
-
 static int opus_packet_samples(const uint8_t* p, int len) {
     if (len < 1) return 0;
     int config = p[0] >> 3;
     int code = p[0] & 0x3;
     int frames = code == 0 ? 1 : code == 3 ? (len >= 2 ? (p[1] & 0x3F) : 0) : 2;
     long s = (long)kOpusFrame48k[config] * frames;
-    if (s < 0 || s > 5760) s = s < 0 ? 0 : 5760; /* clamp to Opus's per-packet max */
+    if (s < 0) s = 0; if (s > 5760) s = 5760;   /* Opus per-packet max */
     return (int)s;
 }
 
 static void emit_packet(ogg_t* o, const uint8_t* p, int len) {
     if (len <= 0) return;
     if (o->packet_index == 0) {
-        /* OpusHead: "OpusHead" ver ch pre_skip(LE16) rate(LE32) gain(LE16) family */
         if (len >= 19 && memcmp(p, "OpusHead", 8) == 0) {
             o->channels = p[9];
             o->pre_skip = p[10] | (p[11] << 8);
@@ -101,106 +171,108 @@ static void emit_packet(ogg_t* o, const uint8_t* p, int len) {
         /* OpusTags: comment header, no audio — skip. */
     } else if (o->announced) {
         o->sink->on_audio_frame(o->sink->user, p, len, o->next_pts_us);
-        int samples = opus_packet_samples(p, len);
-        o->next_pts_us += (int64_t)samples * 1000000LL / 48000;
+        o->next_pts_us += (int64_t)opus_packet_samples(p, len) * 1000000LL / 48000;
     }
     o->packet_index++;
 }
 
 /* Append body bytes to the pending packet; flush on any lacing value < 255. The
  * final segment being 255 leaves the packet open to continue on the next page. */
-static void feed_segments(ogg_t* o, const uint8_t* segtab, int nsegs,
-                          const uint8_t* body, int bodylen) {
+static void feed_page(ogg_t* o, const ogg_page_t* pg) {
     int off = 0;
-    for (int i = 0; i < nsegs; ++i) {
-        int seg = segtab[i];
-        if (off + seg > bodylen) return;               /* truncated page */
+    for (int i = 0; i < pg->nsegs; ++i) {
+        int seg = pg->segtab[i];
+        if (off + seg > pg->bodylen) return;
         if (o->pkt_len + seg > o->pkt_cap) {
             int ncap = o->pkt_cap ? o->pkt_cap : 4096;
             while (ncap < o->pkt_len + seg && ncap < OGG_MAX_PACKET) ncap *= 2;
-            if (ncap < o->pkt_len + seg) { o->pkt_len = 0; return; } /* over cap: drop */
+            if (ncap < o->pkt_len + seg) { o->pkt_len = 0; return; }
             uint8_t* nb = (uint8_t*)realloc(o->pkt, (size_t)ncap);
             if (!nb) { o->pkt_len = 0; return; }
             o->pkt = nb; o->pkt_cap = ncap;
         }
-        memcpy(o->pkt + o->pkt_len, body + off, (size_t)seg);
+        memcpy(o->pkt + o->pkt_len, pg->body + off, (size_t)seg);
         o->pkt_len += seg;
         off += seg;
-        if (seg < 255) {                                /* packet complete */
-            emit_packet(o, o->pkt, o->pkt_len);
-            o->pkt_len = 0;
-        }
+        if (seg < 255) { emit_packet(o, o->pkt, o->pkt_len); o->pkt_len = 0; }
     }
 }
 
+static int do_reseek(ogg_t* o, int64_t abs) {
+    if (!o->reseek || abs < 0) return 0;
+    if (o->reseek(o->reseek_ctx, abs) != 0) return 0;
+    o->pos = abs;
+    o->pkt_len = 0;                              /* drop any partial packet */
+    return 1;
+}
+
+/* Duration = the last page's granule. Seek to the tail, read every page in it,
+ * keep the final granule, then return to the start. Gated on a seekable source. */
+static void compute_duration(ogg_t* o) {
+    if (!o->reseek || o->size <= 0) return;
+    int64_t resume = o->pos;                    /* come back to mid-stream, not 0 */
+    int64_t tail = o->size > OGG_TAIL ? o->size - OGG_TAIL : 0;
+    if (!do_reseek(o, tail)) return;
+    ogg_page_t pg;
+    int64_t last = -1;
+    while (o->pos < o->size && read_page(o, &pg)) {
+        if (pg.granule >= 0) last = pg.granule;
+    }
+    do_reseek(o, resume);
+    if (last > 0 && o->sink->on_duration)
+        o->sink->on_duration(o->sink->user, granule_to_us(last, o->pre_skip));
+}
+
+/* Granule bisection: land on the last page whose end granule is <= target. */
+static void seek_to_us(ogg_t* o, int64_t target_us) {
+    if (!o->reseek || o->size <= 0) return;
+    int64_t target_g = target_us * 48 / 1000 + o->pre_skip; /* us -> 48k samples */
+    int64_t lo = 0, hi = o->size, best = 0;
+    ogg_page_t pg;
+    for (int it = 0; it < 40 && hi - lo > 4096; ++it) {
+        int64_t mid = lo + (hi - lo) / 2;
+        if (!do_reseek(o, mid)) return;
+        if (!read_page(o, &pg)) { hi = mid; continue; }
+        if (pg.granule < 0) { lo = mid + 1; continue; } /* no granule here: go later */
+        if (pg.granule <= target_g) { lo = mid; best = mid; }
+        else hi = mid;
+    }
+    do_reseek(o, best);
+    o->next_pts_us = target_us;                 /* re-anchor around the seek target */
+}
+
 int basis_ogg_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
-                  basis_reseek_fn reseek, void* reseek_ctx) {
-    (void)reseek; (void)reseek_ctx;
+                  basis_reseek_fn reseek, void* reseek_ctx, int64_t stream_size) {
     ogg_t o;
     memset(&o, 0, sizeof(o));
     o.sink = sink; o.read = read; o.ctx = ctx;
+    o.reseek = reseek; o.reseek_ctx = reseek_ctx; o.size = stream_size;
 
-    uint8_t* body = (uint8_t*)malloc(OGG_MAX_BODY);
-    if (!body) return 0;
-
-    uint8_t sync[4] = {0};
-    int have = 0;                        /* bytes of the capture pattern matched */
+    ogg_page_t pg;
+    int did_duration = 0;
 
     while (sink->is_running(sink->user)) {
-        /* Find the "OggS" capture pattern, byte by byte (this is also the resync
-         * path after a bad page). */
-        if (have < 4) {
-            uint8_t c;
-            if (!oread(&o, &c, 1)) break;
-            const char* cap = "OggS";
-            if (c == (uint8_t)cap[have]) sync[have++] = c;
-            else have = (c == (uint8_t)'O') ? (sync[0] = 'O', 1) : 0;
-            continue;
+        if (o.ended) break;
+        if (!read_page(&o, &pg)) break;
+
+        if (pg.htype & 0x02) {                  /* BOS */
+            if (!o.have_serial) { o.serial = pg.serial; o.have_serial = 1; }
         }
-        have = 0;
+        if (!o.have_serial || pg.serial != o.serial) continue; /* other stream */
 
-        uint8_t hdr[OGG_HDR];
-        memcpy(hdr, "OggS", 4);
-        if (!oread(&o, hdr + 4, OGG_HDR - 4)) break;   /* rest of the header */
+        feed_page(&o, &pg);
 
-        int nsegs = hdr[26];
-        uint8_t segtab[255];
-        if (nsegs > 0 && !oread(&o, segtab, nsegs)) break;
-
-        int bodylen = 0;
-        for (int i = 0; i < nsegs; ++i) bodylen += segtab[i];
-        if (bodylen > 0 && !oread(&o, body, bodylen)) break;
-
-        /* CRC-32 over the whole page (header + segment table + body) with the
-         * checksum field zeroed, compared to the stored value. */
-        uint32_t stored = (uint32_t)hdr[22] | ((uint32_t)hdr[23] << 8) |
-                          ((uint32_t)hdr[24] << 16) | ((uint32_t)hdr[25] << 24);
-        hdr[22] = hdr[23] = hdr[24] = hdr[25] = 0;
-        uint32_t crc = ogg_crc(0, hdr, OGG_HDR);
-        crc = ogg_crc(crc, segtab, nsegs);
-        crc = ogg_crc(crc, body, bodylen);
-        if (crc != stored) continue;                   /* damaged page: resync */
-
-        uint8_t htype = hdr[5];
-        uint32_t serial = (uint32_t)hdr[14] | ((uint32_t)hdr[15] << 8) |
-                          ((uint32_t)hdr[16] << 16) | ((uint32_t)hdr[17] << 24);
-
-        if (htype & 0x02) {                            /* BOS: start of a stream */
-            if (o.ended) break;                        /* chained stream: stop at EOS */
-            if (!o.have_serial) { o.serial = serial; o.have_serial = 1; }
+        /* Once OpusHead is in hand, learn the duration and honour seeks. */
+        if (o.announced && !did_duration) { did_duration = 1; compute_duration(&o); }
+        if (o.announced && sink->take_seek) {
+            int64_t target;
+            if (sink->take_seek(sink->user, &target)) seek_to_us(&o, target);
         }
-        if (!o.have_serial || serial != o.serial) continue; /* other logical stream */
 
-        /* A page whose first packet is a continuation resumes o.pkt; a fresh page
-         * after a completed packet starts clean. The 0x01 continued flag is
-         * advisory — feed_segments already tracks the open packet across pages. */
-        feed_segments(&o, segtab, nsegs, body, bodylen);
-
-        if (htype & 0x04) { o.ended = 1; break; }      /* EOS */
+        if (pg.htype & 0x04) { o.ended = 1; break; } /* EOS */
     }
 
     free(o.pkt);
-    free(body);
     if (!o.announced) sink->on_error(sink->user, "Ogg has no Opus stream this player supports");
     return 0;
 }

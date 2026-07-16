@@ -421,9 +421,13 @@ int main(int argc, char** argv) {
         rc = basis_ts_run(&sink, h_read, &h);
     else if (!strcmp(demux, "wav"))
         rc = basis_wav_run(&sink, h_read, &h);
-    else if (!strcmp(demux, "ogg"))
+    else if (!strcmp(demux, "ogg")) {
+        fseek(f, 0, SEEK_END);
+        long long ogg_size = ftell(f);
+        dump_fseek64(f, 0);
         rc = basis_ogg_run(&sink, h_read, &h, h.allow_reseek ? h_reseek : NULL,
-                           h.allow_reseek ? &h : NULL);
+                           h.allow_reseek ? &h : NULL, h.allow_reseek ? ogg_size : -1);
+    }
     else {
         fprintf(stderr, "unknown demuxer: %s\n", demux);
         fclose(f);
