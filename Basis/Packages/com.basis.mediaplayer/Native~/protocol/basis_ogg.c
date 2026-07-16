@@ -44,6 +44,8 @@ typedef struct {
     uint32_t serial;
     int have_serial;
     int ended;
+    uint32_t last_page_seq;   /* to detect a dropped page (sequence gap) */
+    int have_page_seq;
 
     long long packet_index;   /* 0 = OpusHead, 1 = OpusTags, 2+ = audio */
     int channels, pre_skip;
@@ -58,6 +60,7 @@ typedef struct {
 typedef struct {
     int64_t granule;
     uint32_t serial;
+    uint32_t page_seq;
     uint8_t htype;
     uint8_t segtab[255];
     int nsegs;
@@ -129,15 +132,18 @@ static int read_page(ogg_t* o, ogg_page_t* pg) {
         pg->htype = hdr[5];
         pg->granule = rd_le64(hdr + 6);
         pg->serial = rd_le32(hdr + 14);
+        pg->page_seq = rd_le32(hdr + 18);
         return 1;
     }
 }
 
 static int64_t granule_to_us(int64_t granule, int pre_skip) {
+    /* Guard the subtraction (INT64_MIN - pre_skip is UB) and the scale-up. */
+    if (granule <= pre_skip) return 0;
     int64_t s = granule - pre_skip;
-    if (s < 0) s = 0;
-    /* Split the scale so s * 1000000 can't overflow int64 for a hostile granule. */
-    return (s / 48000) * 1000000LL + (s % 48000) * 1000000LL / 48000;
+    int64_t seconds = s / 48000;
+    if (seconds > INT64_MAX / 1000000LL) return INT64_MAX;
+    return seconds * 1000000LL + (s % 48000) * 1000000LL / 48000;
 }
 
 /* Opus TOC -> samples at 48 kHz (frame size * frame count). */
@@ -188,6 +194,15 @@ static void feed_page(ogg_t* o, const ogg_page_t* pg) {
     int i = 0;
     int continued = pg->htype & 0x01;           /* first packet continues the prior page */
 
+    /* A page-sequence gap means a page was dropped between this one and the last
+     * (a CRC failure, most likely). Any pending prefix belongs to a packet whose
+     * continuation we lost, so it can't be completed — discard it. The
+     * continuation-flag reconciliation below then skips this page's leading
+     * fragment if it was continuing that lost packet. */
+    if (o->have_page_seq && pg->page_seq != o->last_page_seq + 1) o->pkt_len = 0;
+    o->last_page_seq = pg->page_seq;
+    o->have_page_seq = 1;
+
     /* Reconcile the pending prefix with the page's continuation flag so a
      * discontinuity (a dropped CRC page, or landing here after a seek) can't
      * splice unrelated bytes. A pending prefix with no continuation means the
@@ -227,6 +242,7 @@ static int do_reseek(ogg_t* o, int64_t abs) {
     if (o->reseek(o->reseek_ctx, abs) != 0) return 0;
     o->pos = abs;
     o->pkt_len = 0;                              /* drop any partial packet */
+    o->have_page_seq = 0;                        /* seek is a legitimate seq discontinuity */
     return 1;
 }
 
