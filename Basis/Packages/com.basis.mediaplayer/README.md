@@ -350,9 +350,10 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
   clearly rather than falling back to CPU decode. 8-bit SDR only — a 10-bit
   (profile 2) file surfaces a decoder error, not tone-mapped HDR.
 - **AV1 on Windows** needs the Store "AV1 Video Extension" **and** a GPU with
-  hardware AV1 (RTX 30-series / RX 6000 / Arc or newer) — on older GPUs the
-  extension's internal software decoder is rejected, the probe answers 0 and
-  the resolver keeps serving VP9/avc1 instead. On Quest, AV1 is hardware on
+  hardware AV1 (e.g. RTX 30-series / RX 6000 / Arc or newer — examples, not an
+  exhaustive list; `basis_media_probe_video_codec` is the authoritative check).
+  On GPUs without it, the extension's internal software decoder is rejected, the
+  probe answers 0 and the resolver keeps serving VP9/avc1 instead. On Quest, AV1 is hardware on
   Quest 3 (XR2 Gen 2); Quest 2 has no AV1 decoder and errors cleanly on a
   direct `av01` URL. 8-bit Main profile SDR only, as with VP9. MP4/fMP4 and
   WebM carriage only (no AV1-in-TS or RTSP/RTMP).
