@@ -39,6 +39,9 @@ internal static class BasisNativeMedia
         [MarshalAs(UnmanagedType.LPStr)] string audioUrl,
         int deliveryHint);
 
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
+    private static extern void basis_decoder_set_opus_library_path([MarshalAs(UnmanagedType.LPStr)] string path);
+
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern void basis_media_close(IntPtr engine);
 
@@ -137,8 +140,34 @@ internal static class BasisNativeMedia
 
     // ---- Managed wrappers (translate the flat ABI into friendlier types) ----
 
+    private static bool _opusLibrarySet;
+
+    // Opus decode (WebM A_OPUS) runtime-loads the libopus that
+    // com.avionblock.opussharp ships. In the Windows Editor that DLL lives under
+    // Packages/…; a standalone build flattens it next to this plugin, where the
+    // native side finds it by name, so only the Editor needs the explicit path.
+    // Resolved once before the first open; a no-op if opussharp is absent.
+    private static void EnsureOpusLibrary()
+    {
+        if (_opusLibrarySet) return;
+        _opusLibrarySet = true;
+#if UNITY_EDITOR_WIN
+        try
+        {
+            string rid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                ? "win-arm64" : "win-x64";
+            string path = System.IO.Path.GetFullPath(
+                $"Packages/com.avionblock.opussharp/Plugins/{rid}/native/opus.dll");
+            if (System.IO.File.Exists(path))
+                basis_decoder_set_opus_library_path(path);
+        }
+        catch { /* opussharp absent / path unresolved: native falls back to opus.dll */ }
+#endif
+    }
+
     public static IntPtr Open(string url)
     {
+        EnsureOpusLibrary();
         try
         {
             return basis_media_open(url);
@@ -162,6 +191,7 @@ internal static class BasisNativeMedia
     public static IntPtr OpenWithAudio(string videoUrl, string audioUrl, BasisMediaDelivery delivery)
     {
         if (string.IsNullOrEmpty(audioUrl) && delivery == BasisMediaDelivery.Auto) return Open(videoUrl);
+        EnsureOpusLibrary();
         try
         {
             return basis_media_open_dual(videoUrl, audioUrl, (int)delivery);
