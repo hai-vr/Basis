@@ -534,22 +534,22 @@ int basis_decoder_probe_video_codec(int codec) {
     /* Cached per process (0 unprobed / 1 no / 2 yes); atomics keep the
      * concurrent worker-thread accesses defined, and a racing recompute
      * stores the same verdict. createDecoderByType is the platform answer —
-     * every Quest hardware-decodes VP9, so the codec this exists to gate is
-     * universally hardware there. (On general Android this can return the
-     * software c2.android decoder and probe optimistic; the NDK exposes no
-     * MediaCodecList to tell them apart.) */
+     * every Quest hardware-decodes VP9, and AV1 tracks the silicon (Quest 3 /
+     * XR2 Gen 2 has hardware AV1, Quest 2 has no AV1 decoder at all), so
+     * decoder presence is the right verdict there. (On general Android this
+     * can return the software c2.android decoder and probe optimistic; the
+     * NDK exposes no MediaCodecList to tell them apart.) */
     static _Atomic int cache[BASIS_CODEC_AV1 + 1];
     if (codec < BASIS_CODEC_H264 || codec > BASIS_CODEC_AV1) return 0;
     int c = atomic_load(&cache[codec]);
     if (c) return c == 2;
+    const char* mime = codec == BASIS_CODEC_H265 ? "video/hevc"
+                     : codec == BASIS_CODEC_VP9  ? "video/x-vnd.on2.vp9"
+                     : codec == BASIS_CODEC_AV1  ? "video/av01"
+                     : "video/avc";
     int ok = 0;
-    if (codec != BASIS_CODEC_AV1) {   /* no AV1 decode path yet — probe stays 0 */
-        const char* mime = codec == BASIS_CODEC_H265 ? "video/hevc"
-                         : codec == BASIS_CODEC_VP9  ? "video/x-vnd.on2.vp9"
-                         : "video/avc";
-        AMediaCodec* dec = AMediaCodec_createDecoderByType(mime);
-        if (dec) { ok = 1; AMediaCodec_delete(dec); }
-    }
+    AMediaCodec* dec = AMediaCodec_createDecoderByType(mime);
+    if (dec) { ok = 1; AMediaCodec_delete(dec); }
     atomic_store(&cache[codec], ok ? 2 : 1);
     return ok;
 }
@@ -655,6 +655,7 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
     d->vc = codec; if (w > 0) d->vw = w; if (h > 0) d->vh = h;
     const char* mime = (codec == BASIS_CODEC_H265) ? "video/hevc"
                      : (codec == BASIS_CODEC_VP9)  ? "video/x-vnd.on2.vp9"
+                     : (codec == BASIS_CODEC_AV1)  ? "video/av01"
                      : "video/avc";
 
     if (ensure_reader(d, d->vw ? d->vw : 1280, d->vh ? d->vh : 720) != 0) return -1;
@@ -664,7 +665,7 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
     AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_WIDTH, d->vw ? d->vw : 1280);
     AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_HEIGHT, d->vh ? d->vh : 720);
     if (extradata && extradata_len > 0)
-        AMediaFormat_setBuffer(fmt, "csd-0", (void*)extradata, extradata_len); /* Annex-B SPS/PPS(/VPS) */
+        AMediaFormat_setBuffer(fmt, "csd-0", (void*)extradata, extradata_len); /* Annex-B SPS/PPS(/VPS); AV1 configOBUs */
 
     AMediaCodec* c = AMediaCodec_createDecoderByType(mime);
     if (!c || AMediaCodec_configure(c, fmt, d->window, NULL, 0) != AMEDIA_OK ||

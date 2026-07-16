@@ -1,5 +1,5 @@
 /*
- * basis_mp4.c — MP4 demuxer -> H.264/H.265 + AAC. Handles both MP4 shapes:
+ * basis_mp4.c — MP4 demuxer -> H.264/H.265/VP9/AV1 + AAC. Handles both MP4 shapes:
  *
  *   fragmented (fMP4/CMAF): init segment (moov) then moof+mdat fragments —
  *     live streams, DASH/adaptive legs, HLS fMP4 segments. Each moof's
@@ -12,7 +12,8 @@
  *     already streamed past — that shape gets a clear error instead.
  *
  * Both shapes parse moov for track config (codec, timescale, avcC/hvcC ->
- * Annex B extradata, esds -> AAC ASC) and emit tracks interleaved in decode
+ * Annex B extradata, av1C -> configOBUs, esds -> AAC ASC) and emit tracks
+ * interleaved in decode
  * order (fragments) or the muxer's file order (progressive).
  *
  * Common-case assumptions (sufficient for VRCDN-style fMP4 and web-optimised
@@ -378,6 +379,29 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
             if (esize >= 36) {
                 t->width = rd16(ent + 32);
                 t->height = rd16(ent + 34);
+            }
+        } else if (etype == 0x61763031 /*av01*/) {
+            t->is_video = 1;
+            t->codec = BASIS_CODEC_AV1;
+            if (esize >= 36) {
+                t->width = rd16(ent + 32);
+                t->height = rd16(ent + 34);
+            }
+            /* av1C: 4 record-header bytes (marker/version, profile/level packing,
+             * flags/presentation-delay), then configOBUs. Store only the
+             * configOBUs — the header bytes are not valid OBU syntax and the
+             * decode backends want a feedable OBU blob. */
+            int co = 8 + 78;
+            while (co + 8 <= esize) {
+                int csz = (int)rd32(ent + co);
+                uint32_t ct = rd32(ent + co + 4);
+                if (csz < 8 || csz > esize - co) break;
+                if (ct == 0x61763143 /*av1C*/ && csz > 12 &&
+                    csz - 12 <= (int)sizeof(t->extradata)) {
+                    memcpy(t->extradata, ent + co + 12, (size_t)(csz - 12));
+                    t->extradata_len = csz - 12;
+                }
+                co += csz;
             }
         } else if (etype == 0x6d703461 /*mp4a*/ && esize >= 8 + 28) {
             t->is_video = 0;
@@ -971,13 +995,17 @@ static int consume_progressive(mp4_t* m, int64_t mdat_end) {
                 key = c->stss_i < c->stss_count && c->stss[c->stss_i] == c->next + 1;
                 if (key) c->stss_i++;
             }
-            if (rt->codec == BASIS_CODEC_VP9) {
-                /* raw sample exactly as stored (superframes stay whole) */
+            if (rt->codec == BASIS_CODEC_VP9 || rt->codec == BASIS_CODEC_AV1) {
+                /* raw sample exactly as stored (VP9 superframes and AV1 temporal
+                 * units stay whole) */
                 s = (mp4_pend_t*)malloc(sizeof(*s) + ssize);
                 if (s) {
                     memcpy(s->data, buf, ssize);
                     s->size = (int)ssize;
-                    s->key = c->stss ? key : basis_vp9_is_keyframe(buf, (int)ssize);
+                    if (c->stss) s->key = key;
+                    else s->key = rt->codec == BASIS_CODEC_AV1
+                        ? basis_av1_is_keyframe(buf, (int)ssize)
+                        : basis_vp9_is_keyframe(buf, (int)ssize);
                 }
             } else {
                 int nls = rt->nal_len_size ? rt->nal_len_size : 4;
@@ -1165,10 +1193,13 @@ static void consume_mdat(mp4_t* m, const uint8_t* data, int len) {
         }
         int64_t pts_us = ticks_to_us(add_i64_sat(dts[k], f->ctos[i]), t->timescale);
 
-        if (t->is_video && t->codec == BASIS_CODEC_VP9) {
-            /* raw sample exactly as stored (superframes stay whole) */
-            m->sink->on_video_au(m->sink->user, data + pos[k], (int)ssize, pts_us, best_us,
-                                 basis_vp9_is_keyframe(data + pos[k], (int)ssize));
+        if (t->is_video && (t->codec == BASIS_CODEC_VP9 || t->codec == BASIS_CODEC_AV1)) {
+            /* raw sample exactly as stored (VP9 superframes and AV1 temporal
+             * units stay whole) */
+            int key = t->codec == BASIS_CODEC_AV1
+                ? basis_av1_is_keyframe(data + pos[k], (int)ssize)
+                : basis_vp9_is_keyframe(data + pos[k], (int)ssize);
+            m->sink->on_video_au(m->sink->user, data + pos[k], (int)ssize, pts_us, best_us, key);
         } else if (t->is_video) {
             int nls = t->nal_len_size ? t->nal_len_size : 4;
             int cap = basis_avcc_annexb_cap((int)ssize, nls);
@@ -1273,7 +1304,7 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                             if (ch >= 0x20 && ch < 0x7F) cc[i] = ch;
                         }
                         snprintf(msg, sizeof(msg),
-                                 "video codec '%s' is not supported (supported: H.264, H.265, VP9)",
+                                 "video codec '%s' is not supported (supported: H.264, H.265, VP9, AV1)",
                                  m.unsupported_video_fourcc ? cc : "unknown");
                         sink->on_error(sink->user, msg);
                     }

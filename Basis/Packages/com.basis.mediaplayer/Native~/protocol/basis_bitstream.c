@@ -232,6 +232,54 @@ int basis_vp9_is_keyframe(const uint8_t* sample, int len) {
     return !show_existing && frame_type == 0;
 }
 
+/* ---- AV1 ----------------------------------------------------------------- */
+
+/* leb128 at p[*off], advancing *off past it. Returns 0 on truncation or an
+ * unterminated 8th byte; the value is capped to int range (a real OBU size
+ * past that fails the caller's bounds check anyway). */
+static int av1_leb128(const uint8_t* p, int len, int* off, int64_t* out) {
+    int64_t v = 0;
+    for (int i = 0; i < 8; ++i) {
+        if (*off >= len) return 0;
+        uint8_t b = p[(*off)++];
+        v |= (int64_t)(b & 0x7F) << (7 * i);
+        if (!(b & 0x80)) { *out = v; return 1; }
+    }
+    return 0;
+}
+
+int basis_av1_is_keyframe(const uint8_t* sample, int len) {
+    if (!sample || len < 2) return 0;
+    int off = 0;
+    while (off < len) {
+        uint8_t hdr = sample[off++];
+        if (hdr & 0x80) return 0;                 /* obu_forbidden_bit */
+        int type = (hdr >> 3) & 0xF;
+        int has_ext = (hdr >> 2) & 1;
+        int has_size = (hdr >> 1) & 1;
+        if (has_ext) { if (off >= len) return 0; off++; }
+        int64_t size;
+        if (has_size) {
+            if (!av1_leb128(sample, len, &off, &size)) return 0;
+            if (size < 0 || size > len - off) return 0;
+        } else {
+            size = len - off;                     /* last OBU runs to the end */
+        }
+        if (type == 1) return 1;                  /* OBU_SEQUENCE_HEADER */
+        if (type == 3 || type == 6) {             /* OBU_FRAME_HEADER / OBU_FRAME */
+            /* frame header head bits, MSB first: show_existing_frame(1),
+             * frame_type(2) where 0 = KEY_FRAME. (A reduced_still_picture_header
+             * stream omits these, but such streams always start their temporal
+             * units with a sequence header, caught above.) */
+            if (size < 1) return 0;
+            uint8_t b = sample[off];
+            return !(b >> 7) && ((b >> 5) & 0x3) == 0;
+        }
+        off += (int)size;                         /* temporal delimiter, metadata, … */
+    }
+    return 0;
+}
+
 /* ---- H.264 SPS dimensions (exp-golomb) --------------------------------- */
 
 typedef struct { const uint8_t* d; int size; int bitpos; } gb_t;

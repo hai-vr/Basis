@@ -80,6 +80,14 @@ int basis_aac_sample_rate_from_index(int index);
  * malformed input returns 0. */
 int basis_vp9_is_keyframe(const uint8_t* sample, int len);
 
+/* ---- AV1 ----------------------------------------------------------------- */
+
+/* 1 if a raw AV1 sample (one temporal unit of low-overhead OBUs, as stored in
+ * MP4/WebM) is a keyframe: it carries an OBU_SEQUENCE_HEADER (the ISOBMFF
+ * sync-sample shape), or its first frame(-header) OBU codes a KEY_FRAME.
+ * Bounded, allocation-free; truncated or malformed input returns 0. */
+int basis_av1_is_keyframe(const uint8_t* sample, int len);
+
 /* ---- H.264 SPS dimensions (best-effort) --------------------------------- */
 
 /* Parses width/height from an H.264 SPS NAL (payload without start code).

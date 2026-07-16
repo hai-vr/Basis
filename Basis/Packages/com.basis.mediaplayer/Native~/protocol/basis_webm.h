@@ -1,4 +1,4 @@
-/* WebM/Matroska demuxer feeding VP9 video into a basis_media_sink. Narrow by
+/* WebM/Matroska demuxer feeding VP9/AV1 video into a basis_media_sink. Narrow by
  * design: announces the first supported video track only (audio and subtitle
  * tracks are skipped); a WebM whose video codec isn't supported errors clearly.
  * Pulls bytes through the supplied read callback. */
