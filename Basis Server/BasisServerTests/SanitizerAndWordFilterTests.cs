@@ -11,10 +11,13 @@ namespace BasisServerTests;
 /// Connect path (BasisServerHandleEvents): BasisDisplayNameSanitizer.Sanitize, empty result rejects the peer.
 /// Kept as a single class on purpose: BasisNetworkChat holds static word-list state and xunit
 /// parallelizes across classes; nothing here mutates that state (LoadWordFilter is never called).
-/// All non-ASCII test data is written as \u escapes so the source stays encoding-proof.
+/// All non-ASCII test data is written as backslash-u escapes so the source stays encoding-proof.
 /// </summary>
 public class SanitizerAndWordFilterTests
 {
+    private const string ThumbsUp = "\uD83D\uDC4D"; // U+1F44D, 4 UTF-8 bytes
+    private const char Cjk = '\u597D'; // 3 UTF-8 bytes
+
     // ---------------- BasisChatSanitizer (transport limits only) ----------------
 
     [Theory]
@@ -39,19 +42,19 @@ public class SanitizerAndWordFilterTests
     [Theory]
     [InlineData("a\nb")]
     [InlineData("tab\tseparated")]
-    [InlineData("zero200Bwidth")]
-    [InlineData("rtl202Eoverride")]
-    [InlineData("bell0007char")]
+    [InlineData("zero\u200Bwidth")]
+    [InlineData("rtl\u202Eoverride")]
+    [InlineData("bell\u0007char")]
     public void ChatSanitizer_ControlAndInvisibleCharacters_PassThrough(string message)
     {
         Assert.Equal(message, BasisChatSanitizer.Sanitize(message));
     }
 
     [Theory]
-    [InlineData("4F60597D4E16754C")] // Chinese
-    [InlineData("30533093306B3061306F")] // Japanese
-    [InlineData("D83DDC4DD83CDF89")] // thumbs up + party popper emoji
-    [InlineData("caf00E9 mixed 597D")]
+    [InlineData("\u4F60\u597D\u4E16\u754C")] // Chinese
+    [InlineData("\u3053\u3093\u306B\u3061\u306F")] // Japanese
+    [InlineData("\uD83D\uDC4D\uD83C\uDF89")] // thumbs up + party popper emoji
+    [InlineData("caf\u00E9 mixed \u597D")]
     public void ChatSanitizer_LegitimateUnicode_Preserved(string message)
     {
         Assert.Equal(message, BasisChatSanitizer.Sanitize(message));
@@ -79,17 +82,17 @@ public class SanitizerAndWordFilterTests
     {
         // 255 ASCII + one astral emoji = 257 UTF-16 units; cutting at 256 would land
         // between the surrogates, so the whole pair must be dropped instead.
-        string result = BasisChatSanitizer.Sanitize(new string('a', 255) + "D83DDC4D");
+        string result = BasisChatSanitizer.Sanitize(new string('a', 255) + ThumbsUp);
         Assert.Equal(new string('a', 255), result);
     }
 
     [Fact]
     public void ChatSanitizer_EmojiMessage_ClampsToWholeEmojiAtExactByteCap()
     {
-        string input = string.Concat(Enumerable.Repeat("D83DDC4D", 130));
+        string input = string.Concat(Enumerable.Repeat(ThumbsUp, 130));
         string result = BasisChatSanitizer.Sanitize(input);
         // 256 UTF-16 units = 128 emoji = exactly 512 UTF-8 bytes, which is allowed.
-        Assert.Equal(string.Concat(Enumerable.Repeat("D83DDC4D", 128)), result);
+        Assert.Equal(string.Concat(Enumerable.Repeat(ThumbsUp, 128)), result);
         Assert.Equal(BasisChatSanitizer.MaxMessageBytes, Encoding.UTF8.GetByteCount(result));
     }
 
@@ -97,8 +100,8 @@ public class SanitizerAndWordFilterTests
     public void ChatSanitizer_CjkOverByteCap_TrimsWholeCharacters()
     {
         // 256 chars * 3 bytes = 768 bytes; trims one scalar at a time down to 170 chars (510 bytes).
-        string result = BasisChatSanitizer.Sanitize(new string('597D', 256));
-        Assert.Equal(new string('597D', 170), result);
+        string result = BasisChatSanitizer.Sanitize(new string(Cjk, 256));
+        Assert.Equal(new string(Cjk, 170), result);
         Assert.True(Encoding.UTF8.GetByteCount(result) <= BasisChatSanitizer.MaxMessageBytes);
     }
 
@@ -107,9 +110,9 @@ public class SanitizerAndWordFilterTests
     {
         // 250 CJK (750 bytes) + 3 emoji (12 bytes) = 256 units / 762 bytes: the three emoji
         // must come off as whole pairs, then CJK singles until under the byte cap.
-        string input = new string('597D', 250) + "D83DDC4DD83DDC4DD83DDC4D";
+        string input = new string(Cjk, 250) + ThumbsUp + ThumbsUp + ThumbsUp;
         string result = BasisChatSanitizer.Sanitize(input);
-        Assert.Equal(new string('597D', 170), result);
+        Assert.Equal(new string(Cjk, 170), result);
     }
 
     [Fact]
@@ -119,9 +122,9 @@ public class SanitizerAndWordFilterTests
         {
             "hello world",
             new string('a', 300),
-            new string('597D', 256),
-            string.Concat(Enumerable.Repeat("D83DDC4D", 130)),
-            new string('597D', 250) + "D83DDC4DD83DDC4DD83DDC4D",
+            new string(Cjk, 256),
+            string.Concat(Enumerable.Repeat(ThumbsUp, 130)),
+            new string(Cjk, 250) + ThumbsUp + ThumbsUp + ThumbsUp,
         };
         foreach (string input in inputs)
         {
@@ -143,8 +146,8 @@ public class SanitizerAndWordFilterTests
     [Theory]
     [InlineData("PlayerOne")]
     [InlineData("Bob_42")]
-    [InlineData("73A95BB64E00")] // CJK name
-    [InlineData("AliceD83CDFAE")] // name with game-controller emoji
+    [InlineData("\u73A9\u5BB6\u4E00")] // CJK name
+    [InlineData("Alice\uD83C\uDFAE")] // name with game-controller emoji
     [InlineData("a")]
     public void DisplayName_CleanNames_Unchanged(string name)
     {
@@ -162,11 +165,11 @@ public class SanitizerAndWordFilterTests
     }
 
     [Theory]
-    [InlineData('0000')] // NUL
-    [InlineData('0007')] // BEL
-    [InlineData('001B')] // ESC
-    [InlineData('007F')] // DEL
-    [InlineData('009D')] // C1 control
+    [InlineData('\u0000')] // NUL
+    [InlineData('\u0007')] // BEL
+    [InlineData('\u001B')] // ESC
+    [InlineData('\u007F')] // DEL
+    [InlineData('\u009D')] // C1 control
     public void DisplayName_ControlCharacters_Removed(char control)
     {
         Assert.Equal("Player", BasisDisplayNameSanitizer.Sanitize("Pla" + control + "yer"));
@@ -182,27 +185,27 @@ public class SanitizerAndWordFilterTests
     }
 
     [Theory]
-    [InlineData('200B')] // zero width space
-    [InlineData('200C')] // zero width non-joiner
-    [InlineData('200D')] // zero width joiner
-    [InlineData('200E')] // left-to-right mark
-    [InlineData('202A')] // left-to-right embedding
-    [InlineData('202E')] // right-to-left override
-    [InlineData('2066')] // left-to-right isolate
-    [InlineData('FEFF')] // zero width no-break space / BOM
-    [InlineData('00AD')] // soft hyphen
+    [InlineData('\u200B')] // zero width space
+    [InlineData('\u200C')] // zero width non-joiner
+    [InlineData('\u200D')] // zero width joiner
+    [InlineData('\u200E')] // left-to-right mark
+    [InlineData('\u202A')] // left-to-right embedding
+    [InlineData('\u202E')] // right-to-left override
+    [InlineData('\u2066')] // left-to-right isolate
+    [InlineData('\uFEFF')] // zero width no-break space / BOM
+    [InlineData('\u00AD')] // soft hyphen
     public void DisplayName_FormatCharacters_Removed(char format)
     {
         Assert.Equal("Player", BasisDisplayNameSanitizer.Sanitize("Pla" + format + "yer"));
     }
 
     [Theory]
-    [InlineData('115F')] // Hangul choseong filler
-    [InlineData('1160')] // Hangul jungseong filler
-    [InlineData('3164')] // Hangul filler
-    [InlineData('FFA0')] // halfwidth Hangul filler
-    [InlineData('2800')] // Braille pattern blank
-    [InlineData('180E')] // Mongolian vowel separator
+    [InlineData('\u115F')] // Hangul choseong filler
+    [InlineData('\u1160')] // Hangul jungseong filler
+    [InlineData('\u3164')] // Hangul filler
+    [InlineData('\uFFA0')] // halfwidth Hangul filler
+    [InlineData('\u2800')] // Braille pattern blank
+    [InlineData('\u180E')] // Mongolian vowel separator
     public void DisplayName_KnownInvisibleGlyphs_Removed(char glyph)
     {
         Assert.Equal("Player", BasisDisplayNameSanitizer.Sanitize("Pla" + glyph + "yer"));
@@ -212,11 +215,11 @@ public class SanitizerAndWordFilterTests
     [Theory]
     [InlineData("   ")]
     [InlineData("\t\r\n")]
-    [InlineData("200B200B")]
-    [InlineData("31643164")]
-    [InlineData("280028002800")]
-    [InlineData("00A000A0")]
-    [InlineData("200B FEFF")]
+    [InlineData("\u200B\u200B")]
+    [InlineData("\u3164\u3164")]
+    [InlineData("\u2800\u2800\u2800")]
+    [InlineData("\u00A0\u00A0")]
+    [InlineData("\u200B \uFEFF")]
     public void DisplayName_BlankAfterSanitize_IsEmptyAndInvalid(string name)
     {
         Assert.Equal(string.Empty, BasisDisplayNameSanitizer.Sanitize(name));
@@ -224,9 +227,9 @@ public class SanitizerAndWordFilterTests
     }
 
     [Theory]
-    [InlineData("A00A0B")] // no-break space
-    [InlineData("A3000B")] // ideographic space
-    [InlineData("A2028B")] // line separator
+    [InlineData("A\u00A0B")] // no-break space
+    [InlineData("A\u3000B")] // ideographic space
+    [InlineData("A\u2028B")] // line separator
     public void DisplayName_UnicodeWhitespace_FoldedToPlainSpace(string name)
     {
         Assert.Equal("A B", BasisDisplayNameSanitizer.Sanitize(name));
@@ -234,8 +237,8 @@ public class SanitizerAndWordFilterTests
 
     [Theory]
     [InlineData("  Alice  ", "Alice")]
-    [InlineData("00A0Bob3000", "Bob")]
-    [InlineData("30003000Cara", "Cara")]
+    [InlineData("\u00A0Bob\u3000", "Bob")]
+    [InlineData("\u3000\u3000Cara", "Cara")]
     public void DisplayName_OuterWhitespace_Trimmed(string name, string expected)
     {
         Assert.Equal(expected, BasisDisplayNameSanitizer.Sanitize(name));
@@ -244,21 +247,21 @@ public class SanitizerAndWordFilterTests
     [Fact]
     public void DisplayName_InteriorWhitespaceRuns_FoldedButNotCollapsed()
     {
-        Assert.Equal("A   B", BasisDisplayNameSanitizer.Sanitize("A 00A0 B"));
+        Assert.Equal("A   B", BasisDisplayNameSanitizer.Sanitize("A \u00A0 B"));
     }
 
     [Fact]
     public void DisplayName_RtlOverride_StrippedKeepingVisibleText()
     {
-        Assert.Equal("abcdef", BasisDisplayNameSanitizer.Sanitize("abc202Edef"));
+        Assert.Equal("abcdef", BasisDisplayNameSanitizer.Sanitize("abc\u202Edef"));
     }
 
     [Fact]
     public void DisplayName_ZwjEmojiSequence_LosesJoiner()
     {
         // Format stripping applies inside emoji ZWJ sequences too; the parts remain.
-        Assert.Equal("D83DDC68D83DDC69",
-            BasisDisplayNameSanitizer.Sanitize("D83DDC68200DD83DDC69"));
+        Assert.Equal("\uD83D\uDC68\uD83D\uDC69",
+            BasisDisplayNameSanitizer.Sanitize("\uD83D\uDC68\u200D\uD83D\uDC69"));
     }
 
     [Fact]
@@ -267,11 +270,11 @@ public class SanitizerAndWordFilterTests
         string[] inputs =
         {
             "  Alice  ",
-            "Pla200Byer ",
-            "A 00A0 B",
-            "abc202Edef",
-            "73A95BB64E00",
-            "31643164",
+            "Pla\u200Byer ",
+            "A \u00A0 B",
+            "abc\u202Edef",
+            "\u73A9\u5BB6\u4E00",
+            "\u3164\u3164",
         };
         foreach (string input in inputs)
         {
@@ -379,15 +382,15 @@ public class SanitizerAndWordFilterTests
     {
         // U+200B is its own text element, so it is skipped like any inserted character;
         // only the matched letters are starred and the ZWSP survives in the output.
-        Assert.True(BasisWordFilter.ContainsBannedWord("da200Bmn", new[] { "damn" }, out _));
-        Assert.Equal("**200B**", BasisWordFilter.Filter("da200Bmn", new[] { "damn" }));
+        Assert.True(BasisWordFilter.ContainsBannedWord("da\u200Bmn", new[] { "damn" }, out _));
+        Assert.Equal("**\u200B**", BasisWordFilter.Filter("da\u200Bmn", new[] { "damn" }));
     }
 
     [Theory]
     [InlineData("d@mn", "damn")]
     [InlineData("d4mn", "damn")]
-    [InlineData("d03B1mn", "damn")] // Greek small alpha
-    [InlineData("FF44FF41FF4DFF4E", "damn")] // fullwidth letters
+    [InlineData("d\u03B1mn", "damn")] // Greek small alpha
+    [InlineData("\uFF44\uFF41\uFF4D\uFF4E", "damn")] // fullwidth letters
     [InlineData("cr4p", "crap")]
     public void WordFilter_HomoglyphAndLeetSubstitution_Detected(string text, string word)
     {
@@ -401,8 +404,8 @@ public class SanitizerAndWordFilterTests
     {
         // U+00E2 (a with circumflex) is not in the homoglyph table for 'a'; the filter does
         // no diacritic normalization, so this passes through (current behavior of the map).
-        Assert.False(BasisWordFilter.ContainsBannedWord("d00E2mn", new[] { "damn" }, out _));
-        Assert.Equal("d00E2mn", BasisWordFilter.Filter("d00E2mn", new[] { "damn" }));
+        Assert.False(BasisWordFilter.ContainsBannedWord("d\u00E2mn", new[] { "damn" }, out _));
+        Assert.Equal("d\u00E2mn", BasisWordFilter.Filter("d\u00E2mn", new[] { "damn" }));
     }
 
     [Fact]

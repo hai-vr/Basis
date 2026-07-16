@@ -40,6 +40,13 @@ namespace Basis
                 MovementSender.UseUplinkDeltas = false;
                 BNL.Log("[FaceObserver] Uplink deltas disabled — legacy all-keyframe uploads.");
             }
+            // Spectator mode: join a live server (e.g. during a Unity-client repro) and report
+            // whether OTHER senders' additional data reaches the wire, without emitting any.
+            if (Environment.GetEnvironmentVariable("BASIS_FACE_OBSERVE_ONLY") == "1")
+            {
+                MessageHandler.ObserveOnly = true;
+                BNL.Log("[FaceObserver] Observe-only: reporting additional data from other clients.");
+            }
 
             var clientManager = new ClientManager();
             clientManager.Prepare();
@@ -71,7 +78,7 @@ namespace Basis
             await clientManager.StartClientsAsync();
 
             // Periodic observer summary so a timed run ends with machine-readable totals.
-            if (MovementSender.EmitFaceData)
+            if (MovementSender.EmitFaceData || MessageHandler.ObserveOnly)
             {
                 _ = Task.Run(async () =>
                 {

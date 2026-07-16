@@ -263,6 +263,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 if (deltaLen < 0 || deltaLen >= payloadLen) keyframe = true;
             }
 
+            if (hasAdditional)
+            {
+                System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesWithAdditional);
+                if (keyframe) System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesKeyframe);
+                else System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesDelta);
+            }
+            BasisAdditionalDataDiagnostics.MaybeReport();
+
             byte sendChannel;
             if (keyframe)
             {

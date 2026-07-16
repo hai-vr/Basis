@@ -87,7 +87,6 @@ public class NetDataReaderWriterTests
 
     [Theory]
     [InlineData(0f)]
-    [InlineData(-0f)]
     [InlineData(1.5f)]
     [InlineData(-123.456f)]
     [InlineData(float.MinValue)]
@@ -106,7 +105,6 @@ public class NetDataReaderWriterTests
 
     [Theory]
     [InlineData(0d)]
-    [InlineData(-0d)]
     [InlineData(2.718281828459045)]
     [InlineData(-98765.4321)]
     [InlineData(double.MinValue)]
@@ -121,6 +119,17 @@ public class NetDataReaderWriterTests
         w.Put(value);
         var r = ReaderOver(w);
         Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(r.GetDouble()));
+    }
+
+    [Fact]
+    public void NegativeZero_RoundTrips_BitExact()
+    {
+        var w = new NetDataWriter();
+        w.Put(-0f);
+        w.Put(-0d);
+        var r = ReaderOver(w);
+        Assert.Equal(BitConverter.SingleToInt32Bits(-0f), BitConverter.SingleToInt32Bits(r.GetFloat()));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(-0d), BitConverter.DoubleToInt64Bits(r.GetDouble()));
     }
 
     [Fact]

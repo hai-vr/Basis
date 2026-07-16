@@ -8,6 +8,39 @@ namespace Basis.Scripts.UI
     {
         private static readonly Event CaretEvent = new Event();
 
+        private static TMP_Text overflowPatchedLabel;
+        private static TextOverflowModes overflowPreviousMode;
+
+        private static void EnsureOverflowForEditing(TMP_Text label)
+        {
+            if (overflowPatchedLabel == label)
+            {
+                return;
+            }
+            RestoreOverflowMode();
+            if (label.overflowMode != TextOverflowModes.Overflow)
+            {
+                overflowPatchedLabel = label;
+                overflowPreviousMode = label.overflowMode;
+                label.overflowMode = TextOverflowModes.Overflow;
+            }
+        }
+
+        public static void RestoreOverflowMode()
+        {
+            if (overflowPatchedLabel)
+            {
+                overflowPatchedLabel.overflowMode = overflowPreviousMode;
+                RectTransform textRect = overflowPatchedLabel.rectTransform;
+                Vector2 anchored = textRect.anchoredPosition;
+                if (anchored.x != 0f)
+                {
+                    textRect.anchoredPosition = new Vector2(0f, anchored.y);
+                }
+            }
+            overflowPatchedLabel = null;
+        }
+
         public static void MoveCaret(TMP_InputField tmp, InputField legacy, int direction, bool shift, bool ctrl)
         {
             if (direction == 0)
@@ -65,6 +98,7 @@ namespace Basis.Scripts.UI
                 }
             }
 
+            EnsureOverflowForEditing(label);
             label.ForceMeshUpdate();
             TMP_TextInfo info = label.textInfo;
             int characterCount = info.characterCount;

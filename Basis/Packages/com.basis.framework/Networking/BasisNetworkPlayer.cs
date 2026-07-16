@@ -226,6 +226,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             if (BasisNetworkManagement.Transmitter != null)
             {
+                System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderSubmitted);
                 AdditionalAvatarData AAD = new AdditionalAvatarData
                 {
                     array = buffer,
@@ -235,6 +236,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
             else
             {
+                System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderSubmitFailedNoTransmitter);
                 BasisDebug.LogError("Missing Transmitter or Network Management", BasisDebug.LogTag.Networking);
             }
         }

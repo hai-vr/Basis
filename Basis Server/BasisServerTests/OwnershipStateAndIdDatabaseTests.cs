@@ -20,11 +20,11 @@ namespace BasisServerTests;
 // which stays Array.Empty because no test ever starts a server or rebuilds the snapshot.
 // All three fixtures share one xunit collection (sequential) because they poke shared
 // process statics (writer pool, BNL delegates, NetworkServer.AuthenticatedPeers).
-internal sealed class FakeNetPeer : NetPeer
+internal sealed class OwnershipFakeNetPeer : NetPeer
 {
     private int _sendCount;
 
-    public FakeNetPeer(int id) => Id = id;
+    public OwnershipFakeNetPeer(int id) => Id = id;
 
     public int Id { get; }
     public int SendCount => _sendCount;
@@ -182,13 +182,13 @@ public class BasisNetworkOwnershipTests
     {
         const string key = "own:wire:response";
 
-        var first = new FakeNetPeer(7);
+        var first = new OwnershipFakeNetPeer(7);
         BasisNetworkOwnership.OwnershipResponse(BuildReader(0, key), first);
         Assert.True(BasisNetworkOwnership.GetOwnershipInformation(key, out ushort owner));
         Assert.Equal((ushort)7, owner);
         Assert.Equal(1, first.SendCount);
 
-        var second = new FakeNetPeer(9);
+        var second = new OwnershipFakeNetPeer(9);
         BasisNetworkOwnership.OwnershipResponse(BuildReader(0, key), second);
         Assert.True(BasisNetworkOwnership.GetOwnershipInformation(key, out owner));
         Assert.Equal((ushort)7, owner);
@@ -201,7 +201,7 @@ public class BasisNetworkOwnershipTests
         const string existing = "own:wire:transfer-existing";
         Assert.True(BasisNetworkOwnership.AddOwnership(existing, 5));
 
-        var peer = new FakeNetPeer(8);
+        var peer = new OwnershipFakeNetPeer(8);
         BasisNetworkOwnership.OwnershipTransfer(BuildReader(5, existing), peer);
         Assert.True(BasisNetworkOwnership.GetOwnershipInformation(existing, out ushort owner));
         Assert.Equal((ushort)8, owner);
@@ -217,7 +217,7 @@ public class BasisNetworkOwnershipTests
     {
         const string key = "own:wire:remove";
         Assert.True(BasisNetworkOwnership.AddOwnership(key, 11));
-        var peer = new FakeNetPeer(11);
+        var peer = new OwnershipFakeNetPeer(11);
 
         BasisNetworkOwnership.RemoveOwnership(BuildReader(12, key), peer);
         Assert.True(BasisNetworkOwnership.DoesObjectExistInDatabase(key));
@@ -281,7 +281,7 @@ public class BasisSavedStateTests
     [Fact]
     public void ReadyMessage_StoresAvatarChangeAndMetaData()
     {
-        var peer = new FakeNetPeer(51000);
+        var peer = new OwnershipFakeNetPeer(51000);
         try
         {
             var ready = new ReadyMessage
@@ -320,7 +320,7 @@ public class BasisSavedStateTests
     [Fact]
     public void AvatarChange_LatestWriteWins()
     {
-        var peer = new FakeNetPeer(51001);
+        var peer = new OwnershipFakeNetPeer(51001);
         try
         {
             BasisSavedState.AddLastData(peer, new ClientAvatarChangeMessage { loadMode = 0, byteArray = new byte[] { 1 }, LocalAvatarIndex = 1 });
@@ -340,7 +340,7 @@ public class BasisSavedStateTests
     [Fact]
     public void UnknownPlayer_EveryGetterReturnsSafeDefault()
     {
-        var stranger = new FakeNetPeer(51999);
+        var stranger = new OwnershipFakeNetPeer(51999);
         Assert.False(BasisSavedState.GetLastAvatarChangeState(stranger, out _));
         Assert.False(BasisSavedState.GetLastPlayerMetaData(stranger, out _));
         Assert.False(BasisSavedState.GetResolvedVoicePeers(stranger, out _));
@@ -351,7 +351,7 @@ public class BasisSavedStateTests
     [Fact]
     public void RemovePlayer_ClearsEveryStoredStateForThatPlayer()
     {
-        var peer = new FakeNetPeer(51002);
+        var peer = new OwnershipFakeNetPeer(51002);
         var ready = new ReadyMessage
         {
             playerMetaDataMessage = new ClientMetaDataMessage { playerUUID = "u", playerDisplayName = "n", playerPlatform = "p" },
@@ -372,9 +372,9 @@ public class BasisSavedStateTests
     [Fact]
     public void RemovePlayer_PurgesTheDisconnectedPeerFromOtherPlayersVoiceLists()
     {
-        var host = new FakeNetPeer(51003);
-        var leaving = new FakeNetPeer(51004);
-        var staying = new FakeNetPeer(51005);
+        var host = new OwnershipFakeNetPeer(51003);
+        var leaving = new OwnershipFakeNetPeer(51004);
+        var staying = new OwnershipFakeNetPeer(51005);
         try
         {
             var list = BasisSavedState.GetOrCreateResolvedList(host.Id);
@@ -404,8 +404,8 @@ public class BasisSavedStateTests
     [Fact]
     public void VoiceReceivers_ResolveAgainstAuthenticatedPeers_EmptyClears_NullKeeps()
     {
-        var host = new FakeNetPeer(51010);
-        var target = new FakeNetPeer(51011);
+        var host = new OwnershipFakeNetPeer(51010);
+        var target = new OwnershipFakeNetPeer(51011);
         NetworkServer.AuthenticatedPeers[target.Id] = target;
         try
         {
@@ -488,7 +488,7 @@ public class BasisSavedStateTests
             Parallel.For(0, Players, i =>
             {
                 int id = BaseId + i;
-                var peer = new FakeNetPeer(id);
+                var peer = new OwnershipFakeNetPeer(id);
                 BasisSavedState.AddLastData(peer, new ClientAvatarChangeMessage { loadMode = 1, byteArray = new[] { (byte)i }, LocalAvatarIndex = (byte)i });
                 BasisSavedState.SetShoutMode(id, (i & 1) == 0);
                 Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
@@ -497,7 +497,7 @@ public class BasisSavedStateTests
 
             for (int i = 0; i < Players; i++)
             {
-                var peer = new FakeNetPeer(BaseId + i);
+                var peer = new OwnershipFakeNetPeer(BaseId + i);
                 Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
                 Assert.Equal((byte)i, avatar.byteArray[0]);
                 Assert.Equal((i & 1) == 0, BasisSavedState.IsInShoutMode(BaseId + i));
@@ -525,7 +525,7 @@ public class BasisNetworkIDDatabaseTests
     public void AddOrFind_AssignsSequentialIdsStartingAtZero()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(2);
+        var peer = new OwnershipFakeNetPeer(2);
 
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:a");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:b");
@@ -541,7 +541,7 @@ public class BasisNetworkIDDatabaseTests
     public void AddOrFind_DuplicateStringId_KeepsMappingAndDoesNotBurnAnId()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(3);
+        var peer = new OwnershipFakeNetPeer(3);
 
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:dup");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:dup");
@@ -570,7 +570,7 @@ public class BasisNetworkIDDatabaseTests
     public void GetAllNetworkID_ReturnsEveryStoredMapping()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(4);
+        var peer = new OwnershipFakeNetPeer(4);
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:all:x");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:all:y");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:all:z");
@@ -588,7 +588,7 @@ public class BasisNetworkIDDatabaseTests
     public void RemoveUshortNetworkID_RemovesOnlyThatMapping_AndNeverReusesIds()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(5);
+        var peer = new OwnershipFakeNetPeer(5);
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:rm:a");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:rm:b");
 
@@ -609,7 +609,7 @@ public class BasisNetworkIDDatabaseTests
     public void ManySequentialAdds_ProduceUniqueContiguousIds()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(6);
+        var peer = new OwnershipFakeNetPeer(6);
         const int Count = 500;
         for (int i = 0; i < Count; i++)
         {
@@ -627,7 +627,7 @@ public class BasisNetworkIDDatabaseTests
     public void ConcurrentAddStorm_DistinctStringIds_NoIdCollisions()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(7);
+        var peer = new OwnershipFakeNetPeer(7);
         const int Count = 256;
         Parallel.For(0, Count, i => BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:storm:" + i));
 
@@ -644,7 +644,7 @@ public class BasisNetworkIDDatabaseTests
     public void Reset_ClearsMappingsAndRestartsCounter()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(8);
+        var peer = new OwnershipFakeNetPeer(8);
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:reset:a");
         BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:reset:b");
 
@@ -660,7 +660,7 @@ public class BasisNetworkIDDatabaseTests
     public void CounterExhaustion_ThrowsAtUshortLimit_AndStaysFullUntilReset()
     {
         BasisNetworkIDDatabase.Reset();
-        var peer = new FakeNetPeer(9);
+        var peer = new OwnershipFakeNetPeer(9);
         for (int i = 0; i <= ushort.MaxValue; i++)
         {
             BasisNetworkIDDatabase.AddOrFindNetworkID(peer, "net:cap:" + i);

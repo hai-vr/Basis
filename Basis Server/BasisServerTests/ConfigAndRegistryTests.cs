@@ -848,13 +848,13 @@ public class NetworkStackRegistryTests
 }
 
 /// <summary>
-/// BasisServerMessageRegistry static binding table. EnsureInitialized only fills the core handler
-/// array with lambdas (no live server state), so the table itself is safe to inspect in tests.
+/// Read-only pins of the BasisServerMessageRegistry inbound binding table. EnsureInitialized only
+/// fills the handler array with lambdas (no live server callbacks), so inspecting it has no side
+/// effects. All registry-mutating tests live in ServerMessageRegistryTests
+/// (PermissionAndMessageCatalogTests.cs); this class stays presence-only so both can run in parallel.
 /// </summary>
-public class ServerMessageRegistryTests
+public class ServerMessageRegistryBindingTableTests
 {
-    private static readonly BasisServerMessageHandler NoOpHandler = static (peer, reader, channel, dm) => { };
-
     private static readonly byte[] ExpectedInboundChannels =
     {
         BasisNetworkCommons.AuthIdentityChannel,
@@ -895,29 +895,23 @@ public class ServerMessageRegistryTests
         BasisNetworkCommons.RegistryControlChannel,
     };
 
-    private static string NewPluginName() => "test.plugin." + Guid.NewGuid().ToString("N");
-
     [Fact]
-    public void CoreTable_BindsExactlyTheExpectedInboundChannels()
+    public void ExpectedInboundChannelTable_IsDistinctInRange_AndIncludesUplinkDelta()
     {
-        BasisServerMessageRegistry.EnsureInitialized();
-
-        var bound = new List<byte>();
-        for (byte channel = 0; channel < BasisNetworkCommons.TotalChannels; channel++)
-        {
-            if (BasisServerMessageRegistry.ResolveCore(channel) != null) bound.Add(channel);
-        }
-
-        Assert.Equal(ExpectedInboundChannels.OrderBy(c => c), bound);
-        Assert.All(bound, channel => Assert.True(channel < BasisNetworkCommons.TotalChannels));
+        Assert.Equal(ExpectedInboundChannels.Length, ExpectedInboundChannels.Distinct().Count());
+        Assert.All(ExpectedInboundChannels, channel => Assert.True(channel < BasisNetworkCommons.TotalChannels));
+        Assert.Contains(BasisNetworkCommons.DeltaAvatarChannel, ExpectedInboundChannels);
     }
 
     [Fact]
-    public void UplinkDeltaChannel30_IsBoundInbound()
+    public void EveryExpectedInboundChannel_HasACoreHandlerBound()
     {
         BasisServerMessageRegistry.EnsureInitialized();
-        Assert.Equal(30, BasisNetworkCommons.DeltaAvatarChannel);
-        Assert.NotNull(BasisServerMessageRegistry.ResolveCore(BasisNetworkCommons.DeltaAvatarChannel));
+        foreach (byte channel in ExpectedInboundChannels)
+        {
+            Assert.True(BasisServerMessageRegistry.ResolveCore(channel) != null,
+                $"channel {channel} should have an inbound core handler bound");
+        }
     }
 
     [Fact]
@@ -938,139 +932,6 @@ public class ServerMessageRegistryTests
             Assert.True(BasisNetworkCommons.IsPluginChannel(channel));
             Assert.Null(BasisServerMessageRegistry.ResolveCore(channel));
         }
-        Assert.False(BasisNetworkCommons.IsPluginChannel(BasisNetworkCommons.RegistryControlChannel));
-    }
-
-    [Fact]
-    public void RegisterCore_BindsChannel_ThenRestoredToUnbound()
-    {
-        BasisServerMessageRegistry.EnsureInitialized();
-        byte channel = BasisNetworkCommons.VoiceLargeChannel; // outbound-only, never bound inbound
-        Assert.Null(BasisServerMessageRegistry.ResolveCore(channel));
-        try
-        {
-            BasisServerMessageRegistry.RegisterCore(channel, NoOpHandler);
-            Assert.Same(NoOpHandler, BasisServerMessageRegistry.ResolveCore(channel));
-        }
-        finally
-        {
-            BasisServerMessageRegistry.RegisterCore(channel, null!);
-        }
-        Assert.Null(BasisServerMessageRegistry.ResolveCore(channel));
-    }
-
-    [Fact]
-    public void RegisterServerPlugin_AssignsStableIdsAboveCoreChannelRange()
-    {
-        string name = NewPluginName();
-        ushort id = BasisServerMessageRegistry.RegisterServerPlugin(name, DeliveryMethod.ReliableOrdered, NoOpHandler);
-
-        Assert.True(id >= 64, $"plugin id {id} must sit above the core channel range");
-        Assert.True(BasisServerMessageRegistry.TryGetPluginId(name, out ushort again));
-        Assert.Equal(id, again);
-        Assert.Equal(id, BasisServerMessageRegistry.RegisterServerPlugin(name, DeliveryMethod.ReliableOrdered, NoOpHandler));
-
-        Assert.False(BasisServerMessageRegistry.TryGetPluginId(NewPluginName(), out _));
-    }
-
-    [Theory]
-    [InlineData(DeliveryMethod.ReliableOrdered, BasisNetworkCommons.PluginReliableChannel)]
-    [InlineData(DeliveryMethod.Sequenced, BasisNetworkCommons.PluginSequencedChannel)]
-    [InlineData(DeliveryMethod.Unreliable, BasisNetworkCommons.PluginUnreliableChannel)]
-    public void RegisterServerPlugin_AdvertisesMultiplexedDescriptorOnDeliveryChannel(DeliveryMethod delivery, byte expectedChannel)
-    {
-        string name = NewPluginName();
-        ushort id = BasisServerMessageRegistry.RegisterServerPlugin(name, delivery, NoOpHandler, version: 7);
-
-        SerializableBasis.BasisMessageDescriptor descriptor =
-            BasisServerMessageRegistry.BuildSupply().Single(d => d.Name == name);
-        Assert.Equal(id, descriptor.Id);
-        Assert.Equal(expectedChannel, descriptor.Channel);
-        Assert.Equal(7, descriptor.Version);
-        Assert.True((descriptor.Flags & (byte)SerializableBasis.BasisMessageFlags.Multiplexed) != 0);
-    }
-
-    [Fact]
-    public void UnregisterPlugin_RemovesDescriptor_ButKeepsNameToIdMapping()
-    {
-        string name = NewPluginName();
-        ushort id = BasisServerMessageRegistry.RegisterServerPlugin(name, DeliveryMethod.Sequenced, NoOpHandler);
-        Assert.Contains(BasisServerMessageRegistry.BuildSupply(), d => d.Name == name);
-
-        Assert.True(BasisServerMessageRegistry.UnregisterPlugin(id));
-        Assert.DoesNotContain(BasisServerMessageRegistry.BuildSupply(), d => d.Name == name);
-        Assert.False(BasisServerMessageRegistry.UnregisterPlugin(id));
-
-        // ids stay sticky by name so a re-register keeps the same wire id
-        Assert.True(BasisServerMessageRegistry.TryGetPluginId(name, out ushort sticky));
-        Assert.Equal(id, sticky);
-    }
-
-    [Fact]
-    public void BuildSupply_CoreCatalogInvariants()
-    {
-        BasisServerMessageRegistry.EnsureInitialized();
-        SerializableBasis.BasisMessageDescriptor[] supply = BasisServerMessageRegistry.BuildSupply();
-
-        SerializableBasis.BasisMessageDescriptor[] core = supply
-            .Where(d => (d.Flags & (byte)SerializableBasis.BasisMessageFlags.Multiplexed) == 0)
-            .ToArray();
-        Assert.NotEmpty(core);
-        Assert.All(core, d => Assert.Equal(d.Channel, d.Id));
-        Assert.All(core, d => Assert.True(d.Channel < BasisNetworkCommons.TotalChannels));
-        Assert.Equal(core.Length, core.Select(d => d.Name).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(supply.Length, supply.Select(d => d.Id).Distinct().Count());
-
-        SerializableBasis.BasisMessageDescriptor delta = core.Single(d => d.Id == BasisNetworkCommons.DeltaAvatarChannel);
-        Assert.Equal("basis.core.avatar.delta", delta.Name);
-        Assert.Contains(core, d => d.Name == "basis.core.auth.identity" && d.Id == BasisNetworkCommons.AuthIdentityChannel);
-    }
-
-    [Fact]
-    public void BuildSupply_CachesSnapshotUntilRegistryChanges()
-    {
-        BasisServerMessageRegistry.EnsureInitialized();
-        SerializableBasis.BasisMessageDescriptor[] first = BasisServerMessageRegistry.BuildSupply();
-        SerializableBasis.BasisMessageDescriptor[] second = BasisServerMessageRegistry.BuildSupply();
-        Assert.Same(first, second);
-
-        string name = NewPluginName();
-        BasisServerMessageRegistry.RegisterServerPlugin(name, DeliveryMethod.Unreliable, NoOpHandler);
-        SerializableBasis.BasisMessageDescriptor[] third = BasisServerMessageRegistry.BuildSupply();
-        Assert.NotSame(second, third);
-        Assert.Contains(third, d => d.Name == name);
-    }
-
-    [Fact]
-    public void Subscriptions_FilterOnlyAfterAnExplicitSubscribe()
-    {
-        const int neverSubscribed = 990001;
-        Assert.True(BasisServerMessageRegistry.IsSubscribed(neverSubscribed, 64));
-
-        const int subscribed = 990002;
-        BasisServerMessageRegistry.SetSubscription(subscribed, new ushort[] { 70, 71 });
-        Assert.True(BasisServerMessageRegistry.IsSubscribed(subscribed, 70));
-        Assert.True(BasisServerMessageRegistry.IsSubscribed(subscribed, 71));
-        Assert.False(BasisServerMessageRegistry.IsSubscribed(subscribed, 72));
-
-        const int emptySubscription = 990003;
-        BasisServerMessageRegistry.SetSubscription(emptySubscription, null!);
-        Assert.False(BasisServerMessageRegistry.IsSubscribed(emptySubscription, 70));
-
-        BasisServerMessageRegistry.ClearSubscription(subscribed);
-        Assert.True(BasisServerMessageRegistry.IsSubscribed(subscribed, 72));
-    }
-
-    [Fact]
-    public void PluginChannelDeliveryMapping_RoundTrips()
-    {
-        Assert.Equal(BasisNetworkCommons.PluginReliableChannel, BasisNetworkCommons.GetPluginChannelForDelivery(DeliveryMethod.ReliableUnordered));
-        Assert.Equal(BasisNetworkCommons.PluginReliableChannel, BasisNetworkCommons.GetPluginChannelForDelivery(DeliveryMethod.ReliableSequenced));
-        Assert.Equal(BasisNetworkCommons.RegistryControlChannel, BasisNetworkCommons.GetPluginChannelForDelivery((DeliveryMethod)255));
-
-        Assert.Equal(DeliveryMethod.ReliableOrdered, BasisNetworkCommons.GetDeliveryForPluginChannel(BasisNetworkCommons.PluginReliableChannel));
-        Assert.Equal(DeliveryMethod.Sequenced, BasisNetworkCommons.GetDeliveryForPluginChannel(BasisNetworkCommons.PluginSequencedChannel));
-        Assert.Equal(DeliveryMethod.Unreliable, BasisNetworkCommons.GetDeliveryForPluginChannel(BasisNetworkCommons.PluginUnreliableChannel));
     }
 }
 

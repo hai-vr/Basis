@@ -8,10 +8,15 @@ namespace Basis.Network
 {
     public static class MessageHandler
     {
-        // ── Face-data observer (BASIS_EMIT_FACE test mode) ─────────────────────────────
+        // ── Face-data observer (BASIS_EMIT_FACE / BASIS_FACE_OBSERVE_ONLY test modes) ──
         // Counts every avatar frame per downlink path and verifies the counter embedded in
         // the synthetic face payload is strictly increasing per (observer, sender) pair, so
         // a run proves both delivery and ordering of AdditionalAvatarData end to end.
+        // Observe-only: join a real server as a spectator and report whether OTHER clients'
+        // (e.g. Unity builds under test) additional data is reaching the wire at all.
+        public static bool ObserveOnly;
+
+        private static bool Sniffing => MovementSender.EmitFaceData || ObserveOnly;
         public static long PoseOnlyKeyframes;       // even avatar channels (no additional section)
         public static long FaceKeyframesSmall;      // odd byte-id channels (7/9/11/13)
         public static long FaceKeyframesLarge;      // odd ushort-id channels (42/44/46/48)
@@ -79,7 +84,7 @@ namespace Basis.Network
                         Interlocked.Increment(ref UplinkNacksReceived);
                         MovementSender.RequestKeyframe(clientIndex);
                     }
-                    else if (MovementSender.EmitFaceData)
+                    else if (Sniffing)
                     {
                         SniffDelta(clientIndex, reader.RawData, reader.Position, reader.AvailableBytes, viaBundle: false);
                     }
@@ -102,13 +107,13 @@ namespace Basis.Network
                 case BasisNetworkCommons.PlayerAvatarLowAdditionalLargeChannel:
                 case BasisNetworkCommons.PlayerAvatarMediumAdditionalLargeChannel:
                 case BasisNetworkCommons.PlayerAvatarHighAdditionalLargeChannel:
-                    if (MovementSender.EmitFaceData)
+                    if (Sniffing)
                     {
                         SniffKeyframe(clientIndex, reader.RawData, reader.Position, reader.AvailableBytes, channel, viaBundle: false);
                     }
                     break;
                 case BasisNetworkCommons.CompressedAvatarBundleChannel:
-                    if (MovementSender.EmitFaceData)
+                    if (Sniffing)
                     {
                         SniffBundle(clientIndex, reader);
                     }
@@ -145,19 +150,24 @@ namespace Basis.Network
                     Interlocked.Increment(ref ParseFailures);
                     return;
                 }
-                Interlocked.Increment(ref BundlesParsed);
+                long bundleNumber = Interlocked.Increment(ref BundlesParsed);
 
-                var channelsSeen = new System.Text.StringBuilder();
-                int probe = 0;
-                while (probe + 3 <= decoded)
+                // Contents of the first few bundles, for the run report (join bursts arrive at the
+                // cold VeryLow tier, so early bundles are expected to carry stripped frames).
+                if (bundleNumber <= 5)
                 {
-                    byte ch = scratch[probe];
-                    ushort len = (ushort)(scratch[probe + 1] | (scratch[probe + 2] << 8));
-                    if (len == 0 || probe + 3 + len > decoded) break;
-                    channelsSeen.Append(ch).Append(':').Append(len).Append(' ');
-                    probe += 3 + len;
+                    var channelsSeen = new System.Text.StringBuilder();
+                    int probe = 0;
+                    while (probe + 3 <= decoded)
+                    {
+                        byte ch = scratch[probe];
+                        ushort len = (ushort)(scratch[probe + 1] | (scratch[probe + 2] << 8));
+                        if (len == 0 || probe + 3 + len > decoded) break;
+                        channelsSeen.Append(ch).Append(':').Append(len).Append(' ');
+                        probe += 3 + len;
+                    }
+                    BNL.Log($"[FaceObserver] bundle -> {channelsSeen}");
                 }
-                BNL.Log($"[FaceObserver] bundle -> {channelsSeen}");
 
                 int offset = 0;
                 while (offset + 3 <= decoded)

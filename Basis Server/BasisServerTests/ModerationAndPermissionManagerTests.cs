@@ -817,6 +817,7 @@ public class PermissionManagerTests
 // so results never depend on ordering or on ban-file leftovers from prior runs.
 // ─────────────────────────────────────────────────────────────────────────────
 
+[Collection("BasisServer shared network statics")]
 public class BasisPlayerModerationTests
 {
     private static readonly MapAuthIdentity Identity = new();

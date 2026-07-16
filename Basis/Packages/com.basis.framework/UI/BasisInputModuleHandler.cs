@@ -107,6 +107,7 @@ namespace Basis.Scripts.UI
             base.OnDisable();
 
             UnsubscribePhysicalKeyboard();
+            BasisTextFieldCaret.RestoreOverflowMode();
 
             tabAction.Disable();
             enterAction.Disable();
@@ -257,6 +258,7 @@ namespace Basis.Scripts.UI
             {
                 caretHeldDirection = 0;
                 lastCaretVisibilityField = null;
+                BasisTextFieldCaret.RestoreOverflowMode();
             }
         }
 

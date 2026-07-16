@@ -67,18 +67,22 @@ public class AdditionalAvatarDataWireTests
     }
 
     [Fact]
-    public void AdditionalAvatarData_NullArray_WritesSinglePayloadSizeZeroByte()
+    public void AdditionalAvatarData_NullArray_WritesFullTwoByteHeader()
     {
+        // Every entry writes [size:1][messageIndex:1] even when empty — a bare size-0 byte was
+        // ambiguous against the next entry's header and desynced the whole additional section.
         var msg = new AdditionalAvatarData { messageIndex = 9, array = null };
         var w = new NetDataWriter();
         msg.Serialize(w);
-        Assert.Equal(1, w.Length);
+        Assert.Equal(2, w.Length);
         Assert.Equal((byte)0, w.Data[0]);
+        Assert.Equal((byte)9, w.Data[1]);
 
         var result = default(AdditionalAvatarData);
         var reader = Wire.Reader(w);
         result.Deserialize(reader);
         Assert.Equal((byte)0, result.PayloadSize);
+        Assert.Equal((byte)9, result.messageIndex);
         Assert.Null(result.array);
         Assert.Equal(0, reader.AvailableBytes);
     }
@@ -89,12 +93,14 @@ public class AdditionalAvatarDataWireTests
         var msg = new AdditionalAvatarData { messageIndex = 3, array = new byte[256] };
         var w = new NetDataWriter();
         msg.Serialize(w);
-        Assert.Equal(1, w.Length);
+        Assert.Equal(2, w.Length);
         Assert.Equal((byte)0, w.Data[0]);
+        Assert.Equal((byte)3, w.Data[1]);
 
         var result = default(AdditionalAvatarData);
         result.Deserialize(Wire.Reader(w));
         Assert.Equal((byte)0, result.PayloadSize);
+        Assert.Equal((byte)3, result.messageIndex);
         Assert.Null(result.array);
     }
 
@@ -1197,7 +1203,7 @@ public class LocalAvatarSyncMessageWireTests
         };
         var w = new NetDataWriter();
         msg.SerializeAdditionalOnly(w);
-        Assert.Equal(2 + 5 + 1 + 3, w.Length); // null entry collapses to a single 0 byte
+        Assert.Equal(2 + 5 + 2 + 3, w.Length); // null entry keeps its full [size:0][messageIndex] header
 
         var result = default(LocalAvatarSyncMessage);
         var reader = Wire.Reader(w);
@@ -1207,6 +1213,7 @@ public class LocalAvatarSyncMessageWireTests
         Assert.Equal((byte)1, result.AdditionalAvatarDatas[0].messageIndex);
         Assert.Equal(new byte[] { 5, 6, 7 }, result.AdditionalAvatarDatas[0].array);
         Assert.Equal((byte)0, result.AdditionalAvatarDatas[1].PayloadSize);
+        Assert.Equal((byte)2, result.AdditionalAvatarDatas[1].messageIndex);
         Assert.Null(result.AdditionalAvatarDatas[1].array);
         Assert.Equal((byte)3, result.AdditionalAvatarDatas[2].messageIndex);
         Assert.Equal(new byte[] { 9 }, result.AdditionalAvatarDatas[2].array);

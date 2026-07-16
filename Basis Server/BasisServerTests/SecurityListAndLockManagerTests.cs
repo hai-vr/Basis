@@ -336,6 +336,7 @@ public class BasisBanListTests
 /// Runtime-only rejoin lockdown: the set is only populated by capturing the currently
 /// authenticated peers and never grows afterwards.
 /// </summary>
+[Collection("BasisServer shared network statics")]
 public class BasisRejoinLockManagerTests
 {
     private sealed class FixedUuidAuthIdentity : IAuthIdentity
@@ -477,6 +478,7 @@ public class BasisRejoinLockManagerTests
 /// Server-wide interlocked lock toggles seeded from Configuration, plus the
 /// append-only GlobalGetLockState wire layout.
 /// </summary>
+[Collection("BasisServer shared network statics")]
 public class BasisGlobalLockManagerTests
 {
     private static Configuration AllUnlocked() => new()
