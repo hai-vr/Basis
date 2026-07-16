@@ -304,17 +304,20 @@ crash, hang, or corrupt does.
   crashes or hangs** — a surfaced error string is a pass, a segfault or a spin is a failure.
   Valid-file checks miss all of this by construction; the regressions live in the inputs the
   author didn't picture.
-- **Fuzz the demux and parse entry points under sanitizers.** Build the plugin with
-  AddressSanitizer and UndefinedBehaviorSanitizer (`/fsanitize=address` on MSVC; ASan + UBSan
-  on the Android/Clang build) and drive the container and protocol readers with mutated
-  inputs. ASan turns a silent out-of-bounds read into a named fault with a stack — it is both
-  how you find these and how you prove one is gone. An unsanitised "it didn't crash this time"
-  is not proof. Fuzzing corrupt input is the single highest-value test this code has; a parser
-  change that ships without one is under-tested.
+- **Fuzz the demux and parse entry points under sanitizers.** The harness for this lives at
+  [`tools/media-fuzz/`](../../../tools/media-fuzz/): coverage-guided libFuzzer targets that
+  drive the real `protocol/*.c` readers under AddressSanitizer + UndefinedBehaviorSanitizer,
+  no decoder or Unity needed (`./build.sh`, then run a target against a seed corpus). ASan
+  turns a silent out-of-bounds read into a named fault with a stack — it is both how you find
+  these and how you prove one is gone. An unsanitised "it didn't crash this time" is not proof.
+  Fuzzing corrupt input is the single highest-value test this code has; a parser change that
+  ships without a fuzz pass is under-tested. When you add a parser, add a `fuzz_<name>.c` target
+  beside the others.
 - **Keep every crash's repro as a permanent fixture.** When a malformed stream is found to
-  crash, the exact file that triggered it earns a permanent place in the fixture corpus and is
-  re-run before every subsequent native change. A fixed memory-safety bug that isn't pinned by
-  a regression fixture comes back the next time the surrounding code moves.
+  crash, the exact file that triggered it is pinned under `tools/media-fuzz/testcases/` and
+  replayed by the `fuzz-demux` CI job (`media-native.yml`) on every native change — a fixed
+  memory-safety bug that isn't pinned by a regression repro comes back the next time the
+  surrounding code moves.
 - **Regress the good path bit-for-bit, not by eye.** A protocol fix on one transport can shift
   the packets another transport emits, because they share the AU path. After any demux change,
   re-run the known-good fixtures and confirm the demuxer still produces the same packets and
