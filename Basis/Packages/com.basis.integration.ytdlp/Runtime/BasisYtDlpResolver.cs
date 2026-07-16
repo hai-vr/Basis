@@ -158,8 +158,13 @@ namespace Basis.Integration.YtDlp
             Format video = BestVideoOnly(info.Formats);
             Format audio = BestAudioOnly(info.Formats);
             if (video != null && audio != null)
-                // A split avc1+mp4a pair is adaptive VOD (YouTube serves these only
-                // above ~360p), delivered faster than real time — force on-demand pacing.
+                // A split pair is adaptive VOD (YouTube serves these only above ~360p),
+                // delivered faster than real time — force on-demand pacing. Split is
+                // preferred over muxed unconditionally by design: muxed is YouTube's
+                // ≤720p progressive fallback, always lower quality than the split ladder.
+                // The "avc1 wins at equal height" rule is a video-codec preference and
+                // lives in BestVideoOnly's ranking (CodecRank), so the split already
+                // carries avc1 at any height an avc1 video-only rung exists.
                 return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Delivery = BasisMediaDelivery.OnDemand };
 
             Format muxed = BestMuxed(info.Formats);
@@ -423,21 +428,33 @@ namespace Basis.Integration.YtDlp
             return string.Equals(f.DynamicRange, "SDR", StringComparison.OrdinalIgnoreCase);
         }
 
-        // AAC audio-only, highest bitrate, direct byte URL.
+        // Audio-only, highest bitrate, direct byte URL. AAC (mp4a) is in-box on
+        // every platform and stays the default leg; Opus (WebM, itags 249/250/251)
+        // is accepted only as a fallback for uploads that carry no AAC audio-only
+        // format, so the reliable split path never regresses. Opus decode is
+        // available everywhere the player runs (Android MediaCodec, Windows
+        // runtime-loaded libopus), so no probe gates it.
         private static Format BestAudioOnly(List<Format> formats)
         {
             if (formats == null) return null;
-            Format best = null;
+            Format bestAac = null, bestOpus = null;
             for (int i = 0; i < formats.Count; i++)
             {
                 Format f = formats[i];
                 if (f == null || string.IsNullOrEmpty(f.Url)) continue;
                 if (!HasCodec(f.ACodec) || HasCodec(f.VCodec)) continue;         // audio-only
-                if (!StartsWithCI(f.ACodec, "mp4a")) continue;
                 if (!IsDirectByteStream(f.Protocol)) continue;
-                if (best == null || Bitrate(f.AudioBitrate, f) > Bitrate(best.AudioBitrate, best)) best = f;
+                if (StartsWithCI(f.ACodec, "mp4a"))
+                {
+                    if (bestAac == null || Bitrate(f.AudioBitrate, f) > Bitrate(bestAac.AudioBitrate, bestAac)) bestAac = f;
+                }
+                else if (string.Equals(f.ACodec, "opus", StringComparison.OrdinalIgnoreCase) &&
+                         string.Equals(f.Ext, "webm", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (bestOpus == null || Bitrate(f.AudioBitrate, f) > Bitrate(bestOpus.AudioBitrate, bestOpus)) bestOpus = f;
+                }
             }
-            return best;
+            return bestAac ?? bestOpus;
         }
 
         // Single stream carrying both tracks: progressive avc1+mp4a (e.g. itag 18) or an

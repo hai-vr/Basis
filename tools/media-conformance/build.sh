@@ -3,7 +3,8 @@
 # Build basis_demux_dump: the real protocol/*.c demuxers compiled against an
 # observing sink that prints every access unit as JSON. Plain C, no Unity, no
 # Media Foundation -- builds on Linux/CI (cc/clang/gcc) and Windows (Git Bash +
-# the LLVM install, or set CC=cl in a VS dev shell).
+# the LLVM install). Uses -o for the output name, so the compiler must accept it
+# (clang/gcc); MSVC cl, which spells it /Fe, is not supported here.
 #
 #   ./build.sh
 #
@@ -24,6 +25,7 @@ fi
 srcs=(
     "$here/native/basis_demux_dump.c"
     "$native/protocol/basis_webm.c"
+    "$native/protocol/basis_ogg.c"
     "$native/protocol/basis_mp4.c"
     "$native/protocol/basis_ts.c"
     "$native/protocol/basis_wav.c"

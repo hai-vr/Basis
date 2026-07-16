@@ -21,6 +21,7 @@
 #include "protocol/basis_ts.h"
 #include "protocol/basis_mp4.h"
 #include "protocol/basis_webm.h"
+#include "protocol/basis_ogg.h"
 #include "protocol/basis_wav.h"
 #include "protocol/basis_http.h"
 #include "protocol/basis_hls.h"
@@ -821,11 +822,13 @@ static void run_http_like(demux_ctx_t* c) {
     int is_webm = head_len >= 4 && head[0] == 0x1A && head[1] == 0x45 &&
                   head[2] == 0xDF && head[3] == 0xA3; /* EBML magic */
     int is_wav = head_len >= 12 && memcmp(head, "RIFF", 4) == 0 && memcmp(head + 8, "WAVE", 4) == 0;
+    int is_ogg = head_len >= 4 && memcmp(head, "OggS", 4) == 0;
     int is_ts  = (head_len >= 1 && head[0] == 0x47);
-    if (!is_mp4 && !is_webm && !is_wav && !is_ts) {
+    if (!is_mp4 && !is_webm && !is_wav && !is_ogg && !is_ts) {
         is_mp4 = ends_with_ci(c->parts->path, ".mp4") || ends_with_ci(c->parts->path, ".m4s");
         is_webm = ends_with_ci(c->parts->path, ".webm");
         is_wav = ends_with_ci(c->parts->path, ".wav");
+        is_ogg = ends_with_ci(c->parts->path, ".opus") || ends_with_ci(c->parts->path, ".ogg");
     }
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
@@ -855,12 +858,14 @@ static void run_http_like(demux_ctx_t* c) {
      * absolute seeks with a ranged refetch; everything else demuxes as before. */
     basis_reseek_fn reseek = NULL;
     void* reseek_ctx = NULL;
+    int64_t stream_size = -1;   /* total body size for the Ogg granule seek; -1 = unknown */
 #if defined(_WIN32)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
                                  basis_win_http_abort, basis_win_http_reseek };
     if (c->e->paced && basis_win_http_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
+        stream_size = basis_win_http_content_length(src);
     }
 #elif defined(__ANDROID__)
     http_seek_src_t seek_src = { src, use_readahead ? &ring : NULL, &ps, &c->e->running,
@@ -868,6 +873,7 @@ static void run_http_like(demux_ctx_t* c) {
     if (c->e->paced && basis_jni_https_can_reseek(src)) {
         reseek = http_reseek;
         reseek_ctx = &seek_src;
+        stream_size = basis_jni_https_content_length(src);
     }
 #endif
 
@@ -877,6 +883,8 @@ static void run_http_like(demux_ctx_t* c) {
         basis_webm_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else if (is_wav)
         basis_wav_run(c->sink, demux_read, demux_ctx);
+    else if (is_ogg)
+        basis_ogg_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx, stream_size);
     else
         basis_ts_run(c->sink, demux_read, demux_ctx); /* default to MPEG-TS */
 

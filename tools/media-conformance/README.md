@@ -46,7 +46,7 @@ the gate covers whatever the runner supports.
 
 `gen_fixtures.sh` covers: MP4 H.264+AAC in faststart / trailing-moov / fragmented layouts; MP4
 HEVC (hvcC); MP4 + WebM VP9; MP4 + WebM AV1; MPEG-TS H.264+AAC (PAT/PMT/PES + ADTS); AAC-in-M4A;
-WAV 16-bit stereo and 5.1; Blu-ray LPCM 5.1 over M2TS. That exercises the MP4 box + sample-table
+WAV 16-bit stereo and 5.1; Blu-ray LPCM 5.1 over M2TS; Opus in WebM (muxed + audio-only) and Ogg Opus (`.opus`). That exercises the MP4 box + sample-table
 parser, the TS section/PES parser, the WebM EBML parser, the WAV and M2TS LPCM paths, and the
 avcC/hvcC/esds/ADTS bitstream handling.
 

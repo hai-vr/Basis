@@ -34,6 +34,10 @@ build_target() {
 }
 
 want="${1:-all}"
+case "$want" in
+    all|ts|mp4|webm|caption|ogg) ;;
+    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg)" >&2; exit 2 ;;
+esac
 if [ "$want" = "all" ] || [ "$want" = "ts" ]; then
     build_target ts \
         "$native/protocol/basis_ts.c" \
@@ -50,6 +54,10 @@ if [ "$want" = "all" ] || [ "$want" = "webm" ]; then
     build_target webm \
         "$native/protocol/basis_webm.c" \
         "$native/protocol/basis_bitstream.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "ogg" ]; then
+    build_target ogg \
+        "$native/protocol/basis_ogg.c"
 fi
 if [ "$want" = "all" ] || [ "$want" = "caption" ]; then
     build_target caption \

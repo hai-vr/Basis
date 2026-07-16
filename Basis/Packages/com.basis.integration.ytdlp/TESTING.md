@@ -39,13 +39,13 @@ from the front page, plus a recent VOD from the same channel.
 
 | Scenario | Expected |
 | --- | --- |
-| YouTube VOD, >360p | Resolves to **split stream** (H.264 video-only + AAC audio-only), plays paced as on-demand, A/V locked |
+| YouTube VOD, >360p | Resolves to a **split stream** (capability-selected H.264/VP9/AV1 video-only + AAC or Opus-fallback audio-only), plays paced as on-demand, A/V locked |
 | YouTube VOD, ≤360p (or format-forced) | Single muxed stream, delivery auto-detected |
 | YouTube live | Single HLS playlist, plays as live |
 | Twitch live | HLS live; join near the live edge |
 | Twitch VOD | HLS VOD |
-| Format selection, VP9-capable platform | A 4K upload resolves to the **VP9 video-only rung up to 2160p** (WebM carriage) + `mp4a` audio as a split stream; a 1080p-max upload still resolves to `avc1` (avc1 wins at equal height, so ≤1080p selection is unchanged) |
-| Format selection, AV1-capable platform | Where the AV1 probe also passes (hardware AV1: RTX 30+/RX 6000+/Arc on Windows, Quest 3), a popular 4K upload carrying both ladders resolves to the **av01 rung** over vp9 at equal height (`av01.0.*.08`, MP4 carriage) — 8-bit SDR only |
+| Format selection, VP9-capable platform without AV1 decode | A 4K upload resolves to the **VP9 video-only rung up to 2160p** (WebM or MP4 carriage) + `mp4a` audio as a split stream; a 1080p-max upload still resolves to `avc1` (avc1 wins at equal height) |
+| Format selection, AV1-capable platform | Where both the AV1 and VP9 probes pass (hardware AV1: RTX 30+/RX 6000+/Arc on Windows, Quest 3), a popular 4K upload carrying both ladders resolves to the **av01 rung** over vp9 at equal height (`av01.0.*.08`, MP4 or WebM carriage) — 8-bit SDR only |
 | Format selection, no VP9/AV1 decode | On a machine where a probe fails (no Store extension, or no hardware decode on the GPU), that codec's rungs are never offered: no AV1 → VP9 4K still resolves; neither → selection stays `avc1` ≤1080p |
 | HDR upload | Resolves to the parallel **SDR** ladder (vp9/av01 8-bit, or avc1), never an HDR/10-bit rung |
 | Metadata | Title / uploader / thumbnail appear on the player after resolve |
