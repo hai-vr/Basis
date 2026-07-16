@@ -639,11 +639,14 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
 
     int64_t ticks = add_i64_sat(w->cluster_ts, (int64_t)rel);
     int64_t pts_us = ticks_to_us(ticks, w->ts_scale_ns);
-    if (pts_us < 0) pts_us = 0;
     /* Matroska CodecDelay: block times are on the encoder timeline; subtract it
      * so presentation time is right. For Opus the early (priming) frames go
-     * negative and drop, leaving real audio at 0 — matching the Ogg lane. */
-    if (is_audio) pts_us -= w->audio_codec_delay_us;
+     * negative and drop, leaving real audio at 0 — matching the Ogg lane. The
+     * audio PTS must be allowed to stay negative for that pre-roll, so only video
+     * is clamped to 0. (codec_delay is >= 0, so negating for the saturating add
+     * can't overflow.) */
+    if (is_audio) pts_us = add_i64_sat(pts_us, -w->audio_codec_delay_us);
+    else if (pts_us < 0) pts_us = 0;
 
     int lacing = (flags >> 1) & 0x3;   /* 00 none, 01 Xiph, 10 fixed, 11 EBML */
     if (lacing == 0) {
