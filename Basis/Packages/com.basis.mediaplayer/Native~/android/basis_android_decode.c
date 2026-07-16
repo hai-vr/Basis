@@ -752,6 +752,44 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
         return 0;
     }
 
+    if (codec == BASIS_CODEC_OPUS) {
+        /* Native MediaCodec Opus (audio/opus, a required core codec). csd-0 is
+         * the OpusHead; C2 Opus decoders also want csd-1 (codec delay / encoder
+         * pre-skip in ns) and csd-2 (seek pre-roll, 80 ms in ns) as 8-byte
+         * native-endian (LE on arm64) int64 buffers — ExoPlayer's exact shape;
+         * older decoders reject a csd-0-only config. The decoder honours the
+         * pre-skip itself, so no hand-trim here (unlike the Windows libopus lane).
+         * Channel count comes from OpusHead byte 9; Opus always decodes 48 kHz. */
+        if (!asc || asc_len < 19 || memcmp(asc, "OpusHead", 8) != 0) return 0;
+        int ch = asc[9];
+        int preskip = asc[10] | (asc[11] << 8);
+        if (ch < 1 || ch > 8) return 0;
+        d->ac = BASIS_CODEC_OPUS;
+        d->asr = 48000; d->ach = ch;
+        ring_set_frame(&d->pcm, ch, 48000);
+        AMediaFormat* fmt = AMediaFormat_new();
+        AMediaFormat_setString(fmt, AMEDIAFORMAT_KEY_MIME, "audio/opus");
+        AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_SAMPLE_RATE, 48000);
+        AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_CHANNEL_COUNT, ch);
+        AMediaFormat_setBuffer(fmt, "csd-0", (void*)asc, asc_len);
+        int64_t csd1 = (int64_t)preskip * 1000000000LL / 48000; /* codec delay ns */
+        int64_t csd2 = 80000000LL;                              /* seek pre-roll 80 ms ns */
+        AMediaFormat_setBuffer(fmt, "csd-1", &csd1, sizeof(csd1));
+        AMediaFormat_setBuffer(fmt, "csd-2", &csd2, sizeof(csd2));
+        AMediaCodec* c = AMediaCodec_createDecoderByType("audio/opus");
+        if (!c || AMediaCodec_configure(c, fmt, NULL, NULL, 0) != AMEDIA_OK ||
+            AMediaCodec_start(c) != AMEDIA_OK) {
+            if (c) AMediaCodec_delete(c);
+            AMediaFormat_delete(fmt);
+            d->aconfigured = 1;
+            return -1;
+        }
+        d->acodec = c;
+        AMediaFormat_delete(fmt);
+        d->aconfigured = 1;
+        return 0;
+    }
+
     if (codec != BASIS_CODEC_AAC) return 0;
     d->ac = BASIS_CODEC_AAC;
     d->asr = sample_rate; d->ach = channels;
