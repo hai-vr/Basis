@@ -26,14 +26,15 @@ so it can be added or removed cleanly (see *Removing it*).
 | YouTube / Twitch live | single HLS playlist | live |
 | Progressive / muxed (≤360p) | one muxed stream | delivery auto-detected |
 
-**Codec selection: H.264 everywhere; VP9 up to 2160p where the platform decodes it.**
-YouTube's above-1080p ladder is VP9-only, so format selection asks the player whether
-this machine hardware-decodes VP9 (Windows: a VP9 decoder MFT — the Store "VP9 Video
-Extensions" or a vendor one — plus a GPU with hardware VP9; Quest: always) and, where
-it does, picks the VP9 rung up to 4K — SDR profile-0 ladders only. `avc1` wins at
-equal height, so a VP9 rung is only chosen where it offers more resolution than any
-available `avc1`; where VP9 doesn't decode, selection stays `avc1` + `mp4a` capped at
-1080p (AV1-only rungs are never chosen). Above ~360p YouTube serves video
+**Codec selection: H.264 everywhere; VP9 and AV1 up to 2160p where the platform
+decodes them.** YouTube's above-1080p ladder is VP9 (AV1 alongside on popular
+uploads), so format selection asks the player whether this machine hardware-decodes
+each codec (Windows: the decoder MFT — the Store extension or a vendor one — plus a
+GPU with hardware decode; Quest: VP9 always, AV1 on Quest 3) and, where it does,
+picks rungs up to 4K — SDR 8-bit ladders only. At equal height `avc1` wins, then
+`av01` over `vp9` (better bitrate at 4K), so a VP9/AV1 rung is only chosen where it
+offers more resolution than any available `avc1`; where neither decodes, selection
+stays `avc1` + `mp4a` capped at 1080p. Above ~360p YouTube serves video
 and audio separately, so those resolve to a
 [split stream](https://github.com/BasisVR/BasisMediaPlayer#split-stream-separate-video--audio)
 the player syncs on one clock.

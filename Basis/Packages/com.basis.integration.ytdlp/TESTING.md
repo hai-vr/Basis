@@ -45,9 +45,9 @@ from the front page, plus a recent VOD from the same channel.
 | Twitch live | HLS live; join near the live edge |
 | Twitch VOD | HLS VOD |
 | Format selection, VP9-capable platform | A 4K upload resolves to the **VP9 video-only rung up to 2160p** (WebM carriage) + `mp4a` audio as a split stream; a 1080p-max upload still resolves to `avc1` (avc1 wins at equal height, so ≤1080p selection is unchanged) |
-| Format selection, no VP9 decode | On a machine where the probe fails (no Store VP9 extension, or no hardware VP9 on the GPU), selection stays `avc1` ≤1080p — the VP9 rung must never be offered somewhere it can't play |
-| HDR upload | Resolves to the parallel **SDR** VP9 ladder (or avc1), never an HDR/profile-2 rung |
-| AV1 | AV1-only rungs are never chosen |
+| Format selection, AV1-capable platform | Where the AV1 probe also passes (hardware AV1: RTX 30+/RX 6000+/Arc on Windows, Quest 3), a popular 4K upload carrying both ladders resolves to the **av01 rung** over vp9 at equal height (`av01.0.*.08`, MP4 carriage) — 8-bit SDR only |
+| Format selection, no VP9/AV1 decode | On a machine where a probe fails (no Store extension, or no hardware decode on the GPU), that codec's rungs are never offered: no AV1 → VP9 4K still resolves; neither → selection stays `avc1` ≤1080p |
+| HDR upload | Resolves to the parallel **SDR** ladder (vp9/av01 8-bit, or avc1), never an HDR/10-bit rung |
 | Metadata | Title / uploader / thumbnail appear on the player after resolve |
 | First-ever resolution | One-off multi-second pause while the bundled Python runtime unpacks — expected, not a hang; later loads skip it |
 | Every resolution | A few seconds of in-process resolving is normal; the player shows nothing during the gap by design |
