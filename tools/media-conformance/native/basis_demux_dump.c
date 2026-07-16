@@ -16,10 +16,10 @@
  *   cl /nologo /O2 /W4 /I %NAT% basis_demux_dump.c ^
  *      %NAT%\protocol\basis_webm.c %NAT%\protocol\basis_mp4.c ^
  *      %NAT%\protocol\basis_ts.c %NAT%\protocol\basis_wav.c ^
- *      %NAT%\protocol\basis_bitstream.c
+ *      %NAT%\protocol\basis_ogg.c %NAT%\protocol\basis_bitstream.c
  *
  * Run:
- *   basis_demux_dump [-demux webm|mp4|ts|wav] [-seek US] [-noreseek] FILE
+ *   basis_demux_dump [-demux webm|mp4|ts|wav|ogg] [-seek US] [-noreseek] FILE
  *
  * Annex-B note: for H.264/H.265 the demuxers hand out Annex-B access units,
  * whereas ffprobe hashes the packet as stored in the container (avcC length-
@@ -370,7 +370,7 @@ int main(int argc, char** argv) {
     }
     if (!path) {
         fprintf(stderr,
-                "usage: basis_demux_dump [-demux webm|mp4|ts|wav] [-seek US] "
+                "usage: basis_demux_dump [-demux webm|mp4|ts|wav|ogg] [-seek US] "
                 "[-noreseek] FILE\n");
         return 2;
     }

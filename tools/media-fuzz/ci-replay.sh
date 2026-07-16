@@ -40,7 +40,10 @@ for tcdir in "$here"/testcases/*/; do
 done
 
 echo
-if [ $fail -eq 0 ]; then
+if [ $total -eq 0 ]; then
+    echo "FAIL: no pinned repro(s) found under testcases/ — gate would pass vacuously"
+    fail=1
+elif [ $fail -eq 0 ]; then
     echo "PASS: $total pinned repro(s) all clean"
 else
     echo "FAIL: a pinned repro crashed — a memory-safety fix has regressed"

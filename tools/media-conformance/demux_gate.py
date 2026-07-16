@@ -155,6 +155,15 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
              ann.get("width") == ref.get("width") and ann.get("height") == ref.get("height"),
              f"ours={ann.get('width')}x{ann.get('height')} "
              f"ffmpeg={ref.get('width')}x{ref.get('height')}")
+    else:
+        # Announce metadata is checked even for LPCM (whose packets are skipped
+        # below), so a wrong rate or channel count can't slip through.
+        c.ok("audio.sample_rate",
+             str(ann.get("sample_rate")) == str(ref.get("sample_rate")),
+             f"ours={ann.get('sample_rate')} ffmpeg={ref.get('sample_rate')}")
+        c.ok("audio.channels",
+             ann.get("channels") == ref.get("channels"),
+             f"ours={ann.get('channels')} ffmpeg={ref.get('channels')}")
 
     codec = ann["codec"]
     container_ts = d.get("demuxer") in {"ts"}
@@ -196,11 +205,15 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         try:
             their = filtered_md5s(media, "aac_adtstoasc", stream)
         except RuntimeError as ex:
-            c.skip(f"{kind}.md5", f"adts reframe failed: {ex}")
+            # A reframe failure is a gate failure, not a skip — the payload
+            # comparison is the whole point of this row.
+            c.ok(f"{kind}.md5", False, f"adts reframe failed: {ex}")
             return
         m = min(len(aus), len(their))
-        c.ok(f"{kind}.md5", m > 0 and [a["md5"] for a in aus[:m]] == their[:m],
-             f"{sum(1 for a, t in zip(aus, their) if a['md5'] != t)} of {m} differ")
+        c.ok(f"{kind}.md5",
+             len(their) > 0 and len(aus) == len(their) and [a["md5"] for a in aus[:m]] == their[:m],
+             f"{sum(1 for a, t in zip(aus, their) if a['md5'] != t)} of {m} differ "
+             f"(ours={len(aus)} ref={len(their)})")
     elif ann.get("payload_is_container_form"):
         our = [a["md5"] for a in aus]
         their = [p["md5"] for p in pkts]
@@ -212,11 +225,14 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         try:
             their = filtered_md5s(media, PACKET_FILTERS[codec], stream)
         except RuntimeError as ex:
-            c.skip(f"{kind}.md5", f"bsf reframe failed: {ex}")
+            c.ok(f"{kind}.md5", False, f"bsf reframe failed: {ex}")
             return
         m = min(len(aus), len(their))
         mism = [i for i in range(m) if not aus[i]["key"] and aus[i]["md5"] != their[i]]
-        c.ok(f"{kind}.md5", not mism, f"{len(mism)} non-key AUs differ of {m}")
+        # Require a non-empty, equal-count reframe — an empty `their` would
+        # otherwise leave `not mism` True and pass without comparing anything.
+        c.ok(f"{kind}.md5", len(their) > 0 and len(aus) == len(their) and not mism,
+             f"{len(mism)} non-key AUs differ of {m} (ours={len(aus)} ref={len(their)})")
     else:
         c.skip(f"{kind}.md5", f"no comparison rule for {codec}")
 

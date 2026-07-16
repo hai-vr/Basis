@@ -83,7 +83,7 @@ static int s_take_seek(void* u, int64_t* out) {
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     fuzz_ctx c;
-    c.data = data; c.size = size; c.pos = 0; c.aus = 0;
+    c.data = data; c.size = size; c.pos = 0; c.aus = 0; c.seeked = 0;
 
     basis_media_sink_t sink;
     memset(&sink, 0, sizeof(sink));

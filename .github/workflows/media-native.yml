@@ -107,5 +107,21 @@ jobs:
         run: ./tools/media-conformance/build.sh
       - name: Generate synthetic fixtures
         run: ./tools/media-conformance/gen_fixtures.sh "$RUNNER_TEMP/fixtures"
+      - name: Require the advertised codec fixture set
+        # gen_fixtures.sh skips codecs the runner's ffmpeg lacks, so on the
+        # mutable ubuntu-latest image the gate could otherwise go green after
+        # silently losing HEVC/VP9/AV1/Opus coverage. Fail if any required
+        # fixture is absent (apt's ffmpeg ships all of these).
+        run: |
+          required="h264_aac.ts hevc_aac.mp4 vp9.webm av1.webm opus.webm audio.opus aac.m4a pcm16_stereo.wav"
+          missing=""
+          for f in $required; do
+            [ -f "$RUNNER_TEMP/fixtures/$f" ] || missing="$missing $f"
+          done
+          if [ -n "$missing" ]; then
+            echo "missing required codec fixtures (the runner's ffmpeg lost a codec):$missing"
+            exit 1
+          fi
+          echo "all required codec fixtures present"
       - name: Diff demuxer output against ffprobe (regression gate)
         run: python3 ./tools/media-conformance/demux_gate.py "$RUNNER_TEMP/fixtures"
