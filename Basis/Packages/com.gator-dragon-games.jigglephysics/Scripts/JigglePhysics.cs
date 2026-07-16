@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -55,11 +57,28 @@ public static class JigglePhysics {
         }
             
         var rootJiggleTreeSegmentsCount = rootJiggleTreeSegments.Count;
+
+        // Tree regeneration (JiggleTree.Set) and parameter pushes MemCpy into buffers the
+        // in-flight simulate job is still reading/writing — Simulate() completes it too late,
+        // after the mutation. Sync first whenever this frame will mutate.
+        bool mutatesSimData = _globalDirty;
+        if (!mutatesSimData) {
+            for (int i = 0; i < rootJiggleTreeSegmentsCount; i++) {
+                if (rootJiggleTreeSegments[i].GetHasAnimatedParameters()) {
+                    mutatesSimData = true;
+                    break;
+                }
+            }
+        }
+        if (mutatesSimData) {
+            jobs?.CompleteSimulate();
+        }
+
         for (int i = 0; i < rootJiggleTreeSegmentsCount; i++) {
             var segment = rootJiggleTreeSegments[i];
             segment.UpdateParametersIfNeeded();
         }
-            
+
         jobs = GetJiggleJobs(lastFixedCurrentTime, fixedDeltaTime);
         jobs.SetCollisionCulling(collisionFrustumCull, collisionDistanceCull, collisionCullDistance, cullingCameraBuffer, cullingCameraCount);
         jobs.Simulate(lastFixedCurrentTime, realTime, skips);
@@ -75,6 +94,10 @@ public static class JigglePhysics {
 
     public static void CompletePose() {
         jobs?.CompletePoses();
+    }
+
+    public static void CompleteSimulate() {
+        jobs?.CompleteSimulate();
     }
 
     public static void OnDrawGizmos() {
@@ -188,6 +211,14 @@ public static class JigglePhysics {
 
     public static void FreeOnComplete(IntPtr pointer) {
         jobs.FreeOnComplete(pointer);
+    }
+
+    public static unsafe void FreeOnCommitFlip(IntPtr pointer) {
+        if (jobs != null) {
+            jobs.FreeOnCommitFlip(pointer);
+        } else {
+            UnsafeUtility.Free((void*)pointer, Allocator.Persistent);
+        }
     }
     
     public static void AddJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {

@@ -190,7 +190,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
             transmitter.storedAvatarData.LASM.LinkedAvatarIndex = transmitter.LastLinkedAvatarIndex;
 
-            bool hasAdditional = data != null && data.Length > 0;
+            // Must mirror SerializeAdditionalOnly's guard exactly: with >255 entries the serializer
+            // writes nothing, so claiming an additional section via the channel/header would desync
+            // the receiver's parse. (256 is reachable — SendingOutAvatarData is byte-keyed.)
+            bool hasAdditional = data != null && data.Length > 0 && data.Length <= 255;
             byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)WireQuality, hasAdditional);
 
             // Drop redundant, additional-free frames (a still avatar) until the heartbeat is due:

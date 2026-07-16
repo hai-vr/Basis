@@ -1785,9 +1785,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
                 {
                     var ad = msg.AdditionalAvatarDatas[i];
+                    // Every entry writes the full [size:1][messageIndex:1] header (size 0 for
+                    // null/oversized payloads) — a bare size byte would desync the entries after
+                    // it. Must match AdditionalAvatarData.Serialize/Deserialize exactly.
                     if (ad.array == null || ad.array.Length > 255)
                     {
                         dst[offset++] = 0;
+                        dst[offset++] = ad.messageIndex;
                     }
                     else
                     {
@@ -1946,6 +1950,23 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
+        /// Test seam (InternalsVisibleTo BasisServerTests): drives the private keyframe/delta
+        /// pre-serialization decision exactly as ProcessMessage does, so the additional-data
+        /// pipeline tests can cover the real fan-out path without a live NetPeer.
+        /// </summary>
+        internal static void TestOnly_PreSerializeFrame(PlayerState state, long publishGen, bool forceKeyframe)
+            => PreSerializeFrame(state, publishGen, forceKeyframe);
+
+        /// <summary>
+        /// Test seam (InternalsVisibleTo BasisServerTests): builds the raw (pre-LZ4) bundle block
+        /// for a pending range exactly as the bundle emitter does — the tests LZ4 it and decode it
+        /// the way the client does, proving additional data survives the bundle path byte-exactly.
+        /// The bytes land in <see cref="PlayerState.BundleRawScratch"/>; the return is the length.
+        /// </summary>
+        internal static int TestOnly_BuildRawForRange(PlayerState state, PendingAvatarSend[] pending, int start, int end)
+            => BuildRawForRange(state, pending, start, end);
+
+        /// <summary>
         /// Queues a receiver's request for a fresh keyframe from a sender (DeltaControlKeyframeRequest).
         /// The tick thread invalidates the pair's baseline so its next send is a keyframe.
         /// </summary>
@@ -2059,9 +2080,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
             {
                 var ad = msg.AdditionalAvatarDatas[i];
+                // Full [size:1][messageIndex:1] header per entry, size 0 for null/oversized —
+                // must match AdditionalAvatarData.Serialize/Deserialize exactly (see PreSerializeKeyframe).
                 if (ad.array == null || ad.array.Length > 255)
                 {
                     dst[offset++] = 0;
+                    dst[offset++] = ad.messageIndex;
                 }
                 else
                 {

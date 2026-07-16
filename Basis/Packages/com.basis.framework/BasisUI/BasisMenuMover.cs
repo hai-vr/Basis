@@ -313,6 +313,24 @@ namespace Basis.BasisUI
             transform.localScale = Vector3.one * GetRenderSafeMenuScale(BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
         }
 
+        // Menu was designed at 80 FOV
+        public const float EYE_DESIGN_FOV = 80f;
+        public const float EYE_WIDTH_FIT_ASPECT = 1.2f;
+
+        public static float GetEyeModeScaleFactor(float fieldOfView, float aspect)
+        {
+            float tanFOV = Mathf.Tan((Mathf.Deg2Rad * fieldOfView) / 2f);
+            float tanFOVBase = Mathf.Tan((Mathf.Deg2Rad * EYE_DESIGN_FOV) / 2f);
+            float scaleFactor = tanFOV / tanFOVBase;
+
+            if (aspect > 0f && aspect < EYE_WIDTH_FIT_ASPECT)
+            {
+                scaleFactor *= aspect / EYE_WIDTH_FIT_ASPECT;
+            }
+
+            return scaleFactor;
+        }
+
         public static float GetRenderSafeMenuScale(float avatarRelativeScale)
         {
             if (float.IsNaN(avatarRelativeScale) || float.IsInfinity(avatarRelativeScale) || avatarRelativeScale <= 0f)
@@ -349,13 +367,8 @@ namespace Basis.BasisUI
                     // In third-person the FOV ramps with the zoom (50–75°); the matching
                     // scaleFactor keeps the menu the same on-screen size as the user scrolls,
                     // which is the existing 1p invariant.
-                    float fieldOfView = BasisLocalCameraDriver.CameraInstance.fieldOfView;
-                    float tanFOV = Mathf.Tan((Mathf.Deg2Rad * fieldOfView) / 2f);
-
-                    // Menu was designed at 80 FOV
-                    const float designerMenuScale = 80f;
-                    float tanFOVBase = Mathf.Tan((Mathf.Deg2Rad * designerMenuScale) / 2f);
-                    float scaleFactor = tanFOV / tanFOVBase;
+                    float aspect = BasisDeviceManagement.IsCurrentModeVR() ? 0f : BasisLocalCameraDriver.CameraInstance.aspect;
+                    float scaleFactor = GetEyeModeScaleFactor(BasisLocalCameraDriver.CameraInstance.fieldOfView, aspect);
 
                     BasisLocalCameraDriver.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
                     transform.SetPositionAndRotation(Position, Rotation);

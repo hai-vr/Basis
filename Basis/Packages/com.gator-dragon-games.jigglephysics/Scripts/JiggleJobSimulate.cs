@@ -30,6 +30,8 @@ public struct JiggleJobSimulate : IJobFor {
 
     private float deltaTimeSquared;
 
+    private const long MAX_BROADPHASE_CELLS = 4096;
+
     public JiggleJobSimulate(JiggleMemoryBus bus, float fixedDeltaTime) {
         inputPoses = bus.simulateInputPoses;
         jiggleTrees = bus.jiggleTreeStructs;
@@ -397,13 +399,21 @@ public struct JiggleJobSimulate : IJobFor {
             // TODO: to convert a float to a grid location we just cast, but this always rounds towards zero. Probably should be a math.round()
             int2 min = tree.minExtentPosition;
             int2 max = tree.maxExtentPosition;
-            for (int x = min.x; x <= max.x; x++) {
-                for (int y = min.y; y <= max.y; y++) {
-                    int2 grid = new int2(x, y);
-                    if (broadPhaseMap.TryGetValue(grid, out var gridCell)) {
-                        for (int index = 0; index < gridCell.count; index++) {
-                            var sceneCollider = sceneColliders[gridCell.colliderIndices[index]];
-                            DepenetrateCollider(tree, point, parent, pointParameters, parentParameters, sceneCollider);
+            // Corrupt or runaway point positions produce extents spanning millions of cells;
+            // walking them would hang the sim for seconds. A healthy tree spans a handful of
+            // cells, so skip the grid walk (global colliders above still applied) when the
+            // extent is implausible. long math: garbage extents overflow int subtraction.
+            long cellSpanX = (long)max.x - min.x + 1;
+            long cellSpanY = (long)max.y - min.y + 1;
+            if (cellSpanX > 0 && cellSpanY > 0 && cellSpanX * cellSpanY <= MAX_BROADPHASE_CELLS) {
+                for (int x = min.x; x <= max.x; x++) {
+                    for (int y = min.y; y <= max.y; y++) {
+                        int2 grid = new int2(x, y);
+                        if (broadPhaseMap.TryGetValue(grid, out var gridCell)) {
+                            for (int index = 0; index < gridCell.count; index++) {
+                                var sceneCollider = sceneColliders[gridCell.colliderIndices[index]];
+                                DepenetrateCollider(tree, point, parent, pointParameters, parentParameters, sceneCollider);
+                            }
                         }
                     }
                 }
@@ -561,6 +571,9 @@ public struct JiggleJobSimulate : IJobFor {
     }
 
     private unsafe void ApplyPose(JiggleTreeJobData tree) {
+        if (tree.pointCount < 2) {
+            return;
+        }
         var rootPoint = tree.points[1];
         var rootSimulationPosition = rootPoint.position;
         var rootPose = rootPoint.pose;
