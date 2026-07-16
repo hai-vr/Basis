@@ -138,13 +138,23 @@ static int hvcc_to_annexb(const uint8_t* cfg, int cfg_len, uint8_t* out, int out
     int num_arrays = cfg[22];
     int p = 23;
     for (int a = 0; a < num_arrays && p + 3 <= cfg_len; ++a) {
+        /* Only the parameter sets configure the decoder. hvcC may also carry SEI
+         * arrays -- x265 writes a verbose build-info SEI by default, which alone
+         * runs to a couple of kilobytes -- and copying those out would push the
+         * parameter sets past out_cap and lose the lot. */
+        int nal_type = cfg[p] & 0x3F;
+        int keep = (nal_type == 32 /*VPS*/ || nal_type == 33 /*SPS*/ || nal_type == 34 /*PPS*/);
         p += 1; /* array_completeness + NAL type */
         int num = (cfg[p] << 8) | cfg[p + 1]; p += 2;
         for (int n = 0; n < num && p + 2 <= cfg_len; ++n) {
             int l = (cfg[p] << 8) | cfg[p + 1]; p += 2;
-            if (p + l > cfg_len || op + 4 + l > out_cap) return -1;
-            memcpy(out + op, kStartCode, 4); op += 4;
-            memcpy(out + op, cfg + p, l); op += l; p += l;
+            if (p + l > cfg_len) return -1;
+            if (keep) {
+                if (op + 4 + l > out_cap) return -1;
+                memcpy(out + op, kStartCode, 4); op += 4;
+                memcpy(out + op, cfg + p, l); op += l;
+            }
+            p += l;
         }
     }
     return op;
