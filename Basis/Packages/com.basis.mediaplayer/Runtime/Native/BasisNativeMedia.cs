@@ -39,8 +39,10 @@ internal static class BasisNativeMedia
         [MarshalAs(UnmanagedType.LPStr)] string audioUrl,
         int deliveryHint);
 
-    [DllImport(Lib, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Ansi)]
-    private static extern void basis_decoder_set_opus_library_path([MarshalAs(UnmanagedType.LPStr)] string path);
+    // Wide string: the path can contain non-ANSI characters (a project under a
+    // localized directory), which LPStr/LoadLibraryA would mangle.
+    [DllImport(Lib, CallingConvention = CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+    private static extern void basis_decoder_set_opus_library_path([MarshalAs(UnmanagedType.LPWStr)] string path);
 
     [DllImport(Lib, CallingConvention = CallingConvention.StdCall)]
     private static extern void basis_media_close(IntPtr engine);

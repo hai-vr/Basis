@@ -952,7 +952,9 @@ struct opus_api {
 };
 static opus_api g_opus = {};
 static bool g_opus_ok = false, g_opus_tried = false;
-static char g_opus_path[512] = {0};
+/* Wide path so a project under a non-ANSI directory (e.g. C:\媒体\Basis) still
+ * loads: LoadLibraryA would fail there and the miss is cached for the session. */
+static wchar_t g_opus_path[32768] = {0};
 /* The loader and path setter touch process-wide state; concurrent decoder opens
  * (multiple players) would otherwise race g_opus_tried/g_opus_ok/g_opus_path. */
 static std::mutex g_opus_mtx;
@@ -961,8 +963,8 @@ static bool opus_load() {
     std::lock_guard<std::mutex> lock(g_opus_mtx);
     if (g_opus_tried) return g_opus_ok;
     g_opus_tried = true;
-    HMODULE lib = g_opus_path[0] ? LoadLibraryA(g_opus_path) : nullptr;
-    if (!lib) lib = LoadLibraryA("opus.dll");   /* flattened-build Plugins dir */
+    HMODULE lib = g_opus_path[0] ? LoadLibraryW(g_opus_path) : nullptr;
+    if (!lib) lib = LoadLibraryW(L"opus.dll");  /* flattened-build Plugins dir */
     if (!lib) return false;
     g_opus.dec_create      = (decltype(g_opus.dec_create))      GetProcAddress(lib, "opus_decoder_create");
     g_opus.decode_float    = (decltype(g_opus.decode_float))    GetProcAddress(lib, "opus_decode_float");
@@ -982,11 +984,10 @@ static bool opus_load() {
  * decode (the Editor Packages path vs the flattened Plugins dir). C#-facing, so
  * exported and __stdcall to match the P/Invoke (unlike the internal decoder
  * entry points the native core calls). */
-extern "C" __declspec(dllexport) void __stdcall basis_decoder_set_opus_library_path(const char* path) {
+extern "C" __declspec(dllexport) void __stdcall basis_decoder_set_opus_library_path(const wchar_t* path) {
     if (!path) return;
     std::lock_guard<std::mutex> lock(g_opus_mtx);
-    strncpy(g_opus_path, path, sizeof(g_opus_path) - 1);
-    g_opus_path[sizeof(g_opus_path) - 1] = 0;
+    wcsncpy_s(g_opus_path, _countof(g_opus_path), path, _TRUNCATE);
 }
 
 static bool pick_audio_output(basis_decoder* d) {
