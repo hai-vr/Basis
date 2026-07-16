@@ -959,12 +959,35 @@ static wchar_t g_opus_path[32768] = {0};
  * (multiple players) would otherwise race g_opus_tried/g_opus_ok/g_opus_path. */
 static std::mutex g_opus_mtx;
 
+/* Resolve opus.dll next to this plugin (the standalone-build flattened Plugins
+ * dir) and load it by absolute path — never a bare name, which would search the
+ * cwd/PATH and let a planted opus.dll be loaded. */
+static HMODULE opus_load_from_plugin_dir() {
+    HMODULE self = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCWSTR)&opus_load_from_plugin_dir, &self))
+        return nullptr;
+    wchar_t path[2048];
+    DWORD n = GetModuleFileNameW(self, path, (DWORD)(sizeof(path) / sizeof(path[0])));
+    if (n == 0 || n >= sizeof(path) / sizeof(path[0])) return nullptr;
+    wchar_t* slash = wcsrchr(path, L'\\');
+    if (!slash) return nullptr;
+    slash[1] = 0;                                /* keep the trailing backslash */
+    if (wcslen(path) + wcslen(L"opus.dll") >= sizeof(path) / sizeof(path[0])) return nullptr;
+    wcscat_s(path, sizeof(path) / sizeof(path[0]), L"opus.dll");
+    /* LOAD_WITH_ALTERED_SEARCH_PATH: resolve opus.dll's own dependencies from its
+     * directory rather than the process search path. */
+    return LoadLibraryExW(path, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+}
+
 static bool opus_load() {
     std::lock_guard<std::mutex> lock(g_opus_mtx);
     if (g_opus_tried) return g_opus_ok;
     g_opus_tried = true;
-    HMODULE lib = g_opus_path[0] ? LoadLibraryW(g_opus_path) : nullptr;
-    if (!lib) lib = LoadLibraryW(L"opus.dll");  /* flattened-build Plugins dir */
+    /* Absolute, trusted paths only. The C# side supplies the opussharp path in
+     * the Editor; standalone builds resolve opus.dll next to the plugin. */
+    HMODULE lib = g_opus_path[0] ? LoadLibraryExW(g_opus_path, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH) : nullptr;
+    if (!lib) lib = opus_load_from_plugin_dir();
     if (!lib) return false;
     g_opus.dec_create      = (decltype(g_opus.dec_create))      GetProcAddress(lib, "opus_decoder_create");
     g_opus.decode_float    = (decltype(g_opus.decode_float))    GetProcAddress(lib, "opus_decode_float");
@@ -1333,6 +1356,7 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
     (void)key;
     if (!d || !d->vdec || !annexb || len <= 0) return -1;
     IMFSample* s;
+    bool carried_config = false;
     if (d->vConfigObusLen > 0) {
         /* first AV1 AU: prepend the held configOBUs so the decoder sees the
          * sequence header before any frame data */
@@ -1343,10 +1367,10 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
             memcpy(tmp + d->vConfigObusLen, annexb, len);
             s = make_input_sample(tmp, total, pts_us);
             free(tmp);
+            carried_config = true;
         } else {
             s = make_input_sample(annexb, len, pts_us);
         }
-        d->vConfigObusLen = 0;
     } else {
         s = make_input_sample(annexb, len, pts_us);
     }
@@ -1366,8 +1390,12 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
         }
     }
     s->Release();
+    /* Only drop the held configOBUs once the sample carrying them was accepted;
+     * otherwise the next AU must re-prepend them or AV1 never sees its sequence
+     * header. If the sample was never consumed, report it so the caller knows. */
+    if (consumed && carried_config) d->vConfigObusLen = 0;
     drain_video(d);
-    return 0;
+    return consumed ? 0 : -1;
 }
 
 /* Source-order -> WAVE-order channel map for the Blu-ray HDMV LPCM
