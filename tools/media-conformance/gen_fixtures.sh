@@ -105,6 +105,9 @@ if has_enc libopus; then
     fi
     ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libopus -ac 2 "$out/opus.webm"
     note "opus.webm"
+    # Ogg Opus (.opus file): the Ogg demuxer, page framing + OpusHead/OpusTags.
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libopus -ac 2 "$out/audio.opus"
+    note "audio.opus"
 else
     skip "Opus fixtures" "no libopus"
 fi

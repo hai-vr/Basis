@@ -223,7 +223,8 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
 
 def gate(fixtures: Path, dumper: Path) -> int:
     media = sorted(p for p in fixtures.iterdir()
-                   if p.suffix.lower() in {".mp4", ".m4a", ".ts", ".m2ts", ".webm", ".wav"})
+                   if p.suffix.lower() in {".mp4", ".m4a", ".ts", ".m2ts", ".webm", ".wav",
+                                           ".opus", ".ogg"})
     if not media:
         print(f"no fixtures in {fixtures}")
         return 1

@@ -24,6 +24,7 @@ fi
 srcs=(
     "$here/native/basis_demux_dump.c"
     "$native/protocol/basis_webm.c"
+    "$native/protocol/basis_ogg.c"
     "$native/protocol/basis_mp4.c"
     "$native/protocol/basis_ts.c"
     "$native/protocol/basis_wav.c"

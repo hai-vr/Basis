@@ -47,6 +47,7 @@
 #include "protocol/basis_mp4.h"
 #include "protocol/basis_ts.h"
 #include "protocol/basis_wav.h"
+#include "protocol/basis_ogg.h"
 
 /* ---- MD5 (RFC 1321) ------------------------------------------------------ */
 
@@ -342,6 +343,8 @@ static const char* detect(FILE* f) {
         return "mp4";
     if (n >= 12 && !memcmp(head, "RIFF", 4) && !memcmp(head + 8, "WAVE", 4))
         return "wav";
+    if (n >= 4 && !memcmp(head, "OggS", 4))
+        return "ogg";
     return "ts";
 }
 
@@ -418,6 +421,9 @@ int main(int argc, char** argv) {
         rc = basis_ts_run(&sink, h_read, &h);
     else if (!strcmp(demux, "wav"))
         rc = basis_wav_run(&sink, h_read, &h);
+    else if (!strcmp(demux, "ogg"))
+        rc = basis_ogg_run(&sink, h_read, &h, h.allow_reseek ? h_reseek : NULL,
+                           h.allow_reseek ? &h : NULL);
     else {
         fprintf(stderr, "unknown demuxer: %s\n", demux);
         fclose(f);

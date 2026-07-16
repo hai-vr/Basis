@@ -44,6 +44,7 @@ the crash; if the minimized file stops reproducing, keep the original artifact.
 | `fuzz_ts` | `basis_ts_run` — MPEG-TS PAT/PMT/PES demux | `basis_ts.c` + `basis_bitstream.c` + `basis_caption.c` |
 | `fuzz_mp4` | `basis_mp4_run` — MP4/fMP4 box + sample-table demux | `basis_mp4.c` + `basis_bitstream.c` + `basis_caption.c` |
 | `fuzz_webm` | `basis_webm_run` — WebM/Matroska EBML demux | `basis_webm.c` + `basis_bitstream.c` |
+| `fuzz_ogg` | `basis_ogg_run` — Ogg page/lacing/CRC demux (`.opus`) | `basis_ogg.c` |
 | `fuzz_caption` | `basis_caption_scan_au` — in-band CEA-608 SEI scan | `basis_caption.c` + `basis_bitstream.c` |
 
 New targets slot in the same way — one `fuzz_<name>.c` driver plus its protocol sources in

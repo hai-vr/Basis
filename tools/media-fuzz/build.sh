@@ -51,6 +51,10 @@ if [ "$want" = "all" ] || [ "$want" = "webm" ]; then
         "$native/protocol/basis_webm.c" \
         "$native/protocol/basis_bitstream.c"
 fi
+if [ "$want" = "all" ] || [ "$want" = "ogg" ]; then
+    build_target ogg \
+        "$native/protocol/basis_ogg.c"
+fi
 if [ "$want" = "all" ] || [ "$want" = "caption" ]; then
     build_target caption \
         "$native/protocol/basis_caption.c" \
