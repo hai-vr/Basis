@@ -280,7 +280,12 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
     {
         if (handle == IntPtr.Zero || disposed) return;
 
-        PollTrackStateOnce();
+        var engineState = BasisNativeMedia.GetState(handle);
+        bool trackStateCanChange =
+            engineState == BasisNativeMedia.State.Connecting ||
+            engineState == BasisNativeMedia.State.Buffering ||
+            engineState == BasisNativeMedia.State.Playing;
+        if (trackStateCanChange && (pumpCount % 30) == 0) PollTrackStateOnce();
 
         // On the Vulkan path: as soon as the engine has detected the video size,
         // allocate a RenderTexture and hand its native pointer to the plugin.
@@ -332,7 +337,7 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
             }
         }
 
-        switch (BasisNativeMedia.GetState(handle))
+        switch (engineState)
         {
             case BasisNativeMedia.State.Error when !errorRaised:
                 errorRaised = true;
@@ -365,7 +370,7 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
         // ended (state=Ended), or the texture froze (frames stuck but no error).
         pumpCount++;
         if (!verboseLogging) return;
-        BasisMediaEngineState hb = State;
+        BasisMediaEngineState hb = (BasisMediaEngineState)(int)engineState;
         if (hb != lastLoggedState || (pumpCount % 120) == 0)
         {
             lastLoggedState = hb;

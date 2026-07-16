@@ -741,14 +741,14 @@ namespace Basis.ImagePickup
 
         private static void StartQueuedGifSpawns()
         {
-            if (BasisAnimatedImageData.ShouldPauseNewDecode())
-            {
-                LogGifDecodePausedForMemory();
-                return;
-            }
             if (_queuedGifSpawns.Count == 0)
             {
                 _gifDecodePausedForMemory = false;
+                return;
+            }
+            if (BasisAnimatedImageData.ShouldPauseNewDecode())
+            {
+                LogGifDecodePausedForMemory();
                 return;
             }
 
@@ -1223,7 +1223,20 @@ namespace Basis.ImagePickup
 
         private static void SimulateUpdateBody()
         {
-            CleanupDestroyedImages();
+            if (
+                _images.Count == 0
+                && _inbound.Count == 0
+                && _inboundAnimations.Count == 0
+                && _outboundImages.Count == 0
+                && _outboundAnimations.Count == 0
+                && _queuedFileSpawns.Count == 0
+                && _queuedGifSpawns.Count == 0
+                && _pendingGifSpawns.Count == 0
+                && _queuedInboundAnimationDecodes.Count == 0
+                && _pendingInboundAnimationDecodes.Count == 0
+            )
+                return;
+
             UpdateBackPanelVisibility();
             ProcessQueuedFileSpawns();
             ProcessCompletedGifSpawns();
@@ -1231,19 +1244,26 @@ namespace Basis.ImagePickup
             StartQueuedInboundAnimationDecodes();
 
             float deltaTime = Time.deltaTime;
-            foreach (BasisImagePickupObject pickup in _images.Values)
-                pickup?.SimulateRemoteTransform(deltaTime);
-
-            if (!HasNetworkID)
-                return;
-
-            float now = Time.unscaledTime;
+            bool transmit = HasNetworkID;
+            float now = transmit ? Time.unscaledTime : 0f;
             float interval = 1f / BasisImagePickupSettings.TransmitTransformHz;
 
+            // One pass over the tracked cards handles destroyed-entry sweep, remote interpolation, and
+            // controller transform transmission together. Externally destroyed pickups (scene unloads that
+            // bypass OnPickupDestroyed) are collected here and removed after the enumeration; every earlier
+            // step this frame already skips Unity-null entries.
+            _scratchIds.Clear();
             foreach (KeyValuePair<Guid, BasisImagePickupObject> entry in _images)
             {
                 BasisImagePickupObject pickup = entry.Value;
-                if (pickup == null || !pickup.IsController)
+                if (pickup == null)
+                {
+                    _scratchIds.Add(entry.Key);
+                    continue;
+                }
+                pickup.SimulateRemoteTransform(deltaTime);
+
+                if (!transmit || !pickup.IsController)
                     continue;
                 // A local card that is still decoding has not been announced to anyone yet, so peers have no
                 // image to move. Its spawn header carries the pose it ends up at, and the first post-decode
@@ -1276,6 +1296,13 @@ namespace Basis.ImagePickup
                     null
                 );
             }
+            int destroyedImageCount = _scratchIds.Count;
+            for (int i = 0; i < destroyedImageCount; i++)
+                RemoveImage(_scratchIds[i], false);
+            _scratchIds.Clear();
+
+            if (!transmit)
+                return;
 
             ProcessOutboundImageTransfers();
             ProcessOutboundAnimationTransfers();
@@ -2648,20 +2675,6 @@ namespace Basis.ImagePickup
             )
                 return;
             RemoveImage(pickup.ImageId, false);
-        }
-
-        private static void CleanupDestroyedImages()
-        {
-            _scratchIds.Clear();
-            foreach (KeyValuePair<Guid, BasisImagePickupObject> entry in _images)
-            {
-                if (entry.Value == null)
-                    _scratchIds.Add(entry.Key);
-            }
-            int destroyedImageCount = _scratchIds.Count;
-            for (int i = 0; i < destroyedImageCount; i++)
-                RemoveImage(_scratchIds[i], false);
-            _scratchIds.Clear();
         }
 
         private static void RemoveImage(Guid id, bool destroyPickup = true)

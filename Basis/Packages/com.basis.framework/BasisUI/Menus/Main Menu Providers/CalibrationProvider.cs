@@ -65,6 +65,47 @@ namespace Basis.BasisUI
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
             Button.Descriptor.SetTooltip(BasisLocalization.Get("calibration.calibrate.tooltip"));
 
+            // See-through calibration mirror (implementation registers from the examples assembly):
+            // shows only your avatar + calibration visuals, and unlike the pinned Personal Mirror it
+            // spawns without closing the menu. Off by default; the size buttons only exist while up.
+            if (BasisCalibrationMirrorService.Available)
+            {
+                IBasisCalibrationMirror mirror = BasisCalibrationMirrorService.Provider;
+
+                var mirrorToggle = PanelToggle.CreateNewEntry(container);
+                mirrorToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.mirror"));
+                mirrorToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.mirror.tooltip"));
+                mirrorToggle.SetValueWithoutNotify(mirror.IsUp);
+
+                var mirrorLarger = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+                mirrorLarger.Descriptor.SetTitle(BasisLocalization.Get("calibration.mirror.larger"));
+                mirrorLarger.OnClicked += mirror.ScaleUp;
+
+                var mirrorSmaller = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+                mirrorSmaller.Descriptor.SetTitle(BasisLocalization.Get("calibration.mirror.smaller"));
+                mirrorSmaller.OnClicked += mirror.ScaleDown;
+
+                mirrorLarger.gameObject.SetActive(mirror.IsUp);
+                mirrorSmaller.gameObject.SetActive(mirror.IsUp);
+
+                mirrorToggle.OnValueChanged += value =>
+                {
+                    if (value)
+                    {
+                        mirror.Summon();
+                    }
+                    else
+                    {
+                        mirror.Hide();
+                    }
+                    bool up = mirror.IsUp;
+                    mirrorToggle.SetValueWithoutNotify(up);
+                    mirrorLarger.gameObject.SetActive(up);
+                    mirrorSmaller.gameObject.SetActive(up);
+                    layout.ForceRebuild();
+                };
+            }
+
             // Calibration quality report — filled in after a calibration completes.
             _reportGroup = null;
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
@@ -91,6 +132,23 @@ namespace Basis.BasisUI
                 new List<string> { "settings.bodyTracking.ikMode.auto", "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
             scalingModeDropdown.AssignBinding(BasisSettingsDefaults.IKMode);
 
+            // Arm To Height Ratio: scale by a percentage between the two measurements instead of a single
+            // scaling mode. Overrides the Avatar Scaling Mode dropdown while enabled (VR only).
+            var armToHeightToggle = PanelToggle.CreateNewEntry(container);
+            armToHeightToggle.Descriptor.SetTitle("Arm To Height Ratio");
+            armToHeightToggle.Descriptor.SetTooltip(
+                "Scale the avatar by a percentage between your two measurements instead of a single scaling mode: " +
+                "0% uses eye height, 100% uses arm distance, and values outside that range keep going in the " +
+                "same direction. Overrides Avatar Scaling Mode while enabled.");
+            armToHeightToggle.AssignBinding(BasisSettingsDefaults.EnableArmToHeightBlend);
+
+            var armToHeightSlider = PanelSlider.CreateAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced("Arm To Height Ratio",
+                    BasisCalibrationMath.ArmToHeightBlendMin, BasisCalibrationMath.ArmToHeightBlendMax,
+                    false, 2, ValueDisplayMode.percentageFromZero),
+                BasisSettingsDefaults.ArmToHeightBlend);
+
             var spineLockModeDropdown = PanelDropdown.CreateNewEntry(container);
             spineLockModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.spineLockMode"));
             spineLockModeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineLockMode.tooltip"));
@@ -104,41 +162,35 @@ namespace Basis.BasisUI
             NarrowDropdownForPanel(scalingModeDropdown);
             NarrowDropdownForPanel(spineLockModeDropdown);
 
-            // Avatar Scaling Mode is moot in seated mode (a fixed height is used), so disable it there.
+            // Avatar Scaling Mode is moot in seated mode (a fixed height is used) and while the
+            // Arm To Height Ratio blend replaces it, so disable it there.
             void UpdateScalingModeInteractable()
             {
                 bool isSeated = seatedModeDropdown.DropdownComponent.options[seatedModeDropdown.DropdownComponent.value].text == SettingsProviderIK.SeatedMode_Seated;
-                scalingModeDropdown.SetInteractable(!isSeated,
-                    isSeated ? BasisLocalization.Get("settings.bodyTracking.ikMode.disabledSeated") : null);
+                bool blendActive = BasisSettingsDefaults.EnableArmToHeightBlend.RawValue;
+                scalingModeDropdown.SetInteractable(!isSeated && !blendActive,
+                    isSeated ? BasisLocalization.Get("settings.bodyTracking.ikMode.disabledSeated")
+                    : blendActive ? "Disabled while Arm To Height Ratio is enabled." : null);
             }
             seatedModeDropdown.OnValueChanged += _ => UpdateScalingModeInteractable();
             UpdateScalingModeInteractable();
 
-            // Persistent Eye Height Modifier, gated behind a toggle. Bridges a systematic measured-eye-height
-            // shortfall (seen on OpenVR: avatar feels too tall) so the gap is corrected once. Survives restarts/swaps.
-            var eyeHeightCorrectionToggle = PanelToggle.CreateNewEntry(container);
-            eyeHeightCorrectionToggle.Descriptor.SetTitle("Eye Height Modifier");
-            eyeHeightCorrectionToggle.Descriptor.SetTooltip(
-                "Enable a persistent modifier added to your measured standing eye height before scaling. If the " +
-                "avatar feels too tall, turn this on and raise the slider to bridge the gap. Survives restarts and avatar swaps.");
-            eyeHeightCorrectionToggle.AssignBinding(BasisSettingsDefaults.EnableStandingEyeHeightCorrection);
-
-            var eyeHeightCorrectionSlider = PanelSlider.CreateAndBind(
-                container,
-                PanelSlider.SliderSettings.Advanced("Eye Height Modifier", BasisHeightDriver.StandingHeightCorrectionMin, BasisHeightDriver.StandingHeightCorrectionMax, false, 2, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.CalibrationStandingEyeHeightMeters);
-            if (eyeHeightCorrectionSlider != null)
+            if (armToHeightSlider != null)
             {
-                eyeHeightCorrectionSlider.Descriptor.SetTooltip(
-                    "Persistent modifier added to your measured standing eye height before scaling. If the avatar " +
-                    "feels too tall, raise this to bridge the gap (e.g. +0.10 m). Survives restarts and avatar swaps.");
-                eyeHeightCorrectionSlider.gameObject.SetActive(BasisSettingsDefaults.EnableStandingEyeHeightCorrection.RawValue);
-                eyeHeightCorrectionToggle.OnValueChanged += visible =>
-                {
-                    eyeHeightCorrectionSlider.gameObject.SetActive(visible);
-                    layout.ForceRebuild();
-                };
+                armToHeightSlider.Descriptor.SetTooltip(
+                    "Percentage between the two measurements: 0% scales by eye height, 100% by arm distance. " +
+                    "Negative pushes past eye height, above 100% pushes past arm distance.");
+                armToHeightSlider.gameObject.SetActive(BasisSettingsDefaults.EnableArmToHeightBlend.RawValue);
             }
+            armToHeightToggle.OnValueChanged += enabled =>
+            {
+                if (armToHeightSlider != null)
+                {
+                    armToHeightSlider.gameObject.SetActive(enabled);
+                }
+                UpdateScalingModeInteractable();
+                layout.ForceRebuild();
+            };
 
             // Lock-in guides toggle (shrinking spheres + foot-forward guide while calibrating).
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
@@ -199,8 +251,6 @@ namespace Basis.BasisUI
 
         private void ResetCalibration()
         {
-            BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.ResetToDefault();
-            BasisSettingsDefaults.EnableStandingEyeHeightCorrection.ResetToDefault();
             // Forget the persisted body size so the next boot (and this session) starts from a true
             // uncalibrated state instead of re-seeding the old measurements.
             BasisSettingsDefaults.SavedPlayerEyeHeight.ResetToDefault();
@@ -316,6 +366,13 @@ namespace Basis.BasisUI
             BasisCalibrationLockInVisualizer.End();
             _leftPressed = false;
             _rightPressed = false;
+
+            // The cutout mirror is owned by this panel: closing the panel takes it down and
+            // resets its size for the next open.
+            if (BasisCalibrationMirrorService.Available)
+            {
+                BasisCalibrationMirrorService.Provider.Hide();
+            }
 
             if (BasisLocalPlayer.Instance == null)
             {

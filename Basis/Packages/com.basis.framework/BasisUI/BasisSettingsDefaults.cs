@@ -458,15 +458,12 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v3", new BasisPlatformDefault<string>("lock head"));
 
-        // Systematic correction (metres) added to the measured standing eye height before DeviceScale.
-        // It bridges a backend's HMD-pose-origin vs true-eye gap that CenterEyeVerticalOffset under-reports
-        // (seen on OpenVR: avatar renders too tall). Default 0 = no-op; persists, so the gap is corrected once.
-        // Read the "true-eye estimate vs DeviceScale" calibration log to dial in the real value.
-        public static BasisSettingsBinding<float> CalibrationStandingEyeHeightMeters = new("calibrationstandingeyeheightmeters", new BasisPlatformDefault<float>(0f));
-
-        // Gate for the standing eye-height correction above. When off, the correction is ignored (treated as 0)
-        // regardless of the stored metres, and the slider is hidden in the calibration panel. Off by default.
-        public static BasisSettingsBinding<bool> EnableStandingEyeHeightCorrection = new("enablestandingeyeheightcorrection", new BasisPlatformDefault<bool>(false));
+        // Arm-to-height ratio: scale the avatar by a percentage between the two measurements instead of a
+        // single mode -- 0 = eye height, 1 = arm distance, and outside 0..1 it extrapolates past the nearer
+        // endpoint (range in BasisCalibrationMath.ArmToHeightBlendMin/Max). While enabled it replaces the
+        // Avatar Scaling Mode dropdown (VR only; desktop always scales by eye height).
+        public static BasisSettingsBinding<bool> EnableArmToHeightBlend = new("enablearmtoheightblend", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> ArmToHeightBlend = new("armtoheightblend", new BasisPlatformDefault<float>(0.5f));
 
         // The player's body size measured at their last explicit calibration (metres). Seeded back into
         // BasisHeightDriver at boot so the very first avatar fits at the right scale instead of the
@@ -1572,8 +1569,8 @@ namespace Basis.BasisUI
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();
-            CalibrationStandingEyeHeightMeters.LoadBindingValue();
-            EnableStandingEyeHeightCorrection.LoadBindingValue();
+            EnableArmToHeightBlend.LoadBindingValue();
+            ArmToHeightBlend.LoadBindingValue();
             SavedPlayerEyeHeight.LoadBindingValue();
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();

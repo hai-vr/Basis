@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace Basis.Scripts.Networking.Sync
@@ -49,7 +51,9 @@ namespace Basis.Scripts.Networking.Sync
 
     /// <summary>
     /// Drop-in transform sync built on <see cref="BasisSyncedObject"/>. The owner streams the enabled
-    /// axes; every other client's copy is interpolated and composed each frame. Per-axis toggles let
+    /// axes; every other client's copy is interpolated and composed each frame — off the main thread by
+    /// the Burst apply job unless the configuration needs it (RelativeTo, or a subclass overriding
+    /// <see cref="ApplyInterpolated"/>). Per-axis toggles let
     /// you sync only what moves (e.g. a door = rotation Y only in Euler mode), the rotation mode picks the
     /// orientation encoding (smallest-three / quaternion / Euler), uniform scale streams one value to all axes,
     /// per-axis compression (Half / Ranged) shrinks the float cost, and teleport-threshold tunes late packets.
@@ -113,6 +117,13 @@ namespace Basis.Scripts.Networking.Sync
         private BasisSyncHandle _scaleUniform = BasisSyncHandle.Invalid;
         private bool _rotEuler;
         private Vector3 _heldEuler;
+        private bool _hasSyncedPosRot;
+        private bool _hasSyncedScale;
+        private bool _needsLivePose;
+        private bool _needsLiveScale;
+
+        /// <summary>True when at least one scale channel is synced — when false, ComposeSyncedPose leaves scale at Vector3.one and it must not be applied.</summary>
+        protected bool HasSyncedScale => _hasSyncedScale;
 
         private void Reset()
         {
@@ -182,6 +193,12 @@ namespace Basis.Scripts.Networking.Sync
             // that's the window the teleport threshold watches.
             TeleportWatchStart = 0;
             TeleportWatchCount = posAxes;
+
+            bool hasSyncedRot = _rotQuat.IsValid || _rotQw.IsValid || _rotEuler;
+            _hasSyncedPosRot = _posX.IsValid || _posY.IsValid || _posZ.IsValid || hasSyncedRot;
+            _hasSyncedScale = _scaleUniform.IsValid || _scaleX.IsValid || _scaleY.IsValid || _scaleZ.IsValid;
+            _needsLivePose = !(_posX.IsValid && _posY.IsValid && _posZ.IsValid) || !hasSyncedRot;
+            _needsLiveScale = _hasSyncedScale && !_scaleUniform.IsValid && !(_scaleX.IsValid && _scaleY.IsValid && _scaleZ.IsValid);
         }
 
         protected override void OnBeforeTransmit()
@@ -280,23 +297,94 @@ namespace Basis.Scripts.Networking.Sync
             }
         }
 
+        /// <summary>
+        /// Hands the whole apply over to the Burst transform job when the configuration is expressible
+        /// there — everything except RelativeTo (needs another transform's live pose) and subclasses
+        /// that override <see cref="ApplyInterpolated"/> (pickups, vehicles: custom main-thread logic).
+        /// Those keep the main-thread path below (plus any explicit BindTransform binding, via base).
+        /// </summary>
+        internal override bool TryGetJobApplyBinding(out BasisSyncApplyBinding binding, out Transform target, out bool replacesMainThreadApply)
+        {
+            if (Target == null || RelativeTo != null || HasCustomApply())
+                return base.TryGetJobApplyBinding(out binding, out target, out replacesMainThreadApply);
+
+            binding = BasisSyncApplyBinding.Empty;
+            target = Target;
+            replacesMainThreadApply = true;
+
+            if (_posX.IsValid) binding.PosX = ContOffset(_posX);
+            if (_posY.IsValid) binding.PosY = ContOffset(_posY);
+            if (_posZ.IsValid) binding.PosZ = ContOffset(_posZ);
+
+            if (_rotQuat.IsValid)
+            {
+                binding.RotQuat = Schema.GetField(_rotQuat.FieldIndex).Offset;
+            }
+            else if (_rotQw.IsValid)
+            {
+                binding.RotCont = ContOffset(_rotQx);
+            }
+            else if (_rotEuler)
+            {
+                binding.HeldEuler = _heldEuler;
+                if (_eulerX.IsValid) binding.EulerX = ContOffset(_eulerX);
+                if (_eulerY.IsValid) binding.EulerY = ContOffset(_eulerY);
+                if (_eulerZ.IsValid) binding.EulerZ = ContOffset(_eulerZ);
+            }
+
+            if (_scaleUniform.IsValid)
+            {
+                binding.ScaleUniform = ContOffset(_scaleUniform);
+            }
+            else
+            {
+                if (_scaleX.IsValid) binding.ScaleX = ContOffset(_scaleX);
+                if (_scaleY.IsValid) binding.ScaleY = ContOffset(_scaleY);
+                if (_scaleZ.IsValid) binding.ScaleZ = ContOffset(_scaleZ);
+            }
+
+            binding.World = (byte)(WorldSpace ? 1 : 0);
+            return binding.HasAny;
+        }
+
+        private int ContOffset(BasisSyncHandle h) => Schema.GetField(h.FieldIndex).Offset;
+
+        private static readonly Dictionary<System.Type, bool> _customApplyByType = new Dictionary<System.Type, bool>();
+
+        private bool HasCustomApply()
+        {
+            System.Type t = GetType();
+            if (!_customApplyByType.TryGetValue(t, out bool custom))
+            {
+                MethodInfo m = t.GetMethod(nameof(ApplyInterpolated), BindingFlags.Instance | BindingFlags.NonPublic);
+                custom = m == null || m.DeclaringType != typeof(BasisSyncedTransform);
+                _customApplyByType[t] = custom;
+            }
+            return custom;
+        }
+
         protected override void ApplyInterpolated()
         {
             if (!ComposeSyncedPose(out Vector3 p, out Quaternion r, out Vector3 s)) return;
 
-            if (RelativeTo != null)
+            if (_hasSyncedPosRot)
             {
-                Target.SetPositionAndRotation(RelativeTo.TransformPoint(p), RelativeTo.rotation * r);
+                if (RelativeTo != null)
+                {
+                    Target.SetPositionAndRotation(RelativeTo.TransformPoint(p), RelativeTo.rotation * r);
+                }
+                else if (WorldSpace) Target.SetPositionAndRotation(p, r);
+                else Target.SetLocalPositionAndRotation(p, r);
             }
-            else if (WorldSpace) Target.SetPositionAndRotation(p, r);
-            else Target.SetLocalPositionAndRotation(p, r);
-            Target.localScale = s;
+            if (_hasSyncedScale) Target.localScale = s;
         }
 
         /// <summary>
         /// Decodes the interpolated pose for the enabled axes (in <see cref="WorldSpace"/> or local space, matching
-        /// transmit); unsynced channels hold the Target's live value. Subclasses can use this to drive something
-        /// other than the Target transform — e.g. a Rigidbody with prediction + correction.
+        /// transmit); a partially-synced channel holds the Target's live value on its unsynced axes. Live transform
+        /// reads only happen for those partial channels — when nothing scale-related is synced, s is Vector3.one
+        /// (gate applying it on <see cref="HasSyncedScale"/>). Subclasses can use this to drive something other
+        /// than the Target transform — e.g. a Rigidbody with prediction + correction.
         /// </summary>
         protected bool ComposeSyncedPose(out Vector3 p, out Quaternion r, out Vector3 s)
         {
@@ -305,15 +393,18 @@ namespace Basis.Scripts.Networking.Sync
             s = Vector3.one;
             if (Target == null) return false;
 
-            if (RelativeTo != null)
+            if (_needsLivePose)
             {
-                Target.GetPositionAndRotation(out p, out r);
-                p = RelativeTo.InverseTransformPoint(p);
-                r = Quaternion.Inverse(RelativeTo.rotation) * r;
+                if (RelativeTo != null)
+                {
+                    Target.GetPositionAndRotation(out p, out r);
+                    p = RelativeTo.InverseTransformPoint(p);
+                    r = Quaternion.Inverse(RelativeTo.rotation) * r;
+                }
+                else if (WorldSpace) Target.GetPositionAndRotation(out p, out r);
+                else Target.GetLocalPositionAndRotation(out p, out r);
             }
-            else if (WorldSpace) Target.GetPositionAndRotation(out p, out r);
-            else Target.GetLocalPositionAndRotation(out p, out r);
-            s = Target.localScale;
+            if (_needsLiveScale) s = Target.localScale;
 
             if (_posX.IsValid) p.x = GetFloat(_posX);
             if (_posY.IsValid) p.y = GetFloat(_posY);

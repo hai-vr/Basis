@@ -1034,7 +1034,7 @@ public static class SettingsProviderIK
         _debugCategories.Clear();
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
-            "Player Eye Height", "Player Arm Span", "Eye Height Modifier");
+            "Player Eye Height", "Player Arm Span");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.avatarMetrics"),
             "Avatar Eye Height", "Avatar Arm Span");
@@ -1100,7 +1100,6 @@ public static class SettingsProviderIK
     {
         "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
         "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
-        "Eye Height Modifier" => $"{Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue:F4} m",
         "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
         "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
         "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
@@ -1112,7 +1111,9 @@ public static class SettingsProviderIK
         "Device Scale" => $"{BasisHeightDriver.DeviceScale:F4}",
         "Applied Up Scale" => $"{BasisHeightDriver.AppliedUpScale:F4}",
         "Scaled to Match Value" => $"{BasisHeightDriver.ScaledToMatchValue:F4}",
-        "Height Mode" => $"{SMModuleCalibration.HeightMode}",
+        "Height Mode" => BasisHeightDriver.TryGetArmToHeightBlend(out float armToHeightBlend)
+            ? $"ArmToHeightBlend {armToHeightBlend:P0}"
+            : $"{SMModuleCalibration.HeightMode}",
         "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
         "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
         "Height Grounding Offset" => $"{BasisHeightDriver.HeightModeGroundingOffset:F4} m",
@@ -1124,6 +1125,8 @@ public static class SettingsProviderIK
         // Main IK / calibration controls
         BasisSettingsDefaults.SitStand.ResetToDefault();
         BasisSettingsDefaults.IKMode.ResetToDefault();
+        BasisSettingsDefaults.EnableArmToHeightBlend.ResetToDefault();
+        BasisSettingsDefaults.ArmToHeightBlend.ResetToDefault();
         BasisSettingsDefaults.IKLockMode.ResetToDefault();
         BasisSettingsDefaults.CustomScale.ResetToDefault();
         BasisSettingsDefaults.SelectedScale.ResetToDefault();

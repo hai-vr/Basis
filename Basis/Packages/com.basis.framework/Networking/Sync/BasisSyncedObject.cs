@@ -107,6 +107,7 @@ namespace Basis.Scripts.Networking.Sync
         internal void AdvanceReceiver(float dt) => _receiver?.Advance(dt);
 
         internal bool WantsMainThreadApply;
+        internal bool JobApplied;
         internal int TeleportWatchStart;
         internal int TeleportWatchCount;
 
@@ -114,6 +115,41 @@ namespace Basis.Scripts.Networking.Sync
         {
             if (_receiver != null && _receiver.HasData && !IsOwnedLocallyOnClient)
                 ApplyInterpolated();
+        }
+
+        /// <summary>
+        /// Describes how the Burst apply job should drive this object's transform, with indices as this
+        /// object's own schema offsets (the driver rebases them into the shared pools). Returning false
+        /// leaves the object entirely on the main-thread <see cref="ApplyInterpolated"/> path;
+        /// <paramref name="replacesMainThreadApply"/> additionally suppresses the main-thread call when
+        /// the binding covers everything it would do (a BindTransform binding does not — both ran before
+        /// and still do). Evaluated at every layout rebuild; call
+        /// <see cref="BasisSyncDriver.MarkLayoutDirty"/> after changing what it depends on.
+        /// </summary>
+        internal virtual bool TryGetJobApplyBinding(out BasisSyncApplyBinding binding, out Transform target, out bool replacesMainThreadApply)
+        {
+            binding = BasisSyncApplyBinding.Empty;
+            target = BoundTransform;
+            replacesMainThreadApply = false;
+            if (!HasTransformBinding || BoundTransform == null) return false;
+
+            if (BindPosFieldIndex >= 0)
+            {
+                int off = _schema.GetField(BindPosFieldIndex).Offset;
+                binding.PosX = off;
+                binding.PosY = off + 1;
+                binding.PosZ = off + 2;
+            }
+            if (BindRotFieldIndex >= 0) binding.RotQuat = _schema.GetField(BindRotFieldIndex).Offset;
+            if (BindScaleFieldIndex >= 0)
+            {
+                int off = _schema.GetField(BindScaleFieldIndex).Offset;
+                binding.ScaleX = off;
+                binding.ScaleY = off + 1;
+                binding.ScaleZ = off + 2;
+            }
+            binding.World = (byte)(BindWorldSpace ? 1 : 0);
+            return binding.HasAny;
         }
 
         /// <summary>Driver-driven (post-interpolation, main thread) apply hook for remote objects that compose their own output.</summary>

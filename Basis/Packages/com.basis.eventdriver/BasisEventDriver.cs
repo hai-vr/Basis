@@ -96,17 +96,30 @@ namespace Basis.EventDriver
         public static event Action OnUpdate;
         public static event Action OnLateUpdate;
 
+        private static Action _onUpdateCachedDelegate;
+        private static Delegate[] _onUpdateInvocationList = System.Array.Empty<Delegate>();
+        private static Action _onLateUpdateCachedDelegate;
+        private static Delegate[] _onLateUpdateInvocationList = System.Array.Empty<Delegate>();
+
         private static void ResetEventCallbacks()
         {
             OnUpdate = null;
             OnLateUpdate = null;
+            _onUpdateCachedDelegate = null;
+            _onUpdateInvocationList = System.Array.Empty<Delegate>();
+            _onLateUpdateCachedDelegate = null;
+            _onLateUpdateInvocationList = System.Array.Empty<Delegate>();
         }
 
-        private static void InvokeEventCallbacks(Action callbacks, string callbackName)
+        private static void InvokeEventCallbacks(Action callbacks, string callbackName, ref Action cachedDelegate, ref Delegate[] cachedInvocationList)
         {
-            if (callbacks == null) return;
+            if (!ReferenceEquals(callbacks, cachedDelegate))
+            {
+                cachedDelegate = callbacks;
+                cachedInvocationList = callbacks == null ? System.Array.Empty<Delegate>() : callbacks.GetInvocationList();
+            }
 
-            Delegate[] invocationList = callbacks.GetInvocationList();
+            Delegate[] invocationList = cachedInvocationList;
             int invocationCount = invocationList.Length;
             for (int index = 0; index < invocationCount; index++)
             {
@@ -234,7 +247,7 @@ namespace Basis.EventDriver
             SMModuleDebugOptions.Simulate();
             Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
             BasisHighPlayerCapPerformanceMode.Simulate();
-            InvokeEventCallbacks(OnUpdate, nameof(OnUpdate));
+            InvokeEventCallbacks(OnUpdate, nameof(OnUpdate), ref _onUpdateCachedDelegate, ref _onUpdateInvocationList);
             timeSinceLastUpdate += DeltaTime;
         }
 
@@ -499,7 +512,7 @@ namespace Basis.EventDriver
                 OnBeforeRender();
             }
 
-            InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate));
+            InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate), ref _onLateUpdateCachedDelegate, ref _onLateUpdateInvocationList);
             ProfileLateUpdateFinish();
         }
         /// <summary>

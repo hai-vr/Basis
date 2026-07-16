@@ -105,9 +105,9 @@ namespace Basis.IK.Debugging
                         // so it keeps calling it. The posture model that now ships by default is covered by
                         // BasisPelvisPostureModelTests, against real humans rather than against a synthetic sweep.
                         BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
-                            false, tposeHips, standingHipsY, 0f, false, cfg.CompressionStrength, cfg.MaxDropM, out float3 hipsOn);
+                            false, tposeHips, standingHipsY, 0f, 0f, false, cfg.CompressionStrength, cfg.MaxDropM, out float3 hipsOn);
                         BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
-                            false, tposeHips, standingHipsY, 0f, false, 0f, 0f, out float3 hipsOff);
+                            false, tposeHips, standingHipsY, 0f, 0f, false, 0f, 0f, out float3 hipsOff);
 
                         if (IsNan(hipsOn.y) || IsNan(hipsOff.y)) s.NanCount++;
 

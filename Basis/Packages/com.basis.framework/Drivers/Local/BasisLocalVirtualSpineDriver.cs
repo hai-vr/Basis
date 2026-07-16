@@ -219,6 +219,7 @@ public class BasisLocalVirtualSpineDriver
         {
             Dt = Time.deltaTime,
             Scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
+            TrackingLiftY = BasisLocalPlayspaceMover.VerticalOffset * BasisHeightDriver.DeviceScale,
             ParentMatrix = parentMatrix,
             ParentRotation = parentMatrix.rotation,
             EyeRot = eye.OutGoingData.rotation,
@@ -328,6 +329,19 @@ public class BasisLocalVirtualSpineDriver
     {
         public float Dt;
         public float Scale;
+        /// <summary>
+        /// The play-space mover's vertical offset expressed in scaled bone-sim space
+        /// (VerticalOffset × DeviceScale). Every device pose — head included — carries this shift, so
+        /// every "standing" reference measured against the floor-anchored T-pose (StandingHeadLocalY,
+        /// StandingHipsLocalY, ChestTposeY/SpineTposeY, TposeHips) must be lifted by it too. Without it
+        /// a space-dragged player reads as a phantom squat/bend: the pelvis posture law holds the hips
+        /// (and the whole untracked leg chain hanging off them) up to half the offset away from the
+        /// player's real body, and the chest/spine Y-pins miss by the full offset — which is what kept
+        /// the calibration lock-in guides from ever latching legs/hips after a play-space drag.
+        /// Body-size normalisations (posture d/f denominators, the stance radius) stay UN-lifted — the
+        /// lift moves the body, it does not resize it.
+        /// </summary>
+        public float TrackingLiftY;
         public float4x4 ParentMatrix;
         public quaternion ParentRotation;
         public quaternion EyeRot;
@@ -472,6 +486,7 @@ public class BasisLocalVirtualSpineDriver
                 in tposeHips,
                 P.StandingHipsLocalY,
                 P.StandingHeadLocalY,
+                P.TrackingLiftY,
                 P.PostureModel != 0,
                 P.HipsCompressionStrength,
                 P.HipsMaxDropMeters,
@@ -495,8 +510,8 @@ public class BasisLocalVirtualSpineDriver
 
             if (math.lengthsq(neckToHips) < 1e-10f)
             {
-                ApplyPositionControlTorsoLock(ref chest, in P.ChestTargetRot, in P.ChestTargetPos, in P.ChestScaledOffset, P.ChestTposeY, in P.ParentMatrix, in P.ParentRotation);
-                ApplyPositionControlTorsoLock(ref spine, in P.SpineTargetRot, in P.SpineTargetPos, in P.SpineScaledOffset, P.SpineTposeY, in P.ParentMatrix, in P.ParentRotation);
+                ApplyPositionControlTorsoLock(ref chest, in P.ChestTargetRot, in P.ChestTargetPos, in P.ChestScaledOffset, P.ChestTposeY + P.TrackingLiftY, in P.ParentMatrix, in P.ParentRotation);
+                ApplyPositionControlTorsoLock(ref spine, in P.SpineTargetRot, in P.SpineTargetPos, in P.SpineScaledOffset, P.SpineTposeY + P.TrackingLiftY, in P.ParentMatrix, in P.ParentRotation);
             }
             else
             {
@@ -520,8 +535,8 @@ public class BasisLocalVirtualSpineDriver
                 chest.OutgoingRotation = chestSmoothed;
                 spine.OutgoingRotation = spineSmoothed;
 
-                ApplyPositionGivenBaseTorsoLock(ref chest, in chestPos, in P.ChestScaledOffset, P.ChestTposeY, in P.ParentMatrix, in P.ParentRotation);
-                ApplyPositionGivenBaseTorsoLock(ref spine, in spinePos, in P.SpineScaledOffset, P.SpineTposeY, in P.ParentMatrix, in P.ParentRotation);
+                ApplyPositionGivenBaseTorsoLock(ref chest, in chestPos, in P.ChestScaledOffset, P.ChestTposeY + P.TrackingLiftY, in P.ParentMatrix, in P.ParentRotation);
+                ApplyPositionGivenBaseTorsoLock(ref spine, in spinePos, in P.SpineScaledOffset, P.SpineTposeY + P.TrackingLiftY, in P.ParentMatrix, in P.ParentRotation);
             }
 
             States[IdxHead] = head;
@@ -828,14 +843,20 @@ public class BasisLocalVirtualSpineDriver
         in float3 tposeHips,
         float standingHipsLocalY,
         float standingHeadLocalY,
+        float trackingLiftY,
         bool usePostureModel,
         float compressionStrength,
         float maxDrop,
         out float3 result)
     {
+        // The tracked body carries the play-space vertical offset; the T-pose-derived standing
+        // references don't. Lift them into the same frame or the offset reads as a phantom squat.
+        float standingHipsY = standingHipsLocalY + trackingLiftY;
+        float standingHeadY = standingHeadLocalY + trackingLiftY;
+
         // Match original semantics: when frozen, bias direction is world-aligned (identity yaw),
         // not head yaw. Position base swaps to TPose but forward bias is still applied.
-        float3 hipsBase = freezeToTpose ? tposeHips : neckPos - worldUp * lenTotal;
+        float3 hipsBase = freezeToTpose ? tposeHips + new float3(0f, trackingLiftY, 0f) : neckPos - worldUp * lenTotal;
         quaternion biasYaw = freezeToTpose ? quaternion.identity : headYaw;
         float3 forwardBias = math.mul(biasYaw, new float3(0f, 0f, 1f)) * biasScale;
 
@@ -850,7 +871,7 @@ public class BasisLocalVirtualSpineDriver
         // what follows -- the pelvis may sit above it (the spine compresses, which is what a folding spine
         // does) but never below it, because that would mean the spine has STRETCHED.
         float rigidY = hipsBase.y;
-        float headDrop = standingHeadLocalY - headPos.y;
+        float headDrop = standingHeadY - headPos.y;
 
         if (usePostureModel && standingHeadLocalY > 1e-3f && headDrop > 0f)
         {
@@ -874,7 +895,7 @@ public class BasisLocalVirtualSpineDriver
             // The pelvis may rise above the rigid pose (spine compresses) but never sink below it (spine
             // cannot stretch). On a squat the model lands ON the rigid pose, which is the whole point --
             // that is the case the old saturation was wrongly holding 32.8 cm up.
-            hipsBase.y = math.max(standingHipsLocalY - pelvisDrop, rigidY);
+            hipsBase.y = math.max(standingHipsY - pelvisDrop, rigidY);
         }
         else if (!usePostureModel)
         {
@@ -882,11 +903,11 @@ public class BasisLocalVirtualSpineDriver
             // waist-bend (which is why it was added -- the rigid model buried the pelvis and folded the
             // knees), badly wrong for a squat. Kept behind the VSpinePostureModel toggle so the change is
             // one switch to A/B in a headset, and one switch to revert.
-            float drop = standingHipsLocalY - rigidY;
+            float drop = standingHipsY - rigidY;
             if (drop > 0f && compressionStrength > 0f && maxDrop > 1e-4f)
             {
                 float softDrop = maxDrop * (1f - math.exp(-drop / maxDrop));
-                hipsBase.y = standingHipsLocalY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
+                hipsBase.y = standingHipsY - math.lerp(drop, softDrop, math.saturate(compressionStrength));
             }
         }
         // headDrop <= 0 (head at or above standing height -- tiptoes, a jump) leaves the RIGID pose

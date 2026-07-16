@@ -183,7 +183,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
                     _attachWorldRot = hr * offRot;
                     _haveAttachPose = true;
                     Target.SetPositionAndRotation(_attachWorldPos, _attachWorldRot);
-                    Target.localScale = s;
+                    if (HasSyncedScale) Target.localScale = s;
                 }
                 // else: the owner's avatar/hand isn't resolvable (out of range, still loading) — leave the
                 // prop at its last pose rather than snapping it to the offset interpreted as a world pose.
@@ -225,7 +225,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             const float correction = 0.15f;
             rb.position = Vector3.Lerp(rb.position, worldPos, correction);
             rb.rotation = Quaternion.Slerp(rb.rotation, worldRot, correction);
-            if (Target != null) Target.localScale = ls;
+            if (Target != null && HasSyncedScale) Target.localScale = ls;
         }
     }
 

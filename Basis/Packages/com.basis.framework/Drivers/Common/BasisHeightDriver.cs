@@ -11,9 +11,6 @@ public static class BasisHeightDriver
 {
     public const float FallbackHeightInMeters = 1.61f;
 
-    public const float StandingHeightCorrectionMin = -0.20f;
-    public const float StandingHeightCorrectionMax = 0.20f;
-
     // Small epsilon to prevent divide-by-zero and ratio explosions.
     private const float Epsilon = 1e-5f;
 
@@ -441,8 +438,27 @@ public static class BasisHeightDriver
         return resolved;
     }
 
+    /// <summary>
+    /// Arm-to-height ratio (0 = eye height, 1 = arm distance, negative extrapolates past eye height):
+    /// when enabled it replaces the selected height mode with a metric pair interpolated between the
+    /// two modes. Desktop keeps eye height.
+    /// </summary>
+    public static bool TryGetArmToHeightBlend(out float blend)
+    {
+        blend = Mathf.Clamp(Basis.BasisUI.BasisSettingsDefaults.ArmToHeightBlend.RawValue,
+            BasisCalibrationMath.ArmToHeightBlendMin, BasisCalibrationMath.ArmToHeightBlendMax);
+        return Basis.BasisUI.BasisSettingsDefaults.EnableArmToHeightBlend.RawValue
+            && BasisDeviceManagement.IsUserInDesktop() == false;
+    }
+
     public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
     {
+        if (TryGetArmToHeightBlend(out float armToHeightBlend))
+        {
+            SelectedUnScaledAvatarHeight = SanitizePositive(BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, AvatarArmSpan, armToHeightBlend), FallbackHeightInMeters);
+            SelectedUnScaledPlayerHeight = SanitizePositive(BasisCalibrationMath.BlendEyeSpanMetric(PlayerEyeHeight, PlayerArmSpan, armToHeightBlend), FallbackHeightInMeters);
+            return;
+        }
         Height = ResolveHeightMode(Height);
         switch (Height)
         {
@@ -492,16 +508,30 @@ public static class BasisHeightDriver
 
         // eyeScaleOffset lifts the measured HMD height up to the player's TRUE standing eye height before
         // DeviceScale divides by it. It carries the backend's device-origin->eye correction
-        // (PlayerCenterEyeVerticalOffset; non-zero on OpenVR, 0 when the tracked point is already the eye)
-        // plus the persisted systematic correction that bridges what that under-reports -- the gap that
-        // otherwise renders too tall on OpenVR and makes users nudge up every calibration.
-        float standingEyeCorrection = Basis.BasisUI.BasisSettingsDefaults.EnableStandingEyeHeightCorrection.RawValue
-            ? Basis.BasisUI.BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.RawValue
-            : 0f;
-        float eyeScaleOffset = (Height == BasisSelectedHeightMode.EyeHeight) ? PlayerCenterEyeVerticalOffset + standingEyeCorrection : 0f;
+        // (PlayerCenterEyeVerticalOffset; non-zero on OpenVR, 0 when the tracked point is already the eye).
+        // The arm-to-height blend weights it by its eye-height share, so blend 0 carries the full
+        // correction (pure eye mode) and blend 1 carries none (pure arm mode). The weight is capped at 1
+        // for negative blends: the metric extrapolates past eye height, but the physical device->eye gap
+        // does not grow with it.
+        bool blendHeights = TryGetArmToHeightBlend(out float armToHeightBlend);
+        float fullEyeOffset = PlayerCenterEyeVerticalOffset;
+        float eyeScaleOffset = blendHeights
+            ? fullEyeOffset * Mathf.Clamp01(1f - armToHeightBlend)
+            : (Height == BasisSelectedHeightMode.EyeHeight ? fullEyeOffset : 0f);
 
         // AppliedUpScale multiplies BOTH player and avatar metrics.
-        switch (Height)
+        if (blendHeights)
+        {
+            float avatarBlendMetric = BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, AvatarArmSpan, armToHeightBlend);
+            float playerBlendMetric = BasisCalibrationMath.BlendEyeSpanMetric(PlayerEyeHeight, PlayerArmSpan, armToHeightBlend);
+
+            SelectedScaledPlayerHeight = calY * ((eyeScaleOffset + playerBlendMetric) * AppliedUpScale);
+            SelectedScaledAvatarHeight = calY * (avatarBlendMetric * AppliedUpScale);
+
+            SelectedUnScaledAvatarHeight = SanitizePositive(avatarBlendMetric, FallbackHeightInMeters);
+            SelectedUnScaledPlayerHeight = SanitizePositive(playerBlendMetric, FallbackHeightInMeters);
+        }
+        else switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
                 SelectedScaledPlayerHeight = calY * (PlayerArmSpan * AppliedUpScale);
@@ -557,28 +587,34 @@ public static class BasisHeightDriver
         DeviceScale = SafeDivide(avatarScaledMetric, playerMetric, 1f);
         DeviceScale = SanitizePositive(DeviceScale, 1f);
 
-        HeightModeGroundingOffset = (Height == BasisSelectedHeightMode.ArmSpan && !SMModuleSitStand.IsSteatedMode)
+        // The grounding lift's eye term includes the blended eyeScaleOffset so at blend 0 the lift is
+        // exactly 0 (eye mode already grounds the feet through the denominator -- never double-count it)
+        // and at blend 1 it degenerates to the pure arm-span lift (eyeScaleOffset is 0 there). Any active
+        // blend is eligible: either sign can sink the feet, depending on which side of eye height the
+        // player's arm measurement lies.
+        bool needsGrounding = blendHeights || Height == BasisSelectedHeightMode.ArmSpan;
+        HeightModeGroundingOffset = (needsGrounding && !SMModuleSitStand.IsSteatedMode)
             ? BasisCalibrationMath.ArmSpanFloorGroundingLift(
                 SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters),
                 AppliedUpScale,
                 DeviceScale,
-                SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters))
+                SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters) + eyeScaleOffset)
             : 0f;
 
         BasisDebug.Log(
-            $"Height Mode: {Height} | PlayerMetric(scaled): {SelectedScaledPlayerHeight}m | " +
+            $"Height Mode: {(blendHeights ? $"ArmToHeightBlend {armToHeightBlend:P0}" : Height.ToString())} | PlayerMetric(scaled): {SelectedScaledPlayerHeight}m | " +
             $"AvatarMetric(scaled): {SelectedScaledAvatarHeight}m | " +
             $"PlayerToAvatar: {PlayerToAvatarRatioScaled} | AvatarToPlayer: {AvatarToPlayerRatioScaled} | " +
             $"PlayerToDefault: {PlayerToDefaultRatioScaledWithAvatarScale} | AvatarToDefault: {AvatarToDefaultRatioScaledWithAvatarScale} | " +
             $"DeviceScale: {DeviceScale}",
             BasisDebug.LogTag.Avatar
         );
-        // Denominator breakdown so the systematic eye-height bias is readable in-headset: compare the
-        // true-eye estimate against your tape-measured standing eye height. If it reads low (avatar too
-        // tall), the shortfall is the value to put in CalibrationStandingEyeHeightMeters.
+        // Denominator breakdown so a systematic eye-height bias stays readable in-headset: compare the
+        // true-eye estimate against your tape-measured standing eye height.
         BasisDebug.Log(
             $"Eye-height denominator (true standing eye estimate): {playerMetric:F3}m = raw {SelectedUnScaledPlayerHeight:F3} " +
-            $"+ device->eye {PlayerCenterEyeVerticalOffset:F3} + correction {standingEyeCorrection:F3}",
+            $"+ eye offset {eyeScaleOffset:F3} (device->eye {PlayerCenterEyeVerticalOffset:F3}" +
+            $"{(blendHeights ? $", weighted {Mathf.Clamp01(1f - armToHeightBlend):P0} by the arm-to-height ratio" : "")})",
             BasisDebug.LogTag.Avatar
         );
     }

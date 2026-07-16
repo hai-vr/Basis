@@ -45,8 +45,8 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_CUSTOM_SCALE => BasisSettingsDefaults.CustomScale.BindingKey;         // "custom scale"
     private static string K_SELECTED_SCALE => BasisSettingsDefaults.SelectedScale.BindingKey;     // "selected scale"
     private static string K_REALWORLD_EYE_HEIGHT => BasisSettingsDefaults.realworldeyeheight.BindingKey; // "real world eye height"
-    private static string K_STANDING_EYE_CORRECTION => BasisSettingsDefaults.CalibrationStandingEyeHeightMeters.BindingKey; // "calibrationstandingeyeheightmeters"
-    private static string K_ENABLE_STANDING_EYE_CORRECTION => BasisSettingsDefaults.EnableStandingEyeHeightCorrection.BindingKey; // "enablestandingeyeheightcorrection"
+    private static string K_ENABLE_ARM_TO_HEIGHT_BLEND => BasisSettingsDefaults.EnableArmToHeightBlend.BindingKey; // "enablearmtoheightblend"
+    private static string K_ARM_TO_HEIGHT_BLEND => BasisSettingsDefaults.ArmToHeightBlend.BindingKey;              // "armtoheightblend"
 
     // One Euro globals
     private static string K_FBIK_MINCUTOFF => BasisSettingsDefaults.FBIKMinCutoff.BindingKey;                 // "fbikmincutoff"
@@ -303,15 +303,14 @@ public class SMModuleCalibration : BasisSettingsBase
                     break;
                 }
 
-            case var s when s == K_STANDING_EYE_CORRECTION:
-                // Persistent standing eye-height correction changed: re-apply height/scale now so
-                // DeviceScale picks up the new denominator. Applied directly (not via the _dirty path,
-                // which only re-applies on height-mode/scale/custom-scale changes).
+            case var s when s == K_ENABLE_ARM_TO_HEIGHT_BLEND:
+                // Toggling the arm-to-height ratio swaps the scaling metric pair: re-apply height/scale
+                // now so DeviceScale picks up the new denominator. Applied directly (not via the _dirty
+                // path, which only re-applies on height-mode/scale/custom-scale changes).
                 BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 
-            case var s when s == K_ENABLE_STANDING_EYE_CORRECTION:
-                // Toggling the correction on/off flips whether the stored metres apply; re-apply now.
+            case var s when s == K_ARM_TO_HEIGHT_BLEND:
                 BasisHeightDriver.ApplyScaleAndHeight();
                 break;
 

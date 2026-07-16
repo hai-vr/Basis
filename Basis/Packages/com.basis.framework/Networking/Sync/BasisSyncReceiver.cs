@@ -67,6 +67,8 @@ namespace Basis.Scripts.Networking.Sync
         private float _depthFloor = MinJitterDepth + 1f;
         private bool _valuesDirty = true;
         private bool _snapRequested;
+        private bool _windowStatic;
+        private bool _windowStaticValid;
 
         private bool _extrapolate;
         private double _maxExtrapSeconds;
@@ -249,26 +251,28 @@ namespace Basis.Scripts.Networking.Sync
                     _next = null;
                     _interpTime = 0.0;
                     _valuesDirty = true;
+                    _windowStaticValid = false;
                 }
             }
 
-            if (_current == null && _staged.Count > 0) { _current = _staged.Dequeue(); _valuesDirty = true; }
-            if (_next == null && _staged.Count > 0) { _next = _staged.Dequeue(); _valuesDirty = true; }
+            if (_current == null && _staged.Count > 0) { _current = _staged.Dequeue(); _valuesDirty = true; _windowStaticValid = false; }
+            if (_next == null && _staged.Count > 0) { _next = _staged.Dequeue(); _valuesDirty = true; _windowStaticValid = false; }
 
             // Windows whose endpoints are identical (an idle sender's keyframe refreshes) carry no motion;
             // crossing them in real time only delays whatever is queued behind them. Skip straight through.
-            while (_next != null && _staged.Count > 0 && ValuesEqual(_current.Values, _next.Values))
+            while (_next != null && _staged.Count > 0 && WindowIsStatic())
             {
                 ReturnFrame(_current);
                 _current = _next;
                 _next = _staged.Dequeue();
                 _interpTime = 0.0;
                 _valuesDirty = true;
+                _windowStaticValid = false;
             }
 
             if (_current != null && _next != null)
             {
-                if (ValuesEqual(_current.Values, _next.Values))
+                if (WindowIsStatic())
                 {
                     // Static window with nothing queued behind it: pin to the newest values. Starving here is
                     // the sender being idle, not network trouble, so the depth target must not ratchet up.
@@ -296,6 +300,7 @@ namespace Basis.Scripts.Networking.Sync
                         _next = _staged.Dequeue();
                         _interpTime -= 1.0;
                         _valuesDirty = true;
+                        _windowStaticValid = false;
                     }
 
                     if (_interpTime >= 1.0)
@@ -337,6 +342,7 @@ namespace Basis.Scripts.Networking.Sync
             for (int i = 0; i < _arrived.Count; i++) ReturnRaw(_arrived[i]);
             _arrived.Clear();
             _interpTime = 0.0;
+            _windowStaticValid = false;
             _seenPackets = 0;
             _hasKeyframe = false;
             _serverClockSeeded = false;
@@ -358,6 +364,17 @@ namespace Basis.Scripts.Networking.Sync
             _interpTime = 0.0;
             _current = frame;
             _valuesDirty = true;
+            _windowStaticValid = false;
+        }
+
+        private bool WindowIsStatic()
+        {
+            if (!_windowStaticValid)
+            {
+                _windowStatic = ValuesEqual(_current.Values, _next.Values);
+                _windowStaticValid = true;
+            }
+            return _windowStatic;
         }
 
         // Exact comparison is intentional: an unchanged field decodes to bit-identical values (deltas carry
