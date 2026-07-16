@@ -149,6 +149,22 @@ BASIS_API int BASIS_CALL basis_media_poll_caption(basis_media_engine_t* engine, 
  * number of bytes written (excluding NUL), or 0 if there is no error. */
 BASIS_API int BASIS_CALL basis_media_get_last_error(basis_media_engine_t* engine, char* buf, int buf_size);
 
+/* ---- Capability ---------------------------------------------------------- */
+
+/* Video codec ids accepted by basis_media_probe_video_codec. */
+#define BASIS_VIDEO_CODEC_H264 1
+#define BASIS_VIDEO_CODEC_H265 2
+#define BASIS_VIDEO_CODEC_VP9  3
+#define BASIS_VIDEO_CODEC_AV1  4
+
+/* 1 if this platform can decode the codec end to end (decoder present AND the
+ * GPU hardware-decodes it — a decoder that would silently fall back to CPU
+ * frames the present path can't publish reports 0). Engine-less: callable
+ * before any player exists, from any thread; the result is computed once and
+ * cached for the process lifetime. Meant for stream/format selection (e.g.
+ * offering VP9 ladders only where they will actually play). */
+BASIS_API int BASIS_CALL basis_media_probe_video_codec(int codec);
+
 /* Copies a one-line diagnostic counter string (demux AU counts + decoder
  * in/out/blit/drop tallies) into buf. Returns bytes written. For tooling/logs. */
 BASIS_API int BASIS_CALL basis_media_get_debug(basis_media_engine_t* engine, char* buf, int buf_size);

@@ -138,13 +138,23 @@ static int hvcc_to_annexb(const uint8_t* cfg, int cfg_len, uint8_t* out, int out
     int num_arrays = cfg[22];
     int p = 23;
     for (int a = 0; a < num_arrays && p + 3 <= cfg_len; ++a) {
+        /* Only the parameter sets configure the decoder. hvcC may also carry SEI
+         * arrays -- x265 writes a verbose build-info SEI by default, which alone
+         * runs to a couple of kilobytes -- and copying those out would push the
+         * parameter sets past out_cap and lose the lot. */
+        int nal_type = cfg[p] & 0x3F;
+        int keep = (nal_type == 32 /*VPS*/ || nal_type == 33 /*SPS*/ || nal_type == 34 /*PPS*/);
         p += 1; /* array_completeness + NAL type */
         int num = (cfg[p] << 8) | cfg[p + 1]; p += 2;
         for (int n = 0; n < num && p + 2 <= cfg_len; ++n) {
             int l = (cfg[p] << 8) | cfg[p + 1]; p += 2;
-            if (p + l > cfg_len || op + 4 + l > out_cap) return -1;
-            memcpy(out + op, kStartCode, 4); op += 4;
-            memcpy(out + op, cfg + p, l); op += l; p += l;
+            if (p + l > cfg_len) return -1;
+            if (keep) {
+                if (op + 4 + l > out_cap) return -1;
+                memcpy(out + op, kStartCode, 4); op += 4;
+                memcpy(out + op, cfg + p, l); op += l;
+            }
+            p += l;
         }
     }
     return op;
@@ -201,6 +211,25 @@ int basis_aac_build_adts(uint8_t out[7], int object_type, int sample_rate,
     out[5] = (uint8_t)(((frame_len & 0x7) << 5) | 0x1F);
     out[6] = 0xFC;
     return 7;
+}
+
+/* ---- VP9 ----------------------------------------------------------------- */
+
+int basis_vp9_is_keyframe(const uint8_t* sample, int len) {
+    if (!sample || len < 1) return 0;
+    /* Uncompressed-header head bits, MSB first (all within the first byte —
+     * a superframe's index trails the buffer, so offset 0 is always the first
+     * sub-frame's header): frame_marker(2)=0b10, profile_low(1), profile_high(1),
+     * [reserved(1) when profile==3], show_existing_frame(1), frame_type(1)
+     * where frame_type 0 = KEY_FRAME. */
+    uint8_t b = sample[0];
+    if ((b >> 6) != 0x2) return 0;                    /* frame_marker */
+    int profile = ((b >> 4) & 1) << 1 | ((b >> 5) & 1);
+    if (profile == 3 && ((b >> 3) & 1)) return 0;     /* reserved bit must be 0 */
+    int bit = profile == 3 ? 2 : 3;                   /* skip reserved on profile 3 */
+    int show_existing = (b >> bit) & 1;
+    int frame_type = (b >> (bit - 1)) & 1;
+    return !show_existing && frame_type == 0;
 }
 
 /* ---- H.264 SPS dimensions (exp-golomb) --------------------------------- */

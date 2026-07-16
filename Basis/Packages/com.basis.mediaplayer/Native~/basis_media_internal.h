@@ -24,11 +24,14 @@
 extern "C" {
 #endif
 
-/* Elementary codec identifiers used across the sink boundary. */
+/* Elementary codec identifiers used across the sink boundary. The video ids
+ * are also the public probe ids (basis_media_probe_video_codec). */
 typedef enum basis_codec {
     BASIS_CODEC_NONE = 0,
     BASIS_CODEC_H264 = 1,
     BASIS_CODEC_H265 = 2,
+    BASIS_CODEC_VP9  = 3,
+    BASIS_CODEC_AV1  = 4,   /* reserved: demux/decode land with the AV1 item */
     BASIS_CODEC_AAC  = 10,
     BASIS_CODEC_LPCM = 11   /* raw integer PCM: Blu-ray HDMV LPCM (TS stream_type
                              * 0x80, big-endian) or RIFF/WAV (little-endian —
@@ -49,11 +52,13 @@ typedef struct basis_media_sink {
                             const uint8_t* extradata, int extradata_len,
                             int width, int height);
 
-    /* One coded video access unit in Annex B form (start-code separated NALUs).
-     * pts_us is the presentation timestamp; dts_us the decode timestamp, used
-     * for delivery pacing (composition offsets can put pts_us further ahead
-     * than the pacing lead — a demuxer without decode timestamps passes
-     * pts_us for both). key != 0 marks an IDR/keyframe. */
+    /* One coded video access unit: Annex B form (start-code separated NALUs)
+     * for H.264/H.265; for VP9 one raw sample exactly as stored (possibly a
+     * superframe — fed to the decoder whole, never split). pts_us is the
+     * presentation timestamp; dts_us the decode timestamp, used for delivery
+     * pacing (composition offsets can put pts_us further ahead than the pacing
+     * lead — a demuxer without decode timestamps passes pts_us for both).
+     * key != 0 marks an IDR/keyframe. */
     void (*on_video_au)(void* user, const uint8_t* annexb, int len,
                         int64_t pts_us, int64_t dts_us, int key);
 
@@ -119,6 +124,15 @@ typedef struct basis_decoder basis_decoder_t;
 /* Create/destroy the OS decoder bound to `engine` (used for logging/state). */
 basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine);
 void             basis_decoder_destroy(basis_decoder_t* dec);
+
+/* Engine-less capability probe behind basis_media_probe_video_codec: 1 if this
+ * platform decodes the codec (basis_codec_t video id). Answers for as much of
+ * the decode path as the platform can verify up front — decoder presence at
+ * minimum, hardware decode where the platform exposes it (a decoder whose
+ * internal software fallback produces frames the present path rejects should
+ * be a 0). Cached for process lifetime; safe to call concurrently from worker
+ * threads. */
+int basis_decoder_probe_video_codec(int codec);
 
 /* Configure tracks (called from the demux thread before the first submit). */
 int basis_decoder_set_video_format(basis_decoder_t* dec, basis_codec_t codec,

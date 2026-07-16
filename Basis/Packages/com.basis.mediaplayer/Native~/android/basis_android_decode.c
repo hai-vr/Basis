@@ -26,6 +26,7 @@
 #include <android/log.h>
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -523,6 +524,30 @@ static void* url_worker(void* arg) {
 
 /* ---- internal API ------------------------------------------------------- */
 
+int basis_decoder_probe_video_codec(int codec) {
+    /* Cached per process (0 unprobed / 1 no / 2 yes); atomics keep the
+     * concurrent worker-thread accesses defined, and a racing recompute
+     * stores the same verdict. createDecoderByType is the platform answer —
+     * every Quest hardware-decodes VP9, so the codec this exists to gate is
+     * universally hardware there. (On general Android this can return the
+     * software c2.android decoder and probe optimistic; the NDK exposes no
+     * MediaCodecList to tell them apart.) */
+    static _Atomic int cache[BASIS_CODEC_AV1 + 1];
+    if (codec < BASIS_CODEC_H264 || codec > BASIS_CODEC_AV1) return 0;
+    int c = atomic_load(&cache[codec]);
+    if (c) return c == 2;
+    int ok = 0;
+    if (codec != BASIS_CODEC_AV1) {   /* no AV1 decode path yet — probe stays 0 */
+        const char* mime = codec == BASIS_CODEC_H265 ? "video/hevc"
+                         : codec == BASIS_CODEC_VP9  ? "video/x-vnd.on2.vp9"
+                         : "video/avc";
+        AMediaCodec* dec = AMediaCodec_createDecoderByType(mime);
+        if (dec) { ok = 1; AMediaCodec_delete(dec); }
+    }
+    atomic_store(&cache[codec], ok ? 2 : 1);
+    return ok;
+}
+
 basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     basis_decoder_t* d = (basis_decoder_t*)calloc(1, sizeof(*d));
     if (!d) return NULL;
@@ -622,7 +647,9 @@ int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t codec,
                                    const uint8_t* extradata, int extradata_len, int w, int h) {
     if (!d || d->vconfigured) return 0;
     d->vc = codec; if (w > 0) d->vw = w; if (h > 0) d->vh = h;
-    const char* mime = (codec == BASIS_CODEC_H265) ? "video/hevc" : "video/avc";
+    const char* mime = (codec == BASIS_CODEC_H265) ? "video/hevc"
+                     : (codec == BASIS_CODEC_VP9)  ? "video/x-vnd.on2.vp9"
+                     : "video/avc";
 
     if (ensure_reader(d, d->vw ? d->vw : 1280, d->vh ? d->vh : 720) != 0) return -1;
 

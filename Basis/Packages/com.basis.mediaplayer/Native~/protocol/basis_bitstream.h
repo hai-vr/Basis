@@ -72,6 +72,14 @@ int basis_aac_build_adts(uint8_t out[7], int object_type, int sample_rate,
 int basis_aac_sample_rate_index(int sample_rate);
 int basis_aac_sample_rate_from_index(int index);
 
+/* ---- VP9 ----------------------------------------------------------------- */
+
+/* 1 if a raw VP9 sample is a keyframe. Reads the uncompressed-header head bits
+ * of the frame at offset 0 — valid for superframes too (the index sits at the
+ * buffer end; the first sub-frame's header starts the buffer). Truncated or
+ * malformed input returns 0. */
+int basis_vp9_is_keyframe(const uint8_t* sample, int len);
+
 /* ---- H.264 SPS dimensions (best-effort) --------------------------------- */
 
 /* Parses width/height from an H.264 SPS NAL (payload without start code).

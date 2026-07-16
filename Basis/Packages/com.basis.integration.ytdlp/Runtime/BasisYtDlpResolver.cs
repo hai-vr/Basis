@@ -355,23 +355,51 @@ namespace Basis.Integration.YtDlp
             }
         }
 
-        // H.264 video-only, no higher than 1080p (avc1 is the player's ceiling — no
-        // VP9/AV1 decode), best height then bitrate, direct byte URL (not a manifest).
+        // Best direct video-only stream. avc1 is always eligible up to 1080p; where
+        // the platform hardware-decodes VP9 (probed once, cached), the VP9 ladder is
+        // eligible up to 2160p — which is what unlocks >1080p on YouTube, whose
+        // above-1080p rungs are VP9 in video-only WebM. Ranking is height first, avc1
+        // over vp9 at equal height (decode cost / hardware breadth), then bitrate: a
+        // VP9 rung only wins where it offers more height than every eligible avc1
+        // rung, so on the usual complete avc1 ladder selection at or below 1080p is
+        // unchanged.
         private static Format BestVideoOnly(List<Format> formats)
         {
             if (formats == null) return null;
+            bool vp9Decodes = BasisNativeVideoSource.IsVideoCodecSupported(BasisVideoCodec.VP9);
             Format best = null;
             for (int i = 0; i < formats.Count; i++)
             {
                 Format f = formats[i];
                 if (f == null || string.IsNullOrEmpty(f.Url)) continue;
                 if (!HasCodec(f.VCodec) || HasCodec(f.ACodec)) continue;         // video-only
-                if (!StartsWithCI(f.VCodec, "avc1")) continue;
-                if ((f.Height ?? 0) > 1080) continue;
+                int heightCap;
+                if (StartsWithCI(f.VCodec, "avc1")) heightCap = 1080;
+                // VP9 additionally requires a known height: an unknown-resolution
+                // rung could be 8K, past what the probe vouched for. (avc1 keeps
+                // its long-standing unknown-height tolerance.)
+                else if (vp9Decodes && IsSdrVp9(f) && (f.Height ?? 0) > 0) heightCap = 2160;
+                else continue;
+                if ((f.Height ?? 0) > heightCap) continue;
                 if (!IsDirectByteStream(f.Protocol)) continue;
                 if (best == null || VideoBetter(f, best)) best = f;
             }
             return best;
+        }
+
+        // A VP9 rung the engine can take: profile 0 only — bare "vp9" (yt-dlp signals
+        // profile 2/10-bit as the distinct "vp9.2") or dotted "vp09.00.*" (the profile
+        // lives in the first dotted field) — since profile 0 is what the decode probe
+        // answers for. The carriage must be a WebM or MP4 byte stream, and SDR only:
+        // the renderer has no tone mapping. HDR uploads still play via their parallel
+        // SDR ladder.
+        private static bool IsSdrVp9(Format f)
+        {
+            if (!string.Equals(f.VCodec, "vp9", StringComparison.OrdinalIgnoreCase) &&
+                !StartsWithCI(f.VCodec, "vp09.00")) return false;
+            if (!string.Equals(f.Ext, "webm", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(f.Ext, "mp4", StringComparison.OrdinalIgnoreCase)) return false;
+            return string.Equals(f.DynamicRange, "SDR", StringComparison.OrdinalIgnoreCase);
         }
 
         // AAC audio-only, highest bitrate, direct byte URL.
@@ -416,6 +444,8 @@ namespace Basis.Integration.YtDlp
         {
             int ha = a.Height ?? 0, hb = b.Height ?? 0;
             if (ha != hb) return ha > hb;
+            bool aAvc = StartsWithCI(a.VCodec, "avc1"), bAvc = StartsWithCI(b.VCodec, "avc1");
+            if (aAvc != bAvc) return aAvc;   // avc1 preferred at equal height
             return Bitrate(a.VideoBitrate, a) > Bitrate(b.VideoBitrate, b);
         }
 

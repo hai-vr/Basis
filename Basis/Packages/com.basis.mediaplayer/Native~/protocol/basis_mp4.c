@@ -25,6 +25,7 @@
 #include "basis_mp4.h"
 #include "basis_bitstream.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -81,6 +82,10 @@ typedef struct {
     int is_video;
     basis_codec_t codec;
     int timescale;
+    int width, height;        /* VisualSampleEntry fixed fields (codecs without
+                               * in-band parameter sets announce these) */
+    int vide_handler;         /* mdia/hdlr said 'vide' (for the unsupported-codec error) */
+    uint32_t stsd_fourcc;     /* first unrecognised stsd entry type, 0 if none */
     uint8_t extradata[2048];
     int extradata_len;
     int nal_len_size;
@@ -132,6 +137,9 @@ typedef struct {
     int ntracks;
     int movie_timescale;    /* from mvhd; units of elst segment durations */
     int64_t movie_duration; /* from mvhd, movie-timescale ticks; 0 when absent */
+
+    uint32_t unsupported_video_fourcc; /* stsd type of a dropped 'vide' track, 0 if none */
+    int      saw_unsupported_video;
 
     int64_t pos;          /* absolute stream offset consumed so far */
     int     mdat_skipped; /* media data streamed past before any index arrived */
@@ -342,6 +350,12 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
         if (etype == 0x61766331 /*avc1*/ || etype == 0x68766331 /*hvc1*/ || etype == 0x68657631 /*hev1*/) {
             t->is_video = 1;
             t->codec = (etype == 0x61766331) ? BASIS_CODEC_H264 : BASIS_CODEC_H265;
+            /* VisualSampleEntry fixed fields. H.264 refines these from the SPS at
+             * announce; H.265 has no SPS reader, so without this it announces 0x0. */
+            if (esize >= 36) {
+                t->width = rd16(ent + 32);
+                t->height = rd16(ent + 34);
+            }
             /* visual sample entry header is 78 bytes, then child boxes (avcC/hvcC) */
             int co = 8 + 78;
             while (co + 8 <= esize) {
@@ -355,6 +369,15 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                     if (got > 0) { t->extradata_len = got; t->nal_len_size = nls; }
                 }
                 co += csz;
+            }
+        } else if (etype == 0x76703039 /*vp09*/) {
+            t->is_video = 1;
+            t->codec = BASIS_CODEC_VP9;
+            /* VisualSampleEntry fixed fields; vpcC carries nothing the decoder
+             * needs at init (VP9 has no out-of-band config), so no extradata. */
+            if (esize >= 36) {
+                t->width = rd16(ent + 32);
+                t->height = rd16(ent + 34);
             }
         } else if (etype == 0x6d703461 /*mp4a*/ && esize >= 8 + 28) {
             t->is_video = 0;
@@ -394,6 +417,8 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                 }
                 co += csz;
             }
+        } else if (!t->stsd_fourcc) {
+            t->stsd_fourcc = etype;   /* names the codec in the unsupported error */
         }
         off += esize;
     }
@@ -461,19 +486,34 @@ static void parse_chunk_offsets(mp4_ctab_t* c, const uint8_t* p, int len, int is
 
 static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len);
 
+/* Tracks are selected by role — the first supported video track and the first
+ * supported audio track, wherever they sit in the moov. A fixed first-two-traks
+ * cut would leave a valid file ordered audio,audio,video silently video-less. */
 static void parse_trak(mp4_t* m, const uint8_t* p, int len) {
-    if (m->ntracks >= 2) return;
-    mp4_track_t* t = &m->tracks[m->ntracks];
-    memset(t, 0, sizeof(*t));
-    t->nal_len_size = 4;
-    t->timescale = 90000;
-    parse_box_tree(m, t, p, len);
-    if (t->codec != BASIS_CODEC_NONE) m->ntracks++;
-    else {
-        free(t->ctab.sizes); free(t->ctab.stts); free(t->ctab.ctts);
-        free(t->ctab.stsc); free(t->ctab.chunk_offsets); free(t->ctab.stss);
-        memset(&t->ctab, 0, sizeof(t->ctab));
+    mp4_track_t t;
+    memset(&t, 0, sizeof(t));
+    t.nal_len_size = 4;
+    t.timescale = 90000;
+    parse_box_tree(m, &t, p, len);
+
+    int have_video = 0, have_audio = 0;
+    for (int i = 0; i < m->ntracks; ++i) {
+        if (m->tracks[i].is_video) have_video = 1;
+        else have_audio = 1;
     }
+    if (t.codec != BASIS_CODEC_NONE && (t.is_video ? !have_video : !have_audio)) {
+        m->tracks[m->ntracks++] = t;
+        return;
+    }
+
+    /* a dropped unsupported video-handler track is remembered so the post-moov
+     * check can fail loudly instead of playing silently without video */
+    if (t.vide_handler && t.codec == BASIS_CODEC_NONE && !m->saw_unsupported_video) {
+        m->saw_unsupported_video = 1;
+        m->unsupported_video_fourcc = t.stsd_fourcc;
+    }
+    free(t.ctab.sizes); free(t.ctab.stts); free(t.ctab.ctts);
+    free(t.ctab.stsc); free(t.ctab.chunk_offsets); free(t.ctab.stss);
 }
 
 static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len) {
@@ -503,6 +543,9 @@ static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len) 
                 }
                 break;
             case 0x656c7374: if (t) parse_elst(t, body, blen); break;    /* elst */
+            case 0x68646c72: /* hdlr: version/flags(4) pre_defined(4) handler_type(4) */
+                if (t && blen >= 12 && rd32(body + 8) == 0x76696465 /*vide*/) t->vide_handler = 1;
+                break;
             case 0x6d646864: /* mdhd: version(1) flags(3) ... timescale */
                 if (t && blen >= 4) { int ver = body[0]; int tsoff = ver == 1 ? 4 + 8 + 8 : 4 + 4 + 4; if (tsoff + 4 <= blen) t->timescale = (int)rd32(body + tsoff); }
                 break;
@@ -538,7 +581,7 @@ static void announce_tracks(mp4_t* m) {
         mp4_track_t* t = &m->tracks[i];
         if (t->announced) continue;
         if (t->is_video) {
-            int w = 0, h = 0;
+            int w = t->width, h = t->height;
             if (t->codec == BASIS_CODEC_H264 && t->extradata_len) {
                 int pos=0,no,nl;
                 while ((pos=basis_annexb_next(t->extradata,t->extradata_len,pos,&no,&nl))>=0)
@@ -928,17 +971,27 @@ static int consume_progressive(mp4_t* m, int64_t mdat_end) {
                 key = c->stss_i < c->stss_count && c->stss[c->stss_i] == c->next + 1;
                 if (key) c->stss_i++;
             }
-            int nls = rt->nal_len_size ? rt->nal_len_size : 4;
-            int outcap = basis_avcc_annexb_cap((int)ssize, nls);
-            s = (mp4_pend_t*)malloc(sizeof(*s) + (size_t)outcap);
-            if (s) {
-                int n = basis_avcc_to_annexb(buf, (int)ssize, nls, s->data, outcap);
-                if (n > 0) {
-                    if (c->stss == NULL)
-                        key = rt->codec == BASIS_CODEC_H265 ? basis_h265_is_keyframe(s->data, n) : basis_h264_is_keyframe(s->data, n);
-                    s->size = n;
-                    s->key = key;
-                } else { free(s); s = NULL; }
+            if (rt->codec == BASIS_CODEC_VP9) {
+                /* raw sample exactly as stored (superframes stay whole) */
+                s = (mp4_pend_t*)malloc(sizeof(*s) + ssize);
+                if (s) {
+                    memcpy(s->data, buf, ssize);
+                    s->size = (int)ssize;
+                    s->key = c->stss ? key : basis_vp9_is_keyframe(buf, (int)ssize);
+                }
+            } else {
+                int nls = rt->nal_len_size ? rt->nal_len_size : 4;
+                int outcap = basis_avcc_annexb_cap((int)ssize, nls);
+                s = (mp4_pend_t*)malloc(sizeof(*s) + (size_t)outcap);
+                if (s) {
+                    int n = basis_avcc_to_annexb(buf, (int)ssize, nls, s->data, outcap);
+                    if (n > 0) {
+                        if (c->stss == NULL)
+                            key = rt->codec == BASIS_CODEC_H265 ? basis_h265_is_keyframe(s->data, n) : basis_h264_is_keyframe(s->data, n);
+                        s->size = n;
+                        s->key = key;
+                    } else { free(s); s = NULL; }
+                }
             }
         } else {
             s = (mp4_pend_t*)malloc(sizeof(*s) + ssize);
@@ -1112,7 +1165,11 @@ static void consume_mdat(mp4_t* m, const uint8_t* data, int len) {
         }
         int64_t pts_us = ticks_to_us(add_i64_sat(dts[k], f->ctos[i]), t->timescale);
 
-        if (t->is_video) {
+        if (t->is_video && t->codec == BASIS_CODEC_VP9) {
+            /* raw sample exactly as stored (superframes stay whole) */
+            m->sink->on_video_au(m->sink->user, data + pos[k], (int)ssize, pts_us, best_us,
+                                 basis_vp9_is_keyframe(data + pos[k], (int)ssize));
+        } else if (t->is_video) {
             int nls = t->nal_len_size ? t->nal_len_size : 4;
             int cap = basis_avcc_annexb_cap((int)ssize, nls);
             uint8_t* out = (uint8_t*)malloc((size_t)cap);
@@ -1201,6 +1258,26 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                             "MP4 uses a compact (stz2) sample-size table, which isn't supported; remux (ffmpeg -c copy) to rewrite the sample tables");
                         break;
                     }
+                /* A video track whose codec we can't decode, with no supported
+                 * video track beside it: error naming the codec rather than
+                 * playing the audio track alone under a black screen. */
+                if (m.saw_unsupported_video) {
+                    int have_video = 0;
+                    for (int i = 0; i < m.ntracks; ++i)
+                        if (m.tracks[i].is_video) have_video = 1;
+                    if (!have_video) {
+                        char msg[128];
+                        char cc[5] = "????";
+                        for (int i = 0; i < 4; ++i) {
+                            char ch = (char)(m.unsupported_video_fourcc >> (24 - 8 * i));
+                            if (ch >= 0x20 && ch < 0x7F) cc[i] = ch;
+                        }
+                        snprintf(msg, sizeof(msg),
+                                 "video codec '%s' is not supported (supported: H.264, H.265, VP9)",
+                                 m.unsupported_video_fourcc ? cc : "unknown");
+                        sink->on_error(sink->user, msg);
+                    }
+                }
                 if (m.mdat_skipped && classic_ready(&m)) {
                     /* Trailing-moov progressive: the media streamed past before its
                      * index arrived. On a range-capable source (reseek wired) the
