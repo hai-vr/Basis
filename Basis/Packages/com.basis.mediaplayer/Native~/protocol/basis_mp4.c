@@ -350,6 +350,12 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
         if (etype == 0x61766331 /*avc1*/ || etype == 0x68766331 /*hvc1*/ || etype == 0x68657631 /*hev1*/) {
             t->is_video = 1;
             t->codec = (etype == 0x61766331) ? BASIS_CODEC_H264 : BASIS_CODEC_H265;
+            /* VisualSampleEntry fixed fields. H.264 refines these from the SPS at
+             * announce; H.265 has no SPS reader, so without this it announces 0x0. */
+            if (esize >= 36) {
+                t->width = rd16(ent + 32);
+                t->height = rd16(ent + 34);
+            }
             /* visual sample entry header is 78 bytes, then child boxes (avcC/hvcC) */
             int co = 8 + 78;
             while (co + 8 <= esize) {
