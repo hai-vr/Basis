@@ -35,9 +35,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             public long SkippedIndex;
             public double LastFrameTime;
             public readonly Slot[] Slots = new Slot[256];
+            public readonly Slot[] SlotsCh15 = new Slot[256];
         }
 
         public static readonly Slot[] Sent = new Slot[256];
+        public static readonly Slot[] SentCh15 = new Slot[256];
         public static readonly ConcurrentDictionary<ushort, PlayerCapture> Players = new ConcurrentDictionary<ushort, PlayerCapture>();
 
         public static double Now => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency;
@@ -45,6 +47,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void Clear()
         {
             Array.Clear(Sent, 0, Sent.Length);
+            Array.Clear(SentCh15, 0, SentCh15.Length);
             Players.Clear();
         }
 
@@ -52,6 +55,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             if (!Capture) return;
             Record(Sent, messageIndex, payload);
+        }
+
+        public static void RecordSentAvatarChannel(byte messageIndex, byte[] payload)
+        {
+            if (!Capture) return;
+            Record(SentCh15, messageIndex, payload);
+        }
+
+        public static void RecordReceivedAvatarChannel(ushort playerId, byte messageIndex, byte[] payload)
+        {
+            if (!Capture) return;
+            Record(Players.GetOrAdd(playerId, _ => new PlayerCapture()).SlotsCh15, messageIndex, payload);
         }
 
         public static void RecordReceiverFrame(ushort playerId)

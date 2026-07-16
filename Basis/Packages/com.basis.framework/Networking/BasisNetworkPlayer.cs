@@ -244,6 +244,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public void OnAvatarNetworkMessageSend(byte MessageIndex, byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced, ushort[] Recipients = null)
         {
             System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderAvatarChannelSent);
+            Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordSentAvatarChannel(MessageIndex, buffer);
             // Handle cases based on presence of Recipients and buffer
             AvatarDataMessage AvatarDataMessage = new AvatarDataMessage
             {
@@ -261,6 +262,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         }
         public void OnAvatarNetworkMessageSendDirect(byte MessageIndex, byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable, ushort[] Recipients = null, bool allowServerFallback = true)
         {
+            Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordSentAvatarChannel(MessageIndex, buffer);
             BasisP2PManager.PartitionRecipients(Recipients, out List<ushort> directIds, out List<ushort> relayIds);
 
             if (directIds != null && directIds.Count > 0)

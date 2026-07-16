@@ -264,6 +264,7 @@ public static class BasisNetworkGenericMessages
                         if (output.messageIndex < player.NetworkBehaviourCount)
                         {
                             System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDispatched);
+                            Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordReceivedAvatarChannel(SADM.playerIdMessage.playerID, output.messageIndex, output.payload);
                             if (direct)
                             {
                                 player.NetworkBehaviours[output.messageIndex].OnDirectNetworkMessageReceived(SADM.playerIdMessage.playerID, output.payload, Method);

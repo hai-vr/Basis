@@ -151,7 +151,8 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
         float submittedRate = Rate(1L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderSubmitted), dt);
         float attachedRate = Rate(2L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderFramesWithAdditional), dt);
 
-        EditorGUILayout.LabelField($"submitted/s: {submittedRate:F1}    frames-with-section/s: {attachedRate:F1}    " +
+        float avatarChRate = Rate(5L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderAvatarChannelSent), dt);
+        EditorGUILayout.LabelField($"submitted/s: {submittedRate:F1}    frames-with-section/s: {attachedRate:F1}    avatarCh-sent/s: {avatarChRate:F1}    " +
             $"keyframes: {System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderFramesKeyframe)}    " +
             $"deltas: {System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderFramesDelta)}    " +
             $"noTransmitter: {System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderSubmitFailedNoTransmitter)}");
@@ -163,6 +164,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
 
         var localBehaviours = BasisNetworkPlayer.LocalPlayer?.NetworkBehaviours;
         bool any = false;
+        EditorGUILayout.LabelField("Reduction system (high-frequency face stream)", EditorStyles.miniBoldLabel);
         DrawSlotHeader();
         var sent = BasisAdditionalDataDebugCapture.Sent;
         for (int Index = 0; Index < sent.Length; Index++)
@@ -176,6 +178,23 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
         {
             DrawStatus("NOTHING SUBMITTED: no avatar behaviour has handed data to the transmitter since capture started. " +
                 "Face tracking output is dying before it ever reaches the network layer.", WarnColor);
+        }
+
+        EditorGUILayout.Space(2);
+        EditorGUILayout.LabelField("Avatar channel ch15 (HVR handshake, variable updates, upgrades)", EditorStyles.miniBoldLabel);
+        bool anyCh15 = false;
+        DrawSlotHeader();
+        var sentCh15 = BasisAdditionalDataDebugCapture.SentCh15;
+        for (int Index = 0; Index < sentCh15.Length; Index++)
+        {
+            var slot = sentCh15[Index];
+            if (slot == null) continue;
+            anyCh15 = true;
+            DrawSlotRow((byte)Index, slot, (4L << 60) | (long)Index, now, dt, BehaviourName(localBehaviours, Index));
+        }
+        if (!anyCh15)
+        {
+            DrawStatus("No avatar-channel sends: HVR comms never initialized on the local avatar (handshake/variable packets absent).", WarnColor);
         }
     }
 
@@ -232,6 +251,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
 
             bool anySlot = false;
             var behaviours = receiver?.NetworkBehaviours;
+            EditorGUILayout.LabelField("Reduction system", EditorStyles.miniBoldLabel);
             DrawSlotHeader();
             for (int Index = 0; Index < pc.Slots.Length; Index++)
             {
@@ -241,6 +261,18 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
                 DrawSlotRow((byte)Index, slot, keyBase | (0x100L << 16) | (long)Index, now, dt, BehaviourName(behaviours, Index));
             }
             if (!anySlot) EditorGUILayout.LabelField("(no entries dispatched yet)", EditorStyles.miniLabel);
+
+            EditorGUILayout.LabelField("Avatar channel ch15", EditorStyles.miniBoldLabel);
+            bool anyCh15Slot = false;
+            DrawSlotHeader();
+            for (int Index = 0; Index < pc.SlotsCh15.Length; Index++)
+            {
+                var slot = pc.SlotsCh15[Index];
+                if (slot == null) continue;
+                anyCh15Slot = true;
+                DrawSlotRow((byte)Index, slot, keyBase | (0x200L << 16) | (long)Index, now, dt, BehaviourName(behaviours, Index));
+            }
+            if (!anyCh15Slot) EditorGUILayout.LabelField("(no ch15 messages dispatched yet)", EditorStyles.miniLabel);
             EditorGUI.indentLevel--;
             EditorGUILayout.Space(2);
         }
@@ -370,6 +402,10 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
         WriteGlobalRow(t, dt, 10, "ReceiverDroppedStaleOnDrain", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverDroppedStaleOnDrain));
         WriteGlobalRow(t, dt, 11, "ReceiverEntriesSkippedEmpty", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverEntriesSkippedEmpty));
         WriteGlobalRow(t, dt, 12, "ReceiverEntriesSkippedIndex", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverEntriesSkippedIndex));
+        WriteGlobalRow(t, dt, 13, "SenderAvatarChannelSent", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderAvatarChannelSent));
+        WriteGlobalRow(t, dt, 14, "ReceiverAvatarChannelDispatched", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDispatched));
+        WriteGlobalRow(t, dt, 15, "ReceiverAvatarChannelDeferred", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDeferred));
+        WriteGlobalRow(t, dt, 16, "ReceiverAvatarChannelDropped", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDropped));
 
         var localBehaviours = Application.isPlaying ? BasisNetworkPlayer.LocalPlayer?.NetworkBehaviours : null;
         var sent = BasisAdditionalDataDebugCapture.Sent;
@@ -378,6 +414,13 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
             var slot = sent[Index];
             if (slot == null) continue;
             WriteSlotRow(t, dt, "out", string.Empty, string.Empty, Index, BehaviourName(localBehaviours, Index), slot, (20L << 55) | (long)Index, now);
+        }
+        var sentCh15 = BasisAdditionalDataDebugCapture.SentCh15;
+        for (int Index = 0; Index < sentCh15.Length; Index++)
+        {
+            var slot = sentCh15[Index];
+            if (slot == null) continue;
+            WriteSlotRow(t, dt, "out15", string.Empty, string.Empty, Index, BehaviourName(localBehaviours, Index), slot, (22L << 55) | (long)Index, now);
         }
 
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
@@ -409,6 +452,12 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
                 var slot = pc.Slots[Index];
                 if (slot == null) continue;
                 WriteSlotRow(t, dt, "in", playerId.ToString(), name, Index, BehaviourName(receiver?.NetworkBehaviours, Index), slot, keyBase | 0x10000L | (long)Index, now);
+            }
+            for (int Index = 0; Index < pc.SlotsCh15.Length; Index++)
+            {
+                var slot = pc.SlotsCh15[Index];
+                if (slot == null) continue;
+                WriteSlotRow(t, dt, "in15", playerId.ToString(), name, Index, BehaviourName(receiver?.NetworkBehaviours, Index), slot, keyBase | 0x20000L | (long)Index, now);
             }
         }
         _csv.Flush();
