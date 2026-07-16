@@ -243,6 +243,41 @@ public class AdditionalDataPipelineTests : IDisposable
     }
 
     [Fact]
+    public void ReadySnapshot_SelfDescribingPath_RoundTripsFaceData()
+    {
+        var rng = new Random(1005);
+        byte[] payloadA = S.MakeRealisticPayload(BitQuality.High, rng);
+        byte[] payloadB = S.MakeRealisticPayload(BitQuality.High, rng);
+
+        var withFace = new LocalAvatarSyncMessage
+        {
+            array = payloadA,
+            AdditionalAvatarDatas = MakeAdditional(),
+            LinkedAvatarIndex = LinkedIndex,
+        };
+        var withoutFace = new LocalAvatarSyncMessage { array = payloadB };
+
+        var w = new NetDataWriter();
+        withFace.Serialize(w, BitQuality.High);
+        withoutFace.Serialize(w, BitQuality.High);
+
+        var reader = new NetDataReader(w.CopyData());
+
+        var first = new LocalAvatarSyncMessage();
+        first.Deserialize(reader);
+        Assert.Equal(payloadA, first.array);
+        AssertFaceSurvived(first);
+
+        var second = new LocalAvatarSyncMessage();
+        second.Deserialize(reader);
+        Assert.Equal(payloadB, second.array);
+        Assert.Equal(0, (int)second.AdditionalAvatarDataSize);
+        Assert.Null(second.AdditionalAvatarDatas);
+
+        Assert.Equal(0, reader.AvailableBytes);
+    }
+
+    [Fact]
     public void UplinkDelta_WithFaceData_SurvivesServerIngest()
     {
         var rng = new Random(1002);

@@ -124,7 +124,7 @@ public static partial class SerializableBasis
                 return;
             }
 
-            DeserializeAdditionalData(reader);
+            DeserializeAdditionalEntries(reader);
         }
 
         /// <summary>
@@ -139,6 +139,11 @@ public static partial class SerializableBasis
                 return;
             }
 
+            DeserializeAdditionalEntries(reader);
+        }
+
+        private void DeserializeAdditionalEntries(NetDataReader reader)
+        {
             if (!reader.TryGetByte(out LinkedAvatarIndex))
             {
                 BNL.LogError("Missing LinkedAvatarIndex!");
