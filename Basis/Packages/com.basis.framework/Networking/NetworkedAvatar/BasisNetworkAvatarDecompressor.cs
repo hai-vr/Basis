@@ -199,7 +199,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverFramesWithAdditional);
                 BasisAdditionalDataDebugCapture.RecordReceiverFrame(baseReceiver.playerId);
-                BasisAdditionalDataDiagnostics.MaybeReport();
 
                 bool isDifferentAvatar = message.LinkedAvatarIndex != baseReceiver.LastLinkedAvatarIndex;
                 if (isDifferentAvatar)

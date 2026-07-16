@@ -471,6 +471,14 @@
       "value": "Automatically fix incompatible avatar materials on load."
     },
     {
+      "key": "settings.developer.shaderBlocklist.tooltip",
+      "value": "Replace materials whose shader name or keywords match the blocklist with the fallback material. Applies to newly loaded content."
+    },
+    {
+      "key": "settings.developer.shaderBlocklistPatterns.tooltip",
+      "value": "Comma-separated, case-insensitive substrings matched against shader names and material keywords."
+    },
+    {
       "key": "settings.developer.graphicsStatePrewarm.tooltip",
       "value": "Cache and pre-create full GPU pipeline states to reduce hitches on repeat loads."
     },
@@ -6450,6 +6458,22 @@
     {
       "key": "settings.developer.materialCorrection.description",
       "value": "Replace broken or unsupported shaders with the URP fallback shader. Off by default; mainly needed during graphics API changes."
+    },
+    {
+      "key": "settings.developer.shaderBlocklist",
+      "value": "Shader Blocklist"
+    },
+    {
+      "key": "settings.developer.shaderBlocklist.description",
+      "value": "Force the fallback material on any material whose shader name or shader keywords match a user-defined pattern list. Off by default; applies to avatars, props, and worlds as they load."
+    },
+    {
+      "key": "settings.developer.shaderBlocklistPatterns",
+      "value": "Blocked Shader Patterns"
+    },
+    {
+      "key": "settings.developer.shaderBlocklistPatterns.description",
+      "value": "Comma-separated list of case-insensitive substrings matched against shader names and material shader keywords."
     },
     {
       "key": "settings.developer.graphicsStatePrewarm",

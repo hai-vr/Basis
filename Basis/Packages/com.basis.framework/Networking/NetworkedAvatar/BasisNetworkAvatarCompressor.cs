@@ -269,7 +269,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 if (keyframe) System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesKeyframe);
                 else System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.SenderFramesDelta);
             }
-            BasisAdditionalDataDiagnostics.MaybeReport();
 
             byte sendChannel;
             if (keyframe)

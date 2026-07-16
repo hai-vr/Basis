@@ -63,6 +63,7 @@ namespace HVR.Basis.Comms
         static void BuildAvatarCustomizationSection(RectTransform parent)
         {
             InitializeVixxyPanel(parent);
+            InitializeEyeTrackingPanel(parent);
         }
 
         static void RefreshFaceState(
@@ -186,6 +187,82 @@ namespace HVR.Basis.Comms
             resetButton.OnClicked += () =>
             {
                 foreach (var reset in resetters) reset();
+            };
+        }
+
+        private static void InitializeEyeTrackingPanel(RectTransform container)
+        {
+            var localPlayer = BasisLocalPlayer.Instance;
+            var avatar = localPlayer?.BasisAvatar;
+            if (avatar == null) return;
+
+            var eyeActuation = avatar.GetComponentInChildren<EyeTrackingBoneActuation>(true);
+            if (eyeActuation == null) return;
+
+            var eyeGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            eyeGroup.SetTitle("Eye Tracking");
+            eyeGroup.SetDescription("Limit and scale eye tracking rotation on this avatar.");
+
+            var overrideToggle = PanelToggle.CreateNewEntry(eyeGroup.ContentParent);
+            overrideToggle.Descriptor.SetTitle("Override Rotation Limits");
+            overrideToggle.Descriptor.SetDescription("When off, the values baked into the avatar are used.");
+            overrideToggle.OnValueChanged += value => eyeActuation.RuntimeOverrideEnabled = value;
+            overrideToggle.SetValueWithoutNotify(eyeActuation.RuntimeOverrideEnabled);
+
+            var resetters = new List<Action>
+            {
+                BuildOverrideSlider(eyeGroup, "Horizontal Limit", "Maximum eye rotation left or right of center.",
+                    0f, EyeTrackingBoneActuation.MaxAngleLimitDeg, 0, ValueDisplayMode.Degrees,
+                    () => eyeActuation.RuntimeMaxAngleXDeg, value => eyeActuation.RuntimeMaxAngleXDeg = value,
+                    EyeTrackingBoneActuation.MaxAngleLimitDeg),
+                BuildOverrideSlider(eyeGroup, "Vertical Limit", "Maximum eye rotation up or down from center.",
+                    0f, EyeTrackingBoneActuation.MaxAngleLimitDeg, 0, ValueDisplayMode.Degrees,
+                    () => eyeActuation.RuntimeMaxAngleYDeg, value => eyeActuation.RuntimeMaxAngleYDeg = value,
+                    EyeTrackingBoneActuation.MaxAngleLimitDeg),
+                BuildOverrideSlider(eyeGroup, "Horizontal Gain", "Multiplier applied to horizontal eye tracking angles.",
+                    0f, Mathf.Max(2f, eyeActuation.DefaultMultiplyX), 2, ValueDisplayMode.Percentage,
+                    () => eyeActuation.RuntimeMultiplyX, value => eyeActuation.RuntimeMultiplyX = value,
+                    eyeActuation.DefaultMultiplyX),
+                BuildOverrideSlider(eyeGroup, "Vertical Gain", "Multiplier applied to vertical eye tracking angles.",
+                    0f, Mathf.Max(2f, eyeActuation.DefaultMultiplyY), 2, ValueDisplayMode.Percentage,
+                    () => eyeActuation.RuntimeMultiplyY, value => eyeActuation.RuntimeMultiplyY = value,
+                    eyeActuation.DefaultMultiplyY),
+            };
+
+            var resetButton = PanelButton.CreateNew(container);
+            resetButton.Descriptor.SetTitle("Reset Eye Tracking");
+            resetButton.Descriptor.SetDescription("Turn off the override and restore the values baked into this avatar.");
+            resetButton.OnClicked += () =>
+            {
+                eyeActuation.RuntimeOverrideEnabled = false;
+                overrideToggle.SetValueWithoutNotify(false);
+                foreach (var reset in resetters) reset();
+            };
+        }
+
+        private static Action BuildOverrideSlider(PanelElementDescriptor group, string title, string description,
+            float min, float max, int decimalPlaces, ValueDisplayMode displayMode,
+            Func<float> getValue, Action<float> setValue, float defaultValue)
+        {
+            var slider = PanelSlider.CreateNew(group.ContentParent);
+            slider.SetSliderSettings(new PanelSlider.SliderSettings
+            {
+                SliderMin = min,
+                SliderMax = max,
+                DecimalPlaces = decimalPlaces,
+                DisplayMode = displayMode,
+            });
+            slider.Descriptor.SetTitle(title);
+            slider.Descriptor.SetDescription(description);
+            void WhenValueChanged(float value) => setValue(value);
+            slider.SliderComponent.onValueChanged.AddListener(WhenValueChanged);
+            slider.OnValueChanged += WhenValueChanged;
+            slider.SetValueWithoutNotify(getValue());
+
+            return () =>
+            {
+                setValue(defaultValue);
+                slider.SetValueWithoutNotify(defaultValue);
             };
         }
 

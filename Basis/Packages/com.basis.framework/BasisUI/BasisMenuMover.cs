@@ -63,6 +63,7 @@ namespace Basis.BasisUI
 
         private bool HasCallbackForLocalCreate;
         private bool _hasLocalMoveEvent;
+        private bool _moveEventOnRender;
 
         private const float MIN_Z_SCALE = 0.01f;
         // Degenerate-value guard ONLY — deliberately far below any playable avatar scale. The old
@@ -115,10 +116,6 @@ namespace Basis.BasisUI
                 BasisLocalPlayer.OnLocalPlayerInitialized -= OnLocalPlayerCreated;
             }
 
-            if (_hasLocalMoveEvent)
-            {
-                BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(120, UpdateUILocation);
-            }
             SetMovementCallback(false);
         }
         private void OnLocalPlayerCreated()
@@ -248,18 +245,35 @@ namespace Basis.BasisUI
 
         private void SetMovementCallback(bool value)
         {
-            if (value == _hasLocalMoveEvent)
+            bool onRender = InUse == PanelGroupRootMode.Eye;
+            if (value == _hasLocalMoveEvent && (!value || onRender == _moveEventOnRender))
             {
                 return;
             }
 
+            if (_hasLocalMoveEvent)
+            {
+                if (_moveEventOnRender)
+                {
+                    BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(99, UpdateUILocation);
+                }
+                else
+                {
+                    BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(120, UpdateUILocation);
+                }
+            }
+
             if (value)
             {
-                BasisLocalPlayer.AfterSimulateOnLate.AddAction(120, UpdateUILocation);
-            }
-            else
-            {
-                BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(120, UpdateUILocation);
+                if (onRender)
+                {
+                    BasisLocalPlayer.AfterSimulateOnRender.AddAction(99, UpdateUILocation);
+                }
+                else
+                {
+                    BasisLocalPlayer.AfterSimulateOnLate.AddAction(120, UpdateUILocation);
+                }
+                _moveEventOnRender = onRender;
             }
 
             _hasLocalMoveEvent = value;
@@ -374,6 +388,7 @@ namespace Basis.BasisUI
                     transform.SetPositionAndRotation(Position, Rotation);
 
                     SetEyeOffset(scaleFactor);
+                    Physics.SyncTransforms();
                     break;
 
                 case PanelGroupRootMode.LeftHand:

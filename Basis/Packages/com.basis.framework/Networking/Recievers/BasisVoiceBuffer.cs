@@ -55,6 +55,13 @@ public class BasisVoiceBuffer
     // measured clock-free (a packet whose playback slot already passed, counted in
     // InsertEncoded), so this needs no high-resolution timer. The depth drives both the
     // initial pre-roll and the grace window before a gap is declared lost.
+    /// <summary>
+    /// Millisecond clock feeding the adaptive-depth and loss-decay intervals.
+    /// Defaults to wall time; the offline voice harness swaps in a virtual clock
+    /// so faster-than-real-time simulation still exercises depth adaptation.
+    /// </summary>
+    [NonSerialized] public Func<int> TickCountSource = () => Environment.TickCount;
+
     private int _adaptiveExtraDepth;
     private long _arrivalsSinceAdjust;
     private long _lateSinceAdjust;
@@ -136,6 +143,13 @@ public class BasisVoiceBuffer
             if (_started && _receivedSinceStart >= TargetDepthLocked())
             {
                 _underrunPending = true;
+                // Mid-stream dry-out with nothing buffered: require a short refill
+                // (mirrors the resync path's TargetDepth-2) before releasing more
+                // audio. Without this, playback resumes the instant one packet lands
+                // and rides a 0-1 packet queue, underrunning at the callback/packet
+                // beat — an audible bubble on every resume.
+                if (_encodedCount == 0)
+                    _receivedSinceStart = Math.Max(0, TargetDepthLocked() - 2);
             }
         }
     }
@@ -267,7 +281,7 @@ public class BasisVoiceBuffer
             // current depth. A rising late ratio grows the buffer (MaybeAdjustDepthLocked).
             _arrivalsSinceAdjust++;
             if (distance < 0) _lateSinceAdjust++;
-            MaybeAdjustDepthLocked(Environment.TickCount);
+            MaybeAdjustDepthLocked(TickCountSource());
 
             if (distance < 0) return; // old packet, discard
 
@@ -338,7 +352,7 @@ public class BasisVoiceBuffer
     // lifetime of the receiver.
     private void DecayRecentIfDue()
     {
-        int now = Environment.TickCount;
+        int now = TickCountSource();
         int elapsed = unchecked(now - _lastDecayTick);
         if (elapsed >= DecayIntervalMs || elapsed < 0)
         {
@@ -513,7 +527,10 @@ public class BasisVoiceBuffer
         lock (_encodedLock)
         {
             _receivedSinceStart = 0;
-            _underrunPending = false;
+            // _underrunPending deliberately survives the rearm: the packet that resumes
+            // the stream resolves it, and its silenceUnits field discriminates a sender
+            // mute (>0, discarded) from a network stall long enough to trip the idle
+            // reset (0, counted genuine so the adaptive depth can react).
         }
     }
 

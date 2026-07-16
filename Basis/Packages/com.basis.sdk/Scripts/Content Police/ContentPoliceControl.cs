@@ -11,6 +11,9 @@ public static class ContentPoliceControl
 {
     public static bool ShaderPrewarmEnabled = false;
     public static bool MaterialCorrectionEnabled = false;
+    // Independent of MaterialCorrection: swaps materials matching the user's
+    // shader-name/keyword blocklist (BasisShaderFallback.SetBlocklist) to the fallback.
+    public static bool ShaderBlocklistEnabled = false;
 
     // Reused renderer buffer for the no-content-removal path when no harvest is
     // supplied. Main-thread only; consumed synchronously by prewarm/correction.
@@ -109,9 +112,10 @@ public static class ContentPoliceControl
                 rawRenderers = NoRemovalRendererScratch;
             }
             SearchAndDestroy.GetComponentsInChildren(true, rawRenderers);
-            if (MaterialCorrectionEnabled)
+            bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
+            if (MaterialCorrectionEnabled || blockShaders)
             {
-                BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader);
+                BasisShaderFallback.MaterialCorrection(rawRenderers, BundledContentHolder.Instance.UrpShader, MaterialCorrectionEnabled, blockShaders);
             }
             if (ShaderPrewarmEnabled)
             {
@@ -285,9 +289,10 @@ public static class ContentPoliceControl
                     }
                 }
 
-                if (MaterialCorrectionEnabled)
+                bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
+                if (MaterialCorrectionEnabled || blockShaders)
                 {
-                    BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
+                    BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader, MaterialCorrectionEnabled, blockShaders);
                 }
 
                 // Compile shader variants for everything we just walked before we set the clone
@@ -452,9 +457,10 @@ public static class ContentPoliceControl
         // Replace materials with broken shaders before warming, so prewarm runs against the
         // fallback material instead of the magenta InternalErrorShader. Scene scrub is only
         // ever called for World content, so no avatar-skip gate is needed here.
-        if (MaterialCorrectionEnabled)
+        bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
+        if (MaterialCorrectionEnabled || blockShaders)
         {
-            BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader);
+            BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader, MaterialCorrectionEnabled, blockShaders);
         }
 
         // Warm shaders for every renderer we just collected. One call per scene scrub.

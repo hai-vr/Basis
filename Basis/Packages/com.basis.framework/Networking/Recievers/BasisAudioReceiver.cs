@@ -108,6 +108,14 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         private const int IdleResetThresholdUnits = 10; // 200 ms
 
+        /// <summary>
+        /// Separate, much longer threshold for disabling the AudioSource. Disable/re-enable
+        /// churn restarts Steam Audio's per-source state and clicks on every resume, so the
+        /// source must survive whole inter-sentence pauses even though the decoder/jitter
+        /// rearm fires at <see cref="IdleResetThresholdUnits"/>.
+        /// </summary>
+        private const int SourceIdleDisableUnits = 150; // 3 s
+
         // Latched so the idle reset fires once per idle cycle, not every drain tick
         // while the jitter buffer is filling back up.
         private bool _idleResetDone;
@@ -411,7 +419,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (VoiceBuffer.HasRealAudio) return true;
 #pragma warning disable CS0420 // Volatile.Read provides correct semantics for this volatile field
-            return System.Threading.Volatile.Read(ref _silentUnits20ms) < IdleResetThresholdUnits;
+            return System.Threading.Volatile.Read(ref _silentUnits20ms) < SourceIdleDisableUnits;
 #pragma warning restore CS0420
         }
 
@@ -831,11 +839,7 @@ namespace Basis.Scripts.Networking.Receivers
                 int newUnits = (int)(_silentUsAccum / 20000L);
                 if (newUnits > 0)
                 {
-#pragma warning disable CS0420 // Volatile.Read provides correct semantics for this volatile field
-                    int delta = newUnits - System.Threading.Volatile.Read(ref _silentUnits20ms);
-#pragma warning restore CS0420
-                    if (delta > 0)
-                        System.Threading.Interlocked.Add(ref _silentUnits20ms, delta);
+                    System.Threading.Interlocked.Add(ref _silentUnits20ms, newUnits);
                     _silentUsAccum -= newUnits * 20000L;
                 }
                 return;

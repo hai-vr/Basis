@@ -2547,6 +2547,22 @@ namespace Basis.BasisUI
             toggleMaterialCorrection.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.materialCorrection.tooltip"));
             toggleMaterialCorrection.AssignBinding(BasisSettingsDefaults.EnableMaterialCorrection);
 
+            PanelToggle toggleShaderBlocklist = PanelToggle.CreateNewEntry(container);
+            toggleShaderBlocklist.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.shaderBlocklist"));
+            toggleShaderBlocklist.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.shaderBlocklist.tooltip"));
+            toggleShaderBlocklist.AssignBinding(BasisSettingsDefaults.EnableShaderBlocklist);
+
+            PanelTextField blocklistPatternsField = PanelTextField.CreateNewEntry(container);
+            blocklistPatternsField.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.shaderBlocklistPatterns"));
+            blocklistPatternsField.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.shaderBlocklistPatterns.tooltip"));
+            blocklistPatternsField.AssignBinding(BasisSettingsDefaults.ShaderBlocklistPatterns);
+            TMP_InputField blocklistInput = blocklistPatternsField._inputField;
+            if (blocklistInput != null)
+            {
+                blocklistInput.contentType = TMP_InputField.ContentType.Standard;
+                blocklistInput.characterLimit = 0;
+            }
+
             PanelToggle toggleGraphicsStatePrewarm = PanelToggle.CreateNewEntry(container);
             toggleGraphicsStatePrewarm.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.graphicsStatePrewarm"));
             toggleGraphicsStatePrewarm.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.graphicsStatePrewarm.tooltip"));
@@ -2915,6 +2931,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
+            BasisSettingsDefaults.EnableShaderBlocklist.ResetToDefault();
+            BasisSettingsDefaults.ShaderBlocklistPatterns.ResetToDefault();
             BasisSettingsDefaults.EnableGraphicsStatePrewarm.ResetToDefault();
             BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
             BasisSettingsDefaults.GridSnapSize.ResetToDefault();

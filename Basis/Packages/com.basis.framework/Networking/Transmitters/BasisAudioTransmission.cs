@@ -273,14 +273,10 @@ namespace Basis.Scripts.Networking.Transmitters
                 }
                 Segment.SequenceNumber = _sequenceNumber++;
 
-                if (SilentForHowLong > 256)
-                {
-                    Segment.TotalPlayedInSilence = 0;
-                }
-                else
-                {
-                    Segment.TotalPlayedInSilence = (byte)SilentForHowLong;
-                }
+                // Saturate rather than wrap: a resume after a long mute must still read as
+                // intentional silence (>0) on the receiver, which uses 0 to mean "the gap
+                // was network loss/stall" when classifying underruns.
+                Segment.TotalPlayedInSilence = SilentForHowLong > 255 ? (byte)255 : (byte)SilentForHowLong;
                 Segment.Serialize(writer);
 
                 var peer = BasisNetworkConnection.LocalPlayerPeer;
