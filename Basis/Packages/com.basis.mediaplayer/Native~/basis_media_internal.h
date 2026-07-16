@@ -252,6 +252,10 @@ int basis_engine_is_paced(basis_media_engine_t* engine);
  * primed frame is dropped rather than half-played. */
 static inline int basis_frames_before_origin(int64_t pts, int frames, int rate) {
     if (pts >= 0 || frames <= 0 || rate <= 0) return 0;
+    /* -pts is UB at INT64_MIN, and (-pts) * rate can overflow before the cap;
+     * a drop that large already covers the whole block. */
+    if (pts == INT64_MIN || -pts > (INT64_MAX - 999999) / (int64_t)rate)
+        return frames;
     int64_t drop = ((-pts) * (int64_t)rate + 999999) / 1000000;
     return drop >= (int64_t)frames ? frames : (int)drop;
 }

@@ -136,7 +136,8 @@ typedef struct {
     int eof;
     int seekable;       /* finite, byte-range-fetchable body (VOD detect)   */
     int range_ok;       /* probe answered 206 — ranged re-request honoured  */
-    long long total_bytes;
+    long long total_bytes;   /* read cursor (absolute offset); reset on reseek   */
+    long long content_length;/* HTTP body size, captured once at open; -1 unknown */
     char* url;          /* kept for ranged re-requests (reseek)             */
     int timeout_ms;
 } https_ctx;
@@ -264,7 +265,7 @@ void* basis_jni_https_open(const char* url, int timeout_ms) {
         if (get_header(env, conn, "Content-Length", clen, sizeof(clen)))
             len = atoll(clen);
         h->seekable = (rangeable && len > 0) ? 1 : 0;
-        h->total_bytes = len > 0 ? len : -1;
+        h->content_length = len > 0 ? len : -1;
     }
 
     jobject is = (*env)->CallObjectMethod(env, conn, g_ids.conn_get_is);
@@ -313,7 +314,7 @@ int basis_jni_https_is_seekable(void* ctx) {
 
 long long basis_jni_https_content_length(void* ctx) {
     https_ctx* h = (https_ctx*)ctx;
-    return h ? h->total_bytes : -1;
+    return h ? h->content_length : -1;
 }
 
 int basis_jni_https_can_reseek(void* ctx) {

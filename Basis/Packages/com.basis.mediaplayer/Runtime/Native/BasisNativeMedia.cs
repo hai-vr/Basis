@@ -141,28 +141,34 @@ internal static class BasisNativeMedia
     // ---- Managed wrappers (translate the flat ABI into friendlier types) ----
 
     private static bool _opusLibrarySet;
+    private static readonly object OpusLibraryLock = new object();
 
     // Opus decode (WebM A_OPUS) runtime-loads the libopus that
     // com.avionblock.opussharp ships. In the Windows Editor that DLL lives under
     // Packages/…; a standalone build flattens it next to this plugin, where the
     // native side finds it by name, so only the Editor needs the explicit path.
-    // Resolved once before the first open; a no-op if opussharp is absent.
+    // Resolved once before the first open; a no-op if opussharp is absent. Locked
+    // and the flag set only after the setter runs, so a concurrent Open can't race
+    // past configuration and strand the native loader on its by-name fallback.
     private static void EnsureOpusLibrary()
     {
-        if (_opusLibrarySet) return;
-        _opusLibrarySet = true;
-#if UNITY_EDITOR_WIN
-        try
+        lock (OpusLibraryLock)
         {
-            string rid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "win-arm64" : "win-x64";
-            string path = System.IO.Path.GetFullPath(
-                $"Packages/com.avionblock.opussharp/Plugins/{rid}/native/opus.dll");
-            if (System.IO.File.Exists(path))
-                basis_decoder_set_opus_library_path(path);
-        }
-        catch { /* opussharp absent / path unresolved: native falls back to opus.dll */ }
+            if (_opusLibrarySet) return;
+#if UNITY_EDITOR_WIN
+            try
+            {
+                string rid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                    ? "win-arm64" : "win-x64";
+                string path = System.IO.Path.GetFullPath(
+                    $"Packages/com.avionblock.opussharp/Plugins/{rid}/native/opus.dll");
+                if (System.IO.File.Exists(path))
+                    basis_decoder_set_opus_library_path(path);
+            }
+            catch { /* opussharp absent / path unresolved: native falls back to opus.dll */ }
 #endif
+            _opusLibrarySet = true;
+        }
     }
 
     public static IntPtr Open(string url)
