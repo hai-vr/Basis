@@ -29,6 +29,7 @@ srcs=(
     "$native/protocol/basis_mp4.c"
     "$native/protocol/basis_ts.c"
     "$native/protocol/basis_wav.c"
+    "$native/protocol/basis_mp3.c"
     "$native/protocol/basis_bitstream.c"
     "$native/protocol/basis_caption.c"
 )

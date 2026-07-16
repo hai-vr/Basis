@@ -49,6 +49,7 @@
 #include "protocol/basis_ts.h"
 #include "protocol/basis_wav.h"
 #include "protocol/basis_ogg.h"
+#include "protocol/basis_mp3.h"
 
 /* ---- MD5 (RFC 1321) ------------------------------------------------------ */
 
@@ -218,6 +219,7 @@ static const char* codec_name(basis_codec_t c) {
         case BASIS_CODEC_VP9:  return "vp9";
         case BASIS_CODEC_AV1:  return "av1";
         case BASIS_CODEC_AAC:  return "aac";
+        case BASIS_CODEC_MP3:  return "mp3";
         case BASIS_CODEC_LPCM: return "lpcm";
         case BASIS_CODEC_OPUS: return "opus";
         case BASIS_CODEC_NONE: return "none";
@@ -229,7 +231,7 @@ static const char* codec_name(basis_codec_t c) {
  * H.26x to Annex B, so only these codecs' payload MD5s are comparable. */
 static int payload_is_container_form(basis_codec_t c) {
     return c == BASIS_CODEC_VP9 || c == BASIS_CODEC_AV1 ||
-           c == BASIS_CODEC_AAC || c == BASIS_CODEC_LPCM ||
+           c == BASIS_CODEC_AAC || c == BASIS_CODEC_MP3 || c == BASIS_CODEC_LPCM ||
            c == BASIS_CODEC_OPUS;
 }
 
@@ -298,7 +300,16 @@ static void s_audio_format(void* u, basis_codec_t codec, int rate, int ch,
 static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts_us) {
     dump_t* d = (dump_t*)u;
     emit_au(d, "audio", data, len, pts_us, pts_us, 1, d->a_frames);
+    if (d->seek_taken && !d->resume_seen) {
+        d->resume_seen = 1;
+        d->resume_pts = pts_us;
+        d->resume_key = 1;
+    }
     d->a_frames++;
+    /* Audio-only streams (MP3/Ogg) have no video AUs, so drive the seek off the
+     * audio count when no video track is emitting. */
+    if (d->v_aus == 0 && d->seek_at_au >= 0 && d->a_frames == d->seek_at_au && !d->seek_taken)
+        d->seek_pending = 1;
 }
 
 static void s_state(void* u, basis_media_state_t s) { (void)u; (void)s; }
@@ -350,6 +361,9 @@ static const char* detect(FILE* f) {
         return "wav";
     if (n >= 4 && !memcmp(head, "OggS", 4))
         return "ogg";
+    /* MP3 last (weakest magic): an "ID3" tag or an 11-bit frame sync. */
+    if (n >= 3 && !memcmp(head, "ID3", 3)) return "mp3";
+    if (n >= 2 && head[0] == 0xFF && (head[1] & 0xE0) == 0xE0) return "mp3";
     return "ts";
 }
 
@@ -375,7 +389,7 @@ int main(int argc, char** argv) {
     }
     if (!path) {
         fprintf(stderr,
-                "usage: basis_demux_dump [-demux webm|mp4|ts|wav|ogg] [-seek US] "
+                "usage: basis_demux_dump [-demux webm|mp4|ts|wav|ogg|mp3] [-seek US] "
                 "[-noreseek] FILE\n");
         return 2;
     }
@@ -433,6 +447,9 @@ int main(int argc, char** argv) {
         rc = basis_ogg_run(&sink, h_read, &h, h.allow_reseek ? h_reseek : NULL,
                            h.allow_reseek ? &h : NULL, h.allow_reseek ? ogg_size : -1);
     }
+    else if (!strcmp(demux, "mp3"))
+        rc = basis_mp3_run(&sink, h_read, &h, h.allow_reseek ? h_reseek : NULL,
+                           h.allow_reseek ? &h : NULL);
     else {
         fprintf(stderr, "unknown demuxer: %s\n", demux);
         fclose(f);

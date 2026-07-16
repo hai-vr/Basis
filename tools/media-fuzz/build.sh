@@ -64,6 +64,10 @@ if [ "$want" = "all" ] || [ "$want" = "caption" ]; then
         "$native/protocol/basis_caption.c" \
         "$native/protocol/basis_bitstream.c"
 fi
+if [ "$want" = "all" ] || [ "$want" = "mp3" ]; then
+    build_target mp3 \
+        "$native/protocol/basis_mp3.c"
+fi
 
 # On Windows the ASan runtime is a DLL that must sit next to the exe (or on
 # PATH) at run time. On Linux it is statically linked; nothing to copy.

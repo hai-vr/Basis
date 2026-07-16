@@ -37,6 +37,7 @@ CODEC_ALIASES = {
     "av1": {"av1"},
     "aac": {"aac"},
     "opus": {"opus"},
+    "mp3": {"mp3", "mp3float"},
     "lpcm": {"pcm_bluray", "pcm_s16le", "pcm_s24le", "pcm_s16be", "pcm_s24be"},
 }
 # ffprobe bitstream filter that reframes a stream into the sink's delivered form
@@ -286,7 +287,7 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
 def gate(fixtures: Path, dumper: Path) -> int:
     media = sorted(p for p in fixtures.iterdir()
                    if p.suffix.lower() in {".mp4", ".m4a", ".ts", ".m2ts", ".webm", ".wav",
-                                           ".opus", ".ogg"})
+                                           ".opus", ".ogg", ".mp3"})
     if not media:
         print(f"no fixtures in {fixtures}")
         return 1
