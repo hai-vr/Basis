@@ -428,12 +428,18 @@ static void drain_audio_output(basis_decoder_t* d) {
                 int frame = d->ach > 0 ? d->ach : (d->pcm.frame > 0 ? d->pcm.frame : 2);
                 int srr = d->asr > 0 ? d->asr : 48000;
                 if (d->apcm_float) {
-                    ring_write(&d->pcm, (const float*)(buf + info.offset), (int)(info.size / 4), pts);
+                    int n = (int)(info.size / 4);
+                    /* Priming is dropped by starting past it; the time below is
+                     * derived from the offset, so it stays right for the rest. */
+                    int skip = basis_frames_before_origin(pts, n / frame, srr) * frame;
+                    if (skip < n)
+                        ring_write(&d->pcm, (const float*)(buf + info.offset) + skip, n - skip,
+                                   pts + (int64_t)(skip / frame) * 1000000LL / srr);
                 } else {
                     int n = info.size / 2; /* 16-bit PCM */
                     float tmp[4096];
                     const int16_t* s16 = (const int16_t*)(buf + info.offset);
-                    int off = 0;
+                    int off = basis_frames_before_origin(pts, n / frame, srr) * frame;
                     while (off < n) {
                         int chunk = n - off; if (chunk > 4096) chunk = 4096;
                         for (int i = 0; i < chunk; ++i) tmp[i] = s16[off + i] / 32768.0f;
