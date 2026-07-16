@@ -142,12 +142,13 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | Fixture | Verify |
 | --- | --- |
 | H.264 + AAC stereo | The baseline — everything else assumes this passes |
-| H.265/HEVC | Windows needs the system HEVC codec present; absence degrades cleanly |
+| H.265/HEVC | **Video actually appears** (`https://mr.town/vod/tos_hevc.mp4`, `hvc1` from stock libx265 — what most HEVC in the wild is). Check for frames, not for the absence of an error: `hvc1` keeps its parameter sets only in the `hvcC` box, so anything that loses them on the way to the decoder gives a black screen with no error raised and nothing in the Console. Absence of the codec is the other half of the row — without the HEVC Video Extension installed it must degrade cleanly, and testing only that half will pass while playback is comprehensively broken |
 | VP9 in WebM (`https://mr.town/vod/tos_vp9.webm`) | Plays on Windows (Store "VP9 Video Extensions" + a GPU with hardware VP9 — the probe gates both) and Quest (hardware everywhere). The fixture is a two-pass encode carrying superframes, so whole-superframe feeding is exercised by playing it |
 | VP9 in MP4 (`https://mr.town/vod/tos_vp9.mp4`) | The `vp09` sample-entry lane; same decode path as WebM |
 | WebM Cues placements | `tos_vp9.webm` (Cues at front — parsed inline) and `tos_vp9_cuesend.webm` (Cues trailing — ranged-fetched at open via SeekHead) both report a duration and seek; `tos_vp9_nocues.webm` (streamed mux, no Cues) plays forward-only with **no seek bar / duration 0** — a duration on that file is a bug (duration > 0 must always mean seek works) |
 | Unsupported video codec | `https://mr.town/vod/tos_vp8.webm` and `https://mr.town/vod/tos_mp4v.mp4` refuse with a clear "video codec 'x' is not supported" error naming the codec — never silent audio under a black screen |
 | VP9 software-fallback guard | On a GPU without hardware VP9, a direct VP9 URL must produce the "video decoder produced software frames" error, not a black screen (the Store MFT silently falls back to CPU; only reproducible on a no-hw box or with the extension's fallback forced) |
+| AAC decoder priming | Audio starts on the first real sample, not on the decoder's priming. AAC's encoder delay is one 1024-sample frame, which MP4 signals with an edit list (`elst media_time=1024` on anything `ffmpeg -c:a aac` produced); the samples ahead of that origin must not reach the output. **Do not try to hear this** — 21 ms of lag is below the lip-sync threshold, which is exactly why it went unnoticed for so long. Measure it: decode the file with `ffmpeg -i x.m4a -map a:0 -f f32le -acodec pcm_f32le ref.f32`, capture what the player served, and correlate the two **at offset zero**. Aligned output correlates ~0.999; a stream still carrying its priming reads about **-0.07**, because it is shifted, not wrong. An LPCM/WAV file is the control — no decoder, no priming, correlates 1.000 |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
 | AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
@@ -227,6 +228,12 @@ flag it as such, not as a playback bug.
 **A/V sync judgement** — use real footage with visible speech; synthetic patterns hide sync
 drift. Watch a full minute at the live edge, not five seconds. For anything subtle, capture
 diagnostics (below) rather than trusting perception.
+
+Know what this row cannot do. Audio lag is only audible from somewhere around 45 ms, so a
+smaller constant offset is not a subtle failure of this check — it is outside it, and watching
+harder will not find it. A systematic offset that survives review is likely to be one this row
+structurally cannot see, so anything with a fixed delay in it (decoder priming, buffer
+alignment, resampler latency) has to be measured against a reference decode rather than judged.
 
 **Orientation** — a horizontal mirror is invisible on symmetric content. Verify left/right
 with on-screen text or a logo, every time video-path code changes.

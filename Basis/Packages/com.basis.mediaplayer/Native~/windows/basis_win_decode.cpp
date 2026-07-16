@@ -1013,7 +1013,9 @@ static void drain_audio(basis_decoder* d) {
                 const int16_t* s16 = (const int16_t*)p;
                 float tmp[4096];
                 int maxFrames = 4096 / ch; if (maxFrames < 1) maxFrames = 1;
-                int off = 0;
+                /* Priming is dropped by starting past it; the per-chunk time below
+                 * is derived from off, so it stays correct for what remains. */
+                int off = basis_frames_before_origin(pts, n / ch, srr) * ch;
                 /* Write whole interleaved frames only: a sub-frame chunk would
                  * give the ring's per-chunk PTS a fractional sample count. */
                 while (off + ch <= n) {
@@ -1026,7 +1028,10 @@ static void drain_audio(basis_decoder* d) {
                 d->aPtsFallback = pts + (int64_t)(n / ch) * 1000000LL / srr;
             } else {
                 int n = (int)(cur / sizeof(float));
-                d->pcm.write((const float*)p, n, pts);
+                int skip = basis_frames_before_origin(pts, n / ch, srr) * ch;
+                if (skip < n)
+                    d->pcm.write((const float*)p + skip, n - skip,
+                                 pts + (int64_t)(skip / ch) * 1000000LL / srr);
                 d->aPtsFallback = pts + (int64_t)(n / ch) * 1000000LL / srr;
             }
             mb->Unlock();

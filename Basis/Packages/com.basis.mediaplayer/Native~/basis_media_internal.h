@@ -232,6 +232,26 @@ int basis_engine_is_running(basis_media_engine_t* engine);
  * presents on a fixed 1x-from-first-PTS clock instead of the live-edge clock. */
 int basis_engine_is_paced(basis_media_engine_t* engine);
 
+/* Leading frames of a decoded audio block that sit ahead of the media-time
+ * origin, and so must not reach the PCM ring.
+ *
+ * Encoder delay is signalled by starting the presentation after it — an MP4 edit
+ * list's media_time, Opus's pre-skip — and the demuxers carry that through as a
+ * negative presentation time rather than dropping the samples, because the
+ * decoder still has to be fed them to prime. Their *output* is not content: for
+ * AAC that is one 1024-sample frame, so letting it through delays everything
+ * after it by 21 ms.
+ *
+ * `pts` is the block's presentation time in microseconds, `frames` its length,
+ * `rate` the sample rate. Returns 0 when the block starts at or after the origin,
+ * and `frames` when all of it precedes the origin. Rounds up, so a partially
+ * primed frame is dropped rather than half-played. */
+static inline int basis_frames_before_origin(int64_t pts, int frames, int rate) {
+    if (pts >= 0 || frames <= 0 || rate <= 0) return 0;
+    int64_t drop = ((-pts) * (int64_t)rate + 999999) / 1000000;
+    return drop >= (int64_t)frames ? frames : (int)drop;
+}
+
 #ifdef __cplusplus
 }
 #endif
