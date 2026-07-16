@@ -337,6 +337,25 @@ static int esds_extract_asc(const uint8_t* ep, int el, uint8_t* asc, int cap) {
     return (int)dlen;
 }
 
+/* Returns the esds objectTypeIndication (0x40 = AAC, 0x6B = MPEG-1 audio / MP3,
+ * 0x69 = MPEG-2 audio / MP3), or 0 if the descriptor tree can't be walked. Same
+ * walk as esds_extract_asc, stopping at the DecoderConfig's first byte. */
+static int esds_object_type(const uint8_t* ep, int el) {
+    int j = 0;
+    uint32_t len;
+    if (j >= el || ep[j++] != 0x03) return 0;                 /* ES_Descriptor */
+    if (!esds_desc_len(ep, el, &j, &len) || len > (uint32_t)(el - j)) return 0;
+    int es_end = j + (int)len;
+    if (j + 3 > es_end) return 0;
+    int flags = ep[j + 2]; j += 3;
+    if (flags & 0x80) j += 2;
+    if (flags & 0x40) { if (j >= es_end) return 0; j += 1 + ep[j]; }
+    if (flags & 0x20) j += 2;
+    if (j >= es_end || ep[j++] != 0x04) return 0;             /* DecoderConfigDescriptor */
+    if (!esds_desc_len(ep, es_end, &j, &len) || len < 1 || len > (uint32_t)(es_end - j)) return 0;
+    return ep[j];                                             /* objectTypeIndication */
+}
+
 static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
     /* stsd: version/flags(4) entry_count(4) then sample entries */
     if (len < 8) return;
@@ -417,6 +436,14 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                 if (ct == 0x65736473 /*esds*/ && csz >= 12) {
                     /* esds payload after the box's 4-byte version/flags */
                     const uint8_t* ep = ent + co + 12; int el = csz - 12;
+                    int oti = esds_object_type(ep, el);
+                    if (oti == 0x6B /*MPEG-1 audio*/ || oti == 0x69 /*MPEG-2 audio*/) {
+                        /* MP3 in MP4: no AudioSpecificConfig; the sr/ch from the
+                         * sample entry stand, and the decoder reads frame headers. */
+                        t->codec = BASIS_CODEC_MP3;
+                        co += csz;
+                        continue;
+                    }
                     int n = esds_extract_asc(ep, el, t->asc, (int)sizeof(t->asc));
                     if (n >= 2) {
                         /* Walk the ASC bit fields so the escape forms parse
@@ -613,7 +640,8 @@ static void announce_tracks(mp4_t* m) {
             }
             m->sink->on_video_format(m->sink->user, t->codec, t->extradata, t->extradata_len, w, h);
         } else {
-            m->sink->on_audio_format(m->sink->user, BASIS_CODEC_AAC, t->sr ? t->sr : 48000, t->ch ? t->ch : 2,
+            m->sink->on_audio_format(m->sink->user, t->codec ? t->codec : BASIS_CODEC_AAC,
+                                     t->sr ? t->sr : 48000, t->ch ? t->ch : 2,
                                      t->asc_len ? t->asc : NULL, t->asc_len);
         }
         t->announced = 1;
