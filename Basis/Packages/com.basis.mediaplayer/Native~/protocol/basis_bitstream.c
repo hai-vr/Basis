@@ -243,13 +243,14 @@ static uint32_t gb_u(gb_t* g, int n) {
         int bit = 7 - (g->bitpos & 7);
         int b = (byte < g->size) ? ((g->d[byte] >> bit) & 1) : 0;
         v = (v << 1) | (uint32_t)b;
-        g->bitpos++;
+        if (byte < g->size) g->bitpos++; /* freeze past the end; don't overflow bitpos */
     }
     return v;
 }
 static uint32_t gb_ue(gb_t* g) {
     int zeros = 0;
-    while (gb_u(g, 1) == 0 && zeros < 32) zeros++;
+    /* Cap at 31: a ue(v) with >=31 leading zeros is malformed, and 1u<<32 is UB. */
+    while (gb_u(g, 1) == 0 && zeros < 31) zeros++;
     uint32_t v = (1u << zeros) - 1 + gb_u(g, zeros);
     return v;
 }
@@ -290,6 +291,7 @@ int basis_h264_sps_dimensions(const uint8_t* sps, int len, int* width, int* heig
         gb_u(&g, 1);
         gb_se(&g); gb_se(&g);
         uint32_t n = gb_ue(&g);
+        if (n > 255) return -1;         /* malformed; H.264 caps this cycle at 255 */
         for (uint32_t i = 0; i < n; ++i) gb_se(&g);
     }
     gb_ue(&g);                          /* max_num_ref_frames */
@@ -303,10 +305,12 @@ int basis_h264_sps_dimensions(const uint8_t* sps, int len, int* width, int* heig
     uint32_t cl = 0, cr = 0, ct = 0, cb = 0;
     if (crop) { cl = gb_ue(&g); cr = gb_ue(&g); ct = gb_ue(&g); cb = gb_ue(&g); }
 
-    int w = (int)(w_mbs * 16) - (int)(cl + cr) * 2;
-    int h = (int)(h_map * 16 * (2 - frame_mbs_only)) - (int)(ct + cb) * 2;
+    /* Crop and MB counts are attacker-controlled ue(v); compute in int64 so a
+     * malformed SPS overflows nothing before the range check rejects it. */
+    int64_t w = (int64_t)w_mbs * 16 - ((int64_t)cl + cr) * 2;
+    int64_t h = (int64_t)h_map * 16 * (2 - (int64_t)frame_mbs_only) - ((int64_t)ct + cb) * 2;
     if (w <= 0 || h <= 0 || w > 8192 || h > 8192) return -1;
-    if (width) *width = w;
-    if (height) *height = h;
+    if (width) *width = (int)w;
+    if (height) *height = (int)h;
     return 0;
 }
