@@ -188,10 +188,13 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
     if codec in ("opus", "aac"):
         our_ed = (ann.get("extradata_md5") or "").lower()
         ref_ed = extradata_hash(media, stream)
-        if our_ed and ref_ed:
-            c.ok(f"{kind}.extradata", our_ed == ref_ed, f"ours={our_ed[:12]} ffmpeg={ref_ed[:12]}")
+        if ref_ed:
+            # ffprobe has extradata, so ours must too: a demuxer that drops the
+            # ASC/OpusHead breaks decoder init and must fail, not skip.
+            c.ok(f"{kind}.extradata", bool(our_ed) and our_ed == ref_ed,
+                 f"ours={our_ed[:12] or 'missing'} ffmpeg={ref_ed[:12]}")
         else:
-            c.skip(f"{kind}.extradata", "no comparable extradata on one/both sides")
+            c.skip(f"{kind}.extradata", "ffprobe exposes no comparable extradata")
 
     aus = [a for a in d.get("access_units", []) if a["track"] == kind]
 
@@ -231,8 +234,15 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         worst = max((abs(a - b) for a, b in zip(o, r)), default=0)
         c.ok(f"{kind}.{field}", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
 
-    _seq_check("pts", [a["pts_us"] for a in aus[:n]], [p["pts_us"] for p in pkts[:n]])
-    _seq_check("dts", [a.get("dts_us") for a in aus[:n]], [p.get("dts_us") for p in pkts[:n]])
+    our_pts_v = [a["pts_us"] for a in aus[:n]]
+    our_dts_v = [a.get("dts_us") for a in aus[:n]]
+    _seq_check("pts", our_pts_v, [p["pts_us"] for p in pkts[:n]])
+    # DTS only when the demuxer actually provides decode timestamps distinct from
+    # PTS. The sink contract lets a demuxer pass PTS for both (the MPEG-TS lane
+    # does), and comparing that against ffmpeg's reordered DTS would be a false
+    # failure; where we do emit a real DTS (e.g. MP4 B-frames), it must match.
+    if our_dts_v != our_pts_v:
+        _seq_check("dts", our_dts_v, [p.get("dts_us") for p in pkts[:n]])
 
     # Payload MD5.
     if codec == "aac" and container_ts:

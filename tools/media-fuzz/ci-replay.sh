@@ -29,7 +29,9 @@ for tcdir in "$here"/testcases/*/; do
     echo "fuzz_${target}: replaying ${#cases[@]} repro(s)"
     for c in "${cases[@]}"; do
         total=$((total + 1))
-        if "$exe" "$c" >/tmp/fuzz_replay.log 2>&1; then
+        # -timeout so a non-crashing parser loop fails fast instead of hanging
+        # the gate for libFuzzer's default 1200 s.
+        if "$exe" -timeout=30 "$c" >/tmp/fuzz_replay.log 2>&1; then
             echo "  ok    $(basename "$c")"
         else
             echo "  CRASH $(basename "$c")"
