@@ -193,17 +193,23 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         else:
             c.skip(f"{kind}.extradata", "no comparable extradata on one/both sides")
 
+    aus = [a for a in d.get("access_units", []) if a["track"] == kind]
+
     # LPCM has no canonical packetisation (the demuxer and ffmpeg chunk it
-    # differently), so count/pts/md5 are all meaningless. Announce + codec is
-    # what the demux layer actually owns for it.
+    # differently), so per-packet count/pts/md5 are meaningless -- but emitting
+    # nothing at all is still a regression, so require at least one frame.
     if codec == "lpcm":
-        c.skip(f"{kind}.packets", "LPCM packetisation is arbitrary; not comparable")
+        c.ok(f"{kind}.packets", bool(aus), "demuxer emitted no LPCM frames")
         return
 
     pkts = probe_packets(media, stream)
-    aus = [a for a in d.get("access_units", []) if a["track"] == kind]
 
     c.ok(f"{kind}.count", len(aus) == len(pkts), f"ours={len(aus)} ffmpeg={len(pkts)}")
+
+    if kind == "video":
+        c.ok("video.keyframes",
+             [a["key"] for a in aus] == [p["key"] for p in pkts],
+             f"ours={sum(a['key'] for a in aus)} keyframes, ffmpeg={sum(p['key'] for p in pkts)}")
 
     # PTS/DTS in emit order -- ffprobe lists packets in demux order, exactly the
     # order the sink receives them. No sorting: it would turn the sequence check
