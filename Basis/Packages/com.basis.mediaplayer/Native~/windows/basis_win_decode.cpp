@@ -527,17 +527,32 @@ static bool configure_video_mft(basis_decoder* d) {
     /* bind DXVA device manager */
     d->vdec->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, (ULONG_PTR)d->devMgr);
 
+    /* Without a frame size the Store HEVC MFT accepts the type, then reads a null
+     * pointer on its own worker thread once data arrives and crashes the process.
+     * Refuse here: only H.265 elementary streams reach this point sizeless (no SPS
+     * parser for TS/RTSP/RTMP), and the size can't be recovered once it crashes. */
+    if (d->vwidth <= 0 || d->vheight <= 0) {
+        basis_engine_set_error(d->engine,
+            "video track announced no frame size, so the decoder cannot be configured "
+            "(H.265 outside MP4 has no dimension parser yet)");
+        SAFE_RELEASE(d->vdec);
+        return false;
+    }
+
     /* input type */
     IMFMediaType* in = nullptr;
     MFCreateMediaType(&in);
     in->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
     in->SetGUID(MF_MT_SUBTYPE, *video_subtype(d->vcodec));
     in->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-    if (d->vwidth > 0 && d->vheight > 0)
-        MFSetAttributeSize(in, MF_MT_FRAME_SIZE, d->vwidth, d->vheight);
+    MFSetAttributeSize(in, MF_MT_FRAME_SIZE, d->vwidth, d->vheight);
     HRESULT hr = d->vdec->SetInputType(0, in, 0);
     in->Release();
-    if (FAILED(hr)) { basis_engine_set_error(d->engine, "MFT SetInputType failed"); return false; }
+    if (FAILED(hr)) {
+        basis_engine_set_error(d->engine, "MFT SetInputType failed");
+        SAFE_RELEASE(d->vdec);
+        return false;
+    }
 
     /* pick an NV12 output type */
     IMFMediaType* out = nullptr;
@@ -555,7 +570,11 @@ static bool configure_video_mft(basis_decoder* d) {
     }
     hr = d->vdec->SetOutputType(0, out, 0);
     out->Release();
-    if (FAILED(hr)) { basis_engine_set_error(d->engine, "MFT SetOutputType(NV12) failed"); return false; }
+    if (FAILED(hr)) {
+        basis_engine_set_error(d->engine, "MFT SetOutputType(NV12) failed");
+        SAFE_RELEASE(d->vdec);
+        return false;
+    }
     read_display_aperture(d);
 
     d->vdec->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);

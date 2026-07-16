@@ -198,32 +198,37 @@ static void feed_es(ts_t* t, es_accum_t* e, int pusi, const uint8_t* payload, in
 }
 
 static void parse_pat(ts_t* t, const uint8_t* p, int plen) {
-    if (plen < 1) return;
+    /* Need the pointer field plus the 8-byte section header after it. */
+    if (plen < 1 || 1 + p[0] + 8 > plen) return;
     int ptr = p[0];                 /* pointer field */
     const uint8_t* s = p + 1 + ptr;
     int avail = plen - 1 - ptr;
-    if (avail < 8) return;
     int section_len = ((s[1] & 0x0F) << 8) | s[2];
-    int n = section_len - 5 - 4;    /* minus header-after-len and CRC */
-    const uint8_t* prog = s + 8;
-    for (int i = 0; i + 4 <= n; i += 4) {
-        int program = (prog[i] << 8) | prog[i + 1];
-        int pid = ((prog[i + 2] & 0x1F) << 8) | prog[i + 3];
+    /* section_len is attacker-controlled (12 bits); this demuxer reads a single
+     * packet, so clamp it to what is present rather than run off the buffer. */
+    int total = 3 + section_len;
+    if (total > avail) total = avail;
+    int prog_bytes = total - 8 - 4; /* minus 8-byte header, 4-byte CRC */
+    for (int i = 0; i + 4 <= prog_bytes; i += 4) {
+        const uint8_t* prog = s + 8 + i;
+        int program = (prog[0] << 8) | prog[1];
+        int pid = ((prog[2] & 0x1F) << 8) | prog[3];
         if (program != 0) { t->pmt_pid = pid; break; } /* first real program */
     }
 }
 
 static void parse_pmt(ts_t* t, const uint8_t* p, int plen) {
-    if (plen < 1) return;
+    if (plen < 1 || 1 + p[0] + 12 > plen) return;
     int ptr = p[0];
     const uint8_t* s = p + 1 + ptr;
     int avail = plen - 1 - ptr;
-    if (avail < 12) return;
     int section_len = ((s[1] & 0x0F) << 8) | s[2];
     int prog_info_len = ((s[10] & 0x0F) << 8) | s[11];
-    const uint8_t* es = s + 12 + prog_info_len;
-    const uint8_t* end = s + 3 + section_len - 4; /* up to CRC */
-    while (es + 5 <= end) {
+    int total = 3 + section_len;
+    if (total > avail) total = avail; /* clamp: section_len is untrusted */
+    int es_end = total - 4;           /* up to CRC */
+    for (int i = 12 + prog_info_len; i + 5 <= es_end; ) {
+        const uint8_t* es = s + i;
         int stype = es[0];
         int pid = ((es[1] & 0x1F) << 8) | es[2];
         int eslen = ((es[3] & 0x0F) << 8) | es[4];
@@ -231,7 +236,7 @@ static void parse_pmt(ts_t* t, const uint8_t* p, int plen) {
         else if ((stype == 0x24) && t->video_pid < 0) { t->video_pid = pid; t->video_codec = BASIS_CODEC_H265; t->v.pid = pid; }
         else if ((stype == 0x0F || stype == 0x11) && t->audio_pid < 0) { t->audio_pid = pid; t->audio_codec = BASIS_CODEC_AAC; t->a.pid = pid; }
         else if (stype == 0x80 && t->audio_pid < 0) { t->audio_pid = pid; t->audio_codec = BASIS_CODEC_LPCM; t->a.pid = pid; }
-        es += 5 + eslen;
+        i += 5 + eslen;
     }
 }
 
