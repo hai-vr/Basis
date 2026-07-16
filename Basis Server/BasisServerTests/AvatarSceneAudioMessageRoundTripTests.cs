@@ -1097,6 +1097,41 @@ public class AvatarCloneAndPlayerIdWireTests
         var reader = Wire.Empty();
         Assert.Throws<ArgumentException>(() => msg.Deserialize(reader));
     }
+
+    [Fact]
+    public void AvatarLoadDataMessage_RoundTrip_PreservesAllFields()
+    {
+        var msg = new AvatarLoadDataMessage
+        {
+            messageIndex = 4,
+            WhoSentUsThis = ushort.MaxValue,
+            payload = new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 },
+        };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        var result = default(AvatarLoadDataMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal((byte)4, result.messageIndex);
+        Assert.Equal(ushort.MaxValue, result.WhoSentUsThis);
+        Assert.Equal((ushort)10, result.payloadSize);
+        Assert.Equal(msg.payload, result.payload);
+    }
+
+    [Fact]
+    public void AvatarLoadDataMessage_NullPayload_RoundTripsAsNull()
+    {
+        var msg = new AvatarLoadDataMessage { messageIndex = 1, WhoSentUsThis = 2, payload = null };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        var result = default(AvatarLoadDataMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal((byte)1, result.messageIndex);
+        Assert.Equal((ushort)2, result.WhoSentUsThis);
+        Assert.Equal((ushort)0, result.payloadSize);
+        Assert.Null(result.payload);
+    }
 }
 
 /// <summary>

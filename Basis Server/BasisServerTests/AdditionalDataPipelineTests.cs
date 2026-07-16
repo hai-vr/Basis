@@ -15,6 +15,7 @@ namespace BasisServerTests;
 /// BasisAvatarDeltaCompression, PreSerializeFrame/Keyframe/Delta) over actual byte buffers,
 /// so any wire-layout drift that would silently drop face data fails here instead of in-game.
 /// </summary>
+[Collection("Basis reduction statics")]
 public class AdditionalDataPipelineTests : IDisposable
 {
     private readonly bool _savedStrip = BasisServerReductionSystemEvents.StripAdditionalDataAtLowQuality;

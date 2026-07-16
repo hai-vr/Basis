@@ -351,7 +351,15 @@ namespace BasisNetworkServer.Security
 
                 case AdminRequestMode.GlobalToggleAdditionalAvatarDataLock:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
-                        HandleGlobalToggle(peer, "Additional avatar data lock", BasisGlobalLockManager.ToggleAdditionalAvatarDataLock()));
+                    {
+                        // Not HandleGlobalToggle: its "loading ENABLED/DISABLED" template reads
+                        // inverted for this flag (it said DISABLED at the moment stripping turned
+                        // ON), which misled admins into leaving face tracking stripped server-wide.
+                        bool nowStripping = BasisGlobalLockManager.ToggleAdditionalAvatarDataLock();
+                        HandleGlobalStateNotification(peer, nowStripping
+                            ? "Additional avatar data (face tracking, avatar behaviour params) is now STRIPPED for everyone."
+                            : "Additional avatar data (face tracking, avatar behaviour params) now flows normally.");
+                    });
                     break;
 
                 case AdminRequestMode.SetGlobalCameraPolicy:
@@ -909,11 +917,21 @@ namespace BasisNetworkServer.Security
         private static void HandleGlobalToggle(NetPeer peer, string contentType, bool nowLocked)
         {
             string state = nowLocked ? "DISABLED" : "ENABLED";
-            string notification = $"{contentType} loading has been globally {state} by an admin.";
+            HandleGlobalStateNotification(peer, $"{contentType} loading has been globally {state} by an admin.");
+        }
+
+        /// <summary>
+        /// Notifies the toggling admin + all clients with a pre-composed, unambiguous message and
+        /// rebroadcasts the lock state. Toggles whose semantics don't fit the
+        /// "loading ENABLED/DISABLED" template (e.g. the additional-avatar-data strip) use this
+        /// directly so the message can state what actually changed.
+        /// </summary>
+        private static void HandleGlobalStateNotification(NetPeer peer, string notification)
+        {
             BNL.Log(notification);
 
             // Notify the admin who toggled it
-            SendBackMessage(peer, $"{contentType} loading is now {state}.");
+            SendBackMessage(peer, notification);
 
             // Notify all clients about the change
             var writer = NetworkServer.RentWriter();

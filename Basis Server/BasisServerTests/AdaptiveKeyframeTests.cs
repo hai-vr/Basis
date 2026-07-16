@@ -7,6 +7,7 @@ namespace BasisServerTests;
 /// Adaptive keyframe stretch (v42): a streak of small High deltas doubles the periodic keyframe
 /// interval up to AvatarDeltaKeyframeMaxIntervalMs; any large delta snaps it back to the base.
 /// </summary>
+[Collection("Basis reduction statics")]
 public class AdaptiveKeyframeTests : IDisposable
 {
     private readonly int _savedBase = BasisServerReductionSystemEvents.AvatarDeltaKeyframeIntervalMs;

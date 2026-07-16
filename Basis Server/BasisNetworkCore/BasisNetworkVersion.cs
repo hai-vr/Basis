@@ -7,6 +7,8 @@ namespace Basis.Network.Core
         // 41: end-effector anchoring block (+39B on High) — hand/foot world targets + swivel.
         // 42: int24-mm position on Medium/Low/VeryLow (-3B), extended interval-byte encoding past
         //     305ms, upstream/P2P avatar deltas + keyframe request control frames on DeltaAvatarChannel.
-        public static ushort ServerVersion = 42;
+        // 43: AdditionalAvatarData entries always carry the [size][messageIndex] header (size-0
+//     entries previously desynced the section) — old/new peers must not mix.
+        public static ushort ServerVersion = 43;
     }
 }

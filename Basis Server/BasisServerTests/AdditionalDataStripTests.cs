@@ -8,6 +8,7 @@ namespace BasisServerTests;
 /// StripAdditionalDataAtLowQuality: Low/VeryLow tiers drop AdditionalAvatarData (face/behaviour
 /// params are unreadable at those view distances); High/Medium keep it. Off = legacy copy-to-all.
 /// </summary>
+[Collection("Basis reduction statics")]
 public class AdditionalDataStripTests : IDisposable
 {
     private readonly bool _saved = BasisServerReductionSystemEvents.StripAdditionalDataAtLowQuality;

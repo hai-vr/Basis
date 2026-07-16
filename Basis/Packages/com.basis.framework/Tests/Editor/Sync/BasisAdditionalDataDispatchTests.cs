@@ -48,7 +48,7 @@ public class BasisAdditionalDataDispatchTests
 
         _go = new GameObject("AdditionalDataDispatchTest");
         _behaviour = _go.AddComponent<RecordingAvatarBehaviour>();
-        _receiver = new BasisNetworkReceiver
+        _receiver = new BasisNetworkReceiver(1)
         {
             NetworkBehaviours = new BasisNetworkAvatarBehaviour[] { _behaviour, _behaviour },
             NetworkBehaviourCount = 2,
