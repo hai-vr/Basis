@@ -365,6 +365,29 @@ static void parse_info(webm_t* w, const uint8_t* p, int64_t len) {
         w->duration_us = ticks_to_us((int64_t)dur_ticks, w->ts_scale_ns);
 }
 
+/* Validate an OpusHead (CodecPrivate) per RFC 7845 §5.1 before the demuxer
+ * commits to the track: magic, version, channel count, and the family-specific
+ * layout. Family 0 is mono/stereo with no mapping table; family 1 (and the
+ * undefined family 255) carry a stream/coupled count and an N-byte channel map;
+ * every other family is reserved. Rejecting here means a malformed header
+ * surfaces as an error rather than a track the decoder later refuses. */
+static int valid_opushead(const uint8_t* p, int64_t len) {
+    if (!p || len < 19 || memcmp(p, "OpusHead", 8) != 0) return 0;
+    int ch = p[9];
+    if (ch < 1 || ch > 8) return 0;
+    int family = p[18];
+    if (family == 0) return ch <= 2;                     /* no mapping table */
+    if (family == 1 || family == 255) {
+        if (len < 21 + (int64_t)ch) return 0;            /* streams + coupled + N-byte map */
+        int streams = p[19], coupled = p[20];
+        if (streams < 1 || coupled > streams || streams + coupled > 255) return 0;
+        for (int i = 0; i < ch; ++i)                     /* map addresses a real stream, or 255 = silent */
+            if (p[21 + i] != 255 && p[21 + i] >= streams + coupled) return 0;
+        return 1;
+    }
+    return 0;                                            /* reserved family */
+}
+
 /* One TrackEntry. Selects the first supported video track; remembers the first
  * unsupported video CodecID for the error message. The CodecID switch is the
  * extension point: A_OPUS (Opus item) adds a branch here. */
@@ -445,13 +468,11 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     } else if (type == 2) {                  /* audio (first supported track wins) */
         if (w->audio_track_num) return;
         if (strcmp(codec, "A_OPUS") == 0) {
-            /* CodecPrivate is the OpusHead: 19 fixed bytes plus at most an 8-channel
-             * mapping table, channel count at byte 9. Only select the track once
-             * the header validates — announcing an Opus track the decoder then
-             * rejects (bad/absent OpusHead) would leave audio-only playback silent
-             * instead of reporting the malformed stream. */
-            if (priv && priv_len >= 19 && priv_len <= (int64_t)sizeof(w->audio_extradata)
-                && memcmp(priv, "OpusHead", 8) == 0 && priv[9] >= 1 && priv[9] <= 8) {
+            /* Only select the track once the OpusHead fully validates — announcing
+             * an Opus track the decoder then rejects (bad/absent header) would
+             * leave audio-only playback silent instead of reporting the stream. */
+            if (priv && priv_len <= (int64_t)sizeof(w->audio_extradata)
+                && valid_opushead(priv, priv_len)) {
                 w->audio_track_num = num;
                 w->audio_codec = BASIS_CODEC_OPUS;
                 w->audio_rate = 48000;       /* Opus always decodes at 48 kHz */
@@ -689,9 +710,11 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
             else {
                 w->sink->on_audio_frame(w->sink->user, body + off, (int)sizes[i], frame_pts);
                 /* each laced Opus packet carries its own samples: advance the
-                 * timestamp so they don't all land on the block time. */
+                 * timestamp so they don't all land on the block time (saturating,
+                 * since a hostile cluster time could push frame_pts near INT64_MAX). */
                 if (w->audio_codec == BASIS_CODEC_OPUS)
-                    frame_pts += (int64_t)opus_packet_samples(body + off, (int)sizes[i]) * 1000000LL / 48000;
+                    frame_pts = add_i64_sat(frame_pts,
+                        (int64_t)opus_packet_samples(body + off, (int)sizes[i]) * 1000000LL / 48000);
             }
         }
         off += sizes[i];
@@ -790,16 +813,20 @@ static void publish_duration(webm_t* w) {
  * repositionable source are both in hand — a reported duration always means
  * the seek bar works. */
 static int announce(webm_t* w, int64_t first_cluster_abs) {
-    /* Audio-only Opus WebM (YouTube's audio legs) is valid: error only when
-     * neither a video nor an audio track was selected. */
-    if (!w->track_num && !w->audio_track_num) {
+    /* An unsupported video track is a hard error even when a decodable audio
+     * track is present: the file carries video the user expects to see, and
+     * degrading to audio under a black screen is the failure the regression
+     * guards against. Only a file with no video track at all (a genuine
+     * audio-only Opus WebM, e.g. YouTube's audio legs) plays audio-only. */
+    if (w->bad_codec[0] && !w->track_num) {
         char msg[96];
-        if (w->bad_codec[0])
-            snprintf(msg, sizeof(msg), "video codec '%s' is not supported (supported: V_VP9, V_AV1)",
-                     w->bad_codec);
-        else
-            snprintf(msg, sizeof(msg), "WebM has no track this player supports");
+        snprintf(msg, sizeof(msg), "video codec '%s' is not supported (supported: V_VP9, V_AV1)",
+                 w->bad_codec);
         w->sink->on_error(w->sink->user, msg);
+        return 0;
+    }
+    if (!w->track_num && !w->audio_track_num) {
+        w->sink->on_error(w->sink->user, "WebM has no track this player supports");
         return 0;
     }
 

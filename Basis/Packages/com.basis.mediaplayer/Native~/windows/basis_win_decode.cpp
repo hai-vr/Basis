@@ -313,7 +313,8 @@ struct basis_decoder {
     /* Opus (libopus via the opussharp-shipped DLL, resolved at runtime — §4-b2).
      * Decode float straight into the ring like the LPCM bypass. */
     void* opusDec = nullptr;        /* OpusDecoder* or OpusMSDecoder* */
-    int opusIsMS = 0;               /* 1 = multistream (mapping family 1) */
+    int opusIsMS = 0;               /* 1 = multistream decoder (mapping family != 0) */
+    int opusMappingFamily = 0;      /* OpusHead channel-mapping family */
     int opusPreSkip = 0;            /* encoder pre-skip frames still to drop */
     float* opusBuf = nullptr;       /* reusable decode buffer (interleaved float) */
     int opusBufCap = 0;             /* in floats */
@@ -1244,6 +1245,9 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
         int16_t gain = (int16_t)(asc[16] | (asc[17] << 8));
         int family = asc[18];
         if (ch < 1 || ch > 8) return 0;
+        if (family == 0 && ch > 2) return 0;             /* family 0 is mono/stereo only */
+        if (family != 0 && family != 1 && family != 255) return 0; /* reserved family */
+        d->opusMappingFamily = family;
         int err = 0;
         if (family == 0) {
             OpusDecoder* dec = g_opus.dec_create(48000, ch, &err);
@@ -1461,8 +1465,8 @@ static void submit_opus(basis_decoder* d, const uint8_t* data, int len, int64_t 
     float* out = d->opusBuf + (int64_t)(drop + origin) * ch;
     int outframes = remain - origin;
     /* Family 1 is Vorbis channel order; reorder to WAVE before the ring. Family 0
-     * is mono/stereo, already in the right order. */
-    if (d->opusIsMS) {
+     * is mono/stereo and family 255 has no defined layout — neither is remapped. */
+    if (d->opusMappingFamily == 1) {
         const int* map = opus_vorbis_to_wave(ch);
         if (map) {
             for (int f = 0; f < outframes; ++f) {

@@ -236,7 +236,9 @@ static void compute_duration(ogg_t* o) {
     ogg_page_t pg;
     int64_t last = -1;
     while (o->pos < o->size && read_page(o, &pg)) {
-        if (pg.granule >= 0) last = pg.granule;
+        /* Only the selected logical stream: a chained file's tail may belong to a
+         * later stream with its own reset granule, which isn't our duration. */
+        if (pg.serial == o->serial && pg.granule >= 0) last = pg.granule;
     }
     do_reseek(o, resume);
     if (last > 0 && o->sink->on_duration)
@@ -255,6 +257,7 @@ static void seek_to_us(ogg_t* o, int64_t target_us) {
         int64_t mid = lo + (hi - lo) / 2;
         if (!do_reseek(o, mid)) return;
         if (!read_page(o, &pg)) { hi = mid; continue; }
+        if (pg.serial != o->serial) { hi = mid; continue; } /* a later chain: our stream is earlier */
         if (pg.granule < 0) { lo = mid + 1; continue; } /* no granule here: go later */
         if (pg.granule <= target_g) { lo = mid; best = mid; }
         else hi = mid;
@@ -266,7 +269,7 @@ static void seek_to_us(ogg_t* o, int64_t target_us) {
      * the landed page to read its end granule; the run loop resumes at the next
      * page, whose first packet begins exactly there. (The decoder handles its
      * own pre-roll from that point.) */
-    if (read_page(o, &pg))
+    if (read_page(o, &pg) && pg.serial == o->serial)
         o->next_pts_us = granule_to_us(pg.granule, o->pre_skip);
     else
         o->next_pts_us = target_us;
