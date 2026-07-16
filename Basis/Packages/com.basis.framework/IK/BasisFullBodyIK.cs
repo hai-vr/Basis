@@ -328,6 +328,14 @@ namespace UnityEngine.Animations.Rigging
         // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
         // the spine folds more when crouched and straightens when reaching up. 0 disables.
         [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_SpineSquishBoost;
+        // How much the chest FOLLOWS the gaze (no chest tracker). 0 = rigid (the look-down-stability fix,
+        // chest never folds on a pure look-down); 1 = full follow (the old phantom-lean). A small value is
+        // 'a little real spine': the chest folds a touch when you look down, which reads better on desktop.
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_SpineGazeFollow;
+        // How much EXTRA forward neck curve to add on a look-down (no chest tracker). Same idea as the
+        // chest gaze-follow, but the neck's lordosis runs AFTER the head-placing CCD, so this is a
+        // cosmetic post-solve curve -- it nudges the head BONE a touch (the camera rides the HMD target).
+        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_NeckGazeFollow;
         [SyncSceneToStream, SerializeField, Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
         // Elbow/knee swing smoothing: max swing speed (deg/s) around the root→tip axis. Lower =
         // smoother (more lag) so a torso-collision change eases in; 0 disables. See ApplySwingContinuity.
@@ -537,6 +545,8 @@ namespace UnityEngine.Animations.Rigging
         public float SpineMaxBackwardDeg { get => m_SpineMaxBackwardDeg; set => m_SpineMaxBackwardDeg = value; }
         public float SpineMaxLateralDeg { get => m_SpineMaxLateralDeg; set => m_SpineMaxLateralDeg = value; }
         public float SpineSquishBoost { get => m_SpineSquishBoost; set => m_SpineSquishBoost = value; }
+        public float SpineGazeFollow { get => m_SpineGazeFollow; set => m_SpineGazeFollow = value; }
+        public float NeckGazeFollow { get => m_NeckGazeFollow; set => m_NeckGazeFollow = value; }
         public float MoveBodyBackWhenCrouching { get => m_MoveBodyBackWhenCrouching; set => m_MoveBodyBackWhenCrouching = value; }
         public float SwingSmoothRateDeg { get => m_SwingSmoothRateDeg; set => m_SwingSmoothRateDeg = value; }
         public float ChestArmSwingFactor { get => m_ChestArmSwingFactor; set => m_ChestArmSwingFactor = value; }
@@ -564,6 +574,8 @@ namespace UnityEngine.Animations.Rigging
         public string SpineMaxBackwardDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxBackwardDeg));
         public string SpineMaxLateralDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineMaxLateralDeg));
         public string SpineSquishBoostFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineSquishBoost));
+        public string SpineGazeFollowFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineGazeFollow));
+        public string NeckGazeFollowFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_NeckGazeFollow));
         public string MoveBodyBackWhenCrouchingFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MoveBodyBackWhenCrouching));
         public string SwingSmoothRateDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SwingSmoothRateDeg));
         public string ChestArmSwingFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestArmSwingFactor));
@@ -701,6 +713,8 @@ namespace UnityEngine.Animations.Rigging
             m_SpineMaxBackwardDeg = 25f;
             m_SpineMaxLateralDeg = 25f;
             m_SpineSquishBoost = 0.5f;
+            m_SpineGazeFollow = 0.25f;
+            m_NeckGazeFollow = 0.3f;
             m_MoveBodyBackWhenCrouching = 1f;
             m_SwingSmoothRateDeg = 720f;
             m_ChestArmSwingFactor = 0.3f;
@@ -712,8 +726,8 @@ namespace UnityEngine.Animations.Rigging
             m_AnatShoulderSlide = false;
             m_AnatCervicalLordosis = false;
             m_AnatPelvicTwistRouting = false;
-            m_SpineAnatomicalRom = true;
-            m_ChestIKTarget = true;
+            m_SpineAnatomicalRom = false;
+            m_ChestIKTarget = false;
             m_LegSwivelSmoothing = true;
             m_LordosisPitchGainDeg = 8f;
             m_LordosisBaseDeg = 5f;
@@ -1043,6 +1057,8 @@ w20, w54;
         public FloatProperty chestSpringHz, chestSpringDamping;
         public FloatProperty spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public FloatProperty spineSquishBoost;
+        public FloatProperty spineGazeFollow;
+        public FloatProperty neckGazeFollow;
         public FloatProperty moveBodyBackWhenCrouching;
         public FloatProperty swingSmoothRateDeg;
         public FloatProperty chestArmSwingFactor, chestArmSwingMaxDeg;
@@ -1094,6 +1110,8 @@ w20, w54;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
         public Quaternion TposeChestRot;
         public float TposeShoulderToHandLeft, TposeShoulderToHandRight;
+        public float TposeClavicleLenLeft, TposeClavicleLenRight;
+        public float TposeShoulderToElbowLeft, TposeShoulderToElbowRight;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -1129,8 +1147,8 @@ w20, w54;
             // 2) Shoulder pre-solve: elevate/protract based on hand targets before arm IK
             if (shoulderSolveEnabled.Get(stream))
             {
-                SolveShoulder(stream, HandleLeftShoulder, enabledLeftShoulder, targetPositionLeftHand, hintPositionLeftHand, hintWeightLeftHand, TposeLeftShoulderLocalDir, TposeLeftShoulderRot, TposeChestRot, TposeShoulderToHandLeft, true);
-                SolveShoulder(stream, HandleRightShoulder, enabledRightShoulder, targetPositionRightHand, hintPositionRightHand, hintWeightRightHand, TposeRightShoulderLocalDir, TposeRightShoulderRot, TposeChestRot, TposeShoulderToHandRight, false);
+                SolveShoulder(stream, HandleLeftShoulder, enabledLeftShoulder, targetPositionLeftHand, hintPositionLeftHand, hintWeightLeftHand, TposeLeftShoulderLocalDir, TposeLeftShoulderRot, TposeChestRot, TposeShoulderToHandLeft, TposeClavicleLenLeft, TposeShoulderToElbowLeft, true);
+                SolveShoulder(stream, HandleRightShoulder, enabledRightShoulder, targetPositionRightHand, hintPositionRightHand, hintWeightRightHand, TposeRightShoulderLocalDir, TposeRightShoulderRot, TposeChestRot, TposeShoulderToHandRight, TposeClavicleLenRight, TposeShoulderToElbowRight, false);
             }
             else
             {
@@ -1683,11 +1701,20 @@ w20, w54;
             // ==========================================================================================
             Vector3 neckCue = headTargetPos + headWorldRot * TposeHeadToNeckLocal;
 
+            // A LITTLE REAL SPINE. neckCue is invariant to a pure gaze (the head orbits the neck by Q, the
+            // rigid re-attachment un-orbits it -- that is the look-down-stability fix, chest pitch 0.000 deg
+            // on any gaze). But that reads as a rigid mannequin under a swiveling head on desktop. Blend the
+            // cue a fraction back toward the ACTUAL head: on a look-down the head has orbited forward+down, so
+            // the cue tips that way and the chest folds a touch. 0 = rigid, 1 = the full (phantom) follow. A
+            // real chest does NOT fold on gaze (corpus: -0.05 deg/deg), so this is a deliberate desktop-feel
+            // knob, small by default, and it costs nothing with a chest tracker (the pitch weight is zeroed).
+            Vector3 spineCue = Vector3.Lerp(neckCue, headTargetPos, Mathf.Clamp01(spineGazeFollow.Get(stream)));
+
             BasisSpineBendInput input;
             input.HipsRot = hipsRot;
             input.HipsPos = HandleHips.GetPosition(stream);
             input.ChestPos = HandleChest.GetPosition(stream);
-            input.SmoothedHead = ApplyChestSpring(stream, neckCue);
+            input.SmoothedHead = ApplyChestSpring(stream, spineCue);
             input.HipsBind = V4ToQuat(offsetRotationHips.Get(stream));
             input.HeadTargetRot = V4ToQuat(targetRotationHead.Get(stream));
             input.SpineMaxForwardDeg = spineMaxForwardDeg.Get(stream);
@@ -1816,6 +1843,10 @@ w20, w54;
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
             return result.HipsPos;
         }
+        // Extra forward neck curve at FULL look-down when NeckGazeFollow = 1 (it scales this by the setting
+        // and by how far down you look). Modest: the head is re-pinned so this only arcs the neck, but too
+        // much cocks the head relative to the neck. The user dials the setting; this is the ceiling.
+        const float k_NeckGazeFollowMaxDeg = 18f;
         void ApplyCervicalLordosis(AnimationStream stream)
         {
             if (!HandleNeck.IsValid(stream))
@@ -1885,10 +1916,16 @@ w20, w54;
                 }
             }
 
-            if (result.NeckDeg != 0f)
+            // A LITTLE REAL SPINE, for the neck: extra forward curve on a look-down, on top of the lordosis.
+            // The head is re-pinned to the HMD just below (SetPosition/SetRotation), so this arcs the neck
+            // WITHOUT moving the head -- the neck curves, the head stays exactly on target. Look-down only
+            // (LookDownFrac); a real cervical spine flexes forward as you look down. 0 = lordosis only.
+            float extraNeckDeg = Mathf.Clamp01(neckGazeFollow.Get(stream)) * k_NeckGazeFollowMaxDeg * result.LookDownFrac;
+            float totalNeckDeg = result.NeckDeg + extraNeckDeg;
+            if (totalNeckDeg != 0f)
             {
                 Quaternion neckRotCurrent = HandleNeck.GetRotation(stream);
-                HandleNeck.SetRotation(stream, Quaternion.AngleAxis(result.NeckDeg, neckRotCurrent * Vector3.right) * neckRotCurrent);
+                HandleNeck.SetRotation(stream, Quaternion.AngleAxis(totalNeckDeg, neckRotCurrent * Vector3.right) * neckRotCurrent);
             }
 
             if (HandleHead.IsValid(stream))
@@ -2036,7 +2073,7 @@ w20, w54;
         // dedicated shoulder tracker is no longer required. hasShoulderTrackerProp (the shoulder rig
         // layer) selects the base: the tracker when present, else the chest-anchored rest. The elbow
         // hint drives the upper-arm direction when an elbow tracker is present, hand target otherwise.
-        public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty hasShoulderTrackerProp, Vector3Property handTargetPosProp, Vector3Property hintPosProp, BoolProperty hintWeightProp, Vector3 tposeArmDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, bool isLeft)
+        public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle, BoolProperty hasShoulderTrackerProp, Vector3Property handTargetPosProp, Vector3Property hintPosProp, BoolProperty hintWeightProp, Vector3 tposeArmDir, Quaternion tposeShoulderRot, Quaternion tposeChestRot, float tposeArmLength, float tposeClavicleLen, float tposeElbowLen, bool isLeft)
         {
             if (!shoulderHandle.IsValid(stream))
             {
@@ -2056,6 +2093,8 @@ w20, w54;
             input.TposeShoulderRot = tposeShoulderRot;
             input.TposeArmDirWorld = tposeArmDir;
             input.TposeArmLength = tposeArmLength;
+            input.TposeClavicleLength = tposeClavicleLen;
+            input.TposeElbowLength = tposeElbowLen;
             input.ElevationFactor = shoulderElevationFactor.Get(stream);
             input.ProtractionFactor = shoulderProtractionFactor.Get(stream);
             input.CoupleRatio = k_ShoulderCoupleRatio;
@@ -2228,12 +2267,16 @@ w20, w54;
             // The ANIMATED hand rotation (nothing has written the tip yet this frame): the neutral the
             // wrist-roll relief measures the controller's roll against.
             input.TipRotation = tip.GetRotation(stream);
+            // A real tracker's measured lower-arm rotation feeds the forearm roll; zero keeps it off for
+            // the model path, whose hint rotation is just the stale property value.
+            input.HintRotation = hintIsTracker ? hint.rotation : default;
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
 
             mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
             root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
             root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
+            mid.SetRotation(stream, result.MidPostRoll * mid.GetRotation(stream));
             tip.SetRotation(stream, result.TipRotation);
         }
         /// <summary>
@@ -2958,6 +3001,8 @@ w20, w54;
                 spineMaxBackwardDeg = FloatProperty.Bind(animator, component, data.SpineMaxBackwardDegFloatProperty),
                 spineMaxLateralDeg = FloatProperty.Bind(animator, component, data.SpineMaxLateralDegFloatProperty),
                 spineSquishBoost = FloatProperty.Bind(animator, component, data.SpineSquishBoostFloatProperty),
+                spineGazeFollow = FloatProperty.Bind(animator, component, data.SpineGazeFollowFloatProperty),
+                neckGazeFollow = FloatProperty.Bind(animator, component, data.NeckGazeFollowFloatProperty),
                 moveBodyBackWhenCrouching = FloatProperty.Bind(animator, component, data.MoveBodyBackWhenCrouchingFloatProperty),
                 swingSmoothRateDeg = FloatProperty.Bind(animator, component, data.SwingSmoothRateDegFloatProperty),
                 chestArmSwingFactor = FloatProperty.Bind(animator, component, data.ChestArmSwingFactorFloatProperty),
@@ -3008,6 +3053,14 @@ w20, w54;
                     ? Vector3.Distance(data.LeftShoulder.position, data.LeftHand.position) : 0.6f,
                 TposeShoulderToHandRight = (data.RightShoulder != null && data.RightHand != null)
                     ? Vector3.Distance(data.RightShoulder.position, data.RightHand.position) : 0.6f,
+                TposeClavicleLenLeft = (data.LeftShoulder != null && data.leftUpperArm != null)
+                    ? Vector3.Distance(data.LeftShoulder.position, data.leftUpperArm.position) : 0f,
+                TposeClavicleLenRight = (data.RightShoulder != null && data.RightUpperArm != null)
+                    ? Vector3.Distance(data.RightShoulder.position, data.RightUpperArm.position) : 0f,
+                TposeShoulderToElbowLeft = (data.LeftShoulder != null && data.leftLowerArm != null)
+                    ? Vector3.Distance(data.LeftShoulder.position, data.leftLowerArm.position) : 0f,
+                TposeShoulderToElbowRight = (data.RightShoulder != null && data.RightLowerArm != null)
+                    ? Vector3.Distance(data.RightShoulder.position, data.RightLowerArm.position) : 0f,
 
             };
 

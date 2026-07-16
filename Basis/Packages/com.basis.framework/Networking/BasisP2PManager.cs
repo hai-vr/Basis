@@ -1147,18 +1147,22 @@ namespace Basis.Scripts.Networking
                         case P2PSessionState.Connected:
                         {
                             long connectedAge = (long)((now - Interlocked.Read(ref s.ConnectedSinceTicks)) * StopwatchTicksToMs);
-                            if (connectedAge < ConnectedGracePeriodMs) break;
-
                             long sinceInbound = (long)((now - Interlocked.Read(ref s.LastInboundTicks)) * StopwatchTicksToMs);
-                            bool stale = sinceInbound > StaleTimeoutMs;
-                            bool neverConfirmed = !s.OffloadConfirmed && connectedAge > ConfirmTimeoutMs;
-                            if (stale || neverConfirmed)
+                            // Decision logic lives in BasisNetworkCore (BasisP2PLinkHealth) so it can be
+                            // unit-tested without a live client; this switch just carries out the verdict.
+                            switch (BasisP2PLinkHealth.EvaluateConnected(
+                                        connectedAge, sinceInbound, s.OffloadConfirmed, s.PartialRecoveryAttempts != 0,
+                                        ConnectedGracePeriodMs, StaleTimeoutMs, ConfirmTimeoutMs, HealthyDwellResetMs))
                             {
-                                EnterPartial(s, stale ? $"no inbound for {sinceInbound}ms" : "peer never confirmed");
-                            }
-                            else if (connectedAge > HealthyDwellResetMs && s.PartialRecoveryAttempts != 0)
-                            {
-                                s.PartialRecoveryAttempts = 0;
+                                case BasisP2PLinkHealth.ConnectedVerdict.DemoteStale:
+                                    EnterPartial(s, $"no inbound for {sinceInbound}ms");
+                                    break;
+                                case BasisP2PLinkHealth.ConnectedVerdict.DemoteUnconfirmed:
+                                    EnterPartial(s, "peer never confirmed");
+                                    break;
+                                case BasisP2PLinkHealth.ConnectedVerdict.ClearFlapCounter:
+                                    s.PartialRecoveryAttempts = 0;
+                                    break;
                             }
                             break;
                         }
@@ -1166,7 +1170,7 @@ namespace Basis.Scripts.Networking
                         case P2PSessionState.Reconnecting:
                         {
                             long punchAge = (long)((now - Interlocked.Read(ref s.PunchStartedTicks)) * StopwatchTicksToMs);
-                            if (punchAge > PunchTimeoutMs)
+                            if (BasisP2PLinkHealth.PunchStalled(punchAge, PunchTimeoutMs))
                             {
                                 BasisDebug.LogWarning($"[P2P] Punch to player {s.OtherPlayerId} stalled {punchAge}ms (token {Preview(s.Token)}); retrying.");
                                 ScheduleReconnect(s);
@@ -1227,6 +1231,11 @@ namespace Basis.Scripts.Networking
 
         private static void DropSession(Session s, P2PSessionState finalState)
         {
+            // A Connected session strips its peer from the server voice relay
+            // (StripP2PConnectedFromRecipients / AddP2PConnectedToExcluded). Capture that before the
+            // state changes so we can restore the server path once the session is gone.
+            bool wasConnected = s.State == P2PSessionState.Connected;
+
             ApplyState(s, finalState);
             RemoveSessionKeys(s);
             _sessionsByToken.TryRemove(s.Token, out _);
@@ -1238,6 +1247,16 @@ namespace Basis.Scripts.Networking
                 s.P2PPeer = null;
             }
             NotifyStateChanged(s.OtherPlayerId, finalState);
+
+            // Force the voice recipient list to be recomputed so the peer is put back onto the server
+            // relay immediately. Without this, a teardown that doesn't coincide with a player-list
+            // change (IndexChanged) — e.g. a Cancel or a direct-link drop while the peer stays in the
+            // instance — could leave a stale server-side exclusion, and the peer goes silent. EnterPartial/
+            // RestInPartial already do this for the degrade path; this covers the full-teardown path.
+            if (wasConnected)
+            {
+                BasisTransmissionResults.ForceVoiceRecipientResend = true;
+            }
         }
 
         private static void ApplyState(Session s, P2PSessionState newState)

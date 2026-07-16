@@ -148,6 +148,9 @@ namespace UnityEngine.Animations.Rigging
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
             r = default;
+            // default(Quaternion) is the ZERO quaternion, and the runtime multiplies MidPostRoll into the
+            // forearm unconditionally -- it must be a rotation on every path out of this method.
+            r.MidPostRoll = Quaternion.identity;
 
             Vector3 aPosition = i.Shoulder;
             Vector3 bPosition = i.Elbow;
@@ -590,6 +593,67 @@ namespace UnityEngine.Animations.Rigging
                     cPosition = aPosition + guard * (cPosition - aPosition);
                     midRot = guard * midRot;
                     hintR = guard * hintR;   // fold into the hint delta the runtime applies
+                }
+            }
+
+            // =============================================================================================
+            // TRACKER FOREARM ROLL: THE MEASUREMENT THE POLE THROWS AWAY.
+            //
+            // The wrist-roll relief above stands down for a tracker -- the corpus showed second-guessing a
+            // measured pole costs centimetres -- but standing down entirely put every degree of hand roll
+            // back into the wrist joint, and the wrist PINCHES. The answer was on the arm the whole time:
+            // an elbow tracker is STRAPPED TO THE FOREARM, so its rotation carries real pronation, and the
+            // solver was using only its position. Roll the forearm to the blend of the tracker's measured
+            // roll and the hand's demand, and the wrist keeps only the residual a real wrist would.
+            //
+            // A PURE ROLL CAN MOVE NO JOINT. The rotation axis is the forearm's own long axis through the
+            // elbow: the elbow pivots on it and the hand LIES on it, so the elbow stays exactly on the
+            // tracker's pole -- the corpus gates that killed the relief here structurally cannot see this.
+            // It runs AFTER the anatomy guard because the guard reads positions, which this does not touch,
+            // and the runtime applies MidPostRoll after the root deltas for the same reason: the composition
+            // order here and in the stream must be the same, and a roll about the final axis commutes with
+            // nothing that comes later.
+            // =============================================================================================
+            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
+                             + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            if (i.HintIsTracker && hintRotSqr > 0.5f)
+            {
+                Vector3 foreRoll = cPosition - bPosition;
+                if (foreRoll.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 foreRollN = foreRoll.normalized;
+                    float trackerRoll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), foreRollN);
+
+                    float roll = trackerRoll;
+                    if (tipRotSqr > 0.5f)
+                    {
+                        Quaternion neutral = midRot * Quaternion.Inverse(i.MidRotation) * i.TipRotation;
+                        float handRoll = TwistAngleRad(tRotation * Quaternion.Inverse(neutral), foreRollN);
+                        r.WristTwistDeg = handRoll * Mathf.Rad2Deg;
+
+                        // The two signals are principal angles, so their disagreement wraps; and a wrist
+                        // 155+ deg from the measured forearm is not anatomy, it is garbage in one of the
+                        // two. Fade the hand's say to zero approaching the seam so both sides meet there.
+                        float d = handRoll - trackerRoll;
+                        if (d > Mathf.PI) d -= 2f * Mathf.PI;
+                        else if (d < -Mathf.PI) d += 2f * Mathf.PI;
+                        float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                            (Mathf.Abs(d) * Mathf.Rad2Deg - k_WristWrapFadeStartDeg) / (k_WristWrapFadeEndDeg - k_WristWrapFadeStartDeg)));
+                        roll = trackerRoll + TrackerRollHandBlend * d * fade;
+                    }
+
+                    // Bound, then apply -- in the reject-unless-good shape, because Mathf.Clamp waves NaN
+                    // through and a NaN written to a bone persists.
+                    float rollAbs = Mathf.Abs(roll);
+                    float rollCap = TrackerForearmRollMaxDeg * Mathf.Deg2Rad;
+                    if (rollAbs > rollCap) rollAbs = rollCap;
+                    if (rollAbs > 1e-6f)
+                    {
+                        float rollSigned = roll < 0f ? -rollAbs : rollAbs;
+                        r.MidPostRoll = AngleAxisRad(rollSigned, foreRollN);
+                        midRot = r.MidPostRoll * midRot;
+                        r.ForearmRollDeg = rollSigned * Mathf.Rad2Deg;
+                    }
                 }
             }
 

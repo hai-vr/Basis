@@ -73,6 +73,20 @@ namespace UnityEngine.Animations.Rigging
         /// axis), it is measurable, and it is FADED inside the model rather than gated outside it.
         /// </summary>
 
+        /// <summary>
+        /// A styling nudge on the no-tracker elbow, requested from the headset: "elbow tuck a little bit".
+        /// The field model predicts the CORPUS-MEAN elbow; this leans it a few degrees toward the body.
+        ///
+        /// It is a POLE BLEND, not an angle, for the same reason the model predicts a position: an angle
+        /// needs a signed reference and a mirror flips it. The pole lives in the MIRRORED frame (+x OUT for
+        /// both limbs), so -x is INWARD for both arms and one constant serves both. Its perpendicular
+        /// projection is blended into the bend un-normalised, so the tuck's magnitude is sin(arm-vs-pole)
+        /// and it FADES ITSELF to zero as the arm approaches the pole's own direction -- no reference to
+        /// collapse, no seam. The weight bounds the rotation at atan(weight * |pole|) ~ 7 deg.
+        /// </summary>
+        static readonly float3 k_ElbowTuckPole = new float3(-1f, -0.35f, 0f);
+        public const float ElbowTuckWeight = 0.12f;
+
         /// <summary>|(s,c)| at or below which the leg model has no usable opinion and the solve should
         /// fall back to its own anatomical bend pole.</summary>
         public const float LegTrustLo = 0.30f;
@@ -192,6 +206,13 @@ namespace UnityEngine.Animations.Rigging
             {
                 return false;
             }
+
+            // The tuck. Projected against the SAME axis BendDirection used, so the blend of two
+            // perpendicular vectors stays perpendicular and the world-map comment below keeps its promise.
+            // |bend| = 1 and the tuck term is <= ElbowTuckWeight * |pole|, so the sum cannot degenerate.
+            float3 tuckAxis = math.normalizesafe(tipLocal, new float3(0f, -1f, 0f));
+            float3 tuckPerp = k_ElbowTuckPole - tuckAxis * math.dot(k_ElbowTuckPole, tuckAxis);
+            bend = math.normalizesafe(bend + ElbowTuckWeight * tuckPerp, bend);
 
             // Back to world through the SAME mirrored triad the features were built in. It is orthonormal,
             // so it carries perpendicularity across unchanged: `bend` is perpendicular to tipLocal in the

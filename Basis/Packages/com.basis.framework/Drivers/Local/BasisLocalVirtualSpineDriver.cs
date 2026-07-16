@@ -98,6 +98,12 @@ public class BasisLocalVirtualSpineDriver
     /// (hips never move from baseline), 1 = legacy "follow head fully". 0.25 keeps a small forward
     /// translation while still reading as a real spine bend.</summary>
     private const float CounterbalanceFollowFrac = 0.25f;
+    /// <summary>Lateral (body-right) counterpart to <see cref="CounterbalanceFollowFrac"/>. A sideways head
+    /// shift is a WEIGHT SHIFT, not a bend, so the pelvis follows most of the way to stay stacked over the
+    /// feet. Following it at the low sagittal rate is what left the hips lagging ~75% behind a left/right
+    /// move and skewed the torso into a phantom rotation (headset-only, no foot roles). Set equal to
+    /// CounterbalanceFollowFrac to restore the former isotropic behaviour exactly.</summary>
+    private const float CounterbalanceLateralFollowFrac = 0.8f;
     /// <summary>When both feet are tracked, hips sit at feet-midpoint XZ + this fraction toward
     /// the head. Approximates an inverted-pendulum lean — small because legs are nearly vertical
     /// even under significant torso lean.</summary>
@@ -451,7 +457,7 @@ public class BasisLocalVirtualSpineDriver
             float biasScale = P.HipsForwardBias * P.Scale;
 
             float3 headPosWorld = head.OutgoingPosition;
-            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.StandingHeadLocalY, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
+            float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.StandingHeadLocalY, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
 
             ComputeHipsPosition(
                 in neckPosWorld,
@@ -618,8 +624,9 @@ public class BasisLocalVirtualSpineDriver
     /// <summary>
     /// Anatomy-aware hips XZ. Two layers:
     ///   (1) Counterbalance: a leashed head-XZ baseline estimates the user's support base (where they are
-    ///       standing). Hips sit at baseline + a small fraction of the head's deviation, so leaning
-    ///       counter-balances (hips stay back and hold there) while stepping drags the base along and the
+    ///       standing). Hips sit at baseline + an axis-dependent fraction of the head's deviation: little of
+    ///       a FORWARD lean (a bend counter-balances — hips stay back and hold there) but most of a SIDEWAYS
+    ///       shift (a weight shift stays stacked over the feet), while stepping drags the base along and the
     ///       hips follow.
     ///   (2) Foot pendulum: if both feet are tracked, override with feet-midpoint + a small lean
     ///       toward the head — closer to a real inverted-pendulum stance. With roles on the feet the
@@ -629,7 +636,7 @@ public class BasisLocalVirtualSpineDriver
     // the pelvis is lerped away from), so it is handed back rather than recomputed: the posture model measures
     // the head's forward LEAN against it, and two copies of that definition is exactly the kind of quiet
     // disagreement that has bitten this codebase before.
-    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
+    private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, in quaternion torsoYaw, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
     {
         float3 headXZ = new float3(headPosWorld.x, 0f, headPosWorld.z);
 
@@ -666,7 +673,24 @@ public class BasisLocalVirtualSpineDriver
         // No feet with roles: the leashed head baseline IS the standing spot — the best support base
         // available when nothing is measuring the feet.
         supportXZ = s.HeadBaselineXZ;
-        return math.lerp(s.HeadBaselineXZ, headXZ, CounterbalanceFollowFrac);
+
+        // Anisotropic follow. Split the head's horizontal deviation from the standing spot along the torso's
+        // OWN facing and follow each axis at its own rate:
+        //   • forward/back is a BEND — the pelvis counterbalances and barely moves, so it follows at
+        //     CounterbalanceFollowFrac (the leash's original, corpus-checked purpose).
+        //   • left/right is a WEIGHT SHIFT — a real pelvis stays stacked over the feet, so it follows most of
+        //     the way (CounterbalanceLateralFollowFrac). Following it at the sagittal rate is what left the
+        //     hips lagging ~75% behind a side-to-side move and skewed the torso into a phantom rotation.
+        // With the two fracs equal this is bit-identical to the former lerp(baseline, headXZ, frac): fwd and
+        // right are an orthonormal basis of the XZ plane, so the split reconstructs the same offset exactly.
+        float3 dev = headXZ - s.HeadBaselineXZ;
+        float3 fwd = math.mul(torsoYaw, new float3(0f, 0f, 1f));
+        float3 right = math.mul(torsoYaw, new float3(1f, 0f, 0f));
+        float devFwd = math.dot(dev, fwd);
+        float devRight = math.dot(dev, right);
+        return s.HeadBaselineXZ
+             + fwd * (devFwd * CounterbalanceFollowFrac)
+             + right * (devRight * CounterbalanceLateralFollowFrac);
     }
 
     // Adds a configurable fraction of head pitch and roll on top of a yaw-only base rotation.

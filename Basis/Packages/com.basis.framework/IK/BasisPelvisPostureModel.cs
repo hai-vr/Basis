@@ -60,8 +60,10 @@ namespace UnityEngine.Animations.Rigging
     /// predict it with a leave-one-clip-out error of 11.6 cm against the shipped constant's 10.6 cm -- i.e.
     /// the fit does not generalise and is WORSE than doing nothing. Where a person puts their pelvis
     /// horizontally depends on their balance strategy and where their feet are, and (drop, lean) does not
-    /// carry that. So ComputeRealisticHipsXZBurst is left exactly as it was. A model that loses to the
-    /// baseline out-of-sample does not ship, however much one would like it to.
+    /// carry that. So no (drop,lean) FIT ships for horizontal placement: a model that loses to the baseline
+    /// out-of-sample does not ship, however much one would like it to. (ComputeRealisticHipsXZBurst was later
+    /// given an anisotropic forward/lateral follow — a geometric weight-shift argument, NOT a corpus fit —
+    /// which is a different thing from the regression rejected here and leaves this warning intact.)
     ///
     /// Fitted by least squares on the harness's OWN dumped features (BasisPostureCorpusTests), leave-one-
     /// clip-out validated, 44 clips / 20,653 in-domain frames -- the corpus in Tests/MocapCorpus~/posture,

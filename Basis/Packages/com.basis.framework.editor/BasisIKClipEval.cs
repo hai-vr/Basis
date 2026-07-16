@@ -275,7 +275,7 @@ namespace Basis.IK.Debugging
         {
             if (shoulder == null || arm.TTip == null) return;
             Quaternion chestRot = chest != null ? chest.rotation : Quaternion.identity;
-            BasisShoulderSolveInput input;
+            BasisShoulderSolveInput input = default;
             input.ShoulderPos = shoulder.position;
             input.HandTargetPos = arm.TTip.position;
             input.ElbowPos = arm.Mid != null ? arm.Mid.position : shoulder.position;

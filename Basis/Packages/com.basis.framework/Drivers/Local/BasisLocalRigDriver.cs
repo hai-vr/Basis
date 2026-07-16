@@ -120,6 +120,11 @@ namespace Basis.Scripts.Drivers
         private static float smoothedLeftButterflyWeight, smoothedRightButterflyWeight;
         private const float ButterflyKneeSmoothRate = 8f;
 
+        // Smoothed knee-forward hint (upright knee azimuth following the tracked foot's toe; see BasisKneeForwardCore)
+        private static Vector3 smoothedLeftKneeFwdHint, smoothedRightKneeFwdHint;
+        private static float smoothedLeftKneeFwdWeight, smoothedRightKneeFwdWeight;
+        private const float KneeForwardSmoothRate = 10f;
+
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
@@ -325,6 +330,8 @@ namespace Basis.Scripts.Drivers
             // mid-flight foot-IK blend, butterfly hint/weight, or stationary hysteresis.
             smoothedLeftButterflyHint = smoothedRightButterflyHint = Vector3.zero;
             smoothedLeftButterflyWeight = smoothedRightButterflyWeight = 0f;
+            smoothedLeftKneeFwdHint = smoothedRightKneeFwdHint = Vector3.zero;
+            smoothedLeftKneeFwdWeight = smoothedRightKneeFwdWeight = 0f;
             footIKBlendWeightLeft = footIKBlendWeightRight = footIKBlendWeight = 0f;
             stationaryTimer = 0f;
         }
@@ -637,10 +644,13 @@ namespace Basis.Scripts.Drivers
                 data.ChestPosition = chestPos;
                 data.ChestRotation = chestRot;
 
-                // ── BUTTERFLY KNEES (laying-down knee splay from tracked feet with no knee tracker) ──
+                // ── KNEE POLE (tracked feet, no knee tracker): foot-forward azimuth + butterfly splay ──
                 bool butterflyEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKnees.RawValue;
                 float butterflyMaxOpenDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.RawValue;
                 float butterflySupineFloor = 1f; // merged toggle: butterfly knees works both supine and upright when enabled
+                bool kneeFollowsFoot = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowsFoot.RawValue;
+                float kneeFootCoupling = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootFollowUpright.RawValue;
+                Vector3 hipsForwardDir = hipsRot * Vector3.forward;
                 bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
                 bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
 
@@ -659,14 +669,35 @@ namespace Basis.Scripts.Drivers
                     data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
                     data.EnableLeftLowerLeg = footIKBlendWeightLeft;
                 }
-                else if (butterflyEnabled && leftFootTracked && TryComputeButterflyKnee(
-                    true, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime,
-                    data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
-                    ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
-                    out Vector3 lButterflyHint, out float lButterflyWeight))
+                else if (leftFootTracked)
                 {
-                    data.PositionLeftLowerLeg = lButterflyHint;
-                    data.EnableLeftLowerLeg = lButterflyWeight;
+                    Vector3 lBendDir = hipsForwardDir;
+                    Vector3 lKneeFwdHint = default;
+                    float lKneeFwdWeight = 0f;
+                    bool lHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
+                        hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
+                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
+                        ref smoothedLeftKneeFwdHint, ref smoothedLeftKneeFwdWeight,
+                        out lKneeFwdHint, out lKneeFwdWeight, out lBendDir);
+
+                    if (butterflyEnabled && TryComputeButterflyKnee(
+                        true, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, lBendDir,
+                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
+                        ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
+                        out Vector3 lButterflyHint, out float lButterflyWeight))
+                    {
+                        data.PositionLeftLowerLeg = lButterflyHint;
+                        data.EnableLeftLowerLeg = lButterflyWeight;
+                    }
+                    else if (lHaveKneeFwd && lKneeFwdWeight > 0.001f)
+                    {
+                        data.PositionLeftLowerLeg = lKneeFwdHint;
+                        data.EnableLeftLowerLeg = lKneeFwdWeight;
+                    }
+                    else
+                    {
+                        data.EnableLeftLowerLeg = 0f;
+                    }
                 }
                 else
                 {
@@ -688,14 +719,35 @@ namespace Basis.Scripts.Drivers
                     data.PositionRightLowerLeg = footDriver.RightKneeHint;
                     data.EnableRightLowerLeg = footIKBlendWeightRight;
                 }
-                else if (butterflyEnabled && rightFootTracked && TryComputeButterflyKnee(
-                    false, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime,
-                    data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
-                    ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
-                    out Vector3 rButterflyHint, out float rButterflyWeight))
+                else if (rightFootTracked)
                 {
-                    data.PositionRightLowerLeg = rButterflyHint;
-                    data.EnableRightLowerLeg = rButterflyWeight;
+                    Vector3 rBendDir = hipsForwardDir;
+                    Vector3 rKneeFwdHint = default;
+                    float rKneeFwdWeight = 0f;
+                    bool rHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
+                        hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
+                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
+                        ref smoothedRightKneeFwdHint, ref smoothedRightKneeFwdWeight,
+                        out rKneeFwdHint, out rKneeFwdWeight, out rBendDir);
+
+                    if (butterflyEnabled && TryComputeButterflyKnee(
+                        false, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, rBendDir,
+                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
+                        ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
+                        out Vector3 rButterflyHint, out float rButterflyWeight))
+                    {
+                        data.PositionRightLowerLeg = rButterflyHint;
+                        data.EnableRightLowerLeg = rButterflyWeight;
+                    }
+                    else if (rHaveKneeFwd && rKneeFwdWeight > 0.001f)
+                    {
+                        data.PositionRightLowerLeg = rKneeFwdHint;
+                        data.EnableRightLowerLeg = rKneeFwdWeight;
+                    }
+                    else
+                    {
+                        data.EnableRightLowerLeg = 0f;
+                    }
                 }
                 else
                 {
@@ -1196,6 +1248,8 @@ namespace Basis.Scripts.Drivers
             data.SpineMaxBackwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.RawValue;
             data.SpineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;
             data.SpineSquishBoost = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineSquishBoost.RawValue;
+            data.SpineGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineGazeFollow.RawValue;
+            data.NeckGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckGazeFollow.RawValue;
             data.MoveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
             data.SwingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue
                 ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue
@@ -1386,7 +1440,7 @@ namespace Basis.Scripts.Drivers
         /// butterfly. The open angle is clamped to the hip's natural max-open inside the core.
         /// </summary>
         private static bool TryComputeButterflyKnee(
-            bool isLeft, Quaternion hipsRot, Vector3 playerUp, float maxOpenDeg, float supineFloor, float dt,
+            bool isLeft, Quaternion hipsRot, Vector3 playerUp, float maxOpenDeg, float supineFloor, float dt, Vector3 defaultBendDir,
             Transform upperLeg, Transform lowerLeg, Vector3 footPos, Quaternion footRot,
             ref Vector3 smoothedHint, ref float smoothedWeight,
             out Vector3 hintPos, out float weight)
@@ -1408,7 +1462,7 @@ namespace Basis.Scripts.Drivers
             input.FootPosition = footPos;
             input.FootInstepDir = footRot * Vector3.up;          // foot "up" = instep normal (the sole faces -this)
             input.OutwardDir = isLeft ? -hipsRight : hipsRight;
-            input.DefaultBendDir = hipsForward;                  // sagittal knee dir (belly; toward ceiling when supine)
+            input.DefaultBendDir = defaultBendDir.sqrMagnitude > 1e-6f ? defaultBendDir : hipsForward; // foot-corrected sagittal base (BasisKneeForwardCore); falls back to belly
             input.PlayerUp = playerUp;
             input.TorsoFacingDir = hipsForward;                  // belly . playerUp -> on-your-back factor
             input.UpperLength = Vector3.Distance(hipPos, lowerLeg.position);
@@ -1439,6 +1493,58 @@ namespace Basis.Scripts.Drivers
             hintPos = smoothedHint;
             weight = smoothedWeight;
             return true;
+        }
+
+        /// <summary>
+        /// Knee-forward azimuth: with a tracked foot but no knee tracker, aim the knee pole along the FOOT's toe
+        /// direction instead of straight body-forward, so turning a foot turns the knee. See
+        /// <see cref="BasisKneeForwardCore"/> for the standing-vs-supine model. Outputs the sagittal bend direction
+        /// (feeds butterfly's default bend) plus a knee hint pole for the non-butterfly path, smoothed to shave
+        /// foot-tracker yaw jitter.
+        /// </summary>
+        private static bool TryComputeKneeForward(
+            Quaternion hipsRot, float coupling, Vector3 playerUp, float dt,
+            Transform upperLeg, Transform lowerLeg, Vector3 footPos, Quaternion footRot,
+            ref Vector3 smoothedBendDir, ref float smoothedWeight,
+            out Vector3 hintPos, out float weight, out Vector3 bendDir)
+        {
+            hintPos = default;
+            weight = 0f;
+            bendDir = hipsRot * Vector3.forward;
+            if (upperLeg == null || lowerLeg == null)
+            {
+                smoothedWeight = 0f;
+                return false;
+            }
+
+            Vector3 hipPos = upperLeg.position;
+
+            BasisKneeForwardInput input;
+            input.HipPosition = hipPos;
+            input.FootPosition = footPos;
+            input.FootForwardDir = footRot * Vector3.forward;    // foot toe direction
+            input.BodyForwardDir = hipsRot * Vector3.forward;
+            input.PlayerUp = playerUp;
+            input.UpperLength = Vector3.Distance(hipPos, lowerLeg.position);
+            input.Coupling = coupling;
+            input.Strength = 1f;
+
+            BasisKneeForwardCore.Solve(input, out BasisKneeForwardResult result);
+
+            float alpha = 1f - Mathf.Exp(-KneeForwardSmoothRate * dt);
+            if (smoothedBendDir.sqrMagnitude < 1e-6f)
+                smoothedBendDir = result.BendDir;
+            else
+                smoothedBendDir = Vector3.Slerp(smoothedBendDir.normalized, result.BendDir, alpha);
+            smoothedWeight = Mathf.Lerp(smoothedWeight, result.HintWeight, alpha);
+
+            bendDir = smoothedBendDir.sqrMagnitude > 1e-6f ? smoothedBendDir.normalized : result.BendDir;
+
+            Vector3 mid = (hipPos + footPos) * 0.5f;
+            float radius = input.UpperLength > 1e-5f ? input.UpperLength : 0.4f;
+            hintPos = mid + bendDir * radius;
+            weight = smoothedWeight;
+            return weight > 0.001f;
         }
 
         public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)

@@ -425,6 +425,9 @@ namespace Basis.IK.Mocap
                     i.HintPosition = truthElbow;
                     i.HintWeight = true;
                     i.HintIsTracker = true;
+                    // A real tracker reports rotation too: the truth lower-arm plays it, so the tracker
+                    // forearm roll is exercised against the corpus exactly as the live rig runs it.
+                    i.HintRotation = clip.Get(f, jE).Rotation;
                     break;
                 case BasisMocapHintSource.ElbowField:
                 {

@@ -1171,6 +1171,12 @@ namespace Basis.BasisUI
         // splay to the hip's natural abduction.
         public static BasisSettingsBinding<bool> FBIKButterflyKnees = new("fbikbutterflyknees", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKButterflyKneeMaxOpenDeg = new("fbikbutterflykneemaxopendeg", new BasisPlatformDefault<float>(60f));
+        // Knee-forward follow: with foot trackers (no knee tracker), aim the knee along the tracked foot's toe
+        // instead of straight body-forward. Coupling is the upright follow fraction; foot-dominant by default (a
+        // deliberate foot yaw is a hip rotation that carries the knee), and it fades to zero as the leg reclines and
+        // the foot's toe lines up with the leg, handing off to the butterfly splay.
+        public static BasisSettingsBinding<bool> FBIKKneeFollowsFoot = new("fbikkneefollowsfoot", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKKneeFootFollowUpright = new("fbikkneefootfollowupright", new BasisPlatformDefault<float>(0.75f));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1196,6 +1202,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineMaxLateralDeg = new("fbikspinemaxlateraldeg", new BasisPlatformDefault<float>(25f));
         // Spine relax: squish-driven bend coupling
         public static BasisSettingsBinding<float> FBIKSpineSquishBoost = new("fbikspinesquishboost", new BasisPlatformDefault<float>(0.5f));
+        // Chest gaze-follow (no chest tracker): a little forward chest fold when you look down. 0=rigid.
+        public static BasisSettingsBinding<float> FBIKSpineGazeFollow = new("fbikspinegazefollow", new BasisPlatformDefault<float>(0.25f));
+        // Extra forward neck curve on a look-down (no chest tracker). 0 = lordosis only.
+        public static BasisSettingsBinding<float> FBIKNeckGazeFollow = new("fbikneckgazefollow", new BasisPlatformDefault<float>(0.3f));
         // Spine relax: crouch counterweight (hips shift back as the head drops)
         public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
         // Swing continuity: max elbow/knee swing speed (deg/s); lower = smoother, 0 = off
@@ -1229,11 +1239,11 @@ namespace Basis.BasisUI
         // default: the lumbar spine, the upper chest and the neck previously had NO per-joint limit at all
         // once the spine CCD ran, and nothing anywhere limited axial rotation. That is not a safe fallback
         // to keep, it is a measured defect.
-        public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom_v2", new BasisPlatformDefault<bool>(false));
         // The chest becomes a real (secondary) IK target instead of a free FK consequence of the head
         // solve. Placed by the lower spine, with the head restored by the upper joints so it is never
         // traded away. ON by default; the clear win is chest-tracker users, marginal-but-harmless without.
-        public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
 
@@ -1945,6 +1955,8 @@ namespace Basis.BasisUI
             FBIKMaxChestDelta.LoadBindingValue();
             FBIKButterflyKnees.LoadBindingValue();
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
+            FBIKKneeFollowsFoot.LoadBindingValue();
+            FBIKKneeFootFollowUpright.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
@@ -1961,6 +1973,8 @@ namespace Basis.BasisUI
             FBIKSpineMaxBackwardDeg.LoadBindingValue();
             FBIKSpineMaxLateralDeg.LoadBindingValue();
             FBIKSpineSquishBoost.LoadBindingValue();
+            FBIKSpineGazeFollow.LoadBindingValue();
+            FBIKNeckGazeFollow.LoadBindingValue();
             FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
             FBIKSwingSmoothRate.LoadBindingValue();
             FBIKElbowSwingEnabled.LoadBindingValue();

@@ -346,5 +346,59 @@ namespace Basis.Tests.IK
                     + "path reads the feet midpoint directly and must remain exact.");
             }
         }
+
+        /// <summary>
+        /// THE LATERAL GATE — headset-only, no foot roles. Shift the head 15 cm SIDEWAYS (X), INSIDE the
+        /// stance radius so the feet have not moved, and hold. A sideways shift is a WEIGHT SHIFT, not a bend:
+        /// a real pelvis stays stacked over the feet, so the hips must carry MOST of it — not the 25% sagittal
+        /// counterbalance, which left the pelvis behind the head and skewed the torso into a phantom rotation
+        /// (the "hips are a bit behind / look rotated" report).
+        ///
+        /// Three things at once, so the gate cannot be passed the wrong way:
+        ///   (a) the hips carry most of the sideways shift (and do not overshoot the head);
+        ///   (b) ANISOTROPY — the SAME move FORWARD still counterbalances at ~25%, so the fix is not merely
+        ///       "follow everything more" (which would soften the bend feel the counterbalance exists for);
+        ///   (c) PAIRED NEGATIVE — the old isotropic 0.25 law, reproduced inline, lags this shift; the real
+        ///       job must beat it by a real margin, or the gate is measuring nothing.
+        /// </summary>
+        [Test]
+        public void ALateralShift_TheHipsCarryMostOfIt_NotTheSagittalCounterbalance()
+        {
+            const int fps = 90;
+            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 1.0f, shift = 0.15f;
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
+
+            Assert.Less(shift, StanceRadius, "sanity: the shift must be INSIDE the radius (a shift, not a step)");
+
+            // Eye rotation is identity in MakeParams, so the torso faces +Z and +X is pure lateral.
+            float3[] latHips = RunSpine(dt, frames, i =>
+            {
+                float t = Mathf.Clamp01(i * dt / moveSecs);
+                return new float3(shift * t, StandingHeadY, 0f);
+            }, bothFeetTracked: false);
+
+            float movedX = latHips[frames - 1].x - latHips[0].x;
+
+            Assert.Greater(movedX, 0.6f * shift,
+                $"the hips carried only {movedX * 100f:F2} cm of a {shift * 100f:F0} cm sideways shift -- a weight "
+                + "shift must keep the pelvis under the head, not lag it the way a forward bend does.");
+            Assert.Less(movedX, 1.05f * shift,
+                $"the hips moved {movedX * 100f:F2} cm on a {shift * 100f:F0} cm shift -- they must not overshoot the head.");
+
+            // (b) ANISOTROPY: the same magnitude move FORWARD must still counterbalance at ~25%.
+            float3[] fwdHips = RunSpine(dt, frames, Ramp(dt, moveSecs, shift), bothFeetTracked: false);
+            float movedZ = fwdHips[frames - 1].z - fwdHips[0].z;   // forward bias is constant, so it cancels in the delta
+            Assert.Less(movedZ, 0.5f * movedX,
+                $"forward follow ({movedZ * 100f:F2} cm) is not clearly less than lateral ({movedX * 100f:F2} cm) -- "
+                + "the follow is not anisotropic, it just moves more in every direction.");
+
+            // (c) PAIRED NEGATIVE: the shipped-before law followed BOTH axes at CounterbalanceFollowFrac, so on
+            // this shift it carried only ~3.75 cm. Reproduced ONLY so this negative can bite; never call from
+            // shipping code. If the job ever regresses to it, movedX collapses toward this and (a) fires.
+            float oldIsotropic = FollowFrac * shift;
+            Assert.Greater(movedX, oldIsotropic + 0.04f,
+                $"the shipped hips ({movedX * 100f:F2} cm) are no better than the old isotropic 0.25 follow "
+                + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
+        }
     }
 }

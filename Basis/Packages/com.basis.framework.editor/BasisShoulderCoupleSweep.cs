@@ -124,7 +124,7 @@ namespace Basis.IK.Debugging
 
         static float AppliedAngle(BasisShoulderCoupleSweepConfig cfg, Vector3 shoulder, Vector3 hand, Quaternion chest, float couple, float maxDeg)
         {
-            BasisShoulderSolveInput input;
+            BasisShoulderSolveInput input = default;
             input.ShoulderPos = shoulder;
             input.HandTargetPos = hand;
             input.ElbowPos = shoulder;

@@ -207,6 +207,69 @@ namespace Basis.Tests.IK
             }
         }
 
+        /// <summary>The tracker is strapped to the forearm, so its ROTATION carries real pronation. The
+        /// forearm rolls to the blend of that measurement and the hand's demand, so the wrist keeps only a
+        /// real wrist's residual instead of pinching — and because a roll about the forearm's own long axis
+        /// moves no joint, the elbow stays exactly on the tracker's pole while it happens.</summary>
+        [Test]
+        public void Tracker_ForearmRollsWithTheMeasurement_AndTheWristStopsPinching()
+        {
+            BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
+            i.HintWeight = true;
+            i.HintIsTracker = true;
+            i.HintPosition = i.Elbow;
+            Vector3 foreDir = (i.Hand - i.Elbow).normalized;
+            i.HintRotation = Quaternion.AngleAxis(60f, foreDir) * i.MidRotation;   // the tracker measures 60° of pronation
+            Roll(ref i, 80f);                                                      // the hand demands 80°
+
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+            float expected = 60f + BasisArmSolveCore.TrackerRollHandBlend * (80f - 60f);   // 70
+            Assert.That(r.ForearmRollDeg, Is.EqualTo(expected).Within(0.5f),
+                "the forearm rolls to the blend of the tracker's measured roll and the hand's demand");
+            Assert.That(Mathf.Abs(ResidualRollDeg(i, r)), Is.LessThan(80f - expected + 0.5f),
+                "the wrist must keep only the residual — that is the pinch, relieved");
+            Assert.That(Vector3.Distance(r.ElbowSolved, i.Elbow), Is.LessThan(1e-5f),
+                "a pure forearm roll may not move the elbow off the tracker's pole");
+            Assert.That(r.WristReliefDeg, Is.EqualTo(0f), "the roll must not smuggle the swivel relief back in");
+            AssertHandOnTarget(r, "tracker forearm roll");
+        }
+
+        [Test]
+        public void Tracker_MeasuredRollAlone_WhenTheHandFeedIsAbsent()
+        {
+            BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
+            i.HintWeight = true;
+            i.HintIsTracker = true;
+            i.HintPosition = i.Elbow;
+            Vector3 foreDir = (i.Hand - i.Elbow).normalized;
+            i.HintRotation = Quaternion.AngleAxis(-45f, foreDir) * i.MidRotation;
+            i.TipRotation = default;   // no animated wrist feed: the hand gets no say
+
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+            Assert.That(r.ForearmRollDeg, Is.EqualTo(-45f).Within(0.5f),
+                "with no hand feed the forearm follows the measurement outright");
+            Assert.That(Vector3.Distance(r.ElbowSolved, i.Elbow), Is.LessThan(1e-5f),
+                "still a pure roll: the elbow stays on the pole");
+        }
+
+        [Test]
+        public void Tracker_NoHintRotation_NoForearmRoll()
+        {
+            BasisArmSolveInput i = Pose(Vector3.forward, Vector3.down, 25f);
+            i.HintWeight = true;
+            i.HintIsTracker = true;
+            i.HintPosition = i.Elbow;
+            Roll(ref i, 80f);   // HintRotation stays zero — the documented off-switch
+
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+            Assert.That(r.ForearmRollDeg, Is.EqualTo(0f), "a zero HintRotation must disable the forearm roll");
+            Assert.That(Quaternion.Angle(r.MidPostRoll, Quaternion.identity), Is.LessThan(1e-4f),
+                "MidPostRoll must be a valid identity for the runtime to multiply through");
+        }
+
         /// <summary>Pronation must flare the elbow toward the OUTWARD side on BOTH arms. The core has no
         /// handedness input, so this is asserted by mirroring the entire problem through the YZ plane and
         /// requiring the answer to mirror with it — the test that catches any hidden world-axis dependence.</summary>
@@ -229,6 +292,7 @@ namespace Basis.Tests.IK
             left.TipRotation = MirrorQ(right.TipRotation);
             left.TargetRotation = MirrorQ(right.TargetRotation);
             left.TargetOffset = MirrorQ(right.TargetOffset);
+            left.HintRotation = MirrorQ(right.HintRotation);
             BasisArmSolveCore.Solve(left, out BasisArmSolveResult rL);
 
             Vector3 expected = MirrorV(rR.ElbowSolved);

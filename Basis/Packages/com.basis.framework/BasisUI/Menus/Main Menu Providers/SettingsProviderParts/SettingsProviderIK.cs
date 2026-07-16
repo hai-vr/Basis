@@ -225,6 +225,11 @@ public static class SettingsProviderIK
             butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
             butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
             butterflyKneesToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKnees.tooltip"));
+
+            var kneeFollowsFootToggle = PanelToggle.CreateNewEntry(trackingParent);
+            kneeFollowsFootToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.kneeFollowsFoot"));
+            kneeFollowsFootToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFollowsFoot);
+            kneeFollowsFootToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFollowsFoot.tooltip"));
         });
 
         // ============== Body Collision ==============
@@ -422,6 +427,15 @@ public static class SettingsProviderIK
             {
                 butterflyMaxOpenSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title.tooltip"));
             }
+
+            var kneeFootFollowSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title"), 0.1f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKKneeFootFollowUpright);
+            if (kneeFootFollowSlider != null)
+            {
+                kneeFootFollowSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title.tooltip"));
+            }
         });
 
         // ============== Spine: Bend Distribution ==============
@@ -490,6 +504,24 @@ public static class SettingsProviderIK
             if (spineSquishBoost != null)
             {
                 spineSquishBoost.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineSquishBoost.title.tooltip"));
+            }
+
+            var spineGazeFollow = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineGazeFollow.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKSpineGazeFollow);
+            if (spineGazeFollow != null)
+            {
+                spineGazeFollow.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineGazeFollow.title.tooltip"));
+            }
+
+            var neckGazeFollow = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.neckGazeFollow.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKNeckGazeFollow);
+            if (neckGazeFollow != null)
+            {
+                neckGazeFollow.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckGazeFollow.title.tooltip"));
             }
 
             var spineMaxFwd = PanelSlider.CreateAndBind(
@@ -1136,6 +1168,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKnees.ResetToDefault();
         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFollowsFoot.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFootFollowUpright.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendRoll.ResetToDefault();
@@ -1179,6 +1213,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineMaxLateralDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineSquishBoost.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineGazeFollow.ResetToDefault();
+        BasisSettingsDefaults.FBIKNeckGazeFollow.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineCCDRelax.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineTwistKeep.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineNeckTwistKeep.ResetToDefault();
