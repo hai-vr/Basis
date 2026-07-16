@@ -2,8 +2,8 @@
  * basis_win_decode.cpp — Windows OS-codec backend (implements basis_decoder_*).
  *
  * Pipeline:
- *   submit_video (demux thread): feed video AUs (Annex-B H.264/H.265, raw VP9
- *     samples) to the Media Foundation decoder MFT running on a DXVA-enabled
+ *   submit_video (demux thread): feed video AUs (Annex-B H.264/H.265, raw
+ *     VP9/AV1 samples) to the Media Foundation decoder MFT running on a DXVA-enabled
  *     D3D11 device. Decoded NV12 is
  *     converted to BGRA by an ID3D11VideoProcessor into a keyed-mutex *shared*
  *     texture on the decode device.
@@ -26,7 +26,8 @@
  *   - Uses a synchronous (DXVA) decoder MFT via MFTEnumEx. Async hardware MFTs
  *     (event-driven) would lower latency further but need METransform* handling.
  *   - HEVC requires an installed HEVC decoder MFT (HEVC Video Extensions);
- *     VP9 likewise (Store "VP9 Video Extensions", or a vendor MFT).
+ *     VP9 and AV1 likewise (Store "VP9 Video Extensions" / "AV1 Video
+ *     Extension", or a vendor MFT).
  */
 
 #include "../basis_media_internal.h"
@@ -207,6 +208,12 @@ struct basis_decoder {
     int dispW = 0, dispH = 0;            /* clean-aperture (visible) size; 0 = none, use coded */
     bool vconfigured = false;
 
+    /* AV1 configOBUs, held until the first AU and prepended to it (a duplicated
+     * sequence header is legal OBU syntax; a config-only input sample is of
+     * unverified MFT tolerance). Cleared once consumed. */
+    uint8_t vConfigObus[2048];
+    int vConfigObusLen = 0;
+
     ID3D11VideoDevice* vdevice = nullptr;
     ID3D11VideoContext* vcontext = nullptr;
     ID3D11VideoProcessor* vproc = nullptr;
@@ -358,9 +365,14 @@ static bool create_decode_device(basis_decoder* d) {
     return d->vdevice && d->vcontext;
 }
 
+/* FCC('AV01') media subtype, defined locally so header vintage doesn't gate the
+ * build (MFVideoFormat_AV1 only exists in recent SDK headers). */
+static const GUID kMFVideoFormatAV1 = {0x31305641,0x0000,0x0010,{0x80,0x00,0x00,0xAA,0x00,0x38,0x9B,0x71}};
+
 static const GUID* video_subtype(basis_codec_t c) {
     if (c == BASIS_CODEC_H265) return &MFVideoFormat_HEVC;
     if (c == BASIS_CODEC_VP9)  return &MFVideoFormat_VP90;
+    if (c == BASIS_CODEC_AV1)  return &kMFVideoFormatAV1;
     return &MFVideoFormat_H264;
 }
 
@@ -388,6 +400,7 @@ static IMFTransform* create_video_mft(basis_codec_t codec) {
 static const GUID kProfileH264VldNoFgt = {0x1b81be68,0xa0c7,0x11d3,{0xb9,0x84,0x00,0xc0,0x4f,0x2e,0x73,0xc5}};
 static const GUID kProfileHevcVldMain  = {0x5b11d51b,0x2f4c,0x4452,{0xbc,0xc3,0x09,0xf2,0xa1,0x16,0x0c,0xc0}};
 static const GUID kProfileVp9Profile0  = {0x463707f8,0xa1d0,0x4585,{0x87,0x6d,0x83,0xaa,0x6d,0x60,0xb8,0x9e}};
+static const GUID kProfileAv1Profile0  = {0xb8be4ccb,0xcf53,0x46ba,{0x8d,0x59,0xd6,0xb8,0xa6,0xda,0x5d,0x2a}};
 
 /* Leg 1: is there a decoder MFT for the subtype? Enumerated with exactly
  * create_video_mft's flags so a pass here means configure_video_mft will find
@@ -462,31 +475,30 @@ extern "C" int basis_decoder_probe_video_codec(int codec) {
     LONG c = InterlockedCompareExchange(&cache[codec], 0, 0);
     if (c) return c == 2;
 
-    int ok = 0;
-    if (codec != BASIS_CODEC_AV1) {   /* no AV1 decode path yet — probe stays 0 */
-        /* the probe may run before any decoder exists — start MF here too
-         * (CoInitializeEx is per-thread and may report an existing STA, which
-         * MF doesn't mind; MFStartup refcounts; neither is ever shut down,
-         * matching basis_decoder_create). A failed MFStartup returns 0
-         * without caching, so it doesn't become a permanent verdict. */
-        CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (FAILED(MFStartup(MF_VERSION))) return 0;
-        const GUID* sub = codec == BASIS_CODEC_H265 ? &MFVideoFormat_HEVC
-                        : codec == BASIS_CODEC_VP9  ? &MFVideoFormat_VP90
-                        : &MFVideoFormat_H264;
-        const GUID* prof = codec == BASIS_CODEC_H265 ? &kProfileHevcVldMain
-                         : codec == BASIS_CODEC_VP9  ? &kProfileVp9Profile0
-                         : &kProfileH264VldNoFgt;
-        /* 8-bit profile 0 only for VP9: 10-bit/profile-2 is deliberately
-         * unprobed — the resolver filters to SDR and the drain's software-
-         * fallback guard catches direct 10-bit files that fall back. The
-         * config check runs at each codec's offer ceiling (the resolver caps
-         * avc1 at 1080p; H.265/VP9 are offered up to 2160p), so a codec isn't
-         * failed for missing headroom it will never be asked for. */
-        UINT pw = codec == BASIS_CODEC_H264 ? 1920 : 3840;
-        UINT ph = codec == BASIS_CODEC_H264 ? 1088 : 2160;
-        ok = probe_mft_present(sub) && probe_gpu_profile(prof, pw, ph);
-    }
+    /* the probe may run before any decoder exists — start MF here too
+     * (CoInitializeEx is per-thread and may report an existing STA, which
+     * MF doesn't mind; MFStartup refcounts; neither is ever shut down,
+     * matching basis_decoder_create). A failed MFStartup returns 0
+     * without caching, so it doesn't become a permanent verdict. */
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(MFStartup(MF_VERSION))) return 0;
+    const GUID* prof = codec == BASIS_CODEC_H265 ? &kProfileHevcVldMain
+                     : codec == BASIS_CODEC_VP9  ? &kProfileVp9Profile0
+                     : codec == BASIS_CODEC_AV1  ? &kProfileAv1Profile0
+                     : &kProfileH264VldNoFgt;
+    /* 8-bit profile 0 only for VP9/AV1: 10-bit is deliberately unprobed — the
+     * resolver filters to SDR/8-bit and the drain's software-fallback guard
+     * catches direct 10-bit files that fall back. The GPU-profile leg matters
+     * most for AV1: the Store AV1 extension falls back to its internal dav1d
+     * on GPUs without hardware AV1 decode (most of today's VR desktops), so
+     * an MFT-only probe would be a false positive there. The config check
+     * runs at each codec's offer ceiling (the resolver caps avc1 at 1080p;
+     * H.265/VP9/AV1 are offered up to 2160p), so a codec isn't failed for
+     * missing headroom it will never be asked for. */
+    UINT pw = codec == BASIS_CODEC_H264 ? 1920 : 3840;
+    UINT ph = codec == BASIS_CODEC_H264 ? 1088 : 2160;
+    int ok = probe_mft_present(video_subtype((basis_codec_t)codec)) &&
+             probe_gpu_profile(prof, pw, ph);
     InterlockedExchange((volatile LONG*)&cache[codec], ok ? 2 : 1);
     return ok;
 }
@@ -518,8 +530,11 @@ static void read_display_aperture(basis_decoder* d) {
 static bool configure_video_mft(basis_decoder* d) {
     d->vdec = create_video_mft(d->vcodec);
     if (!d->vdec) {
-        basis_engine_set_error(d->engine, d->vcodec == BASIS_CODEC_VP9
+        basis_engine_set_error(d->engine,
+            d->vcodec == BASIS_CODEC_VP9
             ? "no Media Foundation VP9 decoder (install 'VP9 Video Extensions' from the Microsoft Store)"
+            : d->vcodec == BASIS_CODEC_AV1
+            ? "no Media Foundation AV1 decoder (install 'AV1 Video Extension' from the Microsoft Store)"
             : "no Media Foundation decoder MFT for this codec (HEVC needs the HEVC Video Extension)");
         return false;
     }
@@ -1096,8 +1111,19 @@ extern "C" int basis_decoder_set_video_format(basis_decoder_t* d, basis_codec_t 
     d->vcodec = codec; d->vwidth = w; d->vheight = h;
     if (!d->devDec) return -1;
     if (!configure_video_mft(d)) return -1;
-    /* Feed SPS/PPS (Annex B extradata) as the first input so the MFT has config. */
-    if (extradata && extradata_len > 0) basis_decoder_submit_video(d, extradata, extradata_len, 0, 0);
+    if (extradata && extradata_len > 0) {
+        if (codec == BASIS_CODEC_AV1) {
+            /* configOBUs ride the first real AU (see vConfigObus) rather than
+             * being fed as their own sample. */
+            if (extradata_len <= (int)sizeof(d->vConfigObus)) {
+                memcpy(d->vConfigObus, extradata, extradata_len);
+                d->vConfigObusLen = extradata_len;
+            }
+        } else {
+            /* Feed SPS/PPS (Annex B extradata) as the first input so the MFT has config. */
+            basis_decoder_submit_video(d, extradata, extradata_len, 0, 0);
+        }
+    }
     d->vconfigured = true;
     return 0;
 }
@@ -1188,7 +1214,24 @@ static IMFSample* make_input_sample(const uint8_t* data, int len, int64_t pts_us
 extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int len, int64_t pts_us, int key) {
     (void)key;
     if (!d || !d->vdec || !annexb || len <= 0) return -1;
-    IMFSample* s = make_input_sample(annexb, len, pts_us);
+    IMFSample* s;
+    if (d->vConfigObusLen > 0) {
+        /* first AV1 AU: prepend the held configOBUs so the decoder sees the
+         * sequence header before any frame data */
+        int total = d->vConfigObusLen + len;
+        uint8_t* tmp = (uint8_t*)malloc((size_t)total);
+        if (tmp) {
+            memcpy(tmp, d->vConfigObus, d->vConfigObusLen);
+            memcpy(tmp + d->vConfigObusLen, annexb, len);
+            s = make_input_sample(tmp, total, pts_us);
+            free(tmp);
+        } else {
+            s = make_input_sample(annexb, len, pts_us);
+        }
+        d->vConfigObusLen = 0;
+    } else {
+        s = make_input_sample(annexb, len, pts_us);
+    }
 
     /* Feed the AU, draining output to make room rather than dropping it. The
      * decoder must accept every frame or playback decimates to the rate at which

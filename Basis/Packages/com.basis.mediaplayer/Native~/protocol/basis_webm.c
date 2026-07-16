@@ -1,11 +1,11 @@
 /*
- * basis_webm.c — WebM/Matroska demuxer -> VP9 video into a basis_media_sink.
+ * basis_webm.c — WebM/Matroska demuxer -> VP9/AV1 video into a basis_media_sink.
  *
- * Scope (deliberately narrow): one video track, V_VP9 only. Audio and subtitle
- * tracks are skipped, not announced; a WebM whose video CodecID isn't supported
- * raises a clear error instead of playing silently without video. The CodecID
- * switch and track model are written so V_AV1 and A_OPUS drop in as extra
- * branches, not rewrites.
+ * Scope (deliberately narrow): one video track, V_VP9 or V_AV1. Audio and
+ * subtitle tracks are skipped, not announced; a WebM whose video CodecID isn't
+ * supported raises a clear error instead of playing silently without video. The
+ * CodecID switch and track model are written so A_OPUS drops in as an extra
+ * branch, not a rewrite.
  *
  * Walk rules (matching what real muxers emit and tolerant parsers accept):
  *   - Segment children arrive in any order; multiple SeekHeads are legal.
@@ -115,7 +115,10 @@ typedef struct {
 
     /* the selected (first supported) video track */
     int     track_num;        /* 0 = none selected */
+    basis_codec_t codec;
     int     width, height;
+    uint8_t extradata[2048];  /* AV1: configOBUs from CodecPrivate; VP9: none */
+    int     extradata_len;
     int     announced;
     int     duration_sent;
     char    bad_codec[32];    /* first unsupported video CodecID, for the error */
@@ -351,13 +354,15 @@ static void parse_info(webm_t* w, const uint8_t* p, int64_t len) {
 
 /* One TrackEntry. Selects the first supported video track; remembers the first
  * unsupported video CodecID for the error message. The CodecID switch is the
- * extension point: V_AV1 (AV1 item) and A_OPUS (Opus item) add branches here. */
+ * extension point: A_OPUS (Opus item) adds a branch here. */
 static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     ebuf_t b = { p, len, 0 };
     uint32_t id;
     int64_t sz;
     int num = 0, type = 0, width = 0, height = 0;
     char codec[32] = {0};
+    const uint8_t* priv = NULL;
+    int64_t priv_len = 0;
     while (ebuf_id(&b, &id) == 1) {
         if (!ebuf_size(&b, &sz) || sz < 0 || sz > b.len - b.off) return;
         const uint8_t* body = b.p + b.off;
@@ -370,6 +375,7 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
                 codec[n] = 0;
                 break;
             }
+            case ID_CODECPRIVATE: priv = body; priv_len = sz; break;
             case ID_VIDEO: {
                 ebuf_t vb = { body, sz, 0 };
                 uint32_t vid;
@@ -382,7 +388,6 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
                 }
                 break;
             }
-            /* ID_CODECPRIVATE: a VP9 track needs none (rare, ignored) */
             default: break;
         }
         b.off += sz;
@@ -390,9 +395,25 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     if (type != 1 || num <= 0) return;       /* video tracks only (audio/subs skipped) */
     if (w->track_num) return;                /* first video track wins */
     if (strcmp(codec, "V_VP9") == 0) {
+        /* a VP9 track needs no CodecPrivate (rare, ignored) */
         w->track_num = num;
+        w->codec = BASIS_CODEC_VP9;
         w->width = width;
         w->height = height;
+    } else if (strcmp(codec, "V_AV1") == 0) {
+        w->track_num = num;
+        w->codec = BASIS_CODEC_AV1;
+        w->width = width;
+        w->height = height;
+        /* CodecPrivate is the full av1C record (same bytes as the MP4 box
+         * payload): 4 header bytes, then configOBUs. Only the configOBUs are
+         * stored — the record header is not valid OBU syntax, and the decode
+         * backends want a feedable OBU blob. Absent CodecPrivate is legal;
+         * decoders parse the in-band sequence header. */
+        if (priv && priv_len > 4 && priv_len - 4 <= (int64_t)sizeof(w->extradata)) {
+            memcpy(w->extradata, priv + 4, (size_t)(priv_len - 4));
+            w->extradata_len = (int)(priv_len - 4);
+        }
     } else if (!w->bad_codec[0]) {
         strncpy(w->bad_codec, codec[0] ? codec : "unknown", sizeof(w->bad_codec) - 1);
     }
@@ -694,7 +715,7 @@ static int announce(webm_t* w, int64_t first_cluster_abs) {
     if (!w->track_num) {
         char msg[96];
         if (w->bad_codec[0])
-            snprintf(msg, sizeof(msg), "video codec '%s' is not supported (supported: V_VP9)",
+            snprintf(msg, sizeof(msg), "video codec '%s' is not supported (supported: V_VP9, V_AV1)",
                      w->bad_codec);
         else
             snprintf(msg, sizeof(msg), "WebM has no video track this player supports");
@@ -706,7 +727,9 @@ static int announce(webm_t* w, int64_t first_cluster_abs) {
         if (!fetch_trailing_cues(w, first_cluster_abs)) return 0;
     }
 
-    w->sink->on_video_format(w->sink->user, BASIS_CODEC_VP9, NULL, 0, w->width, w->height);
+    w->sink->on_video_format(w->sink->user, w->codec,
+                             w->extradata_len ? w->extradata : NULL, w->extradata_len,
+                             w->width, w->height);
     w->announced = 1;
 
     publish_duration(w);

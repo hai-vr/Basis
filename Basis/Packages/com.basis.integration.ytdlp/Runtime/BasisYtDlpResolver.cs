@@ -356,17 +356,20 @@ namespace Basis.Integration.YtDlp
         }
 
         // Best direct video-only stream. avc1 is always eligible up to 1080p; where
-        // the platform hardware-decodes VP9 (probed once, cached), the VP9 ladder is
-        // eligible up to 2160p — which is what unlocks >1080p on YouTube, whose
-        // above-1080p rungs are VP9 in video-only WebM. Ranking is height first, avc1
-        // over vp9 at equal height (decode cost / hardware breadth), then bitrate: a
-        // VP9 rung only wins where it offers more height than every eligible avc1
-        // rung, so on the usual complete avc1 ladder selection at or below 1080p is
-        // unchanged.
+        // the platform hardware-decodes VP9 or AV1 (probed once, cached), those
+        // ladders are eligible up to 2160p — which is what unlocks >1080p on
+        // YouTube, whose above-1080p rungs are VP9 in video-only WebM (AV1 appears
+        // alongside on popular uploads). Ranking is height first, then codec at
+        // equal height — avc1 over av01 (decode cost / hardware breadth), av01 over
+        // vp9 (better bitrate at 4K; both hardware-decoded wherever their probes
+        // passed) — then bitrate. A VP9/AV1 rung only wins where it offers more
+        // height than every eligible avc1 rung, so on the usual complete avc1
+        // ladder selection at or below 1080p is unchanged.
         private static Format BestVideoOnly(List<Format> formats)
         {
             if (formats == null) return null;
             bool vp9Decodes = BasisNativeVideoSource.IsVideoCodecSupported(BasisVideoCodec.VP9);
+            bool av1Decodes = BasisNativeVideoSource.IsVideoCodecSupported(BasisVideoCodec.AV1);
             Format best = null;
             for (int i = 0; i < formats.Count; i++)
             {
@@ -375,10 +378,11 @@ namespace Basis.Integration.YtDlp
                 if (!HasCodec(f.VCodec) || HasCodec(f.ACodec)) continue;         // video-only
                 int heightCap;
                 if (StartsWithCI(f.VCodec, "avc1")) heightCap = 1080;
-                // VP9 additionally requires a known height: an unknown-resolution
+                // VP9/AV1 additionally require a known height: an unknown-resolution
                 // rung could be 8K, past what the probe vouched for. (avc1 keeps
                 // its long-standing unknown-height tolerance.)
                 else if (vp9Decodes && IsSdrVp9(f) && (f.Height ?? 0) > 0) heightCap = 2160;
+                else if (av1Decodes && IsSdrAv1(f) && (f.Height ?? 0) > 0) heightCap = 2160;
                 else continue;
                 if ((f.Height ?? 0) > heightCap) continue;
                 if (!IsDirectByteStream(f.Protocol)) continue;
@@ -399,6 +403,23 @@ namespace Basis.Integration.YtDlp
                 !StartsWithCI(f.VCodec, "vp09.00")) return false;
             if (!string.Equals(f.Ext, "webm", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(f.Ext, "mp4", StringComparison.OrdinalIgnoreCase)) return false;
+            return string.Equals(f.DynamicRange, "SDR", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // An AV1 rung the engine can take: Main profile, 8-bit only — the codec
+        // string is "av01.<profile>.<level+tier>.<bitdepth>[...]" (e.g.
+        // "av01.0.12M.08"), so require profile "0" and bit-depth field "08"
+        // alongside the SDR tag; the probe answers for 8-bit Profile-0 hardware
+        // decode and the renderer has no tone mapping. HDR/10-bit uploads still
+        // play via their parallel SDR ladders. Carriage must be an MP4 or WebM
+        // byte stream (what yt-dlp serves av01 in).
+        private static bool IsSdrAv1(Format f)
+        {
+            if (!StartsWithCI(f.VCodec, "av01.")) return false;
+            string[] parts = f.VCodec.Split('.');
+            if (parts.Length < 4 || parts[1] != "0" || parts[3] != "08") return false;
+            if (!string.Equals(f.Ext, "mp4", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(f.Ext, "webm", StringComparison.OrdinalIgnoreCase)) return false;
             return string.Equals(f.DynamicRange, "SDR", StringComparison.OrdinalIgnoreCase);
         }
 
@@ -444,10 +465,16 @@ namespace Basis.Integration.YtDlp
         {
             int ha = a.Height ?? 0, hb = b.Height ?? 0;
             if (ha != hb) return ha > hb;
-            bool aAvc = StartsWithCI(a.VCodec, "avc1"), bAvc = StartsWithCI(b.VCodec, "avc1");
-            if (aAvc != bAvc) return aAvc;   // avc1 preferred at equal height
+            int ca = CodecRank(a.VCodec), cb = CodecRank(b.VCodec);
+            if (ca != cb) return ca > cb;
             return Bitrate(a.VideoBitrate, a) > Bitrate(b.VideoBitrate, b);
         }
+
+        // Codec preference at equal height: avc1 first (decode cost / hardware
+        // breadth), then av01 over vp9 (better bitrate at 4K; both only reach
+        // here where their hardware-decode probes passed).
+        private static int CodecRank(string vcodec)
+            => StartsWithCI(vcodec, "avc1") ? 2 : StartsWithCI(vcodec, "av01") ? 1 : 0;
 
         private static double Bitrate(double? primary, Format f) => primary ?? f.TotalBitrate ?? 0;
 

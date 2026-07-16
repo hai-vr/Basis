@@ -31,7 +31,7 @@ typedef enum basis_codec {
     BASIS_CODEC_H264 = 1,
     BASIS_CODEC_H265 = 2,
     BASIS_CODEC_VP9  = 3,
-    BASIS_CODEC_AV1  = 4,   /* reserved: demux/decode land with the AV1 item */
+    BASIS_CODEC_AV1  = 4,
     BASIS_CODEC_AAC  = 10,
     BASIS_CODEC_LPCM = 11   /* raw integer PCM: Blu-ray HDMV LPCM (TS stream_type
                              * 0x80, big-endian) or RIFF/WAV (little-endian —
@@ -46,15 +46,18 @@ typedef struct basis_media_sink {
 
     /* Called once per elementary video track when the codec/config is first known.
      * `extradata` is codec config: for H.264 the SPS/PPS (Annex B or avcC — the
-     * decoder accepts either), for H.265 the VPS/SPS/PPS. May be NULL/0 when the
-     * config is inline in the access units instead. */
+     * decoder accepts either), for H.265 the VPS/SPS/PPS, for AV1 the configOBUs
+     * from the av1C record (the record's 4 header bytes stripped, so the blob is
+     * valid low-overhead OBU syntax). May be NULL/0 when the config is inline in
+     * the access units instead. */
     void (*on_video_format)(void* user, basis_codec_t codec,
                             const uint8_t* extradata, int extradata_len,
                             int width, int height);
 
     /* One coded video access unit: Annex B form (start-code separated NALUs)
-     * for H.264/H.265; for VP9 one raw sample exactly as stored (possibly a
-     * superframe — fed to the decoder whole, never split). pts_us is the
+     * for H.264/H.265; for VP9/AV1 one raw sample exactly as stored (a possible
+     * VP9 superframe or AV1 temporal unit of low-overhead OBUs — fed to the
+     * decoder whole, never split). pts_us is the
      * presentation timestamp; dts_us the decode timestamp, used for delivery
      * pacing (composition offsets can put pts_us further ahead than the pacing
      * lead — a demuxer without decode timestamps passes pts_us for both).
