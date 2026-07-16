@@ -8,6 +8,13 @@ networks and real hardware decoders, and regressions live exactly in the parts a
 reach. Testing is therefore structured manual verification: known-good streams, a repeatable
 matrix, and evidence capture.
 
+Playback is only half of it. The native plugin parses attacker-controlled container and
+protocol bytes in-process, so a change under `Native~/` carries a security exposure that a
+playback matrix does not cover. If you are touching the C core, read
+[Native plugin changes: the security boundary](#native-plugin-changes-the-security-boundary)
+first — it sets the threat model and the malformed-input and fuzz testing that a parser change
+needs, over and above "a good file still plays."
+
 ## Rule zero: prove the feed before you blame the player
 
 Most "player bugs" found during development turn out to be feeder problems: a stalled stream,
@@ -260,10 +267,66 @@ stream running and for letting this guide point testers at it. Be a good guest: 
 interactive test sessions, not automated soak loops, and stand up the self-hosted stack for
 anything sustained.
 
-## Native plugin changes
+## Native plugin changes: the security boundary
 
-Any change under `Native~/` needs the rebuilt binaries verified on **both** platforms it
-ships for (Windows x64 DLL, Android arm64 `.so`) — the shared C core means a protocol fix on
-one platform can regress the other. See the README's "Building the native plugin" section.
-Note the Windows DLL cannot be replaced while any Unity instance holds it loaded — close
-Unity, swap, reopen.
+`Native~/` is where the player is most exposed, and a change there is not verified the same
+way a C# change is. The C core parses container and protocol bytes **by hand** — MP4 box
+walking (`esds`/`avcc`/`hvcC`), MPEG-TS section parsing, RTSP/RTMP, WebM — and it does so
+**in-process, with no sandbox**. The bytes are attacker-controlled: a media URL is opened
+from world content and, in multiplayer, broadcast by a peer so that every other client parses
+the same hostile stream at once. A parser that reads past a buffer, trusts a length field it
+never bounds-checked, or dereferences a pointer it never validated is therefore reachable
+remotely, on every client simultaneously.
+
+Two outcomes to test against, in priority order:
+
+- **Denial of service** — the common, proven case. A malformed stream crashes or hangs the
+  decode thread and takes the process (editor or client) down with it. This has happened from
+  an ordinary `ffmpeg`-produced file: an HEVC elementary stream that reaches the decoder with
+  no frame size made the Windows Store HEVC MFT dereference a null pointer on its own worker
+  thread. The parser must refuse a sizeless or otherwise under-specified track **before** it
+  hands bytes to the decoder, not let it fail somewhere downstream.
+- **Memory corruption** — the worst case, and the reason this is a security boundary and not
+  just a stability one. Hand-rolled parsers with untrusted lengths are exactly where
+  out-of-bounds reads and writes live. Treat *any* out-of-bounds access as a security bug,
+  including a read that "only" crashes — the same missing bound is often writable with a
+  different input.
+
+So "a good file still plays" does not verify a parser change. Proving a *hostile* file cannot
+crash, hang, or corrupt does.
+
+### What to test after a parser or protocol change
+
+- **Malformed and truncated input, expecting a clean refusal.** For every parser you touch:
+  truncate the file mid-box or mid-packet; corrupt a length or size field so it points past
+  the buffer; set a dimension, channel count, or entry count to zero or to `UINT32_MAX`; nest
+  boxes to absurd depth; point an offset back at itself. The bar is **errors cleanly, never
+  crashes or hangs** — a surfaced error string is a pass, a segfault or a spin is a failure.
+  Valid-file checks miss all of this by construction; the regressions live in the inputs the
+  author didn't picture.
+- **Fuzz the demux and parse entry points under sanitizers.** Build the plugin with
+  AddressSanitizer and UndefinedBehaviorSanitizer (`/fsanitize=address` on MSVC; ASan + UBSan
+  on the Android/Clang build) and drive the container and protocol readers with mutated
+  inputs. ASan turns a silent out-of-bounds read into a named fault with a stack — it is both
+  how you find these and how you prove one is gone. An unsanitised "it didn't crash this time"
+  is not proof. Fuzzing corrupt input is the single highest-value test this code has; a parser
+  change that ships without one is under-tested.
+- **Keep every crash's repro as a permanent fixture.** When a malformed stream is found to
+  crash, the exact file that triggered it earns a permanent place in the fixture corpus and is
+  re-run before every subsequent native change. A fixed memory-safety bug that isn't pinned by
+  a regression fixture comes back the next time the surrounding code moves.
+- **Regress the good path bit-for-bit, not by eye.** A protocol fix on one transport can shift
+  the packets another transport emits, because they share the AU path. After any demux change,
+  re-run the known-good fixtures and confirm the demuxer still produces the same packets and
+  the same decoded frames — a comparison against a reference decoder (`ffprobe -show_packets`
+  for packets, `ffmpeg` frame hashes for pixels) is what makes "the same" objective instead of
+  "looked fine to me."
+
+### Rebuilding and platform coverage
+
+Any change under `Native~/` needs the rebuilt binaries verified on **both** platforms it ships
+for (Windows x64 DLL, Android arm64 `.so`) — the shared C core means a protocol fix on one
+platform can regress the other, and the malformed-input and fuzz checks above apply to each
+backend's decode path (Media Foundation on Windows, `AMediaCodec` on Android) as well as the
+shared parsers. See the README's "Building the native plugin" section. Note the Windows DLL
+cannot be replaced while any Unity instance holds it loaded — close Unity, swap, reopen.
