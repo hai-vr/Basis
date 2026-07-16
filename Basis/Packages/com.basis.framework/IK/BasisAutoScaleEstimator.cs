@@ -41,7 +41,9 @@ public static class BasisAutoScaleEstimator
 
         // Standing eye height: jump up to new highs immediately, ease down slowly, so a brief crouch holds the
         // standing value while a one-off reach/jump spike decays back out. Out-of-band samples are ignored.
-        float sample = headInput.UnscaledDeviceCoord.position.y - BasisLocalPlayspaceMover.VerticalOffset;
+        float sample = headInput.UnscaledDeviceCoord.position.y
+            - BasisLocalPlayspaceMover.VerticalOffset
+            - BasisHeightDriver.HeightModeGroundingOffset;
         if (sample >= MinEyeHeight && sample <= MaxEyeHeight)
         {
             if (!HasEstimate || sample > EstimatedEyeHeight)

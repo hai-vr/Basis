@@ -199,6 +199,113 @@ namespace Basis.Tests.Calibration
         }
 
         /// <summary>
+        /// "Calibrate anywhere": with body trackers present, the floor comes from the trackers
+        /// themselves (BasisCalibrationMath.TryEstimateFloorFromTrackers), so the eye height — and with
+        /// it the whole classification frame — cancels ANY vertical shift, including ones Basis has no
+        /// bookkeeping for (an OVRAS/SteamVR space drag, a stale grounding lift). This sweeps shifts
+        /// with NO compensation term at all and requires identical eye height and identical roles.
+        /// </summary>
+        [Test]
+        public void TrackedFloor_CancelsAnyVerticalShift_EvenOnesBasisCannotSee()
+        {
+            Body body = Body.Standard();
+
+            float EyeFromTrackedFloor(float shift)
+            {
+                var heights = new List<float>();
+                foreach (Vector3 t in body.Trackers) heights.Add(t.y + shift);
+                Assert.IsTrue(BasisCalibrationMath.TryEstimateFloorFromTrackers(heights, body.Hmd.y + shift, out float floorY),
+                    $"the 6-point constellation must always yield a tracked floor (shift {shift:+0.00;-0.00;0.00})");
+                return (body.Hmd.y + shift) - floorY;
+            }
+
+            float referenceEye = EyeFromTrackedFloor(0f);
+            Assert.AreEqual(TrueEyeHeight, referenceEye, 0.05f,
+                "sanity: the tracked-floor eye height should land near the player's true eye height");
+
+            foreach (float shift in new[] { -2.0f, -0.5f, 0.5f, 2.0f })
+            {
+                Assert.AreEqual(referenceEye, EyeFromTrackedFloor(shift), 1e-4f,
+                    $"a {shift:+0.00;-0.00} m shift leaked into the tracked-floor eye height — the whole "
+                    + "point of anchoring to the trackers is that hmd and trackers carry the same shift.");
+
+                // And the classification frame built from it assigns the same roles, with no
+                // compensation subtraction anywhere (the external-drag case the old design lost).
+                float eyeHeight = EyeFromTrackedFloor(shift);
+                float floorY = (body.Hmd.y + shift) - eyeHeight;
+                var samples = new BasisConstellationSample[body.Trackers.Length];
+                for (int i = 0; i < body.Trackers.Length; i++)
+                {
+                    Vector3 local = (body.Trackers[i] + new Vector3(0f, shift, 0f)) - new Vector3(body.Hmd.x, floorY, body.Hmd.z);
+                    samples[i] = new BasisConstellationSample
+                    {
+                        HeightRatio = local.y / eyeHeight,
+                        LateralRatio = local.x / eyeHeight,
+                        DepthLocal = local.z,
+                        ForcedRole = -1,
+                    };
+                }
+                BasisConstellationResult result = BasisConstellationClassifier.Classify(
+                    samples, samples.Length, BasisConstellationHand.None, BasisConstellationHand.None,
+                    tolerance: 1f, roleEnabled: _ => true);
+
+                var expected = new[]
+                {
+                    BasisBoneTrackedRole.Hips, BasisBoneTrackedRole.Chest,
+                    BasisBoneTrackedRole.LeftLowerLeg, BasisBoneTrackedRole.RightLowerLeg,
+                    BasisBoneTrackedRole.LeftFoot, BasisBoneTrackedRole.RightFoot,
+                };
+                for (int i = 0; i < expected.Length; i++)
+                {
+                    Assert.IsTrue(result.TryGetRole(i, out BasisBoneTrackedRole role) && role == expected[i],
+                        $"tracked-floor frame at shift {shift:+0.00;-0.00} classified tracker {i} as "
+                        + $"{(result.TryGetRole(i, out var r) ? r.ToString() : "unassigned")} instead of {expected[i]}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The tracked floor must refuse to guess from torso trackers: a lone hip puck (or hip+chest)
+        /// sits half a body above the floor, and treating it as feet would halve the measured eye
+        /// height. Feet come in pairs — fewer than two trackers in the foot band means no estimate.
+        /// </summary>
+        [Test]
+        public void TrackedFloor_RefusesToGuessFromTorsoTrackers()
+        {
+            Assert.IsFalse(BasisCalibrationMath.TryEstimateFloorFromTrackers(
+                new List<float> { 0.95f }, TrueEyeHeight, out _),
+                "a lone hip tracker must not define the floor");
+            Assert.IsFalse(BasisCalibrationMath.TryEstimateFloorFromTrackers(
+                new List<float> { 0.95f, 1.32f }, TrueEyeHeight, out _),
+                "hip+chest sit far apart vertically — neither is floor evidence");
+            Assert.IsFalse(BasisCalibrationMath.TryEstimateFloorFromTrackers(
+                new List<float>(), TrueEyeHeight, out _),
+                "no trackers, no estimate");
+            Assert.IsFalse(BasisCalibrationMath.TryEstimateFloorFromTrackers(
+                new List<float> { -1.5f, -1.45f }, TrueEyeHeight, out _),
+                "a floor implying a 3+ metre body is a bad read (chargers on the floor of a lower room), not a measurement");
+        }
+
+        /// <summary>
+        /// The lift-poison guard, pinned on the exact pair recovered from a poisoned install: a saved
+        /// eye of 1.992 m against a span of 1.507 m is anatomically impossible (that span implies a
+        /// ~1.5 m body) — it is a calibration taken while vertically shifted and must never persist.
+        /// Honest short-armed players stay inside the band.
+        /// </summary>
+        [Test]
+        public void LiftPoisonGuard_CatchesTheImpossibleEye_AndSparesRealBodies()
+        {
+            Assert.IsTrue(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.992f, 1.507f),
+                "the field-recovered poisoned pair (eye 1.992 / span 1.507) must be flagged");
+            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.60f, 1.50f),
+                "a short-armed but honest body must not be flagged");
+            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.50f, 1.55f),
+                "a normal body must not be flagged");
+            Assert.IsFalse(BasisCalibrationMath.EyeHeightLooksLiftPoisoned(1.60f, 0f),
+                "no span measurement, no verdict");
+        }
+
+        /// <summary>
         /// The position offset a tracker captures at calibration must be play-space invariant: the
         /// reference bone is the avatar's T-pose bind anchored at the HEAD (ComputeTposeAnchor), and both
         /// the head and the tracker carry the same drag, so the captured inverse offset — tracker-local

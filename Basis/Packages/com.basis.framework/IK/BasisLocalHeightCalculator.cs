@@ -94,10 +94,27 @@ public static class BasisLocalHeightCalculator
             if (lockToInput != null && lockToInput.BasisInput != null)
             {
                 lockToInput.BasisInput.LatePollData();
-                // Subtract the play-space mover's vertical offset so calibrating while lifted doesn't read
-                // an inflated eye height (the offset is injected into UnscaledDeviceCoord by the device).
-                BasisHeightDriver.PlayerEyeHeight = lockToInput.BasisInput.UnscaledDeviceCoord.position.y - BasisLocalPlayspaceMover.VerticalOffset;
-                BasisDebug.Log($"Player raw eye height from device: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
+                float rawEyeY = lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
+
+                // Preferred: measure the eye against the player's OWN trackers' floor. The HMD and the
+                // trackers carry the same vertical shift, so this cancels ANY play-space offset — the
+                // Basis mover, the grounding lift, and offsets applied outside Basis (SteamVR/OVRAS
+                // space drags) alike. The player can calibrate wherever they happen to be.
+                if (TryGetTrackedFloor(rawEyeY, out float trackedFloorY))
+                {
+                    BasisHeightDriver.PlayerEyeHeight = rawEyeY - trackedFloorY;
+                    BasisDebug.Log($"Player eye height from tracked floor: {BasisHeightDriver.PlayerEyeHeight} (floor {trackedFloorY:F3})", BasisDebug.LogTag.Avatar);
+                }
+                else
+                {
+                    // No usable low trackers: subtract everything Basis itself injected into the device Y
+                    // (the play-space mover's vertical drag AND the height-mode grounding lift — the lift
+                    // previously leaked into the measurement and got persisted as a too-tall body).
+                    BasisHeightDriver.PlayerEyeHeight = rawEyeY
+                        - BasisLocalPlayspaceMover.VerticalOffset
+                        - BasisHeightDriver.HeightModeGroundingOffset;
+                    BasisDebug.Log($"Player raw eye height from device: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
+                }
             }
             else
             {
@@ -118,6 +135,43 @@ public static class BasisLocalHeightCalculator
         }
 
         BasisHeightDriver.HasGenuinePlayerEyeHeight = genuine;
+    }
+
+    private static readonly System.Collections.Generic.List<float> s_trackerHeights = new(16);
+
+    /// <summary>
+    /// Gathers every free spatial tracker's unscaled height and asks
+    /// <see cref="BasisCalibrationMath.TryEstimateFloorFromTrackers"/> for the floor under the player's
+    /// feet. Pinned devices (HMD, named hand controllers) are excluded — they are head/hand evidence,
+    /// never floor evidence; linked pair-halves defer to their virtual midpoint, mirroring the
+    /// constellation classifier's own device filter.
+    /// </summary>
+    private static bool TryGetTrackedFloor(float hmdY, out float floorY)
+    {
+        floorY = 0f;
+        BasisDeviceManagement manager = BasisDeviceManagement.Instance;
+        if (manager == null)
+        {
+            return false;
+        }
+
+        s_trackerHeights.Clear();
+        BasisObservableList<BasisInput> devices = manager.AllInputDevices;
+        int count = devices.Count;
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisInput input = devices[Index];
+            if (input == null) continue;
+            if (input is BasisTouchInputDevice) continue;
+            if (input.IsLinked) continue;
+            if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;
+
+            Vector3 unscaled = input.UnscaledDeviceCoord.position;
+            if (unscaled.sqrMagnitude < 1e-4f) continue;
+            s_trackerHeights.Add(unscaled.y);
+        }
+
+        return BasisCalibrationMath.TryEstimateFloorFromTrackers(s_trackerHeights, hmdY, out floorY);
     }
 
     public static void CalculateAvatarEyeHeight()

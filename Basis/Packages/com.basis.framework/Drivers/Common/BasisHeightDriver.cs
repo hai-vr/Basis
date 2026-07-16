@@ -111,7 +111,13 @@ public static class BasisHeightDriver
             && BasisCalibrationMath.ImpliedHeightFromEye(PlayerEyeHeight)
                > BasisCalibrationMath.ImpliedHeightFromSpan(PlayerArmSpan) * BasisCalibrationMath.AutoModeEyePreferenceBand;
 
-        if (eyePlausible && eyeLooksUnderMeasured == false)
+        // An eye that implies a body far taller than the measured span implies was measured while the
+        // play space was shifted up (space drag / grounding lift / external offset) — anatomy cannot
+        // produce it. Persisting it poisons every subsequent boot's scale, so it never saves.
+        bool eyeLooksLiftPoisoned = spanPlausible
+            && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(PlayerEyeHeight, PlayerArmSpan);
+
+        if (eyePlausible && eyeLooksUnderMeasured == false && eyeLooksLiftPoisoned == false)
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
         }
@@ -138,6 +144,17 @@ public static class BasisHeightDriver
         if (savedEye < MinPlausibleBodyMeasure || savedEye > MaxPlausibleBodyMeasure)
         {
             return;
+        }
+        // Heal a lift-poisoned save from before the persist guard existed: an eye that is anatomically
+        // impossible against its own saved span was measured while the play space was shifted. Restore
+        // the eye the span implies instead of booting every session at the poisoned scale.
+        float savedSpanForCheck = Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.RawValue;
+        if (savedSpanForCheck >= MinPlausibleBodyMeasure && savedSpanForCheck <= MaxPlausibleBodyMeasure
+            && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(savedEye, savedSpanForCheck))
+        {
+            float healedEye = BasisCalibrationMath.ImpliedHeightFromSpan(savedSpanForCheck) * BasisCalibrationMath.EyeToHeightRatio;
+            BasisDebug.LogWarning($"Saved eye height {savedEye:F3}m is implausible against saved arm span {savedSpanForCheck:F3}m (lift-poisoned calibration); using span-implied eye {healedEye:F3}m instead. Recalibrate to re-measure.", BasisDebug.LogTag.Avatar);
+            savedEye = healedEye;
         }
         PlayerEyeHeight = savedEye;
         HasGenuinePlayerEyeHeight = true;
