@@ -227,6 +227,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (BasisNetworkManagement.Transmitter != null)
             {
                 System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderSubmitted);
+                Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.RecordSent(MessageIndex, buffer);
                 AdditionalAvatarData AAD = new AdditionalAvatarData
                 {
                     array = buffer,
@@ -242,6 +243,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         }
         public void OnAvatarNetworkMessageSend(byte MessageIndex, byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced, ushort[] Recipients = null)
         {
+            System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderAvatarChannelSent);
             // Handle cases based on presence of Recipients and buffer
             AvatarDataMessage AvatarDataMessage = new AvatarDataMessage
             {

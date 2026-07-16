@@ -33,7 +33,11 @@ namespace HVR.Basis.Comms
         public float _fEyeY;
 
         private HVRAvatarComms comms;
-        public BasisNetworkReceiver Receiver = null;
+        // NonSerialized is load-bearing: BasisNetworkReceiver is [Serializable], so without it
+        // Unity auto-instantiates a junk receiver on prefab load (field initializers don't run
+        // under deserialization) — the != null guards then pass and the per-frame eye write
+        // NREs on its dead internals, killing every later AfterAvatarChanges subscriber.
+        [System.NonSerialized] public BasisNetworkReceiver Receiver = null;
 
         private bool _trackingActive;
         public bool IsTrackingActive => _trackingActive;

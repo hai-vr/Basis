@@ -198,12 +198,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (message.AdditionalAvatarDataSize > 0 && message.AdditionalAvatarDatas != null)
             {
                 System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverFramesWithAdditional);
+                BasisAdditionalDataDebugCapture.RecordReceiverFrame(baseReceiver.playerId);
                 BasisAdditionalDataDiagnostics.MaybeReport();
 
                 bool isDifferentAvatar = message.LinkedAvatarIndex != baseReceiver.LastLinkedAvatarIndex;
                 if (isDifferentAvatar)
                 {
                     System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverDroppedLinkedIndex);
+                    BasisAdditionalDataDebugCapture.RecordReceiverGateDrop(baseReceiver.playerId);
                     BasisAdditionalDataDiagnostics.LastGateMessageIndex = message.LinkedAvatarIndex;
                     BasisAdditionalDataDiagnostics.LastGateReceiverIndex = baseReceiver.LastLinkedAvatarIndex;
                     return;
@@ -261,16 +263,19 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 if (data.array == null || data.array.Length == 0)
                 {
                     System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverEntriesSkippedEmpty);
+                    BasisAdditionalDataDebugCapture.RecordReceiverSkippedEmpty(baseReceiver.playerId);
                     continue;
                 }
                 if (data.messageIndex < count && data.messageIndex < behaviours.Length)
                 {
                     behaviours[data.messageIndex].OnNetworkMessageServerReductionSystem(data.array);
                     System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverEntriesDispatched);
+                    BasisAdditionalDataDebugCapture.RecordReceived(baseReceiver.playerId, data.messageIndex, data.array);
                 }
                 else
                 {
                     System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverEntriesSkippedIndex);
+                    BasisAdditionalDataDebugCapture.RecordReceiverSkippedIndex(baseReceiver.playerId);
                 }
             }
         }

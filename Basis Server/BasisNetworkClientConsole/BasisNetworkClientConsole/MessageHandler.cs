@@ -118,6 +118,15 @@ namespace Basis.Network
                         SniffBundle(clientIndex, reader);
                     }
                     break;
+                case BasisNetworkCommons.AvatarChannel:
+                    // HVR's reliable/low-frequency path (handshake, variable definitions,
+                    // low-freq updates, high-frequency upgrades) — counting these splits
+                    // "HVR networking never started" from "only the high-freq path is dead".
+                    if (Sniffing)
+                    {
+                        SniffAvatarChannel(clientIndex, reader);
+                    }
+                    break;
                 case BasisNetworkCommons.DisconnectionChannel:
                     break;
                 default:
@@ -125,6 +134,37 @@ namespace Basis.Network
             }
 
             reader.Recycle();
+        }
+
+        // AvatarChannel (15) receipts, keyed by the first payload byte — for HVR that byte is the
+        // packet id (1=WearerReady, 2=RemoteRequestsInitialization, 8=NewVariables,
+        // 10..13=UpdatedVariables, 14=UpgradeToHighFrequency, 16=HighFrequencyValues).
+        public static readonly ConcurrentDictionary<int, long> AvatarChannelByPacketId = new();
+        public static long AvatarChannelTotal;
+
+        private static void SniffAvatarChannel(int clientIndex, NetPacketReader reader)
+        {
+            try
+            {
+                var sadm = new ServerAvatarDataMessage();
+                sadm.Deserialize(reader);
+                Interlocked.Increment(ref AvatarChannelTotal);
+                byte[] payload = sadm.avatarDataMessage.payload;
+                int packetId = payload != null && payload.Length > 0 ? payload[0] : -1;
+                AvatarChannelByPacketId.AddOrUpdate(packetId, 1, (_, n) => n + 1);
+
+                long total = Interlocked.Read(ref AvatarChannelTotal);
+                if (total <= 5 || total % 50 == 0)
+                {
+                    BNL.Log($"[FaceObserver] ch15 from player {sadm.playerIdMessage.playerID} msgIndex={sadm.avatarDataMessage.messageIndex} " +
+                            $"packetId={packetId} bytes={payload?.Length ?? 0} | ch15 totals: {string.Join(", ", System.Linq.Enumerable.Select(System.Linq.Enumerable.OrderBy(AvatarChannelByPacketId, kv => kv.Key), kv => $"id{kv.Key}={kv.Value}"))}");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Interlocked.Increment(ref ParseFailures);
+                BNL.LogError($"[FaceObserver] ch15 sniff failed: {ex.Message}");
+            }
         }
 
         /// <summary>

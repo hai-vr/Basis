@@ -23,6 +23,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static long SenderFramesWithAdditional;   // Compress frames that carried a section
         public static long SenderFramesKeyframe;         // of those, sent as keyframes
         public static long SenderFramesDelta;            // of those, sent as uplink deltas
+        public static long SenderAvatarChannelSent;      // OnAvatarNetworkMessageSend (ch15: HVR handshake, low-freq variables, upgrades)
+
+        // ── Receiver, avatar-channel (ch15) path ──
+        public static long ReceiverAvatarChannelDispatched; // behaviour OnNetworkMessageReceived delivered
+        public static long ReceiverAvatarChannelDeferred;   // future-avatar-index, queued for post-swap replay
+        public static long ReceiverAvatarChannelDropped;    // stale index / missing player / no avatar
 
         // ── Receiver ──
         public static long ReceiverFramesWithAdditional; // frames whose section parsed
@@ -65,25 +71,27 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sLastSubmitted = submitted; sLastAttached = attached; sLastParsed = parsed; sLastDispatched = dispatched;
 
             // Starvation between hops in the last window = the pipeline is broken at that seam.
+            // A completely idle window (nothing submitted, nothing parsed) is ALSO reported —
+            // silence is precisely the symptom when the sender-side chain never starts.
             bool senderStarved = dSubmitted > 0 && dAttached == 0;
             bool receiverStarved = dParsed > 0 && dDispatched == 0;
-
-            if (!Enabled && !senderStarved && !receiverStarved) return;
 
             string gate = LastGateMessageIndex >= 0
                 ? $" lastGatePair(msg={LastGateMessageIndex},recv={LastGateReceiverIndex})"
                 : string.Empty;
 
             BasisDebug.Log(
-                $"[AdditionalData] 10s window — sender: submitted={dSubmitted} attached={dAttached} " +
+                $"[AdditionalData] 10s window — sender: submitted={dSubmitted} attached={dAttached} avatarChSent={Interlocked.Read(ref SenderAvatarChannelSent)} " +
                 $"(kf={Interlocked.Read(ref SenderFramesKeyframe)} delta={Interlocked.Read(ref SenderFramesDelta)} noTransmitter={Interlocked.Read(ref SenderSubmitFailedNoTransmitter)}) | " +
                 $"receiver: parsed={dParsed} dispatched={dDispatched} " +
+                $"avatarCh(disp={Interlocked.Read(ref ReceiverAvatarChannelDispatched)} defer={Interlocked.Read(ref ReceiverAvatarChannelDeferred)} drop={Interlocked.Read(ref ReceiverAvatarChannelDropped)}) " +
                 $"droppedLinkedIndex={Interlocked.Read(ref ReceiverDroppedLinkedIndex)}{gate} " +
                 $"noBehaviours={Interlocked.Read(ref ReceiverDroppedNoBehaviours)} marshaled={Interlocked.Read(ref ReceiverMarshaledToMainThread)} " +
                 $"staleOnDrain={Interlocked.Read(ref ReceiverDroppedStaleOnDrain)} skippedEmpty={Interlocked.Read(ref ReceiverEntriesSkippedEmpty)} " +
                 $"skippedIndex={Interlocked.Read(ref ReceiverEntriesSkippedIndex)}" +
                 (senderStarved ? " ← SENDER STARVED: data submitted but never attached to frames" : string.Empty) +
-                (receiverStarved ? " ← RECEIVER STARVED: sections parsed but no behaviour dispatched" : string.Empty),
+                (receiverStarved ? " ← RECEIVER STARVED: sections parsed but no behaviour dispatched" : string.Empty) +
+                (dSubmitted == 0 && dAttached == 0 ? " ← NOTHING SUBMITTED: no behaviour handed data to the transmitter this window" : string.Empty),
                 BasisDebug.LogTag.Networking);
         }
     }
