@@ -22,10 +22,12 @@ on:
   push:
     paths:
       - "Basis/Packages/com.basis.mediaplayer/Native~/**"
+      - "tools/media-fuzz/**"
       - ".github/workflows/media-native.yml"
   pull_request:
     paths:
       - "Basis/Packages/com.basis.mediaplayer/Native~/**"
+      - "tools/media-fuzz/**"
       - ".github/workflows/media-native.yml"
 
 defaults:
@@ -69,3 +71,20 @@ jobs:
         with:
           name: librist-android-arm64
           path: ${{ env.NATIVE_DIR }}/third_party/android-arm64/librist.a
+
+  # Fuzz the hand-rolled container/protocol parsers, which read attacker-controlled
+  # bytes in-process. This gate is deterministic: it builds the libFuzzer targets
+  # under ASan/UBSan and replays every pinned crash repro (tools/media-fuzz/testcases),
+  # so a reintroduced memory-safety bug fails the PR. Coverage-growing fuzz runs are a
+  # separate (future) scheduled job; this one stays fast and stable. See
+  # tools/media-fuzz/README.md.
+  fuzz-demux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install clang (libFuzzer + ASan/UBSan)
+        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Build fuzz targets
+        run: ./tools/media-fuzz/build.sh
+      - name: Replay pinned crash repros (regression gate)
+        run: ./tools/media-fuzz/ci-replay.sh
