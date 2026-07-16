@@ -790,6 +790,32 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
         return 0;
     }
 
+    if (codec == BASIS_CODEC_MP3) {
+        /* MediaCodec's audio/mpeg decoder parses the frame headers itself, so no
+         * csd is supplied — unlike AAC. Same MediaCodec submit/drain path. */
+        d->ac = BASIS_CODEC_MP3;
+        d->asr = sample_rate; d->ach = channels;
+        ring_set_frame(&d->pcm, channels ? channels : 2, sample_rate);
+        AMediaFormat* fmt = AMediaFormat_new();
+        AMediaFormat_setString(fmt, AMEDIAFORMAT_KEY_MIME, "audio/mpeg");
+        AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_SAMPLE_RATE, sample_rate ? sample_rate : 48000);
+        AMediaFormat_setInt32(fmt, AMEDIAFORMAT_KEY_CHANNEL_COUNT, channels ? channels : 2);
+        request_full_channel_output(fmt);
+        AMediaFormat_setInt32(fmt, "max-input-size", 32768);
+        AMediaCodec* c = AMediaCodec_createDecoderByType("audio/mpeg");
+        if (!c || AMediaCodec_configure(c, fmt, NULL, NULL, 0) != AMEDIA_OK ||
+            AMediaCodec_start(c) != AMEDIA_OK) {
+            if (c) AMediaCodec_delete(c);
+            AMediaFormat_delete(fmt);
+            d->aconfigured = 1;
+            return -1;
+        }
+        d->acodec = c;
+        AMediaFormat_delete(fmt);
+        d->aconfigured = 1;
+        return 0;
+    }
+
     if (codec != BASIS_CODEC_AAC) return 0;
     d->ac = BASIS_CODEC_AAC;
     d->asr = sample_rate; d->ach = channels;
