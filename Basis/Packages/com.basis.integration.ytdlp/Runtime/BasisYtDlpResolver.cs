@@ -158,8 +158,13 @@ namespace Basis.Integration.YtDlp
             Format video = BestVideoOnly(info.Formats);
             Format audio = BestAudioOnly(info.Formats);
             if (video != null && audio != null)
-                // A split avc1+mp4a pair is adaptive VOD (YouTube serves these only
-                // above ~360p), delivered faster than real time — force on-demand pacing.
+                // A split pair is adaptive VOD (YouTube serves these only above ~360p),
+                // delivered faster than real time — force on-demand pacing. Split is
+                // preferred over muxed unconditionally by design: muxed is YouTube's
+                // ≤720p progressive fallback, always lower quality than the split ladder.
+                // The "avc1 wins at equal height" rule is a video-codec preference and
+                // lives in BestVideoOnly's ranking (CodecRank), so the split already
+                // carries avc1 at any height an avc1 video-only rung exists.
                 return new BasisMediaSource { Uri = video.Url, AudioUri = audio.Url, Delivery = BasisMediaDelivery.OnDemand };
 
             Format muxed = BestMuxed(info.Formats);
