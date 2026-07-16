@@ -136,7 +136,8 @@ static int read_page(ogg_t* o, ogg_page_t* pg) {
 static int64_t granule_to_us(int64_t granule, int pre_skip) {
     int64_t s = granule - pre_skip;
     if (s < 0) s = 0;
-    return s * 1000000LL / 48000;
+    /* Split the scale so s * 1000000 can't overflow int64 for a hostile granule. */
+    return (s / 48000) * 1000000LL + (s % 48000) * 1000000LL / 48000;
 }
 
 /* Opus TOC -> samples at 48 kHz (frame size * frame count). */
@@ -180,7 +181,26 @@ static void emit_packet(ogg_t* o, const uint8_t* p, int len) {
  * final segment being 255 leaves the packet open to continue on the next page. */
 static void feed_page(ogg_t* o, const ogg_page_t* pg) {
     int off = 0;
-    for (int i = 0; i < pg->nsegs; ++i) {
+    int i = 0;
+    int continued = pg->htype & 0x01;           /* first packet continues the prior page */
+
+    /* Reconcile the pending prefix with the page's continuation flag so a
+     * discontinuity (a dropped CRC page, or landing here after a seek) can't
+     * splice unrelated bytes. A pending prefix with no continuation means the
+     * previous packet never completed — drop it. A continuation with no prefix
+     * means we joined mid-packet — skip that leading fragment up to and
+     * including its first terminator, then start clean. */
+    if (o->pkt_len > 0 && !continued) o->pkt_len = 0;
+    if (o->pkt_len == 0 && continued) {
+        for (; i < pg->nsegs; ++i) {
+            int seg = pg->segtab[i];
+            if (off + seg > pg->bodylen) return;
+            off += seg;
+            if (seg < 255) { ++i; break; }      /* fragment ended: resume from the next packet */
+        }
+    }
+
+    for (; i < pg->nsegs; ++i) {
         int seg = pg->segtab[i];
         if (off + seg > pg->bodylen) return;
         if (o->pkt_len + seg > o->pkt_cap) {
@@ -226,7 +246,9 @@ static void compute_duration(ogg_t* o) {
 /* Granule bisection: land on the last page whose end granule is <= target. */
 static void seek_to_us(ogg_t* o, int64_t target_us) {
     if (!o->reseek || o->size <= 0) return;
-    int64_t target_g = target_us * 48 / 1000 + o->pre_skip; /* us -> 48k samples */
+    if (target_us < 0) target_us = 0;
+    /* us -> 48k samples, split so target_us * 48 can't overflow int64. */
+    int64_t target_g = (target_us / 1000) * 48 + (target_us % 1000) * 48 / 1000 + o->pre_skip;
     int64_t lo = 0, hi = o->size, best = 0;
     ogg_page_t pg;
     for (int it = 0; it < 40 && hi - lo > 4096; ++it) {
@@ -237,8 +259,17 @@ static void seek_to_us(ogg_t* o, int64_t target_us) {
         if (pg.granule <= target_g) { lo = mid; best = mid; }
         else hi = mid;
     }
-    do_reseek(o, best);
-    o->next_pts_us = target_us;                 /* re-anchor around the seek target */
+    if (!do_reseek(o, best)) return;
+    /* Anchor the post-seek timeline to the landed page's real granule, not the
+     * requested time: the page ends at or before the target, so labelling the
+     * audio that follows with target_us would play earlier samples late. Consume
+     * the landed page to read its end granule; the run loop resumes at the next
+     * page, whose first packet begins exactly there. (The decoder handles its
+     * own pre-roll from that point.) */
+    if (read_page(o, &pg))
+        o->next_pts_us = granule_to_us(pg.granule, o->pre_skip);
+    else
+        o->next_pts_us = target_us;
 }
 
 int basis_ogg_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
