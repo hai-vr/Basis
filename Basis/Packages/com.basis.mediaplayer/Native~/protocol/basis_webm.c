@@ -445,20 +445,20 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     } else if (type == 2) {                  /* audio (first supported track wins) */
         if (w->audio_track_num) return;
         if (strcmp(codec, "A_OPUS") == 0) {
-            w->audio_track_num = num;
-            w->audio_codec = BASIS_CODEC_OPUS;
-            w->audio_rate = 48000;           /* Opus always decodes at 48 kHz */
-            /* CodecPrivate is the OpusHead identification header; the channel
-             * count is byte 9. Store it as extradata (decoder csd). A valid
-             * OpusHead is 19 bytes plus at most an 8-channel mapping table. */
+            /* CodecPrivate is the OpusHead: 19 fixed bytes plus at most an 8-channel
+             * mapping table, channel count at byte 9. Only select the track once
+             * the header validates — announcing an Opus track the decoder then
+             * rejects (bad/absent OpusHead) would leave audio-only playback silent
+             * instead of reporting the malformed stream. */
             if (priv && priv_len >= 19 && priv_len <= (int64_t)sizeof(w->audio_extradata)
-                && memcmp(priv, "OpusHead", 8) == 0) {
+                && memcmp(priv, "OpusHead", 8) == 0 && priv[9] >= 1 && priv[9] <= 8) {
+                w->audio_track_num = num;
+                w->audio_codec = BASIS_CODEC_OPUS;
+                w->audio_rate = 48000;       /* Opus always decodes at 48 kHz */
                 memcpy(w->audio_extradata, priv, (size_t)priv_len);
                 w->audio_extradata_len = (int)priv_len;
                 w->audio_channels = priv[9];
             }
-            if (w->audio_channels <= 0)
-                w->audio_channels = channels > 0 ? channels : 2;
         }
         /* other audio CodecIDs (A_VORBIS, A_AAC, …) stay skipped */
     }
@@ -569,6 +569,23 @@ static void parse_cues(webm_t* w, const uint8_t* p, int64_t len) {
 
 /* Emits the frames of one (Simple)Block payload. `key` is the SimpleBlock flag
  * bit, or the no-ReferenceBlock verdict for a BlockGroup Block. */
+/* Opus TOC -> samples at 48 kHz (frame size * frame count), for advancing the
+ * timestamp between laced Opus packets that share one block timestamp. */
+static int opus_packet_samples(const uint8_t* p, int len) {
+    static const int kFrame48k[32] = {
+        480, 960, 1920, 2880,  480, 960, 1920, 2880,  480, 960, 1920, 2880,
+        480, 960,  480,  960,  120, 240,  480,  960,  120, 240,  480,  960,
+        120, 240,  480,  960,  120, 240,  480,  960
+    };
+    if (len < 1) return 0;
+    int config = p[0] >> 3;
+    int code = p[0] & 0x3;
+    int frames = code == 0 ? 1 : code == 3 ? (len >= 2 ? (p[1] & 0x3F) : 0) : 2;
+    long s = (long)kFrame48k[config] * frames;
+    if (s < 0) s = 0; if (s > 5760) s = 5760;   /* Opus per-packet max */
+    return (int)s;
+}
+
 static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
     /* track number is itself an EBML varint (usually 1 byte, parse properly) */
     if (len < 1) return;
@@ -662,14 +679,20 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
         }
     }
 
+    int64_t frame_pts = pts_us;
     for (int i = 0; i < nframes; ++i) {
         if (off + sizes[i] > blen) return;
         if (sizes[i] > 0) {
             if (is_video)
                 w->sink->on_video_au(w->sink->user, body + off, (int)sizes[i], pts_us, pts_us,
                                      i == 0 ? key : 0);
-            else
-                w->sink->on_audio_frame(w->sink->user, body + off, (int)sizes[i], pts_us);
+            else {
+                w->sink->on_audio_frame(w->sink->user, body + off, (int)sizes[i], frame_pts);
+                /* each laced Opus packet carries its own samples: advance the
+                 * timestamp so they don't all land on the block time. */
+                if (w->audio_codec == BASIS_CODEC_OPUS)
+                    frame_pts += (int64_t)opus_packet_samples(body + off, (int)sizes[i]) * 1000000LL / 48000;
+            }
         }
         off += sizes[i];
     }
