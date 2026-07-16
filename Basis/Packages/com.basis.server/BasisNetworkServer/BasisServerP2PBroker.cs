@@ -173,7 +173,7 @@ namespace BasisNetworkServer
             TrackPeerSession(sender.Id, msg.sessionToken);
             TrackPeerSession(msg.otherPlayerId, msg.sessionToken);
 
-            BNL.Log($"[P2P] Forwarding Request from peer {sender.Id} to peer {msg.otherPlayerId} (token {msg.sessionToken}).");
+            BNL.Log($"[P2P] Forwarding Request from peer {sender.Id} to peer {msg.otherPlayerId} (token {Preview(msg.sessionToken)}).");
             SendSub(target, BasisNetworkCommons.P2PSub_Request, msg.sessionToken, (ushort)sender.Id, msg.ephemeralPublicKey);
 
             // ServerArmed confirms registration before either side starts punching, avoiding a race.
@@ -249,7 +249,7 @@ namespace BasisNetworkServer
             if (string.IsNullOrEmpty(token)) return;
             if (!_sessions.TryGetValue(token, out Session s))
             {
-                BNL.LogWarning($"[P2P] NatIntroduceRequest with unknown token {Preview(token)} from {remoteEndPoint} — dropping.");
+                BNL.LogWarning($"[P2P] NatIntroduceRequest with unknown token {Preview(token)} — dropping.");
                 return;
             }
             if (s.State < SessionState.ReadyForPunch)
@@ -257,7 +257,7 @@ namespace BasisNetworkServer
                 BNL.LogWarning($"[P2P] NatIntroduceRequest for token {Preview(token)} in state {s.State} — not ready, dropping.");
                 return;
             }
-            BNL.Log($"[P2P] NatIntroduceRequest token={Preview(token)} from internal={localEndPoint} external={remoteEndPoint}; HasA={s.HasA} HasB={s.HasB}.");
+            BNL.Log($"[P2P] NatIntroduceRequest token={Preview(token)}; HasA={s.HasA} HasB={s.HasB}.");
 
             // Arrival order labels the slots; NatIntroduce is symmetric so it doesn't matter which is which.
             lock (s)
@@ -304,10 +304,10 @@ namespace BasisNetworkServer
                     {
                         aInternal = new IPEndPoint(IPAddress.Loopback, aInternal.Port);
                         bInternal = new IPEndPoint(IPAddress.Loopback, bInternal.Port);
-                        BNL.Log($"[P2P] SAME-HOST pair for token {Preview(token)} — rewriting internal endpoints to loopback ({aInternal}, {bInternal}) so the local punch lands.");
+                        BNL.Log($"[P2P] SAME-HOST pair for token {Preview(token)} — rewriting internal endpoints to loopback so the local punch lands.");
                     }
 
-                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}: A={s.EndpointA_External} (int {aInternal}), B={s.EndpointB_External} (int {bInternal}). Firing NatIntroduce (spray={spray}).{lanTag}");
+                    BNL.Log($"[P2P] Both NAT endpoints collected for token {Preview(token)}. Firing NatIntroduce (spray={spray}).{lanTag}");
                     LiteNetLib.NetManager lnlManager = (NetworkServer.Server as LNLNetManager)?.manager;
                     if (lnlManager == null) return;
                     lnlManager.NatPunchModule.NatIntroduce(

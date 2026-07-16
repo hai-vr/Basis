@@ -38,6 +38,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             public readonly Slot[] SlotsCh15 = new Slot[256];
         }
 
+        // ── HVR wearer pipeline (incremented from dev.hai-vr.basis.comms while Capture is on) ──
+        // Store.Submit → wearer OnAddressUpdated (registered) → accepted (value changed) → DoTick sees them.
+        public static long HvrStoreSubmits;            // HVRVariableStore.Submit calls that had a listener entry
+        public static long HvrStoreSubmitsNoListener;  // Submit calls for addresses nothing registered
+        public static long HvrWearerAddressUpdates;    // wearer networking OnAddressUpdated invocations
+        public static long HvrWearerNewValues;         // of those, accepted as a changed value (queued for send)
+        public static long HvrWearerTicks;             // wearer DoTick invocations
+        public static long HvrWearerTicksWithValues;   // DoTick entries where _addressIdsWithNewValue was non-empty
+        public static long HvrActivitySamples;         // FaceTrackingActivityRelay.NotifySourceSample calls
+
         public static readonly Slot[] Sent = new Slot[256];
         public static readonly Slot[] SentCh15 = new Slot[256];
         public static readonly ConcurrentDictionary<ushort, PlayerCapture> Players = new ConcurrentDictionary<ushort, PlayerCapture>();
@@ -49,6 +59,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Array.Clear(Sent, 0, Sent.Length);
             Array.Clear(SentCh15, 0, SentCh15.Length);
             Players.Clear();
+            HvrStoreSubmits = 0;
+            HvrStoreSubmitsNoListener = 0;
+            HvrWearerAddressUpdates = 0;
+            HvrWearerNewValues = 0;
+            HvrWearerTicks = 0;
+            HvrWearerTicksWithValues = 0;
+            HvrActivitySamples = 0;
         }
 
         public static void RecordSent(byte messageIndex, byte[] payload)

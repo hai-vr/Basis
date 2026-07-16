@@ -157,6 +157,36 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
             $"deltas: {System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderFramesDelta)}    " +
             $"noTransmitter: {System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.SenderSubmitFailedNoTransmitter)}");
 
+        float storeSubmitRate = Rate(6L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrStoreSubmits), dt);
+        float noListenerRate = Rate(7L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrStoreSubmitsNoListener), dt);
+        float addrUpdateRate = Rate(8L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerAddressUpdates), dt);
+        float newValueRate = Rate(9L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerNewValues), dt);
+        float tickRate = Rate(10L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerTicks), dt);
+        float tickWithValuesRate = Rate(11L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerTicksWithValues), dt);
+        float activityRate = Rate(12L << 60, System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrActivitySamples), dt);
+        EditorGUILayout.LabelField($"HVR wearer: storeSubmits/s: {storeSubmitRate:F1} (noListener/s: {noListenerRate:F1})    " +
+            $"netAddrUpdates/s: {addrUpdateRate:F1}    newValues/s: {newValueRate:F1}    " +
+            $"ticks/s: {tickRate:F1} (withValues/s: {tickWithValuesRate:F1})    ftSamples/s: {activityRate:F1}");
+
+        if (storeSubmitRate <= 0f && noListenerRate <= 0f && activityRate <= 0f)
+        {
+            DrawStatus("NO STORE TRAFFIC: nothing (face tracker, eye source) is submitting into the HVR variable store — " +
+                "local movement is coming from a path that bypasses the store, so there is nothing to network.", ErrorColor);
+        }
+        else if (storeSubmitRate > 0f && addrUpdateRate <= 0f)
+        {
+            DrawStatus("STORE↛NETWORK: values are submitted into a store the wearer networking is NOT listening on " +
+                "(listener registered on a different store instance, or RequireVariable never ran).", ErrorColor);
+        }
+        else if (addrUpdateRate > 0f && newValueRate <= 0f)
+        {
+            DrawStatus("VALUES FROZEN: networking sees the updates but every value equals the last one (Mathf.Approximately) — nothing queues for send.", WarnColor);
+        }
+        else if (newValueRate > 0f && tickRate <= 0f)
+        {
+            DrawStatus("TICK DEAD: values queue but HVRVariableNetworking.DoTick never runs (HVRCommsUpdateDriver not pumping this instance).", ErrorColor);
+        }
+
         if (submittedRate > 0f && attachedRate <= 0f)
         {
             DrawStatus("SENDER BROKEN: behaviours are submitting but Compress never attaches a section to outgoing frames.", ErrorColor);
@@ -406,6 +436,13 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
         WriteGlobalRow(t, dt, 14, "ReceiverAvatarChannelDispatched", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDispatched));
         WriteGlobalRow(t, dt, 15, "ReceiverAvatarChannelDeferred", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDeferred));
         WriteGlobalRow(t, dt, 16, "ReceiverAvatarChannelDropped", System.Threading.Interlocked.Read(ref BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDropped));
+        WriteGlobalRow(t, dt, 17, "HvrStoreSubmits", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrStoreSubmits));
+        WriteGlobalRow(t, dt, 18, "HvrStoreSubmitsNoListener", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrStoreSubmitsNoListener));
+        WriteGlobalRow(t, dt, 19, "HvrWearerAddressUpdates", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerAddressUpdates));
+        WriteGlobalRow(t, dt, 20, "HvrWearerNewValues", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerNewValues));
+        WriteGlobalRow(t, dt, 21, "HvrWearerTicks", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerTicks));
+        WriteGlobalRow(t, dt, 22, "HvrWearerTicksWithValues", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrWearerTicksWithValues));
+        WriteGlobalRow(t, dt, 23, "HvrActivitySamples", System.Threading.Interlocked.Read(ref BasisAdditionalDataDebugCapture.HvrActivitySamples));
 
         var localBehaviours = Application.isPlaying ? BasisNetworkPlayer.LocalPlayer?.NetworkBehaviours : null;
         var sent = BasisAdditionalDataDebugCapture.Sent;

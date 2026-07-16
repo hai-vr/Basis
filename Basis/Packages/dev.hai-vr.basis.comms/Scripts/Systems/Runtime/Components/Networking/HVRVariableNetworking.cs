@@ -189,10 +189,18 @@ namespace HVR.Basis.Comms
 
             private void OnAddressUpdated(int addressId, float value)
             {
+                if (global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.Capture)
+                {
+                    System.Threading.Interlocked.Increment(ref global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.HvrWearerAddressUpdates);
+                }
                 if (_addressIdToHolder.TryGetValue(addressId, out var holder))
                 {
                     if (holder.variable.variableTypeCode == HVRVariableTypeCode.Float && !Mathf.Approximately((float)holder.currentValue, value))
                     {
+                        if (global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.Capture)
+                        {
+                            System.Threading.Interlocked.Increment(ref global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.HvrWearerNewValues);
+                        }
                         _addressIdsWithNewValue.Add(addressId);
                         holder.numberOfUpdates += 1;
                         if (holder.numberOfUpdates == 100)
@@ -264,6 +272,14 @@ namespace HVR.Basis.Comms
             private readonly Dictionary<int, object> L_addressIdsToValueToTransmit = new(); // is field due to PR guidelines
             private void DoTick(float deltaTimeSinceLastTick)
             {
+                if (global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.Capture)
+                {
+                    System.Threading.Interlocked.Increment(ref global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.HvrWearerTicks);
+                    if (_addressIdsWithNewValue.Count > 0)
+                    {
+                        System.Threading.Interlocked.Increment(ref global::Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDebugCapture.HvrWearerTicksWithValues);
+                    }
+                }
                 if (_addressIdsWithNewValue.Count == 0) return;
 
                 L_addressIdsThatNeedToBeResentLater.Clear();

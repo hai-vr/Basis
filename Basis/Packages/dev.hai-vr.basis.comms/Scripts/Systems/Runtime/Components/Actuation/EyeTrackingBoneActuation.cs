@@ -157,6 +157,7 @@ namespace HVR.Basis.Comms
             private readonly HvrOscEyeProvider _provider = new HvrOscEyeProvider();
             private bool _trackingActive;
             private bool _eyeTrackingActive;
+            private bool _suppressStoreEcho;
 
             public EyeTracking_Wearer(EyeTrackingBoneActuation our)
             {
@@ -182,6 +183,46 @@ namespace HVR.Basis.Comms
                 {
                     localPlayer.FacialBlinkDriver.SetOverride(data.HasOpenness);
                 }
+
+                // HMD-won gaze never touches the variable store — only the OSC face-tracking
+                // source submits the FT/v2 eye addresses — so remotes see frozen eyes whenever
+                // the wearer's gaze comes from the headset. Mirror the winning angles into the
+                // store in the OSC-normalized form the remote actuation expects.
+                if (applyGaze && BasisEyeTrackingManager.Arbitration.GazeFromHmd)
+                {
+                    SubmitHmdGazeToStore(data);
+                }
+            }
+
+            private void SubmitHmdGazeToStore(BasisEyeTrackingData data)
+            {
+                // Inverse of HvrOscEyeProvider.SetAngles: canonical = asin(v) * multiply.
+                float invX = our.multiplyX == 0f ? 1f : 1f / our.multiplyX;
+                float invY = our.multiplyY == 0f ? 1f : 1f / our.multiplyY;
+                const float HalfPi = Mathf.PI / 2f;
+                float xLeft = Mathf.Sin(Mathf.Clamp(data.LeftAngles.x * invX, -HalfPi, HalfPi));
+                float xRight = Mathf.Sin(Mathf.Clamp(data.RightAngles.x * invX, -HalfPi, HalfPi));
+                float y = Mathf.Sin(Mathf.Clamp((data.LeftAngles.y + data.RightAngles.y) * 0.5f * invY, -HalfPi, HalfPi));
+
+                // The submits synchronously re-enter our own OnAddressUpdated listeners; without
+                // the echo guard they would push the mirrored values into the OSC provider and
+                // activate it, flipping arbitration away from the HMD and freezing the bridge.
+                _suppressStoreEcho = true;
+                try
+                {
+                    // Eye addresses are FT/-prefixed, so this keeps the activity relay's timeout
+                    // fed — the remote only applies eyes while the activity variable is 1.
+                    our._activityRelay?.NotifySourceSample(our._eyeLeftXAddress);
+                    var store = our.comms.VariableStore;
+                    store.Submit(our._eyeTrackingActiveAddress, 1f);
+                    store.Submit(our._eyeLeftXAddress, xLeft);
+                    store.Submit(our._eyeRightXAddress, xRight);
+                    store.Submit(our._eyeYAddress, y);
+                }
+                finally
+                {
+                    _suppressStoreEcho = false;
+                }
             }
 
             public void OnTrackingActivityUpdated(bool isTrackingActive)
@@ -196,6 +237,7 @@ namespace HVR.Basis.Comms
 
             public void OnEyeAngleAddressUpdated(float xLeft, float xRight, float y)
             {
+                if (_suppressStoreEcho) return;
                 if (!(xLeft == 0f && xRight == 0f && y == 0f))
                 {
                     our.comms.VariableStore.Submit(our._eyeTrackingActiveAddress, 1f);
@@ -214,6 +256,7 @@ namespace HVR.Basis.Comms
 
             public void OnEyeTrackingActiveAddressUpdated(bool eyeTrackingActive)
             {
+                if (_suppressStoreEcho) return;
                 if (_eyeTrackingActive == eyeTrackingActive) return;
 
                 _eyeTrackingActive = eyeTrackingActive;
