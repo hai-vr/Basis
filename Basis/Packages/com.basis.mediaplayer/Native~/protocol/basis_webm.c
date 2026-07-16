@@ -1,11 +1,12 @@
 /*
- * basis_webm.c — WebM/Matroska demuxer -> VP9/AV1 video into a basis_media_sink.
+ * basis_webm.c — WebM/Matroska demuxer -> VP9/AV1 video + Opus audio into a
+ * basis_media_sink.
  *
- * Scope (deliberately narrow): one video track, V_VP9 or V_AV1. Audio and
- * subtitle tracks are skipped, not announced; a WebM whose video CodecID isn't
- * supported raises a clear error instead of playing silently without video. The
- * CodecID switch and track model are written so A_OPUS drops in as an extra
- * branch, not a rewrite.
+ * Scope (deliberately narrow): one video track (V_VP9 / V_AV1) and one audio
+ * track (A_OPUS), either or both. Other CodecIDs (subtitles, A_VORBIS, …) are
+ * skipped; a WebM with no supported track at all raises a clear error instead of
+ * playing silently. An audio-only Opus WebM (YouTube's audio legs) is valid input.
+ * Blocks route to video vs audio by their TrackNumber varint.
  *
  * Walk rules (matching what real muxers emit and tolerant parsers accept):
  *   - Segment children arrive in any order; multiple SeekHeads are legal.
@@ -80,6 +81,9 @@
 #define ID_VIDEO         0xE0
 #define ID_PIXELWIDTH    0xB0
 #define ID_PIXELHEIGHT   0xBA
+#define ID_AUDIO         0xE1
+#define ID_CHANNELS      0x9F
+#define ID_SAMPLINGFREQ  0xB5
 /* Cluster children */
 #define ID_TIMESTAMP     0xE7
 #define ID_SIMPLEBLOCK   0xA3
@@ -123,6 +127,15 @@ typedef struct {
     int     duration_sent;
     char    bad_codec[32];    /* first unsupported video CodecID, for the error */
     int     saw_tracks;
+
+    /* the selected audio track (Opus). A WebM may carry video, audio, or both;
+     * an audio-only Opus WebM (YouTube's audio legs) is valid input. */
+    int     audio_track_num;  /* 0 = none selected */
+    basis_codec_t audio_codec;
+    int     audio_channels;
+    int     audio_rate;       /* announce rate; Opus always decodes at 48 kHz */
+    uint8_t audio_extradata[64]; /* OpusHead: 19 fixed + up to 8-ch mapping table */
+    int     audio_extradata_len;
 
     /* Cues index */
     webm_cue_t* cues;
@@ -359,7 +372,7 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     ebuf_t b = { p, len, 0 };
     uint32_t id;
     int64_t sz;
-    int num = 0, type = 0, width = 0, height = 0;
+    int num = 0, type = 0, width = 0, height = 0, channels = 0;
     char codec[32] = {0};
     const uint8_t* priv = NULL;
     int64_t priv_len = 0;
@@ -388,34 +401,66 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
                 }
                 break;
             }
+            case ID_AUDIO: {
+                ebuf_t ab = { body, sz, 0 };
+                uint32_t aid;
+                int64_t asz;
+                while (ebuf_id(&ab, &aid) == 1) {
+                    if (!ebuf_size(&ab, &asz) || asz < 0 || asz > ab.len - ab.off) break;
+                    if (aid == ID_CHANNELS) channels = (int)ebml_uint(ab.p + ab.off, asz);
+                    ab.off += asz;
+                }
+                break;
+            }
             default: break;
         }
         b.off += sz;
     }
-    if (type != 1 || num <= 0) return;       /* video tracks only (audio/subs skipped) */
-    if (w->track_num) return;                /* first video track wins */
-    if (strcmp(codec, "V_VP9") == 0) {
-        /* a VP9 track needs no CodecPrivate (rare, ignored) */
-        w->track_num = num;
-        w->codec = BASIS_CODEC_VP9;
-        w->width = width;
-        w->height = height;
-    } else if (strcmp(codec, "V_AV1") == 0) {
-        w->track_num = num;
-        w->codec = BASIS_CODEC_AV1;
-        w->width = width;
-        w->height = height;
-        /* CodecPrivate is the full av1C record (same bytes as the MP4 box
-         * payload): 4 header bytes, then configOBUs. Only the configOBUs are
-         * stored — the record header is not valid OBU syntax, and the decode
-         * backends want a feedable OBU blob. Absent CodecPrivate is legal;
-         * decoders parse the in-band sequence header. */
-        if (priv && priv_len > 4 && priv_len - 4 <= (int64_t)sizeof(w->extradata)) {
-            memcpy(w->extradata, priv + 4, (size_t)(priv_len - 4));
-            w->extradata_len = (int)(priv_len - 4);
+    if (num <= 0) return;
+    if (type == 1) {                         /* video (first supported track wins) */
+        if (w->track_num) return;
+        if (strcmp(codec, "V_VP9") == 0) {
+            /* a VP9 track needs no CodecPrivate (rare, ignored) */
+            w->track_num = num;
+            w->codec = BASIS_CODEC_VP9;
+            w->width = width;
+            w->height = height;
+        } else if (strcmp(codec, "V_AV1") == 0) {
+            w->track_num = num;
+            w->codec = BASIS_CODEC_AV1;
+            w->width = width;
+            w->height = height;
+            /* CodecPrivate is the full av1C record (same bytes as the MP4 box
+             * payload): 4 header bytes, then configOBUs. Only the configOBUs are
+             * stored — the record header is not valid OBU syntax, and the decode
+             * backends want a feedable OBU blob. Absent CodecPrivate is legal;
+             * decoders parse the in-band sequence header. */
+            if (priv && priv_len > 4 && priv_len - 4 <= (int64_t)sizeof(w->extradata)) {
+                memcpy(w->extradata, priv + 4, (size_t)(priv_len - 4));
+                w->extradata_len = (int)(priv_len - 4);
+            }
+        } else if (!w->bad_codec[0]) {
+            strncpy(w->bad_codec, codec[0] ? codec : "unknown", sizeof(w->bad_codec) - 1);
         }
-    } else if (!w->bad_codec[0]) {
-        strncpy(w->bad_codec, codec[0] ? codec : "unknown", sizeof(w->bad_codec) - 1);
+    } else if (type == 2) {                  /* audio (first supported track wins) */
+        if (w->audio_track_num) return;
+        if (strcmp(codec, "A_OPUS") == 0) {
+            w->audio_track_num = num;
+            w->audio_codec = BASIS_CODEC_OPUS;
+            w->audio_rate = 48000;           /* Opus always decodes at 48 kHz */
+            /* CodecPrivate is the OpusHead identification header; the channel
+             * count is byte 9. Store it as extradata (decoder csd). A valid
+             * OpusHead is 19 bytes plus at most an 8-channel mapping table. */
+            if (priv && priv_len >= 19 && priv_len <= (int64_t)sizeof(w->audio_extradata)
+                && memcmp(priv, "OpusHead", 8) == 0) {
+                memcpy(w->audio_extradata, priv, (size_t)priv_len);
+                w->audio_extradata_len = (int)priv_len;
+                w->audio_channels = priv[9];
+            }
+            if (w->audio_channels <= 0)
+                w->audio_channels = channels > 0 ? channels : 2;
+        }
+        /* other audio CodecIDs (A_VORBIS, A_AAC, …) stay skipped */
     }
 }
 
@@ -531,7 +576,9 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
     if (tlen < 1 || tlen > 8 || (int64_t)tlen + 3 > len) return;
     uint64_t track = (uint64_t)(p[0] & (0xFFu >> tlen));
     for (int i = 1; i < tlen; ++i) track = (track << 8) | p[i];
-    if ((int)track != w->track_num) return;  /* other tracks are skipped */
+    int is_video = w->track_num && (int)track == w->track_num;
+    int is_audio = w->audio_track_num && (int)track == w->audio_track_num;
+    if (!is_video && !is_audio) return;      /* other tracks are skipped */
 
     /* signed s16 relative timestamp (negative is legal — saturating math) */
     int16_t rel = (int16_t)((p[tlen] << 8) | p[tlen + 1]);
@@ -545,8 +592,12 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
 
     int lacing = (flags >> 1) & 0x3;   /* 00 none, 01 Xiph, 10 fixed, 11 EBML */
     if (lacing == 0) {
-        if (blen > 0)
-            w->sink->on_video_au(w->sink->user, body, (int)blen, pts_us, pts_us, key);
+        if (blen > 0) {
+            if (is_video)
+                w->sink->on_video_au(w->sink->user, body, (int)blen, pts_us, pts_us, key);
+            else
+                w->sink->on_audio_frame(w->sink->user, body, (int)blen, pts_us);
+        }
         return;
     }
 
@@ -613,9 +664,13 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
 
     for (int i = 0; i < nframes; ++i) {
         if (off + sizes[i] > blen) return;
-        if (sizes[i] > 0)
-            w->sink->on_video_au(w->sink->user, body + off, (int)sizes[i], pts_us, pts_us,
-                                 i == 0 ? key : 0);
+        if (sizes[i] > 0) {
+            if (is_video)
+                w->sink->on_video_au(w->sink->user, body + off, (int)sizes[i], pts_us, pts_us,
+                                     i == 0 ? key : 0);
+            else
+                w->sink->on_audio_frame(w->sink->user, body + off, (int)sizes[i], pts_us);
+        }
         off += sizes[i];
     }
 }
@@ -712,13 +767,15 @@ static void publish_duration(webm_t* w) {
  * repositionable source are both in hand — a reported duration always means
  * the seek bar works. */
 static int announce(webm_t* w, int64_t first_cluster_abs) {
-    if (!w->track_num) {
+    /* Audio-only Opus WebM (YouTube's audio legs) is valid: error only when
+     * neither a video nor an audio track was selected. */
+    if (!w->track_num && !w->audio_track_num) {
         char msg[96];
         if (w->bad_codec[0])
             snprintf(msg, sizeof(msg), "video codec '%s' is not supported (supported: V_VP9, V_AV1)",
                      w->bad_codec);
         else
-            snprintf(msg, sizeof(msg), "WebM has no video track this player supports");
+            snprintf(msg, sizeof(msg), "WebM has no track this player supports");
         w->sink->on_error(w->sink->user, msg);
         return 0;
     }
@@ -727,9 +784,14 @@ static int announce(webm_t* w, int64_t first_cluster_abs) {
         if (!fetch_trailing_cues(w, first_cluster_abs)) return 0;
     }
 
-    w->sink->on_video_format(w->sink->user, w->codec,
-                             w->extradata_len ? w->extradata : NULL, w->extradata_len,
-                             w->width, w->height);
+    if (w->track_num)
+        w->sink->on_video_format(w->sink->user, w->codec,
+                                 w->extradata_len ? w->extradata : NULL, w->extradata_len,
+                                 w->width, w->height);
+    if (w->audio_track_num)
+        w->sink->on_audio_format(w->sink->user, w->audio_codec, w->audio_rate, w->audio_channels,
+                                 w->audio_extradata_len ? w->audio_extradata : NULL,
+                                 w->audio_extradata_len);
     w->announced = 1;
 
     publish_duration(w);

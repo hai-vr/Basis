@@ -36,6 +36,7 @@ CODEC_ALIASES = {
     "vp9": {"vp9"},
     "av1": {"av1"},
     "aac": {"aac"},
+    "opus": {"opus"},
     "lpcm": {"pcm_bluray", "pcm_s16le", "pcm_s24le", "pcm_s16be", "pcm_s24be"},
 }
 # ffprobe bitstream filter that reframes a stream into the sink's delivered form
@@ -175,6 +176,14 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
     our_pts = sorted(a["pts_us"] for a in aus[:n])
     ref_pts = sorted(p["pts_us"] for p in pkts[:n] if p["pts_us"] is not None)
     if len(ref_pts) == n and n:
+        if codec == "opus":
+            # Opus carries a CodecDelay (encoder pre-skip): ffmpeg shifts its
+            # timestamps by it, while the demuxer emits raw block times and leaves
+            # pre-skip to the decode layer. So compare the timeline relative to the
+            # first packet -- spacing must match, the origin convention may not.
+            o0, r0 = our_pts[0], ref_pts[0]
+            our_pts = [x - o0 for x in our_pts]
+            ref_pts = [x - r0 for x in ref_pts]
         worst = max((abs(a - b) for a, b in zip(our_pts, ref_pts)), default=0)
         c.ok(f"{kind}.pts", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
     else:

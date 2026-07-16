@@ -215,6 +215,7 @@ static const char* codec_name(basis_codec_t c) {
         case BASIS_CODEC_AV1:  return "av1";
         case BASIS_CODEC_AAC:  return "aac";
         case BASIS_CODEC_LPCM: return "lpcm";
+        case BASIS_CODEC_OPUS: return "opus";
         case BASIS_CODEC_NONE: return "none";
         default: return "unknown";
     }
@@ -224,7 +225,8 @@ static const char* codec_name(basis_codec_t c) {
  * H.26x to Annex B, so only these codecs' payload MD5s are comparable. */
 static int payload_is_container_form(basis_codec_t c) {
     return c == BASIS_CODEC_VP9 || c == BASIS_CODEC_AV1 ||
-           c == BASIS_CODEC_AAC || c == BASIS_CODEC_LPCM;
+           c == BASIS_CODEC_AAC || c == BASIS_CODEC_LPCM ||
+           c == BASIS_CODEC_OPUS;
 }
 
 static int h_read(void* ctx, uint8_t* buf, int len) {
