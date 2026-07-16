@@ -253,11 +253,15 @@ int basis_av1_is_keyframe(const uint8_t* sample, int len) {
     int off = 0;
     while (off < len) {
         uint8_t hdr = sample[off++];
-        if (hdr & 0x80) return 0;                 /* obu_forbidden_bit */
+        if (hdr & 0x81) return 0;                 /* obu_forbidden_bit + obu_reserved_1bit (both MUST be 0) */
         int type = (hdr >> 3) & 0xF;
         int has_ext = (hdr >> 2) & 1;
         int has_size = (hdr >> 1) & 1;
-        if (has_ext) { if (off >= len) return 0; off++; }
+        if (has_ext) {
+            if (off >= len) return 0;
+            if (sample[off] & 0x07) return 0;     /* extension_header reserved 3 bits MUST be 0 */
+            off++;
+        }
         int64_t size;
         if (has_size) {
             if (!av1_leb128(sample, len, &off, &size)) return 0;

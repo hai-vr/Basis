@@ -163,6 +163,10 @@ static void emit_packet(ogg_t* o, const uint8_t* p, int len) {
             o->channels = p[9];
             o->pre_skip = p[10] | (p[11] << 8);
             if (o->channels >= 1 && o->channels <= 8) {
+                /* Start the timeline at -pre_skip so the priming samples the
+                 * decoder produces first land before media-time 0 and are dropped
+                 * (basis_frames_before_origin), leaving real audio anchored at 0. */
+                o->next_pts_us = -((int64_t)o->pre_skip * 1000000LL / 48000);
                 o->sink->on_audio_format(o->sink->user, BASIS_CODEC_OPUS, 48000,
                                          o->channels, p, len);
                 o->announced = 1;

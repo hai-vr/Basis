@@ -373,6 +373,7 @@ static void parse_info(webm_t* w, const uint8_t* p, int64_t len) {
  * surfaces as an error rather than a track the decoder later refuses. */
 static int valid_opushead(const uint8_t* p, int64_t len) {
     if (!p || len < 19 || memcmp(p, "OpusHead", 8) != 0) return 0;
+    if (p[8] > 15) return 0;                             /* major version: >15 is incompatible */
     int ch = p[9];
     if (ch < 1 || ch > 8) return 0;
     int family = p[18];
