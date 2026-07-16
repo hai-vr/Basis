@@ -39,7 +39,7 @@ from the front page, plus a recent VOD from the same channel.
 
 | Scenario | Expected |
 | --- | --- |
-| YouTube VOD, >360p | Resolves to **split stream** (H.264 video-only + AAC audio-only), plays paced as on-demand, A/V locked |
+| YouTube VOD, >360p | Resolves to a **split stream** (capability-selected H.264/VP9/AV1 video-only + AAC or Opus-fallback audio-only), plays paced as on-demand, A/V locked |
 | YouTube VOD, ≤360p (or format-forced) | Single muxed stream, delivery auto-detected |
 | YouTube live | Single HLS playlist, plays as live |
 | Twitch live | HLS live; join near the live edge |

@@ -22,7 +22,7 @@ so it can be added or removed cleanly (see *Removing it*).
 
 | Source | yt-dlp returns | Played as |
 |---|---|---|
-| YouTube VOD (>360p) | separate H.264 video-only + AAC audio-only | split stream, real-time paced (on-demand) |
+| YouTube VOD (>360p) | split video-only (capability-selected H.264/VP9/AV1) + audio-only (AAC, or Opus fallback) | split stream, real-time paced (on-demand) |
 | YouTube / Twitch live | single HLS playlist | live |
 | Progressive / muxed (≤360p) | one muxed stream | delivery auto-detected |
 
