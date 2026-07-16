@@ -33,8 +33,9 @@ each codec (Windows: the decoder MFT — the Store extension or a vendor one —
 GPU with hardware decode; Quest: VP9 always, AV1 on Quest 3) and, where it does,
 picks rungs up to 4K — SDR 8-bit ladders only. At equal height `avc1` wins, then
 `av01` over `vp9` (better bitrate at 4K), so a VP9/AV1 rung is only chosen where it
-offers more resolution than any available `avc1`; where neither decodes, selection
-stays `avc1` + `mp4a` capped at 1080p. Above ~360p YouTube serves video
+offers more resolution than any available `avc1`; where neither decodes, the video
+stays `avc1` capped at 1080p and audio uses `mp4a` when present, otherwise the WebM
+`opus` fallback. Above ~360p YouTube serves video
 and audio separately, so those resolve to a
 [split stream](https://github.com/BasisVR/BasisMediaPlayer#split-stream-separate-video--audio)
 the player syncs on one clock.

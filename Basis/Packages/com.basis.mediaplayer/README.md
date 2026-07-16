@@ -24,7 +24,8 @@ bundled codec libraries, no `UnityEngine.Video.MediaPlayer`.
 | `https://…​.ts`  | MPEG-TS over HTTPS (Quest) | `https://stream.vrcdn.live/live/vrcdn.live.ts` |
 | `https://…​.m3u8` | HLS / Low-Latency HLS | `https://stream.example/live/index.m3u8` |
 | `https://….wav` | WAV audio (integer PCM, mono up to 7.1) | `https://stream.example/audio/track.wav` |
-| `https://….webm` | WebM VP9/AV1 video-only VOD (YouTube's >1080p carriage; Cues-indexed files seek) | `https://stream.example/vod/clip.webm` |
+| `https://….webm` | WebM VP9/AV1 video and/or Opus audio (YouTube's >1080p carriage; Cues-indexed files seek) | `https://stream.example/vod/clip.webm` |
+| `https://….opus` | Ogg Opus audio | `https://stream.example/audio/track.opus` |
 
 The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4, WebM, RIFF/WAV) is portable C,
 picking demuxers by content sniff so extensionless CDN URLs (googlevideo and friends)
@@ -355,8 +356,11 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
   Quest 3 (XR2 Gen 2); Quest 2 has no AV1 decoder and errors cleanly on a
   direct `av01` URL. 8-bit Main profile SDR only, as with VP9. MP4/fMP4 and
   WebM carriage only (no AV1-in-TS or RTSP/RTMP).
-- **WebM** — video-only VP9/AV1 (the YouTube >1080p shape); WebM audio tracks
-  are skipped and a WebM with no supported video track refuses cleanly. Seek
-  needs a Cues index and a range-capable host; cueless/streamed WebM plays
-  forward-only with no reported duration.
+- **WebM** — VP9/AV1 video and/or Opus audio (`A_OPUS`): muxed VP9/AV1+Opus, or
+  audio-only Opus (YouTube's audio legs). Other audio codecs (Vorbis, …) are
+  skipped, and a WebM whose video codec isn't supported refuses cleanly rather
+  than dropping to audio under a black screen. Seek needs a Cues index and a
+  range-capable host; cueless/streamed WebM plays forward-only with no duration.
+- **Ogg Opus** — a direct `.opus` URL plays through the same Opus decoder (Ogg
+  page framing); duration and granule-bisection seek need a range-capable host.
 - **WAV** — 16/24-bit integer PCM only (no float or 20-bit), 1–8 channels, 8–96 kHz.

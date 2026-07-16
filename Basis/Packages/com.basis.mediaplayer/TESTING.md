@@ -241,11 +241,12 @@ flag it as such, not as a playback bug.
 drift. Watch a full minute at the live edge, not five seconds. For anything subtle, capture
 diagnostics (below) rather than trusting perception.
 
-Know what this row cannot do. Audio lag is only audible from somewhere around 45 ms, so a
-smaller constant offset is not a subtle failure of this check — it is outside it, and watching
-harder will not find it. A systematic offset that survives review is likely to be one this row
-structurally cannot see, so anything with a fixed delay in it (decoder priming, buffer
-alignment, resampler latency) has to be measured against a reference decode rather than judged.
+Know what this row cannot do, and do not treat audibility as the pass bar. A fixed offset
+below roughly 45 ms is still a real A/V-sync regression — it is just below the threshold where
+watching harder will find it, so this perceptual row structurally cannot see it. Audibility
+only explains why manual observation is insufficient here; it is not an acceptance tolerance.
+Anything with a constant delay in it (decoder priming, buffer alignment, resampler latency)
+must be measured against a reference decode with an explicit tolerance, not signed off by ear.
 
 **Orientation** — a horizontal mirror is invisible on symmetric content. Verify left/right
 with on-screen text or a logo, every time video-path code changes.
@@ -340,9 +341,11 @@ crash, hang, or corrupt does.
 - **Regress the good path bit-for-bit, not by eye.** A protocol fix on one transport can shift
   the packets another transport emits, because they share the AU path. After any demux change,
   re-run the known-good fixtures and confirm the demuxer still produces the same packets and
-  the same decoded frames — a comparison against a reference decoder (`ffprobe -show_packets`
-  for packets, `ffmpeg` frame hashes for pixels) is what makes "the same" objective instead of
-  "looked fine to me."
+  the same decoded frames. `ffprobe -show_packets` alone only compares metadata, not payload, so
+  a byte regression with unchanged sizes/timestamps would slip through — the conformance gate
+  compares per-packet payload hashes (`-show_data_hash md5`) against ffprobe, and `ffmpeg` frame
+  hashes cover pixels. Those hashes are what make "the same" objective instead of "looked fine
+  to me."
 
 ### Rebuilding and platform coverage
 
