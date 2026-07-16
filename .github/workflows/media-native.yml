@@ -23,11 +23,13 @@ on:
     paths:
       - "Basis/Packages/com.basis.mediaplayer/Native~/**"
       - "tools/media-fuzz/**"
+      - "tools/media-conformance/**"
       - ".github/workflows/media-native.yml"
   pull_request:
     paths:
       - "Basis/Packages/com.basis.mediaplayer/Native~/**"
       - "tools/media-fuzz/**"
+      - "tools/media-conformance/**"
       - ".github/workflows/media-native.yml"
 
 defaults:
@@ -88,3 +90,22 @@ jobs:
         run: ./tools/media-fuzz/build.sh
       - name: Replay pinned crash repros (regression gate)
         run: ./tools/media-fuzz/ci-replay.sh
+
+  # Prove the demuxers produce the CORRECT output on valid input (the fuzz gate
+  # proves they don't crash on hostile input). Generates synthetic fixtures with
+  # ffmpeg -- a static Basis-logo track plus a tone, nothing committed -- then
+  # diffs our demuxer's access units against ffprobe's packets, payload MD5 and
+  # all. ffmpeg is used only as an external CLI tool here (no libav* linked, no
+  # media in the repo). See tools/media-conformance/README.md.
+  conformance-demux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install ffmpeg + a C compiler
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg gcc
+      - name: Build the demux dumper
+        run: ./tools/media-conformance/build.sh
+      - name: Generate synthetic fixtures
+        run: ./tools/media-conformance/gen_fixtures.sh "$RUNNER_TEMP/fixtures"
+      - name: Diff demuxer output against ffprobe (regression gate)
+        run: python3 ./tools/media-conformance/demux_gate.py "$RUNNER_TEMP/fixtures"
