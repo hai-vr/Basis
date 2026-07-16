@@ -23,6 +23,7 @@
 #include "protocol/basis_webm.h"
 #include "protocol/basis_ogg.h"
 #include "protocol/basis_wav.h"
+#include "protocol/basis_mp3.h"
 #include "protocol/basis_http.h"
 #include "protocol/basis_hls.h"
 #include "protocol/basis_rist.h"
@@ -824,11 +825,15 @@ static void run_http_like(demux_ctx_t* c) {
     int is_wav = head_len >= 12 && memcmp(head, "RIFF", 4) == 0 && memcmp(head + 8, "WAVE", 4) == 0;
     int is_ogg = head_len >= 4 && memcmp(head, "OggS", 4) == 0;
     int is_ts  = (head_len >= 1 && head[0] == 0x47);
-    if (!is_mp4 && !is_webm && !is_wav && !is_ogg && !is_ts) {
+    /* MP3 is sniffed last: its magic is only an 11-bit frame sync (plus a leading
+     * "ID3" tag when tagged), the weakest of the container signatures. */
+    int is_mp3 = (head_len >= 3 && memcmp(head, "ID3", 3) == 0) || basis_mp3_sniff(head, head_len);
+    if (!is_mp4 && !is_webm && !is_wav && !is_ogg && !is_ts && !is_mp3) {
         is_mp4 = ends_with_ci(c->parts->path, ".mp4") || ends_with_ci(c->parts->path, ".m4s");
         is_webm = ends_with_ci(c->parts->path, ".webm");
         is_wav = ends_with_ci(c->parts->path, ".wav");
         is_ogg = ends_with_ci(c->parts->path, ".opus") || ends_with_ci(c->parts->path, ".ogg");
+        is_mp3 = ends_with_ci(c->parts->path, ".mp3");
     }
 
     /* Paced (VOD): drain the network into a read-ahead ring on a reader thread and
@@ -885,6 +890,8 @@ static void run_http_like(demux_ctx_t* c) {
         basis_wav_run(c->sink, demux_read, demux_ctx);
     else if (is_ogg)
         basis_ogg_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx, stream_size);
+    else if (is_mp3)
+        basis_mp3_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else
         basis_ts_run(c->sink, demux_read, demux_ctx); /* default to MPEG-TS */
 

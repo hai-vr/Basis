@@ -86,6 +86,7 @@ set(CORE_SOURCES
     protocol/basis_webm.c
     protocol/basis_ogg.c
     protocol/basis_wav.c
+    protocol/basis_mp3.c
     protocol/basis_hls.c
     protocol/basis_rist.c
     protocol/basis_caption.c
