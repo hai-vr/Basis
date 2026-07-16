@@ -78,6 +78,7 @@
 #define ID_TRACKTYPE     0x83
 #define ID_CODECID       0x86
 #define ID_CODECPRIVATE  0x63A2
+#define ID_CODECDELAY    0x56AA
 #define ID_VIDEO         0xE0
 #define ID_PIXELWIDTH    0xB0
 #define ID_PIXELHEIGHT   0xBA
@@ -134,6 +135,7 @@ typedef struct {
     basis_codec_t audio_codec;
     int     audio_channels;
     int     audio_rate;       /* announce rate; Opus always decodes at 48 kHz */
+    int64_t audio_codec_delay_us; /* CodecDelay: subtracted from audio block times */
     uint8_t audio_extradata[64]; /* OpusHead: 19 fixed + up to 8-ch mapping table */
     int     audio_extradata_len;
 
@@ -400,6 +402,7 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
     char codec[32] = {0};
     const uint8_t* priv = NULL;
     int64_t priv_len = 0;
+    int64_t codec_delay_ns = 0;
     while (ebuf_id(&b, &id) == 1) {
         if (!ebuf_size(&b, &sz) || sz < 0 || sz > b.len - b.off) return;
         const uint8_t* body = b.p + b.off;
@@ -413,6 +416,7 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
                 break;
             }
             case ID_CODECPRIVATE: priv = body; priv_len = sz; break;
+            case ID_CODECDELAY: codec_delay_ns = (int64_t)ebml_uint(body, sz); break;
             case ID_VIDEO: {
                 ebuf_t vb = { body, sz, 0 };
                 uint32_t vid;
@@ -480,6 +484,14 @@ static void parse_track_entry(webm_t* w, const uint8_t* p, int64_t len) {
                 memcpy(w->audio_extradata, priv, (size_t)priv_len);
                 w->audio_extradata_len = (int)priv_len;
                 w->audio_channels = priv[9];
+                /* CodecDelay (ns) is subtracted from block times to reach
+                 * presentation time; for Opus it is the pre-skip, so the priming
+                 * the decoder produces lands before 0 and is dropped, anchoring
+                 * real audio at 0. A compliant file always sets it; if absent,
+                 * fall back to the OpusHead pre-skip the decoder itself drops. */
+                w->audio_codec_delay_us = codec_delay_ns > 0
+                    ? codec_delay_ns / 1000
+                    : (int64_t)(priv[10] | (priv[11] << 8)) * 1000000LL / 48000;
             }
         }
         /* other audio CodecIDs (A_VORBIS, A_AAC, …) stay skipped */
@@ -628,6 +640,10 @@ static void emit_block(webm_t* w, const uint8_t* p, int64_t len, int key) {
     int64_t ticks = add_i64_sat(w->cluster_ts, (int64_t)rel);
     int64_t pts_us = ticks_to_us(ticks, w->ts_scale_ns);
     if (pts_us < 0) pts_us = 0;
+    /* Matroska CodecDelay: block times are on the encoder timeline; subtract it
+     * so presentation time is right. For Opus the early (priming) frames go
+     * negative and drop, leaving real audio at 0 — matching the Ogg lane. */
+    if (is_audio) pts_us -= w->audio_codec_delay_us;
 
     int lacing = (flags >> 1) & 0x3;   /* 00 none, 01 Xiph, 10 fixed, 11 EBML */
     if (lacing == 0) {
