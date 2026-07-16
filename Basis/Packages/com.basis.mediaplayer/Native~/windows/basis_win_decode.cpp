@@ -46,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <mutex>
 
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfuuid.lib")
@@ -945,13 +946,18 @@ struct opus_api {
     int            (*ms_decode_float)(OpusMSDecoder*, const unsigned char*, int32_t, float*, int, int);
     void           (*ms_destroy)(OpusMSDecoder*);
     int            (*dec_ctl)(OpusDecoder*, int request, ...);
+    int            (*ms_ctl)(OpusMSDecoder*, int request, ...);
     const char*    (*version)(void);
 };
 static opus_api g_opus = {};
 static bool g_opus_ok = false, g_opus_tried = false;
 static char g_opus_path[512] = {0};
+/* The loader and path setter touch process-wide state; concurrent decoder opens
+ * (multiple players) would otherwise race g_opus_tried/g_opus_ok/g_opus_path. */
+static std::mutex g_opus_mtx;
 
 static bool opus_load() {
+    std::lock_guard<std::mutex> lock(g_opus_mtx);
     if (g_opus_tried) return g_opus_ok;
     g_opus_tried = true;
     HMODULE lib = g_opus_path[0] ? LoadLibraryA(g_opus_path) : nullptr;
@@ -964,6 +970,7 @@ static bool opus_load() {
     g_opus.ms_decode_float = (decltype(g_opus.ms_decode_float)) GetProcAddress(lib, "opus_multistream_decode_float");
     g_opus.ms_destroy      = (decltype(g_opus.ms_destroy))      GetProcAddress(lib, "opus_multistream_decoder_destroy");
     g_opus.dec_ctl         = (decltype(g_opus.dec_ctl))         GetProcAddress(lib, "opus_decoder_ctl");
+    g_opus.ms_ctl          = (decltype(g_opus.ms_ctl))          GetProcAddress(lib, "opus_multistream_decoder_ctl");
     g_opus.version         = (decltype(g_opus.version))         GetProcAddress(lib, "opus_get_version_string");
     g_opus_ok = g_opus.dec_create && g_opus.decode_float && g_opus.dec_destroy &&
                 g_opus.ms_create && g_opus.ms_decode_float && g_opus.ms_destroy;
@@ -976,6 +983,7 @@ static bool opus_load() {
  * entry points the native core calls). */
 extern "C" __declspec(dllexport) void __stdcall basis_decoder_set_opus_library_path(const char* path) {
     if (!path) return;
+    std::lock_guard<std::mutex> lock(g_opus_mtx);
     strncpy(g_opus_path, path, sizeof(g_opus_path) - 1);
     g_opus_path[sizeof(g_opus_path) - 1] = 0;
 }
@@ -1240,13 +1248,16 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
         if (family == 0) {
             OpusDecoder* dec = g_opus.dec_create(48000, ch, &err);
             if (!dec || err != 0) return 0;
-            if (gain != 0) g_opus.dec_ctl(dec, OPUS_SET_GAIN_REQUEST, (int)gain);
+            if (gain != 0 && g_opus.dec_ctl) g_opus.dec_ctl(dec, OPUS_SET_GAIN_REQUEST, (int)gain);
             d->opusDec = dec; d->opusIsMS = 0;
         } else {
             if (asc_len < 21 + ch) return 0;
             int streams = asc[19], coupled = asc[20];
             OpusMSDecoder* ms = g_opus.ms_create(48000, ch, streams, coupled, asc + 21, &err);
             if (!ms || err != 0) return 0;
+            /* Output gain applies independently of channel mapping (RFC 7845), and
+             * the multistream decoder has its own CTL entry point. */
+            if (gain != 0 && g_opus.ms_ctl) g_opus.ms_ctl(ms, OPUS_SET_GAIN_REQUEST, (int)gain);
             d->opusDec = ms; d->opusIsMS = 1;
         }
         d->acodec = BASIS_CODEC_OPUS;
@@ -1406,6 +1417,22 @@ static void submit_lpcm(basis_decoder* d, const uint8_t* p, int len, int64_t pts
 
 /* One Opus packet -> float PCM straight into the ring (§4-b2). Like the LPCM
  * bypass, no OS decoder is involved. */
+/* Opus mapping family 1 delivers Vorbis channel order; the ring (and Unity) want
+ * WAVE/SMPTE order. Table maps each WAVE output channel to its Vorbis source
+ * index; NULL = identity (mono, stereo, and quad already coincide). Per RFC 7845
+ * §5.1.1 (Vorbis order) and WAVEFORMATEXTENSIBLE (WAVE order). */
+static const int* opus_vorbis_to_wave(int ch) {
+    static const int m3[3] = { 0, 2, 1 };                      /* L C R      -> L R C */
+    static const int m5[5] = { 0, 2, 1, 3, 4 };                /* FL C FR RL RR -> FL FR C RL RR */
+    static const int m6[6] = { 0, 2, 1, 5, 3, 4 };             /* +LFE last -> LFE at index 3 (5.1) */
+    static const int m7[7] = { 0, 2, 1, 6, 5, 3, 4 };          /* 6.1 */
+    static const int m8[8] = { 0, 2, 1, 7, 5, 6, 3, 4 };       /* 7.1 */
+    switch (ch) {
+        case 3: return m3; case 5: return m5; case 6: return m6;
+        case 7: return m7; case 8: return m8; default: return nullptr;
+    }
+}
+
 static void submit_opus(basis_decoder* d, const uint8_t* data, int len, int64_t pts_us) {
     if (!d->opusDec || !g_opus_ok) return;
     int ch = d->ach > 0 ? d->ach : 2;
@@ -1431,8 +1458,22 @@ static void submit_opus(basis_decoder* d, const uint8_t* data, int len, int64_t 
     /* Honour the media-time origin too (shared with #959; usually 0 for WebM). */
     int origin = basis_frames_before_origin(out_pts, remain, 48000);
     if (origin >= remain) return;
-    d->pcm.write(d->opusBuf + (int64_t)(drop + origin) * ch, (remain - origin) * ch,
-                 out_pts + (int64_t)origin * 1000000LL / 48000);
+    float* out = d->opusBuf + (int64_t)(drop + origin) * ch;
+    int outframes = remain - origin;
+    /* Family 1 is Vorbis channel order; reorder to WAVE before the ring. Family 0
+     * is mono/stereo, already in the right order. */
+    if (d->opusIsMS) {
+        const int* map = opus_vorbis_to_wave(ch);
+        if (map) {
+            for (int f = 0; f < outframes; ++f) {
+                float* fr = out + (int64_t)f * ch;
+                float tmp[8];
+                for (int c = 0; c < ch; ++c) tmp[c] = fr[map[c]];
+                memcpy(fr, tmp, sizeof(float) * (size_t)ch);
+            }
+        }
+    }
+    d->pcm.write(out, outframes * ch, out_pts + (int64_t)origin * 1000000LL / 48000);
     InterlockedIncrement(&d->dbg_aout);
 }
 
