@@ -142,7 +142,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | Fixture | Verify |
 | --- | --- |
 | H.264 + AAC stereo | The baseline — everything else assumes this passes |
-| H.265/HEVC | Windows needs the system HEVC codec present; absence degrades cleanly |
+| H.265/HEVC | **Video actually appears** (`https://mr.town/vod/tos_hevc.mp4`, `hvc1` from stock libx265 — what most HEVC in the wild is). Check for frames, not for the absence of an error: `hvc1` keeps its parameter sets only in the `hvcC` box, so anything that loses them on the way to the decoder gives a black screen with no error raised and nothing in the Console. Absence of the codec is the other half of the row — without the HEVC Video Extension installed it must degrade cleanly, and testing only that half will pass while playback is comprehensively broken |
 | VP9 in WebM (`https://mr.town/vod/tos_vp9.webm`) | Plays on Windows (Store "VP9 Video Extensions" + a GPU with hardware VP9 — the probe gates both) and Quest (hardware everywhere). The fixture is a two-pass encode carrying superframes, so whole-superframe feeding is exercised by playing it |
 | VP9 in MP4 (`https://mr.town/vod/tos_vp9.mp4`) | The `vp09` sample-entry lane; same decode path as WebM |
 | WebM Cues placements | `tos_vp9.webm` (Cues at front — parsed inline) and `tos_vp9_cuesend.webm` (Cues trailing — ranged-fetched at open via SeekHead) both report a duration and seek; `tos_vp9_nocues.webm` (streamed mux, no Cues) plays forward-only with **no seek bar / duration 0** — a duration on that file is a bug (duration > 0 must always mean seek works) |
