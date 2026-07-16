@@ -16,6 +16,7 @@ typedef struct {
     int response_complete;
     int seekable;            /* finite Content-Length + Accept-Ranges: bytes (VOD) */
     int range_ok;            /* server answered the bytes=0- probe with a 206 */
+    long long content_length;/* body size, or -1 when unknown/chunked/live */
     wchar_t* path;           /* request path, kept for ranged re-requests */
     DWORD open_flags;        /* WINHTTP_FLAG_SECURE when https */
 } win_http_t;
@@ -106,6 +107,7 @@ extern "C" void* basis_win_http_open(const char* url) {
             WINHTTP_HEADER_NAME_BY_INDEX, ranges, &rsz, WINHTTP_NO_HEADER_INDEX);
         int rangeable = h->range_ok || (haveRanges && _wcsicmp(ranges, L"bytes") == 0);
         h->seekable = (haveLen && clen > 0 && rangeable) ? 1 : 0;
+        h->content_length = (haveLen && clen > 0) ? (long long)clen : -1;
     }
     return h;
 }
@@ -113,6 +115,11 @@ extern "C" void* basis_win_http_open(const char* url) {
 extern "C" int basis_win_http_is_seekable(void* ctx) {
     win_http_t* h = (win_http_t*)ctx;
     return h ? h->seekable : 0;
+}
+
+extern "C" long long basis_win_http_content_length(void* ctx) {
+    win_http_t* h = (win_http_t*)ctx;
+    return h ? h->content_length : -1;
 }
 
 extern "C" int basis_win_http_can_reseek(void* ctx) {

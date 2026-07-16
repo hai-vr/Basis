@@ -1,11 +1,10 @@
 /*
- * fuzz_mp4 - libFuzzer target for the MP4 demuxer (basis_mp4_run).
+ * fuzz_ogg - libFuzzer target for the Ogg demuxer (basis_ogg_run).
  *
- * Same shape as fuzz_ts, plus a reseek callback: MP4 is offset-driven (moov
- * sample tables, absolute stco/co64 chunk offsets, faststart jumps to mdat),
- * so without a working reseek the parser never reaches the sample data and the
- * fuzzer only exercises the box header walk. reseek repositions the in-memory
- * cursor to an absolute offset.
+ * Ogg is page framing (OggS capture pattern, 27-byte header, segment table,
+ * body), packets reassembled across pages by lacing, CRC-32 per page, and
+ * granulepos/TOC timing -- all length-driven and attacker-controlled. Same
+ * in-memory read + reseek + contract-complete sink as the other targets.
  *
  * Build: see ../build.sh (clang -fsanitize=fuzzer,address,undefined).
  */
@@ -15,7 +14,7 @@
 #include <stdlib.h>
 
 #include "basis_media_internal.h"
-#include "protocol/basis_mp4.h"
+#include "protocol/basis_ogg.h"
 
 #define FUZZ_AU_CAP 200000
 
@@ -24,6 +23,7 @@ typedef struct {
     size_t size;
     size_t pos;
     long long aus;
+    int seeked;
 } fuzz_ctx;
 
 static volatile uint8_t g_sink_byte;
@@ -54,50 +54,38 @@ static void touch(const uint8_t* p, int len) {
     g_sink_byte ^= acc;
 }
 
-static void s_video_au(void* u, const uint8_t* annexb, int len,
-                       int64_t pts, int64_t dts, int key) {
-    fuzz_ctx* c = (fuzz_ctx*)u;
-    (void)pts; (void)dts; (void)key;
-    touch(annexb, len);
-    c->aus++;
-}
-
 static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts) {
     fuzz_ctx* c = (fuzz_ctx*)u;
     (void)pts;
     touch(data, len);
     c->aus++;
 }
-
-static void s_video_format(void* u, basis_codec_t codec, const uint8_t* ed, int el,
-                           int w, int h) {
-    (void)u; (void)codec; (void)w; (void)h;
-    touch(ed, el);
-}
-
 static void s_audio_format(void* u, basis_codec_t codec, int rate, int ch,
                            const uint8_t* asc, int asc_len) {
     (void)u; (void)codec; (void)rate; (void)ch;
     touch(asc, asc_len);
 }
-
-/* Required by the sink contract (not marked "may be NULL"): the parser calls
- * these without a NULL check, so the harness must supply them. */
+static void s_video_format(void* u, basis_codec_t c, const uint8_t* e, int el, int w, int h) {
+    (void)u; (void)c; (void)e; (void)el; (void)w; (void)h;
+}
+static void s_video_au(void* u, const uint8_t* a, int l, int64_t p, int64_t d, int k) {
+    (void)u; (void)a; (void)l; (void)p; (void)d; (void)k;
+}
 static void s_state(void* u, basis_media_state_t s) { (void)u; (void)s; }
-static void s_error(void* u, const char* msg) { (void)u; (void)msg; }
+static void s_error(void* u, const char* m) { (void)u; (void)m; }
 static void s_eos(void* u) { (void)u; }
-
-static int s_is_running(void* u) {
+static int s_is_running(void* u) { fuzz_ctx* c = (fuzz_ctx*)u; return c->aus < FUZZ_AU_CAP; }
+/* Request one seek so the granule bisection path is exercised; the target is
+ * derived from the input so it varies across cases. */
+static int s_take_seek(void* u, int64_t* out) {
     fuzz_ctx* c = (fuzz_ctx*)u;
-    return c->aus < FUZZ_AU_CAP;
+    if (!c->seeked) { c->seeked = 1; *out = (int64_t)(c->size ? (c->data[0] * 100000) : 0); return 1; }
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     fuzz_ctx c;
-    c.data = data;
-    c.size = size;
-    c.pos = 0;
-    c.aus = 0;
+    c.data = data; c.size = size; c.pos = 0; c.aus = 0; c.seeked = 0;
 
     basis_media_sink_t sink;
     memset(&sink, 0, sizeof(sink));
@@ -109,11 +97,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     sink.on_state = s_state;
     sink.on_error = s_error;
     sink.on_end_of_stream = s_eos;
+    sink.take_seek = s_take_seek;
     sink.is_running = s_is_running;
-    /* on_duration/on_transport/take_seek may be NULL per the contract; the
-     * parser still uses reseek for its own offset jumps (moov->mdat, chunk
-     * offsets), so no host-driven seek requests are needed. */
 
-    basis_mp4_run(&sink, fz_read, &c, fz_reseek, &c);
+    basis_ogg_run(&sink, fz_read, &c, fz_reseek, &c, (int64_t)size);
     return 0;
 }

@@ -36,6 +36,7 @@ CODEC_ALIASES = {
     "vp9": {"vp9"},
     "av1": {"av1"},
     "aac": {"aac"},
+    "opus": {"opus"},
     "lpcm": {"pcm_bluray", "pcm_s16le", "pcm_s24le", "pcm_s16be", "pcm_s24be"},
 }
 # ffprobe bitstream filter that reframes a stream into the sink's delivered form
@@ -72,6 +73,17 @@ def probe_streams(media: Path) -> list[dict]:
     return json.loads(out or "{}").get("streams", [])
 
 
+def extradata_hash(media: Path, stream: str) -> str | None:
+    """ffprobe's MD5 of the stream's extradata (decoder init data), or None."""
+    out = run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_streams",
+               "-show_data_hash", "md5", "-of", "json", str(media)])
+    for s in json.loads(out or "{}").get("streams", []):
+        h = (s.get("extradata_hash") or "")
+        if h.upper().startswith("MD5:"):
+            return h[4:].strip().lower()
+    return None
+
+
 def probe_packets(media: Path, stream: str) -> list[dict]:
     out = run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_packets",
                "-show_data_hash", "md5", "-of", "json", str(media)])
@@ -81,6 +93,7 @@ def probe_packets(media: Path, stream: str) -> list[dict]:
         if digest.upper().startswith("MD5:"):
             digest = digest[4:]
         pkts.append({"pts_us": us(pkt.get("pts_time")),
+                     "dts_us": us(pkt.get("dts_time")),
                      "size": int(pkt.get("size", 0)),
                      "key": "K" in (pkt.get("flags") or ""),
                      "md5": (digest.strip().lower() or None)})
@@ -154,31 +167,82 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
              ann.get("width") == ref.get("width") and ann.get("height") == ref.get("height"),
              f"ours={ann.get('width')}x{ann.get('height')} "
              f"ffmpeg={ref.get('width')}x{ref.get('height')}")
+    else:
+        # Announce metadata is checked even for LPCM (whose packets are skipped
+        # below), so a wrong rate or channel count can't slip through.
+        c.ok("audio.sample_rate",
+             str(ann.get("sample_rate")) == str(ref.get("sample_rate")),
+             f"ours={ann.get('sample_rate')} ffmpeg={ref.get('sample_rate')}")
+        c.ok("audio.channels",
+             ann.get("channels") == ref.get("channels"),
+             f"ours={ann.get('channels')} ffmpeg={ref.get('channels')}")
 
     codec = ann["codec"]
     container_ts = d.get("demuxer") in {"ts"}
 
+    # Extradata (decoder init) integrity: corrupted or mis-sliced CodecPrivate
+    # leaves packet MD5s unchanged but breaks decoder init. Compare the announced
+    # extradata hash against ffprobe's for codecs whose extradata framing matches
+    # what the demuxer forwards (Opus OpusHead, AAC ASC). AV1's av1C and H.26x's
+    # avcC/hvcC are reframed, so they aren't hash-comparable here.
+    if codec in ("opus", "aac"):
+        our_ed = (ann.get("extradata_md5") or "").lower()
+        ref_ed = extradata_hash(media, stream)
+        if ref_ed:
+            # ffprobe has extradata, so ours must too: a demuxer that drops the
+            # ASC/OpusHead breaks decoder init and must fail, not skip.
+            c.ok(f"{kind}.extradata", bool(our_ed) and our_ed == ref_ed,
+                 f"ours={our_ed[:12] or 'missing'} ffmpeg={ref_ed[:12]}")
+        else:
+            c.skip(f"{kind}.extradata", "ffprobe exposes no comparable extradata")
+
+    aus = [a for a in d.get("access_units", []) if a["track"] == kind]
+
     # LPCM has no canonical packetisation (the demuxer and ffmpeg chunk it
-    # differently), so count/pts/md5 are all meaningless. Announce + codec is
-    # what the demux layer actually owns for it.
+    # differently), so per-packet count/pts/md5 are meaningless -- but emitting
+    # nothing at all is still a regression, so require at least one frame.
     if codec == "lpcm":
-        c.skip(f"{kind}.packets", "LPCM packetisation is arbitrary; not comparable")
+        c.ok(f"{kind}.packets", bool(aus), "demuxer emitted no LPCM frames")
         return
 
     pkts = probe_packets(media, stream)
-    aus = [a for a in d.get("access_units", []) if a["track"] == kind]
 
     c.ok(f"{kind}.count", len(aus) == len(pkts), f"ours={len(aus)} ffmpeg={len(pkts)}")
 
-    # PTS sequence within tolerance (sorted, over the min common length).
+    if kind == "video":
+        c.ok("video.keyframes",
+             [a["key"] for a in aus] == [p["key"] for p in pkts],
+             f"ours={sum(a['key'] for a in aus)} keyframes, ffmpeg={sum(p['key'] for p in pkts)}")
+
+    # PTS/DTS in emit order -- ffprobe lists packets in demux order, exactly the
+    # order the sink receives them. No sorting: it would turn the sequence check
+    # into a multiset check and let a reordered stream pass. DTS is checked too so
+    # a broken decode order (B-frame streams) can't slip through.
     n = min(len(aus), len(pkts))
-    our_pts = sorted(a["pts_us"] for a in aus[:n])
-    ref_pts = sorted(p["pts_us"] for p in pkts[:n] if p["pts_us"] is not None)
-    if len(ref_pts) == n and n:
-        worst = max((abs(a - b) for a, b in zip(our_pts, ref_pts)), default=0)
-        c.ok(f"{kind}.pts", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
-    else:
-        c.skip(f"{kind}.pts", "reference has partial/absent timestamps")
+
+    def _seq_check(field, our_vals, ref_vals):
+        if not (n and all(v is not None for v in ref_vals) and all(v is not None for v in our_vals)):
+            c.skip(f"{kind}.{field}", "reference or ours has partial/absent timestamps")
+            return
+        o, r = list(our_vals), list(ref_vals)
+        if codec == "opus":
+            # Opus CodecDelay: ffmpeg shifts timestamps by the encoder pre-skip
+            # while the demuxer emits raw block times. Compare relative to the
+            # first packet -- spacing must match, the origin convention may not.
+            o = [x - o[0] for x in o]
+            r = [x - r[0] for x in r]
+        worst = max((abs(a - b) for a, b in zip(o, r)), default=0)
+        c.ok(f"{kind}.{field}", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
+
+    our_pts_v = [a["pts_us"] for a in aus[:n]]
+    our_dts_v = [a.get("dts_us") for a in aus[:n]]
+    _seq_check("pts", our_pts_v, [p["pts_us"] for p in pkts[:n]])
+    # DTS only when the demuxer actually provides decode timestamps distinct from
+    # PTS. The sink contract lets a demuxer pass PTS for both (the MPEG-TS lane
+    # does), and comparing that against ffmpeg's reordered DTS would be a false
+    # failure; where we do emit a real DTS (e.g. MP4 B-frames), it must match.
+    if our_dts_v != our_pts_v:
+        _seq_check("dts", our_dts_v, [p.get("dts_us") for p in pkts[:n]])
 
     # Payload MD5.
     if codec == "aac" and container_ts:
@@ -187,11 +251,15 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         try:
             their = filtered_md5s(media, "aac_adtstoasc", stream)
         except RuntimeError as ex:
-            c.skip(f"{kind}.md5", f"adts reframe failed: {ex}")
+            # A reframe failure is a gate failure, not a skip — the payload
+            # comparison is the whole point of this row.
+            c.ok(f"{kind}.md5", False, f"adts reframe failed: {ex}")
             return
         m = min(len(aus), len(their))
-        c.ok(f"{kind}.md5", m > 0 and [a["md5"] for a in aus[:m]] == their[:m],
-             f"{sum(1 for a, t in zip(aus, their) if a['md5'] != t)} of {m} differ")
+        c.ok(f"{kind}.md5",
+             len(their) > 0 and len(aus) == len(their) and [a["md5"] for a in aus[:m]] == their[:m],
+             f"{sum(1 for a, t in zip(aus, their) if a['md5'] != t)} of {m} differ "
+             f"(ours={len(aus)} ref={len(their)})")
     elif ann.get("payload_is_container_form"):
         our = [a["md5"] for a in aus]
         their = [p["md5"] for p in pkts]
@@ -203,18 +271,22 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
         try:
             their = filtered_md5s(media, PACKET_FILTERS[codec], stream)
         except RuntimeError as ex:
-            c.skip(f"{kind}.md5", f"bsf reframe failed: {ex}")
+            c.ok(f"{kind}.md5", False, f"bsf reframe failed: {ex}")
             return
         m = min(len(aus), len(their))
         mism = [i for i in range(m) if not aus[i]["key"] and aus[i]["md5"] != their[i]]
-        c.ok(f"{kind}.md5", not mism, f"{len(mism)} non-key AUs differ of {m}")
+        # Require a non-empty, equal-count reframe — an empty `their` would
+        # otherwise leave `not mism` True and pass without comparing anything.
+        c.ok(f"{kind}.md5", len(their) > 0 and len(aus) == len(their) and not mism,
+             f"{len(mism)} non-key AUs differ of {m} (ours={len(aus)} ref={len(their)})")
     else:
         c.skip(f"{kind}.md5", f"no comparison rule for {codec}")
 
 
 def gate(fixtures: Path, dumper: Path) -> int:
     media = sorted(p for p in fixtures.iterdir()
-                   if p.suffix.lower() in {".mp4", ".m4a", ".ts", ".m2ts", ".webm", ".wav"})
+                   if p.suffix.lower() in {".mp4", ".m4a", ".ts", ".m2ts", ".webm", ".wav",
+                                           ".opus", ".ogg"})
     if not media:
         print(f"no fixtures in {fixtures}")
         return 1

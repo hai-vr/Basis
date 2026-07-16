@@ -151,9 +151,15 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | AV1 in WebM (`https://mr.town/vod/tos_av1.webm`) | The `V_AV1` CodecID lane (CodecPrivate = av1C record → configOBU extradata); duration + Cues seek work as for VP9 |
 | AV1 extension absent (Windows) | Uninstall/absent "AV1 Video Extension": a direct `av01` URL errors with the install hint, and the probe answers 0 so the resolver never offers AV1 |
 | AV1 on Quest 2 | No AV1 decoder on the device: a direct `av01` URL refuses cleanly, and YouTube resolution still succeeds via the VP9 lane (its probe passes there) |
+| Opus in muxed WebM (`https://mr.town/vod/tos_vp9_opus.webm`) | VP9 video + Opus audio in one file: plays whole with audio on Windows and Quest. Exercises the two-track WebM demux (blocks routed to video vs audio by TrackNumber) |
+| Opus audio-only WebM (`https://mr.town/vod/tos_opus.webm`) | An `A_OPUS`-only WebM (YouTube's audio itags 249/250/251): audio plays with no video, driven by the audio-only contract |
+| Opus decode on Windows | Native via the libopus that `com.avionblock.opussharp` ships, runtime-loaded (no Store extension, unlike VP9/AV1). Confirm audio plays in the Editor (the library resolves from the opussharp `Packages/…` path) and in a build (`opus.dll` flattened beside the plugin). If opussharp is absent the format is refused: muted audio, video unaffected, never a crash |
+| Opus on Quest | Native `audio/opus` MediaCodec with OpusHead + pre-skip/pre-roll csd; gapless start sane, audio-only path works |
+| Ogg Opus file (`.opus`) | A `.opus` URL routes as directly-playable (no resolver) and plays: the Ogg demuxer walks pages/lacing, verifies each page CRC, reads OpusHead, and feeds the same Opus decoder. A `.opus` with a damaged page resyncs on the next `OggS` rather than failing |
+| Ogg Opus seek (`.opus`) | On a range/`206` host, a `.opus` file reports its duration (a seek bar appears) and seeks — Ogg has no index, so seek is granule bisection over the byte range; it lands at page granularity near the target and resumes. A live/no-range source has no seek bar (duration 0), which is correct. Check the Editor (Windows) |
 | Unsupported video codec | `https://mr.town/vod/tos_vp8.webm` and `https://mr.town/vod/tos_mp4v.mp4` refuse with a clear "video codec 'x' is not supported" error naming the codec — never silent audio under a black screen |
 | VP9/AV1 software-fallback guard | On a GPU without hardware decode for the profile, a direct VP9/AV1 URL must produce the "video decoder produced software frames" error, not a black screen (the Store MFTs silently fall back to CPU — for AV1 that is the *majority* of pre-RTX-30 desktops; only reproducible on a no-hw box or with the extension's fallback forced) |
-| AAC decoder priming | Audio starts on the first real sample, not on the decoder's priming. AAC's encoder delay is one 1024-sample frame, which MP4 signals with an edit list (`elst media_time=1024` on anything `ffmpeg -c:a aac` produced); the samples ahead of that origin must not reach the output. **Do not try to hear this** — 21 ms of lag is below the lip-sync threshold, which is exactly why it went unnoticed for so long. Measure it: decode the file with `ffmpeg -i x.m4a -map a:0 -f f32le -acodec pcm_f32le ref.f32`, capture what the player served, and correlate the two **at offset zero**. Aligned output correlates ~0.999; a stream still carrying its priming reads about **-0.07**, because it is shifted, not wrong. An LPCM/WAV file is the control — no decoder, no priming, correlates 1.000 |
+| AAC decoder priming | Audio starts on the first real sample, not on the decoder's priming. AAC's encoder delay is one 1024-sample frame, which MP4 signals with an edit list (`elst media_time=1024` on anything `ffmpeg -c:a aac` produced); the samples ahead of that origin must not reach the output. **Do not try to hear this** — 21 ms of lag is below the lip-sync threshold, which is exactly why it went unnoticed for so long. Measure it: decode the file with `ffmpeg -i x.m4a -map a:0 -f f32le -acodec pcm_f32le ref.f32`, capture what the player served, and cross-correlate. Assert on the **peak's sample offset**, not a correlation value: aligned output peaks at offset 0, a stream still carrying its priming peaks at offset 1024 (the edit-list delay) — the actual defect, and reliable regardless of content, channels, or capture. (The absolute coefficient at offset 0 is content-dependent — a shifted stream reads roughly -0.07 on this fixture, but do not gate on that number.) An LPCM/WAV file is the control — no decoder, no priming, peaks at offset 0 |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
 | AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
@@ -235,11 +241,12 @@ flag it as such, not as a playback bug.
 drift. Watch a full minute at the live edge, not five seconds. For anything subtle, capture
 diagnostics (below) rather than trusting perception.
 
-Know what this row cannot do. Audio lag is only audible from somewhere around 45 ms, so a
-smaller constant offset is not a subtle failure of this check — it is outside it, and watching
-harder will not find it. A systematic offset that survives review is likely to be one this row
-structurally cannot see, so anything with a fixed delay in it (decoder priming, buffer
-alignment, resampler latency) has to be measured against a reference decode rather than judged.
+Know what this row cannot do, and do not treat audibility as the pass bar. A fixed offset
+below roughly 45 ms is still a real A/V-sync regression — it is just below the threshold where
+watching harder will find it, so this perceptual row structurally cannot see it. Audibility
+only explains why manual observation is insufficient here; it is not an acceptance tolerance.
+Anything with a constant delay in it (decoder priming, buffer alignment, resampler latency)
+must be measured against a reference decode with an explicit tolerance, not signed off by ear.
 
 **Orientation** — a horizontal mirror is invisible on symmetric content. Verify left/right
 with on-screen text or a logo, every time video-path code changes.
@@ -334,9 +341,11 @@ crash, hang, or corrupt does.
 - **Regress the good path bit-for-bit, not by eye.** A protocol fix on one transport can shift
   the packets another transport emits, because they share the AU path. After any demux change,
   re-run the known-good fixtures and confirm the demuxer still produces the same packets and
-  the same decoded frames — a comparison against a reference decoder (`ffprobe -show_packets`
-  for packets, `ffmpeg` frame hashes for pixels) is what makes "the same" objective instead of
-  "looked fine to me."
+  the same decoded frames. `ffprobe -show_packets` alone only compares metadata, not payload, so
+  a byte regression with unchanged sizes/timestamps would slip through — the conformance gate
+  compares per-packet payload hashes (`-show_data_hash md5`) against ffprobe, and `ffmpeg` frame
+  hashes cover pixels. Those hashes are what make "the same" objective instead of "looked fine
+  to me."
 
 ### Rebuilding and platform coverage
 

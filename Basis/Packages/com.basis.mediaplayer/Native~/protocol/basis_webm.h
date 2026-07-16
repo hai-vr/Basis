@@ -1,7 +1,8 @@
-/* WebM/Matroska demuxer feeding VP9/AV1 video into a basis_media_sink. Narrow by
- * design: announces the first supported video track only (audio and subtitle
- * tracks are skipped); a WebM whose video codec isn't supported errors clearly.
- * Pulls bytes through the supplied read callback. */
+/* WebM/Matroska demuxer feeding VP9/AV1 video and/or Opus audio into a
+ * basis_media_sink. Announces the first supported video track and the first
+ * A_OPUS audio track (either or both); other audio (A_VORBIS, A_AAC, …) and
+ * subtitle tracks are skipped. A WebM whose video codec isn't supported errors
+ * clearly. Pulls bytes through the supplied read callback. */
 #ifndef BASIS_WEBM_H
 #define BASIS_WEBM_H
 

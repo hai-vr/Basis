@@ -33,9 +33,10 @@ typedef enum basis_codec {
     BASIS_CODEC_VP9  = 3,
     BASIS_CODEC_AV1  = 4,
     BASIS_CODEC_AAC  = 10,
-    BASIS_CODEC_LPCM = 11   /* raw integer PCM: Blu-ray HDMV LPCM (TS stream_type
+    BASIS_CODEC_LPCM = 11,  /* raw integer PCM: Blu-ray HDMV LPCM (TS stream_type
                              * 0x80, big-endian) or RIFF/WAV (little-endian —
                              * flags byte 3 of the announce config blob) */
+    BASIS_CODEC_OPUS = 12   /* Opus in WebM (A_OPUS); extradata is the OpusHead */
 } basis_codec_t;
 
 /* Sink the demuxers push into. All callbacks are invoked from the demux thread.
@@ -251,6 +252,10 @@ int basis_engine_is_paced(basis_media_engine_t* engine);
  * primed frame is dropped rather than half-played. */
 static inline int basis_frames_before_origin(int64_t pts, int frames, int rate) {
     if (pts >= 0 || frames <= 0 || rate <= 0) return 0;
+    /* -pts is UB at INT64_MIN, and (-pts) * rate can overflow before the cap;
+     * a drop that large already covers the whole block. */
+    if (pts == INT64_MIN || -pts > (INT64_MAX - 999999) / (int64_t)rate)
+        return frames;
     int64_t drop = ((-pts) * (int64_t)rate + 999999) / 1000000;
     return drop >= (int64_t)frames ? frames : (int)drop;
 }

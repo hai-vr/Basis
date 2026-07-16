@@ -29,7 +29,9 @@ for tcdir in "$here"/testcases/*/; do
     echo "fuzz_${target}: replaying ${#cases[@]} repro(s)"
     for c in "${cases[@]}"; do
         total=$((total + 1))
-        if "$exe" "$c" >/tmp/fuzz_replay.log 2>&1; then
+        # -timeout so a non-crashing parser loop fails fast instead of hanging
+        # the gate for libFuzzer's default 1200 s.
+        if "$exe" -timeout=30 "$c" >/tmp/fuzz_replay.log 2>&1; then
             echo "  ok    $(basename "$c")"
         else
             echo "  CRASH $(basename "$c")"
@@ -40,7 +42,10 @@ for tcdir in "$here"/testcases/*/; do
 done
 
 echo
-if [ $fail -eq 0 ]; then
+if [ $total -eq 0 ]; then
+    echo "FAIL: no pinned repro(s) found under testcases/ — gate would pass vacuously"
+    fail=1
+elif [ $fail -eq 0 ]; then
     echo "PASS: $total pinned repro(s) all clean"
 else
     echo "FAIL: a pinned repro crashed — a memory-safety fix has regressed"

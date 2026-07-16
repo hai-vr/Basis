@@ -95,6 +95,23 @@ else
     skip "AV1 fixtures" "no libaom-av1 / libsvtav1"
 fi
 
+# ---- Opus in WebM (A_OPUS): muxed with VP9, and audio-only ----------------
+if has_enc libopus; then
+    if has_enc libvpx-vp9; then
+        ffmpeg $q "${VSRC[@]}" "${ASTEREO[@]}" "${common_v[@]}" \
+            -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 300k \
+            -c:a libopus -ac 2 -shortest "$out/vp9_opus.webm"
+        note "vp9_opus.webm"
+    fi
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libopus -ac 2 "$out/opus.webm"
+    note "opus.webm"
+    # Ogg Opus (.opus file): the Ogg demuxer, page framing + OpusHead/OpusTags.
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libopus -ac 2 "$out/audio.opus"
+    note "audio.opus"
+else
+    skip "Opus fixtures" "no libopus"
+fi
+
 # ---- Audio-only: AAC in M4A -----------------------------------------------
 ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a aac -ac 2 "$out/aac.m4a"
 note "aac.m4a"

@@ -8,3 +8,5 @@ fixtures/
 *.m2ts
 *.webm
 *.wav
+*.opus
+*.ogg

@@ -105,7 +105,7 @@ public static class BasisMediaUrlRouter
     /// True if the player can open <paramref name="url"/> directly, without a resolver:
     /// any non-HTTP scheme (transport like rtsp/rtmp/rist, or a local file), or an
     /// http(s) URL whose path ends in a media-container extension
-    /// (.mp4/.m4v/.m4a/.m4s/.ts/.m2ts/.mts/.m3u8/.wav/.webm). An http(s) URL with no media extension is a page URL
+    /// (.mp4/.m4v/.m4a/.m4s/.ts/.m2ts/.mts/.m3u8/.wav/.webm/.opus). An http(s) URL with no media extension is a page URL
     /// (e.g. a YouTube/Twitch watch page) and needs a resolver. This is the single
     /// source of truth for the live-vs-resolve steering; resolvers and callers both
     /// consult it. It classifies only — it never blocks (host trust is separate).
@@ -144,7 +144,11 @@ public static class BasisMediaUrlRouter
             || path.EndsWith(".mts", StringComparison.OrdinalIgnoreCase)    // AVCHD-flavour MPEG-TS
             || path.EndsWith(".m3u8", StringComparison.OrdinalIgnoreCase)
             || path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)
-            || path.EndsWith(".webm", StringComparison.OrdinalIgnoreCase);
+            || path.EndsWith(".webm", StringComparison.OrdinalIgnoreCase)
+            // .opus only: the native Ogg demuxer handles Opus, and .opus is
+            // Opus by convention. .ogg is a generic container (Vorbis/FLAC/…)
+            // the pipeline doesn't decode, so it isn't routed directly.
+            || path.EndsWith(".opus", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
