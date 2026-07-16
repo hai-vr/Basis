@@ -1,6 +1,6 @@
 # media-fuzz — coverage-guided fuzzing of the demux/parse layer
 
-Local-only tooling. The native plugin parses attacker-controlled container and protocol bytes
+Developer and CI tooling. The native plugin parses attacker-controlled container and protocol bytes
 by hand, in-process, with no sandbox — in multiplayer a peer-broadcast URL is parsed by every
 client. This fuzzes those parsers in isolation (no decoder, no Media Foundation, no Unity)
 under AddressSanitizer + UndefinedBehaviorSanitizer, so a malformed stream that reads out of

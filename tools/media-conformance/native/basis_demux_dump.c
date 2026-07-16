@@ -16,7 +16,8 @@
  *   cl /nologo /O2 /W4 /I %NAT% basis_demux_dump.c ^
  *      %NAT%\protocol\basis_webm.c %NAT%\protocol\basis_mp4.c ^
  *      %NAT%\protocol\basis_ts.c %NAT%\protocol\basis_wav.c ^
- *      %NAT%\protocol\basis_ogg.c %NAT%\protocol\basis_bitstream.c
+ *      %NAT%\protocol\basis_ogg.c %NAT%\protocol\basis_bitstream.c ^
+ *      %NAT%\protocol\basis_caption.c
  *
  * Run:
  *   basis_demux_dump [-demux webm|mp4|ts|wav|ogg] [-seek US] [-noreseek] FILE
@@ -183,12 +184,14 @@ typedef struct {
     int v_announced;
     basis_codec_t v_codec;
     int v_w, v_h, v_extradata_len;
+    char v_extradata_md5[33];
     long long v_aus, v_keys;
 
     /* audio track */
     int a_announced;
     basis_codec_t a_codec;
     int a_rate, a_channels, a_asc_len;
+    char a_extradata_md5[33];
     long long a_frames;
 
     long long duration_us;
@@ -261,7 +264,8 @@ static void s_video_format(void* u, basis_codec_t codec, const uint8_t* ed, int 
     d->v_codec = codec;
     d->v_w = w; d->v_h = h;
     d->v_extradata_len = el;
-    (void)ed;
+    if (ed && el > 0) md5_hex(ed, el, d->v_extradata_md5);
+    else d->v_extradata_md5[0] = 0;
 }
 
 static void s_video_au(void* u, const uint8_t* data, int len,
@@ -287,7 +291,8 @@ static void s_audio_format(void* u, basis_codec_t codec, int rate, int ch,
     d->a_codec = codec;
     d->a_rate = rate; d->a_channels = ch;
     d->a_asc_len = asc_len;
-    (void)asc;
+    if (asc && asc_len > 0) md5_hex(asc, asc_len, d->a_extradata_md5);
+    else d->a_extradata_md5[0] = 0;
 }
 
 static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts_us) {
@@ -449,10 +454,10 @@ int main(int argc, char** argv) {
     if (h.v_announced) {
         fprintf(h.out,
                 "{\"codec\":\"%s\",\"width\":%d,\"height\":%d,\"extradata_len\":%d,"
-                "\"au_count\":%lld,\"key_count\":%lld,"
+                "\"extradata_md5\":\"%s\",\"au_count\":%lld,\"key_count\":%lld,"
                 "\"payload_is_container_form\":%s}",
                 codec_name(h.v_codec), h.v_w, h.v_h, h.v_extradata_len,
-                h.v_aus, h.v_keys,
+                h.v_extradata_md5, h.v_aus, h.v_keys,
                 payload_is_container_form(h.v_codec) ? "true" : "false");
     } else {
         fputs("null", h.out);
@@ -462,10 +467,10 @@ int main(int argc, char** argv) {
     if (h.a_announced) {
         fprintf(h.out,
                 "{\"codec\":\"%s\",\"sample_rate\":%d,\"channels\":%d,"
-                "\"asc_len\":%d,\"frame_count\":%lld,"
+                "\"asc_len\":%d,\"extradata_md5\":\"%s\",\"frame_count\":%lld,"
                 "\"payload_is_container_form\":%s}",
                 codec_name(h.a_codec), h.a_rate, h.a_channels, h.a_asc_len,
-                h.a_frames,
+                h.a_extradata_md5, h.a_frames,
                 payload_is_container_form(h.a_codec) ? "true" : "false");
     } else {
         fputs("null", h.out);

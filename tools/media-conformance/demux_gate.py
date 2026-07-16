@@ -73,6 +73,17 @@ def probe_streams(media: Path) -> list[dict]:
     return json.loads(out or "{}").get("streams", [])
 
 
+def extradata_hash(media: Path, stream: str) -> str | None:
+    """ffprobe's MD5 of the stream's extradata (decoder init data), or None."""
+    out = run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_streams",
+               "-show_data_hash", "md5", "-of", "json", str(media)])
+    for s in json.loads(out or "{}").get("streams", []):
+        h = (s.get("extradata_hash") or "")
+        if h.upper().startswith("MD5:"):
+            return h[4:].strip().lower()
+    return None
+
+
 def probe_packets(media: Path, stream: str) -> list[dict]:
     out = run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_packets",
                "-show_data_hash", "md5", "-of", "json", str(media)])
@@ -82,6 +93,7 @@ def probe_packets(media: Path, stream: str) -> list[dict]:
         if digest.upper().startswith("MD5:"):
             digest = digest[4:]
         pkts.append({"pts_us": us(pkt.get("pts_time")),
+                     "dts_us": us(pkt.get("dts_time")),
                      "size": int(pkt.get("size", 0)),
                      "key": "K" in (pkt.get("flags") or ""),
                      "md5": (digest.strip().lower() or None)})
@@ -168,6 +180,19 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
     codec = ann["codec"]
     container_ts = d.get("demuxer") in {"ts"}
 
+    # Extradata (decoder init) integrity: corrupted or mis-sliced CodecPrivate
+    # leaves packet MD5s unchanged but breaks decoder init. Compare the announced
+    # extradata hash against ffprobe's for codecs whose extradata framing matches
+    # what the demuxer forwards (Opus OpusHead, AAC ASC). AV1's av1C and H.26x's
+    # avcC/hvcC are reframed, so they aren't hash-comparable here.
+    if codec in ("opus", "aac"):
+        our_ed = (ann.get("extradata_md5") or "").lower()
+        ref_ed = extradata_hash(media, stream)
+        if our_ed and ref_ed:
+            c.ok(f"{kind}.extradata", our_ed == ref_ed, f"ours={our_ed[:12]} ffmpeg={ref_ed[:12]}")
+        else:
+            c.skip(f"{kind}.extradata", "no comparable extradata on one/both sides")
+
     # LPCM has no canonical packetisation (the demuxer and ffmpeg chunk it
     # differently), so count/pts/md5 are all meaningless. Announce + codec is
     # what the demux layer actually owns for it.
@@ -180,23 +205,28 @@ def check_track(c: Checks, d: dict, media: Path, kind: str) -> None:
 
     c.ok(f"{kind}.count", len(aus) == len(pkts), f"ours={len(aus)} ffmpeg={len(pkts)}")
 
-    # PTS sequence within tolerance (sorted, over the min common length).
+    # PTS/DTS in emit order -- ffprobe lists packets in demux order, exactly the
+    # order the sink receives them. No sorting: it would turn the sequence check
+    # into a multiset check and let a reordered stream pass. DTS is checked too so
+    # a broken decode order (B-frame streams) can't slip through.
     n = min(len(aus), len(pkts))
-    our_pts = sorted(a["pts_us"] for a in aus[:n])
-    ref_pts = sorted(p["pts_us"] for p in pkts[:n] if p["pts_us"] is not None)
-    if len(ref_pts) == n and n:
+
+    def _seq_check(field, our_vals, ref_vals):
+        if not (n and all(v is not None for v in ref_vals) and all(v is not None for v in our_vals)):
+            c.skip(f"{kind}.{field}", "reference or ours has partial/absent timestamps")
+            return
+        o, r = list(our_vals), list(ref_vals)
         if codec == "opus":
-            # Opus carries a CodecDelay (encoder pre-skip): ffmpeg shifts its
-            # timestamps by it, while the demuxer emits raw block times and leaves
-            # pre-skip to the decode layer. So compare the timeline relative to the
+            # Opus CodecDelay: ffmpeg shifts timestamps by the encoder pre-skip
+            # while the demuxer emits raw block times. Compare relative to the
             # first packet -- spacing must match, the origin convention may not.
-            o0, r0 = our_pts[0], ref_pts[0]
-            our_pts = [x - o0 for x in our_pts]
-            ref_pts = [x - r0 for x in ref_pts]
-        worst = max((abs(a - b) for a, b in zip(our_pts, ref_pts)), default=0)
-        c.ok(f"{kind}.pts", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
-    else:
-        c.skip(f"{kind}.pts", "reference has partial/absent timestamps")
+            o = [x - o[0] for x in o]
+            r = [x - r[0] for x in r]
+        worst = max((abs(a - b) for a, b in zip(o, r)), default=0)
+        c.ok(f"{kind}.{field}", worst <= PTS_TOLERANCE_US, f"worst delta {worst}us over {n}")
+
+    _seq_check("pts", [a["pts_us"] for a in aus[:n]], [p["pts_us"] for p in pkts[:n]])
+    _seq_check("dts", [a.get("dts_us") for a in aus[:n]], [p.get("dts_us") for p in pkts[:n]])
 
     # Payload MD5.
     if codec == "aac" and container_ts:

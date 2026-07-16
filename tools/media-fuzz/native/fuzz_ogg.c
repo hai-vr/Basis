@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "basis_media_internal.h"
 #include "protocol/basis_ogg.h"
@@ -47,6 +48,7 @@ static int fz_reseek(void* ctx, int64_t abs_offset) {
 }
 
 static void touch(const uint8_t* p, int len) {
+    if (len < 0 || (len > 0 && p == NULL)) abort(); /* sink contract: reject NULL+len, negative len */
     uint8_t acc = 0;
     for (int i = 0; i < len; i++) acc ^= p[i];
     g_sink_byte ^= acc;
@@ -61,7 +63,7 @@ static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts) {
 static void s_audio_format(void* u, basis_codec_t codec, int rate, int ch,
                            const uint8_t* asc, int asc_len) {
     (void)u; (void)codec; (void)rate; (void)ch;
-    if (asc && asc_len > 0) touch(asc, asc_len);
+    touch(asc, asc_len);
 }
 static void s_video_format(void* u, basis_codec_t c, const uint8_t* e, int el, int w, int h) {
     (void)u; (void)c; (void)e; (void)el; (void)w; (void)h;
