@@ -300,6 +300,7 @@ namespace UnityEngine.Animations.Rigging
 
         // Shoulder pre-solve: raises/protracts shoulders based on hand target
         [SyncSceneToStream, SerializeField] bool m_ShoulderSolveEnabled;
+        [SyncSceneToStream, SerializeField] bool m_ShoulderShrugEnabled;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_ShoulderElevationFactor;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_ShoulderProtractionFactor;
 
@@ -526,9 +527,11 @@ namespace UnityEngine.Animations.Rigging
         public float MaxFactor { get => m_MaxFactor; set => m_MaxFactor = value; }
         public float MaxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
         public bool ShoulderSolveEnabled { get => m_ShoulderSolveEnabled; set => m_ShoulderSolveEnabled = value; }
+        public bool ShoulderShrugEnabled { get => m_ShoulderShrugEnabled; set => m_ShoulderShrugEnabled = value; }
         public float ShoulderElevationFactor { get => m_ShoulderElevationFactor; set => m_ShoulderElevationFactor = value; }
         public float ShoulderProtractionFactor { get => m_ShoulderProtractionFactor; set => m_ShoulderProtractionFactor = value; }
         public string ShoulderSolveEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderSolveEnabled));
+        public string ShoulderShrugEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderShrugEnabled));
         public string ShoulderElevationFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderElevationFactor));
         public string ShoulderProtractionFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderProtractionFactor));
         public float SpineBendPitch { get => m_SpineBendPitch; set => m_SpineBendPitch = value; }
@@ -696,6 +699,7 @@ namespace UnityEngine.Animations.Rigging
             m_CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
 
             m_ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            m_ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
             m_ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
             m_ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
@@ -935,6 +939,7 @@ namespace UnityEngine.Animations.Rigging
             m_Data.ProtectElbow = m_Data.ProtectElbow;
             m_Data.CollideTrackedElbow = m_Data.CollideTrackedElbow;
             m_Data.ShoulderSolveEnabled = m_Data.ShoulderSolveEnabled;
+            m_Data.ShoulderShrugEnabled = m_Data.ShoulderShrugEnabled;
             m_Data.IKLockMode = m_Data.IKLockMode;
         }
     }
@@ -1105,6 +1110,7 @@ w20, w54;
         public NativeArray<int> legSwivelInit;
         public FloatProperty ikLockMode;
         public BoolProperty shoulderSolveEnabled;
+        public BoolProperty shoulderShrugEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
@@ -2095,6 +2101,7 @@ w20, w54;
             input.TposeArmLength = tposeArmLength;
             input.TposeClavicleLength = tposeClavicleLen;
             input.TposeElbowLength = tposeElbowLen;
+            input.ShrugEnabled = shoulderShrugEnabled.Get(stream);
             input.ElevationFactor = shoulderElevationFactor.Get(stream);
             input.ProtractionFactor = shoulderProtractionFactor.Get(stream);
             input.CoupleRatio = k_ShoulderCoupleRatio;
@@ -2983,6 +2990,7 @@ w20, w54;
 
                 // Shoulder solve bindings
                 shoulderSolveEnabled = BoolProperty.Bind(animator, component, data.ShoulderSolveEnabledProperty),
+                shoulderShrugEnabled = BoolProperty.Bind(animator, component, data.ShoulderShrugEnabledProperty),
                 shoulderElevationFactor = FloatProperty.Bind(animator, component, data.ShoulderElevationFactorProperty),
                 shoulderProtractionFactor = FloatProperty.Bind(animator, component, data.ShoulderProtractionFactorProperty),
 

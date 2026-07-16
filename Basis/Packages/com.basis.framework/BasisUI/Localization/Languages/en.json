@@ -659,6 +659,10 @@
       "value": "Let shoulders rotate and shift naturally as your arms move."
     },
     {
+      "key": "settings.bodyTracking.shoulderShrug.title.tooltip",
+      "value": "Raise your shoulders when you shrug with your arms at your sides."
+    },
+    {
       "key": "settings.bodyTracking.shoulderElevation.title.tooltip",
       "value": "How much your shoulders lift when you reach upward."
     },
@@ -5142,6 +5146,14 @@
     {
       "key": "settings.bodyTracking.shoulderSolve.description",
       "value": "Raises and protracts shoulders based on hand target position before arm IK runs."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderShrug.title",
+      "value": "Shoulder Shrug"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderShrug.description",
+      "value": "Detects a shrug from the hands or elbow trackers while your arms hang at your sides and raises the shoulders to match. Default: on"
     },
     {
       "key": "settings.bodyTracking.shoulderElevation.title",

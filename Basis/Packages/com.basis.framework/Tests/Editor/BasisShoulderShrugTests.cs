@@ -47,6 +47,7 @@ namespace Basis.Tests.IK
             s.TposeArmLength = L;
             s.TposeClavicleLength = C;
             s.TposeElbowLength = elbowLen;
+            s.ShrugEnabled = true;
             s.ElevationFactor = 1f;
             s.ProtractionFactor = 1f;
             s.CoupleRatio = 0.4f;
@@ -115,6 +116,18 @@ namespace Basis.Tests.IK
 
             BasisShoulderSolveCore.Solve(Input(HangHandR, HangElbowR + Vector3.up * 0.06f, true, 0f), out BasisShoulderSolveResult rOff);
             Assert.That(rOff.ShrugDeg, Is.EqualTo(0f), "no baked elbow length (older callers) → the elbow path stands down");
+        }
+
+        [Test]
+        public void TheBodyTrackingToggle_StandsTheWholeThingDown()
+        {
+            BasisShoulderSolveInput s = Input(HangHandR + Vector3.up * 0.04f, HangElbowR, false, 0f);
+            s.ShrugEnabled = false;
+
+            BasisShoulderSolveCore.Solve(s, out BasisShoulderSolveResult r);
+            Assert.That(r.ShrugDeg, Is.EqualTo(0f), "the settings toggle must disable the shrug outright");
+            Assert.That(r.AppliedAngleDeg, Is.LessThan(1.5f),
+                "with the shrug off, a push-up from the side is back to the pre-feature girdle");
         }
 
         [Test]

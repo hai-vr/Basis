@@ -14,6 +14,7 @@ namespace UnityEngine.Animations.Rigging
         public float TposeArmLength;       // rest shoulder->hand distance (reach normaliser)
         public float TposeClavicleLength;  // rest shoulder->upperArm distance; feeds the shrug's expected-reach geometry
         public float TposeElbowLength;     // rest shoulder->lowerArm distance; 0 (the default) disables the elbow-driven shrug
+        public bool ShrugEnabled;          // the user's body-tracking toggle; false (the default) disables the shrug outright
         public float ElevationFactor;      // per-axis trim on the lift component of the coupled swing
         public float ProtractionFactor;    // per-axis trim on the horizontal (protraction / cross-body) component
         public float CoupleRatio;          // scapulohumeral coupling: girdle share of the humeral swing
@@ -129,7 +130,7 @@ namespace UnityEngine.Animations.Rigging
             // clavicle tip; the left clavicle points -X, so its lift is -Z.
             float shrugRad = 0f;
             float bindLen = i.HasElbow ? i.TposeElbowLength : i.TposeArmLength;
-            if (bindLen > k_Epsilon)
+            if (i.ShrugEnabled && bindLen > k_Epsilon)
             {
                 float clav = Mathf.Clamp(i.TposeClavicleLength, 0f, bindLen * 0.45f);
                 float seg = Mathf.Max(bindLen - clav, k_Epsilon);

@@ -212,6 +212,7 @@ public static class BasisAnimationRiggingHelper
 
         // Shoulder pre-solve defaults
         data.ShoulderSolveEnabled = true;
+        data.ShoulderShrugEnabled = true;
         data.ShoulderElevationFactor = 0.4f;
         data.ShoulderProtractionFactor = 0.3f;
 
