@@ -2802,6 +2802,17 @@ w20, w54;
             input.GuardAnteriorHalfSpace = true;
             input.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
             input.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
+            // ⭐ SINGULARITY HOLD (knee only). A standing leg is pinned at the 176 cap on the pole singularity,
+            // where the swivel angle carries no information and a slow body-frame sway (postural, pivoting over a
+            // planted foot) rolls the whole leg -- "the knee slowly rotates back and forth while all the trackers
+            // are still". This is exactly the case the tracked path (conditionOnPole=false, the 07-17 "6x faster"
+            // responsiveness fix) stopped damping: a low-pass can't remove a ~0.3 Hz oscillation, only a HOLD can.
+            // Freeze the swivel in the near-straight band; release the instant the knee bends (HoldCondHi), so
+            // deliberate shin motion is byte-for-byte untouched. See BasisSwivelSmootherCore. Applies to BOTH the
+            // tracked and invented-pole knee paths -- both live on the same standing singularity.
+            input.HoldWhenSingular = true;
+            input.HoldCondLo = BasisSwivelSmootherCore.DefaultHoldCondLo;
+            input.HoldCondHi = BasisSwivelSmootherCore.DefaultHoldCondHi;
             input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
             input.Seeded = legSwivelInit[slot] != 0;
 

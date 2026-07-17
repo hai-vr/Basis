@@ -183,6 +183,7 @@ namespace UnityEngine.Animations.Rigging
                 r.Seeded = true;
                 r.WriteState = true;
                 r.SmoothSwivelDeg = guardedSwivel;
+                r.HoldGate = 1f;   // seeding passes the value straight through -- nothing is held on the first frame
                 return;
             }
 
