@@ -458,6 +458,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKLockMode = new("iklockmode_v3", new BasisPlatformDefault<string>("lock head"));
 
+        public static BasisSettingsBinding<bool> CalibrationMirror = new("calibrationmirror", new BasisPlatformDefault<bool>(false));
+
         // Arm-to-height ratio: scale the avatar by a percentage between the two measurements instead of a
         // single mode -- 0 = eye height, 1 = arm distance, and outside 0..1 it extrapolates past the nearer
         // endpoint (range in BasisCalibrationMath.ArmToHeightBlendMin/Max). While enabled it replaces the
@@ -1587,6 +1589,7 @@ namespace Basis.BasisUI
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();
+            CalibrationMirror.LoadBindingValue();
             EnableArmToHeightBlend.LoadBindingValue();
             ArmToHeightBlend.LoadBindingValue();
             SavedPlayerEyeHeight.LoadBindingValue();
