@@ -186,44 +186,39 @@ namespace Basis.Tests.IK
         }
 
         /// <summary>
-        /// The live entry the solver uses (BasisSwivelHintCore.ArmHint) must route through the stereo field
-        /// when it is enabled, and the two arms must stay exact mirrors -- a sign slip here is "one elbow
-        /// fine, the other inverted", which this model's ancestors got wrong twice.
+        /// The live entry the solver uses (BasisSwivelHintCore.ArmHint -- frame, mirror, field, tuck) must
+        /// keep the two arms EXACT mirrors: a sign slip here is "one elbow fine, the other inverted", which
+        /// this model's ancestors got wrong twice (once by 145 degrees). Holds for whichever field is the
+        /// active default (BasisElbowFieldModel.UseStereoField); it exercises the whole live path.
         /// </summary>
         [Test]
-        public void LiveArmHint_UsesTheStereoField_AndMirrorsLeftToRight()
+        public void LiveArmHint_MirrorsLeftToRight()
         {
-            bool prev = BasisElbowFieldModel.UseStereoField;
-            BasisElbowFieldModel.UseStereoField = true;
-            try
+            BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(
+                new Vector3(-0.17f, 1.40f, 0f), new Vector3(0.17f, 1.40f, 0f),
+                new Vector3(0f, 1.25f, 0f), new Vector3(0f, 1.50f, 0f));
+
+            var rng = new System.Random(7);
+            Vector3 rSh = new Vector3(0.17f, 1.40f, 0f), lSh = new Vector3(-0.17f, 1.40f, 0f);
+            for (int i = 0; i < 3000; i++)
             {
-                BasisSwivelFrame frame = BasisSwivelHintCore.BuildFrame(
-                    new Vector3(-0.17f, 1.40f, 0f), new Vector3(0.17f, 1.40f, 0f),
-                    new Vector3(0f, 1.25f, 0f), new Vector3(0f, 1.50f, 0f));
+                Vector3 off = new Vector3(
+                    (float)(rng.NextDouble() * 1.1 - 0.55),
+                    (float)(rng.NextDouble() * 1.1 - 0.55),
+                    (float)(rng.NextDouble() * 1.1 - 0.55));
+                if (off.sqrMagnitude < 0.03f) continue;
+                Vector3 mirrored = new Vector3(-off.x, off.y, off.z);
 
-                var rng = new System.Random(7);
-                Vector3 rSh = new Vector3(0.17f, 1.40f, 0f), lSh = new Vector3(-0.17f, 1.40f, 0f);
-                for (int i = 0; i < 3000; i++)
-                {
-                    Vector3 off = new Vector3(
-                        (float)(rng.NextDouble() * 1.1 - 0.55),
-                        (float)(rng.NextDouble() * 1.1 - 0.55),
-                        (float)(rng.NextDouble() * 1.1 - 0.55));
-                    if (off.sqrMagnitude < 0.03f) continue;
-                    Vector3 mirrored = new Vector3(-off.x, off.y, off.z);
-
-                    Assert.IsTrue(BasisSwivelHintCore.ArmHint(frame, rSh, rSh + off, k_ArmLen, false,
-                                                              out Vector3 hintR, out float condR));
-                    Assert.IsTrue(BasisSwivelHintCore.ArmHint(frame, lSh, lSh + mirrored, k_ArmLen, true,
-                                                              out Vector3 hintL, out float condL));
-                    Vector3 poleR = hintR - rSh, poleL = hintL - lSh;
-                    Assert.AreEqual(-poleL.x, poleR.x, 2e-3f, "elbows' OUTWARD offset must mirror");
-                    Assert.AreEqual(poleL.y, poleR.y, 2e-3f, "elbows' height must match");
-                    Assert.AreEqual(poleL.z, poleR.z, 2e-3f, "elbows' forward offset must match");
-                    Assert.AreEqual(condL, condR, 2e-3f, "conditioning must match across the mirror");
-                }
+                Assert.IsTrue(BasisSwivelHintCore.ArmHint(frame, rSh, rSh + off, k_ArmLen, false,
+                                                          out Vector3 hintR, out float condR));
+                Assert.IsTrue(BasisSwivelHintCore.ArmHint(frame, lSh, lSh + mirrored, k_ArmLen, true,
+                                                          out Vector3 hintL, out float condL));
+                Vector3 poleR = hintR - rSh, poleL = hintL - lSh;
+                Assert.AreEqual(-poleL.x, poleR.x, 2e-3f, "elbows' OUTWARD offset must mirror");
+                Assert.AreEqual(poleL.y, poleR.y, 2e-3f, "elbows' height must match");
+                Assert.AreEqual(poleL.z, poleR.z, 2e-3f, "elbows' forward offset must match");
+                Assert.AreEqual(condL, condR, 2e-3f, "conditioning must match across the mirror");
             }
-            finally { BasisElbowFieldModel.UseStereoField = prev; }
         }
     }
 }

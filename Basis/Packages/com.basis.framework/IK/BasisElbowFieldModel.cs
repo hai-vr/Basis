@@ -108,9 +108,15 @@ namespace UnityEngine.Animations.Rigging
         /// STATELESS -- so it does not carry the live-vs-offline state gap that made the elbow-pole COAST
         /// clean offline and worse live. But the base field's FEEL, and how often it trips
         /// BasisElbowAnatomyCore (~2.3% of reachable poses vs 0.6% here), are exactly what a headset shows
-        /// and a harness cannot. Set to false to A/B against this field before trusting it.
+        /// and a harness cannot. To A/B against this field, flip this to false and recompile.
+        ///
+        /// It is `static readonly`, not a settable bool, ON PURPOSE: ArmHint runs inside the Burst job
+        /// (BasisFullIKConstraintJob), and Burst forbids loading a MUTABLE static field (BC1040). A
+        /// readonly static folds to a constant, so both branches compile and Burst is happy. A live
+        /// runtime toggle would have to be plumbed through the job's data, which is not worth it for a
+        /// dev A/B in a hot-recompiling project.
         /// </summary>
-        public static bool UseStereoField = true;
+        public static readonly bool UseStereoField = true;
 
         /// <summary>The anatomical rest pole, in the mirrored body frame (+x OUT, +y UP, +z FWD): an elbow
         /// hangs DOWN, a little OUT, and a little BACK. Consulted only where the projected bend has no

@@ -48,8 +48,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(536, 1025),
-                    PanelPosition = new Vector3(485, 25, 0),
+                    PanelSize = new Vector2(587, 1025),
+                    PanelPosition = new Vector3(456, 25, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);

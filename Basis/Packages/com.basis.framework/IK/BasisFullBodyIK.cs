@@ -1365,10 +1365,7 @@ w20, w54;
             float cervicalTwistKeep = spineNeckTwistKeep.Get(stream);
             // Body-relative twist axis (hips-up), NOT world-up: vertical standing, horizontal lying down, so
             // the relax strips the same anatomical axial-twist DOF in any orientation. Falls back to playerUp.
-            // Bind-cancelled (hipsRot * inv(bind)) so it is the ANATOMICAL up, not the rolled hips-bone up.
-            Quaternion hipsTwistRot = HandleHips.IsValid(stream)
-                ? HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)))
-                : Quaternion.identity;
+            Quaternion hipsTwistRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
             Vector3 ccdUp = hipsTwistRot * Vector3.up;
             if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp.Get(stream);
             float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
@@ -1878,9 +1875,7 @@ w20, w54;
             Vector3 referenceUp;
             if (HandleChest.IsValid(stream))
             {
-                // Bind-cancelled chest up: the horizon the pitch is measured against must be the chest's
-                // ANATOMICAL up, not the rolled chest-bone up, or a rolled bind reads level gaze as pitched.
-                referenceUp = (HandleChest.GetRotation(stream) * Quaternion.Inverse(targetOffsetChest)) * Vector3.up;
+                referenceUp = HandleChest.GetRotation(stream) * Vector3.up;
             }
             else
             {
@@ -1922,14 +1917,7 @@ w20, w54;
 
             if (result.HasExtreme)
             {
-                // Bind-cancelled: the push directions are the body's ANATOMICAL forward/up, not the rolled bone axes.
-                Quaternion refRot;
-                if (HandleHips.IsValid(stream))
-                    refRot = HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)));
-                else if (HandleChest.IsValid(stream))
-                    refRot = HandleChest.GetRotation(stream) * Quaternion.Inverse(targetOffsetChest);
-                else
-                    refRot = Quaternion.identity;
+                Quaternion refRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
                 Vector3 refForward = refRot * Vector3.forward;
                 Vector3 refDown = -(refRot * Vector3.up);
 
