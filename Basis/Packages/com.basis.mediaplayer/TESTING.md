@@ -165,29 +165,34 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 ### Content and codecs
 
+No public host carries every codec in every container flavour, so generate these from a CC
+clip — Big Buck Bunny (full URL in the endpoints table above) or any Blender open movie — with
+the `ffmpeg` recipe in each row. `in.mp4` below is that source clip. (The demux side is already
+covered bit-for-bit by the CI conformance gate; these rows are the real decode + present pass.)
+
 | Fixture | Verify |
 | --- | --- |
 | H.264 + AAC stereo | The baseline — everything else assumes this passes |
-| H.265/HEVC | **Video actually appears** (`https://mr.town/vod/tos_hevc.mp4`, `hvc1` from stock libx265 — what most HEVC in the wild is). Check for frames, not for the absence of an error: `hvc1` keeps its parameter sets only in the `hvcC` box, so anything that loses them on the way to the decoder gives a black screen with no error raised and nothing in the Console. Absence of the codec is the other half of the row — without the HEVC Video Extension installed it must degrade cleanly, and testing only that half will pass while playback is comprehensively broken |
-| VP9 in WebM (`https://mr.town/vod/tos_vp9.webm`) | Plays on Windows (Store "VP9 Video Extensions" + a GPU with hardware VP9 — the probe gates both) and Quest (hardware everywhere). The fixture is a two-pass encode carrying superframes, so whole-superframe feeding is exercised by playing it |
-| VP9 in MP4 (`https://mr.town/vod/tos_vp9.mp4`) | The `vp09` sample-entry lane; same decode path as WebM |
-| AV1 in progressive MP4 (`https://mr.town/vod/drip.mp4`) | Plays with video on Windows (Store "AV1 Video Extension" + a GPU with hardware AV1 — RTX 30+/RX 6000+/Arc; the probe gates both) and Quest 3. This file historically misplayed as silent audio-only |
-| AV1 in fragmented MP4 (`https://mr.town/vod/tos_av1_frag.mp4`) | The `av1C`-in-`stsd` fMP4 walk with the configOBU first-AU prepend |
-| AV1 4K (`https://mr.town/vod/bbb_av1_4k.mp4`) | 2160p decode + ring memory on both platforms |
-| AV1 in WebM (`https://mr.town/vod/tos_av1.webm`) | The `V_AV1` CodecID lane (CodecPrivate = av1C record → configOBU extradata); duration + Cues seek work as for VP9 |
+| H.265/HEVC | **Video actually appears** (`ffmpeg -i in.mp4 -c:v libx265 -tag:v hvc1 -c:a aac hevc.mp4` — `hvc1` from stock libx265, what most HEVC in the wild is). Check for frames, not for the absence of an error: `hvc1` keeps its parameter sets only in the `hvcC` box, so anything that loses them on the way to the decoder gives a black screen with no error raised and nothing in the Console. Absence of the codec is the other half of the row — without the HEVC Video Extension installed it must degrade cleanly, and testing only that half will pass while playback is comprehensively broken |
+| VP9 in WebM (`ffmpeg -i in.mp4 -c:v libvpx-vp9 -b:v 0 -crf 32 -c:a libopus vp9.webm`; two-pass for superframes) | Plays on Windows (Store "VP9 Video Extensions" + a GPU with hardware VP9 — the probe gates both) and Quest (hardware everywhere). A two-pass encode carries superframes, so whole-superframe feeding is exercised by playing it |
+| VP9 in MP4 (`ffmpeg -i in.mp4 -c:v libvpx-vp9 -c:a aac vp9.mp4`; modern ffmpeg writes the `vp09` sample entry) | The `vp09` sample-entry lane; same decode path as WebM |
+| AV1 in progressive MP4 (`ffmpeg -i in.mp4 -c:v libaom-av1 -crf 30 -c:a aac av1.mp4`) | Plays with video on Windows (Store "AV1 Video Extension" + a GPU with hardware AV1 — RTX 30+/RX 6000+/Arc; the probe gates both) and Quest 3. AV1-in-MP4 historically misplayed as silent audio-only |
+| AV1 in fragmented MP4 (the AV1 MP4 recipe + `-movflags frag_keyframe+empty_moov`) | The `av1C`-in-`stsd` fMP4 walk with the configOBU first-AU prepend |
+| AV1 4K (a 2160p CC clip through the AV1 MP4 recipe) | 2160p decode + ring memory on both platforms |
+| AV1 in WebM (the AV1 recipe with `av1.webm`) | The `V_AV1` CodecID lane (CodecPrivate = av1C record → configOBU extradata); duration + Cues seek work as for VP9 |
 | AV1 extension absent (Windows) | Uninstall/absent "AV1 Video Extension": a direct `av01` URL errors with the install hint, and the probe answers 0 so the resolver never offers AV1 |
 | AV1 on Quest 2 | No AV1 decoder on the device: a direct `av01` URL refuses cleanly, and YouTube resolution still succeeds via the VP9 lane (its probe passes there) |
-| Opus in muxed WebM (`https://mr.town/vod/tos_vp9_opus.webm`) | VP9 video + Opus audio in one file: plays whole with audio on Windows and Quest. Exercises the two-track WebM demux (blocks routed to video vs audio by TrackNumber) |
-| Opus audio-only WebM (`https://mr.town/vod/tos_opus.webm`) | An `A_OPUS`-only WebM (YouTube's audio itags 249/250/251): audio plays with no video, driven by the audio-only contract |
+| Opus in muxed WebM (`ffmpeg -i in.mp4 -c:v libvpx-vp9 -c:a libopus vp9_opus.webm`) | VP9 video + Opus audio in one file: plays whole with audio on Windows and Quest. Exercises the two-track WebM demux (blocks routed to video vs audio by TrackNumber) |
+| Opus audio-only WebM (`ffmpeg -i in.mp4 -vn -c:a libopus opus.webm`) | An `A_OPUS`-only WebM (YouTube's audio itags 249/250/251): audio plays with no video, driven by the audio-only contract |
 | Opus decode on Windows | Native via the libopus that `com.avionblock.opussharp` ships, runtime-loaded (no Store extension, unlike VP9/AV1). Confirm audio plays in the Editor (the library resolves from the opussharp `Packages/…` path) and in a build (`opus.dll` flattened beside the plugin). If opussharp is absent the format is refused: muted audio, video unaffected, never a crash |
 | Opus on Quest | Native `audio/opus` MediaCodec with OpusHead + pre-skip/pre-roll csd; gapless start sane, audio-only path works |
 | Ogg Opus file (`.opus`) | A `.opus` URL routes as directly-playable (no resolver) and plays: the Ogg demuxer walks pages/lacing, verifies each page CRC, reads OpusHead, and feeds the same Opus decoder. A `.opus` with a damaged page resyncs on the next `OggS` rather than failing |
 | Ogg Opus seek (`.opus`) | On a range/`206` host, a `.opus` file reports its duration (a seek bar appears) and seeks — Ogg has no index, so seek is granule bisection over the byte range; it lands at page granularity near the target and resumes. A live/no-range source has no seek bar (duration 0), which is correct. Check the Editor (Windows) |
-| Unsupported video codec | `https://mr.town/vod/tos_vp8.webm` and `https://mr.town/vod/tos_mp4v.mp4` refuse with a clear "video codec 'x' is not supported" error naming the codec — never silent audio under a black screen |
+| Unsupported video codec | VP8 (`ffmpeg -i in.mp4 -c:v libvpx vp8.webm`) and MPEG-4 Part 2 (`ffmpeg -i in.mp4 -c:v mpeg4 mp4v.mp4`) refuse with a clear "video codec 'x' is not supported" error naming the codec — never silent audio under a black screen |
 | VP9/AV1 software-fallback guard | On a GPU without hardware decode for the profile, a direct VP9/AV1 URL must produce the "video decoder produced software frames" error, not a black screen (the Store MFTs silently fall back to CPU — for AV1 that is the *majority* of pre-RTX-30 desktops; only reproducible on a no-hw box or with the extension's fallback forced) |
 | AAC decoder priming | Audio starts on the first real sample, not on the decoder's priming. AAC's encoder delay is one 1024-sample frame, which MP4 signals with an edit list (`elst media_time=1024` on anything `ffmpeg -c:a aac` produced); the samples ahead of that origin must not reach the output. **Do not try to hear this** — 21 ms of lag is below the lip-sync threshold, which is exactly why it went unnoticed for so long. Measure it: decode the file with `ffmpeg -i x.m4a -map a:0 -f f32le -acodec pcm_f32le ref.f32`, capture what the player served, and cross-correlate. Assert on the **peak's sample offset**, not a correlation value: aligned output peaks at offset 0, a stream still carrying its priming peaks at offset 1024 (the edit-list delay) — the actual defect, and reliable regardless of content, channels, or capture. (The absolute coefficient at offset 0 is content-dependent — a shifted stream reads roughly -0.07 on this fixture, but do not gate on that number.) An LPCM/WAV file is the control — no decoder, no priming, peaks at offset 0 |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
-| AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
+| AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. Generate a 5.1 AAC MP4 (`ffmpeg -i in.mp4 -c:a aac -ac 6 aac51.mp4`). The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat) — that extension is encoder-dependent, so use a clip that carries it when chasing that path |
 | MP3 bare stream (`.mp3`) | CBR and VBR play forward; a leading `ID3v2` tag is skipped and a Xing/Info/VBRI header frame is dropped (not heard as a click). Duration is reported from the header's frame count and the seek slider works. Windows uses the in-box Media Foundation MP3 decoder, Quest the `audio/mpeg` MediaCodec. Generate fixtures with `ffmpeg -i src.wav -c:a libmp3lame -b:a 192k cbr.mp3` and `-q:a 2 vbr.mp3` |
 | MP3 in MP4/M4A | An `mp4a` sample entry whose `esds` object-type-indication is `0x6B`/`0x69` plays as MP3, not misdetected as AAC (`ffmpeg -i cbr.mp3 -c copy out.m4a`) |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
@@ -226,8 +231,9 @@ the demux leg re-anchors delivery pacing at the flushed boundary, so a mis-ancho
 Editor (Windows) and Quest.
 
 **Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
-`sidx`) served from a range/`206` host — e.g.
-`https://zipline.space.superneko.net/raw/bbb_sunflower_1080p_30fps_normal_idfmp4.mp4` — confirm
+top-level `sidx`) served from a range/`206` host. Produce one from a CC clip:
+`ffmpeg -i in.mp4 -c copy -movflags +frag_keyframe+empty_moov+global_sidx out.mp4` (the `global_sidx`
+box is what the byte-source seek indexes). Confirm
 `Delivery=Auto` detects OnDemand and seeks in both directions reposition cleanly and resume at the
 target with no decoder error. This is the `sidx`-driven byte-source reseek; it shares the
 byte-source seek path with progressive/trailing-moov MP4, so a regression here usually surfaces on
@@ -240,12 +246,13 @@ can't resynchronise the box parser. Check the Editor (Windows) and Quest.
 > MP4, and integrated fMP4 qualify; a live source can't seek, so those clients converge
 > independently to the live edge rather than using playhead-seek correction.
 
-**Seek (WebM Cues)** — on `https://mr.town/vod/tos_vp9.webm` and the trailing-Cues variant,
-seek both directions: playback lands at or just before the target (cue/cluster granularity, on
-a keyframe) and resumes paced at 1x — the same stall-forward / flood-backward failure shapes as
-the HLS row apply. Seek near the very end of the file as well (EOS race). The cueless variant
-must show no seek bar at all. `https://mr.town/vod/tos_av1.webm` rides the same cue walk with
-the AV1 branch — one both-directions pass there covers it. Check the Editor (Windows) and Quest.
+**Seek (WebM Cues)** — on your VP9 WebM fixture (the codec-row recipe; a `libvpx-vp9` encode
+carries Cues) served from a range/`206` host, seek both directions: playback lands at or just
+before the target (cue/cluster granularity, on a keyframe) and resumes paced at 1x — the same
+stall-forward / flood-backward failure shapes as the HLS row apply. Seek near the very end of the
+file as well (EOS race). A cueless variant (`-cues_to_front 0`, or strip the Cues) must show no
+seek bar at all. Your AV1 WebM fixture rides the same cue walk with the AV1 branch — one
+both-directions pass there covers it. Check the Editor (Windows) and Quest.
 
 **Seek (MP3)** — on a `.mp3` VOD over a range/`206` server, seek both directions and near the
 end. MP3 seek is inherently approximate (no per-frame timestamps): CBR lands within a frame via
