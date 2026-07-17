@@ -1097,12 +1097,6 @@ w20, w54;
         public NativeArray<int> swingCollided;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
-        // Per-arm no-tracker elbow POLE state (slots 0/1), for BasisElbowPoleCoastCore: the last bend
-        // direction used and the arm axis it was measured against, so the pole can be held (coasted)
-        // through the bend field's zero cores instead of flipping. See BasisElbowPoleCoastCore.
-        public NativeArray<Vector3> elbowPoleBend;
-        public NativeArray<Vector3> elbowPoleAxis;
-        public NativeArray<int> elbowPoleInit;
         // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
         //
         // The ARM had one of these too, and it is GONE. It was damping the jitter the old bend LOOKUP fed the
@@ -1186,8 +1180,6 @@ w20, w54;
 
             // Arm pop continuity: rate-limit the elbow swing so a torso-collision change eases in
             // instead of popping in one frame. Runs before arm twist (which reads the arm pose).
-            // (The bend field's own zero-core flips are handled upstream at the hint by
-            // BasisElbowPoleCoastCore, so nothing pops through to here for this pass to catch.)
             float swingRate = swingSmoothRateDeg.Get(stream);
             float swingDt = stream.deltaTime;
             if (enabledLeftHand.Get(stream) > 0f)
@@ -2847,32 +2839,8 @@ w20, w54;
                 // internally by a fallback at the exact cores (its old fade BAND is gone -- the fade's
                 // antipodal lerp was the "big swings flip drastically" teleport; see the model's header).
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
-                                                out Vector3 modelHint, out float modelConf))
+                                                out Vector3 modelHint, out _))
                 {
-                    // COAST the pole through the field's zero cores. The field is stateless, so it must
-                    // carry two direction-singularities (Poincare-Hopf); a hand path through one -- worst
-                    // at full stretch, T-pose swept behind -- rolls the arm ~135 deg in a frame. The coast
-                    // HOLDS the pole where holding is free (near full stretch AND at a core) and TRACKS
-                    // everywhere else, so nothing pops and there is no lag off the cores. See
-                    // BasisElbowPoleCoastCore. Per-arm state lives in the elbow swing slots (0/1).
-                    if (elbowPoleInit.IsCreated && (uint)swingSlot < (uint)elbowPoleInit.Length)
-                    {
-                        float reachRatio = armLen > k_Epsilon ? Vector3.Distance(tgtPos, shoulderPos) / armLen : 1f;
-                        BasisElbowPoleCoastState cs;
-                        cs.Bend = elbowPoleBend[swingSlot];
-                        cs.Axis = elbowPoleAxis[swingSlot];
-                        cs.Seeded = elbowPoleInit[swingSlot];
-                        BasisElbowPoleCoastCore.Step(cs, shoulderPos, tgtPos, modelHint - shoulderPos,
-                            modelConf, reachRatio, stream.deltaTime, out BasisElbowPoleCoastResult cr);
-                        if (cr.Valid)
-                        {
-                            modelHint = shoulderPos + cr.Bend * (0.5f * armLen);
-                            elbowPoleBend[swingSlot] = cr.State.Bend;
-                            elbowPoleAxis[swingSlot] = cr.State.Axis;
-                            elbowPoleInit[swingSlot] = cr.State.Seeded;
-                        }
-                    }
-
                     hint = new AffineTransform(modelHint, hintRot);
                     hasHint = true;
                     usedModel = true;
@@ -3245,9 +3213,6 @@ w20, w54;
             job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.elbowPoleBend = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.elbowPoleAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.elbowPoleInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
@@ -3387,9 +3352,6 @@ w20, w54;
             if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
             if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
             if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
-            if (job.elbowPoleBend.IsCreated) job.elbowPoleBend.Dispose();
-            if (job.elbowPoleAxis.IsCreated) job.elbowPoleAxis.Dispose();
-            if (job.elbowPoleInit.IsCreated) job.elbowPoleInit.Dispose();
             if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
             if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
             if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();
