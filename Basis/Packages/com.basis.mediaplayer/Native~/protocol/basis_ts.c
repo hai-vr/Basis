@@ -99,10 +99,17 @@ static void flush_video(ts_t* t) {
     if (!t->video_announced) {
         int w = 0, h = 0;
         if (t->video_codec == BASIS_CODEC_H264) {
-            int pos = 0, no, nl;
+            int pos = 0, no, nl, have_sps = 0;
             while ((pos = basis_annexb_next(au, au_len, pos, &no, &nl)) >= 0) {
-                if (nl > 0 && basis_h264_nal_type(au[no]) == 7) { basis_h264_sps_dimensions(au + no, nl, &w, &h); break; }
+                if (nl > 0 && basis_h264_nal_type(au[no]) == 7) {
+                    basis_h264_sps_dimensions(au + no, nl, &w, &h);
+                    if (w > 0 && h > 0) { have_sps = 1; break; }
+                }
             }
+            /* Mid-GOP join (or an SPS we couldn't read dimensions from): drop this
+             * AU — it can't decode without its IDR anyway — and wait for the next
+             * SPS-bearing keyframe instead of announcing 0x0 and latching. */
+            if (!have_sps) { e->len = 0; e->started = 0; return; }
         }
         t->sink->on_video_format(t->sink->user, t->video_codec, NULL, 0, w, h);
         t->video_announced = 1;

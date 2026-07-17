@@ -199,7 +199,11 @@ static void handle_video(rtmp_t* r, basis_media_sink_t* sink, chunk_state_t* c) 
             r->video_announced = 1;
         }
     } else if (avc_pkt == 1) { /* NALUs (avcc) -> annex B */
-        if (!r->video_announced) sink->on_video_format(sink->user, r->video_codec, NULL, 0, 0, 0), r->video_announced = 1;
+        /* Media before the avcC sequence header (mid-stream join): its SPS — and
+         * the frame size — only travel in the header, and nothing here decodes
+         * without it. Drop and wait for the header rather than announcing 0x0 and
+         * latching. */
+        if (!r->video_announced) return;
         int nls = r->video_nls ? r->video_nls : 4;
         int cap = basis_avcc_annexb_cap(dlen, nls);
         uint8_t* out = (uint8_t*)malloc((size_t)cap);
