@@ -56,6 +56,14 @@ int basis_io_send(basis_io_t* io, const uint8_t* buf, int len);
  * error. A socket with a pending error reports readable; the next read fails. */
 int basis_io_poll_read(basis_io_t** ios, int n, int timeout_ms);
 
+/* SSRF pre-check for a host about to be fetched through a platform HTTP stack
+ * (WinHTTP / JNI HttpsURLConnection) that does not itself apply the
+ * non-global-unicast guard basis_io_connect enforces. Resolves the name and
+ * returns 1 if it is empty, unresolvable (fail-closed), or resolves to any
+ * non-global-unicast address (loopback / RFC1918 / link-local / ULA /
+ * multicast). Honours the same BASIS_MEDIA_ALLOW_LOCAL escape hatch. */
+int basis_io_host_is_blocked(const char* host);
+
 /* Process-wide one-time init/teardown (WSAStartup on Windows; no-op elsewhere). */
 void basis_io_global_init(void);
 void basis_io_global_shutdown(void);
