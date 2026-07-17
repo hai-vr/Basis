@@ -22,6 +22,11 @@ namespace UnityEngine.Animations.Rigging
     // easing the pop in at <= rateDegPerSec; free-air motion, pole flips and target teleports are accepted
     // instantly. The caller reads the bone positions, applies the swing via SwingElbowAroundAC and persists
     // the returned state. Change the continuity logic HERE so the job and the offline sweep stay in lock-step.
+    //
+    // The elbow bend field's own singularities (the "big swing / T-pose-hands-back flip") are NOT handled
+    // here -- they are fixed upstream, at the hint, by BasisElbowPoleCoastCore, which HOLDS the pole through
+    // a full-stretch core (where the swivel is free) so the solved elbow never pops in the first place. This
+    // stays a pure COLLISION continuity, its original job.
     public static class BasisSwingContinuityCore
     {
         const float k_SqrEpsilon = 1e-8f;
