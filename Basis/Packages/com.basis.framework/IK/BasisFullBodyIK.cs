@@ -1854,6 +1854,7 @@ w20, w54;
             input.HeadTargetPos = headTargetPos;
             input.HipsPos = hipsPos;
             input.HipsRot = hipsRot;
+            input.Bind = V4ToQuat(offsetRotationHips.Get(stream));
             input.PlayerUp = playerUpDir;
             input.Factor = moveBodyBackWhenCrouching.Get(stream);
             input.RestDist = MinHeadSpineHeight.Get(stream);
@@ -1964,7 +1965,11 @@ w20, w54;
             Quaternion hipsRot = HandleHips.GetRotation(stream);
             Quaternion chestRot = HandleChest.GetRotation(stream);
             Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
-            float chestYaw = SignedEuler(chestLocal.eulerAngles).y;
+            // The chest's AXIAL twist about the spine (hips-up), by swing-twist -- NOT eulerAngles.y, which
+            // gimbal-locks the instant the chest pitches ~90 deg off the hips (a deep forward bend on any rig,
+            // or a chest bound pitched near vertical) and threw a phantom counter-yaw into the shoulders. The
+            // yaw is applied about this same hips-up axis below, so measuring about it keeps the two in step.
+            float chestYaw = BasisTwistSolveCore.SignedTwistAngleDeg(chestLocal, Vector3.up);
 
             const float threshold = 30f;
             const float maxCounter = 15f;
@@ -2078,14 +2083,6 @@ w20, w54;
             }
         }
         static Quaternion ExtractTwist(Quaternion q, Vector3 axis) => BasisTwistSolveCore.ExtractTwist(q, axis);
-        static Vector3 SignedEuler(Vector3 e)
-        {
-            return new Vector3(
-                e.x > 180f ? e.x - 360f : e.x,
-                e.y > 180f ? e.y - 360f : e.y,
-                e.z > 180f ? e.z - 360f : e.z
-            );
-        }
         // Shoulder pre-solve. Runs whenever the shoulder bone exists and the global toggle is on — a
         // dedicated shoulder tracker is no longer required. hasShoulderTrackerProp (the shoulder rig
         // layer) selects the base: the tracker when present, else the chest-anchored rest. The elbow

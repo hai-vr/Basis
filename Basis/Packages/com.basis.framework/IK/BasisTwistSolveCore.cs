@@ -45,6 +45,18 @@ namespace UnityEngine.Animations.Rigging
             r.TwistAngleDeg = Quaternion.Angle(Quaternion.identity, twistOnly);
         }
 
+        // Signed rotation angle (deg) of q about `axis` (unit) -- the twist half of the swing-twist split,
+        // read out as an angle. Continuous through a 90 deg swing off the axis, where eulerAngles gimbal-locks
+        // and flips ~180 deg. Used to measure the chest's axial twist for the shoulder slide.
+        public static float SignedTwistAngleDeg(Quaternion q, Vector3 axis)
+        {
+            Quaternion t = ExtractTwist(q, axis);
+            float s = t.x * axis.x + t.y * axis.y + t.z * axis.z;   // sin(theta/2) along axis
+            float w = t.w;                                          // cos(theta/2)
+            if (w < 0f) { w = -w; s = -s; }                        // shortest arc (quaternion double-cover)
+            return 2f * Mathf.Atan2(s, w) * Mathf.Rad2Deg;
+        }
+
         // Swing-twist decomposition: extracts the rotation of q around axis (unit vector).
         public static Quaternion ExtractTwist(Quaternion q, Vector3 axis)
         {

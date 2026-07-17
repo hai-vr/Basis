@@ -111,6 +111,37 @@ MonoBehaviour:
     - path: LICENSE
       spdx: MIT
       overrideProductName:
+  - packageName: com.github.homuler.mediapipe
+    licenses:
+    - path: LICENSE.md
+      spdx: MIT
+      overrideProductName:
+  - packageName: com.basis.pooltable
+    licenses:
+    - path: LICENSE.md
+      spdx: MIT
+      overrideProductName:
+    - path: Modules/BilliardsModule/LICENSE
+      spdx: Unlicense
+      overrideProductName: BilliardsModule
+  - packageName: com.basis.integration.slimevr
+    licenses:
+    - path: Runtime/SolarXR/Generated/LICENSE-SolarXR-Protocol.txt
+      spdx: MIT
+      overrideProductName: SolarXR Protocol
+    - path: Runtime/SolarXR/FlatBuffers/LICENSE-FlatBuffers.txt
+      spdx: Apache-2.0
+      overrideProductName: FlatBuffers
+  - packageName: com.basis.textmeshpro
+    licenses:
+    - path: LICENSE.md
+      spdx: Unity Companion License
+      overrideProductName:
+  - packageName: com.basis.soundpack
+    licenses:
+    - path: LICENSE.md
+      spdx: CC0-1.0
+      overrideProductName:
   excludedPackageNames:
   - com.singularitygroup.hotreload
   - dev.hai-vr.basis.ndmf
@@ -130,6 +161,16 @@ MonoBehaviour:
   - com.basis.shim
   - com.basis.vehicles
   - com.basis.visualtrackers
+  - com.basis.addon.snapcontrols
+  - com.basis.developer.exceptions
+  - com.basis.developer.recorder
+  - com.basis.imagepickup
+  - com.basis.integration.audiolink
+  - com.basis.integration.ytdlp
+  - com.basis.mediapipe
+  - com.basis.mediaplayer
+  - com.basis.provider.servers
+  - com.basis.setup
   baked:
   - productName: AudioLink
     packageName: com.llealloo.audiolink

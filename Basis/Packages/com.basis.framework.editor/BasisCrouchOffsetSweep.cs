@@ -90,6 +90,7 @@ namespace Basis.IK.Debugging
                                     input.HeadTargetPos = head;
                                     input.HipsPos = hips;
                                     input.HipsRot = hipsRot;
+                                    input.Bind = Quaternion.identity;
                                     input.PlayerUp = up;
                                     input.Factor = factor;
                                     input.RestDist = rest;
