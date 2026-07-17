@@ -4,8 +4,9 @@
  * MP3 is header-driven with no container: the demuxer skips a leading ID3v2 tag
  * (attacker-controlled syncsafe size) and locks onto the frame sync, deriving
  * each frame's length from its header. The false-sync guard, the buffer slip,
- * and the ID3 skip are all length-arithmetic on hostile bytes, so this exercises
- * the demuxer with no reseek (forward playback only) and a contract-complete sink.
+ * and the ID3 skip are all length-arithmetic on hostile bytes. The harness also
+ * hands the demuxer a couple of seek requests to drive the reseek/resync path,
+ * all through a contract-complete sink.
  *
  * Build: see ../build.sh (clang -fsanitize=fuzzer,address,undefined).
  */

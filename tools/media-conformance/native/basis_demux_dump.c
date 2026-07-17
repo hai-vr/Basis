@@ -300,7 +300,7 @@ static void s_audio_format(void* u, basis_codec_t codec, int rate, int ch,
 static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts_us) {
     dump_t* d = (dump_t*)u;
     emit_au(d, "audio", data, len, pts_us, pts_us, 1, d->a_frames);
-    if (d->seek_taken && !d->resume_seen) {
+    if (!d->v_announced && d->seek_taken && !d->resume_seen) {
         d->resume_seen = 1;
         d->resume_pts = pts_us;
         d->resume_key = 1;
@@ -362,9 +362,11 @@ static const char* detect(FILE* f) {
         return "wav";
     if (n >= 4 && !memcmp(head, "OggS", 4))
         return "ogg";
-    /* MP3 last (weakest magic): an "ID3" tag or an 11-bit frame sync. */
+    /* MP3 last (weakest magic): an "ID3" tag or a validated Layer III frame
+     * header. basis_mp3_sniff parses version/layer/bitrate/rate, so an ADTS AAC
+     * sync word (FF F1 / FF F9) does not match. */
     if (n >= 3 && !memcmp(head, "ID3", 3)) return "mp3";
-    if (n >= 2 && head[0] == 0xFF && (head[1] & 0xE0) == 0xE0) return "mp3";
+    if (basis_mp3_sniff(head, n)) return "mp3";
     return "ts";
 }
 
