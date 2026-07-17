@@ -99,6 +99,35 @@ the feet are nowhere near under the body. Those frames sit outside the model's f
 (`BasisPelvisPostureModel.MaxDrop` / `MaxLean`) and the runtime clamps into it, so they inform the fit at
 their edges without poisoning it. A standing VR user cannot reach them.
 
+## `dynamic/` — the arms-up / dynamic corpus (29 clips)
+
+A THIRD corpus, same subfolder trick as `posture/`: the accuracy tests use a non-recursive `Directory.GetFiles`,
+so these clips are invisible to them and **every arm/knee number quoted in this project stays byte-identical**.
+
+The root corpus is curated for "the poses a VR user actually holds" — idle-first, walking, pick-ups — and is
+deliberately LIGHT on arms overhead, full extension, and fast motion. That is exactly the regime that exercises
+the arm's full-extension cap, the elbow-anatomy ceiling, and the pole-flip handling, so this corpus supplies it.
+Used by `BasisDynamicCorpusTests`. Chosen from the CMU index BY DESCRIPTION (and screened so every clip passes
+the anatomical `Validate`, which rules out cartwheels / handstands / floor work — they invert the skeleton):
+
+- **MODERN DANCE — arms overhead, full-extension reaches, back-bends, spins**
+  `05_02` (expressive arms, pirouette), `05_10`/`05_12`/`05_20` (arabesque, arms held high, bending back),
+  `49_09` (arms held overhead — the elbow is ABOVE the shoulder on **82%** of frames, the anatomy-guard stress
+  test the root corpus never had), `49_12` (arching arms — elbow-above-shoulder 73%)
+- **SOCIAL / STYLE DANCE** `60_01`/`60_05`/`60_12` (salsa), `93_02` (a range-of-motion sweep),
+  `93_03`/`93_08` (Charleston), `94_01`/`94_03` (Indian dance), `20_01` (chicken dance — elbows out and up)
+- **THROWS & BALL SPORTS — overhead reaches and fast swings** `33_02` (football throw/catch — overhead 26%),
+  `06_14` (basketball dribble + shot — overhead 18%)
+- **CALISTHENICS / ROM** `42_01` (stretch: rotate head, shoulders, arms, legs through their limits),
+  `14_06`/`14_20` (jumping jacks, reach up, stretches), `13_30` (jumping jacks, side twists), `118_01` (jumps)
+- **MARTIAL ARTS / COMBAT — extended, fast arms** `14_01`/`13_17` (boxing), `135_01` (Bassai kata),
+  `135_04` (front kick), `144_07` (blocks), `02_05` (punch/strike), `02_07` (swordplay)
+
+Why these and not the whole database: they maximise arms-up / full-extension / fast-swing content per clip
+(measured — hand-above-shoulder up to 82% of frames, reach>0.97 up to 60%), which is what the walking corpus
+lacks. Two very long clips (`12_04` tai-chi 148 s, `15_04` 188 s) were screened out to keep the test snappy;
+add them back the same way if you want them. Same CMU source, conversion and licence as above.
+
 ## Adding more clips
 
 Drop any `.bvh` into this folder and the tests pick it up automatically. The loader expects the standard

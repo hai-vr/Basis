@@ -21,19 +21,13 @@ using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
 /// </summary>
 public static class BasisCalibrationMirror
 {
-    private const float ScaleStep = 1.18f;
-    private const float ScaleMin = 0.35f;
-    private const float ScaleMax = 3f;
+    // Big enough to frame a full body right away.
+    private const float MirrorScale = 3f;
     private const string CutoutShaderName = "BasisMirrorCutout";
 
     private static GameObject _instance;
     private static AsyncOperationHandle<GameObject> _handle;
     private static bool _hasHandle;
-
-    private static Vector3 _baseScale = Vector3.one;
-    // Default to MAX so the mirror opens big enough to frame a full body right away;
-    // use the shrink button from there.
-    private static float _scale = ScaleMax;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Register()
@@ -47,8 +41,6 @@ public static class BasisCalibrationMirror
         public bool Toggle() => BasisCalibrationMirror.Toggle();
         public bool Summon() => BasisCalibrationMirror.Summon();
         public void Hide() => BasisCalibrationMirror.Hide();
-        public void ScaleUp() => BasisCalibrationMirror.ScaleUp();
-        public void ScaleDown() => BasisCalibrationMirror.ScaleDown();
     }
 
     /// <summary>The instance reference goes Unity-fake-null if the mirror is destroyed out from
@@ -72,20 +64,9 @@ public static class BasisCalibrationMirror
         return _instance != null;
     }
 
-    public static void ScaleUp() => SetScale(_scale * ScaleStep);
-
-    public static void ScaleDown() => SetScale(_scale / ScaleStep);
-
     public static void Hide()
     {
         if (_instance != null) Despawn();
-        _scale = ScaleMax;
-    }
-
-    private static void SetScale(float scale)
-    {
-        _scale = Mathf.Clamp(scale, ScaleMin, ScaleMax);
-        if (_instance != null) _instance.transform.localScale = _baseScale * _scale;
     }
 
     private static void Spawn()
@@ -130,8 +111,7 @@ public static class BasisCalibrationMirror
         // calibration panel and is deliberately not registered in BasisRuntimeSpawnRegistry.
         _instance.name = "Calibration Mirror";
 
-        _baseScale = _instance.transform.localScale;
-        _instance.transform.localScale = _baseScale * _scale;
+        _instance.transform.localScale *= MirrorScale;
 
         OptimizeForLocalAvatar(_instance);
 

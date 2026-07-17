@@ -24,6 +24,12 @@ namespace UnityEngine.Animations.Rigging
         public float HandSkin;
 
         public Vector3 PlayerUp;
+
+        // Body-lateral (left<->right) unit direction, from shoulder-to-shoulder (RightUpperArm - LeftUpperArm).
+        // Orients the torso's ELLIPTICAL cross-section: the segment radius is the WIDE (lateral) half-width and
+        // the front-back half-depth is a fraction of it (see k_ChestDepthRatio). Zero (the struct default) falls
+        // back to deriving the axis from the shoulder's own offset, so old callers that never set it still work.
+        public Vector3 BodyRight;
     }
 
     public struct BasisElbowProtectResult
@@ -55,6 +61,17 @@ namespace UnityEngine.Animations.Rigging
         const float k_Epsilon = 1e-5f;
         const float k_ClearMargin = 0.003f;   // land a hair (3 mm) outside the torso surface
         const int k_SwivelSteps = 48;
+
+        // =============================================================================================
+        // THE TORSO IS AN ELLIPSE, NOT A CIRCLE. A real chest is roughly 1.4x wider left-to-right than it is
+        // deep front-to-back. The old model was a round capsule with one radius, so it had to be a compromise:
+        // fat enough to cover the SIDES, it stood far too proud of the FRONT, and a cross-body reach (the arm
+        // coming across the chest, front-on) got shoved off it -- "the collider is a little big and not well
+        // formed". So the per-segment radius is now the WIDE (lateral) half-width, and the front-back half-depth
+        // is this fraction of it: the arm can hug the chest FRONT while the SIDES stay covered exactly as before.
+        // 0.68 is the anatomical chest depth:width ratio; the sides are unchanged, only the front is drawn in.
+        // =============================================================================================
+        const float k_ChestDepthRatio = 0.68f;
 
         // =============================================================================================
         // THE PROTECT'S ONLY AUTHORITY IS THE ELBOW'S CIRCLE RADIUS, AND IT MUST FADE OUT WITH IT.
@@ -117,11 +134,38 @@ namespace UnityEngine.Animations.Rigging
             float upperArmR = Mathf.Max(0f, (i.HandRadius + i.HandSkin) * 1.2f);
             float chestRBase = i.ChestRadiusBase;
             float skin = i.CollisionSkin;
+            // These are the LATERAL (wide, side-to-side) half-widths now; the front-back depth is derived from
+            // them in SegmentClearance. The values are unchanged, so the SIDES collide exactly as before.
             float chestR = Mathf.Max(0f, chestRBase + skin);
             float spineR = Mathf.Max(0f, chestRBase * 0.8f + skin);
             float hipsR = Mathf.Max(0f, chestRBase * 1.4f + skin);
 
-            float natClear = MinTorsoClearance(i, shoulderPos, elbowPos, upperArmR, chestR, spineR, hipsR);
+            // Body frame for the elliptical cross-section: bodyLat (wide) and bodyFwd (thin), both horizontal.
+            Vector3 upN = acSqr > 0f && i.PlayerUp.sqrMagnitude > k_Epsilon ? i.PlayerUp.normalized : Vector3.up;
+            Vector3 bodyLat = i.BodyRight - upN * Vector3.Dot(i.BodyRight, upN);
+            if (bodyLat.sqrMagnitude <= k_Epsilon * k_Epsilon)
+            {
+                // Old caller (no shoulder-to-shoulder axis): derive lateral from the shoulder's own offset off
+                // the chest axis. Slightly forward-tilted vs the true lateral, but keeps every caller working.
+                Vector3 chestClosest = BasisFullIKConstraintJob.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
+                Vector3 off = shoulderPos - chestClosest;
+                bodyLat = off - upN * Vector3.Dot(off, upN);
+            }
+            Vector3 bodyFwd = Vector3.zero;
+            float bodyLatLen = bodyLat.magnitude;
+            if (bodyLatLen > k_Epsilon)
+            {
+                bodyLat /= bodyLatLen;
+                Vector3 fwd = Vector3.Cross(bodyLat, upN);
+                float fLen = fwd.magnitude;
+                bodyFwd = fLen > k_Epsilon ? fwd / fLen : Vector3.zero;
+            }
+            else
+            {
+                bodyLat = Vector3.zero;   // fully degenerate -> SegmentClearance falls back to a round radius
+            }
+
+            float natClear = MinTorsoClearance(i, shoulderPos, elbowPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
             float worstPen = natClear < 0f ? -natClear : 0f;
             r.WorstPenetration = worstPen;
             if (worstPen <= k_Epsilon)
@@ -154,7 +198,7 @@ namespace UnityEngine.Animations.Rigging
             {
                 float t = (float)k / k_SwivelSteps;
                 Vector3 d = Quaternion.AngleAxis(thetaOut * t, acDir) * currentDir;
-                float c = MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR);
+                float c = MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
                 if (c >= k_ClearMargin && firstClearT < 0f)
                 {
                     firstClearT = t;
@@ -195,33 +239,67 @@ namespace UnityEngine.Animations.Rigging
             r.SwingAngleDeg = Mathf.Abs(thetaOut * chosenT);
             r.BlendUsed = chosenT;
             r.CollisionState = cleared ? 1 : 2;
-            r.ResidualClearance = MinTorsoClearance(i, shoulderPos, r.DesiredElbow, upperArmR, chestR, spineR, hipsR);
+            r.ResidualClearance = MinTorsoClearance(i, shoulderPos, r.DesiredElbow, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
             r.Engaged = true;
         }
 
         // Signed worst-case clearance (gap > 0, penetration < 0) of the upper-arm capsule against the
         // torso segments. Same segment set + validity gating as the live penetration test, so the
-        // engage decision is unchanged; sampled once per swivel candidate above.
+        // engage decision is unchanged; sampled once per swivel candidate above. The torso radii passed
+        // here are the LATERAL half-widths; SegmentClearance draws the front-back depth in from them.
         static float MinTorsoClearance(in BasisElbowProtectInput i, Vector3 shoulderPos, Vector3 elbowPos,
-            float upperArmR, float chestR, float spineR, float hipsR)
+            float upperArmR, float chestLatR, float spineLatR, float hipsLatR, Vector3 bodyLat, Vector3 bodyFwd)
         {
             float worst = float.PositiveInfinity;
             if (i.HasHips && i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.HipsPos, i.SpinePos, hipsR));
+                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.HipsPos, i.SpinePos, hipsLatR, bodyLat, bodyFwd));
             }
             if (i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.SpinePos, i.ChestPos, spineR));
+                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.SpinePos, i.ChestPos, spineLatR, bodyLat, bodyFwd));
             }
-            worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.ChestPos, i.NeckPos, chestR));
+            worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.ChestPos, i.NeckPos, chestLatR, bodyLat, bodyFwd));
             return worst;
         }
 
-        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2, float r2)
+        // Signed clearance of the arm capsule (p1,q1,r1) against ONE torso segment (p2,q2) modeled as an
+        // ELLIPTICAL capsule: `latR` is the wide (lateral) half-width, the front-back half-depth is
+        // latR * k_ChestDepthRatio, and the ellipse is oriented by (bodyLat, bodyFwd). The effective torso
+        // radius toward the closest-approach direction is the ellipse's radius in that direction, so the
+        // arm clears the chest FRONT far sooner than its SIDES -- the whole point. Falls back to a round
+        // radius (latR) when the frame is unavailable or the separation is along the segment axis.
+        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2, float latR,
+            Vector3 bodyLat, Vector3 bodyFwd)
         {
             BasisFullIKConstraintJob.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out _, out Vector3 c1, out Vector3 c2);
-            return (c1 - c2).magnitude - (r1 + r2);
+            Vector3 sep = c1 - c2;
+            float sepLen = sep.magnitude;
+
+            float rEff = latR;
+            float apR = latR * k_ChestDepthRatio;
+            Vector3 axis = q2 - p2;
+            float axisSqr = axis.sqrMagnitude;
+            if (apR > k_Epsilon && sepLen > k_Epsilon && axisSqr > k_Epsilon
+                && bodyLat.sqrMagnitude > k_Epsilon && bodyFwd.sqrMagnitude > k_Epsilon)
+            {
+                // Separation direction projected into the segment's cross-section (perpendicular to its axis).
+                Vector3 axisN = axis / Mathf.Sqrt(axisSqr);
+                Vector3 sepPerp = sep - axisN * Vector3.Dot(sep, axisN);
+                float sepPerpLen = sepPerp.magnitude;
+                if (sepPerpLen > k_Epsilon)
+                {
+                    Vector3 sepDir = sepPerp / sepPerpLen;
+                    float cu = Vector3.Dot(sepDir, bodyLat);   // component toward the wide (lateral) axis
+                    float cw = Vector3.Dot(sepDir, bodyFwd);   // component toward the thin (front-back) axis
+                    float denom = (cu * cu) / (latR * latR) + (cw * cw) / (apR * apR);
+                    if (denom > k_Epsilon)
+                    {
+                        rEff = 1f / Mathf.Sqrt(denom);   // ellipse radius toward sepDir
+                    }
+                }
+            }
+            return sepLen - (r1 + rEff);
         }
     }
 }

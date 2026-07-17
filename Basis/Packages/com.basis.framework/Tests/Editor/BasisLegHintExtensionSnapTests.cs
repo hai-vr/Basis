@@ -145,17 +145,37 @@ namespace Basis.Tests.IK
         }
 
         /// <summary>
-        /// And the fade must reach zero, not stop somewhere: a pole with no lever arm left carries no direction,
-        /// so at the singularity the knee has to be resting on the BendNormal, not on tracker noise.
+        /// At full extension the knee's response to the hint must be BOUNDED, not a snap. The old solver let the
+        /// leg lock dead straight, so the pole degenerated (rho -> 0) and the knee HAD to stop following the hint
+        /// entirely -- this test used to assert exactly that. BasisLegSolveCore.MaxKneeInteriorDeg now caps the
+        /// leg a few degrees short of straight, so the knee keeps a small but non-zero lever arm and rides a
+        /// small bend circle instead of a degenerate point. The anti-snap property is preserved (the circle
+        /// shrinks CONTINUOUSLY to that cap radius -- see the two KneeDoesNotSnap tests), but now the guarantee
+        /// is the stronger one: the knee is never on the axis, so it is never a free-spinning stick.
         /// </summary>
         [Test]
-        public void AtFullExtensionTheHintHasNoInfluenceLeft()
+        public void AtFullExtensionTheKneeKeepsABoundedLeverArm()
         {
             BasisLegSolveCore.Solve(LegAt(0.9999f, LateralHint), out BasisLegSolveResult lateral);
             BasisLegSolveCore.Solve(LegAt(0.9999f, Knee), out BasisLegSolveResult forward);
 
-            Assert.Less(Vector3.Distance(lateral.KneeSolved, forward.KneeSolved), 0.01f,
-                "at full extension the pole is degenerate, so where the tracker sits must stop mattering");
+            // rho at the cap, from the two segment lengths -- the radius of the residual knee circle.
+            float upper = Vector3.Distance(Hip, Knee), lower = Vector3.Distance(Knee, Ankle);
+            float chord = Mathf.Sqrt(upper * upper + lower * lower
+                - 2f * upper * lower * Mathf.Cos(BasisLegSolveCore.MaxKneeInteriorDeg * Mathf.Deg2Rad));
+            float capRho = upper * lower * Mathf.Sin(BasisLegSolveCore.MaxKneeInteriorDeg * Mathf.Deg2Rad) / chord;
+
+            // The cap holds a real lever arm off the hip->ankle axis: no degenerate pole, no free-spinning stick.
+            Vector3 axis = (lateral.FootSolved - Hip).normalized;
+            float lever = Vector3.ProjectOnPlane(lateral.KneeSolved - Hip, axis).magnitude;
+            Assert.Greater(lever, capRho * 0.75f,
+                $"at full extension the knee lost its lever arm ({lever * 100f:F2} cm, cap guarantees ~{capRho * 100f:F2} cm) "
+                + "-- it has collapsed onto the axis and become a free-spinning stick");
+
+            // ... and its dependence on where the tracker sits is BOUNDED by that small circle -- a hint on the
+            // far side of a ~2 cm circle can move the knee at most a circle diameter, never an unbounded snap.
+            Assert.Less(Vector3.Distance(lateral.KneeSolved, forward.KneeSolved), 2f * capRho + 0.005f,
+                "the knee's response to the hint at full extension is not bounded by the cap circle");
         }
     }
 }
