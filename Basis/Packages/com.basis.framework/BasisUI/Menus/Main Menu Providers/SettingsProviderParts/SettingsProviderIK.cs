@@ -365,21 +365,21 @@ public static class SettingsProviderIK
             }
         });
 
-        // ============== Spine: Proportion Match ==============
-        CreateCollapsibleSection(tabDesc, colliderGroup,
-            BasisLocalization.Get("settings.bodyTracking.section.spineProportion.title"),
-            BasisLocalization.Get("settings.bodyTracking.section.spineProportion.description"), false, propParent =>
-        {
-            AddAnatomyToggle(propParent, BasisSettingsDefaults.FBIKSpineProportionMatch,
-                "settings.bodyTracking.spineProportion.enabled.title",
-                "settings.bodyTracking.spineProportion.enabled.description");
-
-            var maxScale = PanelSlider.CreateAndBind(
-                propParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.title"), 0f, 0.25f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.FBIKSpineProportionMaxScale);
-            maxScale?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.tooltip"));
-        });
+        // ============== Spine: Proportion Match (DISABLED 2026-07-18, revisit later) ==============
+        // CreateCollapsibleSection(tabDesc, colliderGroup,
+        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.title"),
+        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.description"), false, propParent =>
+        // {
+        //     AddAnatomyToggle(propParent, BasisSettingsDefaults.FBIKSpineProportionMatch,
+        //         "settings.bodyTracking.spineProportion.enabled.title",
+        //         "settings.bodyTracking.spineProportion.enabled.description");
+        //
+        //     var maxScale = PanelSlider.CreateAndBind(
+        //         propParent,
+        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.title"), 0f, 0.25f, false, 2, ValueDisplayMode.Raw),
+        //         BasisSettingsDefaults.FBIKSpineProportionMaxScale);
+        //     maxScale?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.tooltip"));
+        // });
 
         // ============== Anatomy ==============
         // CreateCollapsibleSection(tabDesc, colliderGroup,

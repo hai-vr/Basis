@@ -1232,9 +1232,14 @@ namespace Basis.Scripts.Drivers
         // re-applies them every frame — the same persistent path the tuning sliders use. Cleared on
         // rig (re)build so a new avatar uses its own setup capture until the user calibrates.
         public static bool HasRecalibratedRotationOffsets;
-        // Per-avatar spine proportion match: wearer torso / avatar torso, captured once after a calibration
-        // that has a hips tracker, applied as a uniform spine scale in the job. 1 = matched (a no-op).
+        // Per-avatar spine proportion match. SpineProportionRatio = wearer torso / avatar torso, captured once
+        // after a hips-tracker calibration (transient; SetBodySettings resets it). AppliedSpineProportion is
+        // the clamped scale actually baked into the local avatar (via a humanoid rebuild) AND sent to remotes;
+        // it PERSISTS across the rebuild's re-calibration and is only reset on a genuine new-avatar load.
+        // SpineProportionApplied guards the one-time rebuild. 1 = matched / off (a no-op).
         public static float SpineProportionRatio = 1f;
+        public static float AppliedSpineProportion = 1f;
+        public static bool SpineProportionApplied;
         public static bool HasSpineProportionCapturePending;
         public static Quaternion RecalibratedHead, RecalibratedHips, RecalibratedChest;
         public static Quaternion RecalibratedLeftFoot, RecalibratedRightFoot;
@@ -1259,7 +1264,27 @@ namespace Basis.Scripts.Drivers
             float avatarTorso = Vector3.Distance(headRest, hipsRest);
             float userTorso = Vector3.Distance(headWorld, hipsWorld);
             SpineProportionRatio = BasisSpineProportionCore.ComputeRatio(userTorso, avatarTorso);
+
+            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to re-enable the
+            //      one-time local humanoid Avatar rebuild that bakes the clamped scale into the spine. ====
+            // if (SpineProportionApplied
+            //     || !Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMatch.RawValue)
+            // {
+            //     return;
+            // }
+            // float scale = BasisSpineProportionCore.ComputeScale(
+            //     SpineProportionRatio, Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMaxScale.RawValue);
+            // if (Mathf.Abs(scale - 1f) < k_SpineProportionRebuildThreshold)
+            // {
+            //     return;
+            // }
+            // AppliedSpineProportion = scale;
+            // SpineProportionApplied = true;
+            // Basis.Scripts.Device_Management.BasisDeviceManagement.EnqueueOnMainThread(() =>
+            //     BasisLocalPlayer.Instance?.LocalAvatarDriver?.RebuildAvatarForSpineProportion(scale));
         }
+        // Below this a rebuild is not worth the hitch -- the avatar already matches the wearer closely enough.
+        const float k_SpineProportionRebuildThreshold = 0.01f;
 
         private static void ApplyTuningSettings(ref BasisFullBodyData data)
         {
@@ -1294,12 +1319,9 @@ namespace Basis.Scripts.Drivers
             data.SpineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
             data.SpineTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTwistKeep.RawValue;
             data.SpineNeckTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineNeckTwistKeep.RawValue;
-            bool hipsTrackedNow = BasisLocalBoneDriver.HipsControl != null
-                && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
-            data.SpineProportionScale = (hipsTrackedNow && Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMatch.RawValue)
-                ? BasisSpineProportionCore.ComputeScale(SpineProportionRatio, Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMaxScale.RawValue)
-                : 1f;
-            Basis.Scripts.Networking.BasisSpineProportionNetworking.UpdateLocalScale(data.SpineProportionScale);
+            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to broadcast the
+            //      applied spine scale so remotes re-space their copy by the same amount. ====
+            // Basis.Scripts.Networking.BasisSpineProportionNetworking.UpdateLocalScale(AppliedSpineProportion);
             data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             data.ChestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;

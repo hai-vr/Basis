@@ -33,11 +33,13 @@ namespace Basis.Scripts.Networking
         [RuntimeInitializeOnLoadMethod]
         static void Init()
         {
-            BasisNetworkGenericMessages.RegisterHandler(MessageIndex, OnReceived);
-            BasisNetworkPlayer.OnRemotePlayerJoined -= HandleRemotePlayerJoined;
-            BasisNetworkPlayer.OnRemotePlayerJoined += HandleRemotePlayerJoined;
-            BasisNetworkPlayer.OnRemotePlayerLeft -= HandleRemotePlayerLeft;
-            BasisNetworkPlayer.OnRemotePlayerLeft += HandleRemotePlayerLeft;
+            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to register the
+            //      send/receive + rejoin-rebroadcast so remotes re-space their spine to the wearer's scale. ====
+            // BasisNetworkGenericMessages.RegisterHandler(MessageIndex, OnReceived);
+            // BasisNetworkPlayer.OnRemotePlayerJoined -= HandleRemotePlayerJoined;
+            // BasisNetworkPlayer.OnRemotePlayerJoined += HandleRemotePlayerJoined;
+            // BasisNetworkPlayer.OnRemotePlayerLeft -= HandleRemotePlayerLeft;
+            // BasisNetworkPlayer.OnRemotePlayerLeft += HandleRemotePlayerLeft;
         }
 
         /// <summary>
@@ -71,7 +73,8 @@ namespace Basis.Scripts.Networking
             if (_pending.TryGetValue(networkPlayer.playerId, out float s))
             {
                 _pending.Remove(networkPlayer.playerId);
-                remotePlayer?.RemoteAvatarDriver?.SetSpineProportionScale(s);
+                // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). ====
+                // remotePlayer?.RemoteAvatarDriver?.SetSpineProportionScale(s);
             }
         }
 
@@ -107,7 +110,8 @@ namespace Basis.Scripts.Networking
             if (BasisNetworkPlayers.Players.TryGetValue(senderId, out BasisNetworkPlayer np) &&
                 np != null && np.Player is BasisRemotePlayer remote)
             {
-                remote.RemoteAvatarDriver?.SetSpineProportionScale(s);
+                // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). ====
+                // remote.RemoteAvatarDriver?.SetSpineProportionScale(s);
             }
             else
             {
