@@ -45,8 +45,8 @@ Things that regularly masquerade as player bugs:
   `ffmpeg -listen` answer `200` and get treated as **live**. Serve VOD files from nginx (or
   anything with real range support).
 
-The test-stream stack in [`tools/media-test-streams/`](../../../tools/media-test-streams/)
-ships a `preflight.py` that runs these probes across all of its lanes in ~30 seconds.
+Script these probes over whatever endpoints you use before a test session — a stalled or
+mis-configured feed wastes far more time than the 30 seconds a probe takes.
 
 ## Where test streams may live (the security gates)
 
@@ -62,9 +62,10 @@ ships a `preflight.py` that runs these probes across all of its lanes in ~30 sec
 
 Practical consequences:
 
-- **Editor iteration:** run the test stack locally with Docker and use `localhost` URLs.
-- **Builds, Quest, multi-client tests:** the stream must come from a **public host with real
-  DNS**. Any cheap VPS running the same stack works.
+- **Editor iteration:** point at a public endpoint, or run your own server (RTSP/RTMP/HTTP) locally
+  and use `localhost` URLs.
+- **Builds, Quest, multi-client tests:** the stream must come from a **public host with real DNS** —
+  a public endpoint below, or your own content on any cheap VPS.
 - **Quest/Android:** the OS cleartext policy blocks plain `http://` on the JNI fetch path —
   HTTP-TS and HLS lanes need `https://` with a certificate chain the device actually trusts
   (serve the full chain; standalone headsets are missing more roots than desktop browsers).
@@ -78,8 +79,8 @@ Practical consequences:
   concept, so it refuses `localhost` (and any private address it is handed directly, e.g. an HLS
   segment URI the C# gate never saw) unless `BASIS_MEDIA_ALLOW_LOCAL` is set (any non-empty value).
   Setting it relaxes **only** that native re-check, not the C# gate — so its practical use is
-  running the local Docker stack's RTSP/RTMP/HLS lanes at `localhost` in the Editor. Plain HTTP(S)
-  MP4/TS via the platform stack (WinHTTP/JNI) has no native re-check and needs no opt-in.
+  running your own RTSP/RTMP/HLS server at `localhost` in the Editor. Plain HTTP(S) MP4/TS via the
+  platform stack (WinHTTP/JNI) has no native re-check and needs no opt-in.
 - The separate world-content trust allowlist (`BasisDefaultTrustedUrls`, https-only) gates the
   sandboxed `VideoPlayer` shim path, not this package — but streams hosted on already-trusted
   domains spare testers a consent prompt when worlds use the same URL.
@@ -108,22 +109,36 @@ integration package that provides it — e.g.
 The same split applies to any future integration: endpoints that need an integration package
 to function are tested in that package's own TESTING.md.
 
-## What the public internet can't give you: the test-stream stack
+## Lanes without a public endpoint: bring your own
 
-Some lanes have no reliable public endpoint. [`tools/media-test-streams/`](../../../tools/media-test-streams/)
-is a Docker Compose stack that provides them, runnable **locally for Editor work** (loopback
-is allowed in-editor) and **on any public VPS** for build/Quest/multi-client work:
+The public endpoints above cover the common lanes. The rest — the live transports (RTSP/RTMP/RIST),
+split-stream pairs, `localhost` iteration, and a couple of fixtures no public stream carries
+reliably (CEA-608 captions, LPCM 7.1 over M2TS) — you provide yourself. There is no bundled
+test-server stack to maintain; stand up whatever server you already use and point your own files at
+it.
 
-- RTSP/RTSPT under your control (including an adversarial long-GOP path for join testing)
-- HTTP-TS live feeds
-- nginx VOD with real range support
-- CEA-608 caption-bearing TS (generated fixture — no public stream carries captions reliably)
-- LPCM 5.1/7.1 over M2TS (the full-multichannel lane; AAC on Windows caps at 5.1)
-- RIST sender, plain and AES-encrypted (needs the opt-in `-DBASIS_WITH_RIST=ON` plugin build)
-- Split-stream video+audio pairs
+What the manual pass is actually for: the CI conformance gate (`tools/media-conformance`) already
+proves the **demuxers** parse every supported container/codec correctly — on synthetic fixtures, on
+every native change. What it cannot touch is real **decode + present** on actual hardware, A/V sync,
+and the live network transports. That is exactly what this matrix covers, and it needs real files
+and servers.
 
-Its README covers deployment, asset preparation (bring your own content — real footage with
-visible lip-sync moments beats synthetic patterns for A/V sync work), and per-lane URLs.
+Supported inputs to keep on hand (generate with `ffmpeg`, serve however you like):
+
+- **Containers:** MP4 / fragmented MP4 (`.mp4` `.m4v` `.m4a` `.m4s`), MPEG-TS (`.ts`) and
+  Blu-ray/AVCHD M2TS (`.m2ts` `.mts`), WebM/Matroska (`.webm`), Ogg (`.opus`), MP3 (`.mp3`),
+  WAV (`.wav`), HLS (`.m3u8`, TS- or fMP4-segmented).
+- **Video codecs:** H.264, H.265/HEVC (`hvc1`), VP9 (WebM and `vp09`-in-MP4), AV1 (progressive and
+  fragmented MP4, and `V_AV1` WebM).
+- **Audio codecs:** AAC (≤ 5.1 on Windows, discrete 5.1 on Android), Opus (WebM and Ogg), MP3 (bare,
+  and `esds` OTI `0x6B`/`0x69` in MP4), LPCM (WAV, and 7.1 over M2TS).
+- **Transports:** any RTSP/RTMP server (e.g. MediaMTX), an `ffmpeg`-served HTTP-TS feed, nginx (or
+  anything with real `Range`/`206` support) for VOD, an HLS packager, and — for the opt-in
+  `-DBASIS_WITH_RIST=ON` build — a RIST sender (ffmpeg/librist), plain and AES.
+
+Two feeder traps worth repeating: a VOD host must answer `206 Partial Content` or `Delivery=Auto`
+mis-detects it as live (`python -m http.server` and `ffmpeg -listen` answer `200` — use nginx); and
+for A/V-sync work use **real footage with visible lip-sync**, not synthetic patterns.
 
 ## The regression matrix
 
@@ -135,18 +150,18 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 | Lane | Source | Verify additionally |
 | --- | --- | --- |
-| RTSP live | VRCDN or stack `rtsp://<host>:8554/main` | Join latency ≈ GOP-bound; pause/resume recovers cleanly. `rtsp://` negotiates UDP transport first and falls back to TCP-interleaved; the Console logs the settled choice once per load (`[NativeMedia] transport: RTSP over UDP`), and it's queryable via `BasisMediaPlayer.CurrentTransport` |
-| RTSP adversarial join | stack `rtsp://<host>:8554/slowjoin` | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
-| RTSP refusal fallback | stack with `rtspTransports: [tcp]` in `mediamtx.yml` | UDP SETUP is refused (461); playback is indistinguishable from today, no error surfaced; Console logs `RTSP over TCP (UDP unavailable)` |
-| RTSP timer fallback | stack with the host's `8000-8001/udp` blocked (or any network that silently eats UDP) | First join stalls ~3 s, then restarts transparently over TCP with the same fallback log line; a reload of the same host skips the probe and goes straight to TCP |
+| RTSP live | VRCDN, or your own RTSP server (e.g. MediaMTX) | Join latency ≈ GOP-bound; pause/resume recovers cleanly. `rtsp://` negotiates UDP transport first and falls back to TCP-interleaved; the Console logs the settled choice once per load (`[NativeMedia] transport: RTSP over UDP`), and it's queryable via `BasisMediaPlayer.CurrentTransport` |
+| RTSP adversarial join | your own RTSP server fed a long-GOP source | Audio leads video by up to the GOP length on join, then locks — no permanent desync |
+| RTSP refusal fallback | your own RTSP server configured TCP-only (`rtspTransports: [tcp]` in MediaMTX) | UDP SETUP is refused (461); playback is indistinguishable from today, no error surfaced; Console logs `RTSP over TCP (UDP unavailable)` |
+| RTSP timer fallback | any network that silently drops the RTP UDP ports (`8000-8001/udp`) | First join stalls ~3 s, then restarts transparently over TCP with the same fallback log line; a reload of the same host skips the probe and goes straight to TCP |
 | RTSP forced TCP | `rtspt://` form of any RTSP URL | No UDP attempt at all (no UDP `SETUP` in the server log); Console logs `RTSP over TCP` |
-| HTTP-TS live | VRCDN `.live.ts` or stack | Same checks over plain TS; on Quest use the https lane |
-| HLS VOD | Mux master or stack packaging | Variant switch via panel bitrate dropdown mid-play |
+| HTTP-TS live | VRCDN `.live.ts`, or your own `ffmpeg`-served TS | Same checks over plain TS; on Quest use the https lane |
+| HLS VOD | Mux master, or your own HLS packaging | Variant switch via panel bitrate dropdown mid-play |
 | Progressive/fMP4 MP4 | Big Buck Bunny | `Delivery=Auto` detects OnDemand (needs the 206); seek slider works |
-| RTMP | stack `rtmp://<host>:1935/main` | Minimal client — plain `rtmp://` pull only |
-| RIST plain + AES | stack (RIST profile) | Requires RIST-enabled plugin build; loss recovery under induced packet loss |
-| WAV audio-only | stack VOD | 16/24-bit, up to 8 ch; no video track is not an error |
-| Split-stream | stack pair | Windows-only today; `AudioUri` lane syncs to video |
+| RTMP | your own RTMP server (e.g. MediaMTX) | Minimal client — plain `rtmp://` pull only |
+| RIST plain + AES | your own RIST sender (ffmpeg/librist) | Requires RIST-enabled plugin build; loss recovery under induced packet loss |
+| WAV audio-only | your own WAV over HTTP | 16/24-bit, up to 8 ch; no video track is not an error |
+| Split-stream | your own video-only + audio-only pair | Windows-only today; `AudioUri` lane syncs to video |
 
 ### Content and codecs
 
@@ -178,7 +193,7 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
 | PCE-signalled / >6-ch AAC | **Graceful refusal** on Windows (mute or clean error, never a crash) |
 | Trailing-moov progressive MP4 | Non-faststart file (`ffmpeg -i in.mp4 -c copy out.mp4` leaves `moov` after `mdat`): on a range/`206` server it plays with seek + duration; over a one-way stream (no ranges) it refuses cleanly with a faststart-remux hint |
-| CEA-608 captions | Stack caption fixture: cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
+| CEA-608 captions | A caption-bearing TS you generate (no public stream carries captions reliably): cues appear on time, accented characters correct, clear-cue clears, CC toggle + opacity sliders live-apply |
 | 44.1 kHz audio | Resamples cleanly to the DSP rate (dominant path is 48 kHz — don't let 44.1k rot) |
 | Non-16-aligned coded height | No pad strip on the video edge (a thin top strip on Windows, a grey bottom strip on Android) and the RenderTexture matches the display aspect. 720p and other 16-aligned heights are clean, so test a padded height specifically — 1080p (→1088) on Windows, 640×360 (→368) on Android |
 
@@ -263,7 +278,7 @@ A regression that *opens* a gate is a security bug — flag it as such, not as a
 source re-checks each URI a playlist steers it to. Serve a media `.m3u8` from a public host
 whose segment (or `EXT-X-MAP`, or a nested variant) URI is an absolute
 `http://169.254.169.254/…` / `http://192.168.x.x/…` / `http://127.0.0.1:PORT/…`: playback must
-fail rather than issue that fetch (watch the stack/server logs — the internal host must see no
+fail rather than issue that fetch (watch the target server's logs — the internal host must see no
 request). A playlist that reaches an internal host is a security regression, not a broken-stream
 bug. (Editor testing of the legitimate localhost lane needs `BASIS_MEDIA_ALLOW_LOCAL` — see the
 security-gates section above.)
@@ -303,20 +318,20 @@ with on-screen text or a logo, every time video-path code changes.
 
 A report that can be acted on contains:
 
-1. The exact URL (or the stack lane + asset recipe) — full URL, not a fragment
+1. The exact URL (or how to reproduce the source — server + asset recipe) — full URL, not a fragment
 2. Platform, graphics API, Editor-or-build, headset if relevant
 3. What was expected, what happened, and how reliably it reproduces
 4. Console output around the failure (the `Video`-tagged lines) and, for timing/sync issues,
    the diagnostics CSV covering the incident
-5. Whether the preflight/ffprobe of the same URL was green at the time
+5. Whether `ffprobe` of the same URL was green at the time
 
 ## Acknowledgements
 
 The always-on live lanes above are [VRCDN](https://vrcdn.live/)'s own public channel, listed
 here with their permission — thanks to the VRCDN team for keeping a reliable 24/7 reference
 stream running and for letting this guide point testers at it. Be a good guest: use it for
-interactive test sessions, not automated soak loops, and stand up the self-hosted stack for
-anything sustained.
+interactive test sessions, not automated soak loops, and stand up your own server for anything
+sustained.
 
 ## Native plugin changes: the security boundary
 
