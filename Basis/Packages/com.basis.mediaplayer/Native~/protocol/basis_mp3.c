@@ -121,7 +121,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
     int64_t samples = 0;    /* cumulative; PTS is rounded from this, not accumulated */
     int64_t src_pos = 0;    /* total bytes read from the source */
     int64_t audio_start = 0, mpeg_start = 0, duration_us = 0;
-    int a_sr = 0, cbr_bps = 0;
+    int a_sr = 0, a_ch = 0, cbr_bps = 0;
     mp3_vbr_t vbr; vbr.have = 0;
 
     /* Skip a leading ID3v2 tag if present: "ID3", 2 version + 1 flags bytes,
@@ -196,10 +196,16 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                 if (i + f.frame_len + 4 > len) { if (!eof) break; }
                 else {
                     mp3_frame_t nf;
-                    if (!parse_header(buf + i + f.frame_len, &nf)) { i++; continue; }
+                    /* A real next frame shares this one's rate/channels/samples
+                     * (VBR varies only the bitrate), so a mismatch is a false sync. */
+                    if (!parse_header(buf + i + f.frame_len, &nf) ||
+                        nf.sr != f.sr || nf.ch != f.ch || nf.samples != f.samples) { i++; continue; }
                 }
                 locked = 1;
             }
+            /* Reject a frame whose format drifts from the announced one: the fixed
+             * announce can't describe it, and feeding it on desyncs the decoder. */
+            if (announced && (f.sr != a_sr || f.ch != a_ch)) { i++; locked = 0; continue; }
             if (!vbr.have && !announced && parse_vbr_header(buf + i, &f, &vbr)) {
                 /* Xing/Info/VBRI header: seek table + counts, decodes to silence.
                  * Drop it so playback starts on the first real audio frame. */
@@ -213,6 +219,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                 sink->on_audio_format(sink->user, BASIS_CODEC_MP3, f.sr, f.ch, NULL, 0);
                 announced = 1;
                 a_sr = f.sr;
+                a_ch = f.ch;
                 audio_start = (src_pos - len) + i;          /* first real frame's offset */
                 cbr_bps = f.samples > 0 ? f.frame_len * f.sr / f.samples : 0;
                 if (vbr.have && vbr.frames > 0)
