@@ -842,6 +842,10 @@ static void video_process_to_shared(basis_decoder* d, ID3D11Texture2D* nv12, UIN
     inView->Release();
 }
 
+/* Upper bound on a single decoded output frame — 8K RGB is ~100 MB, so this is
+ * past any real frame while stopping a malformed cbSize from driving a huge alloc. */
+#define BASIS_MAX_OUTPUT_BUFFER (256u * 1024u * 1024u)
+
 /* Pull all currently-available output samples from the video MFT.
  * CRITICAL: in DXVA mode the MFT hands us its own IMFSample in outBuf.pSample,
  * backed by a small pool of D3D11 surfaces. That sample MUST be released every
@@ -857,9 +861,25 @@ static void drain_video(basis_decoder* d) {
         outBuf.dwStreamID = 0;
         if (!providesSamples) {
             IMFSample* s = nullptr; IMFMediaBuffer* mb = nullptr;
-            MFCreateSample(&s);
-            MFCreateMemoryBuffer(si.cbSize ? si.cbSize : (DWORD)(d->vwidth * d->vheight * 3), &mb);
-            s->AddBuffer(mb); mb->Release();
+            DWORD cb = si.cbSize;
+            if (!cb) {
+                /* Dims are attacker-announced; bound each side BEFORE multiplying so
+                 * the product can't overflow (16384 is past any real frame — the SPS
+                 * parser already caps decode dimensions well below this). */
+                if (d->vwidth > 0 && d->vwidth <= 16384 && d->vheight > 0 && d->vheight <= 16384)
+                    cb = (DWORD)((uint64_t)d->vwidth * (uint64_t)d->vheight * 3u);
+                else
+                    cb = 0;
+            }
+            /* Cap both the MFT-declared cbSize and the fallback estimate so a
+             * malformed output size can't exhaust memory. */
+            if (cb == 0 || cb > BASIS_MAX_OUTPUT_BUFFER ||
+                FAILED(MFCreateSample(&s)) || FAILED(MFCreateMemoryBuffer(cb, &mb))) {
+                SAFE_RELEASE(s); SAFE_RELEASE(mb);
+                break;
+            }
+            if (FAILED(s->AddBuffer(mb))) { mb->Release(); s->Release(); break; }
+            mb->Release();
             outBuf.pSample = s;
         }
 
@@ -1395,16 +1415,29 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
     return 0;
 }
 
+/* Upper bound on a single compressed access unit — far above any real one (an 8K
+ * HEVC keyframe is a few MB), so a demuxer that ever declared a wild size can't
+ * drive a huge MFCreateMemoryBuffer allocation. */
+#define BASIS_MAX_INPUT_SAMPLE (64 * 1024 * 1024)
+
 static IMFSample* make_input_sample(const uint8_t* data, int len, int64_t pts_us) {
+    /* len/data come from the demuxer (attacker-controlled). Reject a wild size and
+     * return NULL cleanly on a failed allocation rather than dereference a null buffer. */
+    if (!data || len <= 0 || len > BASIS_MAX_INPUT_SAMPLE) return nullptr;
     IMFSample* s = nullptr; IMFMediaBuffer* b = nullptr;
-    MFCreateSample(&s);
-    MFCreateMemoryBuffer(len, &b);
+    if (FAILED(MFCreateSample(&s))) return nullptr;
+    if (FAILED(MFCreateMemoryBuffer((DWORD)len, &b))) { s->Release(); return nullptr; }
     BYTE* p = nullptr; DWORD maxlen = 0;
-    b->Lock(&p, &maxlen, nullptr);
-    memcpy(p, data, len);
-    b->Unlock();
-    b->SetCurrentLength(len);
-    s->AddBuffer(b);
+    HRESULT lhr = b->Lock(&p, &maxlen, nullptr);
+    if (FAILED(lhr) || !p || maxlen < (DWORD)len) {
+        if (SUCCEEDED(lhr)) b->Unlock();   /* locked but unusable: unlock before releasing */
+        b->Release(); s->Release(); return nullptr;
+    }
+    memcpy(p, data, (size_t)len);
+    if (FAILED(b->Unlock()) || FAILED(b->SetCurrentLength((DWORD)len)) ||
+        FAILED(s->AddBuffer(b))) {
+        b->Release(); s->Release(); return nullptr;
+    }
     s->SetSampleTime((LONGLONG)pts_us * 10); /* us -> 100ns */
     b->Release();
     return s;
@@ -1418,12 +1451,15 @@ static IMFSample* make_input_sample(const uint8_t* data, int len, int64_t pts_us
  * this; if that ever changes, serialise submission through a decoder mutex. */
 extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int len, int64_t pts_us, int key) {
     (void)key;
-    if (!d || !d->vdec || !annexb || len <= 0) return -1;
+    /* Bound len here, before the AV1 configOBU concatenation below adds to it — so
+     * the total can't overflow int or drive an oversized allocation. */
+    if (!d || !d->vdec || !annexb || len <= 0 || len > BASIS_MAX_INPUT_SAMPLE) return -1;
     IMFSample* s;
     bool carried_config = false;
     if (d->vConfigObusLen > 0) {
         /* first AV1 AU: prepend the held configOBUs so the decoder sees the
          * sequence header before any frame data */
+        if (d->vConfigObusLen > BASIS_MAX_INPUT_SAMPLE - len) return -1; /* concat would overflow the cap */
         int total = d->vConfigObusLen + len;
         uint8_t* tmp = (uint8_t*)malloc((size_t)total);
         if (tmp) {
@@ -1438,6 +1474,7 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
     } else {
         s = make_input_sample(annexb, len, pts_us);
     }
+    if (!s) return -1;   /* sample allocation failed; skip this AU rather than crash */
 
     /* Feed the AU, draining output to make room rather than dropping it. The
      * decoder must accept every frame or playback decimates to the rate at which
@@ -1580,6 +1617,7 @@ extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* dat
     if (d->acodec == BASIS_CODEC_OPUS) { submit_opus(d, data, len, pts_us); return 0; }
     if (!d->adec) return -1;
     IMFSample* s = make_input_sample(data, len, pts_us);
+    if (!s) return -1;   /* sample allocation failed; skip this frame rather than crash */
     HRESULT hr = d->adec->ProcessInput(0, s, 0);
     s->Release();
     if (hr == MF_E_NOTACCEPTING) { drain_audio(d); }
