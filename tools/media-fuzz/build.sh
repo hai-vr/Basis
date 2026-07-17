@@ -35,8 +35,8 @@ build_target() {
 
 want="${1:-all}"
 case "$want" in
-    all|ts|mp4|webm|caption|ogg) ;;
-    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg)" >&2; exit 2 ;;
+    all|ts|mp4|webm|caption|ogg|mp3) ;;
+    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3)" >&2; exit 2 ;;
 esac
 if [ "$want" = "all" ] || [ "$want" = "ts" ]; then
     build_target ts \
@@ -63,6 +63,10 @@ if [ "$want" = "all" ] || [ "$want" = "caption" ]; then
     build_target caption \
         "$native/protocol/basis_caption.c" \
         "$native/protocol/basis_bitstream.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "mp3" ]; then
+    build_target mp3 \
+        "$native/protocol/basis_mp3.c"
 fi
 
 # On Windows the ASan runtime is a DLL that must sit next to the exe (or on

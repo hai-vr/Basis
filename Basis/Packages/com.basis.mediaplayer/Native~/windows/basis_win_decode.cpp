@@ -43,6 +43,7 @@
 #include <mftransform.h>
 #include <mferror.h>
 #include <wmcodecdsp.h>
+#include <mmreg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -78,6 +79,9 @@ struct PcmRing {
     Chunk chunks[CHUNKS] = {};
     int chead = 0, ccount = 0;
     long trims = 0;  /* clock-gated trims fired (diagnostics) */
+    int64_t playedUs = INT64_MIN;  /* PTS served up to = the audio playback front;
+                                    * the position for an audio-only stream that
+                                    * never presents a video frame. */
 
     /* Serving is gated on media time: a sample is released when its PTS comes
      * due against the serve target (presentation clock + the consumer's output
@@ -173,6 +177,7 @@ struct PcmRing {
             }
         }
         int got = 0;
+        int64_t frontPts = (ccount > 0) ? chunks[chead].pts : INT64_MIN;
         while (got < n && ccount > 0) {
             Chunk& c = chunks[chead];
             if (target_us != INT64_MIN && c.pts > target_us + early_hold_us) break;
@@ -185,6 +190,11 @@ struct PcmRing {
                 c.pts += (int64_t)take * 1000000LL / (frame * srr);
             }
         }
+        /* Publish the playback front so an audio-only stream has a position.
+         * Only when samples actually served: a gated read that breaks before
+         * copying leaves the front unserved, so its PTS isn't yet "played". */
+        if (frontPts != INT64_MIN && got > 0)
+            playedUs = frontPts + (int64_t)(got / (frame > 0 ? frame : 1)) * 1000000LL / srr;
         LeaveCriticalSection(&cs);
         return got;
     }
@@ -1087,6 +1097,49 @@ static bool configure_audio_mft(basis_decoder* d, const uint8_t* asc, int asc_le
     return true;
 }
 
+/* Configures the in-box MP3 decoder. Unlike AAC (a fixed CLSID) the MP3 decoder
+ * is found by enumeration, so activate the first MFT that takes MFAudioFormat_MP3.
+ * The input type is built from an MPEGLAYER3WAVEFORMAT so MF fills in the subtype
+ * and codec-private bytes; the decoder parses each frame header itself. Fails
+ * silently like configure_audio_mft — audio stays muted, video unaffected. */
+static bool configure_mp3_mft(basis_decoder* d, int sample_rate, int channels) {
+    MFT_REGISTER_TYPE_INFO inInfo = { MFMediaType_Audio, MFAudioFormat_MP3 };
+    IMFActivate** acts = nullptr;
+    UINT32 count = 0;
+    UINT32 flags = MFT_ENUM_FLAG_SYNCMFT | MFT_ENUM_FLAG_LOCALMFT | MFT_ENUM_FLAG_SORTANDFILTER;
+    if (FAILED(MFTEnumEx(MFT_CATEGORY_AUDIO_DECODER, flags, &inInfo, nullptr, &acts, &count)) || count == 0)
+        return false;
+    for (UINT32 i = 0; i < count; ++i) {
+        if (!d->adec && SUCCEEDED(acts[i]->ActivateObject(IID_PPV_ARGS(&d->adec)))) { /* keep first */ }
+        acts[i]->Release();
+    }
+    CoTaskMemFree(acts);
+    if (!d->adec) return false;
+
+    MPEGLAYER3WAVEFORMAT wf = {};
+    wf.wfx.wFormatTag = WAVE_FORMAT_MPEGLAYER3;
+    wf.wfx.nChannels = (WORD)(channels > 0 ? channels : 2);
+    wf.wfx.nSamplesPerSec = (DWORD)(sample_rate > 0 ? sample_rate : 48000);
+    wf.wfx.nBlockAlign = 1;
+    wf.wfx.cbSize = MPEGLAYER3_WFX_EXTRA_BYTES;
+    wf.wID = MPEGLAYER3_ID_MPEG;
+    wf.nBlockSize = 1;
+    wf.nFramesPerBlock = 1;
+
+    IMFMediaType* in = nullptr;
+    MFCreateMediaType(&in);
+    HRESULT hr = MFInitMediaTypeFromWaveFormatEx(in, (const WAVEFORMATEX*)&wf, sizeof(wf));
+    if (SUCCEEDED(hr)) hr = d->adec->SetInputType(0, in, 0);
+    in->Release();
+    if (FAILED(hr)) { SAFE_RELEASE(d->adec); return false; }
+
+    if (!pick_audio_output(d)) { SAFE_RELEASE(d->adec); return false; }
+
+    d->adec->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0);
+    d->adec->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0);
+    return true;
+}
+
 static void drain_audio(basis_decoder* d) {
     for (;;) {
         MFT_OUTPUT_STREAM_INFO si = {};
@@ -1294,6 +1347,17 @@ extern "C" int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t 
         d->aconfigured = true;
         d->pcm.frame = ch;
         d->pcm.sr = 48000;
+        return 0;
+    }
+
+    if (codec == BASIS_CODEC_MP3) {
+        d->asr = sample_rate; d->ach = channels; d->achSrc = channels;
+        if (configure_mp3_mft(d, sample_rate, channels)) {
+            d->acodec = BASIS_CODEC_MP3;
+            d->aconfigured = true;
+            d->pcm.frame = d->ach > 0 ? d->ach : 1;
+            d->pcm.sr = d->asr > 0 ? d->asr : 48000;
+        }
         return 0;
     }
 
@@ -1889,7 +1953,13 @@ extern "C" int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     /* Presentation position once a frame has shown; decode-side before that
      * (start-up, audio-only) so early consumers still see the clock move. */
     int64_t presented = InterlockedCompareExchange64((volatile LONG64*)&d->presentedPosUs, 0, 0);
-    return presented >= 0 ? presented : d->lastPtsUs;
+    if (presented >= 0) return presented;
+    if (d->lastPtsUs >= 0) return d->lastPtsUs;
+    /* Audio-only: no video ever presents, so report the audio playback front. */
+    EnterCriticalSection(&d->pcm.cs);
+    int64_t played = d->pcm.playedUs;
+    LeaveCriticalSection(&d->pcm.cs);
+    return played != INT64_MIN ? played : -1;
 }
 extern "C" int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
     if (!d || !d->aconfigured) return -1;

@@ -162,6 +162,8 @@ Run the rows your change plausibly touches; run everything before a release-boun
 | AAC decoder priming | Audio starts on the first real sample, not on the decoder's priming. AAC's encoder delay is one 1024-sample frame, which MP4 signals with an edit list (`elst media_time=1024` on anything `ffmpeg -c:a aac` produced); the samples ahead of that origin must not reach the output. **Do not try to hear this** — 21 ms of lag is below the lip-sync threshold, which is exactly why it went unnoticed for so long. Measure it: decode the file with `ffmpeg -i x.m4a -map a:0 -f f32le -acodec pcm_f32le ref.f32`, capture what the player served, and cross-correlate. Assert on the **peak's sample offset**, not a correlation value: aligned output peaks at offset 0, a stream still carrying its priming peaks at offset 1024 (the edit-list delay) — the actual defect, and reliable regardless of content, channels, or capture. (The absolute coefficient at offset 0 is content-dependent — a shifted stream reads roughly -0.07 on this fixture, but do not gate on that number.) An LPCM/WAV file is the control — no decoder, no priming, peaks at offset 0 |
 | AAC 5.1 | Windows MF decodes ≤ 5.1; correct channel mapping (use content with known channel placement, judge by ear per output speaker) |
 | AAC 5.1 in a progressive MP4 (Android) | Decodes to discrete 5.1, not silence. The esds can carry an inert SBR sync extension the Android decoder otherwise rejects (`aacDecoder 0x1001` in logcat); fixture `https://mr.town/vod/scope.mp4` |
+| MP3 bare stream (`.mp3`) | CBR and VBR play forward; a leading `ID3v2` tag is skipped and a Xing/Info/VBRI header frame is dropped (not heard as a click). Duration is reported from the header's frame count and the seek slider works. Windows uses the in-box Media Foundation MP3 decoder, Quest the `audio/mpeg` MediaCodec. Generate fixtures with `ffmpeg -i src.wav -c:a libmp3lame -b:a 192k cbr.mp3` and `-q:a 2 vbr.mp3` |
+| MP3 in MP4/M4A | An `mp4a` sample entry whose `esds` object-type-indication is `0x6B`/`0x69` plays as MP3, not misdetected as AAC (`ffmpeg -i cbr.mp3 -c copy out.m4a`) |
 | LPCM 7.1 M2TS | All 8 lanes audible and correctly placed — the only full-7.1 path on Windows |
 | PCE-signalled / >6-ch AAC | **Graceful refusal** on Windows (mute or clean error, never a crash) |
 | Trailing-moov progressive MP4 | Non-faststart file (`ffmpeg -i in.mp4 -c copy out.mp4` leaves `moov` after `mdat`): on a range/`206` server it plays with seek + duration; over a one-way stream (no ranges) it refuses cleanly with a faststart-remux hint |
@@ -218,6 +220,12 @@ a keyframe) and resumes paced at 1x — the same stall-forward / flood-backward 
 the HLS row apply. Seek near the very end of the file as well (EOS race). The cueless variant
 must show no seek bar at all. `https://mr.town/vod/tos_av1.webm` rides the same cue walk with
 the AV1 branch — one both-directions pass there covers it. Check the Editor (Windows) and Quest.
+
+**Seek (MP3)** — on a `.mp3` VOD over a range/`206` server, seek both directions and near the
+end. MP3 seek is inherently approximate (no per-frame timestamps): CBR lands within a frame via
+the bitrate mapping, VBR uses the Xing TOC, so the playhead may land a fraction of a second off
+the slider — that is expected, a permanent desync or a stall is not. A `.mp3` with no Xing/Info
+header reports no duration and shows no seek bar.
 
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each

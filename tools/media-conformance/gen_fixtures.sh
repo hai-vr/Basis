@@ -116,6 +116,31 @@ fi
 ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a aac -ac 2 "$out/aac.m4a"
 note "aac.m4a"
 
+# ---- Bare MP3: CBR and VBR (the header-driven, containerless path) ---------
+if has_enc libmp3lame; then
+    # CBR 128k: every frame the same length; exercises steady frame-sync.
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libmp3lame -b:a 128k -ac 2 "$out/cbr.mp3"
+    note "cbr.mp3"
+    # VBR (-q:a 4): frame lengths vary, and lame writes a leading Xing/Info
+    # header frame the demuxer drops (as ffmpeg does) rather than emitting.
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libmp3lame -q:a 4 -ac 2 "$out/vbr.mp3"
+    note "vbr.mp3"
+    # VBR carrying a large ID3v2 cover-art tag: the tag is not part of the MPEG
+    # stream, so the demuxer skips it before the first frame, and the Xing byte
+    # count is measured from that first frame. This is the case where a leading
+    # tag makes the seek origin diverge from the first-audio offset.
+    ffmpeg $q "${ASTEREO[@]}" -i "$logo" -map 0:a -map 1:v -t "$DUR" \
+        -c:a libmp3lame -q:a 4 -ac 2 -c:v copy -disposition:v attached_pic \
+        -id3v2_version 3 -metadata:s:v title="cover" "$out/vbr_id3.mp3"
+    note "vbr_id3.mp3"
+    # MP3 muxed into MP4 (esds objectTypeIndication 0x6B): the mp4a-sample-entry
+    # path must read the OTI and route to MP3, not assume AAC.
+    ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a libmp3lame -b:a 128k -ac 2 -f mp4 "$out/mp3_in_mp4.mp4"
+    note "mp3_in_mp4.mp4"
+else
+    skip "MP3 fixtures" "no libmp3lame"
+fi
+
 # ---- WAV: 16-bit stereo, 16-bit 5.1 ---------------------------------------
 ffmpeg $q "${ASTEREO[@]}" -t "$DUR" -c:a pcm_s16le -ac 2 "$out/pcm16_stereo.wav"
 note "pcm16_stereo.wav"

@@ -110,10 +110,10 @@ jobs:
       - name: Require the advertised codec fixture set
         # gen_fixtures.sh skips codecs the runner's ffmpeg lacks, so on the
         # mutable ubuntu-latest image the gate could otherwise go green after
-        # silently losing HEVC/VP9/AV1/Opus coverage. Fail if any required
+        # silently losing HEVC/VP9/AV1/Opus/MP3 coverage. Fail if any required
         # fixture is absent (apt's ffmpeg ships all of these).
         run: |
-          required="h264_aac.ts hevc_aac.mp4 vp9.webm av1.webm opus.webm audio.opus aac.m4a pcm16_stereo.wav lpcm51.m2ts"
+          required="h264_aac.ts hevc_aac.mp4 vp9.webm av1.webm opus.webm audio.opus aac.m4a cbr.mp3 vbr.mp3 vbr_id3.mp3 mp3_in_mp4.mp4 pcm16_stereo.wav lpcm51.m2ts"
           missing=""
           for f in $required; do
             [ -f "$RUNNER_TEMP/fixtures/$f" ] || missing="$missing $f"
