@@ -167,7 +167,10 @@ Run the rows your change plausibly touches; run everything before a release-boun
 
 No public host carries every codec in every container flavour, so generate these from a CC
 clip — Big Buck Bunny (full URL in the endpoints table above) or any Blender open movie — with
-the `ffmpeg` recipe in each row. `in.mp4` below is that source clip. (The demux side is already
+the `ffmpeg` recipe in each row. `in.mp4` below is that source clip. For higher-res / 4K masters,
+[media.xiph.org](https://media.xiph.org/) mirrors the Blender films losslessly (e.g. Sintel 4K at
+`https://media.xiph.org/sintel/sintel-4k.y4m.xz`, and `sintel-4k-png/` frame sets) — grab one and
+cut a short segment (`ffmpeg -i sintel-4k.y4m -t 20 -c copy in4k.y4m`). (The demux side is already
 covered bit-for-bit by the CI conformance gate; these rows are the real decode + present pass.)
 
 | Fixture | Verify |
@@ -178,7 +181,7 @@ covered bit-for-bit by the CI conformance gate; these rows are the real decode +
 | VP9 in MP4 (`ffmpeg -i in.mp4 -c:v libvpx-vp9 -c:a aac vp9.mp4`; modern ffmpeg writes the `vp09` sample entry) | The `vp09` sample-entry lane; same decode path as WebM |
 | AV1 in progressive MP4 (`ffmpeg -i in.mp4 -c:v libaom-av1 -crf 30 -c:a aac av1.mp4`) | Plays with video on Windows (Store "AV1 Video Extension" + a GPU with hardware AV1 — RTX 30+/RX 6000+/Arc; the probe gates both) and Quest 3. AV1-in-MP4 historically misplayed as silent audio-only |
 | AV1 in fragmented MP4 (the AV1 MP4 recipe + `-movflags frag_keyframe+empty_moov`) | The `av1C`-in-`stsd` fMP4 walk with the configOBU first-AU prepend |
-| AV1 4K (a 2160p CC clip through the AV1 MP4 recipe) | 2160p decode + ring memory on both platforms |
+| AV1 4K (a 2160p slice of Sintel 4K — see the intro above — through the AV1 MP4 recipe) | 2160p decode + ring memory on both platforms |
 | AV1 in WebM (the AV1 recipe with `av1.webm`) | The `V_AV1` CodecID lane (CodecPrivate = av1C record → configOBU extradata); duration + Cues seek work as for VP9 |
 | AV1 extension absent (Windows) | Uninstall/absent "AV1 Video Extension": a direct `av01` URL errors with the install hint, and the probe answers 0 so the resolver never offers AV1 |
 | AV1 on Quest 2 | No AV1 decoder on the device: a direct `av01` URL refuses cleanly, and YouTube resolution still succeeds via the VP9 lane (its probe passes there) |
