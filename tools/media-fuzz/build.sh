@@ -35,8 +35,8 @@ build_target() {
 
 want="${1:-all}"
 case "$want" in
-    all|ts|mp4|webm|caption|ogg|mp3) ;;
-    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3)" >&2; exit 2 ;;
+    all|ts|mp4|webm|caption|ogg|mp3|url|hls|rtsp|rtmp) ;;
+    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3 url hls rtsp rtmp)" >&2; exit 2 ;;
 esac
 if [ "$want" = "all" ] || [ "$want" = "ts" ]; then
     build_target ts \
@@ -67,6 +67,35 @@ fi
 if [ "$want" = "all" ] || [ "$want" = "mp3" ]; then
     build_target mp3 \
         "$native/protocol/basis_mp3.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "url" ]; then
+    build_target url \
+        "$native/protocol/basis_url.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "hls" ]; then
+    # basis_hls.c spawns a producer thread; link pthread off-Windows (Win32 threads
+    # auto-link kernel32). The SSRF host check is stubbed in the harness, so
+    # basis_io.c and its socket libraries aren't needed.
+    hls_extra=""
+    case "$(uname -s 2>/dev/null || echo unknown)" in
+        MINGW*|MSYS*|CYGWIN*) ;;
+        *) hls_extra="-pthread" ;;
+    esac
+    build_target hls \
+        "$native/protocol/basis_hls.c" \
+        "$native/protocol/basis_url.c" \
+        $hls_extra
+fi
+# rtsp/rtmp own their sockets, so their harness #includes the real protocol .c and
+# provides a basis_io stub (byte-serving for the read paths). Only basis_bitstream
+# is linked in — the protocol .c comes via the #include, not the command line.
+if [ "$want" = "all" ] || [ "$want" = "rtsp" ]; then
+    build_target rtsp \
+        "$native/protocol/basis_bitstream.c"
+fi
+if [ "$want" = "all" ] || [ "$want" = "rtmp" ]; then
+    build_target rtmp \
+        "$native/protocol/basis_bitstream.c"
 fi
 
 # On Windows the ASan runtime is a DLL that must sit next to the exe (or on
