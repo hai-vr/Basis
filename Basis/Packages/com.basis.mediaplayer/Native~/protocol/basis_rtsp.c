@@ -79,7 +79,9 @@ typedef struct {
     basis_io_t* io;
     int cseq;
     char session[128];
-    char authb64[256];   /* Basic auth value, or empty */
+    char authb64[344];   /* Basic auth value, or empty. Sized for base64 of the
+                          * longest user:pass the URL can carry (up[256] below):
+                          * 4*ceil(255/3) = 340 chars + NUL. */
     char last_status[160]; /* last response status line, for diagnostics */
     char www_auth[256];    /* last WWW-Authenticate header value, if any */
     char location[1024];   /* last Location header (redirects) */
@@ -309,6 +311,7 @@ typedef struct {
      * of one AU share an RTP timestamp. */
     uint8_t* afrag; int afrag_len, afrag_cap;
     int afrag_active;      /* a reassembly is in flight */
+    int afrag_drop;        /* frame discarded (over cap): skip its remaining packets */
     int64_t afrag_rel;     /* base-relative extended ts of the AU */
 
     uint8_t* fu; int fu_len, fu_cap;     /* FU reassembly */
@@ -324,17 +327,26 @@ typedef struct {
 
 static const uint8_t SC4[4] = {0,0,0,1};
 
-static int grow(uint8_t** b, int* cap, int need) {
+/* Per-AU / per-fragment reassembly ceiling. A server that never sets the RTP
+ * marker (or streams FU/afrag forever) would otherwise grow these without bound;
+ * a real assembled frame stays well under this. */
+#define RTP_MAX_BUF (16 * 1024 * 1024)
+
+static int grow(uint8_t** b, int* cap, int need, int max) {
     if (need <= *cap) return 1;
-    int nc = *cap ? *cap * 2 : 65536;
+    if (need < 0 || need > max) return 0;    /* refuse a hostile / overflowed target */
+    int64_t nc = *cap ? *cap : 65536;
     while (nc < need) nc *= 2;
+    if (nc > max) nc = max;
     uint8_t* nb = (uint8_t*)realloc(*b, (size_t)nc);
     if (!nb) return 0;
-    *b = nb; *cap = nc; return 1;
+    *b = nb; *cap = (int)nc; return 1;
 }
 
 static void au_append_nal(depkt_t* d, const uint8_t* nal, int len) {
-    if (!grow(&d->au, &d->au_cap, d->au_len + 4 + len)) return;
+    /* Over the cap: mark the whole AU dropped so deliver_au discards it rather
+     * than hand the decoder a partial NAL missing this slice. */
+    if (!grow(&d->au, &d->au_cap, d->au_len + 4 + len, RTP_MAX_BUF)) { d->v_drop = 1; return; }
     memcpy(d->au + d->au_len, SC4, 4); d->au_len += 4;
     memcpy(d->au + d->au_len, nal, len); d->au_len += len;
 }
@@ -394,7 +406,7 @@ static void depkt_video(depkt_t* d, const uint8_t* rtp, int len) {
     if (len < 12) return;
     int cc = rtp[0] & 0x0F;
     int marker = (rtp[1] >> 7) & 1;
-    uint32_t ts = (rtp[4] << 24) | (rtp[5] << 16) | (rtp[6] << 8) | rtp[7];
+    uint32_t ts = ((uint32_t)rtp[4] << 24) | (rtp[5] << 16) | (rtp[6] << 8) | rtp[7];
     int hdr = 12 + cc * 4;
     if ((rtp[0] & 0x10)) { /* extension */
         if (len < hdr + 4) return;
@@ -426,15 +438,17 @@ static void depkt_video(depkt_t* d, const uint8_t* rtp, int len) {
             int s = (p[1] >> 7) & 1, e = (p[1] >> 6) & 1;
             int otype = p[1] & 0x1F;
             if (s) { d->fu_active = 1; d->fu_len = 0; d->fu_nal_header0 = (uint8_t)((p[0] & 0xE0) | otype); }
-            if (d->fu_active && grow(&d->fu, &d->fu_cap, d->fu_len + (plen - 2))) {
-                memcpy(d->fu + d->fu_len, p + 2, plen - 2); d->fu_len += plen - 2;
+            if (d->fu_active) {
+                if (grow(&d->fu, &d->fu_cap, d->fu_len + (plen - 2), RTP_MAX_BUF)) {
+                    memcpy(d->fu + d->fu_len, p + 2, plen - 2); d->fu_len += plen - 2;
+                } else { d->v_drop = 1; d->fu_active = 0; }   /* over cap: drop the AU */
             }
             if (e && d->fu_active) {
-                if (grow(&d->au, &d->au_cap, d->au_len + 4 + 1 + d->fu_len)) {
+                if (grow(&d->au, &d->au_cap, d->au_len + 4 + 1 + d->fu_len, RTP_MAX_BUF)) {
                     memcpy(d->au + d->au_len, SC4, 4); d->au_len += 4;
                     d->au[d->au_len++] = d->fu_nal_header0;
                     memcpy(d->au + d->au_len, d->fu, d->fu_len); d->au_len += d->fu_len;
-                }
+                } else { d->v_drop = 1; }
                 d->fu_active = 0;
             }
         }
@@ -458,16 +472,18 @@ static void depkt_video(depkt_t* d, const uint8_t* rtp, int len) {
                 d->fu_nal_header0 = (uint8_t)((p[0] & 0x81) | (otype << 1));
                 d->fu_nal_header1 = p[1];
             }
-            if (d->fu_active && grow(&d->fu, &d->fu_cap, d->fu_len + (plen - 3))) {
-                memcpy(d->fu + d->fu_len, p + 3, plen - 3); d->fu_len += plen - 3;
+            if (d->fu_active) {
+                if (grow(&d->fu, &d->fu_cap, d->fu_len + (plen - 3), RTP_MAX_BUF)) {
+                    memcpy(d->fu + d->fu_len, p + 3, plen - 3); d->fu_len += plen - 3;
+                } else { d->v_drop = 1; d->fu_active = 0; }   /* over cap: drop the AU */
             }
             if (e && d->fu_active) {
-                if (grow(&d->au, &d->au_cap, d->au_len + 4 + 2 + d->fu_len)) {
+                if (grow(&d->au, &d->au_cap, d->au_len + 4 + 2 + d->fu_len, RTP_MAX_BUF)) {
                     memcpy(d->au + d->au_len, SC4, 4); d->au_len += 4;
                     d->au[d->au_len++] = d->fu_nal_header0;
                     d->au[d->au_len++] = d->fu_nal_header1;
                     memcpy(d->au + d->au_len, d->fu, d->fu_len); d->au_len += d->fu_len;
-                }
+                } else { d->v_drop = 1; }
                 d->fu_active = 0;
             }
         }
@@ -479,7 +495,7 @@ static void depkt_video(depkt_t* d, const uint8_t* rtp, int len) {
 static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
     if (len < 12 || !d->audio) return;
     int cc = rtp[0] & 0x0F;
-    uint32_t ts = (rtp[4] << 24) | (rtp[5] << 16) | (rtp[6] << 8) | rtp[7];
+    uint32_t ts = ((uint32_t)rtp[4] << 24) | (rtp[5] << 16) | (rtp[6] << 8) | rtp[7];
     int hdr = 12 + cc * 4;
     if (hdr >= len) return;
     const uint8_t* p = rtp + hdr; int plen = len - hdr;
@@ -508,6 +524,13 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
     if (d->afrag_active && rel != d->afrag_rel) { d->afrag_active = 0; d->afrag_len = 0; }
 
     int marker = (rtp[1] >> 7) & 1;
+    /* A frame discarded over the cap keeps dropping its remaining packets (same
+     * timestamp) so the marker tail isn't emitted as a truncated standalone AU.
+     * Cleared by the marker (frame end) or a new timestamp. */
+    if (d->afrag_drop) {
+        if (rel != d->afrag_rel) d->afrag_drop = 0;
+        else { if (marker) d->afrag_drop = 0; return; }
+    }
     if (!marker || d->afrag_active) {
         /* A slice of a fragmented AU (fragments never aggregate: a marker=0
          * packet is always one slice). Accumulate; the marker=1 slice
@@ -515,9 +538,13 @@ static void depkt_audio(depkt_t* d, const uint8_t* rtp, int len) {
         int avail = plen - dpos;
         if (avail <= 0) return;
         if (!d->afrag_active) { d->afrag_active = 1; d->afrag_len = 0; d->afrag_rel = rel; }
-        if (grow(&d->afrag, &d->afrag_cap, d->afrag_len + avail)) {
+        if (grow(&d->afrag, &d->afrag_cap, d->afrag_len + avail, RTP_MAX_BUF)) {
             memcpy(d->afrag + d->afrag_len, p + dpos, avail);
             d->afrag_len += avail;
+        } else {
+            /* over cap: drop the frame and latch so its tail (incl. the marker
+             * packet) isn't emitted as a partial. */
+            d->afrag_active = 0; d->afrag_len = 0; d->afrag_drop = !marker; return;
         }
         if (marker && d->afrag_len > 0) {
             int64_t pts = rtp_ts_to_us(d->afrag_rel, d->audio->clock ? d->audio->clock : 48000);
@@ -879,6 +906,7 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
         static const char* A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         int o = 0;
         for (int i = 0; i < n; i += 3) {
+            if (o > (int)sizeof(r.authb64) - 5) break;   /* 4 chars + NUL still fit */
             int b0 = (unsigned char)up[i];
             int b1 = i + 1 < n ? (unsigned char)up[i + 1] : 0;
             int b2 = i + 2 < n ? (unsigned char)up[i + 2] : 0;
@@ -1084,7 +1112,7 @@ static int run_session(basis_media_sink_t* sink, const basis_url_t* url, int use
             int channel = hdr[0];
             int plen = (hdr[1] << 8) | hdr[2];
             if (plen <= 0 || plen > 4 * 1024 * 1024) { rc = -1; break; }
-            if (!grow(&pkt, &pkt_cap, plen)) { rc = -1; break; }
+            if (!grow(&pkt, &pkt_cap, plen, RTP_MAX_BUF)) { rc = -1; break; }
             if (basis_io_read_full(r.io, pkt, plen) != plen) { rc = -1; break; }
 
             if (channel == d.v_channel) depkt_video(&d, pkt, plen);

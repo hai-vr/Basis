@@ -539,17 +539,22 @@ static void parse_chunk_offsets(mp4_ctab_t* c, const uint8_t* p, int len, int is
     c->chunk_count = n;
 }
 
-static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len);
+/* Container-box nesting cap. Real files nest a handful deep (moov>trak>mdia>
+ * minf>stbl); a crafted file can nest thousands deep with 8-byte headers to
+ * exhaust the demux-thread stack, so bail well before that. */
+#define MP4_MAX_BOX_DEPTH 32
+
+static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len, int depth);
 
 /* Tracks are selected by role — the first supported video track and the first
  * supported audio track, wherever they sit in the moov. A fixed first-two-traks
  * cut would leave a valid file ordered audio,audio,video silently video-less. */
-static void parse_trak(mp4_t* m, const uint8_t* p, int len) {
+static void parse_trak(mp4_t* m, const uint8_t* p, int len, int depth) {
     mp4_track_t t;
     memset(&t, 0, sizeof(t));
     t.nal_len_size = 4;
     t.timescale = 90000;
-    parse_box_tree(m, &t, p, len);
+    parse_box_tree(m, &t, p, len, depth);
 
     int have_video = 0, have_audio = 0;
     for (int i = 0; i < m->ntracks; ++i) {
@@ -571,7 +576,8 @@ static void parse_trak(mp4_t* m, const uint8_t* p, int len) {
     free(t.ctab.stsc); free(t.ctab.chunk_offsets); free(t.ctab.stss);
 }
 
-static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len) {
+static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len, int depth) {
+    if (depth > MP4_MAX_BOX_DEPTH) return;
     int off = 0;
     while (off + 8 <= len) {
         int sz = (int)rd32(p + off);
@@ -580,11 +586,11 @@ static void parse_box_tree(mp4_t* m, mp4_track_t* t, const uint8_t* p, int len) 
         const uint8_t* body = p + off + 8;
         int blen = sz - 8;
         switch (ty) {
-            case 0x7472616b: parse_trak(m, body, blen); break;          /* trak */
+            case 0x7472616b: parse_trak(m, body, blen, depth + 1); break;      /* trak */
             case 0x6d646961: /* mdia */
             case 0x6d696e66: /* minf */
             case 0x65647473: /* edts */
-            case 0x7374626c: parse_box_tree(m, t, body, blen); break;    /* stbl */
+            case 0x7374626c: parse_box_tree(m, t, body, blen, depth + 1); break; /* stbl */
             case 0x6d766864: /* mvhd: movie timescale (elst duration units) + duration */
                 if (blen >= 4) {
                     int ver = body[0];
@@ -1307,7 +1313,7 @@ int basis_mp4_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
 
         switch (type) {
             case 0x6d6f6f76: /* moov */
-                parse_box_tree(&m, NULL, buf, (int)body);
+                parse_box_tree(&m, NULL, buf, (int)body, 0);
                 for (int i = 0; i < m.ntracks; ++i) {
                     classic_apply_elst(&m, &m.tracks[i]);
                     classic_init_cursor(&m.tracks[i].ctab);

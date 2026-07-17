@@ -228,6 +228,12 @@ void        basis_engine_set_state(basis_media_engine_t* engine, basis_media_sta
 void        basis_engine_set_error(basis_media_engine_t* engine, const char* message);
 basis_decoder_t* basis_engine_get_decoder(basis_media_engine_t* engine);
 
+/* Render-thread entry point (the Unity plugin's OnRenderEvent forwards here). The
+ * engine pointer comes from Unity and can arrive after basis_media_close has freed
+ * it; this checks a liveness registry under a lock and no-ops on a stale engine,
+ * so a late render event can't use-after-free. event_id is a BASIS_RENDER_* value. */
+void        basis_engine_render_event(basis_media_engine_t* engine, int event_id);
+
 /* Consulted by the platform backend: paused freezes video publishing and mutes
  * audio reads; running going to 0 tells decode/demux loops to unwind. */
 int basis_engine_is_paused(basis_media_engine_t* engine);

@@ -46,13 +46,22 @@ typedef struct {
     int pkt_size;   /* 0 until detected; 188, or 192 for m2ts */
 } ts_t;
 
+/* A PES buffer only flushes on the next payload-unit-start for its PID, so a
+ * stream that sets PUSI once and never again would grow this without bound. Cap
+ * it: a single video PES (unbounded PES_packet_length, delimited by the next
+ * PUSI) can legitimately reach a few MiB at high bitrate/4K, well under this. */
+#define TS_MAX_PES (8 * 1024 * 1024)
+
 static int accum_reserve(es_accum_t* e, int extra) {
-    if (e->len + extra <= e->cap) return 1;
-    int ncap = e->cap ? e->cap * 2 : 65536;
-    while (ncap < e->len + extra) ncap *= 2;
+    int64_t need = (int64_t)e->len + extra;
+    if (need <= e->cap) return 1;
+    if (need > TS_MAX_PES) return 0;
+    int64_t ncap = e->cap ? e->cap : 65536;
+    while (ncap < need) ncap *= 2;
+    if (ncap > TS_MAX_PES) ncap = TS_MAX_PES;
     uint8_t* nb = (uint8_t*)realloc(e->buf, (size_t)ncap);
     if (!nb) return 0;
-    e->buf = nb; e->cap = ncap;
+    e->buf = nb; e->cap = (int)ncap;
     return 1;
 }
 
@@ -192,7 +201,7 @@ static void feed_es(ts_t* t, es_accum_t* e, int pusi, const uint8_t* payload, in
         e->started = 1;
     }
     if (!e->started) return;
-    if (!accum_reserve(e, plen)) return;
+    if (!accum_reserve(e, plen)) { e->len = 0; e->started = 0; return; } /* over cap: drop, resync on next PUSI */
     memcpy(e->buf + e->len, payload, (size_t)plen);
     e->len += plen;
 }

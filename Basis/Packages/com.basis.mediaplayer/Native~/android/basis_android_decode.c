@@ -508,6 +508,7 @@ static void feed_extractor_sample(basis_decoder_t* d, AMediaCodec* codec, int tr
     if (ii < 0) return;
     size_t cap = 0;
     uint8_t* buf = AMediaCodec_getInputBuffer(codec, ii, &cap);
+    if (!buf) { AMediaCodec_queueInputBuffer(codec, ii, 0, 0, 0, 0); return; }
     ssize_t sz = AMediaExtractor_readSampleData(d->extractor, buf, cap);
     if (sz < 0) {
         AMediaCodec_queueInputBuffer(codec, ii, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
@@ -858,17 +859,23 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
 
 int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int len, int64_t pts_us, int key) {
     (void)key;
-    if (!d || !d->vcodec) return -1;
+    if (!d || !d->vcodec || !annexb || len <= 0) return -1;
+    int rc = -1;
     ssize_t ii = AMediaCodec_dequeueInputBuffer(d->vcodec, 2000);
     if (ii >= 0) {
         size_t cap = 0;
-        uint8_t* buf = AMediaCodec_getInputBuffer(d->vcodec, ii, &cap);
-        int n = len < (int)cap ? len : (int)cap;
-        memcpy(buf, annexb, n);
-        AMediaCodec_queueInputBuffer(d->vcodec, ii, 0, n, pts_us, 0);
+        uint8_t* buf = AMediaCodec_getInputBuffer(d->vcodec, ii, &cap); /* size_t: no sign-cast */
+        if (buf && (size_t)len <= cap) {
+            memcpy(buf, annexb, (size_t)len);
+            rc = (AMediaCodec_queueInputBuffer(d->vcodec, ii, 0, (size_t)len, pts_us, 0) == AMEDIA_OK) ? 0 : -1;
+        } else {
+            /* NULL buffer or the AU doesn't fit: never queue a partial frame — it
+             * decodes to corruption. Release the slot empty and report the drop. */
+            AMediaCodec_queueInputBuffer(d->vcodec, ii, 0, 0, pts_us, 0);
+        }
     }
     drain_video_output(d);
-    return 0;
+    return rc;
 }
 
 /* Source-order -> WAVE-order channel map for the Blu-ray HDMV LPCM
@@ -928,13 +935,14 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
     if (!d || !data || len <= 0) return -1;
     if (d->ac == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (!d->acodec) return -1;
+    int rc = -1;
     ssize_t ii = AMediaCodec_dequeueInputBuffer(d->acodec, 2000);
     if (ii >= 0) {
         size_t cap = 0;
         uint8_t* buf = AMediaCodec_getInputBuffer(d->acodec, ii, &cap);
-        if ((size_t)len <= cap) {
+        if (buf && (size_t)len <= cap) {
             memcpy(buf, data, (size_t)len);
-            AMediaCodec_queueInputBuffer(d->acodec, ii, 0, len, pts_us, 0);
+            rc = (AMediaCodec_queueInputBuffer(d->acodec, ii, 0, len, pts_us, 0) == AMEDIA_OK) ? 0 : -1;
         } else {
             /* Never feed a partial frame — it decodes to an error + silence.
              * max-input-size should prevent this; return the buffer empty if not. */
@@ -942,7 +950,7 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
         }
     }
     drain_audio_output(d);
-    return 0;
+    return rc;
 }
 
 /* ---- render thread + accessors ----------------------------------------- */

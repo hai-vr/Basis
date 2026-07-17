@@ -132,6 +132,16 @@ public static class BasisMediaPlayerSecurity
             if (b[0] == 169 && b[1] == 254) { reason = "link-local 169.254/16"; return true; }
             if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) { reason = "RFC1918 172.16/12"; return true; }
             if (b[0] == 192 && b[1] == 168) { reason = "RFC1918 192.168/16"; return true; }
+            // IANA "Globally Reachable: False" special-use reserves — non-global-unicast, and may be
+            // routed to internal infrastructure. Kept in lockstep with the native guard (basis_io.c
+            // ipv4_octets_blocked) — change both together.
+            // https://www.iana.org/assignments/iana-ipv4-special-registry/
+            if (b[0] == 192 && b[1] == 0 && b[2] == 0) { reason = "IETF protocol 192.0.0/24"; return true; }
+            if (b[0] == 192 && b[1] == 0 && b[2] == 2) { reason = "TEST-NET-1 192.0.2/24"; return true; }
+            if (b[0] == 192 && b[1] == 88 && b[2] == 99) { reason = "6to4 relay 192.88.99/24"; return true; }
+            if (b[0] == 198 && (b[1] & 0xFE) == 18) { reason = "benchmarking 198.18/15"; return true; }
+            if (b[0] == 198 && b[1] == 51 && b[2] == 100) { reason = "TEST-NET-2 198.51.100/24"; return true; }
+            if (b[0] == 203 && b[1] == 0 && b[2] == 113) { reason = "TEST-NET-3 203.0.113/24"; return true; }
             if (b[0] >= 224) { reason = "multicast/reserved >=224/4"; return true; }
             return false;
         }

@@ -75,15 +75,26 @@ static int local_allowed(void) {
     return v && v[0];
 }
 
-static int ipv4_octets_blocked(uint8_t b0, uint8_t b1) {
-    if (b0 == 0) return 1;                              /* 0/8 unspecified */
-    if (b0 == 10) return 1;                             /* 10/8 */
+/* The IANA IPv4 Special-Purpose Address Registry entries that are "Globally
+ * Reachable: False" — i.e. everything that is not a public unicast destination.
+ * Kept in lockstep with the managed guard (BasisMediaPlayerSecurity.IsBlockedAddress)
+ * — change both together. See
+ * https://www.iana.org/assignments/iana-ipv4-special-registry/ */
+static int ipv4_octets_blocked(uint8_t b0, uint8_t b1, uint8_t b2) {
+    if (b0 == 0) return 1;                              /* 0/8 "this network" */
+    if (b0 == 10) return 1;                             /* 10/8 private */
     if (b0 == 127) return 1;                            /* 127/8 loopback */
     if (b0 == 100 && (b1 & 0xC0) == 64) return 1;       /* 100.64/10 CGNAT */
     if (b0 == 169 && b1 == 254) return 1;               /* 169.254/16 link-local (metadata) */
-    if (b0 == 172 && b1 >= 16 && b1 <= 31) return 1;    /* 172.16/12 */
-    if (b0 == 192 && b1 == 168) return 1;               /* 192.168/16 */
-    if (b0 >= 224) return 1;                            /* multicast/reserved */
+    if (b0 == 172 && b1 >= 16 && b1 <= 31) return 1;    /* 172.16/12 private */
+    if (b0 == 192 && b1 == 0 && b2 == 0) return 1;      /* 192.0.0/24 IETF protocol assignments */
+    if (b0 == 192 && b1 == 0 && b2 == 2) return 1;      /* 192.0.2/24 TEST-NET-1 */
+    if (b0 == 192 && b1 == 88 && b2 == 99) return 1;    /* 192.88.99/24 6to4 relay anycast (deprecated) */
+    if (b0 == 192 && b1 == 168) return 1;               /* 192.168/16 private */
+    if (b0 == 198 && (b1 & 0xFE) == 18) return 1;       /* 198.18/15 benchmarking */
+    if (b0 == 198 && b1 == 51 && b2 == 100) return 1;   /* 198.51.100/24 TEST-NET-2 */
+    if (b0 == 203 && b1 == 0 && b2 == 113) return 1;    /* 203.0.113/24 TEST-NET-3 */
+    if (b0 >= 224) return 1;                            /* 224/4 multicast + 240/4 reserved (incl. 255.255.255.255) */
     return 0;
 }
 
@@ -95,7 +106,7 @@ static int sockaddr_is_blocked(const struct sockaddr* sa) {
     if (sa->sa_family == AF_INET) {
         const struct sockaddr_in* s = (const struct sockaddr_in*)sa;
         const uint8_t* b = (const uint8_t*)&s->sin_addr.s_addr; /* network order = octets in order */
-        return ipv4_octets_blocked(b[0], b[1]);
+        return ipv4_octets_blocked(b[0], b[1], b[2]);
     }
     if (sa->sa_family == AF_INET6) {
         const struct sockaddr_in6* s = (const struct sockaddr_in6*)sa;
@@ -112,13 +123,34 @@ static int sockaddr_is_blocked(const struct sockaddr* sa) {
             int mapped = 1;
             for (i = 0; i < 10; i++) if (b[i]) { mapped = 0; break; }
             if (mapped && b[10] == 0xFF && b[11] == 0xFF)  /* ::ffff:a.b.c.d */
-                return ipv4_octets_blocked(b[12], b[13]);
+                return ipv4_octets_blocked(b[12], b[13], b[14]);
         }
         if (b[0] == 0x20 && b[1] == 0x02)                  /* 2002::/16 6to4 */
-            return ipv4_octets_blocked(b[2], b[3]);
+            return ipv4_octets_blocked(b[2], b[3], b[4]);
         return 0;
     }
     return 1;
+}
+
+int basis_io_host_is_blocked(const char* host) {
+    if (!host || !host[0]) return 1;
+    if (local_allowed()) return 0;
+
+    struct addrinfo hints, *res = NULL, *ai;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    /* Fail closed: a name we can't resolve here could resolve to a private
+     * address at the platform stack's own lookup a moment later. */
+    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) return 1;
+
+    /* Block if ANY resolved address is non-global — a host with both a public
+     * and a private record must not be usable to reach the private one. */
+    int blocked = 0;
+    for (ai = res; ai; ai = ai->ai_next)
+        if (sockaddr_is_blocked(ai->ai_addr)) { blocked = 1; break; }
+    freeaddrinfo(res);
+    return blocked;
 }
 
 basis_io_t* basis_io_connect(const char* host, int port, int timeout_ms) {
