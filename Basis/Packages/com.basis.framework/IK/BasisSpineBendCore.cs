@@ -66,9 +66,14 @@ namespace UnityEngine.Animations.Rigging
             r = default;
 
             Quaternion invHips = Quaternion.Inverse(i.HipsRot);
+            // Bind-cancelled hips space, same as the twist below: the raw hips-bone frame is a rig
+            // convention, and on a rig whose hips bind is rolled the bend dirs land on the atan2(z,y)
+            // pole -- the pre-bend then flips between the +forward and -backward clamps as the head
+            // scans across center. Identity bind => identical products, bit for bit.
+            Quaternion hipsSpace = i.HipsBind * invHips;
 
-            Vector3 localChestDir = invHips * (i.ChestPos - i.HipsPos);
-            Vector3 localTargetDir = invHips * (i.SmoothedHead - i.HipsPos);
+            Vector3 localChestDir = hipsSpace * (i.ChestPos - i.HipsPos);
+            Vector3 localTargetDir = hipsSpace * (i.SmoothedHead - i.HipsPos);
             if (localChestDir.sqrMagnitude < k_SqrEpsilon || localTargetDir.sqrMagnitude < k_SqrEpsilon)
             {
                 r.EarlyOut = true;
@@ -81,7 +86,7 @@ namespace UnityEngine.Animations.Rigging
             float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
             Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
 
-            Quaternion headRotLocal = (i.HipsBind * invHips) * i.HeadTargetRot;
+            Quaternion headRotLocal = hipsSpace * i.HeadTargetRot;
             Vector3 headFwdLocal = headRotLocal * Vector3.forward;
             float horizMagSq = headFwdLocal.x * headFwdLocal.x + headFwdLocal.z * headFwdLocal.z;
             float twistY = (horizMagSq < k_SqrEpsilon) ? 0f : Mathf.Atan2(headFwdLocal.x, headFwdLocal.z) * Mathf.Rad2Deg;

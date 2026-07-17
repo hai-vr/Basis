@@ -19,9 +19,7 @@ namespace Basis.BasisUI
         bool Toggle();
         /// <summary>Bring the mirror up if it isn't already (idempotent); returns whether it's up.</summary>
         bool Summon();
-        /// <summary>Take the mirror down (if up) and reset its size for the next open.</summary>
+        /// <summary>Take the mirror down (if up).</summary>
         void Hide();
-        void ScaleUp();
-        void ScaleDown();
     }
 }

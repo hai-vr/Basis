@@ -34,8 +34,45 @@ namespace UnityEngine.Animations.Rigging
     ///
     /// A POSITION IS NOT A TANGENT VECTOR, so it carries no such obstruction. Predict the elbow's
     /// position, project it onto the circle, and the only degeneracy left is "the predicted elbow lands
-    /// ON the shoulder->hand axis" -- which is 0.036% of the reachable workspace and is faded, not
-    /// gated. Nothing to snap, no reference frame, no atan2, no confidence cliff.
+    /// ON the shoulder->hand axis" -- which is 0.036% of the reachable workspace.
+    ///
+    /// BUT THE PROJECTED BEND IS A TANGENT VECTOR AGAIN, and Poincare-Hopf says any bend field over the
+    /// sphere of hand directions has total index 2: TWO zeros per reach shell, somewhere. This model's
+    /// sit at hand ACROSS-THE-BODY-AND-UP (-0.88, 0.47, -0.09, deepest at 0.75 reach) and at a shallow
+    /// valley DOWN-AND-BACK behind the hip. They cannot be deleted, only placed; everything below is
+    /// about what happens NEAR them.
+    ///
+    /// ================================================================================================
+    /// WHY THE FADE THIS MODEL SHIPPED WITH IS GONE (2026-07-17, "big arm swings flip drastically").
+    ///
+    /// It used to blend the projected bend toward a fixed rest pole below a conditioning of 0.10:
+    ///
+    ///     normalizesafe(primary * w + rest * (1 - w), rest)
+    ///
+    /// A LERP OF TWO UNIT DIRECTIONS PASSES THROUGH ZERO WHERE THEY ARE ANTIPODAL AND w CROSSES 0.5.
+    /// "Fade, never gate" was the intent; an antipodal lerp IS a gate -- normalize(~0) flips the whole
+    /// output the moment the blend crosses its cancellation. And that cancellation surface does not sit
+    /// at the model's zeros, where distrust is deserved -- it cuts through HEALTHY workspace where the
+    /// model still has a 3-6 cm lever, exactly where dot(primary, rest) = -1 happens to fall:
+    ///
+    ///   * hand swinging ACROSS the body at 0.45 reach: elbow teleports 18.4 then 28.7 cm in single
+    ///     0.5-degree hand steps (hint direction jumps 73 degrees in one frame), at conditioning 0.06;
+    ///   * the DOWN-AND-BACK follow-through of a big swing at 0.65 reach: same event, 108 degrees.
+    ///
+    /// That is the reported flip, reproduced deterministically -- and the fade also LOST its own
+    /// bargain: under 2 mm of hand noise inside its band it moved the elbow up to 25.5 deg (p99 6.5)
+    /// against 8.1 deg (p99 3.2) without it. The rest pole now serves only as the normalizesafe
+    /// fallback AT the zeros themselves.
+    ///
+    /// MEASURED, full-sphere meridian sweeps at 0.5 deg of hand elevation per step, worst single-step
+    /// bend rotation (flip = tens of degrees in one step):
+    ///
+    ///                                reach 0.45   reach 0.65   reach 0.85   noise p99 (2mm, old band)
+    ///     with the fade ..........      78 deg      108 deg      114 deg      6.5 deg
+    ///     projection only ........      21 deg      166 deg*      20 deg      3.2 deg
+    ///
+    ///     * only within ~1 degree of a zero core, where the fade construction was equally violent;
+    ///       everywhere the lever is over 0.02 arm lengths the step now stays under ~21 degrees.
     /// ================================================================================================
     ///
     /// MEASURED, leave-one-CLIP-out over the corpus, elbow position error as % of arm length, and
@@ -58,18 +95,10 @@ namespace UnityEngine.Animations.Rigging
     [BurstCompile]
     public static class BasisElbowFieldModel
     {
-        /// <summary>|pole| below this (as a fraction of arm length) and the predicted elbow is so close to
-        /// the shoulder->hand axis that its DIRECTION is noise. Fade, never gate: a hard gate here is what
-        /// dropped the hint entirely and handed the elbow back to the animation clip.</summary>
-        public const float FadeLo = 0.02f;
-
-        /// <summary>At or above this the model is trusted outright, so everything in the fitted domain is
-        /// bit-for-bit the unfaded answer.</summary>
-        public const float FadeHi = 0.10f;
-
         /// <summary>The anatomical rest pole, in the mirrored body frame (+x OUT, +y UP, +z FWD): an elbow
-        /// hangs DOWN, a little OUT, and a little BACK. Consulted only where the field above has already
-        /// gone to noise. Magnitude is irrelevant; only the direction is used.</summary>
+        /// hangs DOWN, a little OUT, and a little BACK. Consulted only where the projected bend has no
+        /// length at all -- the exact zero cores -- as normalizesafe's fallback, never blended in.
+        /// Magnitude is irrelevant; only the direction is used.</summary>
         static readonly float3 k_RestPole = new float3(0.35f, -1.0f, -0.15f);
 
         /// <summary>
@@ -95,10 +124,16 @@ namespace UnityEngine.Animations.Rigging
         /// axis. Perpendicular by construction, so it lies on the elbow's reachable circle and the solver
         /// has nothing to project away and no near-singular projection to guard.
         ///
+        /// THE PROJECTION IS THE WHOLE FUNCTION. No fade, no blend, no second opinion: blending this
+        /// direction toward any fixed pole re-creates the flip (see the file header -- an antipodal lerp
+        /// cancels, and its cancellation surface cut through healthy workspace; it is also LOUDER under
+        /// noise than the raw projection, 25.5 deg vs 8.1 under 2 mm of hand jitter). The rest pole enters
+        /// only as normalizesafe's fallback, on the measure-zero cores where the projection has no length.
+        ///
         /// `elbowLocal` is this model's prediction, `tipLocal` the hand, both in the mirrored body frame.
         /// `conditioning` comes back as the pole's lever arm in arm lengths -- a purely GEOMETRIC number
         /// (how far the predicted elbow stands off the arm's own axis), not a regression's opinion of
-        /// itself. It is reported for tests and gizmos; the fade is already applied.
+        /// itself. It is reported for tests and gizmos.
         /// </summary>
         public static float3 BendDirection(float3 tipLocal, float3 elbowLocal, out float conditioning)
         {
@@ -110,11 +145,7 @@ namespace UnityEngine.Animations.Rigging
             float3 restPerp = k_RestPole - axis * math.dot(k_RestPole, axis);
             float3 rest = math.normalizesafe(restPerp, new float3(0f, 0f, -1f));
 
-            float w = math.saturate((conditioning - FadeLo) / (FadeHi - FadeLo));
-            w = w * w * (3f - 2f * w);
-
-            float3 primary = conditioning > 1e-6f ? perp / conditioning : rest;
-            return math.normalizesafe(primary * w + rest * (1f - w), rest);
+            return math.normalizesafe(perp, rest);
         }
     }
 }

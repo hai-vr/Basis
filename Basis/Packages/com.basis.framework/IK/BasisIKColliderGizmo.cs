@@ -34,6 +34,9 @@ namespace Basis.Scripts.Debugging
         private const float SpineRadiusMultiplier = 0.8f;
         private const float HipsRadiusMultiplier = 1.4f;
         private const float UpperArmRadiusMultiplier = 1.2f;
+        // Torso is an ELLIPSE: the radius above is the wide (lateral) half-width; the front-back half-depth
+        // is this fraction of it. Must match BasisElbowProtectCore.k_ChestDepthRatio.
+        private const float ChestDepthRatio = 0.68f;
 
         private static readonly Color TorsoColor = new Color(0f, 1f, 0f, 0.9f);
         private static readonly Color HandColor = new Color(0f, 1f, 1f, 0.9f);
@@ -86,10 +89,36 @@ namespace Basis.Scripts.Debugging
             float spineR = Mathf.Max(0f, chestRBase * SpineRadiusMultiplier + skin);
             float hipsR = Mathf.Max(0f, chestRBase * HipsRadiusMultiplier + skin);
 
-            UpdateBoneCapsule(HipsBase, data.hips, data.spine, hipsR, playerUp);
-            UpdateBoneCapsule(SpineBase, data.spine, data.chest, spineR, playerUp);
-            UpdateCapsule(ChestBase, data.chest.position, data.neck.position, chestR, playerUp);
-            SetCapsuleActive(ChestBase, true);
+            // Body-lateral axis (shoulder-to-shoulder), exactly as BasisElbowProtectCore derives it, so the
+            // drawn ellipse matches what the IK actually collides against. Falls back to a round draw if the
+            // upper arms are unavailable.
+            Vector3 bodyRight = (data.leftUpperArm != null && data.RightUpperArm != null)
+                ? data.RightUpperArm.position - data.leftUpperArm.position : Vector3.zero;
+            Vector3 bodyLat = bodyRight - playerUp * Vector3.Dot(bodyRight, playerUp);
+            Vector3 bodyFwd = Vector3.zero;
+            bool elliptical = bodyLat.sqrMagnitude > 1e-6f;
+            if (elliptical)
+            {
+                bodyLat.Normalize();
+                bodyFwd = Vector3.Cross(bodyLat, playerUp);
+                elliptical = bodyFwd.sqrMagnitude > 1e-6f;
+                if (elliptical) bodyFwd.Normalize();
+            }
+
+            if (elliptical)
+            {
+                UpdateEllipticalBoneCapsule(HipsBase, data.hips, data.spine, hipsR, hipsR * ChestDepthRatio, bodyLat, bodyFwd);
+                UpdateEllipticalBoneCapsule(SpineBase, data.spine, data.chest, spineR, spineR * ChestDepthRatio, bodyLat, bodyFwd);
+                UpdateEllipticalCapsule(ChestBase, data.chest.position, data.neck.position, chestR, chestR * ChestDepthRatio, bodyLat, bodyFwd);
+                SetCapsuleActive(ChestBase, true);
+            }
+            else
+            {
+                UpdateBoneCapsule(HipsBase, data.hips, data.spine, hipsR, playerUp);
+                UpdateBoneCapsule(SpineBase, data.spine, data.chest, spineR, playerUp);
+                UpdateCapsule(ChestBase, data.chest.position, data.neck.position, chestR, playerUp);
+                SetCapsuleActive(ChestBase, true);
+            }
 
             float handR = Mathf.Max(0f, data.HandRadius + data.HandSkin);
 
@@ -212,6 +241,50 @@ namespace Basis.Scripts.Debugging
             }
             UpdateCapsule(baseIdx, a.position, b.position, radius, playerUp);
             SetCapsuleActive(baseIdx, true);
+        }
+
+        private static void UpdateEllipticalBoneCapsule(int baseIdx, Transform a, Transform b, float latR, float apR, Vector3 bodyLat, Vector3 bodyFwd)
+        {
+            if (a == null || b == null)
+            {
+                SetCapsuleActive(baseIdx, false);
+                return;
+            }
+            UpdateEllipticalCapsule(baseIdx, a.position, b.position, latR, apR, bodyLat, bodyFwd);
+            SetCapsuleActive(baseIdx, true);
+        }
+
+        // Elliptical cross-section: latR along the body-lateral axis (wide), apR along body-forward (thin).
+        // Both axes are projected into the plane perpendicular to the segment so the ring sits square on it.
+        private static void UpdateEllipticalCapsule(int baseIdx, Vector3 a, Vector3 b, float latR, float apR, Vector3 bodyLat, Vector3 bodyFwd)
+        {
+            Vector3 axis = b - a;
+            float h = axis.magnitude;
+            Vector3 dir = h > 1e-6f ? axis / h : Vector3.up;
+
+            Vector3 u = bodyLat - dir * Vector3.Dot(bodyLat, dir);
+            u = u.sqrMagnitude > 1e-8f ? u.normalized : Vector3.Cross(dir, Vector3.up).normalized;
+            Vector3 w = bodyFwd - dir * Vector3.Dot(bodyFwd, dir);
+            w = w.sqrMagnitude > 1e-8f ? w.normalized : Vector3.Cross(dir, u).normalized;
+
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 0], a + u * latR, b + u * latR);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 1], a - u * latR, b - u * latR);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 2], a + w * apR, b + w * apR);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 3], a - w * apR, b - w * apR);
+
+            float step = Mathf.PI * 2f / CapSegments;
+            for (int s = 0; s < CapSegments; s++)
+            {
+                float t = step * s;
+                _capBuffer[s] = a + u * (Mathf.Cos(t) * latR) + w * (Mathf.Sin(t) * apR);
+            }
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapA_Offset], _capBuffer);
+            for (int s = 0; s < CapSegments; s++)
+            {
+                float t = step * s;
+                _capBuffer[s] = b + u * (Mathf.Cos(t) * latR) + w * (Mathf.Sin(t) * apR);
+            }
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapB_Offset], _capBuffer);
         }
 
         private static void UpdateCapsule(int baseIdx, Vector3 a, Vector3 b, float radius, Vector3 playerUp)

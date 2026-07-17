@@ -149,6 +149,11 @@ namespace Basis.Tests.IK
             // The guard steers the POLE, which is a pure rotation about the hip->ankle axis -- and the ankle lies ON
             // that axis, so it cannot move. If a "fix" for inversion also pulled the foot off its tracker it would
             // be no fix at all: in FBT the foot is the one thing that must be exact.
+            //
+            // Measured perpendicular to the hip->target ray, not as raw distance: the MAX-EXTENSION cap
+            // (BasisLegSolveCore.MaxKneeInteriorDeg) intentionally lets the foot fall a fraction of a mm short
+            // RADIALLY just past full reach, which is a slide straight along the ray (zero perpendicular error).
+            // The guard's tangential fidelity -- the thing this test owns -- is what the perpendicular metric isolates.
             foreach (float reach in k_Reaches)
             {
                 for (int hintDeg = 0; hintDeg < 360; hintDeg += 15)
@@ -156,8 +161,11 @@ namespace Basis.Tests.IK
                     BasisLegSolveInput input = MakeLeg(reach, hintDeg);
                     BasisLegSolveCore.Solve(input, out BasisLegSolveResult r);
 
-                    Assert.Less(r.FootError, 1e-4f,
-                        $"foot left its target by {r.FootError * 1000f:F2} mm at reach {reach}, hint {hintDeg}deg");
+                    Vector3 dir = input.TargetPosition - input.Root;
+                    float perp = dir.sqrMagnitude < 1e-12f ? 0f
+                        : Vector3.ProjectOnPlane(r.FootSolved - input.Root, dir.normalized).magnitude;
+                    Assert.Less(perp, 1e-4f,
+                        $"foot slid {perp * 1000f:F2} mm sideways off its target ray at reach {reach}, hint {hintDeg}deg");
                 }
             }
         }

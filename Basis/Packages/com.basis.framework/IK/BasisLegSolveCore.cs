@@ -59,6 +59,42 @@ namespace UnityEngine.Animations.Rigging
 
         public const float MinKneeInteriorDeg = 20f; // max human knee flexion ~160deg; folding past this drives the calf through the thigh
 
+        // =============================================================================================
+        // ⭐ THE KNEE'S MAX-EXTENSION CAP -- the leg's twin of BasisArmSolveCore.MaxElbowAngleDeg (170).
+        //
+        // AT 180 DEGREES THE KNEE HAS NO LEVER ARM. Its distance from the hip->ankle axis is
+        //
+        //     rho = upper*lower*sin(interior) / d
+        //
+        // and at interior = 180 that is EXACTLY ZERO: the knee lies ON the axis, its circle has collapsed
+        // to a point, and the SWIVEL that places it can no longer position it -- exactly the free-spinning
+        // stick the arm documents. Measured on this solver (offline conditioning sweep, 0.2 mm foot nudges):
+        // |d(knee)/d(foot)| sits at ~2-3 across the whole envelope and then SPIKES to 36x at reach 1.000,
+        // dropping back to 0.5x the instant the foot passes full reach. A 1 mm of foot-tracker jitter at
+        // full extension swings the knee 36 mm.
+        //
+        // AND THE LEG LIVES THERE. This solver's own SWIVEL comment says so: "standing lives there:
+        // footHeightOffset is clamped so the legs fully extend, which parks hip->ankle at ~= thigh + shin
+        // permanently." Standing is the single most common pose in VR, and it sits right on the singularity.
+        //
+        // The arm proved the fix is nearly free in reverse -- the same stationarity (dr/dinterior -> 0 near
+        // straight) that makes a length error explode into an angle error makes the cap cost almost no reach:
+        //
+        //     180 -> 176 deg  costs ~0.5 mm of leg reach, buys a ~1.5 cm knee lever arm.  A 30x trade.
+        //
+        // WHY 176 SPECIFICALLY. Measured on this solver, the fix is insensitive to the exact angle across a wide
+        // band: capping anywhere in 175-179 removes the unbounded reach-1.0 spike equally (the residual bounded
+        // conditioning is ~9x at the clamp corner either way), and the bone ROLL is already handled at every
+        // extension by the kneeDir reconstruction below, independent of the lever arm. So the only thing the
+        // angle trades is standing knee-bend (visible crouch) against lever-arm margin. 176 is the HIGHEST cap
+        // (the LEAST standing bend -- 4 deg, inside the measured relaxed-standing range of ~2-10 deg, so it
+        // reads as natural rather than a crouch) that still keeps the knee's lever arm above ~1.3 cm -- the
+        // threshold below which every roll/flip singularity in this codebase has lived (see BasisArmSolveCore.
+        // MaxElbowAngleDeg). A named constant because it is gait FEEL: raise toward 178 for an even straighter
+        // stance, lower toward the arm's 170 for a fatter lever arm if a foot tracker ever buzzes the knee.
+        // =============================================================================================
+        public const float MaxKneeInteriorDeg = 176f;
+
         // ANTERIOR HALF-SPACE: how far the knee may swivel away from "in front of the leg" before the guard bites.
         //
         // A knee is a HINGE. It flexes one way -- heel toward the backside -- so the knee ALWAYS bulges anterior to
@@ -163,6 +199,14 @@ namespace UnityEngine.Animations.Rigging
             // the foot at the max-flexion distance along the target direction instead of letting it intersect.
             float minFlexReach = MinFlexionReach(abLen, bcLen);
             if (atCorrectedLen < minFlexReach) atCorrectedLen = minFlexReach;
+
+            // Anatomical max-EXTENSION cap (see MaxKneeInteriorDeg): never let the knee straighten past the
+            // cap, so the knee keeps a lever arm off the hip->ankle axis and the free-spinning-stick
+            // singularity at reach 1.0 becomes unreachable. Below the cap this is byte-for-byte the old
+            // solver; at/beyond full reach the foot falls the last ~0.5 mm short with a 4 deg bend instead
+            // of locking dead straight -- the same trade the arm makes at 170.
+            float maxExtReach = MaxExtensionReach(abLen, bcLen);
+            if (atCorrectedLen > maxExtReach) atCorrectedLen = maxExtReach;
 
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
 
@@ -486,6 +530,16 @@ namespace UnityEngine.Animations.Rigging
         static float MinFlexionReach(float upper, float lower)
         {
             float c = Mathf.Cos(MinKneeInteriorDeg * Mathf.Deg2Rad);
+            float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
+            return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
+        }
+
+        // Chord (root->tip distance) at the max-EXTENSION interior angle -- the FARTHEST the foot may get
+        // from the hip before the knee locks dead straight and loses its lever arm. Same law of cosines;
+        // this is the upper twin of MinFlexionReach and the leg's version of the arm's 170 deg cap.
+        static float MaxExtensionReach(float upper, float lower)
+        {
+            float c = Mathf.Cos(MaxKneeInteriorDeg * Mathf.Deg2Rad);
             float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
             return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }

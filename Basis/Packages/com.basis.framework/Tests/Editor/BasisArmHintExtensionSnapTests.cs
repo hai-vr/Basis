@@ -139,13 +139,32 @@ namespace Basis.Tests.IK
 
         /// <summary>At the singularity the pole carries no direction, so the tracker must stop mattering.</summary>
         [Test]
-        public void AtFullExtensionTheHintHasNoInfluenceLeft()
+        public void AtFullExtensionTheElbowKeepsABoundedLeverArm()
         {
+            // SUPERSEDED ASSERTION. This used to demand the hint stop mattering at full extension, on the premise
+            // that the pole degenerates (rho -> 0). BasisArmSolveCore.MaxElbowAngleDeg (170) now caps the arm a
+            // few degrees short of straight, so the elbow ALWAYS keeps a lever arm and the hint keeps placing it
+            // -- which is exactly what BasisArmTrackerHintAuthorityTests.AStrappedTracker_LandsTheElbowOnItsPole
+            // now requires at every extension. So the guarantee flips to the stronger one: the elbow is never on
+            // the axis (never a free-spinning stick), and its response to where the tracker sits is BOUNDED by
+            // the small cap circle rather than either degenerate-zero OR an unbounded snap. Mirror of
+            // BasisLegHintExtensionSnapTests.AtFullExtensionTheKneeKeepsABoundedLeverArm.
             BasisArmSolveCore.Solve(ArmAt(0.9999f, LateralHint, true), out BasisArmSolveResult lateral);
             BasisArmSolveCore.Solve(ArmAt(0.9999f, Elbow, true), out BasisArmSolveResult rest);
 
-            Assert.Less(Vector3.Distance(lateral.ElbowSolved, rest.ElbowSolved), 0.01f,
-                "at full extension the pole is degenerate, so where the tracker sits must stop mattering");
+            float upper = Vector3.Distance(Shoulder, Elbow), lower = Vector3.Distance(Elbow, Hand);
+            float chord = Mathf.Sqrt(upper * upper + lower * lower
+                - 2f * upper * lower * Mathf.Cos(BasisArmSolveCore.MaxElbowAngleDeg * Mathf.Deg2Rad));
+            float capRho = upper * lower * Mathf.Sin(BasisArmSolveCore.MaxElbowAngleDeg * Mathf.Deg2Rad) / chord;
+
+            Vector3 axis = (lateral.HandSolved - Shoulder).normalized;
+            float lever = Vector3.ProjectOnPlane(lateral.ElbowSolved - Shoulder, axis).magnitude;
+            Assert.Greater(lever, capRho * 0.75f,
+                $"at full extension the elbow lost its lever arm ({lever * 100f:F2} cm, cap guarantees ~{capRho * 100f:F2} cm) "
+                + "-- it collapsed onto the shoulder->hand axis and became a free-spinning stick");
+
+            Assert.Less(Vector3.Distance(lateral.ElbowSolved, rest.ElbowSolved), 2f * capRho + 0.005f,
+                "the elbow's response to where the tracker sits at full extension is not bounded by the cap circle");
         }
     }
 }

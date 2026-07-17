@@ -70,7 +70,10 @@ namespace UnityEngine.Animations.Rigging
         ///
         /// It is gone because BasisElbowFieldModel has nothing to be unconfident ABOUT: it predicts a
         /// POSITION, so its only degeneracy is geometric (the predicted elbow landing on the arm's own
-        /// axis), it is measurable, and it is FADED inside the model rather than gated outside it.
+        /// axis), it is measurable, and it is measure-zero -- the model falls back to its rest pole ONLY
+        /// on those exact cores. (It used to FADE toward that pole below a 0.10 lever instead, and the
+        /// fade's antipodal lerp was itself a hidden gate: it teleported the elbow 28 cm/frame on big
+        /// cross-body swings. See the field model's header.)
         /// </summary>
 
         /// <summary>

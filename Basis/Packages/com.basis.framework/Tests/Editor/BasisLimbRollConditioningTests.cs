@@ -299,15 +299,29 @@ namespace Basis.Tests.IK
         {
             float worst = 0f;
 
+            // Measure the swivel's TANGENTIAL disturbance -- the foot's deviation perpendicular to the
+            // hip->target ray -- not raw distance to target. Reach preservation is the swivel's job (it
+            // rotates ABOUT the hip->foot axis, and the foot lies ON it, so it cannot move the foot). The
+            // MAX-EXTENSION cap (BasisLegSolveCore.MaxKneeInteriorDeg) is a SEPARATE, intentional RADIAL
+            // shortfall of a fraction of a mm just past full reach; it slides the foot straight along the
+            // ray, contributing zero perpendicular error, so this metric sees the swivel alone -- which is
+            // what the test is actually about.
             for (float ext = 0.60f; ext <= 1.0001f; ext += 0.005f)
                 foreach (float elev in new[] { -30f, 0f, 45f })
                     foreach (float pole in new[] { -170f, -90f, -30f, 0f, 30f, 90f, 170f })
                         foreach (float flex in new[] { 1f, 10f, 40f })
-                            worst = Mathf.Max(worst, SolveLeg(LegTarget(ext, elev, 0f, Vector3.zero), pole, flex, 0f).FootError);
+                        {
+                            Vector3 tgt = LegTarget(ext, elev, 0f, Vector3.zero);
+                            BasisLegSolveResult r = SolveLeg(tgt, pole, flex, 0f);
+                            Vector3 dir = tgt - Root;
+                            float perp = dir.sqrMagnitude < 1e-12f ? 0f
+                                : Vector3.ProjectOnPlane(r.FootSolved - Root, dir.normalized).magnitude;
+                            worst = Mathf.Max(worst, perp);
+                        }
 
             Assert.That(worst * 1000f, Is.LessThan(0.5f),
-                $"The foot left its target by {worst * 1000f:0.00} mm. The swivel is a rotation ABOUT the hip→foot " +
-                $"axis and the foot lies ON that axis, so this is supposed to be structurally impossible.");
+                $"The foot slid {worst * 1000f:0.00} mm sideways off the hip→target ray. The swivel is a rotation " +
+                $"ABOUT the hip→foot axis and the foot lies ON that axis, so this is supposed to be structurally impossible.");
         }
 
         [Test]

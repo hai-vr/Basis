@@ -30,7 +30,11 @@ namespace Basis.Tests.IK
     ///
     /// A POSITION carries no such obstruction. This model predicts the elbow's position and projects it
     /// onto the reachable circle, so its only degeneracy is "the predicted elbow lands ON the arm's own
-    /// axis" -- 0.036% of the workspace, and faded rather than gated.
+    /// axis" -- 0.036% of the workspace. (The projected bend is a tangent field again, so Poincare-Hopf
+    /// still demands two such zeros per reach shell; they sit across-body-up and down-back. The fade
+    /// band that used to blur them traded a measure-zero core for an antipodal-lerp TELEPORT surface in
+    /// healthy workspace -- the "big swings flip" bug -- and is gone. BasisArmBigSwingFlipTests sweeps
+    /// those exact paths.)
     ///
     /// EVERY TEST BELOW DRIVES INPUTS THE LIVE RIG CAN ACTUALLY PRODUCE, especially the ones the corpus
     /// never contains. That is the lesson the previous two elbow regressions cost, and it is written into

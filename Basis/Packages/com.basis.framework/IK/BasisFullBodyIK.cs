@@ -1170,9 +1170,13 @@ w20, w54;
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, 0);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, 1);
 
-            // 4) Hands: two-bone IK with collision + elbow protection
-            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, protectElbow, collideTrackedElbow, k_SwingLeftElbow);
-            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, protectElbow, collideTrackedElbow, k_SwingRightElbow);
+            // 4) Hands: two-bone IK with collision + elbow protection. bodyRight (shoulder->shoulder) orients
+            // the torso's elliptical collision cross-section; shared by both arms so it is computed once here.
+            Vector3 bodyRight = (HandleLeftUpperArm.IsValid(stream) && HandleRightUpperArm.IsValid(stream))
+                ? HandleRightUpperArm.GetPosition(stream) - HandleLeftUpperArm.GetPosition(stream)
+                : Vector3.zero;
+            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, protectElbow, collideTrackedElbow, bodyRight, k_SwingLeftElbow);
+            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, protectElbow, collideTrackedElbow, bodyRight, k_SwingRightElbow);
 
             // Arm pop continuity: rate-limit the elbow swing so a torso-collision change eases in
             // instead of popping in one frame. Runs before arm twist (which reads the arm pose).
@@ -1716,12 +1720,14 @@ w20, w54;
             // knob, small by default, and it costs nothing with a chest tracker (the pitch weight is zeroed).
             Vector3 spineCue = Vector3.Lerp(neckCue, headTargetPos, Mathf.Clamp01(spineGazeFollow.Get(stream)));
 
+            Quaternion hipsBind = V4ToQuat(offsetRotationHips.Get(stream));
+
             BasisSpineBendInput input;
             input.HipsRot = hipsRot;
             input.HipsPos = HandleHips.GetPosition(stream);
             input.ChestPos = HandleChest.GetPosition(stream);
             input.SmoothedHead = ApplyChestSpring(stream, spineCue);
-            input.HipsBind = V4ToQuat(offsetRotationHips.Get(stream));
+            input.HipsBind = hipsBind;
             input.HeadTargetRot = V4ToQuat(targetRotationHead.Get(stream));
             input.SpineMaxForwardDeg = spineMaxForwardDeg.Get(stream);
             input.SpineMaxBackwardDeg = spineMaxBackwardDeg.Get(stream);
@@ -1758,15 +1764,20 @@ w20, w54;
                 return;
             }
 
-            Quaternion invHips = Quaternion.Inverse(hipsRot);
+            // Apply the delta in the SAME bind-cancelled frame the core measured it in (hipsRot * inv(bind)),
+            // not the raw hips-bone frame. On an identity bind this is hipsRot exactly, so it is bit-identical
+            // for the usual rigs; on a rig bound rolled/axis-swapped it stops the anatomically-framed bend from
+            // being re-applied about the bone's rolled axes (which leaned the chest sideways by 10-14 deg).
+            Quaternion hipsAnat = hipsRot * Quaternion.Inverse(hipsBind);
+            Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
             if (r.WriteSpine)
             {
-                Quaternion deltaWorld = hipsRot * Quaternion.Euler(r.SpineEuler) * invHips;
+                Quaternion deltaWorld = hipsAnat * Quaternion.Euler(r.SpineEuler) * invHipsAnat;
                 HandleSpine.SetRotation(stream, deltaWorld * HandleSpine.GetRotation(stream));
             }
             if (r.WriteUpper)
             {
-                Quaternion deltaWorld = hipsRot * Quaternion.Euler(r.UpperEuler) * invHips;
+                Quaternion deltaWorld = hipsAnat * Quaternion.Euler(r.UpperEuler) * invHipsAnat;
                 HandleUpperChest.SetRotation(stream, deltaWorld * HandleUpperChest.GetRotation(stream));
             }
         }
@@ -2648,8 +2659,21 @@ w20, w54;
                     // body-frame geometry genuinely swings, the swivel angle really does change, and a 1 Hz
                     // low-pass drags the knee visibly behind the turn. The pole is still invented and still needs
                     // damping -- just at the responsive rate, not the fabricated-leg rate.
+                    //
+                    // ⭐ A REAL KNEE TRACKER DOES NOT GET THE POLE-CONDITIONING. The conditioning multiplies beta
+                    // by sin(thigh-off-axis) -- ~0.04 on a standing leg -- which strangled the "opens fast so real
+                    // shin motion isn't lagged" beta below (0.20) down to ~0.007 exactly where a leg LIVES. That
+                    // is "the knee trackers are way too slow to update": the designed responsiveness was being
+                    // multiplied away. The conditioning models the swivel as NOISE near straight, which is right
+                    // for an INVENTED pole -- but a strapped-on tracker's pole is a MEASUREMENT with a physical
+                    // stand-off (the same doctrine the arm's stabilizer and wrist relief already follow: a
+                    // measured pole is not second-guessed), and the One-Euro's own derivative cutoff is what
+                    // separates sustained shin motion from mm jitter. That unconditioned model is EXACTLY what
+                    // BasisLegTwistSmoothingTests.TrackedFilter_RejectsAmplifiedHintJitter gates -- the live path
+                    // now matches its own test. Foot-only keeps the conditioning: its pole is still invented.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
-                        k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz);
+                        k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz,
+                        conditionOnPole: !hintIsTrackerProp.Get(stream));
                 }
                 else
                 {
@@ -2660,7 +2684,8 @@ w20, w54;
                     // foot moves with the body: a turn carries the whole leg, so the body-frame swivel angle
                     // barely changes and there is nothing real for the filter to lag.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
-                        BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz);
+                        BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz,
+                        conditionOnPole: true);
                 }
             }
         }
@@ -2696,7 +2721,7 @@ w20, w54;
         // locomotion (both move the whole leg, leaving the swivel angle ~unchanged). Called on the no-foot-
         // tracker path (standing twist) and the tracked-knee path (pole-amplified tracker jitter); the
         // caller passes the appropriate One-Euro cutoffs. Per-leg slot.
-        void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz)
+        void SmoothKneeSwivel(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole)
         {
             if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !HandleHips.IsValid(stream))
             {
@@ -2720,8 +2745,10 @@ w20, w54;
             // with no meaningful bend plane. There the raw swivel is noise, and a speed-adaptive filter reads that
             // noise as intent and opens right up (see BasisSwivelSmootherCore). Condition the filter on the pole's
             // lever arm so it damps hard while straight and recovers full responsiveness once the knee is bent.
-            // Only the LEG opts in; the arm keeps the legacy path.
-            input.ConditionOnPole = true;
+            // Only the LEG opts in; the arm keeps the legacy path. The caller decides: an INVENTED pole conditions
+            // (its near-straight swivel really is noise); a REAL knee tracker's pole is a measurement and does NOT
+            // -- strangling it was "the knee trackers are way too slow to update".
+            input.ConditionOnPole = conditionOnPole;
             input.SingularMinCutoffHz = BasisSwivelFilterCore.MinCutoffHz;
             // A knee is a hinge: it cannot bend backwards. The solve already refuses to PLACE the knee posterior
             // (BasisLegSolveCore's pole guard), but this smoother MOVES it afterwards, so without the same bound
@@ -2750,7 +2777,7 @@ w20, w54;
             tip.SetPosition(stream, preFoot);
             tip.SetRotation(stream, preFootRot);
         }
-        public void SolveHand(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty protectElbow, BoolProperty collideTrackedElbow, int swingSlot)
+        public void SolveHand(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty protectElbow, BoolProperty collideTrackedElbow, Vector3 bodyRight, int swingSlot)
         {
             // Written `!(w > 0)` so a NaN weight takes the reject branch rather than solving on garbage.
             float weight = enabledProp.Get(stream);
@@ -2808,7 +2835,9 @@ w20, w54;
                 // animation clip was doing. Switching between two unrelated poles IS the pop, and the LEG
                 // worked this out long ago and deleted its copy (see BasisSwivelHintCore.LegHint's comment,
                 // which says exactly this). The arm's survived. BasisElbowFieldModel has nothing to be
-                // unconfident about anyway: its only degeneracy is geometric and it fades it internally.
+                // unconfident about anyway: its only degeneracy is geometric, measure-zero, and handled
+                // internally by a fallback at the exact cores (its old fade BAND is gone -- the fade's
+                // antipodal lerp was the "big swings flip drastically" teleport; see the model's header).
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
                                                 out Vector3 modelHint, out _))
                 {
@@ -2851,6 +2880,7 @@ w20, w54;
                 epi.HandRadius = handRadius.Get(stream);
                 epi.HandSkin = handSkin.Get(stream);
                 epi.PlayerUp = playerUp.Get(stream);
+                epi.BodyRight = bodyRight;
 
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)

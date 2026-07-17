@@ -2207,14 +2207,6 @@
       "value": "A see-through mirror that shows only your avatar and the calibration trackers, so you can line up your pucks without closing the menu."
     },
     {
-      "key": "calibration.mirror.larger",
-      "value": "Mirror Larger"
-    },
-    {
-      "key": "calibration.mirror.smaller",
-      "value": "Mirror Smaller"
-    },
-    {
       "key": "menu.servers.source.savedServers",
       "value": "Saved Servers"
     },
