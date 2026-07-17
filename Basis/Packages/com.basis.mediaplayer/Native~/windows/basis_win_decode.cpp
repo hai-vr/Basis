@@ -568,9 +568,16 @@ static bool configure_video_mft(basis_decoder* d) {
      * Refuse here: only H.265 elementary streams reach this point sizeless (no SPS
      * parser for TS/RTSP/RTMP), and the size can't be recovered once it crashes. */
     if (d->vwidth <= 0 || d->vheight <= 0) {
-        basis_engine_set_error(d->engine,
-            "video track announced no frame size, so the decoder cannot be configured "
-            "(H.265 outside MP4 has no dimension parser yet)");
+        const char* codec_name =
+            d->vcodec == BASIS_CODEC_H265 ? "H.265" :
+            d->vcodec == BASIS_CODEC_H264 ? "H.264" :
+            d->vcodec == BASIS_CODEC_VP9  ? "VP9"   :
+            d->vcodec == BASIS_CODEC_AV1  ? "AV1"   : "this video codec";
+        char msg[176];
+        snprintf(msg, sizeof(msg),
+            "video track (%s) announced no frame size, so the decoder cannot be configured",
+            codec_name);
+        basis_engine_set_error(d->engine, msg);
         SAFE_RELEASE(d->vdec);
         return false;
     }
