@@ -226,6 +226,11 @@ namespace Basis.Scripts.UI
 
             Shader.SetGlobalVector(CursorPos, hit.worldHitPosition);
 
+            // Update hover before processing a press. Touch pointers move to their target and
+            // press in the same frame, so requiring the previous frame's pointerEnter makes
+            // the first Android tap establish hover without activating the control.
+            ProcessPointerMovement(currentEventData);
+
             // ---- BUTTON DOWN ----
             if (IsDownThisFrame)
             {
@@ -252,7 +257,6 @@ namespace Basis.Scripts.UI
             // Button UP is handled in Simulate() based on trigger state
 
             // ---- OTHER POINTER EVENTS ----
-            ProcessPointerMovement(currentEventData);
             UpdateHoverHaptic(currentEventData, BaseInput);
             ProcessScrollWheel(currentEventData);
 
