@@ -119,7 +119,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
     int len = 0, eof = 0, announced = 0, locked = 0;
     int64_t samples = 0;    /* cumulative; PTS is rounded from this, not accumulated */
     int64_t src_pos = 0;    /* total bytes read from the source */
-    int64_t audio_start = 0, duration_us = 0;
+    int64_t audio_start = 0, mpeg_start = 0, duration_us = 0;
     int a_sr = 0, cbr_bps = 0;
     mp3_vbr_t vbr; vbr.have = 0;
 
@@ -138,7 +138,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
         if (memcmp(tag, "ID3", 3) != 0) { memcpy(buf, tag, 10); len = 10; break; }
         int64_t sz = ((int64_t)(tag[6] & 0x7F) << 21) | ((tag[7] & 0x7F) << 14) |
                      ((tag[8] & 0x7F) << 7) | (tag[9] & 0x7F);
-        if (tag[5] & 0x10) sz += 10;                        /* footer present */
+        if (tag[3] == 4 && (tag[5] & 0x10)) sz += 10;       /* footer: ID3v2.4 only */
         uint8_t skip[4096];
         while (sz > 0 && sink->is_running(sink->user)) {
             int want = sz < (int64_t)sizeof(skip) ? (int)sz : (int)sizeof(skip);
@@ -155,7 +155,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
         if (announced && reseek && sink->take_seek && sink->take_seek(sink->user, &target_us)) {
             if (target_us < 0) target_us = 0;
             int64_t pos;
-            if (vbr.have && duration_us > 0 && vbr.bytes > audio_start) {
+            if (vbr.have && duration_us > 0 && vbr.bytes > audio_start - mpeg_start) {
                 double frac = (double)target_us / (double)duration_us;
                 if (frac > 1.0) frac = 1.0;
                 if (vbr.have_toc) {
@@ -165,7 +165,7 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                     double fb = (a < 99) ? vbr.toc[a + 1] : 256.0;
                     frac = (fa + (fb - fa) * (pct - a)) / 256.0;
                 }
-                pos = audio_start + (int64_t)(frac * (double)(vbr.bytes - audio_start));
+                pos = audio_start + (int64_t)(frac * (double)(vbr.bytes - (audio_start - mpeg_start)));
             } else {
                 pos = audio_start + (int64_t)((double)target_us * (double)cbr_bps / 1000000.0);
             }
@@ -202,6 +202,9 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
             if (!vbr.have && !announced && parse_vbr_header(buf + i, &f, &vbr)) {
                 /* Xing/Info/VBRI header: seek table + counts, decodes to silence.
                  * Drop it so playback starts on the first real audio frame. */
+                mpeg_start = (src_pos - len) + i;   /* the Xing frame is the first MPEG
+                                                     * frame; vbr.bytes counts from here,
+                                                     * so a leading ID3 tag is excluded */
                 i += f.frame_len;
                 continue;
             }

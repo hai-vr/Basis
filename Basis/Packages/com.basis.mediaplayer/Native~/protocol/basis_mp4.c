@@ -439,7 +439,11 @@ static void parse_stsd(mp4_track_t* t, const uint8_t* p, int len) {
                     int oti = esds_object_type(ep, el);
                     if (oti == 0x6B /*MPEG-1 audio*/ || oti == 0x69 /*MPEG-2 audio*/) {
                         /* MP3 in MP4: no AudioSpecificConfig; the sr/ch from the
-                         * sample entry stand, and the decoder reads frame headers. */
+                         * sample entry stand, and the decoder reads frame headers.
+                         * The OTI names MPEG-1/2 audio without a layer, but MP4 only
+                         * carries Layer III here in practice; a non-III stream would
+                         * be handled by the platform MPEG-audio decoder or, on the
+                         * Layer-III-only Windows path, rejected (muted, video intact). */
                         t->codec = BASIS_CODEC_MP3;
                         co += csz;
                         continue;
