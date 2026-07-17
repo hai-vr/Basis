@@ -290,9 +290,12 @@ request). A playlist that reaches an internal host is a security regression, not
 bug. (Editor testing of the legitimate localhost lane needs `BASIS_MEDIA_ALLOW_LOCAL` — see the
 security-gates section above.)
 
-**A/V sync judgement** — use real footage with visible speech; synthetic patterns hide sync
-drift. Watch a full minute at the live edge, not five seconds. For anything subtle, capture
-diagnostics (below) rather than trusting perception.
+**A/V sync judgement** — use real footage with **visible speech**; synthetic patterns hide sync
+drift, and Big Buck Bunny (the baseline endpoint) has no dialogue at all. A CC-BY Blender open
+movie with clear lip-sync is a good source — Sintel and Spring both work; download from
+[Blender Studio films](https://studio.blender.org/films/) and re-encode/serve as needed. Watch a
+full minute at the live edge, not five seconds. For anything subtle, capture diagnostics (below)
+rather than trusting perception.
 
 Know what this row cannot do, and do not treat audibility as the pass bar. A fixed offset
 below roughly 45 ms is still a real A/V-sync regression — it is just below the threshold where
