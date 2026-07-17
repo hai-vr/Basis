@@ -33,7 +33,7 @@
 #define MP3_BUF (16 * 1024)     /* holds several frames (MPEG-1 max frame 1441 B) */
 #define MP3_MAX_FRAME 2881      /* 144000*320/8000 + 1, a hard ceiling on frame_len */
 
-typedef struct { int sr, ch, frame_len, samples; } mp3_frame_t;
+typedef struct { int sr, ch, frame_len, samples, crc_len; } mp3_frame_t;
 
 /* Parsed leading VBR/CBR header frame (Xing/Info/VBRI). */
 typedef struct {
@@ -71,6 +71,7 @@ static int parse_header(const uint8_t* h, mp3_frame_t* f) {
     f->ch = ((h[3] >> 6) & 0x3) == 3 ? 1 : 2;              /* mode 3 = mono */
     f->frame_len = (mpeg1 ? 144000 : 72000) * kbps / sr + pad;
     f->samples = mpeg1 ? 1152 : 576;
+    f->crc_len = (h[1] & 0x01) ? 0 : 2;   /* protection bit 0 => a 2-byte CRC sits before the side info */
     return f->frame_len > 4 && f->frame_len <= MP3_MAX_FRAME;
 }
 
@@ -92,7 +93,7 @@ static int parse_vbr_header(const uint8_t* p, const mp3_frame_t* f, mp3_vbr_t* v
     memset(v, 0, sizeof(*v));
     int mpeg1 = (f->samples == 1152);
     int si = mpeg1 ? (f->ch == 1 ? 17 : 32) : (f->ch == 1 ? 9 : 17);
-    int off = 4 + si;
+    int off = 4 + f->crc_len + si;
     if (off + 8 <= f->frame_len &&
         (memcmp(p + off, "Xing", 4) == 0 || memcmp(p + off, "Info", 4) == 0)) {
         v->have = 1;
