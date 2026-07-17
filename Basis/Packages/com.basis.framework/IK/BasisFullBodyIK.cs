@@ -1102,6 +1102,11 @@ w20, w54;
         public NativeArray<int> swingCollided;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
+        // Per-arm gain-cap state (BasisElbowSwingCapCore): last frame's capped bend + shoulder->hand axis,
+        // and an init flag reset whenever the no-tracker model did not drive the elbow (so it re-seeds).
+        public NativeArray<Vector3> swingHintBend;
+        public NativeArray<Vector3> swingHintAxis;
+        public NativeArray<int> swingHintInit;
         // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
         //
         // The ARM had one of these too, and it is GONE. It was damping the jitter the old bend LOOKUP fed the
@@ -2877,10 +2882,44 @@ w20, w54;
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
                                                 out Vector3 modelHint, out _))
                 {
+                    // GAIN-CAP the model bend against the hand's own rotation. The bend field has
+                    // topologically-required cores (BasisElbowFieldModel's down-and-back one is the
+                    // reach-behind snap); sweeping the hand through a core flips the bend faster than any
+                    // human elbow tracks. The cap bounds bend rotation to MaxGain x hand rotation -- a
+                    // no-op everywhere the field is already slower (bit-identical), a bounded fast sweep at
+                    // the human ceiling through a core. State is per swing slot; it always chases the field,
+                    // so a stale carried pole self-corrects (unlike the reverted hold-the-pole coast).
+                    Vector3 curAxisV = tgtPos - shoulderPos;
+                    Vector3 rawBendV = modelHint - shoulderPos;
+                    float axLen = curAxisV.magnitude;
+                    float rbLen = rawBendV.magnitude;
+                    if (axLen > 1e-5f && rbLen > 1e-5f)
+                    {
+                        // Vector3 throughout (the file's convention); the Apply boundary converts to/from
+                        // Unity.Mathematics.float3 implicitly.
+                        Vector3 curAxis = curAxisV / axLen;
+                        Vector3 rawBend = rawBendV / rbLen;
+                        Vector3 cappedBend = swingHintInit[swingSlot] == 0
+                            ? rawBend
+                            : (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
+                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain);
+                        swingHintBend[swingSlot] = cappedBend;
+                        swingHintAxis[swingSlot] = curAxis;
+                        swingHintInit[swingSlot] = 1;
+                        modelHint = shoulderPos + 0.5f * armLen * cappedBend;
+                    }
+
                     hint = new AffineTransform(modelHint, hintRot);
                     hasHint = true;
                     usedModel = true;
                 }
+            }
+            // Reset the gain-cap state whenever the no-tracker model did NOT drive the elbow this frame (a
+            // real elbow tracker, or a degenerate frame), so the model re-seeds on its next frame rather
+            // than transporting a stale, unrelated pole.
+            if (!usedModel)
+            {
+                swingHintInit[swingSlot] = 0;
             }
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset);
             // NO OUTPUT FILTER ON THE MODEL PATH, and that is a measured choice, not an oversight.
@@ -3250,6 +3289,9 @@ w20, w54;
             job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintBend = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
@@ -3389,6 +3431,9 @@ w20, w54;
             if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
             if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
             if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
+            if (job.swingHintBend.IsCreated) job.swingHintBend.Dispose();
+            if (job.swingHintAxis.IsCreated) job.swingHintAxis.Dispose();
+            if (job.swingHintInit.IsCreated) job.swingHintInit.Dispose();
             if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
             if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
             if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();
