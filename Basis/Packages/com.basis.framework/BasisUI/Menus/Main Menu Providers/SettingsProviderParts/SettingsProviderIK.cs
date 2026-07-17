@@ -196,6 +196,24 @@ public static class SettingsProviderIK
             fbtEnabledToggle.AssignBinding(BasisSettingsDefaults.EnableFBT);
             fbtEnabledToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.fbt.tooltip"));
 
+            var trackerVisualsDropdown = PanelDropdown.CreateNewEntry(trackingParent);
+            trackerVisualsDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.trackerVisuals.title"));
+            trackerVisualsDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.trackerVisuals.tooltip"));
+            trackerVisualsDropdown.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.TrackerVisuals_Off,
+                    BasisSettingsDefaults.TrackerVisuals_Markers,
+                    BasisSettingsDefaults.TrackerVisuals_DeviceModels
+                },
+                new List<string>
+                {
+                    "settings.bodyTracking.trackerVisuals.off",
+                    "settings.bodyTracking.trackerVisuals.markers",
+                    "settings.bodyTracking.trackerVisuals.deviceModels"
+                });
+            trackerVisualsDropdown.AssignBinding(BasisSettingsDefaults.TrackerVisuals);
+
             var oscEnabledToggle = PanelToggle.CreateNewEntry(trackingParent);
             oscEnabledToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.osc"));
             oscEnabledToggle.AssignBinding(BasisSettingsDefaults.EnableOSC);
@@ -346,6 +364,22 @@ public static class SettingsProviderIK
                 upperArmTwist.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.upperArmTwist.title.tooltip"));
             }
         });
+
+        // ============== Spine: Proportion Match (DISABLED 2026-07-18, revisit later) ==============
+        // CreateCollapsibleSection(tabDesc, colliderGroup,
+        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.title"),
+        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.description"), false, propParent =>
+        // {
+        //     AddAnatomyToggle(propParent, BasisSettingsDefaults.FBIKSpineProportionMatch,
+        //         "settings.bodyTracking.spineProportion.enabled.title",
+        //         "settings.bodyTracking.spineProportion.enabled.description");
+        //
+        //     var maxScale = PanelSlider.CreateAndBind(
+        //         propParent,
+        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.title"), 0f, 0.25f, false, 2, ValueDisplayMode.Raw),
+        //         BasisSettingsDefaults.FBIKSpineProportionMaxScale);
+        //     maxScale?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.tooltip"));
+        // });
 
         // ============== Anatomy ==============
         // CreateCollapsibleSection(tabDesc, colliderGroup,
@@ -1124,10 +1158,12 @@ public static class SettingsProviderIK
     {
         // Main IK / calibration controls
         BasisSettingsDefaults.SitStand.ResetToDefault();
+        BasisSettingsDefaults.TrackerVisuals.ResetToDefault();
         BasisSettingsDefaults.IKMode.ResetToDefault();
         BasisSettingsDefaults.EnableArmToHeightBlend.ResetToDefault();
         BasisSettingsDefaults.ArmToHeightBlend.ResetToDefault();
         BasisSettingsDefaults.IKLockMode.ResetToDefault();
+        BasisSettingsDefaults.CalibrationMirror.ResetToDefault();
         BasisSettingsDefaults.CustomScale.ResetToDefault();
         BasisSettingsDefaults.SelectedScale.ResetToDefault();
 
@@ -1240,6 +1276,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKChestIKTarget.ResetToDefault();
         BasisSettingsDefaults.FBIKLegSwivelSmoothing.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackerBendNormal.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineProportionMatch.ResetToDefault();
+        BasisSettingsDefaults.FBIKSpineProportionMaxScale.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)

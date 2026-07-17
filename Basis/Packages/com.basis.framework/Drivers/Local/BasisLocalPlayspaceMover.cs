@@ -429,6 +429,22 @@ namespace Basis.Scripts.Drivers
             // (both call Move this frame) and the controller keeps its internal position in sync.
             if (driver.characterController != null && driver.characterController.enabled)
             {
+                // This runs AFTER locomotion's gravity Move, so it is the frame's LAST Move -- and
+                // CharacterController.isGrounded only ever reflects the most recent Move. A purely
+                // horizontal drag delta (or the ~zero delta of a stationary two-hand scale) never
+                // reports "below" contact, so on its own this Move clears isGrounded; next frame's
+                // GroundCheck then reads not-grounded and drops the avatar into the falling animation
+                // for the entire time you drag or scale. When we're already grounded (locomotion's
+                // gravity Move established it earlier this same frame) re-assert the floor contact with
+                // a tiny downward stick -- the same thing gravity does every frame during normal
+                // locomotion -- so grounding, and the animation state, survive the drag. It's absorbed
+                // by the floor collision, so it doesn't actually lower the player. Left at zero when
+                // genuinely airborne so a real fall or an in-progress jump isn't disturbed.
+                if (driver.characterController.isGrounded)
+                {
+                    delta.y = -Mathf.Max(driver.characterController.skinWidth * 4f, 0.02f);
+                }
+
                 driver.characterController.Move(delta);
                 t.rotation = newRot;
             }

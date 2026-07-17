@@ -95,6 +95,37 @@ namespace UnityEngine.Animations.Rigging
     [BurstCompile]
     public static class BasisElbowFieldModel
     {
+        /// <summary>
+        /// Route the no-tracker elbow bend through <see cref="BasisElbowStereoModel"/> instead of this
+        /// field's projected-position bend. It EXISTS TO KILL THE REACH-BEHIND SNAP -- this field's
+        /// down-and-back topological core (azimuth ~130 deg, ~20 deg below level: hand out behind the hip,
+        /// arm bent). Measured on 199,528 real frames: worst reach-behind hint rotation 33 deg/frame -> 0.3,
+        /// worst reachable elbow gain ~106x -> 7x, elbow error vs humans 9.1% -> 7.7%. The two topological
+        /// zeros this field cannot avoid become ONE, placed inside the torso where no hand can point.
+        ///
+        /// ⚠️ NOT VERIFIED IN A HEADSET. It is the default because it is measured-better everywhere the
+        /// offline harness can see (the same reasoning that made VSpinePostureModel default ON), and it is
+        /// STATELESS -- so it does not carry the live-vs-offline state gap that made the elbow-pole COAST
+        /// clean offline and worse live.
+        ///
+        /// ⚠️⚠️ DEFAULT IS false: the stereo field ELIMINATES the reach-behind snap, but in a headset it
+        /// posed the elbow ACROSS THE BODY (inward) reaching BEHIND THE BACK -- "does not look human" --
+        /// and that inward pole, swivelled onto near full extension, reads as arm ROLL when over-stretching.
+        /// Root cause is fundamental, not a tuning miss: the stereo field's ONE zero has to hide in the
+        /// torso, and the torso is right next to the behind-the-back reach, so its base field combs the
+        /// elbow inward there and no smooth theta pulls it back out without re-growing the gain (measured
+        /// every which way -- order-1/2/3 theta, upweighting, an old-field teacher). This field (a global
+        /// polynomial) poses the elbow correctly OUT-and-BACK reaching behind; its only fault is the az130
+        /// snap. Reaching behind is a genuine stateless tradeoff: snap vs pole-side. The real "both" fix
+        /// needs STATE (hysteresis through the reconfiguration, redone with an in-headset loop) or actual
+        /// behind-the-back mocap (CMU is a desert there). See the elbow-field memory.
+        ///
+        /// `static readonly`, not a settable bool, ON PURPOSE: ArmHint runs inside the Burst job
+        /// (BasisFullIKConstraintJob), and Burst forbids loading a MUTABLE static field (BC1040). A readonly
+        /// static folds to a constant, so both branches compile. Flip to true + recompile to A/B the stereo.
+        /// </summary>
+        public static readonly bool UseStereoField = false;
+
         /// <summary>The anatomical rest pole, in the mirrored body frame (+x OUT, +y UP, +z FWD): an elbow
         /// hangs DOWN, a little OUT, and a little BACK. Consulted only where the projected bend has no
         /// length at all -- the exact zero cores -- as normalizesafe's fallback, never blended in.

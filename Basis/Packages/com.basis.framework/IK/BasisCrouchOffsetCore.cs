@@ -5,6 +5,12 @@ namespace UnityEngine.Animations.Rigging
         public Vector3 HeadTargetPos;
         public Vector3 HipsPos;
         public Quaternion HipsRot;
+        // The hips calibration bind (offsetRotationHips). HipsRot carries it, so HipsRot * forward is the
+        // bone's local +Z, not the body's facing -- on a Blender-bound rig that +Z is world-up, so the crouch
+        // slid the hips vertically (or, once the up-component was stripped, collapsed and never fired). Cancel
+        // it to get the anatomical forward. A degenerate/zero value (uncalibrated, or a caller that leaves it
+        // default) means "HipsRot is already anatomical" -- the pre-bind behaviour, bit for bit.
+        public Quaternion Bind;
         public Vector3 PlayerUp;
         public float Factor;
         public float RestDist;
@@ -45,7 +51,18 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
 
-            Vector3 forward = i.HipsRot * Vector3.forward;
+            // Cancel the hips bind (a unit quaternion, so its inverse is its conjugate -- written out to keep
+            // the core free of the native Quaternion.Inverse ECall, same discipline as BasisSpineAnatomyCore).
+            // A degenerate bind falls back to HipsRot, which is the exact pre-bind behaviour.
+            Quaternion hipsAnat = i.HipsRot;
+            float bindSq = i.Bind.x * i.Bind.x + i.Bind.y * i.Bind.y + i.Bind.z * i.Bind.z + i.Bind.w * i.Bind.w;
+            if (bindSq > 0.5f)
+            {
+                Quaternion invBind = new Quaternion(-i.Bind.x, -i.Bind.y, -i.Bind.z, i.Bind.w);
+                hipsAnat = i.HipsRot * invBind;
+            }
+
+            Vector3 forward = hipsAnat * Vector3.forward;
             forward -= up * Vector3.Dot(forward, up);
             if (forward.sqrMagnitude < k_SqrEpsilon)
             {

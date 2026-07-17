@@ -261,6 +261,10 @@ namespace Basis.Scripts.Avatar
 
                 BasisContinuousCalibration.CaptureBaseline();
 
+                // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to arm the
+                //      post-calibration spine proportion capture (BasisLocalRigDriver.CaptureSpineProportion). ====
+                // BasisLocalRigDriver.HasSpineProportionCapturePending = true;
+
                 OnFullBodyCalibrated?.Invoke();
             }
             finally

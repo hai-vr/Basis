@@ -48,8 +48,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(600, 1025),
-                    PanelPosition = new Vector3(450, 25, 0),
+                    PanelSize = new Vector2(587, 1025),
+                    PanelPosition = new Vector3(456, 25, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -72,6 +72,11 @@ namespace Basis.BasisUI
             {
                 IBasisCalibrationMirror mirror = BasisCalibrationMirrorService.Provider;
 
+                if (BasisSettingsDefaults.CalibrationMirror.RawValue && !mirror.IsUp)
+                {
+                    mirror.Summon();
+                }
+
                 var mirrorToggle = PanelToggle.CreateNewEntry(container);
                 mirrorToggle.Descriptor.SetTitle(BasisLocalization.Get("calibration.mirror"));
                 mirrorToggle.Descriptor.SetTooltip(BasisLocalization.Get("calibration.mirror.tooltip"));
@@ -87,6 +92,7 @@ namespace Basis.BasisUI
                     {
                         mirror.Hide();
                     }
+                    BasisSettingsDefaults.CalibrationMirror.SetValue(mirror.IsUp);
                     mirrorToggle.SetValueWithoutNotify(mirror.IsUp);
                 };
             }

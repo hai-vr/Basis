@@ -374,9 +374,15 @@ public class BasisOpenXRHandInput : BasisInputController
                 return false;
         }
     }
+    private BasisOpenXRRenderModel _runtimeModel;
     public override void ShowTrackedVisual()
     {
         ShowTrackedVisualDefaultImplementation();
+    }
+    public override bool TryShowRuntimeDeviceModel()
+    {
+        bool isLeftHand = TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.LeftHand;
+        return BasisOpenXRRenderModel.TryLoad(this, isLeftHand, ref _runtimeModel);
     }
     /// <summary>
     /// Duration does not work on OpenXRHands, in the future we should handle it for the user.

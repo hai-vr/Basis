@@ -130,23 +130,7 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
 
         public override void ShowTrackedVisual()
         {
-            if (BasisVisualTracker == null)
-            {
-                DeviceSupportInformation match =
-                    BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
-
-                if (match.CanDisplayPhysicalTracker)
-                {
-                    LoadModelWithKey(match.DeviceID);
-                }
-                else
-                {
-                    if (UseFallbackModel())
-                    {
-                        LoadModelWithKey(FallbackDeviceID);
-                    }
-                }
-            }
+            ShowTrackedVisualDefaultImplementation();
         }
 
         public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)

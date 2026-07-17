@@ -1097,6 +1097,11 @@ w20, w54;
         public NativeArray<int> swingCollided;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
+        // Per-arm gain-cap state (BasisElbowSwingCapCore): last frame's capped bend + shoulder->hand axis,
+        // and an init flag reset whenever the no-tracker model did not drive the elbow (so it re-seeds).
+        public NativeArray<Vector3> swingHintBend;
+        public NativeArray<Vector3> swingHintAxis;
+        public NativeArray<int> swingHintInit;
         // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
         //
         // The ARM had one of these too, and it is GONE. It was damping the jitter the old bend LOOKUP fed the
@@ -1854,6 +1859,7 @@ w20, w54;
             input.HeadTargetPos = headTargetPos;
             input.HipsPos = hipsPos;
             input.HipsRot = hipsRot;
+            input.Bind = V4ToQuat(offsetRotationHips.Get(stream));
             input.PlayerUp = playerUpDir;
             input.Factor = moveBodyBackWhenCrouching.Get(stream);
             input.RestDist = MinHeadSpineHeight.Get(stream);
@@ -1964,7 +1970,11 @@ w20, w54;
             Quaternion hipsRot = HandleHips.GetRotation(stream);
             Quaternion chestRot = HandleChest.GetRotation(stream);
             Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
-            float chestYaw = SignedEuler(chestLocal.eulerAngles).y;
+            // The chest's AXIAL twist about the spine (hips-up), by swing-twist -- NOT eulerAngles.y, which
+            // gimbal-locks the instant the chest pitches ~90 deg off the hips (a deep forward bend on any rig,
+            // or a chest bound pitched near vertical) and threw a phantom counter-yaw into the shoulders. The
+            // yaw is applied about this same hips-up axis below, so measuring about it keeps the two in step.
+            float chestYaw = BasisTwistSolveCore.SignedTwistAngleDeg(chestLocal, Vector3.up);
 
             const float threshold = 30f;
             const float maxCounter = 15f;
@@ -2013,14 +2023,17 @@ w20, w54;
             Vector3 rightPos = rightEnabled ? targetPositionRightHand.Get(stream) : Vector3.zero;
             Vector3 handMid = leftEnabled && rightEnabled ? (leftPos + rightPos) * 0.5f : leftEnabled ? leftPos : rightPos;
             Vector3 hipsPos = HandleHips.GetPosition(stream);
-            Quaternion hipsRot = HandleHips.GetRotation(stream);
-            Quaternion invHips = Quaternion.Inverse(hipsRot);
-            Vector3 localMid = invHips * (handMid - hipsPos);
+            // Bind-cancelled hips frame (hipsRot * inv(bind)): the hand-midpoint is decomposed into yaw/pitch
+            // in the body's ANATOMICAL right/forward, and the delta re-applied about the same axes. In the raw
+            // hips-bone frame a rolled bind turned the forward-follow into a chest roll. No-op at identity bind.
+            Quaternion hipsAnat = HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)));
+            Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
+            Vector3 localMid = invHipsAnat * (handMid - hipsPos);
 
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
 
-            Vector3 localMidChest = invHips * (handMid - HandleChest.GetPosition(stream));
+            Vector3 localMidChest = invHipsAnat * (handMid - HandleChest.GetPosition(stream));
             float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
 
             float maxDeg = chestArmSwingMaxDeg.Get(stream);
@@ -2031,7 +2044,7 @@ w20, w54;
             }
 
             Quaternion local = Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.AngleAxis(pitchDeg, Vector3.right);
-            Quaternion deltaWorld = hipsRot * local * invHips;
+            Quaternion deltaWorld = hipsAnat * local * invHipsAnat;
 
             if (HandleUpperChest.IsValid(stream))
             {
@@ -2078,14 +2091,6 @@ w20, w54;
             }
         }
         static Quaternion ExtractTwist(Quaternion q, Vector3 axis) => BasisTwistSolveCore.ExtractTwist(q, axis);
-        static Vector3 SignedEuler(Vector3 e)
-        {
-            return new Vector3(
-                e.x > 180f ? e.x - 360f : e.x,
-                e.y > 180f ? e.y - 360f : e.y,
-                e.z > 180f ? e.z - 360f : e.z
-            );
-        }
         // Shoulder pre-solve. Runs whenever the shoulder bone exists and the global toggle is on — a
         // dedicated shoulder tracker is no longer required. hasShoulderTrackerProp (the shoulder rig
         // layer) selects the base: the tracker when present, else the chest-anchored rest. The elbow
@@ -2756,6 +2761,17 @@ w20, w54;
             input.GuardAnteriorHalfSpace = true;
             input.AnteriorSoftDeg = BasisLegSolveCore.KneeAnteriorSoftDeg;
             input.AnteriorHardDeg = BasisLegSolveCore.KneeAnteriorHardDeg;
+            // ⭐ SINGULARITY HOLD (knee only). A standing leg is pinned at the 176 cap on the pole singularity,
+            // where the swivel angle carries no information and a slow body-frame sway (postural, pivoting over a
+            // planted foot) rolls the whole leg -- "the knee slowly rotates back and forth while all the trackers
+            // are still". This is exactly the case the tracked path (conditionOnPole=false, the 07-17 "6x faster"
+            // responsiveness fix) stopped damping: a low-pass can't remove a ~0.3 Hz oscillation, only a HOLD can.
+            // Freeze the swivel in the near-straight band; release the instant the knee bends (HoldCondHi), so
+            // deliberate shin motion is byte-for-byte untouched. See BasisSwivelSmootherCore. Applies to BOTH the
+            // tracked and invented-pole knee paths -- both live on the same standing singularity.
+            input.HoldWhenSingular = true;
+            input.HoldCondLo = BasisSwivelSmootherCore.DefaultHoldCondLo;
+            input.HoldCondHi = BasisSwivelSmootherCore.DefaultHoldCondHi;
             input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
             input.Seeded = legSwivelInit[slot] != 0;
 
@@ -2841,10 +2857,44 @@ w20, w54;
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
                                                 out Vector3 modelHint, out _))
                 {
+                    // GAIN-CAP the model bend against the hand's own rotation. The bend field has
+                    // topologically-required cores (BasisElbowFieldModel's down-and-back one is the
+                    // reach-behind snap); sweeping the hand through a core flips the bend faster than any
+                    // human elbow tracks. The cap bounds bend rotation to MaxGain x hand rotation -- a
+                    // no-op everywhere the field is already slower (bit-identical), a bounded fast sweep at
+                    // the human ceiling through a core. State is per swing slot; it always chases the field,
+                    // so a stale carried pole self-corrects (unlike the reverted hold-the-pole coast).
+                    Vector3 curAxisV = tgtPos - shoulderPos;
+                    Vector3 rawBendV = modelHint - shoulderPos;
+                    float axLen = curAxisV.magnitude;
+                    float rbLen = rawBendV.magnitude;
+                    if (axLen > 1e-5f && rbLen > 1e-5f)
+                    {
+                        // Vector3 throughout (the file's convention); the Apply boundary converts to/from
+                        // Unity.Mathematics.float3 implicitly.
+                        Vector3 curAxis = curAxisV / axLen;
+                        Vector3 rawBend = rawBendV / rbLen;
+                        Vector3 cappedBend = swingHintInit[swingSlot] == 0
+                            ? rawBend
+                            : (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
+                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain);
+                        swingHintBend[swingSlot] = cappedBend;
+                        swingHintAxis[swingSlot] = curAxis;
+                        swingHintInit[swingSlot] = 1;
+                        modelHint = shoulderPos + 0.5f * armLen * cappedBend;
+                    }
+
                     hint = new AffineTransform(modelHint, hintRot);
                     hasHint = true;
                     usedModel = true;
                 }
+            }
+            // Reset the gain-cap state whenever the no-tracker model did NOT drive the elbow this frame (a
+            // real elbow tracker, or a degenerate frame), so the model re-seeds on its next frame rather
+            // than transporting a stale, unrelated pole.
+            if (!usedModel)
+            {
+                swingHintInit[swingSlot] = 0;
             }
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset);
             // NO OUTPUT FILTER ON THE MODEL PATH, and that is a measured choice, not an oversight.
@@ -3213,6 +3263,9 @@ w20, w54;
             job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintBend = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
+            job.swingHintInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
@@ -3352,6 +3405,9 @@ w20, w54;
             if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
             if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
             if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
+            if (job.swingHintBend.IsCreated) job.swingHintBend.Dispose();
+            if (job.swingHintAxis.IsCreated) job.swingHintAxis.Dispose();
+            if (job.swingHintInit.IsCreated) job.swingHintInit.Dispose();
             if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
             if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
             if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();

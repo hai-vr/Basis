@@ -9,9 +9,29 @@ public struct BasisFootSimulateJob : IJob
     // ── Gait constants (biomechanics, not taste) ──
     // Scale-free by construction: every one is a FRACTION, so they hold for a chibi and a giant alike.
 
-    // Double support as a fraction of one step's duration. Real walking spends 20-25% of the CYCLE (= two steps)
-    // with both feet down, so ~0.45 of a single step. Falls to 0 with speed -- a run has a flight phase instead.
-    const float k_DoubleSupportWalkFrac = 0.0f;
+    // Double support (both feet planted) as a fraction of one step's duration, faded across the WALK range.
+    //
+    // Measured 2026-07-18 against real human walking (CMU corpus + 16 downloaded clean slow-walk clips, see
+    // project_basis_foot_mocap_comparison_harness). Real double-support swings hugely with speed: ~0.50 of the
+    // time both-feet-down at a slow deliberate walk, ~0.14 at a brisk one. The first attempt used a SINGLE
+    // fraction faded by the RUN speed reference (fastSpeedRef ~2.9 m/s), so it barely moved across walking and
+    // slow walking still mince-stepped (short, frequent, always-moving feet -- "walking slowly looks wrong").
+    //
+    // So fade Slow->Fast across the WALK range (speed / (k_WalkTopSpeedFrac * sqrt(g*L))) instead. A longer
+    // dwell is the UNIFIED lever: it raises double-support, lowers the (too-high) cadence, AND lengthens the
+    // stride, because the swing foot drifts further before it is allowed to step. Result vs real: slow
+    // double-support 0.26 -> 0.46 (real 0.48), med 0.31 (real 0.25), brisk 0.21 (real 0.10).
+    //   ⚠ CEILING: dwell x speed = drift, so an arbitrarily long dwell OVER-EXTENDS the leg -- the values are
+    //   capped so worst-frame ext stays ~1.19-1.29 (safe). A real slow walk reaches a 1.0 L stride at cadence
+    //   0.11 via pelvic rotation + toe-off; a rigid pelvis can't, so cadence stays above real at the slow end.
+    //   Multiplied by (1 - yawFrac) so a SPIN still kills double support (the anti-cross fix depends on it).
+    const float k_DoubleSupportSlow = 2.00f;   // both-feet fraction of one step at a slow crawl
+    const float k_DoubleSupportFast = 0.05f;   // ...at the walk->run transition
+    const float k_WalkTopSpeedFrac = 0.45f;    // v-hat (v/sqrt(gL)) at which the fade reaches k_DoubleSupportFast
+
+    // Reach-ahead floor: minimum forward distance of a step target as a fraction of leg, so a WALK plants the
+    // foot in front deliberately (see ComputeStepPrediction). Speed-gated there so a spin is untouched.
+    const float k_ReachAheadFrac = 0.25f;
 
     // Step width at top speed, as a fraction of the walking stance. Walkers plant ~0.13 leg-lengths apart
     // laterally; runners land nearly on one line as the COM spends less time shifted over each stance leg.
@@ -47,6 +67,29 @@ public struct BasisFootSimulateJob : IJob
     // Both a naturalness fix and an IK-conditioning fix, for one centimetre.
     const float k_LoadingDipFraction = 0.012f;   // of leg length
     const float k_LoadingResponseFrac = 0.35f;   // of one stepDur, measured from heel strike
+
+    // ANTI-CROSSOVER during fast rotation. Measured 2026-07-18 (synthetic spin harness, see
+    // project_basis_foot_mocap_comparison_harness): a fast PHYSICAL spin (the playspace fixed, the body/hips
+    // physically yawing) drove the feet to step ON each other -- at 360 deg/s the feet crossed 85% of the time
+    // and overlapped (gap < foot length) 70% of the time. TWO causes, one const each:
+    //
+    //  1. bodyFwd TRACKING LAG. A stick/character-controller turn is carried through the smoothedBodyFwd filter
+    //     losslessly by the root-yaw carry, but a PHYSICAL spin does not rotate the root, so the filter alone
+    //     must track it -- and at the shipped rate 6 (tau ~167 ms) a 360 deg/s spin lags ~60 deg, so the ideals,
+    //     step targets and bodyRight are all built from a stale facing and the feet scissor. Open the filter rate
+    //     in proportion to the (deliberate) yaw rate during a turn: a fast yaw is an input to follow, not noise.
+    //
+    //  2. The planted foot is orbited across the centre line during the other foot's swing. A spinning human
+    //     keeps a WIDE base; widening the stance in proportion to yaw rate gives the scissor the margin it needs.
+    //
+    // Together they take collisions 70% -> 0% across chibi/adult/giant, with ZERO effect on straight walking
+    // (both scale on yaw rate, which is ~0 in a straight walk) and a small over-extension improvement on turns.
+    const float k_YawTrackGain = 5.0f;    // bodyFwd filter rate >= this * |yawRate(rad/s)| while turning
+    const float k_RotWidenFrac = 0.6f;    // widen the stance by up to +60% at the full-fast yaw rate
+    // Backstop for spins TOO fast for tracking+widening to keep up (~600-1200 deg/s): the feet may never be
+    // closer than this fraction of the stance width, euclidean. Guarantees no interpenetration at any rate;
+    // a no-op during walking (feet are fore-aft-offset there, so the euclidean gap never drops this low).
+    const float k_MinFootSepFrac = 0.85f;
 
     public BasisFootSimParams p;
     public NativeArray<BasisFootNativeState> feet;   // length 2: [0]=left, [1]=right
@@ -132,6 +175,10 @@ public struct BasisFootSimulateJob : IJob
         // was rotating fastest. Any real turn (physical or stick) gets the responsive rate.
         bool turning = math.abs(sim.smoothedYawRateDeg) > 20f;
         float fwdRate = (speed > 0.1f || turning) ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
+        // Track a fast PHYSICAL spin (which the root-yaw carry above cannot help, because the root does not
+        // rotate) by opening the filter rate in proportion to the yaw rate -- see k_YawTrackGain.
+        if (turning)
+            fwdRate = math.max(fwdRate, k_YawTrackGain * math.abs(math.radians(sim.smoothedYawRateDeg)));
         float fwdAlpha = 1f - math.exp(-fwdRate * dt);
         // Degeneracy checks run BEFORE normalize: normalizing a near-zero vector yields NaN, and
         // a NaN never compares < epsilon — with smoothedBodyFwd self-feeding, one bad frame would
@@ -217,7 +264,12 @@ public struct BasisFootSimulateJob : IJob
         // its full stance and a pure run gets the full convergence.
         float speedFrac = math.saturate(speed / p.fastSpeedRef);
         float fwdFrac = math.abs(math.dot(moveDir, bodyFwd));   // 1 = pure forward/back, 0 = pure sideways
-        float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac * fwdFrac);
+        // fastYawRef: the yaw rate at which even fast steps can't keep up. Declared here (was below) so the
+        // rotation stance-widening can use it too. yawFrac is 0 in a straight walk, so widening is a no-op there.
+        float fastYawRef = math.max(1f, 0.5f * p.maxPlantedYawDegrees / math.max(0.01f, p.stepDurFast));
+        float yawFrac = math.saturate(math.abs(sim.smoothedYawRateDeg) / fastYawRef);
+        float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac * fwdFrac)
+                           * (1f + k_RotWidenFrac * yawFrac);   // widen the base during a fast turn (anti-scissor)
 
         float leadAmount = math.min(speed * p.velocityBiasFactor * p.leadOffsetFactor, maxOffset * 0.5f);
         float3 leadOffset = moveDir * leadAmount;
@@ -243,11 +295,9 @@ public struct BasisFootSimulateJob : IJob
 
         // ── Step parameters ──
         // Pace steps by translation OR body rotation: a spin (high yaw rate, no translation) must step
-        // as fast as a fast walk so the feet keep up and don't cross. fastYawRef is the yaw rate above
-        // which even fast steps can't keep up; go full-fast at half that.
-        float fastYawRef = math.max(1f, 0.5f * p.maxPlantedYawDegrees / math.max(0.01f, p.stepDurFast));
-        float yawT = math.saturate(math.abs(sim.smoothedYawRateDeg) / fastYawRef);
-        float speedT = math.max(math.saturate(speed / p.fastSpeedRef), yawT);
+        // as fast as a fast walk so the feet keep up and don't cross. fastYawRef/yawFrac were computed above
+        // (the rotation stance-widening needs them too); yawFrac IS the yaw pacing term.
+        float speedT = math.max(math.saturate(speed / p.fastSpeedRef), yawFrac);
         // Idle boost only when genuinely stationary -- NOT spinning in place (which has speed ~0 but
         // a high yaw rate); boosting the trigger there steps late and the foot crosses.
         bool stationary = speed < p.idleSpeedThreshold && math.abs(sim.smoothedYawRateDeg) < 20f;
@@ -265,15 +315,12 @@ public struct BasisFootSimulateJob : IJob
         float threshold = math.min(p.stepTriggerDist + speed * p.strideScale + idleBoost, avgLegT * 0.55f);
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, speedT);
 
-        // DOUBLE SUPPORT -- both feet on the ground together, which is what makes a walk read as WEIGHTED.
-        // Real walking spends ~20-25% of the gait cycle in double support; the sweep says we spend ~3% (at least
-        // one foot is in swing for 97% of a walk), because a foot may lift the very tick the other lands. Always
-        // being on one leg is exactly what "floaty" feels like.
-        //
-        // A gait cycle is two steps, so 20-25% of the cycle is ~0.45 of a stepDur. It must fall to ZERO with
-        // speed: at a run there is no double support at all (there is a flight phase instead), and holding a
-        // stance window at speed would starve the step rate and strand the foot.
-        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportWalkFrac, 0f, speedT);
+        // DOUBLE SUPPORT -- both feet on the ground together, which is what makes a walk read as WEIGHTED, and
+        // what a slow deliberate walk is MOSTLY made of. Faded across the WALK range (see the const block): high
+        // at a slow crawl, low at a brisk walk, and zeroed during a spin (yawFrac) so the anti-cross fix holds.
+        float dsSpeedRef = math.sqrt(9.81f * avgLegT);
+        float dsWalkT = math.saturate(speed / math.max(1e-3f, k_WalkTopSpeedFrac * dsSpeedRef));
+        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportSlow, k_DoubleSupportFast, dsWalkT) * (1f - yawFrac);
 
         // TOUCHDOWN, detected as an EDGE (airborne last tick, grounded this one).
         //
@@ -379,6 +426,24 @@ public struct BasisFootSimulateJob : IJob
         float footMinSide = halfStance * p.footSideEnforceFraction;
         if (left.phase == 1) EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
         if (right.phase == 1) EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
+
+        // ── HARD anti-overlap backstop ──
+        // The tracking + widening above hold the feet apart up to ~480 deg/s; past that (a fast physical whip
+        // or snap turn, ~600-1200 deg/s) a planted foot is orbited into the other before either can step, and
+        // the feet visibly interpenetrate. This GUARANTEES they never do, at ANY rate: enforce a minimum
+        // EUCLIDEAN separation, pushing symmetrically along their current separation (no net drift). Euclidean,
+        // not lateral, so it does NOT fight the narrow-stance fast walk -- feet passing close there are offset
+        // fore-aft, so their euclidean gap is large and this never fires (measured byte-identical walk metrics).
+        float3 sepV = ProjectOntoUpPlane(left.currentPos - right.currentPos, up);
+        float sepLen = math.length(sepV);
+        float minSep = p.stanceWidth * k_MinFootSepFrac;
+        if (sepLen < minSep)
+        {
+            float3 sepAxis = sepLen > 1e-4f ? sepV / sepLen : -rawRight;   // degenerate: left to the -right side
+            float push = 0.5f * (minSep - sepLen);
+            left.currentPos += sepAxis * push;
+            right.currentPos -= sepAxis * push;
+        }
 
         // ── Hip bob + lateral sway + pelvis rotation ──
         var outp = output[0];
@@ -554,6 +619,15 @@ public struct BasisFootSimulateJob : IJob
             ? math.normalize(svFlat)
             : bodyFwd;
         float predAmount = math.min(speed * stepDur * p.predictionFactor, avgLeg * p.maxPredictionFraction);
+        // Reach-ahead FLOOR: plant the foot well in FRONT even on a slow deliberate walk (real gait does; the
+        // velocity term above is tiny at slow speed). Gated by translation speed so a turn-in-place (speed ~0,
+        // high yaw) is untouched -- otherwise it would fling the foot forward on a spin. Measured to lengthen
+        // the stride toward real at MEDIUM walk (0.70 -> 0.76 L, real 0.77) and slightly lower over-extension;
+        // it does NOT help slow-walk stride (there stride == speed/cadence and cadence is dwell-capped).
+        float dsRef = math.sqrt(9.81f * avgLeg);
+        float reachGate = math.saturate((speed - 0.03f * dsRef) / (0.08f * dsRef));
+        float reachFloor = k_ReachAheadFrac * avgLeg * reachGate;
+        predAmount = math.min(math.max(predAmount, reachFloor), avgLeg * p.maxPredictionFraction);
 
         // ANGULAR prediction. The old code predicted TRANSLATION only, so a pure turn (speed ~0 => predAmount ~0)
         // aimed the foot at where the body is pointing NOW -- but the foot lands stepDur LATER, by which time the

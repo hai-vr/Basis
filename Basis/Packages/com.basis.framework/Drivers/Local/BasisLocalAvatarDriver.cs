@@ -108,10 +108,17 @@ namespace Basis.Scripts.Drivers
         /// <param name="player">The local player instance.</param>
         /// <param name="harvestedHeadChop">Head-chop targets harvested by ContentPolice during the
         /// avatar load. Consumed here and discarded; not stored on the avatar.</param>
-        public void InitialLocalCalibration(BasisLocalPlayer player, List<BasisHeadChop.HeadChopTarget> harvestedHeadChop)
+        public void InitialLocalCalibration(BasisLocalPlayer player, List<BasisHeadChop.HeadChopTarget> harvestedHeadChop, bool fromSpineRebuild = false)
         {
             Instance = this;
             BasisDebug.Log("InitialLocalCalibration");
+            if (!fromSpineRebuild)
+            {
+                // Genuine new-avatar load: forget any spine proportion baked into the PREVIOUS avatar. The
+                // rebuild's own re-run passes fromSpineRebuild=true so it keeps what it just baked into THIS one.
+                BasisLocalRigDriver.AppliedSpineProportion = 1f;
+                BasisLocalRigDriver.SpineProportionApplied = false;
+            }
             BasisCalibrationDebugRecorder.Begin(SafeAvatarLabel(player));
             RecordCalibrationMeta(player);
             RecordCalibrationStage("Spawn", player);
@@ -471,6 +478,38 @@ namespace Basis.Scripts.Drivers
             {
                 LocalPlayer.FacialBlinkDriver.Initialize(LocalPlayer, Avatar);
             }
+        }
+
+        /// <summary>
+        /// Bakes the wearer's spine-proportion scale into a rebuilt humanoid Avatar (a humanoid bone's length
+        /// can only be changed via its Avatar definition, not a runtime transform write), reassigns it, and
+        /// re-runs the full local calibration so the rig graph + all T-pose caches pick up the new proportions.
+        /// Called deferred on the main thread from BasisLocalRigDriver's calibration capture, once per avatar.
+        /// No-op that keeps the original avatar on any failure.
+        /// </summary>
+        public void RebuildAvatarForSpineProportion(float scale)
+        {
+            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to bake the
+            //      wearer's spine scale into a rebuilt humanoid Avatar and re-run calibration. ====
+            // BasisLocalPlayer player = BasisLocalPlayer.Instance;
+            // if (player == null || player.BasisAvatar == null || player.BasisAvatar.Animator == null)
+            // {
+            //     return;
+            // }
+            // Animator animator = player.BasisAvatar.Animator;
+            // if (!animator.isHuman)
+            // {
+            //     return;
+            // }
+            // // T-pose so BuildHumanAvatar bakes the intended bind (PutAvatarIntoTPose force-updates the animator).
+            // PutAvatarIntoTPose();
+            // if (!Basis.Scripts.Avatar.BasisSpineProportionAvatarBuilder.TryRebuildScaledSpine(animator, scale, out UnityEngine.Avatar newAvatar))
+            // {
+            //     ResetAvatarAnimator();
+            //     return;
+            // }
+            // animator.avatar = newAvatar;
+            // InitialLocalCalibration(player, new List<BasisHeadChop.HeadChopTarget>(), fromSpineRebuild: true);
         }
 
         /// <summary>

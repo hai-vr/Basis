@@ -791,6 +791,7 @@ namespace Basis.Scripts.Device_Management
             {
                 OnInitializationCompleted += RunAfterInitialized;
                 BasisSettingsDefaults.EnableFBT.OnChanged += OnEnableFBTChanged;
+                BasisSettingsDefaults.TrackerVisuals.OnChanged += OnTrackerVisualsChanged;
                 BasisLocalPlayer.AfterSimulateOnRender.AddAction(98, ApplyAllDeviceMovement);
                 HasEvents = true;
             }
@@ -805,6 +806,7 @@ namespace Basis.Scripts.Device_Management
             {
                 OnInitializationCompleted -= RunAfterInitialized;
                 BasisSettingsDefaults.EnableFBT.OnChanged -= OnEnableFBTChanged;
+                BasisSettingsDefaults.TrackerVisuals.OnChanged -= OnTrackerVisualsChanged;
                 BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(98, ApplyAllDeviceMovement);
                 HasEvents = false;
             }
@@ -842,6 +844,43 @@ namespace Basis.Scripts.Device_Management
             if (!value)
             {
                 UnassignFBTrackers();
+            }
+        }
+
+        /// <summary>
+        /// Live re-render when the tracker-visual mode changes. Hides currently-shown visuals this
+        /// frame and re-shows them next frame (after Unity's deferred Destroy completes) so the new
+        /// mode's visual is picked cleanly. Only devices already showing a visual are refreshed, so
+        /// nothing appears while trackers are meant to be hidden.
+        /// </summary>
+        private void OnTrackerVisualsChanged(string value)
+        {
+            StartCoroutine(RefreshTrackerVisualsNextFrame());
+        }
+
+        private IEnumerator RefreshTrackerVisualsNextFrame()
+        {
+            bool anyVisible = false;
+            for (int i = 0; i < AllInputDevices.Count; i++)
+            {
+                BasisInput input = AllInputDevices[i];
+                if (input == null) continue;
+                if (input.BasisVisualTracker != null)
+                {
+                    input.HideTrackedVisual();
+                    anyVisible = true;
+                }
+            }
+            if (!anyVisible)
+            {
+                yield break;
+            }
+            yield return null;
+            for (int i = 0; i < AllInputDevices.Count; i++)
+            {
+                BasisInput input = AllInputDevices[i];
+                if (input == null) continue;
+                input.ShowTrackedVisual();
             }
         }
 

@@ -61,6 +61,18 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public bool InBoneDriver = false;
 
+        // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). The wearer's networked spine
+        //      scale re-spaced this remote avatar's spine bones. Whole block commented; uncomment to re-enable. ====
+        // public float SpineProportionScale = 1f;
+        // static readonly HumanBodyBones[] s_spineBones =
+        // {
+        //     HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.UpperChest,
+        //     HumanBodyBones.Neck, HumanBodyBones.Head,
+        // };
+        // readonly Vector3[] _spineRestLocal = new Vector3[5];
+        // readonly bool[] _spineRestValid = new bool[5];
+        // bool _spineRestCaptured;
+
         /// <summary>
         /// Performs remote-avatar calibration and registers it with the job system.
         /// Initializes TPose, references, face visibility, eye/blink drivers, and physics colliders.
@@ -122,6 +134,11 @@ namespace Basis.Scripts.Drivers
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
             CaptureReceiverBoneData(RemotePlayer);
+
+            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to re-space the
+            //      spine to the wearer's calibrated torso length (captures the fresh T-pose bind, then applies). ====
+            // CaptureSpineRestLocal();
+            // ApplyRemoteSpineScale();
 
             // Initialize any jiggle rigs. Performance-limit enforcement lives in
             // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
@@ -366,6 +383,45 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
+
+        // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). SetSpineProportionScale /
+        //      CaptureSpineRestLocal / ApplyRemoteSpineScale re-spaced this remote avatar's spine to the wearer's
+        //      networked torso scale. Whole block commented; uncomment (with the fields above + the calls in
+        //      RemoteCalibration + BasisSpineProportionNetworking) to re-enable. ====
+        // public void SetSpineProportionScale(float scale)
+        // {
+        //     SpineProportionScale = (scale > 0f) ? scale : 1f;
+        //     ApplyRemoteSpineScale();
+        // }
+        //
+        // private void CaptureSpineRestLocal()
+        // {
+        //     for (int i = 0; i < s_spineBones.Length; i++)
+        //     {
+        //         _spineRestValid[i] = References.GetTransform(s_spineBones[i], out Transform t) && t != null;
+        //         if (_spineRestValid[i])
+        //         {
+        //             _spineRestLocal[i] = t.localPosition;
+        //         }
+        //     }
+        //     _spineRestCaptured = true;
+        // }
+        //
+        // private void ApplyRemoteSpineScale()
+        // {
+        //     if (!_spineRestCaptured)
+        //     {
+        //         return;
+        //     }
+        //     float scale = (SpineProportionScale > 0f) ? SpineProportionScale : 1f;
+        //     for (int i = 0; i < s_spineBones.Length; i++)
+        //     {
+        //         if (_spineRestValid[i] && References.GetTransform(s_spineBones[i], out Transform t) && t != null)
+        //         {
+        //             t.localPosition = _spineRestLocal[i] * scale;
+        //         }
+        //     }
+        // }
 
         /// <summary>
         /// True while the avatar is temporarily swapped to a TPose animator.

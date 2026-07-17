@@ -218,7 +218,7 @@ namespace Basis.BasisUI
                 _usernameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
             _usernameField._inputField.onSubmit.AddListener(_ => OnUsernameSubmitted());
 
-            RectTransform headerActions = BuildActionRow(container);
+            RectTransform headerActions = PanelElementDescriptor.BuildActionRow(container, "ServerRowActions");
 
             _addServerButton = PanelButton.CreateNew(headerActions);
             _addServerButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.addServer"));
@@ -401,7 +401,7 @@ namespace Basis.BasisUI
             _editNetworkStack.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.networkStack"));
             RebuildStackOptions();
 
-            RectTransform editorActions = BuildActionRow(editorContent);
+            RectTransform editorActions = PanelElementDescriptor.BuildActionRow(editorContent, "ServerRowActions");
 
             _editSaveButton = PanelButton.CreateNew(editorActions);
             _editSaveButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.save"));
@@ -643,7 +643,7 @@ namespace Basis.BasisUI
             ushort.TryParse(portString, out portForDisplay);
             row.Group.SetDescription(string.Format(BasisLocalization.Get("menu.servers.list.address"), address, portForDisplay));
 
-            RectTransform actions = BuildActionRow(row.Group.ContentParent);
+            RectTransform actions = PanelElementDescriptor.BuildActionRow(row.Group.ContentParent, "ServerRowActions");
 
             row.ConnectButton = PanelButton.CreateNew(actions);
             bool isCurrentServer =
@@ -712,38 +712,6 @@ namespace Basis.BasisUI
                 SavedServerStore.Save(saved);
                 SavedServersDirectorySource.Instance?.NotifyChanged();
             }
-        }
-
-        /// <summary>
-        /// Inline horizontal action row — same pattern UserListProvider.BuildActionRow
-        /// uses for the per-player Mute/Highlight/Block buttons. Lives as a child of
-        /// the row's content parent so it gets destroyed with the row.
-        /// </summary>
-        private static RectTransform BuildActionRow(RectTransform parent)
-        {
-            GameObject rowGO = new GameObject("ServerRowActions", typeof(RectTransform));
-            RectTransform rowRect = (RectTransform)rowGO.transform;
-            rowRect.SetParent(parent, false);
-
-            rowRect.anchorMin = new Vector2(0f, 1f);
-            rowRect.anchorMax = new Vector2(1f, 1f);
-            rowRect.pivot = new Vector2(0.5f, 1f);
-
-            HorizontalLayoutGroup hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
-            hlg.childForceExpandWidth = true;
-            hlg.childForceExpandHeight = false;
-            hlg.childControlWidth = true;
-            hlg.childControlHeight = true;
-            hlg.spacing = 8f;
-            hlg.padding = new RectOffset(8, 8, 4, 8);
-
-            ContentSizeFitter fitter = rowGO.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            LayoutElement layout = rowGO.AddComponent<LayoutElement>();
-            layout.flexibleWidth = 1f;
-
-            return rowRect;
         }
 
         // ── Querying ─────────────────────────────────────────────────────────
