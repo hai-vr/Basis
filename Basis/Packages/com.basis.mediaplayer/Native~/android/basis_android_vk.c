@@ -96,10 +96,12 @@ struct basis_vk_present {
      * the YCbCr->RGB render pass, and rebuild that when Unity rotates the
      * underlying VkImage (rare). */
     void*         unityNativeTex;
-    VkImage       cachedUnityImage; /* the VkImage AccessTexture returned for unityNativeTex */
+    int           unityDirty;       /* handle changed on the main thread; the render thread drops the fbo */
+    VkImage       cachedUnityImage; /* the VkImage AccessTexture returned for unityNativeTex (render thread) */
     VkImageView   unityImageView;
     VkFramebuffer fbo;
-    int           unityW, unityH;
+    int           fboW, fboH;       /* extent the fbo was built with — render-thread-owned, distinct from unityW/H */
+    int           unityW, unityH;   /* C#-registered RenderTexture size; written by the setter under v->lock */
     int           unityFormat;     /* VkFormat returned by AccessTexture (UNORM or SRGB) */
 
     uint64_t frameCounter;
@@ -407,7 +409,7 @@ static void destroy_unity_fbo(basis_vk_present* v) {
  * or rotated under us). The image itself is OWNED BY UNITY — we never destroy
  * it, only the view and framebuffer we created on top. */
 static int ensure_unity_fbo(basis_vk_present* v, VkImage image, VkFormat format, int w, int h) {
-    if (v->fbo && v->cachedUnityImage == image && v->unityW == w && v->unityH == h) return 0;
+    if (v->fbo && v->cachedUnityImage == image && v->fboW == w && v->fboH == h) return 0;
     destroy_unity_fbo(v);
 
     VkImageViewCreateInfo vci = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
@@ -434,24 +436,28 @@ static int ensure_unity_fbo(basis_vk_present* v, VkImage image, VkFormat format,
     if (vkCreateFramebuffer(v->device, &fci, NULL, &v->fbo) != VK_SUCCESS) return -1;
 
     v->cachedUnityImage = image;
-    v->unityW = w;
-    v->unityH = h;
+    v->fboW = w;
+    v->fboH = h;
     v->unityFormat = (int)format;
     return 0;
 }
 
 void basis_vk_set_output_texture(basis_vk_present* v, void* native_texture, int w, int h) {
     if (!v) return;
-    /* If the handle changed, drop the cached framebuffer; next render_update will
-     * rebuild against the new Unity image. We intentionally don't touch
-     * cachedUnityImage here because AccessTexture may legitimately return the
-     * same VkImage for a recreated RenderTexture if Unity reused the slot. */
-    if (v->unityNativeTex != native_texture) {
-        destroy_unity_fbo(v);
+    /* Runs on the main thread while the render thread may be mid-present using the
+     * framebuffer/image-view. Don't destroy them here — just record the change
+     * under the lock and let render_update drop+rebuild the fbo on its own thread
+     * (unityDirty). We intentionally don't touch cachedUnityImage because
+     * AccessTexture may legitimately return the same VkImage for a recreated
+     * RenderTexture if Unity reused the slot. */
+    pthread_mutex_lock(&v->lock);
+    if (v->unityNativeTex != native_texture || v->unityW != w || v->unityH != h) {
         v->unityNativeTex = native_texture;
+        v->unityDirty = 1;   /* a same-handle resize still needs the fbo rebuilt */
     }
     v->unityW = w;
     v->unityH = h;
+    pthread_mutex_unlock(&v->lock);
 }
 
 /* ---- plugin-owned submission objects ------------------------------------ */
@@ -494,17 +500,31 @@ static int ensure_cmd_objects(basis_vk_present* v) {
 
 int basis_vk_render_update(basis_vk_present* v) {
     if (!v || !v->device || !v->getAHBProps) return 0;
-    /* Without a registered Unity output texture we have nowhere to render. C# is
-     * expected to call basis_media_set_output_texture once TryGetVideoSize
-     * returns a non-zero size; until then the demuxer's AHBs sit in v->pending. */
-    if (!v->unityNativeTex) return 0;
 
+    /* All Unity-registration state is read as one locked snapshot — no unlocked
+     * peek at unityNativeTex first. Without a registered output texture there is
+     * nowhere to render (C# calls basis_media_set_output_texture once
+     * TryGetVideoSize is non-zero; until then the demuxer's AHBs sit in pending). */
     AHardwareBuffer* ahb = NULL; int w, h; float uv[4];
+    void* unityTex; int unityDirty; int regW, regH;
     pthread_mutex_lock(&v->lock);
-    ahb = v->pending; v->pending = NULL; w = v->w; h = v->h;
+    unityTex = v->unityNativeTex; regW = v->unityW; regH = v->unityH;
+    unityDirty = v->unityDirty;
+    w = v->w; h = v->h;
     uv[0] = v->uv[0]; uv[1] = v->uv[1]; uv[2] = v->uv[2]; uv[3] = v->uv[3];
+    /* Only detach the pending frame when there's a texture to render it into —
+     * otherwise it stays queued (the producer replaces + releases it) instead of
+     * being dropped here with its AHB reference leaked. */
+    if (unityTex) {
+        ahb = v->pending; v->pending = NULL;
+        if (ahb) v->unityDirty = 0; /* consume the dirty flag only when this pass rebuilds+renders */
+    }
     pthread_mutex_unlock(&v->lock);
+    if (!unityTex) return 0;
     if (!ahb) return 0;
+    /* Handle changed on the main thread: drop the old framebuffer/image-view here,
+     * on the render thread, so nothing is destroyed under a present in flight. */
+    if (unityDirty) destroy_unity_fbo(v);
 
     /* AHB format + memory properties (drives the ycbcr conversion + allocation) */
     VkAndroidHardwareBufferFormatPropertiesANDROID fmtProps = { VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID };
@@ -520,16 +540,20 @@ int basis_vk_render_update(basis_vk_present* v) {
      * it. The render pass takes the attachment from UNDEFINED and returns it
      * SHADER_READ_ONLY, so no layout coordination with Unity is needed. */
     uint64_t unityImageU64 = 0; int unityFormat = 0, unityW = 0, unityH = 0;
-    if (!basis_gfx_vk_access_texture(v->unityNativeTex,
+    if (!basis_gfx_vk_access_texture(unityTex,
                                      &unityImageU64, &unityFormat, &unityW, &unityH)) {
         AHardwareBuffer_release(ahb);
         return 0;
     }
     VkImage unityImage = (VkImage)(uintptr_t)unityImageU64;
 
-    if (ensure_unity_fbo(v, unityImage, (VkFormat)unityFormat,
-                         unityW > 0 ? unityW : w,
-                         unityH > 0 ? unityH : h) != 0) {
+    /* One target extent for both the framebuffer and the render area, or the
+     * render pass area can disagree with the framebuffer it renders into. Prefer
+     * the RenderTexture's actual extent (AccessTexture), then the registered size,
+     * then the source AHB. */
+    int targetW = unityW > 0 ? unityW : (regW > 0 ? regW : w);
+    int targetH = unityH > 0 ? unityH : (regH > 0 ? regH : h);
+    if (ensure_unity_fbo(v, unityImage, (VkFormat)unityFormat, targetW, targetH) != 0) {
         AHardwareBuffer_release(ahb);
         return 0;
     }
@@ -572,7 +596,7 @@ int basis_vk_render_update(basis_vk_present* v) {
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 0, NULL, 0, NULL, 1, &toRead);
 
-    int rw = v->unityW, rh = v->unityH;
+    int rw = targetW, rh = targetH;
     VkRenderPassBeginInfo rp = { VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
     rp.renderPass = v->renderPass; rp.framebuffer = v->fbo;
     rp.renderArea.extent.width = (uint32_t)rw; rp.renderArea.extent.height = (uint32_t)rh;
