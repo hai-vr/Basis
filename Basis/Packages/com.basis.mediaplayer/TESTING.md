@@ -69,6 +69,17 @@ Practical consequences:
   HTTP-TS and HLS lanes need `https://` with a certificate chain the device actually trusts
   (serve the full chain; standalone headsets are missing more roots than desktop browsers).
   `rtsp://` is unaffected.
+- **Native local-address re-check (RTSP/RTMP/HLS):** the C# gate above is the first line and is
+  **not** affected by the env var below — a top-level RFC1918 URL stays refused by C# regardless,
+  and a top-level `localhost` URL works only in the Editor (the C# rule). Behind it, the native
+  layer independently re-checks resolved addresses for the transports it opens directly — RTSP/RTMP
+  (via `basis_io`) and every HLS playlist/segment fetch (the SSRF re-check that stops a hostile
+  playlist steering a sub-resource URI at an internal host). That native re-check has no Editor
+  concept, so it refuses `localhost` (and any private address it is handed directly, e.g. an HLS
+  segment URI the C# gate never saw) unless `BASIS_MEDIA_ALLOW_LOCAL` is set (any non-empty value).
+  Setting it relaxes **only** that native re-check, not the C# gate — so its practical use is
+  running the local Docker stack's RTSP/RTMP/HLS lanes at `localhost` in the Editor. Plain HTTP(S)
+  MP4/TS via the platform stack (WinHTTP/JNI) has no native re-check and needs no opt-in.
 - The separate world-content trust allowlist (`BasisDefaultTrustedUrls`, https-only) gates the
   sandboxed `VideoPlayer` shim path, not this package — but streams hosted on already-trusted
   domains spare testers a consent prompt when worlds use the same URL.
@@ -241,9 +252,21 @@ be entirely absent). Controls that don't apply to the loaded media should be abs
 not broken.
 
 **Security gates** — negative tests matter: `http://192.168.1.10/x.ts` must refuse with a
-clear reason on every platform; `localhost` must refuse **in a build** (and work in the
-Editor); `file:///` must refuse. A regression that *opens* a gate is a security bug —
-flag it as such, not as a playback bug.
+clear reason on every platform (that RFC1918 refusal is the C# gate and holds regardless of any
+env var); a plain HTTP(S) `localhost` MP4/TS URL must refuse **in a build** and work in the
+Editor; `file:///` must refuse. On the native-transport lanes (HLS, RTSP, RTMP) even the Editor
+`localhost` case is refused unless `BASIS_MEDIA_ALLOW_LOCAL` relaxes the native re-check (see the
+security-gates section above) — a refusal there without the opt-in is correct, not a regression.
+A regression that *opens* a gate is a security bug — flag it as such, not as a playback bug.
+
+**HLS sub-resource SSRF** — the URL gate only sees the top-level playlist, so the native
+source re-checks each URI a playlist steers it to. Serve a media `.m3u8` from a public host
+whose segment (or `EXT-X-MAP`, or a nested variant) URI is an absolute
+`http://169.254.169.254/…` / `http://192.168.x.x/…` / `http://127.0.0.1:PORT/…`: playback must
+fail rather than issue that fetch (watch the stack/server logs — the internal host must see no
+request). A playlist that reaches an internal host is a security regression, not a broken-stream
+bug. (Editor testing of the legitimate localhost lane needs `BASIS_MEDIA_ALLOW_LOCAL` — see the
+security-gates section above.)
 
 **A/V sync judgement** — use real footage with visible speech; synthetic patterns hide sync
 drift. Watch a full minute at the live edge, not five seconds. For anything subtle, capture
@@ -340,7 +363,14 @@ crash, hang, or corrupt does.
   these and how you prove one is gone. An unsanitised "it didn't crash this time" is not proof.
   Fuzzing corrupt input is the single highest-value test this code has; a parser change that
   ships without a fuzz pass is under-tested. When you add a parser, add a `fuzz_<name>.c` target
-  beside the others.
+  beside the others. Targets exist for the container demuxers (TS/MP4/WebM/Ogg/MP3), the caption
+  scanner, the URL parser (`fuzz_url`), the HLS playlist source (`fuzz_hls`), and the RTSP/RTMP
+  parsers (`fuzz_rtsp`/`fuzz_rtmp` — their harness `#include`s the real `.c` and stubs `basis_io`,
+  byte-serving the read paths; `parse_sdp`/`depkt_*`/`amf_*`/FLV tag parsers are driven directly).
+  Deeper full-session coverage (a scripted handshake or an injected transport vtable) is tracked as
+  backlog **B76**. Still exercise all of these with the adversarial live-server rows above
+  (truncated/oversized headers, a server that never sets the RTP marker) — fuzzing complements the
+  matrix, it doesn't replace it.
 - **Keep every crash's repro as a permanent fixture.** When a malformed stream is found to
   crash, the exact file that triggered it is pinned under `tools/media-fuzz/testcases/` and
   replayed by the `fuzz-demux` CI job (`media-native.yml`) on every native change — a fixed
