@@ -464,6 +464,11 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
             bool footDriverReady = footDriver.IsInitialized;
+            // Cancel the foot bone's rest orientation so the knee-follow / butterfly read the ANATOMICAL toe/
+            // instep, not the raw (rig-dependent) foot-bone axes. Identity when the align isn't captured, and
+            // ~identity on a rig whose foot bone is already anatomical, so it is a no-op except on rolled rigs.
+            Quaternion footAlignLeftInv = footDriverReady ? Quaternion.Inverse(footDriver.FootAlignLeft) : Quaternion.identity;
+            Quaternion footAlignRightInv = footDriverReady ? Quaternion.Inverse(footDriver.FootAlignRight) : Quaternion.identity;
             bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds;
             bool footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
             bool footIKReady = footDriverReady && isStationaryEnough && footIKSetting;
@@ -674,15 +679,16 @@ namespace Basis.Scripts.Drivers
                     Vector3 lBendDir = hipsForwardDir;
                     Vector3 lKneeFwdHint = default;
                     float lKneeFwdWeight = 0f;
+                    Quaternion lFootAnatRot = data.LeftFootRotation * footAlignLeftInv;
                     bool lHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
                         hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
-                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
+                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, lFootAnatRot,
                         ref smoothedLeftKneeFwdHint, ref smoothedLeftKneeFwdWeight,
                         out lKneeFwdHint, out lKneeFwdWeight, out lBendDir);
 
                     if (butterflyEnabled && TryComputeButterflyKnee(
                         true, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, lBendDir,
-                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, data.LeftFootRotation,
+                        data.LeftUpperLeg, data.LeftLowerLeg, data.LeftFootPosition, lFootAnatRot,
                         ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
                         out Vector3 lButterflyHint, out float lButterflyWeight))
                     {
@@ -724,15 +730,16 @@ namespace Basis.Scripts.Drivers
                     Vector3 rBendDir = hipsForwardDir;
                     Vector3 rKneeFwdHint = default;
                     float rKneeFwdWeight = 0f;
+                    Quaternion rFootAnatRot = data.RightFootRotation * footAlignRightInv;
                     bool rHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
                         hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
-                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
+                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, rFootAnatRot,
                         ref smoothedRightKneeFwdHint, ref smoothedRightKneeFwdWeight,
                         out rKneeFwdHint, out rKneeFwdWeight, out rBendDir);
 
                     if (butterflyEnabled && TryComputeButterflyKnee(
                         false, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, rBendDir,
-                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, data.RightFootRotation,
+                        data.RightUpperLeg, data.RightLowerLeg, data.RightFootPosition, rFootAnatRot,
                         ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
                         out Vector3 rButterflyHint, out float rButterflyWeight))
                     {

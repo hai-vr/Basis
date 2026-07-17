@@ -202,8 +202,19 @@ namespace UnityEngine.Animations.Rigging
                 return false;
             }
 
-            float3 elbowLocal = BasisElbowFieldModel.Elbow(tipLocal);
-            float3 bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
+            // BasisElbowStereoModel eliminates this field's reach-behind topological core (it carries a
+            // single index-2 zero, parked in the torso, so the whole reachable workspace is zero-free).
+            // BasisElbowFieldModel stays as the A/B baseline and the source of the anatomical Elbow() prior.
+            float3 bend;
+            if (BasisElbowFieldModel.UseStereoField)
+            {
+                bend = BasisElbowStereoModel.BendDirection(tipLocal, out confidence);
+            }
+            else
+            {
+                float3 elbowLocal = BasisElbowFieldModel.Elbow(tipLocal);
+                bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
+            }
 
             if (!IsFinite(bend))
             {

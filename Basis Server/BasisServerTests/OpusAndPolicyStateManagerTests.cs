@@ -189,6 +189,7 @@ public class BasisOpusPacketLossStateManagerTests
 /// Per-user Opus bitrate overrides keyed by netId plus the session-wide global value;
 /// 0 is the "clear / no override" sentinel and the per-user value wins over the global.
 /// </summary>
+[Collection("BasisServer shared network statics")] // asserts on NetworkServer.PeerSnapshot — must not race tests that populate it
 public class BasisUserOpusBitrateStateManagerTests
 {
     [Theory]
@@ -383,6 +384,7 @@ public class BasisUserOpusBitrateStateManagerTests
 /// Headless connection policy: platform-id classification, the runtime disallow
 /// toggle, and its GlobalGetHeadlessDisallowState payload.
 /// </summary>
+[Collection("BasisServer shared network statics")] // asserts on NetworkServer.PeerSnapshot — must not race tests that populate it
 public class BasisHeadlessConnectionPolicyManagerTests
 {
     [Theory]

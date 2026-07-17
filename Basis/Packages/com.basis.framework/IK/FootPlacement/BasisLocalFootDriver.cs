@@ -194,6 +194,11 @@ public partial class BasisLocalFootDriver
     private float rayCastRange;
     private Quaternion footAlignLeft = Quaternion.identity;
     private Quaternion footAlignRight = Quaternion.identity;
+    // The foot bone's rest orientation in the body frame (inv(restFrame) * footBone.rotation at T-pose).
+    // Anatomical foot frame at runtime = footBoneRotation * inv(footAlign); its +Z is the true toe, +Y the
+    // instep -- lets the knee-follow / butterfly read the toe/instep instead of the raw (rig-dependent) bone axes.
+    public Quaternion FootAlignLeft => footAlignLeft;
+    public Quaternion FootAlignRight => footAlignRight;
     private Collider _selfCollider;
     private Transform _selfRoot;
     private Vector3 cachedPlayerUp = Vector3.up;

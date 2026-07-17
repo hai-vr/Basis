@@ -46,7 +46,7 @@ public class BasisSceneSDKInspector : Editor
             BasisSceneValidator = new BasisSceneValidator(BasisScene, rootElement);
 
             // Documentation button
-            Button docButton = DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.scene.documentation.button"));
+            Button docButton = BasisSDKCommonInspector.DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.scene.documentation.button"));
             docButton.clicked += delegate
             {
                 if (EditorUtility.DisplayDialog(
@@ -262,43 +262,4 @@ public class BasisSceneSDKInspector : Editor
         }
     }
 
-    public Button DocumentationButton(VisualElement rootElement, string Text)
-    {
-        Button fixMeButton = new Button();
-        fixMeButton.text = Text;
-
-        Color backgroundColor = new Color(0.5f, 0.5f, 0.5f, 1f);
-
-        fixMeButton.style.backgroundColor = new StyleColor(backgroundColor);
-        fixMeButton.style.color = new StyleColor(Color.white);
-        fixMeButton.style.fontSize = 14;
-        fixMeButton.style.unityFontStyleAndWeight = FontStyle.Bold;
-        fixMeButton.style.paddingTop = 6;
-        fixMeButton.style.paddingBottom = 6;
-        fixMeButton.style.paddingLeft = 12;
-        fixMeButton.style.paddingRight = 12;
-        fixMeButton.style.marginBottom = 10;
-        fixMeButton.style.borderTopLeftRadius = 8;
-        fixMeButton.style.borderTopRightRadius = 8;
-        fixMeButton.style.borderBottomLeftRadius = 8;
-        fixMeButton.style.borderBottomRightRadius = 8;
-        fixMeButton.style.borderLeftWidth = 0;
-        fixMeButton.style.borderRightWidth = 0;
-        fixMeButton.style.borderTopWidth = 0;
-        fixMeButton.style.borderBottomWidth = 3;
-        fixMeButton.style.unityTextAlign = TextAnchor.MiddleCenter;
-        fixMeButton.style.alignSelf = Align.Auto;
-
-        fixMeButton.RegisterCallback<MouseEnterEvent>(evt =>
-        {
-            fixMeButton.style.backgroundColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f, 1f));
-        });
-        fixMeButton.RegisterCallback<MouseLeaveEvent>(evt =>
-        {
-            fixMeButton.style.backgroundColor = new StyleColor(backgroundColor);
-        });
-
-        rootElement.Add(fixMeButton);
-        return fixMeButton;
-    }
 }

@@ -19,6 +19,7 @@ namespace BasisServerTests;
 /// NetManager) so they can't be driven from a unit test; the offload logic only ever uses
 /// peer ids, exposed via the ApplyLinkUp / RegisterSessionForTests / ResetForTests seams.
 /// </summary>
+[Collection("BasisServer shared network statics")] // shares BasisServerP2PBroker statics (ResetForTests) with the P2P lifecycle suite
 public class P2PBrokerOffloadTests
 {
     private readonly ITestOutputHelper _out;

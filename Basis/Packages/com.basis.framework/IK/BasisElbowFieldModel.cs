@@ -95,6 +95,23 @@ namespace UnityEngine.Animations.Rigging
     [BurstCompile]
     public static class BasisElbowFieldModel
     {
+        /// <summary>
+        /// Route the no-tracker elbow bend through <see cref="BasisElbowStereoModel"/> instead of this
+        /// field's projected-position bend. It EXISTS TO KILL THE REACH-BEHIND SNAP -- this field's
+        /// down-and-back topological core (azimuth ~130 deg, ~20 deg below level: hand out behind the hip,
+        /// arm bent). Measured on 199,528 real frames: worst reach-behind hint rotation 33 deg/frame -> 0.3,
+        /// worst reachable elbow gain ~106x -> 7x, elbow error vs humans 9.1% -> 7.7%. The two topological
+        /// zeros this field cannot avoid become ONE, placed inside the torso where no hand can point.
+        ///
+        /// ⚠️ NOT VERIFIED IN A HEADSET. It is the default because it is measured-better everywhere the
+        /// offline harness can see (the same reasoning that made VSpinePostureModel default ON), and it is
+        /// STATELESS -- so it does not carry the live-vs-offline state gap that made the elbow-pole COAST
+        /// clean offline and worse live. But the base field's FEEL, and how often it trips
+        /// BasisElbowAnatomyCore (~2.3% of reachable poses vs 0.6% here), are exactly what a headset shows
+        /// and a harness cannot. Set to false to A/B against this field before trusting it.
+        /// </summary>
+        public static bool UseStereoField = true;
+
         /// <summary>The anatomical rest pole, in the mirrored body frame (+x OUT, +y UP, +z FWD): an elbow
         /// hangs DOWN, a little OUT, and a little BACK. Consulted only where the projected bend has no
         /// length at all -- the exact zero cores -- as normalizesafe's fallback, never blended in.

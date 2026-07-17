@@ -224,7 +224,7 @@ namespace Basis.BasisUI.MediaPlayer
             _urlField = PanelTextField.CreateNewEntry(content);
             _urlField.Descriptor.SetTitle("URL");
 
-            RectTransform actions = BuildActionRow(content);
+            RectTransform actions = PanelElementDescriptor.BuildActionRow(content, "MediaPlayerActions");
 
             PanelButton loadBtn = PanelButton.CreateNew(actions);
             loadBtn.Descriptor.SetTitle("Load URL");
@@ -366,7 +366,7 @@ namespace Basis.BasisUI.MediaPlayer
                 if (_activePlayer != null) _activePlayer.CaptionBackgroundOpacity = Mathf.Clamp01(v / 100f);
             };
 
-            RectTransform actions = BuildActionRow(content);
+            RectTransform actions = PanelElementDescriptor.BuildActionRow(content, "MediaPlayerActions");
             PanelButton resyncBtn = PanelButton.CreateNew(actions);
             resyncBtn.Descriptor.SetTitle("Resync");
             resyncBtn.OnClicked += () =>
@@ -967,31 +967,5 @@ namespace Basis.BasisUI.MediaPlayer
             _debugGroup.SetDescription(_debugBuilder.ToString());
         }
 
-        private static RectTransform BuildActionRow(RectTransform parent)
-        {
-            GameObject rowGO = new GameObject("MediaPlayerActions", typeof(RectTransform));
-            RectTransform rowRect = (RectTransform)rowGO.transform;
-            rowRect.SetParent(parent, false);
-
-            rowRect.anchorMin = new Vector2(0f, 1f);
-            rowRect.anchorMax = new Vector2(1f, 1f);
-            rowRect.pivot = new Vector2(0.5f, 1f);
-
-            HorizontalLayoutGroup hlg = rowGO.AddComponent<HorizontalLayoutGroup>();
-            hlg.childForceExpandWidth = true;
-            hlg.childForceExpandHeight = false;
-            hlg.childControlWidth = true;
-            hlg.childControlHeight = true;
-            hlg.spacing = 8f;
-            hlg.padding = new RectOffset(8, 8, 4, 8);
-
-            ContentSizeFitter fitter = rowGO.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            LayoutElement layout = rowGO.AddComponent<LayoutElement>();
-            layout.flexibleWidth = 1f;
-
-            return rowRect;
-        }
     }
 }

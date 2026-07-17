@@ -121,7 +121,7 @@ public partial class BasisAvatarSDKInspector : Editor
             uiElementsRoot = visualTree.CloneTree();
             rootElement.Add(uiElementsRoot);
             BasisAvatarValidator = new BasisAvatarValidator(Avatar, rootElement);
-            Button button = DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.avatar.documentation.button"));
+            Button button = BasisSDKCommonInspector.DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.avatar.documentation.button"));
             button.clicked += delegate
             {
                 if (EditorUtility.DisplayDialog(
@@ -148,58 +148,6 @@ public partial class BasisAvatarSDKInspector : Editor
             Debug.LogError("VisualTree is null. Make sure the UXML file is assigned correctly.");
         }
         return rootElement;
-    }
-    public Button DocumentationButton(VisualElement rootElement, string Text)
-    {
-        // Create the button
-        Button fixMeButton = new Button();
-
-        fixMeButton.text = Text; // Icon + Text
-
-        Color backgroundColor = new Color(0.5f, 0.5f, 0.5f, 1f);
-        // Modern slick style
-
-        fixMeButton.style.backgroundColor = new StyleColor(backgroundColor); // Material Red 500
-        fixMeButton.style.color = new StyleColor(Color.white);
-        fixMeButton.style.fontSize = 14;
-        fixMeButton.style.unityFontStyleAndWeight = FontStyle.Bold;
-
-        // Padding and margin
-        fixMeButton.style.paddingTop = 6;
-        fixMeButton.style.paddingBottom = 6;
-        fixMeButton.style.paddingLeft = 12;
-        fixMeButton.style.paddingRight = 12;
-        fixMeButton.style.marginBottom = 10;
-
-        // Rounded corners
-        fixMeButton.style.borderTopLeftRadius = 8;
-        fixMeButton.style.borderTopRightRadius = 8;
-        fixMeButton.style.borderBottomLeftRadius = 8;
-        fixMeButton.style.borderBottomRightRadius = 8;
-
-        // Border and shadow
-        fixMeButton.style.borderLeftWidth = 0;
-        fixMeButton.style.borderRightWidth = 0;
-        fixMeButton.style.borderTopWidth = 0;
-        fixMeButton.style.borderBottomWidth = 3;
-
-        // Shadow-like effect via unityBackgroundImageTintColor or using USS later
-        fixMeButton.style.unityTextAlign = TextAnchor.MiddleCenter;
-        fixMeButton.style.alignSelf = Align.Auto;
-
-        // Hover effect via C# events (UI Toolkit lacks hover pseudoclass in C# directly)
-        fixMeButton.RegisterCallback<MouseEnterEvent>(evt =>
-        {
-            fixMeButton.style.backgroundColor = new StyleColor(new Color(0.4f, 0.4f, 0.4f, 1f));
-        });
-        fixMeButton.RegisterCallback<MouseLeaveEvent>(evt =>
-        {
-            fixMeButton.style.backgroundColor = new StyleColor(backgroundColor);
-        });
-
-        // Add to root and store
-        rootElement.Add(fixMeButton);
-        return fixMeButton;
     }
     public void AutomaticallyFindVisemes()
     {

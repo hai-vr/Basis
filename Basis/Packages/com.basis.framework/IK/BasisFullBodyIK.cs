@@ -1365,7 +1365,10 @@ w20, w54;
             float cervicalTwistKeep = spineNeckTwistKeep.Get(stream);
             // Body-relative twist axis (hips-up), NOT world-up: vertical standing, horizontal lying down, so
             // the relax strips the same anatomical axial-twist DOF in any orientation. Falls back to playerUp.
-            Quaternion hipsTwistRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
+            // Bind-cancelled (hipsRot * inv(bind)) so it is the ANATOMICAL up, not the rolled hips-bone up.
+            Quaternion hipsTwistRot = HandleHips.IsValid(stream)
+                ? HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)))
+                : Quaternion.identity;
             Vector3 ccdUp = hipsTwistRot * Vector3.up;
             if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp.Get(stream);
             float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
@@ -1875,7 +1878,9 @@ w20, w54;
             Vector3 referenceUp;
             if (HandleChest.IsValid(stream))
             {
-                referenceUp = HandleChest.GetRotation(stream) * Vector3.up;
+                // Bind-cancelled chest up: the horizon the pitch is measured against must be the chest's
+                // ANATOMICAL up, not the rolled chest-bone up, or a rolled bind reads level gaze as pitched.
+                referenceUp = (HandleChest.GetRotation(stream) * Quaternion.Inverse(targetOffsetChest)) * Vector3.up;
             }
             else
             {
@@ -1917,7 +1922,14 @@ w20, w54;
 
             if (result.HasExtreme)
             {
-                Quaternion refRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
+                // Bind-cancelled: the push directions are the body's ANATOMICAL forward/up, not the rolled bone axes.
+                Quaternion refRot;
+                if (HandleHips.IsValid(stream))
+                    refRot = HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)));
+                else if (HandleChest.IsValid(stream))
+                    refRot = HandleChest.GetRotation(stream) * Quaternion.Inverse(targetOffsetChest);
+                else
+                    refRot = Quaternion.identity;
                 Vector3 refForward = refRot * Vector3.forward;
                 Vector3 refDown = -(refRot * Vector3.up);
 
@@ -2018,14 +2030,17 @@ w20, w54;
             Vector3 rightPos = rightEnabled ? targetPositionRightHand.Get(stream) : Vector3.zero;
             Vector3 handMid = leftEnabled && rightEnabled ? (leftPos + rightPos) * 0.5f : leftEnabled ? leftPos : rightPos;
             Vector3 hipsPos = HandleHips.GetPosition(stream);
-            Quaternion hipsRot = HandleHips.GetRotation(stream);
-            Quaternion invHips = Quaternion.Inverse(hipsRot);
-            Vector3 localMid = invHips * (handMid - hipsPos);
+            // Bind-cancelled hips frame (hipsRot * inv(bind)): the hand-midpoint is decomposed into yaw/pitch
+            // in the body's ANATOMICAL right/forward, and the delta re-applied about the same axes. In the raw
+            // hips-bone frame a rolled bind turned the forward-follow into a chest roll. No-op at identity bind.
+            Quaternion hipsAnat = HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips.Get(stream)));
+            Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
+            Vector3 localMid = invHipsAnat * (handMid - hipsPos);
 
             float forwardDist = Mathf.Max(0.1f, Mathf.Abs(localMid.z));
             float yawDeg = Mathf.Atan2(localMid.x, forwardDist) * Mathf.Rad2Deg * factor;
 
-            Vector3 localMidChest = invHips * (handMid - HandleChest.GetPosition(stream));
+            Vector3 localMidChest = invHipsAnat * (handMid - HandleChest.GetPosition(stream));
             float pitchDeg = Mathf.Atan2(-localMidChest.y, forwardDist) * Mathf.Rad2Deg * factor;
 
             float maxDeg = chestArmSwingMaxDeg.Get(stream);
@@ -2036,7 +2051,7 @@ w20, w54;
             }
 
             Quaternion local = Quaternion.AngleAxis(yawDeg, Vector3.up) * Quaternion.AngleAxis(pitchDeg, Vector3.right);
-            Quaternion deltaWorld = hipsRot * local * invHips;
+            Quaternion deltaWorld = hipsAnat * local * invHipsAnat;
 
             if (HandleUpperChest.IsValid(stream))
             {
