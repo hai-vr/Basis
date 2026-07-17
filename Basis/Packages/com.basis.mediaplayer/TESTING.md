@@ -56,9 +56,9 @@ mis-configured feed wastes far more time than the 30 seconds a probe takes.
 | Rule | Effect on testing |
 | --- | --- |
 | Loopback allowed **in the Editor only** | `localhost` streams work for fast in-editor iteration; the same URL is refused in a build |
-| RFC1918 / CGNAT / link-local always blocked | LAN servers (`192.168.*`, `10.*`, …) never work, Editor included — don't bother |
-| Hostnames are DNS-validated, fail-closed | A name that resolves to a private address (or doesn't resolve) is refused |
-| Scheme allowlist | `http`, `https`, `rtsp`, `rtspt`, `rtmp`, `rtmps`, `rist` — anything else (incl. `file://`) is refused |
+| Non-global-unicast addresses always blocked | RFC1918 (`192.168.*`, `10.*`, `172.16-31.*`), CGNAT, loopback, link-local, and the IANA special-use reserves (TEST-NET, benchmarking, 6to4 relay). LAN servers never work, Editor included — don't bother |
+| Hostnames are DNS-validated, fail-closed | A name that resolves to any of the above (or doesn't resolve) is refused |
+| Scheme allowlist | `http`, `https`, `rtsp`, `rtspt`, `rtmp`, `rtmps`, `rist` — anything else (incl. `file://`) is refused. Passing the gate isn't the same as playable, though: `rtmps` (RTMP-over-TLS) is allowlisted but the player rejects it (use `rtmp://`, or an https fMP4/TS URL), and `rist` only works in the opt-in `-DBASIS_WITH_RIST=ON` build |
 
 Practical consequences:
 
@@ -382,8 +382,8 @@ crash, hang, or corrupt does.
   scanner, the URL parser (`fuzz_url`), the HLS playlist source (`fuzz_hls`), and the RTSP/RTMP
   parsers (`fuzz_rtsp`/`fuzz_rtmp` — their harness `#include`s the real `.c` and stubs `basis_io`,
   byte-serving the read paths; `parse_sdp`/`depkt_*`/`amf_*`/FLV tag parsers are driven directly).
-  Deeper full-session coverage (a scripted handshake or an injected transport vtable) is tracked as
-  backlog **B76**. Still exercise all of these with the adversarial live-server rows above
+  Deeper full-session coverage (a scripted handshake or an injected transport vtable) is a documented
+  follow-up. Still exercise all of these with the adversarial live-server rows above
   (truncated/oversized headers, a server that never sets the RTP marker) — fuzzing complements the
   matrix, it doesn't replace it.
 - **Keep every crash's repro as a permanent fixture.** When a malformed stream is found to
