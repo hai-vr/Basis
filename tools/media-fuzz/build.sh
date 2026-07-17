@@ -35,8 +35,8 @@ build_target() {
 
 want="${1:-all}"
 case "$want" in
-    all|ts|mp4|webm|caption|ogg) ;;
-    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg)" >&2; exit 2 ;;
+    all|ts|mp4|webm|caption|ogg|mp3) ;;
+    *) echo "unknown fuzz target: $want (expected: all ts mp4 webm caption ogg mp3)" >&2; exit 2 ;;
 esac
 if [ "$want" = "all" ] || [ "$want" = "ts" ]; then
     build_target ts \

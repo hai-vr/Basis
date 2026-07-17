@@ -52,7 +52,9 @@ static int fz_take_seek(void* u, int64_t* out_target_us) {
     fuzz_ctx* c = (fuzz_ctx*)u;
     if (c->seeks_left <= 0) return 0;
     c->seeks_left--;
-    *out_target_us = (int64_t)(c->data ? c->data[c->size ? c->pos % c->size : 0] : 0) * 100000;
+    *out_target_us = (c->data && c->size)
+        ? (int64_t)c->data[c->pos % c->size] * 100000
+        : 0;
     return 1;
 }
 

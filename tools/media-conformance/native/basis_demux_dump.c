@@ -306,9 +306,10 @@ static void s_audio_frame(void* u, const uint8_t* data, int len, int64_t pts_us)
         d->resume_key = 1;
     }
     d->a_frames++;
-    /* Audio-only streams (MP3/Ogg) have no video AUs, so drive the seek off the
-     * audio count when no video track is emitting. */
-    if (d->v_aus == 0 && d->seek_at_au >= 0 && d->a_frames == d->seek_at_au && !d->seek_taken)
+    /* Audio-only streams (MP3/Ogg) have no video track, so drive the seek off the
+     * audio count. Gate on the absence of an announced video track, not on v_aus==0:
+     * in an A/V stream the audio can reach the seek point before the first video AU. */
+    if (!d->v_announced && d->seek_at_au >= 0 && d->a_frames == d->seek_at_au && !d->seek_taken)
         d->seek_pending = 1;
 }
 
