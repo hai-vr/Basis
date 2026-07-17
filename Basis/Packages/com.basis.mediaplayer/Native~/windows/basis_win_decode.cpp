@@ -79,6 +79,9 @@ struct PcmRing {
     Chunk chunks[CHUNKS] = {};
     int chead = 0, ccount = 0;
     long trims = 0;  /* clock-gated trims fired (diagnostics) */
+    int64_t playedUs = INT64_MIN;  /* PTS served up to = the audio playback front;
+                                    * the position for an audio-only stream that
+                                    * never presents a video frame. */
 
     /* Serving is gated on media time: a sample is released when its PTS comes
      * due against the serve target (presentation clock + the consumer's output
@@ -174,6 +177,7 @@ struct PcmRing {
             }
         }
         int got = 0;
+        int64_t frontPts = (ccount > 0) ? chunks[chead].pts : INT64_MIN;
         while (got < n && ccount > 0) {
             Chunk& c = chunks[chead];
             if (target_us != INT64_MIN && c.pts > target_us + early_hold_us) break;
@@ -186,6 +190,11 @@ struct PcmRing {
                 c.pts += (int64_t)take * 1000000LL / (frame * srr);
             }
         }
+        /* Publish the playback front so an audio-only stream has a position.
+         * Only when samples actually served: a gated read that breaks before
+         * copying leaves the front unserved, so its PTS isn't yet "played". */
+        if (frontPts != INT64_MIN && got > 0)
+            playedUs = frontPts + (int64_t)(got / (frame > 0 ? frame : 1)) * 1000000LL / srr;
         LeaveCriticalSection(&cs);
         return got;
     }
@@ -1944,7 +1953,13 @@ extern "C" int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     /* Presentation position once a frame has shown; decode-side before that
      * (start-up, audio-only) so early consumers still see the clock move. */
     int64_t presented = InterlockedCompareExchange64((volatile LONG64*)&d->presentedPosUs, 0, 0);
-    return presented >= 0 ? presented : d->lastPtsUs;
+    if (presented >= 0) return presented;
+    if (d->lastPtsUs >= 0) return d->lastPtsUs;
+    /* Audio-only: no video ever presents, so report the audio playback front. */
+    EnterCriticalSection(&d->pcm.cs);
+    int64_t played = d->pcm.playedUs;
+    LeaveCriticalSection(&d->pcm.cs);
+    return played != INT64_MIN ? played : -1;
 }
 extern "C" int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
     if (!d || !d->aconfigured) return -1;

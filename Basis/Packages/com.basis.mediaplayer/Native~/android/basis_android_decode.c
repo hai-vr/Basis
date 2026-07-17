@@ -60,6 +60,7 @@ typedef struct {
     int chead, ccount;
     long trims;          /* diagnostics: clock-gated trims fired */
     int lastTrimFloats;  /* diagnostics: floats dropped by the last trim */
+    int64_t playedUs;    /* PTS served up to = playback front (audio-only position) */
     pthread_mutex_t m;
 } pcm_ring;
 
@@ -74,7 +75,7 @@ typedef struct {
  * on the discontinuity rather than discarding real-time delivery forever. */
 #define PCM_TRIM_LATE_US     150000LL
 
-static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; pthread_mutex_init(&r->m, NULL); }
+static void ring_init(pcm_ring* r, int floats) { r->buf = malloc(sizeof(float) * floats); r->cap = floats; r->head = r->tail = 0; r->frame = 2; r->sr = 48000; r->chead = r->ccount = 0; r->trims = 0; r->lastTrimFloats = 0; r->playedUs = INT64_MIN; pthread_mutex_init(&r->m, NULL); }
 static void ring_free(pcm_ring* r) { free(r->buf); r->buf = NULL; pthread_mutex_destroy(&r->m); }
 static void ring_set_frame(pcm_ring* r, int frame, int sr) {
     pthread_mutex_lock(&r->m);
@@ -144,6 +145,7 @@ static int ring_read(pcm_ring* r, float* out, int n, int64_t target_us, int64_t 
         }
     }
     int got = 0;
+    int64_t frontPts = (r->ccount > 0) ? r->chunks[r->chead].pts : INT64_MIN;
     while (got < n && r->ccount > 0) {
         pcm_chunk* c = &r->chunks[r->chead];
         if (target_us != INT64_MIN && c->pts > target_us + early_hold_us) break;
@@ -153,6 +155,11 @@ static int ring_read(pcm_ring* r, float* out, int n, int64_t target_us, int64_t 
         if (take == c->floats) { r->chead = (r->chead + 1) % PCM_CHUNKS; r->ccount--; }
         else { c->floats -= take; c->pts += (int64_t)take * 1000000LL / ((int64_t)r->frame * srr); }
     }
+    /* Publish the playback front so an audio-only stream has a position. Only
+     * when samples actually served: a gated read that breaks before copying
+     * leaves the front unserved, so its PTS isn't yet "played". */
+    if (frontPts != INT64_MIN && got > 0)
+        r->playedUs = frontPts + (int64_t)(got / (r->frame > 0 ? r->frame : 1)) * 1000000LL / srr;
     pthread_mutex_unlock(&r->m);
     return got;
 }
@@ -225,7 +232,8 @@ struct basis_decoder {
     pthread_t worker;
     int worker_started;
 
-    int64_t lastPtsUs;      /* decode edge: PTS of the newest frame written to the ring */
+    int64_t lastPtsUs;      /* video decode edge: PTS of the newest decoded video frame
+                             * (set only on the video path; stays -1 for audio-only) */
     pcm_ring pcm;
 
     /* video frame ring (parallel arrays; img==NULL marks an empty slot) */
@@ -1157,7 +1165,13 @@ int basis_decoder_get_frame_origin(basis_decoder_t* d) { (void)d; return 0; }
 int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     if (!d) return -1;
     int64_t presented = __atomic_load_n(&d->presentedPosUs, __ATOMIC_RELAXED);
-    return presented >= 0 ? presented : d->lastPtsUs;
+    if (presented >= 0) return presented;
+    if (d->lastPtsUs >= 0) return d->lastPtsUs;
+    /* Audio-only: no video ever presents, so report the audio playback front. */
+    pthread_mutex_lock(&d->pcm.m);
+    int64_t played = d->pcm.playedUs;
+    pthread_mutex_unlock(&d->pcm.m);
+    return played != INT64_MIN ? played : -1;
 }
 int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
     if (!d || !d->aconfigured) return -1; if (r) *r = d->asr ? d->asr : 48000; if (c) *c = d->ach ? d->ach : 2; return 0;
