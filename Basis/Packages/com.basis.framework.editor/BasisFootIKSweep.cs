@@ -80,7 +80,7 @@ namespace Basis.IK.Debugging
                 MaxFootYawDegrees = 18f,
                 RaySphereRadiusMul = 0.3f,
                 FootHeightOffsetMul = 0.2f,
-                StepTriggerMul = 0.10f,   // keep in lock-step with BasisLocalFootDriver (foot-vs-real tune 2026-07-18)
+                StepTriggerMul = 0.18f,   // keep in lock-step with BasisLocalFootDriver (foot-vs-real tune 2026-07-18)
                 StrideScaleMul = 0.15f,
                 StepHeightMul = 0.30f,
                 StepDurSlowMul = 0.30f,

@@ -1355,10 +1355,15 @@ w20, w54;
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
         }
-        // Uniformly lengthens/shortens the spine by re-spacing every chain joint's local position about the
-        // hips anchor (index chainLen-1, never moved). The rotation-only spine solve preserves bone lengths,
-        // so this is the one lever that lets an over-long avatar torso stop crumpling and an over-short one
-        // stop over-stretching, when both spine ends are pinned by trackers. Scale == 1 is never called.
+        // Lengthens/shortens the torso by re-spacing each spine joint's local POSITION about the hips anchor
+        // (index len-1, never moved). Position, not scale: Unity humanoid does not carry per-bone scale through
+        // the animation system (only object-level uniform scale is supported; per-bone scale via the rigging
+        // stream is unconfirmed and shears with animated children -- Unity staff call it an open limitation).
+        // Adjusting bone positions is Unity's recommended way to change segment length on a humanoid, and it is
+        // the same SetLocalPosition path the IK effectors use, so it renders and the CCD reaches the head across
+        // the re-spaced spine instead of buckling. With Translation DoF off the Animator resets each bone to its
+        // bind offset every frame, so GetLocalPosition is the bind offset and bind*scale never compounds.
+        // scale == 1 is never called.
         void ReSpaceSpineChain(AnimationStream stream, float scale)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 3)

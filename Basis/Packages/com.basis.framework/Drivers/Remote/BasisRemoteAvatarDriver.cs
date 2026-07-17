@@ -62,6 +62,22 @@ namespace Basis.Scripts.Drivers
         public bool InBoneDriver = false;
 
         /// <summary>
+        /// The wearer's spine proportion scale (BasisSpineProportionNetworking), applied by re-spacing the
+        /// spine bones' local positions about the hips so this avatar renders at the wearer's calibrated torso
+        /// length (position, not scale -- Unity humanoid does not carry per-bone scale). 1 = the avatar's own
+        /// proportions (a no-op). Persists across (re)loads; re-applied by RemoteCalibration.
+        /// </summary>
+        public float SpineProportionScale = 1f;
+        static readonly HumanBodyBones[] s_spineBones =
+        {
+            HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.UpperChest,
+            HumanBodyBones.Neck, HumanBodyBones.Head,
+        };
+        readonly Vector3[] _spineRestLocal = new Vector3[5];
+        readonly bool[] _spineRestValid = new bool[5];
+        bool _spineRestCaptured;
+
+        /// <summary>
         /// Performs remote-avatar calibration and registers it with the job system.
         /// Initializes TPose, references, face visibility, eye/blink drivers, and physics colliders.
         /// </summary>
@@ -122,6 +138,11 @@ namespace Basis.Scripts.Drivers
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
             CaptureReceiverBoneData(RemotePlayer);
+
+            // Re-space the spine to the wearer's calibrated torso length (networked separately, may already
+            // have arrived). Capture the fresh bind spacing first (the avatar is in T-pose here), then apply.
+            CaptureSpineRestLocal();
+            ApplyRemoteSpineScale();
 
             // Initialize any jiggle rigs. Performance-limit enforcement lives in
             // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
@@ -363,6 +384,51 @@ namespace Basis.Scripts.Drivers
                         Rotations = rotations,
                         Positions = positions
                     };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sets the wearer's spine proportion scale for this remote avatar and re-spaces its spine. Safe to
+        /// call before calibration -- the value is stored and applied once the rest pose has been captured.
+        /// </summary>
+        public void SetSpineProportionScale(float scale)
+        {
+            SpineProportionScale = (scale > 0f) ? scale : 1f;
+            ApplyRemoteSpineScale();
+        }
+
+        // Snapshots the spine bones' bind local positions when the avatar is (re)calibrated -- the bones are
+        // in their T-pose there (PutAvatarIntoTPose ran just before), so this is the true bind spacing.
+        private void CaptureSpineRestLocal()
+        {
+            for (int i = 0; i < s_spineBones.Length; i++)
+            {
+                _spineRestValid[i] = References.GetTransform(s_spineBones[i], out Transform t) && t != null;
+                if (_spineRestValid[i])
+                {
+                    _spineRestLocal[i] = t.localPosition;
+                }
+            }
+            _spineRestCaptured = true;
+        }
+
+        // Re-spaces the spine (Spine..Head) about the hips: localPosition = bind * scale. Position, not scale --
+        // Unity humanoid does not carry per-bone scale, but the remote twin of the local ReSpaceSpineChain. The
+        // remote Animator is disabled and nothing else writes these bones' localPosition, so a one-shot write
+        // persists until the next scale change or recalibration. scale 1 restores the bind exactly.
+        private void ApplyRemoteSpineScale()
+        {
+            if (!_spineRestCaptured)
+            {
+                return;
+            }
+            float scale = (SpineProportionScale > 0f) ? SpineProportionScale : 1f;
+            for (int i = 0; i < s_spineBones.Length; i++)
+            {
+                if (_spineRestValid[i] && References.GetTransform(s_spineBones[i], out Transform t) && t != null)
+                {
+                    t.localPosition = _spineRestLocal[i] * scale;
                 }
             }
         }

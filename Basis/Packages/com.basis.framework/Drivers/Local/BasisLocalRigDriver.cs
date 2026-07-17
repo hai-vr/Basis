@@ -1299,6 +1299,7 @@ namespace Basis.Scripts.Drivers
             data.SpineProportionScale = (hipsTrackedNow && Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMatch.RawValue)
                 ? BasisSpineProportionCore.ComputeScale(SpineProportionRatio, Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMaxScale.RawValue)
                 : 1f;
+            Basis.Scripts.Networking.BasisSpineProportionNetworking.UpdateLocalScale(data.SpineProportionScale);
             data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             data.ChestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;

@@ -74,7 +74,7 @@ public partial class BasisLocalFootDriver
     private float footHeightOffsetMul = 0.2f;
     [Tooltip("Step trigger distance as fraction of avg leg length.")]
     [SerializeField, Range(0.02f, 0.2f)]
-    private float stepTriggerMul = 0.10f;   // 0.08 -> 0.10 (foot-vs-real harness 2026-07-18): longer steps, less foot stranding at speed
+    private float stepTriggerMul = 0.18f;   // 0.08->0.10->0.18 (foot-vs-real harness): the foot drifts ~0.18*leg behind before stepping, which LENGTHENS the stride toward real (esp. slow/med walk) AND LOWERS over-extension (a further step target strands the foot less: med ext 1.29->1.23). Bounded by the DeriveStepParameters clamp (0.207*leg).
     [Tooltip("Stride scale as fraction of avg leg length.")]
     [SerializeField, Range(0.02f, 0.25f)]
     private float strideScaleMul = 0.15f;   // 0.12 -> 0.15: speed-scaled trigger; helps offset the double-support over-extension tail

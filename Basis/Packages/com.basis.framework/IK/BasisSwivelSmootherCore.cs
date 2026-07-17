@@ -51,6 +51,15 @@ namespace UnityEngine.Animations.Rigging
         public bool GuardAnteriorHalfSpace;
         public float AnteriorSoftDeg;   // ignored unless GuardAnteriorHalfSpace
         public float AnteriorHardDeg;   // ignored unless GuardAnteriorHalfSpace
+
+        // SINGULARITY HOLD (opt-in; see the block in Solve). Freezes the smoothed swivel where the knee's lever
+        // arm has collapsed and the angle is undetermined, so a slow body-frame sway can no longer roll the leg.
+        // false reproduces the legacy filter exactly (elbow path + every existing test untouched). Distinct from
+        // ConditionOnPole: that stays a LOW-PASS (and lagged real shin motion); this is a HOLD, gated on the SAME
+        // conditioning but touching only the near-straight band the knee cannot point out of anyway.
+        public bool HoldWhenSingular;
+        public float HoldCondLo;   // conditioning at/below which the swivel is fully HELD (frozen). Ignored unless HoldWhenSingular.
+        public float HoldCondHi;   // conditioning at/above which the filter is fully RELEASED. Ignored unless HoldWhenSingular.
     }
 
     public struct BasisSwivelSmootherResult
@@ -72,12 +81,24 @@ namespace UnityEngine.Animations.Rigging
         // incoming swivel was trying to put the knee behind the leg. Reported so tests can prove the guard FIRES on
         // the inverting input, not merely that the output happens to look fine.
         public bool AnteriorGuardApplied;
+
+        // The singularity-hold gate this frame: 1 = fully released (legacy One-Euro), 0 = fully HELD (swivel
+        // frozen). Always reported so tests can prove the hold engages near the singularity and lets go once bent.
+        public float HoldGate;
     }
 
     public static class BasisSwivelSmootherCore
     {
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
+
+        // Default singularity-hold band, in conditioning (= sin of the upper bone off the root->tip axis). The
+        // knee, capped at BasisLegSolveCore.MaxKneeInteriorDeg (176 deg), is PINNED at conditioning ~= 0.035 while
+        // standing -- footHeightOffset is clamped so the leg fully extends. So hold fully below 0.05 (covers the
+        // pinned standing value across body types with margin) and release by 0.12 (~14 deg of knee bend, where
+        // the lever arm is back and a real shin motion carries information). One source of truth; callers pass these.
+        public const float DefaultHoldCondLo = 0.05f;
+        public const float DefaultHoldCondHi = 0.12f;
 
         public static void Solve(in BasisSwivelSmootherInput i, out BasisSwivelSmootherResult r)
         {
@@ -194,6 +215,30 @@ namespace UnityEngine.Animations.Rigging
             }
 
             BasisSwivelFilterState state = BasisSwivelFilterCore.Step(i.State, guardedSwivel, i.Dt, minCutoffHz, beta, i.DerivCutoffHz);
+
+            // ⭐ SINGULARITY HOLD (opt-in). Near full extension the knee sits ON the pole singularity: its lever
+            // arm off the hip->ankle axis collapses (conditioning -> 0), the swivel angle is undetermined, and any
+            // residual body-frame micro-motion -- postural sway pivoting the leg over a planted foot, which is
+            // NON-rigid so the body-frame reference does not cancel it -- maps to a large, SLOW thigh roll. A
+            // One-Euro cannot remove that: a low-pass attenuates FAST jitter, but a ~0.3 Hz sway sails through a
+            // 1-1.5 Hz floor almost untouched. The only thing with zero passband at EVERY frequency is a HOLD.
+            //
+            // So gate the filter's INNOVATION by the conditioning: freeze the swivel where it carries no
+            // information, release it the instant the knee bends far enough to have a lever arm again (HoldCondHi).
+            // Raw/Vel keep tracking (the release is seeded with a live velocity), only Smooth is frozen. This is
+            // NOT the ConditionOnPole beta-strangle: that stays a low-pass and lagged genuine shin motion (the
+            // "knee trackers too slow" bug). The hold touches ONLY the near-straight band where the knee cannot
+            // point anywhere anyway (its circle has shrunk to a point), and is the exact identity above HoldCondHi,
+            // so a genuinely bent, tracker-driven knee is byte-for-byte unchanged. Off by default => elbow path and
+            // every existing test are untouched.
+            float holdGate = 1f;
+            if (i.HoldWhenSingular)
+            {
+                holdGate = Smoothstep(i.HoldCondLo, i.HoldCondHi, conditioning);
+                float innovation = Mathf.DeltaAngle(i.State.Smooth, state.Smooth);
+                state.Smooth = i.State.Smooth + innovation * holdGate;   // gate 0 => frozen, gate 1 => full One-Euro
+            }
+            r.HoldGate = holdGate;
             r.State = state;
             r.Seeded = true;
             r.WriteState = true;
@@ -219,6 +264,15 @@ namespace UnityEngine.Animations.Rigging
 
             r.DesiredMid = center + (Quaternion.AngleAxis(outSwivel, axis) * refDir) * radius;
             r.Valid = true;
+        }
+
+        // Hermite smoothstep, clamped. a==b degenerates to a step at a.
+        static float Smoothstep(float a, float b, float v)
+        {
+            if (b <= a) return v >= b ? 1f : 0f;
+            float t = (v - a) / (b - a);
+            t = t < 0f ? 0f : (t > 1f ? 1f : t);
+            return t * t * (3f - 2f * t);
         }
     }
 }

@@ -228,7 +228,7 @@ namespace Basis.IK.Mocap
             float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / G);
             float speedRef = Mathf.Sqrt(avgLeg * G);
             // inspector defaults, kept in lock-step with the driver (tuned 2026-07-18 vs real walk)
-            const float raySphereRadiusMul = 0.3f, footHeightOffsetMul = 0.2f, stepTriggerMul = 0.10f,
+            const float raySphereRadiusMul = 0.3f, footHeightOffsetMul = 0.2f, stepTriggerMul = 0.18f,
                         strideScaleMul = 0.15f, stepHeightMul = 0.30f, stepDurSlowMul = 0.30f, stepDurFastMul = 0.18f,
                         fastSpeedMul = 1.2f;
 
