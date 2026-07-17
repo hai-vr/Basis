@@ -261,6 +261,8 @@ namespace Basis.Scripts.Avatar
 
                 BasisContinuousCalibration.CaptureBaseline();
 
+                BasisLocalRigDriver.HasSpineProportionCapturePending = true;
+
                 OnFullBodyCalibrated?.Invoke();
             }
             finally

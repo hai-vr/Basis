@@ -288,6 +288,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
 
         [SyncSceneToStream, SerializeField] float m_MinHeadSpineHeight;
+        [SyncSceneToStream, SerializeField] float m_SpineProportionScale;
         [SyncSceneToStream, SerializeField] public bool m_enabledLeftShoulder;
         [SyncSceneToStream, SerializeField] public bool m_enabledRightShoulder;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightShoulder;
@@ -402,6 +403,8 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_SpineTwistKeep;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_SpineNeckTwistKeep;
         public float minHeadSpineHeight{  get => m_MinHeadSpineHeight; set => m_MinHeadSpineHeight = value; }
+        public float SpineProportionScale { get => m_SpineProportionScale; set => m_SpineProportionScale = value; }
+        public string SpineProportionScaleFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineProportionScale));
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
         public Transform head { get => m_head; set => m_head = value; }
@@ -751,6 +754,7 @@ namespace UnityEngine.Animations.Rigging
             m_NeckMaxConeDeg = 45f;
             m_SpineTwistKeep = 0.25f;
             m_SpineNeckTwistKeep = 0.9f;
+            m_SpineProportionScale = 1f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -1080,6 +1084,7 @@ w20, w54;
         public FloatProperty lordosisExtremeHipsDownMax, lordosisExtremeChestDownMax;
         public FloatProperty lordosisExtremeHipsDownLookUp, lordosisExtremeChestDownLookUp;
         public FloatProperty spineCCDRelax, neckMaxConeDeg, spineTwistKeep, spineNeckTwistKeep;
+        public FloatProperty spineProportionScale;
         // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
         // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
@@ -1248,6 +1253,12 @@ w20, w54;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
 
             float restDist = MinHeadSpineHeight.Get(stream);
+            float propScale = spineProportionScale.Get(stream);
+            if (!(propScale > 0f)) propScale = 1f;   // never let a stale/zero value collapse the spine
+            if (propScale != 1f)
+            {
+                restDist *= propScale;
+            }
             int lockMode = (int)ikLockMode.Get(stream);
             Vector3 up = playerUp.Get(stream);
 
@@ -1301,6 +1312,10 @@ w20, w54;
                 HandleHips.SetPosition(stream, hipsTargetPos);
                 HandleHips.SetRotation(stream, hipDesired);
             }
+            if (propScale != 1f)
+            {
+                ReSpaceSpineChain(stream, propScale);
+            }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
                 // Neck rotation produced by your spine IK pass – we keep this
@@ -1333,6 +1348,26 @@ w20, w54;
                 ApplyArmSwingChestFollow(stream);
                 GuardSpineChain(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
+            }
+        }
+        // Uniformly lengthens/shortens the spine by re-spacing every chain joint's local position about the
+        // hips anchor (index chainLen-1, never moved). The rotation-only spine solve preserves bone lengths,
+        // so this is the one lever that lets an over-long avatar torso stop crumpling and an over-short one
+        // stop over-stretching, when both spine ends are pinned by trackers. Scale == 1 is never called.
+        void ReSpaceSpineChain(AnimationStream stream, float scale)
+        {
+            if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 3)
+            {
+                return;
+            }
+            int hipsAnchor = ChainHeadToSpine.Length - 1;
+            for (int i = 0; i < hipsAnchor; i++)
+            {
+                if (!ChainHeadToSpine[i].IsValid(stream))
+                {
+                    continue;
+                }
+                ChainHeadToSpine[i].SetLocalPosition(stream, ChainHeadToSpine[i].GetLocalPosition(stream) * scale);
             }
         }
         // CCD root→tip aim across the hips→head chain. Hips is the fixed anchor (the hip pre-pass
@@ -1741,7 +1776,8 @@ w20, w54;
             input.AnatDifferentialStiffness = anatDifferentialStiffness.Get(stream);
             input.AnatPelvicTwistRouting = anatPelvicTwistRouting.Get(stream);
             input.SquishBoost = spineSquishBoost.Get(stream);
-            input.RestLen = TposeLengthNeckToHips.magnitude;   // the spine spans hips->NECK; the head was never part of it
+            float spineRestScale = spineProportionScale.Get(stream);
+            input.RestLen = TposeLengthNeckToHips.magnitude * (spineRestScale > 0f ? spineRestScale : 1f);   // the spine spans hips->NECK; the head was never part of it (scaled to match the re-spaced chain)
             input.BendTwistCoupling = k_BendTwistCoupling;
             input.HasSpine = hasSpine;
             input.HasUpper = hasUpper;
@@ -3075,6 +3111,7 @@ w20, w54;
                 neckMaxConeDeg = FloatProperty.Bind(animator, component, data.NeckMaxConeDegFloatProperty),
                 spineTwistKeep = FloatProperty.Bind(animator, component, data.SpineTwistKeepFloatProperty),
                 spineNeckTwistKeep = FloatProperty.Bind(animator, component, data.SpineNeckTwistKeepFloatProperty),
+                spineProportionScale = FloatProperty.Bind(animator, component, data.SpineProportionScaleFloatProperty),
 
                 // IK Lock Mode binding
                 ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),

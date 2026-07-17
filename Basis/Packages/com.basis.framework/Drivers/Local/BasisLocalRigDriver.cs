@@ -143,16 +143,21 @@ namespace Basis.Scripts.Drivers
         // planted foot pivots with the body -- but locomotion is guaranteed intact.
         // true  => drive the foot's rotation from the foot placement driver (SafeFootTargetRotation).
         //
-        // Defaulted OFF because the un-discard has never been compiled or play-tested, and it landed alongside a
-        // report that the legs stop handing back to the Animator when the character controller moves. The handoff
-        // gate itself is provably untouched (git diff 0e8b2efdc..HEAD changes not one line of stationaryTimer /
-        // leftWantIK / footIKReady / EnableLeftLeg / MovementVector / leftHasTracker), so this is NOT a diagnosis --
-        // it is a safety default. Walking matters more than heel-strike; flip this to true and re-test once the
-        // project actually builds.
-        // static readonly, NOT const: a const false would make the ternaries below compile-time-constant and raise
-        // CS0429 (unreachable expression code), which is an error under warnings-as-errors. The JIT folds this away
-        // just the same, so it costs nothing.
-        private static readonly bool FootRotationFromDriver = false;
+        // ENABLED 2026-07-18. The prerequisites the OFF default was waiting on are now met:
+        //  - the project BUILDS (dotnet build "Basis Framework.csproj" clean);
+        //  - the math is TESTED (BasisFootFrameTests, 10/10 green: rest reproduces the T-pose rotation so it
+        //    cannot come out toes-up, the offset pre-cancel survives the solve's own multiply, swing pitch
+        //    plantarflexes at toe-off / dorsiflexes at heel-strike, NaN degrades to the sentinel);
+        //  - the footAlign CAPTURE ORDERING is verified correct -- BasisLocalFootDriver.InitializeVariables()
+        //    (-> CaptureFootAlignment) runs at BasisLocalAvatarDriver:229, BEFORE ResetAvatarAnimator() at :236,
+        //    so it captures the flat T-pose foot (unlike the arm bake, which was the opposite order and wrong).
+        // SafeFootTargetRotation still degrades to the sentinel (= this old behaviour) on any NaN/degeneracy, so
+        // the floor is exactly what OFF gave. ⚠ VERIFY IN-HEADSET: stand still, arms down -- the feet must sit
+        // flat and naturally toed-out, NOT toes-up/tilted; a planted foot must HOLD as you turn, not pivot.
+        // Flip back to false if the un-discard misbehaves.
+        // static readonly, NOT const: a const would make the ternaries below compile-time-constant and raise
+        // CS0429 (unreachable expression code) under warnings-as-errors. The JIT folds this away just the same.
+        private static readonly bool FootRotationFromDriver = true;
 
         // Batched filter job state — one slot per S_* index (shoulder slot in position arrays is unused).
         private NativeArray<float3> _posInputs;
@@ -198,6 +203,8 @@ namespace Basis.Scripts.Drivers
             // Drop the prior recalibration first: a never-calibrated avatar then uses its own uncalibrated
             // (animator-relative) setup capture from CreateBasisFullBodyRIG.
             HasRecalibratedRotationOffsets = false;
+            SpineProportionRatio = 1f;
+            HasSpineProportionCapturePending = false;
             var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
             Spine(rigGO);
             BasisLocalBoneControl.HasEvents = true;
@@ -376,6 +383,12 @@ namespace Basis.Scripts.Drivers
             var rightToeData = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
             Quaternion leftShoulderRot = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
             Quaternion rightShoulderRot = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
+
+            if (HasSpineProportionCapturePending)
+            {
+                HasSpineProportionCapturePending = false;
+                CaptureSpineProportion(headData.position, hipsData.position);
+            }
 
             // NativeArray indexer does a safety-handle check on every call. For ~60 sequential
             // writes per frame we cache the pointers once and stream values through UnsafeUtility.
@@ -1219,10 +1232,34 @@ namespace Basis.Scripts.Drivers
         // re-applies them every frame — the same persistent path the tuning sliders use. Cleared on
         // rig (re)build so a new avatar uses its own setup capture until the user calibrates.
         public static bool HasRecalibratedRotationOffsets;
+        // Per-avatar spine proportion match: wearer torso / avatar torso, captured once after a calibration
+        // that has a hips tracker, applied as a uniform spine scale in the job. 1 = matched (a no-op).
+        public static float SpineProportionRatio = 1f;
+        public static bool HasSpineProportionCapturePending;
         public static Quaternion RecalibratedHead, RecalibratedHips, RecalibratedChest;
         public static Quaternion RecalibratedLeftFoot, RecalibratedRightFoot;
         public static Quaternion RecalibratedLeftToe, RecalibratedRightToe;
         public static Quaternion RecalibratedLeftShoulder, RecalibratedRightShoulder;
+
+        // Snapshots the wearer's real torso against the avatar's torso the frame after a hips-tracker
+        // calibration, as a straight head-to-hips ratio. headWorld/hipsWorld are the tracker-driven bone
+        // outputs (the real torso the trackers impose); TposeLocalScaled is the avatar's scaled rest pose
+        // (the avatar torso) -- both are current-scale world metres, so the ratio is scale-free. With no
+        // hips tracker the pelvis is synthesized, not pinned, so the correction does not apply: left at 1.
+        private static void CaptureSpineProportion(Vector3 headWorld, Vector3 hipsWorld)
+        {
+            SpineProportionRatio = 1f;
+            if (BasisLocalBoneDriver.HipsControl == null
+                || BasisLocalBoneDriver.HipsControl.HasTracked != BasisHasTracked.HasTracker)
+            {
+                return;
+            }
+            Vector3 headRest = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position;
+            Vector3 hipsRest = BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position;
+            float avatarTorso = Vector3.Distance(headRest, hipsRest);
+            float userTorso = Vector3.Distance(headWorld, hipsWorld);
+            SpineProportionRatio = BasisSpineProportionCore.ComputeRatio(userTorso, avatarTorso);
+        }
 
         private static void ApplyTuningSettings(ref BasisFullBodyData data)
         {
@@ -1257,6 +1294,11 @@ namespace Basis.Scripts.Drivers
             data.SpineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
             data.SpineTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTwistKeep.RawValue;
             data.SpineNeckTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineNeckTwistKeep.RawValue;
+            bool hipsTrackedNow = BasisLocalBoneDriver.HipsControl != null
+                && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
+            data.SpineProportionScale = (hipsTrackedNow && Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMatch.RawValue)
+                ? BasisSpineProportionCore.ComputeScale(SpineProportionRatio, Basis.BasisUI.BasisSettingsDefaults.FBIKSpineProportionMaxScale.RawValue)
+                : 1f;
             data.NeckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
             data.ChestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
             data.ChestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;

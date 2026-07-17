@@ -59,23 +59,14 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
+        private BasisOpenVRRenderModel _runtimeModel;
         public override void ShowTrackedVisual()
         {
-            if (BasisVisualTracker == null)
-            {
-                DeviceSupportInformation Match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
-                if (Match.CanDisplayPhysicalTracker)
-                {
-                    LoadModelWithKey(Match.DeviceID);
-                }
-                else
-                {
-                    if (UseFallbackModel())
-                    {
-                        LoadModelWithKey(FallbackDeviceID);
-                    }
-                }
-            }
+            ShowTrackedVisualDefaultImplementation();
+        }
+        public override bool TryShowRuntimeDeviceModel()
+        {
+            return BasisOpenVRRenderModel.TryLoad(this, ref _runtimeModel);
         }
         public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)
         {

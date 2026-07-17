@@ -949,25 +949,72 @@ namespace Basis.Scripts.Device_Management.Devices
         public abstract void PlaySoundEffect(string SoundEffectName, float Volume);
 
         /// <summary>
-        /// Default helper to spawn a model using device matching or a fallback visual.
+        /// Default helper to spawn a device visual. Prefers the runtime-provided model (real
+        /// controller/tracker geometry from the active XR runtime), then a matched pre-baked model,
+        /// then the generic sphere fallback.
         /// </summary>
         public void ShowTrackedVisualDefaultImplementation()
         {
-            if (BasisVisualTracker == null)
+            if (BasisVisualTracker != null)
             {
-                DeviceSupportInformation Match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
-                if (Match.CanDisplayPhysicalTracker)
+                return;
+            }
+            string trackerVisuals = Basis.BasisUI.BasisSettingsDefaults.TrackerVisuals.RawValue;
+            if (trackerVisuals == Basis.BasisUI.BasisSettingsDefaults.TrackerVisuals_Off)
+            {
+                return;
+            }
+            if (trackerVisuals == Basis.BasisUI.BasisSettingsDefaults.TrackerVisuals_DeviceModels && TryShowRuntimeDeviceModel())
+            {
+                return;
+            }
+            ShowBakedOrFallbackVisual();
+        }
+
+        /// <summary>
+        /// Spawns the matched pre-baked model, or the generic sphere fallback, without attempting a
+        /// runtime model. Runtime loaders call this to recover when an async runtime load fails.
+        /// </summary>
+        public void ShowBakedOrFallbackVisual()
+        {
+            if (BasisVisualTracker != null)
+            {
+                return;
+            }
+            DeviceSupportInformation Match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
+            if (Match.CanDisplayPhysicalTracker)
+            {
+                LoadModelWithKey(Match.DeviceID);
+            }
+            else
+            {
+                if (UseFallbackModel())
                 {
-                    LoadModelWithKey(Match.DeviceID);
-                }
-                else
-                {
-                    if (UseFallbackModel())
-                    {
-                        LoadModelWithKey(FallbackDeviceID);
-                    }
+                    LoadModelWithKey(FallbackDeviceID);
                 }
             }
+        }
+
+        /// <summary>
+        /// Backend hook: load the real device model from the active XR runtime (SteamVR render
+        /// models, OpenXR XR_EXT_render_model). Return true once a runtime model is found and its
+        /// load has started (the model may appear asynchronously); false to fall through to the
+        /// baked/sphere visual. Default: no runtime model available.
+        /// </summary>
+        public virtual bool TryShowRuntimeDeviceModel()
+        {
+            return false;
+        }
+
+        /// <summary>
+        /// Transform a device visual should attach to so it sits at the device's true tracked pose.
+        /// Defaults to this device node (correct for trackers/HMD, whose node is the tracked pose).
+        /// Devices whose node is remapped elsewhere (e.g. a controller node placed at the avatar wrist
+        /// with an IK rotation offset) override this to expose a node at the raw device pose.
+        /// </summary>
+        public virtual Transform GetVisualAnchor()
+        {
+            return transform;
         }
     }
 }

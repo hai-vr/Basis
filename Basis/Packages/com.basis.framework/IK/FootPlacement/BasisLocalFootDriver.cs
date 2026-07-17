@@ -74,13 +74,13 @@ public partial class BasisLocalFootDriver
     private float footHeightOffsetMul = 0.2f;
     [Tooltip("Step trigger distance as fraction of avg leg length.")]
     [SerializeField, Range(0.02f, 0.2f)]
-    private float stepTriggerMul = 0.08f;
+    private float stepTriggerMul = 0.10f;   // 0.08 -> 0.10 (foot-vs-real harness 2026-07-18): longer steps, less foot stranding at speed
     [Tooltip("Stride scale as fraction of avg leg length.")]
     [SerializeField, Range(0.02f, 0.25f)]
-    private float strideScaleMul = 0.12f;
+    private float strideScaleMul = 0.15f;   // 0.12 -> 0.15: speed-scaled trigger; helps offset the double-support over-extension tail
     [Tooltip("Step height as fraction of avg shin length.")]
     [SerializeField, Range(0.05f, 0.4f)]
-    private float stepHeightMul = 0.18f;
+    private float stepHeightMul = 0.30f;   // 0.18 -> 0.30: measured foot clearance was ~0.09*L vs ~0.16*L in real walkers; 0.30 lands ~0.15*L
     [Tooltip("Slow step duration as fraction of pendulum period.")]
     [SerializeField, Range(0.1f, 0.6f)]
     private float stepDurSlowMul = 0.30f;

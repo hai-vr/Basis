@@ -695,6 +695,19 @@ namespace Basis.BasisUI
         public const string SwapMode_Shutdown = "Shutdown Runtime";
         public const string SwapMode_AutoSwap = "Auto Swap";
 
+        // ---------------- TRACKER VISUALS ----------------
+        /// <summary>
+        /// Chooses what is rendered for tracked input devices (controllers/trackers/etc.) while
+        /// tracker visuals are active (e.g. during calibration).
+        /// "Off" — nothing. "Markers" — the generic placeholder marker. "Device Models" — the real
+        /// device model loaded from the XR runtime, falling back to a marker when unavailable.
+        /// </summary>
+        public static BasisSettingsBinding<string> TrackerVisuals = new("tracker_visuals", new BasisPlatformDefault<string>(TrackerVisuals_DeviceModels));
+
+        public const string TrackerVisuals_Off = "Off";
+        public const string TrackerVisuals_Markers = "Markers";
+        public const string TrackerVisuals_DeviceModels = "Device Models";
+
         // ---------------- INTERACTIONS ----------------
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
@@ -1246,6 +1259,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
+        // Spine proportion match: with a head+hips tracker, uniformly scales the avatar's spine a little so
+        // its torso length matches the wearer's, captured at calibration. Stops a mismatched avatar spine
+        // from crumpling (too long) or over-stretching (too short). MaxScale is the cap on that scaling.
+        public static BasisSettingsBinding<bool> FBIKSpineProportionMatch = new("fbikspineproportionmatch", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKSpineProportionMaxScale = new("fbikspineproportionmaxscale", new BasisPlatformDefault<float>(0.12f));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
@@ -1576,6 +1594,7 @@ namespace Basis.BasisUI
             AutoScaleEstimateEnabled.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
+            TrackerVisuals.LoadBindingValue();
             EnableOSC.LoadBindingValue();
             EnableFaceTracking.LoadBindingValue();
             EnableEyeTracking.LoadBindingValue();
@@ -1966,6 +1985,8 @@ namespace Basis.BasisUI
             FBIKKneeFootFollowUpright.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
+            FBIKSpineProportionMatch.LoadBindingValue();
+            FBIKSpineProportionMaxScale.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();
