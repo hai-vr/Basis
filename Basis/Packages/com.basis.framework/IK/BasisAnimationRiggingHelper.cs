@@ -34,6 +34,7 @@ public static class BasisAnimationRiggingHelper
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
         BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullBodyIK>(go);
         var data = BasisFullIKConstraint.data;
+        data.SetDefaultValues();
         // Torso / head chain
         data.hips = Mapping.Hips;
         data.spine = Mapping.spine;

@@ -301,6 +301,7 @@ namespace Basis.Scripts.Drivers
             }
 
             RigLayerActive = true;
+            RestoreAllTrackers();
 
             // Notify controls when exiting T-pose
             var driver = BasisLocalPlayer.Instance?.LocalBoneDriver;

@@ -1151,7 +1151,7 @@ public partial class BasisLocalFootDriver
         footAlignRight = Quaternion.identity;
         if (avatarTransform == null) return;
 
-        Quaternion restFrame = Quaternion.LookRotation(avatarTransform.forward, avatarTransform.up);
+        Quaternion restFrame = BuildFootFrame(avatarTransform.forward, avatarTransform.up, avatarTransform.up);
         Quaternion invRest = Quaternion.Inverse(restFrame);
 
         if (lf != null) footAlignLeft = invRest * lf.rotation;
@@ -1163,14 +1163,18 @@ public partial class BasisLocalFootDriver
     /// - Tilt (roll/pitch from slope) clamped to maxFootTiltDegrees
     /// - Yaw (toe-out/toe-in from body forward) clamped to maxFootYawDegrees
     /// </summary>
-    private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal, Quaternion footAlign)
+    /// <summary>
+    /// The body-derived foot frame, shared by CaptureFootAlignment and FootRotation so the rest
+    /// identity (targetFrame == restFrame => footWorld == footBone.rotation) holds by construction
+    /// for any avatar orientation, not just perfectly upright on flat ground.
+    /// </summary>
+    private Quaternion BuildFootFrame(Vector3 bodyFwd, Vector3 normal, Vector3 up)
     {
         if (normal.sqrMagnitude < 0.001f)
         {
-            normal = cachedPlayerUp;
+            normal = up;
         }
 
-        // Project body forward onto surface plane for the foot's forward direction
         Vector3 fwd = Vector3.ProjectOnPlane(bodyFwd, normal);
         if (fwd.sqrMagnitude < 1e-6f)
         {
@@ -1179,11 +1183,22 @@ public partial class BasisLocalFootDriver
 
         fwd.Normalize();
 
-        // Clamp tilt: blend between upright and surface-aligned
         Quaternion surfaceRot = Quaternion.LookRotation(fwd, normal);
-        Quaternion uprightRot = Quaternion.LookRotation(fwd, cachedPlayerUp);
+        Quaternion uprightRot = Quaternion.LookRotation(fwd, up);
         float tiltAngle = Quaternion.Angle(uprightRot, surfaceRot);
-        Quaternion result = tiltAngle > 0.01f ? Quaternion.Slerp(uprightRot, surfaceRot, Mathf.Clamp01(maxFootTiltDegrees / tiltAngle)) : uprightRot;
+        return tiltAngle > 0.01f
+            ? Quaternion.Slerp(uprightRot, surfaceRot, Mathf.Clamp01(maxFootTiltDegrees / tiltAngle))
+            : uprightRot;
+    }
+
+    private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal, Quaternion footAlign)
+    {
+        if (normal.sqrMagnitude < 0.001f)
+        {
+            normal = cachedPlayerUp;
+        }
+
+        Quaternion result = BuildFootFrame(bodyFwd, normal, cachedPlayerUp);
 
         // Clamp yaw: how far the foot forward deviates from body forward projected onto the player's horizontal plane
         Vector3 footFwd = result * Vector3.forward;

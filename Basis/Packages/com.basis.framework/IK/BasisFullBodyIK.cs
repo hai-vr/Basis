@@ -533,10 +533,139 @@ namespace UnityEngine.Animations.Rigging
                     break;
             }
         }
+
+        public void SetDefaultValues()
+        {
+            m_chest = m_neck = m_head = null;
+            m_LeftUpperLeg = m_LeftLowerLeg = m_leftFoot = null;
+            m_RightUpperLeg = m_RightLowerLeg = m_RightFoot = null;
+
+            m_leftUpperArm = m_leftLowerArm = m_leftHand = null;
+            m_RightUpperArm = m_RightLowerArm = m_rightHand = null;
+
+            m_Hips = null;
+
+            m_HintHeadEnabled = true;
+            m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
+            m_SpineIKEnabled = true;
+            m_HasHipsTracker = false;
+            m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
+            m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
+            m_IKLockMode = (float)BasisIKLockMode.LockHead;
+
+            m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
+            m_EnabledLeftHand = m_EnabledRightHand = 1f;
+            m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
+            m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
+
+            PlayerUp = Vector3.up;
+
+            PositionHips = Vector3.zero;
+            RotationHips = Quaternion.identity;
+            OffsetRotationHips = Quaternion.identity;
+
+            // Integrated driven TR defaults
+            m_LeftToe = null;
+            m_RightToe = null;
+
+            OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
+            m_LeftToeEnabled = false;
+            m_RightToeEnabled = false;
+
+            // Chest/hand capsule defaults — read from persisted settings
+            m_chest = m_neck = null;
+            m_ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
+            m_CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
+            m_CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
+            m_HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
+            m_HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
+            m_ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            m_CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
+
+            m_ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            m_ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
+            m_ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
+            m_ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
+
+            m_SpineBendPitch = 0.45f;
+            m_SpineBendYaw = 0.10f;
+            m_SpineBendRoll = 0.35f;
+            m_UpperChestBendPitch = 0.25f;
+            m_UpperChestBendYaw = 0.30f;
+            m_UpperChestBendRoll = 0.20f;
+            m_HipHingeStartDeg = 40f;
+            m_HipHingeMaxAddDeg = 52f;
+            m_ChestSpringHz = 12f;
+            m_ChestSpringDamping = 1f;
+            m_SpineMaxForwardDeg = 60f;
+            m_SpineMaxBackwardDeg = 25f;
+            m_SpineMaxLateralDeg = 25f;
+            m_SpineSquishBoost = 0.5f;
+            m_SpineGazeFollow = 0.25f;
+            m_NeckGazeFollow = 0.3f;
+            m_MoveBodyBackWhenCrouching = 1f;
+            m_SwingSmoothRateDeg = 720f;
+            m_ChestArmSwingFactor = 0.3f;
+            m_ChestArmSwingMaxDeg = 15f;
+            m_LowerArmTwistFraction = 0.5f;
+            m_UpperArmTwistFraction = 0.3f;
+
+            m_AnatDifferentialStiffness = false;
+            m_AnatShoulderSlide = false;
+            m_AnatCervicalLordosis = false;
+            m_AnatPelvicTwistRouting = false;
+            m_SpineAnatomicalRom = false;
+            m_ChestIKTarget = false;
+            m_LegSwivelSmoothing = true;
+            m_LordosisPitchGainDeg = 8f;
+            m_LordosisBaseDeg = 5f;
+            m_LordosisNeckShare = 0.65f;
+            m_LordosisMaxHeadPitchDeg = 80f;
+            m_LordosisExtremeStartDeg = 50f;
+            m_LordosisExtremeFullDeg = 80f;
+            m_LordosisExtremeRollForwardMaxDeg = 10f;
+            m_LordosisExtremeRollBackwardMaxDeg = 4f;
+            m_LordosisExtremeHipsHorizontalMax = 0.025f;
+            m_LordosisExtremeChestHorizontalMax = 0.04f;
+            m_LordosisExtremeHipsDownMax = 0.015f;
+            m_LordosisExtremeChestDownMax = 0.025f;
+            m_LordosisExtremeHipsDownLookUp = 0.0005f;
+            m_LordosisExtremeChestDownLookUp = 0.001f;
+            m_SpineCCDRelax = 0.8f;
+            m_NeckMaxConeDeg = 45f;
+            m_SpineTwistKeep = 0.25f;
+            m_SpineNeckTwistKeep = 0.9f;
+
+            // Positions
+            TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
+            TargetPosition5 = TargetPosition6 = TargetPosition7 = TargetPosition8 = TargetPosition9 =
+            TargetPosition10 = TargetPosition11 = TargetPosition12 = TargetPosition13 = TargetPosition14 =
+            TargetPosition15 = TargetPosition16 = TargetPosition17 = TargetPosition18 = TargetPosition19 =
+            TargetPosition20 = TargetPosition54 = Vector3.zero;
+
+            // Rotations
+            TargetRotation0 = TargetRotation1 = TargetRotation2 = TargetRotation3 = TargetRotation4 =
+            TargetRotation5 = TargetRotation6 = TargetRotation7 = TargetRotation8 = TargetRotation9 =
+            TargetRotation10 = TargetRotation11 = TargetRotation12 = TargetRotation13 = TargetRotation14 =
+            TargetRotation15 = TargetRotation16 = TargetRotation17 = TargetRotation18 = TargetRotation19 =
+            TargetRotation20 = TargetRotation54 = Quaternion.identity;
+
+            // Offsets
+            OffsetRotation0 = OffsetRotation1 = OffsetRotation2 = OffsetRotation3 = OffsetRotation4 =
+            OffsetRotation5 = OffsetRotation6 = OffsetRotation7 = OffsetRotation8 = OffsetRotation9 =
+            OffsetRotation10 = OffsetRotation11 = OffsetRotation12 = OffsetRotation13 = OffsetRotation14 =
+            OffsetRotation15 = OffsetRotation16 = OffsetRotation17 = OffsetRotation18 = OffsetRotation19 =
+            OffsetRotation20 = OffsetRotation54 = Quaternion.identity;
+
+            // Weights default to disabled
+            Weight0 = Weight1 = Weight2 = Weight3 = Weight4 =
+            Weight5 = Weight6 = Weight7 = Weight8 = Weight9 =
+            Weight10 = Weight11 = Weight12 = Weight13 = Weight14 =
+            Weight15 = Weight16 = Weight17 = Weight18 = Weight19 =
+            Weight20 = Weight54 = false;
+        }
     }
     [DisallowMultipleComponent]
-    [AddComponentMenu("Animation Rigging/Basis FullBody IK")]
-    [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
     public class BasisFullBodyIK : MonoBehaviour
     {
         [SerializeField] BasisFullBodyData m_Data = default;

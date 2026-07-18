@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
@@ -34,6 +35,7 @@ public class BasisPoseStreamWindow : EditorWindow
     bool _autoRefresh = true;
     string _status = "Enter play mode and load an avatar.";
     string _anchorInfo = "";
+    string _calibInfo = "";
 
     [MenuItem("Basis/Debug/Pose Stream")]
     public static void Open()
@@ -88,6 +90,18 @@ public class BasisPoseStreamWindow : EditorWindow
             ? $"anchor={anchor.name}  pos={anchor.position}  rot={anchor.rotation.eulerAngles}  lossyScale={anchor.lossyScale}"
             : "anchor=<none>  (treated as identity)";
 
+        var rig = BasisLocalPlayer.Instance.LocalRigDriver;
+        var d = rig.BasisFullIKConstraint != null ? rig.BasisFullIKConstraint.data : default;
+        var calib = new StringBuilder();
+        calib.AppendLine($"HasRecalibratedRotationOffsets={BasisLocalRigDriver.HasRecalibratedRotationOffsets}");
+        calib.AppendLine($"  LeftFoot  live={Fmt(d.M_CalibrationLeftFootRotation.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedLeftFoot.eulerAngles)}   |q|={QLen(d.M_CalibrationLeftFootRotation):F4}");
+        calib.AppendLine($"  RightFoot live={Fmt(d.M_CalibrationRightFootRotation.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedRightFoot.eulerAngles)}   |q|={QLen(d.M_CalibrationRightFootRotation):F4}");
+        calib.AppendLine($"  boneSim   L={Fmt(BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation.eulerAngles)}   R={Fmt(BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation.eulerAngles)}");
+        calib.AppendLine($"ENABLES  leg L={d.EnableLeftLeg:F2} R={d.EnableRightLeg:F2}   lowerLeg L={d.EnableLeftLowerLeg:F2} R={d.EnableRightLowerLeg:F2}   toe L={d.LeftToeEnabled} R={d.RightToeEnabled}");
+        calib.Append($"HasRigLayer  LFoot={BasisLocalBoneDriver.LeftFootControl.HasRigLayer} RFoot={BasisLocalBoneDriver.RightFootControl.HasRigLayer}" +
+                     $"  LLowerLeg={BasisLocalBoneDriver.LeftLowerLegControl.HasRigLayer} RLowerLeg={BasisLocalBoneDriver.RightLowerLegControl.HasRigLayer}");
+        _calibInfo = calib.ToString();
+
         Transform[] nodes = skeleton.DebugNodes;
         var stream = skeleton.Stream;
         for (int i = 0; i < nodes.Length; i++)
@@ -140,6 +154,10 @@ public class BasisPoseStreamWindow : EditorWindow
         if (!string.IsNullOrEmpty(_anchorInfo))
         {
             EditorGUILayout.LabelField(_anchorInfo, EditorStyles.miniLabel);
+        }
+        if (!string.IsNullOrEmpty(_calibInfo))
+        {
+            EditorGUILayout.TextArea(_calibInfo, EditorStyles.miniLabel);
         }
 
         if (_rows.Count == 0)
@@ -219,6 +237,8 @@ public class BasisPoseStreamWindow : EditorWindow
         EditorGUILayout.EndScrollView();
     }
 
+    static float QLen(Quaternion q) => Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+
     static string Fmt(Vector3 v) => $"{v.x:F4}, {v.y:F4}, {v.z:F4}";
 
     void ExportCsv()
@@ -232,6 +252,10 @@ public class BasisPoseStreamWindow : EditorWindow
         var sb = new StringBuilder();
         sb.AppendLine("# " + _status);
         sb.AppendLine("# " + _anchorInfo);
+        foreach (string line in _calibInfo.Split(new[] { Environment.NewLine, "\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            sb.AppendLine("# " + line);
+        }
         sb.AppendLine("index,parent,bone,writable,bindLen,curLen,translationFree,posErrMm,rotErrDeg," +
                       "localPosX,localPosY,localPosZ,localRotX,localRotY,localRotZ,localRotW," +
                       "streamWorldPosX,streamWorldPosY,streamWorldPosZ," +
