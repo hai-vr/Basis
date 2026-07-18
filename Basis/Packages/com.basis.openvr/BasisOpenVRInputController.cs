@@ -87,6 +87,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisRaw = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
+            PollPose();
         }
         public override void RenderPollData()
         {
@@ -108,7 +109,16 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             CurrentInputState.Secondary2DAxisRaw = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
 
-            // Update hand (left/right)
+            PollPose();
+
+            UpdateInputEvents();
+        }
+        private void PollPose()
+        {
+            if (!SteamVR.active)
+            {
+                return;
+            }
             switch (inputSource)
             {
                 case SteamVR_Input_Sources.LeftHand:
@@ -124,8 +134,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                         break;
                     }
             }
-
-            UpdateInputEvents();
         }
         private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, bool isLeft)
         {

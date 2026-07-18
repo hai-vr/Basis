@@ -33,6 +33,17 @@ namespace Basis.IK.Mocap
         // body-DOWN -- vanished when the arm hangs down, which is 29.7% of real human frames and the commonest
         // pose in VR. Keep the row: it is the A/B that proves the difference is the frame and not the fit.
         ElbowField,
+        // THE NEURAL CANDIDATE: small MLPs (3->24->16->2) fitted to the SAME dumped features as SwivelModel and
+        // predicting the SAME (sin,cos) swivel, so they share SwivelModel's exact wiring and BendDirection --
+        // this row isolates "MLP vs polynomial" with everything else held fixed. The ELBOW uses
+        // BasisArmSwivelNeuralModel (A/B vs BasisElbowFieldModel, which ships); the KNEE uses
+        // BasisLegSwivelNeuralModel (A/B vs BasisLegSwivelModel). See SolveArm / SolveLeg.
+        NeuralSwivel,
+        // The LIVE-RIG elbow path scored offline: BasisSwivelHintCore.ArmHint with useNeural=true (the neural
+        // POSITION model, BasisArmElbowNeuralFieldModel). ElbowField is the SAME entry point with useNeural=false,
+        // so NeuralField vs ElbowField is EXACTLY what UseNeuralPole flips on a real avatar's elbow. (The knee's
+        // live path is the neural angle model, already the NeuralSwivel row's knee column.)
+        NeuralField,
         TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
     }
 
@@ -409,6 +420,7 @@ namespace Basis.IK.Mocap
             // (Lookup, SwivelModel) stay frozen without it: they exist as fixed points of comparison, and a
             // baseline that accretes new features stops being a baseline.
             i.TipRotation = hint == BasisMocapHintSource.TruthJoint || hint == BasisMocapHintSource.ElbowField
+                || hint == BasisMocapHintSource.NeuralField
                 ? animTipRot : default;
             i.TargetPosition = truthHand;
             i.TargetRotation = truthHandRot;
@@ -430,22 +442,25 @@ namespace Basis.IK.Mocap
                     i.HintRotation = clip.Get(f, jE).Rotation;
                     break;
                 case BasisMocapHintSource.ElbowField:
+                case BasisMocapHintSource.NeuralField:
                 {
-                    // WHAT SHIPS. It calls BasisSwivelHintCore.ArmHint -- the RUNTIME's own entry point --
-                    // rather than re-deriving the features here, so the harness and the rig cannot disagree
-                    // about handedness, body frame or mirror. Every previous disagreement about one of those
-                    // three produced confident garbage that a green test suite waved through (once by 145
-                    // degrees, once by putting the elbows up beside the ears in a headset).
+                    // WHAT SHIPS (ElbowField) vs the neural live path (NeuralField): the SAME entry point,
+                    // BasisSwivelHintCore.ArmHint, with useNeural false/true -- rather than re-deriving the
+                    // features here, so the harness and the rig cannot disagree about handedness, body frame or
+                    // mirror. Every previous disagreement produced confident garbage a green test suite waved
+                    // through (once by 145 degrees, once by putting the elbows up beside the ears in a headset).
+                    // NeuralField is EXACTLY the elbow a real avatar gets under UseNeuralPole, everything else fixed.
                     //
-                    // No confidence gate: the field predicts a POSITION, and fades its one geometric
-                    // degeneracy internally. See BasisElbowFieldModel.
+                    // No confidence gate: both predict a POSITION and fade their one geometric degeneracy
+                    // internally. See BasisElbowFieldModel / BasisArmElbowNeuralFieldModel.
                     BasisSwivelFrame sf = BasisSwivelHintCore.BuildFrame(
                         clip.Get(f, BasisMocapJoint.LeftUpperArm).Position,
                         clip.Get(f, BasisMocapJoint.RightUpperArm).Position,
                         clip.Get(f, BasisMocapJoint.Chest).Position,
                         clip.Get(f, BasisMocapJoint.Neck).Position);
                     if (BasisSwivelHintCore.ArmHint(sf, shoulder, truthHand, armLen, isLeft,
-                                                    out Vector3 fieldHint, out _))
+                                                    out Vector3 fieldHint, out _,
+                                                    hint == BasisMocapHintSource.NeuralField))
                     {
                         i.HintPosition = fieldHint;
                         i.HintWeight = true;
@@ -469,6 +484,7 @@ namespace Basis.IK.Mocap
                 }
                 case BasisMocapHintSource.SwivelModel:
                 case BasisMocapHintSource.SwivelModelSmoothed:
+                case BasisMocapHintSource.NeuralSwivel:
                 {
                     // The elbow is confined to a CIRCLE, so predict the one angle that places it on that
                     // circle rather than a 3-vector that does not lie on it. See BasisArmSwivelModel.
@@ -497,11 +513,17 @@ namespace Basis.IK.Mocap
                     // T-pose -- and it put the elbows up by the ears in a headset while every test stayed green.
                     // See BasisArmSwivelModel: a bone's rotation is a rig convention, and the live rig's T-pose
                     // bake was not reliably a T-pose. Anatomy transfers; conventions do not.
-                    float swivel = BasisArmSwivelModel.SwivelRad(handLocal, out float aconf);
+                    // NeuralSwivel swaps ONLY the model: same features, same (sin,cos) convention, same BendDirection.
+                    float aconf;
+                    float swivel = hint == BasisMocapHintSource.NeuralSwivel
+                        ? BasisArmSwivelNeuralModel.SwivelRad(handLocal, out aconf)
+                        : BasisArmSwivelModel.SwivelRad(handLocal, out aconf);
                     if (isLeft) swivel = -swivel;   // un-mirror
 
                     // DIAGNOSTIC: what IS the true swivel on this frame? A prediction that is right looks
                     // different from one that is sign-flipped, and both look different from garbage.
+                    // NeuralSwivel skips the probe/dump: the training CSV must stay the SwivelModel frame only.
+                    if (hint != BasisMocapHintSource.NeuralSwivel)
                     {
                         Vector3 ax = s2h.normalized;
                         Vector3 dn = -bUp;
@@ -525,10 +547,20 @@ namespace Basis.IK.Mocap
                             float aa = (limb.UpperLen * limb.UpperLen - limb.LowerLen * limb.LowerLen + dist * dist) / (2f * dist);
                             float rad = Mathf.Sqrt(Mathf.Max(limb.UpperLen * limb.UpperLen - aa * aa, 0f)) / armLen;
 
+                            // The RAW elbow position in the same mirrored body frame (ex,ey,ez), for the
+                            // position-target model (BasisElbowFieldModel style): predict a 3-vector and project.
+                            // Taken DIRECTLY from truthElbow -- reconstructing it from phi would re-inject the
+                            // (uu,vv) reference singularity the position representation exists to escape.
+                            Vector3 e2s = truthElbow - shoulder;
+                            float ex = Vector3.Dot(e2s, bOut) / armLen;
+                            float ey = Vector3.Dot(e2s, bUp) / armLen;
+                            float ez = Vector3.Dot(e2s, bFwd) / armLen;
+
                             var sb = s_swivelDump;
                             sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
                             sb.Append(F(handLocal.x)).Append(',').Append(F(handLocal.y)).Append(',').Append(F(handLocal.z));
-                            sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
+                            sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad));
+                            sb.Append(',').Append(F(ex)).Append(',').Append(F(ey)).Append(',').Append(F(ez)).AppendLine();
                         }
                     }
 
@@ -692,11 +724,16 @@ namespace Basis.IK.Mocap
                 i.HintPosition = truthKnee;
                 i.HintWeight = 1f;
             }
-            else if (hint == BasisMocapHintSource.SwivelModel || hint == BasisMocapHintSource.SwivelModelSmoothed)
+            else if (hint == BasisMocapHintSource.SwivelModel || hint == BasisMocapHintSource.SwivelModelSmoothed
+                     || hint == BasisMocapHintSource.NeuralSwivel)
             {
-                // The KNEE is identical in both rows -- SwivelModelSmoothed varies only the ARM's output filter,
-                // which is the one shipping question this row exists to settle.
-                float kneeSwivel = BasisLegSwivelModel.SwivelRad(legLocal, out float conf);   // POSITIONS ONLY -- see BasisLegSwivelModel
+                // SwivelModel/SwivelModelSmoothed share the polynomial knee (the smoothing varies only the ARM's
+                // output filter); NeuralSwivel swaps in the neural knee. Same features, same (sin,cos), same
+                // BendDirection -- so the knee column A/Bs BasisLegSwivelNeuralModel against BasisLegSwivelModel.
+                float conf;
+                float kneeSwivel = hint == BasisMocapHintSource.NeuralSwivel
+                    ? BasisLegSwivelNeuralModel.SwivelRad(legLocal, out conf)   // POSITIONS ONLY -- see BasisLegSwivelNeuralModel
+                    : BasisLegSwivelModel.SwivelRad(legLocal, out conf);        // POSITIONS ONLY -- see BasisLegSwivelModel
                 if (isLeft) kneeSwivel = -kneeSwivel;
                 Unity.Mathematics.float3 kb = BasisLegSwivelModel.BendDirection(
                     new Unity.Mathematics.float3(h2f.x, h2f.y, h2f.z),
@@ -721,7 +758,8 @@ namespace Basis.IK.Mocap
                 i.HintWeight = 0f;   // no knee tracker: the leg falls back to the bend normal
             }
 
-            if (s_legDump != null)
+            if (s_legDump != null && hint != BasisMocapHintSource.NeuralSwivel
+                && hint != BasisMocapHintSource.NeuralField)
             {
                 Vector3 ax = h2f.normalized;
                 Vector3 uu = (gOut - ax * Vector3.Dot(gOut, ax)).normalized;
@@ -735,10 +773,19 @@ namespace Basis.IK.Mocap
                 float aa = (limb.UpperLen * limb.UpperLen - limb.LowerLen * limb.LowerLen + dist * dist) / (2f * dist);
                 float rad = Mathf.Sqrt(Mathf.Max(limb.UpperLen * limb.UpperLen - aa * aa, 0f)) / legLen;
 
+                // The RAW knee position in the same mirrored body frame (ex,ey,ez), for the position-target
+                // model: predict a 3-vector and project onto the reachable circle. Taken DIRECTLY from
+                // truthKnee -- reconstructing it from phi would re-inject the (uu,vv) reference singularity.
+                Vector3 k2h = truthKnee - hip;
+                float ex = Vector3.Dot(k2h, gOut) / legLen;
+                float ey = Vector3.Dot(k2h, gUp) / legLen;
+                float ez = Vector3.Dot(k2h, gFwd) / legLen;
+
                 var sb = s_legDump;
                 sb.Append(clip.Name).Append(',').Append(isLeft ? 'L' : 'R').Append(',');
                 sb.Append(F(legLocal.x)).Append(',').Append(F(legLocal.y)).Append(',').Append(F(legLocal.z));
-                sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad)).AppendLine();
+                sb.Append(',').Append(F(phiFit)).Append(',').Append(F(rad));
+                sb.Append(',').Append(F(ex)).Append(',').Append(F(ey)).Append(',').Append(F(ez)).AppendLine();
             }
 
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);

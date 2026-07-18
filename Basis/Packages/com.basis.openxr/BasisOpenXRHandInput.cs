@@ -169,6 +169,7 @@ public class BasisOpenXRHandInput : BasisInputController
         CurrentInputState.PrimaryButtonGetState = _primaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.SecondaryButtonGetState = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.Trigger = _triggerAction?.ReadValue<float>() ?? 0f;
+        PollPose();
     }
     public override void RenderPollData()
     {
@@ -184,21 +185,12 @@ public class BasisOpenXRHandInput : BasisInputController
         CurrentInputState.SecondaryButtonGetState = _secondaryButtonAction?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.Trigger = _triggerAction?.ReadValue<float>() ?? 0f;
 
-        if (_devicePositionAction != null)
-        {
-            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, _devicePositionAction.ReadValue<Vector3>());
-        }
-        if (_deviceRotationAction != null)
-        {
-            UnscaledDeviceCoord.rotation = _deviceRotationAction.ReadValue<Quaternion>();
-        }
+        PollPose();
         if (_pointerPositionAction != null)
         {
             ComputeUnscaledDeviceCoord(ref PointerPositionYScaled, _pointerPositionAction.ReadValue<Vector3>());
         }
 
-        ConvertToScaledDeviceCoord();
-        ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
         float playerToAvatar = BasisHeightDriver.DeviceScale;
 
@@ -215,6 +207,19 @@ public class BasisOpenXRHandInput : BasisInputController
             ActiveRaycastOffset
         );
         UpdateInputEvents();
+    }
+    private void PollPose()
+    {
+        if (_devicePositionAction != null)
+        {
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, _devicePositionAction.ReadValue<Vector3>());
+        }
+        if (_deviceRotationAction != null)
+        {
+            UnscaledDeviceCoord.rotation = _deviceRotationAction.ReadValue<Quaternion>();
+        }
+        ConvertToScaledDeviceCoord();
+        ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
     }
     public BasisCalibratedCoords PointerPositionYScaled;
     /// <summary>

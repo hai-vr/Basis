@@ -2623,7 +2623,7 @@ w20, w54;
                 // at zero, and that jump is the pop the earlier weight-fade attempt measured (70 -> 65) and
                 // wrongly blamed on the idea rather than the mechanism. See BasisSwivelHintCore.LegModelTrust.
                 if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft,
-                                                out Vector3 modelHint, out float conf))
+                                                out Vector3 modelHint, out float conf, BasisSwivelHintCore.UseNeuralPole))
                 {
                     hint = new AffineTransform(modelHint, Quaternion.identity);
                     hintW = 1f;
@@ -2855,7 +2855,7 @@ w20, w54;
                 // internally by a fallback at the exact cores (its old fade BAND is gone -- the fade's
                 // antipodal lerp was the "big swings flip drastically" teleport; see the model's header).
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
-                                                out Vector3 modelHint, out _))
+                                                out Vector3 modelHint, out _, BasisSwivelHintCore.UseNeuralPole))
                 {
                     // GAIN-CAP the model bend against the hand's own rotation. The bend field has
                     // topologically-required cores (BasisElbowFieldModel's down-and-back one is the

@@ -138,6 +138,12 @@ namespace Basis.Tests.IK
             report.AppendLine("                ON. The filter was added to fight the LOOKUP's jitter; the model is");
             report.AppendLine("                already smoother than a real tracker, so this row decides whether the");
             report.AppendLine("                filter is now pure lag. SHIP WHICHEVER OF THESE TWO MEASURES BETTER.");
+            report.AppendLine("  NeuralSwivel  the SwivelModel wiring with small MLPs (3->24->16->2) in place of the");
+            report.AppendLine("                polynomials -- SAME features, SAME (sin,cos), so this isolates MLP vs poly.");
+            report.AppendLine("                Elbow: BasisArmSwivelNeuralModel (vs ElbowField). Knee: BasisLegSwivelNeuralModel");
+            report.AppendLine("                (vs BasisLegSwivelModel). Both beat their baseline on held-out clips offline.");
+            report.AppendLine("  NeuralField   the LIVE ELBOW under UseNeuralPole: ArmHint(useNeural=true) = the neural");
+            report.AppendLine("                POSITION model. NeuralField vs ElbowField is exactly what flips on a real avatar.");
             report.AppendLine("  TruthJoint    handed the real elbow (a tracker). The ceiling.");
             report.AppendLine();
             report.AppendLine($"{"clip",-12} {"hint",-14} {"jit+%L",7} {"pops+",6} {"jerk x",7} | {"err %arm",9} {"engage",8}");
@@ -157,15 +163,17 @@ namespace Basis.Tests.IK
                              BasisMocapHintSource.SwivelModel,
                              BasisMocapHintSource.SwivelModelSmoothed,
                              BasisMocapHintSource.ElbowField,
+                             BasisMocapHintSource.NeuralSwivel,
+                             BasisMocapHintSource.NeuralField,
                              BasisMocapHintSource.TruthJoint,
                          })
                 {
                     if (hint == BasisMocapHintSource.SwivelModel)
                     {
                         BasisMocapAccuracy.s_legDump ??= new StringBuilder(
-                            "clip,side,x,y,z,phi,rad\n");
+                            "clip,side,x,y,z,phi,rad,ex,ey,ez\n");
                         BasisMocapAccuracy.s_swivelDump ??= new StringBuilder(
-                            "clip,side,x,y,z,phi,rad\n");
+                            "clip,side,x,y,z,phi,rad,ex,ey,ez\n");
                         BasisMocapAccuracy.s_swivelDiffSum = 0f;
                         BasisMocapAccuracy.s_swivelSumSum = 0f;
                         BasisMocapAccuracy.s_swivelN = 0;

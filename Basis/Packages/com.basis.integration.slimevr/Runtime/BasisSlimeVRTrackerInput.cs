@@ -28,9 +28,24 @@ namespace Basis.Integration.SlimeVR
 
         public override void RenderPollData()
         {
-            if (!BasisSlimeVRTrackerSource.TryGetTrackerPose(BodyPart, out Vector3 position, out Quaternion rotation))
+            if (!PollPose())
             {
                 return;
+            }
+            UpdateInputEvents();
+            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+        }
+
+        public override void LateDoPollData()
+        {
+            PollPose();
+        }
+
+        private bool PollPose()
+        {
+            if (!BasisSlimeVRTrackerSource.TryGetTrackerPose(BodyPart, out Vector3 position, out Quaternion rotation))
+            {
+                return false;
             }
 
             // The pose already comes back in Basis unscaled playspace (the source anchors it to the HMD's
@@ -40,12 +55,7 @@ namespace Basis.Integration.SlimeVR
             UnscaledDeviceCoord.rotation = rotation;
             ConvertToScaledDeviceCoord();
             ControlOnlyAsDevice();
-            UpdateInputEvents();
-            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-        }
-
-        public override void LateDoPollData()
-        {
+            return true;
         }
 
         public override void ShowTrackedVisual()

@@ -23,41 +23,47 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         }
         public override void LateDoPollData()
         {
-            
+            PollPose();
         }
         public override void RenderPollData()
         {
-            if (SteamVR.active)
+            if (!PollPose())
             {
-                result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
-                if (result == EVRCompositorError.None)
-                {
-                    if (devicePose.bPoseIsValid)
-                    {
-                        deviceTransform = new SteamVR_Utils.RigidTransform(devicePose.mDeviceToAbsoluteTracking);
-
-                        ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, deviceTransform.pos);
-                        UnscaledDeviceCoord.rotation = deviceTransform.rot;
-
-                        ConvertToScaledDeviceCoord();
-                        ControlOnlyAsDevice();
-                        if (HasInputSource)
-                        {
-                            CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
-                            CurrentInputState.Primary2DAxisRaw = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
-                            CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
-                            CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
-                            CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
-                        }
-                        UpdateInputEvents();
-                        ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogError("Error getting device pose: " + result);
-                }
+                return;
             }
+            if (HasInputSource)
+            {
+                CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
+                CurrentInputState.Primary2DAxisRaw = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
+                CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
+                CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
+                CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
+            }
+            UpdateInputEvents();
+            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+        }
+        private bool PollPose()
+        {
+            if (!SteamVR.active)
+            {
+                return false;
+            }
+            result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
+            if (result != EVRCompositorError.None)
+            {
+                BasisDebug.LogError("Error getting device pose: " + result);
+                return false;
+            }
+            if (!devicePose.bPoseIsValid)
+            {
+                return false;
+            }
+            deviceTransform = new SteamVR_Utils.RigidTransform(devicePose.mDeviceToAbsoluteTracking);
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, deviceTransform.pos);
+            UnscaledDeviceCoord.rotation = deviceTransform.rot;
+            ConvertToScaledDeviceCoord();
+            ControlOnlyAsDevice();
+            return true;
         }
         private BasisOpenVRRenderModel _runtimeModel;
         public override void ShowTrackedVisual()

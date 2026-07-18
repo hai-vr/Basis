@@ -38,8 +38,15 @@ public class BasisOpenXRTracker : BasisInput
     }
     public override void LateDoPollData()
     {
+        PollPose();
     }
     public override void RenderPollData()
+    {
+        PollPose();
+        ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+        UpdateInputEvents();
+    }
+    private void PollPose()
     {
         if (_positionAction != null)
         {
@@ -53,9 +60,6 @@ public class BasisOpenXRTracker : BasisInput
 
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();
-
-        ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-        UpdateInputEvents();
     }
     public override void ShowTrackedVisual()
     {
