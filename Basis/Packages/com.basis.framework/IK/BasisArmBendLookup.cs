@@ -1,7 +1,8 @@
 ﻿using System.Runtime.CompilerServices;
 using Unity.Collections;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// 3D lookup table for arm bend direction, inspired by HVR-IK's HIKBendLookup.

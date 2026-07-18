@@ -10,7 +10,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 using UnityEngine.Jobs;
 using UnityEngine.Playables;
 using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;

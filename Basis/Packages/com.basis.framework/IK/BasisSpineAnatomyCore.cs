@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// Which stretch of vertebrae a spine bone stands for. This is not a label -- a segment's range of

@@ -5,7 +5,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 public class SMModuleCalibration : BasisSettingsBase
 {

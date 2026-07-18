@@ -4,7 +4,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 public static class BasisAnimationRiggingHelper
 {

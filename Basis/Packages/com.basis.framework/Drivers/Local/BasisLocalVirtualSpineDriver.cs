@@ -8,7 +8,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;   // BasisPelvisPostureModel
+using Basis.IK;   // BasisPelvisPostureModel
 
 /// <summary>
 /// Virtual spine solver for local avatars. It blends tracker-driven cues (head/neck)

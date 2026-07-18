@@ -6,7 +6,8 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine.Jobs;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     [BurstCompile]
     public struct BasisPoseGatherJob : IJobParallelForTransform

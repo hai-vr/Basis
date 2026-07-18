@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// AN ELBOW CANNOT POINT AT THE SKY. This makes that unreachable rather than merely discouraged.

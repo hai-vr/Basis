@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 namespace Basis.Scripts.Debugging
 {

@@ -4,7 +4,7 @@ using System.Text;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 namespace Basis.Tests.IK
 {

@@ -6,7 +6,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 namespace Basis.Scripts.Avatar
 {
     /// <summary>
@@ -1361,7 +1361,7 @@ namespace Basis.Scripts.Avatar
                     if (lll.HasTracked == BasisHasTracked.HasTracker)
                     {
                         BasisBendNormalStore.Set(BasisBoneTrackedRole.LeftLowerLeg,
-                            UnityEngine.Animations.Rigging.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+                            Basis.IK.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
                     }
                 }
 
@@ -1380,7 +1380,7 @@ namespace Basis.Scripts.Avatar
                     if (rll.HasTracked == BasisHasTracked.HasTracker)
                     {
                         BasisBendNormalStore.Set(BasisBoneTrackedRole.RightLowerLeg,
-                            UnityEngine.Animations.Rigging.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+                            Basis.IK.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
                     }
                 }
             }

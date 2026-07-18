@@ -1,7 +1,8 @@
 using Unity.Burst;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// Where the PELVIS goes when a VR user's head gets low -- FITTED to real humans, not guessed at.

@@ -7,7 +7,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 public class BasisPoseStreamWindow : EditorWindow
 {

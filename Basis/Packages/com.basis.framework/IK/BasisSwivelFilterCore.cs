@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     public struct BasisSwivelFilterState
     {

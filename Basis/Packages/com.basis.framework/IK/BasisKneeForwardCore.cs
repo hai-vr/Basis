@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Inputs for one leg's knee-forward (azimuth) solve. World space unless noted.
     public struct BasisKneeForwardInput

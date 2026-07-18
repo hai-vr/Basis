@@ -1,7 +1,8 @@
 using Unity.Burst;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// The body frame the swivel models are fitted in: a right-handed triad built from BONE POSITIONS.

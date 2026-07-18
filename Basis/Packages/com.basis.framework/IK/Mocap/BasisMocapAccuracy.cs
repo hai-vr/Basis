@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text;
 using Unity.Collections;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 namespace Basis.IK.Mocap
 {

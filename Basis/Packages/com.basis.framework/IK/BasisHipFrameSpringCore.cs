@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Rotational analogue of BasisChestSpringCore: an implicit-Euler, critically-damped angular spring.
     // Smooths a target rotation so high-frequency input (hip jitter / micro-sway) is rejected while a

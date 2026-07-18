@@ -1,7 +1,8 @@
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     public struct BasisBoneHandle
     {

@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Derives a limb bend-plane normal from a tracker's live rotation instead of a fixed body-frame axis.
     // A two-bone IK pole expressed as a POSITION degenerates when it lines up with the limb axis (the cross

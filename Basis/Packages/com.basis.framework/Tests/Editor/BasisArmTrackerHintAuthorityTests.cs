@@ -2,7 +2,7 @@ using System;
 using System.Text;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 namespace Basis.Tests.IK
 {

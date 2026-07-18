@@ -1,7 +1,8 @@
 using Unity.Burst;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// Where the elbow goes for a user with NO elbow tracker. It predicts the elbow's POSITION and

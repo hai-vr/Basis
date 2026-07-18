@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Stream-free swivel smoother shared by BasisFullIKConstraintJob.SmoothElbowSwivel and SmoothKneeSwivel.
     // Measures the mid joint's roll about the root->tip axis, One-Euro low-passes it (BasisSwivelFilterCore),

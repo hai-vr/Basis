@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
 using GatorDragonGames.JigglePhysics;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
 using Basis.Scripts.Settings;
 
 namespace Basis.Scripts.Avatar

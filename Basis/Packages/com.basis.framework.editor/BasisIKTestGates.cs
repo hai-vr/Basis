@@ -120,8 +120,8 @@ namespace Basis.IK.Debugging
             if (s.LookupMeanAlignErrDeg > ArmMaxElbowMeanAlignErrDeg)
                 return (false, $"mean elbow-direction error {s.LookupMeanAlignErrDeg:F1} > {ArmMaxElbowMeanAlignErrDeg} deg (elbow drifting off the natural pole)");
             // Anatomical flexion: the solved elbow angle must never leave the human range (no over-flex / hyperextension).
-            float minFlex = UnityEngine.Animations.Rigging.BasisArmSolveCore.MinElbowAngleDeg;
-            float maxFlex = UnityEngine.Animations.Rigging.BasisArmSolveCore.MaxElbowAngleDeg;
+            float minFlex = Basis.IK.BasisArmSolveCore.MinElbowAngleDeg;
+            float maxFlex = Basis.IK.BasisArmSolveCore.MaxElbowAngleDeg;
             if (s.LookupMinElbowAngleDeg < minFlex - 1f || s.LookupMaxElbowAngleDeg > maxFlex + 1f)
                 return (false, $"elbow flexion {s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0} deg leaves the human range [{minFlex:F0},{maxFlex:F0}] (over-flex / hyperextension)");
             return (true, $"extUpFlips={s.LookupElbowFlipCount} elbowUp={s.LookupElbowUpCount} alignMean={s.LookupMeanAlignErrDeg:F1} flex={s.LookupMinElbowAngleDeg:F0}..{s.LookupMaxElbowAngleDeg:F0}");
@@ -244,7 +244,7 @@ namespace Basis.IK.Debugging
                 return (false, $"{s.TargetInversions}/{s.TargetReachable} reachable targets bend the knee backward with a good hint (inhuman pose)");
             // Max-flexion limit: a human knee can't fold past the solver's MinKneeInteriorDeg clamp (calf
             // through thigh). The flexion pass pulls the foot to the hip; the solved interior must hold there.
-            float flexLimit = UnityEngine.Animations.Rigging.BasisLegSolveCore.MinKneeInteriorDeg;
+            float flexLimit = Basis.IK.BasisLegSolveCore.MinKneeInteriorDeg;
             if (s.FlexClampSamples > 0 && s.MinKneeFlexDeg < flexLimit - 3f)
                 return (false, $"knee over-folds to {s.MinKneeFlexDeg:F0} deg interior < {flexLimit:F0} deg limit (calf through thigh -- clamp not holding)");
             string onset = float.IsNaN(s.OnsetDeviationDeg) ? "none" : $"{s.OnsetDeviationDeg:F0}deg";

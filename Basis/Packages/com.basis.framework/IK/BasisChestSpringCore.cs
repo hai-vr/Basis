@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Stream-free implicit-Euler step of BasisFullIKConstraintJob.ApplyChestSpring's critically-damped
     // spring. The caller owns the (pos, vel) state and its seeding/NaN re-seed; this is only the

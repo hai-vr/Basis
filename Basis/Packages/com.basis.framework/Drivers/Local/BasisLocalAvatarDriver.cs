@@ -12,8 +12,6 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.Animations.Rigging;
-
 namespace Basis.Scripts.Drivers
 {
     /// <summary>

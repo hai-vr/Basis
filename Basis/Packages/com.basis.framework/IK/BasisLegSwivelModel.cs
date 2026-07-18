@@ -1,7 +1,8 @@
 using Unity.Burst;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// Where the knee goes for a user with NO knee tracker -- FITTED to real humans, not guessed at.

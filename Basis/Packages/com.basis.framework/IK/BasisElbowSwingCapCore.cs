@@ -1,7 +1,8 @@
 using Unity.Burst;
 using Unity.Mathematics;
 
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// The stateful half of the reach-behind fix: keep the ACCURATE elbow field (which poses the elbow

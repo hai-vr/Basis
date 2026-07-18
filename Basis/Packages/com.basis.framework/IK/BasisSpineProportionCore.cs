@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     /// <summary>
     /// A small, per-avatar spine-length correction for the head+hips-tracker case. With both spine ends

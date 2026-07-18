@@ -1,7 +1,7 @@
 using NUnit.Framework;
 using Unity.Collections;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
+using Basis.IK;
 
 namespace Basis.Tests.IK
 {

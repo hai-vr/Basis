@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Inputs for one leg's butterfly-knee solve. World space unless noted.
     public struct BasisButterflyKneeInput

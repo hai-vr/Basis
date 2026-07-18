@@ -1,4 +1,5 @@
-namespace UnityEngine.Animations.Rigging
+using UnityEngine;
+namespace Basis.IK
 {
     // Stream-free "chicken-wing" flare for the NO-elbow-tracker (lookup) arm pole. Shared by the live rig
     // (BasisFullIKConstraintJob.ComputeArmBendFromLookup) and the offline sweep so both clamp identically --
