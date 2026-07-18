@@ -840,6 +840,10 @@ namespace Basis.Scripts.Drivers
 
             // ── DERIVED BEND PREFS ──
             Vector3 hipsRight = hipsRot * Vector3.right;
+            // The knee half-space guard's ANTERIOR reference. Always body-frame, never the tracker-derived
+            // normal below: the guard measures "is the knee in front of the leg", and if that reference rides
+            // the shin tracker then tibial rotation alone drags a legal knee into the guard's compression band.
+            data.KneeAnteriorRef = hipsRight;
             if (trackerBendNormal)
             {
                 data.KneeBendPrefLeft = (leftLLHasTracker && BasisBendNormalStore.TryGet(BasisBoneTrackedRole.LeftLowerLeg, out var leftAxis))

@@ -20,6 +20,17 @@ namespace Basis.IK
         public Quaternion TargetOffset;
         public Vector3 BendNormal;
 
+        /// <summary>Body-frame normal defining ANTERIOR for the knee's half-space guard. Zero (the struct
+        /// default) falls back to <see cref="BendNormal"/>, so every existing caller is unchanged.
+        ///
+        /// Split out because BendNormal does double duty -- fallback pole AND anterior reference -- and the two
+        /// want different frames. When BendNormal rides a lower-leg tracker (FBIKTrackerBendNormal) the guard's
+        /// notion of "anterior" rotates with the user's SHIN, so ordinary tibial rotation drags a legal knee
+        /// into the guard's compression band: measured 41 deg of knee travel from 60 deg of tibial rotation on a
+        /// hint that never moved, and the guard engaging at only 20 deg. Anterior must stay body-frame; the
+        /// tracker-derived plane is still exactly right for the POLE.</summary>
+        public Vector3 AnteriorNormal;
+
         /// <summary>The lower-leg tracker's measured SHIN BONE world rotation (its raw rotation already
         /// mapped through the calibration reference). Zero (the struct default) disables the shin roll.</summary>
         public Quaternion HintRotation;
@@ -353,6 +364,21 @@ namespace Basis.IK
                 bendPole -= acNorm * Vector3.Dot(bendPole, acNorm);
                 bool hasBendPole = bendPole.sqrMagnitude > k_SqrEpsilon;
 
+                // ANTERIOR, for the guard only. Falls back to bendPole when no body-frame normal was supplied,
+                // which keeps every pre-existing caller bit-identical.
+                Vector3 anteriorPole = bendPole;
+                bool hasAnteriorPole = hasBendPole;
+                if (i.AnteriorNormal.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 ap = Vector3.Cross(acNorm, i.AnteriorNormal);
+                    ap -= acNorm * Vector3.Dot(ap, acNorm);
+                    if (ap.sqrMagnitude > k_SqrEpsilon)
+                    {
+                        anteriorPole = ap;
+                        hasAnteriorPole = true;
+                    }
+                }
+
                 Vector3 pole = bendPole;
                 if (hasHint)
                 {
@@ -411,9 +437,9 @@ namespace Basis.IK
                 // cannot save us either, because it saturates at a straight leg rather than refusing -- so the only
                 // place the inversion can be stopped is here, at the pole.
                 // -----------------------------------------------------------------------------------------
-                if (hasBendPole && pole.sqrMagnitude > k_SqrEpsilon)
+                if (hasAnteriorPole && pole.sqrMagnitude > k_SqrEpsilon)
                 {
-                    Vector3 anterior = bendPole.normalized;
+                    Vector3 anterior = anteriorPole.normalized;
                     float poleDeg = SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
                     float guardedDeg = ClampKneeSwivelDeg(poleDeg, KneeAnteriorSoftDeg, KneeAnteriorHardDeg);
 

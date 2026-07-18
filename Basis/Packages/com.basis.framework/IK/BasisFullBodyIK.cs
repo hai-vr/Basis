@@ -35,7 +35,7 @@ namespace Basis.IK
   HandleLeftUpperArmTwist, HandleLeftLowerArmTwist,
   HandleRightUpperArmTwist, HandleRightLowerArmTwist;
 
-        public Vector3 targetPositionHead, TargetChestPosition, TargetChestPositionRaw, playerUp, KneeBendPrefLeft, KneeBendPrefRight,
+        public Vector3 targetPositionHead, TargetChestPosition, TargetChestPositionRaw, playerUp, KneeBendPrefLeft, KneeBendPrefRight, KneeAnteriorRef,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -1632,7 +1632,7 @@ collisionsEnabled;
         /// <param name="targetOffset">The offset applied to the target transform.</param>
         /// <summary>Returns the shin roll applied to the mid bone, so a preserved (untracked) foot can be carried
         /// by it. Identity whenever no shin roll ran.</summary>
-        public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, Vector3 hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false)
+        public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, Vector3 hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false, Vector3 anteriorNormal = default)
         {
             BasisLegSolveInput input = default;
             root.GetPositionAndRotation(stream, out Vector3 rootPos, out Quaternion rootRot);
@@ -1649,6 +1649,9 @@ collisionsEnabled;
             input.HintDistrust = hintDistrust;
             input.TargetOffset = targetOffset;
             input.BendNormal = BendNormal;
+            // ANTERIOR stays body-frame even when BendNormal rides a lower-leg tracker: otherwise tibial
+            // rotation spins the guard's reference and drags a legal knee into its compression band.
+            input.AnteriorNormal = anteriorNormal;
             input.HintRotation = hintRotation;
             input.HintIsTracker = hintIsTracker;
 
@@ -1755,7 +1758,7 @@ collisionsEnabled;
             // the calibration reference). Only a real lower-leg tracker carries one; every other path passes
             // default, which the solve reads as off.
             Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,
-                                               hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp);
+                                               hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp, KneeAnteriorRef);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
             // translate bones off the FK chain (dislocated foot) mid-fade.
             if (posWeight < 1f)
