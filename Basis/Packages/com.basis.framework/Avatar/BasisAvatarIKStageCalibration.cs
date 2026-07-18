@@ -221,6 +221,13 @@ namespace Basis.Scripts.Avatar
                 // second pass.
                 BasisHeightDriver.ApplyScaleAndHeight();
 
+                // ApplyScaleAndHeight settles the body fit first (it has to: the arm-span metric divides by
+                // the FITTED span), so by here the bones already hold their final lengths and every tracker
+                // offset, hint and anchor captured below is measured against the body the avatar will keep.
+                // The hip measurement was taken at OnAvatarFBCalibration above while the previous pass's
+                // roles were still assigned, and CalculatePlayerHipHeight keeps its last value through
+                // UnassignFBTrackers.
+
                 // DeviceScale just changed, but every input's ScaledDeviceCoord (and the bone-control
                 // incoming fed from it) was produced by the poll above at the PRE-recompute scale.
                 // CalculateOffset (inside ClassifyAndAssignTrackersFromTPose's role application) reads
@@ -282,6 +289,13 @@ namespace Basis.Scripts.Avatar
                 // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to arm the
                 //      post-calibration spine proportion capture (BasisLocalRigDriver.CaptureSpineProportion). ====
                 // BasisLocalRigDriver.HasSpineProportionCapturePending = true;
+
+                // Re-measure now that classification has assigned the hips role. On the very first
+                // calibration there was no assigned hips tracker to measure earlier, so this is what
+                // activates the leg/spine half -- and it settles here, because the pass above will have
+                // already applied the identical fit on every later calibration.
+                BasisLocalHeightCalculator.CalculatePlayerHipHeight();
+                BasisHeightDriver.ApplyScaleAndHeight();
 
                 OnFullBodyCalibrated?.Invoke();
             }

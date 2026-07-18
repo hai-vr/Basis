@@ -4999,6 +4999,34 @@
       "value": "Calibration State"
     },
     {
+      "key": "settings.bodyTracking.debug.bodyFit",
+      "value": "Body Fit"
+    },
+    {
+      "key": "settings.bodyTracking.section.bodyFit.title",
+      "value": "Body Fit"
+    },
+    {
+      "key": "settings.bodyTracking.section.bodyFit.description",
+      "value": "Stretches and collapses the avatar's arm, leg and spine bones so its proportions match your own, instead of relying on one uniform scale. Arms are fitted from your arm span; legs and spine need a hips tracker. Your standing height is preserved exactly, so this never moves your feet off the floor. Other players see the avatar at its authored proportions."
+    },
+    {
+      "key": "settings.bodyTracking.bodyFit.enabled.title",
+      "value": "Fit Avatar To My Proportions"
+    },
+    {
+      "key": "settings.bodyTracking.bodyFit.enabled.description",
+      "value": "Resizes individual bones at calibration so your hands and hips land where the avatar's are. Recalibrate after changing this."
+    },
+    {
+      "key": "settings.bodyTracking.bodyFit.maxDeviation.title",
+      "value": "Maximum Bone Change"
+    },
+    {
+      "key": "settings.bodyTracking.bodyFit.maxDeviation.tooltip",
+      "value": "How far a bone may stretch or collapse from its authored length. Higher values fit your body more exactly but alter the character's proportions more visibly. 0 disables the fit."
+    },
+    {
       "key": "settings.bodyTracking.section.armTwist.title",
       "value": "Arm Twist"
     },

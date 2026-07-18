@@ -91,6 +91,32 @@ namespace Basis.IK
         static readonly float3 k_ElbowTuckPole = new float3(-1f, -0.35f, 0f);
         public const float ElbowTuckWeight = 0.12f;
 
+        /// <summary>
+        /// ELBOW-DOWN ON A STRAIGHT ARM. The field model predicts the CORPUS-MEAN elbow, and CMU contains
+        /// essentially no straight-arm lateral holds -- a T-pose is a calibration pose, not a motion -- so the
+        /// mean there is dragged backward by the reaching motions that DO trail the elbow. Measured on the
+        /// shipping model: at a lateral straight arm it wants the elbow 52 deg BACK of straight down, where a
+        /// real one hangs down.
+        ///
+        /// That error is nearly free in ELBOW POSITION and very expensive in BONE ROLL. At full extension the
+        /// elbow's lever arm is ~2 cm, so 52 deg of azimuth buys almost no displacement -- it is paid as humeral
+        /// ROLL, which moves no joint (so every position gate in this repo is structurally blind to it) and reads
+        /// as a twisted, pinched deltoid. Measured 52 deg of permanent humeral twist on an elbow-down bind.
+        ///
+        /// Gated on EXTENSION, not on confidence: the model has nothing to be unconfident about (see above), but
+        /// its positional authority genuinely collapses as the arm straightens, and that is exactly where the
+        /// anatomy it failed to learn -- gravity and the carrying angle hang the elbow down -- takes over. Below
+        /// k_ElbowDownReachStart this is the exact identity, so the fitted field is untouched everywhere it was
+        /// actually trained.
+        ///
+        /// Same shape as the tuck: an UN-NORMALISED perpendicular projection, so it self-fades to zero as the
+        /// arm approaches the pole's own direction and cannot introduce a new zero.
+        /// </summary>
+        static readonly float3 k_ElbowDownPole = new float3(0f, -1f, 0f);
+        public const float ElbowDownWeight = 0.85f;
+        public const float ElbowDownReachStart = 0.90f;
+        public const float ElbowDownReachFull = 0.99f;
+
         // The neural pole is now the FBIKNeuralPole setting (default OFF) -> BasisFullIKConstraintJob.useNeuralPole ->
         // job.useNeuralPole -> ArmHint/LegHint `useNeural` (tests/harness omit the arg, so they stay on field/poly).
         // Default off: Unity A/B (BasisMocapMotionQualityTests) put it even-to-slightly-worse on CMU but pop-free.
@@ -242,6 +268,17 @@ namespace Basis.IK
             float3 tuckAxis = math.normalizesafe(tipLocal, new float3(0f, -1f, 0f));
             float3 tuckPerp = k_ElbowTuckPole - tuckAxis * math.dot(k_ElbowTuckPole, tuckAxis);
             bend = math.normalizesafe(bend + ElbowTuckWeight * tuckPerp, bend);
+
+            // Elbow-down on a straight arm (see the constants). Projected against the SAME axis, so the sum of
+            // perpendicular vectors stays perpendicular and the world map below keeps its promise.
+            float reachRatio = math.length(tipLocal);
+            float downT = math.saturate((reachRatio - ElbowDownReachStart) / (ElbowDownReachFull - ElbowDownReachStart));
+            float downW = ElbowDownWeight * (downT * downT * (3f - 2f * downT));
+            if (downW > 0f)
+            {
+                float3 downPerp = k_ElbowDownPole - tuckAxis * math.dot(k_ElbowDownPole, tuckAxis);
+                bend = math.normalizesafe(bend + downW * downPerp, bend);
+            }
 
             // Back to world through the SAME mirrored triad the features were built in. It is orthonormal,
             // so it carries perpendicularity across unchanged: `bend` is perpendicular to tipLocal in the

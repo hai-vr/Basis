@@ -166,20 +166,21 @@ namespace Basis.Tests.IK
                     Assert.That(mid, Is.InRange(Mathf.Min(eyeScale, spanScale) - 1e-5f, Mathf.Max(eyeScale, spanScale) + 1e-5f),
                         $"eye={playerEye} ape={apeIndex}: 50% must land between the two modes.");
 
-                    // Outside 0..1 the blend extrapolates: below 0% the scale keeps moving past the
-                    // eye-height endpoint away from arm distance, above 100% past arm distance away
-                    // from eye height.
-                    if (Mathf.Abs(spanScale - eyeScale) > 1e-5f)
+                    // The blend no longer extrapolates: the uniform scale only ever sits between the two
+                    // measurements, and the residual mismatch is taken up per-segment by the body fit.
+                    // Anything outside 0..1 clamps onto the nearer endpoint.
+                    Assert.That(BlendScale(-0.5f), Is.EqualTo(eyeScale).Within(1e-5f),
+                        $"eye={playerEye} ape={apeIndex}: below 0% must clamp to eye-height mode.");
+                    Assert.That(BlendScale(1.5f), Is.EqualTo(spanScale).Within(1e-5f),
+                        $"eye={playerEye} ape={apeIndex}: above 100% must clamp to arm-distance mode.");
+
+                    float lo = Mathf.Min(eyeScale, spanScale) - 1e-5f;
+                    float hi = Mathf.Max(eyeScale, spanScale) + 1e-5f;
+                    for (float t = 0f; t <= 1f; t += 0.1f)
                     {
-                        Assert.That(Mathf.Sign(BlendScale(-0.5f) - eyeScale), Is.EqualTo(Mathf.Sign(eyeScale - spanScale)),
-                            $"eye={playerEye} ape={apeIndex}: -50% must overshoot eye-height mode away from arm distance.");
-                        Assert.That(Mathf.Sign(BlendScale(1.5f) - spanScale), Is.EqualTo(Mathf.Sign(spanScale - eyeScale)),
-                            $"eye={playerEye} ape={apeIndex}: 150% must overshoot arm-distance mode away from eye height.");
+                        Assert.That(BlendScale(t), Is.InRange(lo, hi),
+                            $"eye={playerEye} ape={apeIndex} t={t:F1}: the blend must never leave the span of the two modes.");
                     }
-                    Assert.That(BlendScale(-1f), Is.GreaterThan(0f),
-                        $"eye={playerEye} ape={apeIndex}: the full negative extrapolation must stay a usable scale.");
-                    Assert.That(BlendScale(2f), Is.GreaterThan(0f),
-                        $"eye={playerEye} ape={apeIndex}: the full positive extrapolation must stay a usable scale.");
                 }
         }
 

@@ -370,6 +370,25 @@ public static class SettingsProviderIK
             }
         });
 
+        // ============== Body Fit ==============
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.bodyFit.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.bodyFit.description"), false, fitParent =>
+        {
+            AddAnatomyToggle(fitParent, BasisSettingsDefaults.FBIKBodyFit,
+                "settings.bodyTracking.bodyFit.enabled.title",
+                "settings.bodyTracking.bodyFit.enabled.description");
+
+            var maxDeviation = PanelSlider.CreateAndBind(
+                fitParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.bodyFit.maxDeviation.title"), 0f, Basis.IK.BasisBodyFitCore.MaxDeviationCeiling, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKBodyFitMaxDeviation);
+            if (maxDeviation != null)
+            {
+                maxDeviation.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.bodyFit.maxDeviation.tooltip"));
+            }
+        });
+
         // ============== Spine: Proportion Match (DISABLED 2026-07-18, revisit later) ==============
         // CreateCollapsibleSection(tabDesc, colliderGroup,
         //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.title"),
@@ -1082,10 +1101,13 @@ public static class SettingsProviderIK
         _debugCategories.Clear();
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
-            "Player Eye Height", "Player Arm Span");
+            "Player Eye Height", "Player Arm Span", "Player Hip Height", "Player Eye To Hip Drop",
+            "Player Ape Index", "Player Leg Fraction");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.avatarMetrics"),
-            "Avatar Eye Height", "Avatar Arm Span");
+            "Avatar Eye Height", "Avatar Arm Span", "Avatar Arm Span (fitted)", "Avatar Hip Height",
+            "Avatar Leg Span", "Avatar Spine Span", "Avatar Shoulder Width", "Avatar Arm Length",
+            "Avatar Ape Index", "Avatar Leg Fraction");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.scaledHeights"),
             "Scaled Player Height", "Scaled Avatar Height");
@@ -1098,6 +1120,11 @@ public static class SettingsProviderIK
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.calibrationState"),
             "Height Mode", "Seated Mode", "Seated Height Delta", "Height Grounding Offset");
+
+        AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.bodyFit"),
+            "Body Fit", "Body Fit Max Deviation", "Arm Fit", "Body Fit Arm Scale", "Body Fit Arm Length",
+            "Leg & Spine Fit", "Body Fit Leg Scale", "Body Fit Torso Scale", "Body Fit Hip Height",
+            "Body Fit Head Height Shift");
 
         var refreshButton = PanelButton.CreateNew(debugParent);
         refreshButton.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.refreshDebug"));
@@ -1150,6 +1177,9 @@ public static class SettingsProviderIK
         "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
         "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
         "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
+        "Avatar Arm Span (fitted)" => Mathf.Approximately(BasisHeightDriver.EffectiveAvatarArmSpan, BasisHeightDriver.AvatarArmSpan)
+            ? $"{BasisHeightDriver.AvatarArmSpan:F4} m (unchanged)"
+            : $"{BasisHeightDriver.EffectiveAvatarArmSpan:F4} m (authored {BasisHeightDriver.AvatarArmSpan:F4})",
         "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
         "Scaled Avatar Height" => $"{BasisHeightDriver.SelectedScaledAvatarHeight:F4} m",
         "Unscaled Player Height" => $"{BasisHeightDriver.SelectedUnScaledPlayerHeight:F4} m",
@@ -1165,8 +1195,88 @@ public static class SettingsProviderIK
         "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
         "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
         "Height Grounding Offset" => $"{BasisHeightDriver.HeightModeGroundingOffset:F4} m",
+
+        "Player Hip Height" => BasisHeightDriver.PlayerHipHeight > 0f
+            ? $"{BasisHeightDriver.PlayerHipHeight:F4} m"
+            : "-- (no hips tracker)",
+        "Player Eye To Hip Drop" => BasisHeightDriver.PlayerEyeToHipDrop > 0f
+            ? $"{BasisHeightDriver.PlayerEyeToHipDrop:F4} m"
+            : "-- (no hips tracker)",
+        "Player Ape Index" => Ratio(BasisHeightDriver.PlayerArmSpan, BasisHeightDriver.PlayerEyeHeight),
+        "Player Leg Fraction" => Ratio(BasisHeightDriver.PlayerHipHeight, BasisHeightDriver.PlayerEyeHeight),
+
+        "Avatar Hip Height" => $"{BasisHeightDriver.AvatarHipHeight:F4} m",
+        "Avatar Leg Span" => $"{BasisHeightDriver.AvatarLegSpan:F4} m",
+        "Avatar Spine Span" => $"{BasisHeightDriver.AvatarSpineSpan:F4} m",
+        "Avatar Shoulder Width" => $"{BasisHeightDriver.AvatarShoulderWidth:F4} m",
+        "Avatar Arm Length" => $"{AvatarArmLength():F4} m",
+        "Avatar Ape Index" => Ratio(BasisHeightDriver.AvatarArmSpan, BasisHeightDriver.AvatarEyeHeight),
+        "Avatar Leg Fraction" => Ratio(BasisHeightDriver.AvatarHipHeight, BasisHeightDriver.AvatarEyeHeight),
+
+        "Body Fit" => BodyFitStatus(),
+        "Body Fit Max Deviation" => $"{BasisSettingsDefaults.FBIKBodyFitMaxDeviation.RawValue:P1}",
+        "Arm Fit" => FitReason(BasisLocalRigDriver.AppliedBodyFit.ArmStatus),
+        "Leg & Spine Fit" => FitReason(BasisLocalRigDriver.AppliedBodyFit.BodyStatus),
+        "Body Fit Arm Scale" => ScaleMetric(BasisLocalRigDriver.AppliedBodyFit.ArmScale, BasisLocalRigDriver.AppliedBodyFit.HasArmFit),
+        "Body Fit Leg Scale" => ScaleMetric(BasisLocalRigDriver.AppliedBodyFit.LegScale, BasisLocalRigDriver.AppliedBodyFit.HasBodyFit),
+        "Body Fit Torso Scale" => ScaleMetric(BasisLocalRigDriver.AppliedBodyFit.TorsoScale, BasisLocalRigDriver.AppliedBodyFit.HasBodyFit),
+        "Body Fit Arm Length" => BasisLocalRigDriver.AppliedBodyFit.HasArmFit
+            ? $"{AvatarArmLength():F4} -> {AvatarArmLength() * BasisLocalRigDriver.AppliedBodyFit.ArmScale:F4} m"
+            : "unchanged",
+        "Body Fit Hip Height" => BasisLocalRigDriver.AppliedBodyFit.HasBodyFit
+            ? $"{BasisHeightDriver.AvatarHipHeight:F4} -> {FittedHipHeight():F4} m (target {BasisHeightDriver.PlayerHipHeight * SafeSpaceRatio():F4})"
+            : "unchanged",
+        "Body Fit Head Height Shift" => BasisLocalRigDriver.AppliedBodyFit.HasBodyFit
+            ? $"{HeadHeightShift() * 1000f:F3} mm"
+            : "0.000 mm",
+
         _ => "--"
     };
+
+    private static string Ratio(float numerator, float denominator) =>
+        denominator > 0f && numerator > 0f ? $"{numerator / denominator:F4}" : "--";
+
+    private static float AvatarArmLength() =>
+        Mathf.Max(0f, (BasisHeightDriver.AvatarArmSpan - BasisHeightDriver.AvatarShoulderWidth) * 0.5f);
+
+    private static float SafeSpaceRatio() =>
+        BasisHeightDriver.PlayerEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight / BasisHeightDriver.PlayerEyeHeight : 1f;
+
+    private static float FittedHipHeight() =>
+        BasisHeightDriver.AvatarHipHeight + (BasisLocalRigDriver.AppliedBodyFit.LegScale - 1f) * BasisHeightDriver.AvatarLegSpan;
+
+    private static float HeadHeightShift()
+    {
+        var fit = BasisLocalRigDriver.AppliedBodyFit;
+        return (fit.LegScale - 1f) * BasisHeightDriver.AvatarLegSpan
+             + (fit.TorsoScale - 1f) * BasisHeightDriver.AvatarSpineSpan;
+    }
+
+    private static string ScaleMetric(float scale, bool active) =>
+        active ? $"{scale:F4} ({(scale - 1f):+0.0%;-0.0%;0.0%})" : "1.0000 (off)";
+
+    private static string FitReason(Basis.IK.BasisBodyFitStatus status) =>
+        status == Basis.IK.BasisBodyFitStatus.Fitted
+            ? "fitted"
+            : $"not fitted - {Basis.IK.BasisBodyFitCore.Describe(status)}";
+
+    private static string BodyFitStatus()
+    {
+        if (!BasisSettingsDefaults.FBIKBodyFit.RawValue)
+        {
+            return "off";
+        }
+        var fit = BasisLocalRigDriver.AppliedBodyFit;
+        if (!fit.HasArmFit && !fit.HasBodyFit)
+        {
+            return "on, nothing fitted";
+        }
+        if (fit.HasArmFit && fit.HasBodyFit)
+        {
+            return "on, arms + legs + spine fitted";
+        }
+        return fit.HasArmFit ? "on, arms fitted only" : "on, legs + spine fitted only";
+    }
 
     private static void ResetIkDefaults()
     {
@@ -1294,6 +1404,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKTrackerBendNormal.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineProportionMatch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineProportionMaxScale.ResetToDefault();
+        BasisSettingsDefaults.FBIKBodyFit.ResetToDefault();
+        BasisSettingsDefaults.FBIKBodyFitMaxDeviation.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)

@@ -150,20 +150,20 @@ public static class BasisCalibrationMath
         return Mathf.Max(0f, desiredUnscaledEye - playerMeasuredEye);
     }
 
-    /// <summary>Arm-to-height ratio range: 0 = eye height, 1 = arm distance. Outside 0..1 the blend keeps
-    /// extrapolating in the same direction, one full eye-to-arm delta past each endpoint (negative goes
-    /// below eye height, above 1 goes past arm distance).</summary>
-    public const float ArmToHeightBlendMin = -1f;
-    public const float ArmToHeightBlendMax = 2f;
+    /// <summary>Arm-to-height ratio range: 0 = eye height, 1 = arm distance. Chooses which measurement the
+    /// single uniform avatar scale is matched against; the residual mismatch in the other measurement is
+    /// taken up per-segment by the body fit (BasisBodyFitCore) rather than by overshooting the scale.</summary>
+    public const float ArmToHeightBlendMin = 0f;
+    public const float ArmToHeightBlendMax = 1f;
 
     /// <summary>
     /// Arm-to-height ratio metric: interpolates a measurement between its eye-height value (blend 0) and
-    /// its arm-distance value (blend 1), extrapolating past eye height for negative blends. Applied to the
-    /// player and avatar measurements alike, so 0 and 1 reproduce the pure height modes exactly.
+    /// its arm-distance value (blend 1). Applied to the player and avatar measurements alike, so 0 and 1
+    /// reproduce the pure height modes exactly.
     /// </summary>
     public static float BlendEyeSpanMetric(float eyeMetric, float spanMetric, float blend)
     {
-        return Mathf.LerpUnclamped(eyeMetric, spanMetric, Mathf.Clamp(blend, ArmToHeightBlendMin, ArmToHeightBlendMax));
+        return Mathf.Lerp(eyeMetric, spanMetric, Mathf.Clamp(blend, ArmToHeightBlendMin, ArmToHeightBlendMax));
     }
 
     /// <summary>

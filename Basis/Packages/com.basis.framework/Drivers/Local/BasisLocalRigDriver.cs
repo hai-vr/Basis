@@ -52,8 +52,6 @@ namespace Basis.Scripts.Drivers
         [System.NonSerialized] public BasisFullIKConstraintJob IKJob;
         [System.NonSerialized] public bool IKJobCreated;
         public bool RigLayerActive = true;
-        public static bool DebugPoseStream;
-        int _poseChecksRemaining;
         [System.NonSerialized] public bool IKDataReady;
 
         /// <summary>
@@ -201,10 +199,76 @@ namespace Basis.Scripts.Drivers
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
             IKJob.Create(PoseSkeleton, basisTransformMapping);
             IKJobCreated = true;
-            _poseChecksRemaining = 3;
 
             ResetSmoothingState();
+            RefreshBodyFit();
         }
+
+        public void RefreshBodyFit()
+        {
+            if (!PoseSkeleton.IsCreated || basisTransformMapping == null)
+            {
+                return;
+            }
+
+            if (!Basis.BasisUI.BasisSettingsDefaults.FBIKBodyFit.RawValue)
+            {
+                if (PoseSkeleton.FitActive)
+                {
+                    PoseSkeleton.ResetFit();
+                    PoseSkeleton.WriteFittedLocalPositions();
+                }
+                AppliedBodyFit = BasisBodyFitResult.Identity;
+                return;
+            }
+
+            var measurements = new BasisBodyFitMeasurements
+            {
+                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight,
+                PlayerArmSpan = BasisHeightDriver.PlayerArmSpan,
+                PlayerHipHeight = BasisHeightDriver.PlayerHipHeight,
+                AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight,
+                AvatarArmSpan = BasisHeightDriver.AvatarArmSpan,
+                AvatarHipHeight = BasisHeightDriver.AvatarHipHeight,
+                AvatarLegSpan = BasisHeightDriver.AvatarLegSpan,
+                AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan,
+                AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
+            };
+
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(
+                measurements,
+                Basis.BasisUI.BasisSettingsDefaults.FBIKBodyFitMaxDeviation.RawValue);
+
+            BasisBodyFitApply.Apply(PoseSkeleton, basisTransformMapping, fit);
+            AppliedBodyFit = fit;
+
+            // Push the new lengths onto the bone transforms right now rather than waiting for the next
+            // RunIKSolve scatter. Calibration captures its tracker offsets against live bone positions
+            // (see BasisAvatarIKStageCalibration's one-scale-frame note), so a fit that lands a frame
+            // later would leave every captured offset describing a body the avatar no longer has.
+            PoseSkeleton.WriteFittedLocalPositions();
+
+            if (fit.HasArmFit)
+            {
+                BasisDebug.Log($"Body fit: arms scaled {fit.ArmScale:F4}", BasisDebug.LogTag.IK);
+            }
+            else
+            {
+                BasisDebug.Log($"Body fit: arms not fitted - {BasisBodyFitCore.Describe(fit.ArmStatus)}", BasisDebug.LogTag.IK);
+            }
+
+            if (fit.HasBodyFit)
+            {
+                BasisDebug.Log($"Body fit: legs scaled {fit.LegScale:F4}, spine scaled {fit.TorsoScale:F4}", BasisDebug.LogTag.IK);
+            }
+            else
+            {
+                BasisDebug.Log($"Body fit: legs and spine not fitted - {BasisBodyFitCore.Describe(fit.BodyStatus)}", BasisDebug.LogTag.IK);
+            }
+        }
+
+
+        public static BasisBodyFitResult AppliedBodyFit = BasisBodyFitResult.Identity;
 
         public void SetBodySettings()
         {
@@ -1680,15 +1744,7 @@ namespace Basis.Scripts.Drivers
 
             PoseSkeleton.ScheduleGather().Complete();
 
-            if (DebugPoseStream || Basis.BasisUI.BasisSettingsDefaults.DevPoseStreamDebug.RawValue || _poseChecksRemaining > 0)
-            {
-                if (_poseChecksRemaining > 0)
-                {
-                    _poseChecksRemaining--;
-                }
-                BasisDebug.Log($"[PoseStream] {PoseSkeleton.ValidateAgainstTransforms()}");
-            }
-
+            PoseSkeleton.ApplyFit();
 
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;

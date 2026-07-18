@@ -31,6 +31,13 @@ public static class BasisHeightDriver
     public static float PlayerArmSpan = FallbackHeightInMeters;
     public static float AvatarArmSpan = FallbackHeightInMeters;
 
+    public static float PlayerHipHeight = 0f;
+    public static float PlayerEyeToHipDrop = 0f;
+    public static float AvatarHipHeight = 0f;
+    public static float AvatarLegSpan = 0f;
+    public static float AvatarSpineSpan = 0f;
+    public static float AvatarShoulderWidth = 0f;
+
     public static float SelectedScaledPlayerHeight = FallbackHeightInMeters;
     public static float SelectedScaledAvatarHeight = FallbackHeightInMeters;
 
@@ -51,8 +58,31 @@ public static class BasisHeightDriver
 
     public static float DeviceScale = 1f;
     public static float HeightModeGroundingOffset = 0f;
+    // The avatar's arm span AFTER the body fit has resized its arm bones. Arm-span-based scaling has to
+    // divide by the span the avatar actually has, not the authored one, or DeviceScale is wrong by the
+    // whole fit ratio -- which reads in headset as the avatar being too large. Eye-height mode is immune
+    // because the fit is height-neutral by construction. Equals AvatarArmSpan when no arm fit is applied.
+    public static float EffectiveAvatarArmSpan
+    {
+        get
+        {
+            var fit = Basis.Scripts.Drivers.BasisLocalRigDriver.AppliedBodyFit;
+            if (!fit.HasArmFit || Mathf.Approximately(fit.ArmScale, 1f))
+            {
+                return AvatarArmSpan;
+            }
+            float shoulders = Mathf.Clamp(AvatarShoulderWidth, 0f, AvatarArmSpan);
+            return shoulders + (AvatarArmSpan - shoulders) * fit.ArmScale;
+        }
+    }
+
     public static void ApplyScaleAndHeight()
     {
+        // Settle the bone lengths before any metric is derived from them. The fit depends only on the
+        // authored avatar measurements and the player's, never on DeviceScale, so there is no circularity
+        // -- but every metric below depends on the fit, so it has to run first.
+        BasisLocalPlayer.Instance?.LocalRigDriver?.RefreshBodyFit();
+
         RevaluateUnscaledHeight(SMModuleCalibration.HeightMode);
         if (HasRuntimeOscEyeHeightOverride)
         {
@@ -366,6 +396,7 @@ public static class BasisHeightDriver
             BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
         }
         BasisLocalHeightCalculator.CalculatePlayerArmSpan();
+        BasisLocalHeightCalculator.CalculatePlayerHipHeight();
 
         if (Basis.BasisUI.BasisSettingsDefaults.FBIKArmHeightRatioEnabled.RawValue)
         {
@@ -409,6 +440,7 @@ public static class BasisHeightDriver
 
         BasisLocalHeightCalculator.CalculateAvatarEyeHeight();
         BasisLocalHeightCalculator.CalculateAvatarArmSpan();
+        BasisLocalHeightCalculator.CalculateAvatarBodySegments();
         BasisLocalHeightCalculator.ValidateEyeToArmSizesAvatar();
 
         // Sanitize captured values (protect against NaN/Inf/<=0 from rig issues)
@@ -472,7 +504,7 @@ public static class BasisHeightDriver
     {
         if (TryGetArmToHeightBlend(out float armToHeightBlend))
         {
-            SelectedUnScaledAvatarHeight = SanitizePositive(BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, AvatarArmSpan, armToHeightBlend), FallbackHeightInMeters);
+            SelectedUnScaledAvatarHeight = SanitizePositive(BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, EffectiveAvatarArmSpan, armToHeightBlend), FallbackHeightInMeters);
             SelectedUnScaledPlayerHeight = SanitizePositive(BasisCalibrationMath.BlendEyeSpanMetric(PlayerEyeHeight, PlayerArmSpan, armToHeightBlend), FallbackHeightInMeters);
             return;
         }
@@ -480,7 +512,7 @@ public static class BasisHeightDriver
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
-                SelectedUnScaledAvatarHeight = SanitizePositive(AvatarArmSpan, FallbackHeightInMeters);
+                SelectedUnScaledAvatarHeight = SanitizePositive(EffectiveAvatarArmSpan, FallbackHeightInMeters);
                 SelectedUnScaledPlayerHeight = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
                 break;
 
@@ -539,7 +571,7 @@ public static class BasisHeightDriver
         // AppliedUpScale multiplies BOTH player and avatar metrics.
         if (blendHeights)
         {
-            float avatarBlendMetric = BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, AvatarArmSpan, armToHeightBlend);
+            float avatarBlendMetric = BasisCalibrationMath.BlendEyeSpanMetric(AvatarEyeHeight, EffectiveAvatarArmSpan, armToHeightBlend);
             float playerBlendMetric = BasisCalibrationMath.BlendEyeSpanMetric(PlayerEyeHeight, PlayerArmSpan, armToHeightBlend);
 
             SelectedScaledPlayerHeight = calY * ((eyeScaleOffset + playerBlendMetric) * AppliedUpScale);
@@ -551,10 +583,11 @@ public static class BasisHeightDriver
         else switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
+                float fittedArmSpan = EffectiveAvatarArmSpan;
                 SelectedScaledPlayerHeight = calY * (PlayerArmSpan * AppliedUpScale);
-                SelectedScaledAvatarHeight = calY * (AvatarArmSpan * AppliedUpScale);
+                SelectedScaledAvatarHeight = calY * (fittedArmSpan * AppliedUpScale);
 
-                SelectedUnScaledAvatarHeight = SanitizePositive(AvatarArmSpan, FallbackHeightInMeters);
+                SelectedUnScaledAvatarHeight = SanitizePositive(fittedArmSpan, FallbackHeightInMeters);
                 SelectedUnScaledPlayerHeight = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters);
                 break;
 

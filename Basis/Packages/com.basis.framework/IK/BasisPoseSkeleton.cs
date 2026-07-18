@@ -46,10 +46,13 @@ namespace Basis.IK
         TransformAccessArray _access;
         TransformAccessArray _writeAccess;
         NativeArray<int> _writeIndices;
+        NativeArray<float3> _authoredLocalPosition;
+        NativeArray<float> _fitScale;
         Transform _anchor;
         Transform[] _ordered = Array.Empty<Transform>();
         readonly Dictionary<Transform, int> _lookup = new Dictionary<Transform, int>();
         bool _allocated;
+        bool _fitActive;
 
         public bool IsCreated => _allocated;
         public int Count => _ordered.Length;
@@ -107,11 +110,17 @@ namespace Basis.IK
 
             var bindLength = new NativeArray<float>(count, Allocator.Persistent);
             var translationFree = new NativeArray<byte>(count, Allocator.Persistent);
+            _authoredLocalPosition = new NativeArray<float3>(count, Allocator.Persistent);
+            _fitScale = new NativeArray<float>(count, Allocator.Persistent);
             for (int i = 0; i < count; i++)
             {
-                bindLength[i] = _ordered[i].localPosition.magnitude;
+                Vector3 authored = _ordered[i].localPosition;
+                _authoredLocalPosition[i] = authored;
+                _fitScale[i] = 1f;
+                bindLength[i] = authored.magnitude;
                 translationFree[i] = (byte)(parent[i] < 0 ? 1 : 0);
             }
+            _fitActive = false;
 
             _anchor = _ordered[0].parent;
 
@@ -165,6 +174,83 @@ namespace Basis.IK
                 Stream.TranslationFree[index] = 1;
             }
         }
+
+        public bool FitActive => _fitActive;
+
+        public void SetFitScale(Transform bone, float scale)
+        {
+            if (!_allocated || bone == null || !_lookup.TryGetValue(bone, out int index))
+            {
+                return;
+            }
+            if (Stream.TranslationFree[index] != 0)
+            {
+                return;
+            }
+
+            float safe = scale > 0f && !float.IsNaN(scale) && !float.IsInfinity(scale) ? scale : 1f;
+            _fitScale[index] = safe;
+            Stream.BindLength[index] = math.length(_authoredLocalPosition[index]) * safe;
+
+            if (!Mathf.Approximately(safe, 1f))
+            {
+                _fitActive = true;
+            }
+        }
+
+        public void ResetFit()
+        {
+            if (!_allocated)
+            {
+                return;
+            }
+            for (int i = 0; i < _fitScale.Length; i++)
+            {
+                _fitScale[i] = 1f;
+                Stream.BindLength[i] = math.length(_authoredLocalPosition[i]);
+            }
+            _fitActive = false;
+        }
+
+        public void ApplyFit()
+        {
+            if (!_allocated || !_fitActive)
+            {
+                return;
+            }
+            for (int i = 0; i < _fitScale.Length; i++)
+            {
+                float scale = _fitScale[i];
+                if (Mathf.Approximately(scale, 1f))
+                {
+                    continue;
+                }
+                Stream.LocalPosition[i] = _authoredLocalPosition[i] * scale;
+            }
+        }
+
+        public void WriteFittedLocalPositions()
+        {
+            if (!_allocated)
+            {
+                return;
+            }
+            for (int i = 0; i < _authoredLocalPosition.Length; i++)
+            {
+                Stream.LocalPosition[i] = _authoredLocalPosition[i] * _fitScale[i];
+            }
+            for (int i = 0; i < _writeIndices.Length; i++)
+            {
+                int bone = _writeIndices[i];
+                Transform target = _ordered[bone];
+                if (target != null)
+                {
+                    target.localPosition = _authoredLocalPosition[bone] * _fitScale[bone];
+                }
+            }
+        }
+
+        public float FitScaleOf(int index) => _fitScale.IsCreated && index >= 0 && index < _fitScale.Length ? _fitScale[index] : 1f;
 
         public BasisBoneHandle Bind(Transform bone)
         {
@@ -237,42 +323,6 @@ namespace Basis.IK
             return false;
         }
 
-        public string ValidateAgainstTransforms()
-        {
-            if (!_allocated)
-            {
-                return "skeleton not built";
-            }
-
-            float worstPosition = 0f;
-            float worstAngle = 0f;
-            string worstPositionBone = "none";
-            string worstAngleBone = "none";
-
-            for (int i = 0; i < _ordered.Length; i++)
-            {
-                Stream.GetWorldPositionAndRotation(i, out Vector3 position, out Quaternion rotation);
-                _ordered[i].GetPositionAndRotation(out Vector3 actualPosition, out Quaternion actualRotation);
-
-                float positionError = Vector3.Distance(position, actualPosition);
-                if (positionError > worstPosition)
-                {
-                    worstPosition = positionError;
-                    worstPositionBone = _ordered[i].name;
-                }
-
-                float angleError = Quaternion.Angle(rotation, actualRotation);
-                if (angleError > worstAngle)
-                {
-                    worstAngle = angleError;
-                    worstAngleBone = _ordered[i].name;
-                }
-            }
-
-            return $"nodes={_ordered.Length} writable={_writeIndices.Length} anchor={(_anchor != null ? _anchor.name : "<none>")} " +
-                   $"worstPos={worstPosition * 1000f:F3}mm ({worstPositionBone}) worstRot={worstAngle:F3}deg ({worstAngleBone})";
-        }
-
         public void Dispose()
         {
             if (!_allocated)
@@ -290,6 +340,14 @@ namespace Basis.IK
             if (_writeIndices.IsCreated)
             {
                 _writeIndices.Dispose();
+            }
+            if (_authoredLocalPosition.IsCreated)
+            {
+                _authoredLocalPosition.Dispose();
+            }
+            if (_fitScale.IsCreated)
+            {
+                _fitScale.Dispose();
             }
             if (Stream.LocalPosition.IsCreated)
             {
@@ -320,6 +378,7 @@ namespace Basis.IK
             _lookup.Clear();
             _anchor = null;
             _allocated = false;
+            _fitActive = false;
         }
     }
 }

@@ -71,6 +71,92 @@ public static class BasisLocalHeightCalculator
         BasisDebug.Log($"Player hand-to-hand arm span: {BasisHeightDriver.PlayerArmSpan}", BasisDebug.LogTag.Avatar);
     }
 
+    public static void CalculatePlayerHipHeight()
+    {
+        if (SMModuleSitStand.IsSteatedMode)
+        {
+            BasisHeightDriver.PlayerEyeToHipDrop = 0f;
+            BasisHeightDriver.PlayerHipHeight = 0f;
+            return;
+        }
+
+        // Measured as a drop below the eye, never against an independently estimated floor: the HMD and
+        // the hips tracker carry the same vertical shift, so the play-space offset, the grounding lift and
+        // whatever floor the tracker set happens to imply all cancel. Estimating the floor separately made
+        // the value move between calibrations, because TryGetTrackedFloor skips trackers that already hold
+        // a role -- so the first pass measured against the foot trackers and later passes did not.
+        if (!BasisDeviceManagement.Instance.FindDevice(out BasisInput hips, BasisBoneTrackedRole.Hips))
+        {
+            // Keep the last good measurement when the tracker is merely unassigned (calibration unassigns
+            // every FBT tracker before it reclassifies them), so the fit stays put across a recalibration.
+            return;
+        }
+
+        var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;
+        if (headInput == null)
+        {
+            return;
+        }
+
+        headInput.LatePollData();
+        hips.LatePollData();
+
+        float drop = headInput.UnscaledDeviceCoord.position.y - hips.UnscaledDeviceCoord.position.y;
+        if (drop <= 0f || float.IsNaN(drop) || float.IsInfinity(drop))
+        {
+            return;
+        }
+
+        BasisHeightDriver.PlayerEyeToHipDrop = drop;
+        BasisHeightDriver.PlayerHipHeight = BasisHeightDriver.PlayerEyeHeight - drop;
+
+        BasisDebug.Log($"Player hip height {BasisHeightDriver.PlayerHipHeight:F4} (eye {BasisHeightDriver.PlayerEyeHeight:F4} - drop {drop:F4})", BasisDebug.LogTag.Avatar);
+    }
+
+    public static void CalculateAvatarBodySegments()
+    {
+        BasisHeightDriver.AvatarHipHeight = 0f;
+        BasisHeightDriver.AvatarLegSpan = 0f;
+        BasisHeightDriver.AvatarSpineSpan = 0f;
+        BasisHeightDriver.AvatarShoulderWidth = 0f;
+
+        if (!BasisLocalAvatarDriver.HasTposeBoneSnapshot)
+        {
+            return;
+        }
+
+        var snapshot = BasisLocalAvatarDriver.TposeBoneSnapshot;
+
+        bool hasHips = snapshot.TryGetValue(BasisBoneTrackedRole.Hips, out var hipsBind);
+        if (hasHips)
+        {
+            BasisHeightDriver.AvatarHipHeight = hipsBind.position.y;
+        }
+
+        if (hasHips && snapshot.TryGetValue(BasisBoneTrackedRole.Head, out var headBind))
+        {
+            BasisHeightDriver.AvatarSpineSpan = headBind.position.y - hipsBind.position.y;
+        }
+
+        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperLeg, out var upperLegBind)
+            && snapshot.TryGetValue(BasisBoneTrackedRole.LeftFoot, out var footBind))
+        {
+            BasisHeightDriver.AvatarLegSpan = upperLegBind.position.y - footBind.position.y;
+        }
+
+        if (snapshot.TryGetValue(BasisBoneTrackedRole.LeftUpperArm, out var leftArmBind)
+            && snapshot.TryGetValue(BasisBoneTrackedRole.RightUpperArm, out var rightArmBind))
+        {
+            Vector3 la = leftArmBind.position;
+            Vector3 ra = rightArmBind.position;
+            BasisHeightDriver.AvatarShoulderWidth = Vector3.Distance(
+                new Vector3(la.x, 0f, la.z),
+                new Vector3(ra.x, 0f, ra.z));
+        }
+
+        BasisDebug.Log($"Avatar segments hip {BasisHeightDriver.AvatarHipHeight:F3} legSpan {BasisHeightDriver.AvatarLegSpan:F3} spineSpan {BasisHeightDriver.AvatarSpineSpan:F3} shoulderWidth {BasisHeightDriver.AvatarShoulderWidth:F3}", BasisDebug.LogTag.Avatar);
+    }
+
     public static void CalculatePlayerEyeHeight()
     {
         var headInput = BasisLocalCameraDriver.Instance?.BasisLockToInput?.BasisInput;

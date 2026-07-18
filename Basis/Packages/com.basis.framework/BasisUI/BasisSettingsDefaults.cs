@@ -461,9 +461,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> CalibrationMirror = new("calibrationmirror", new BasisPlatformDefault<bool>(false));
 
         // Arm-to-height ratio: scale the avatar by a percentage between the two measurements instead of a
-        // single mode -- 0 = eye height, 1 = arm distance, and outside 0..1 it extrapolates past the nearer
-        // endpoint (range in BasisCalibrationMath.ArmToHeightBlendMin/Max). While enabled it replaces the
-        // Avatar Scaling Mode dropdown (VR only; desktop always scales by eye height).
+        // single mode -- 0 = eye height, 1 = arm distance (range in BasisCalibrationMath.ArmToHeightBlendMin/Max).
+        // Chooses which measurement the uniform scale matches; FBIKBodyFit takes up the residual per-segment.
+        // While enabled it replaces the Avatar Scaling Mode dropdown (VR only; desktop always scales by eye height).
         public static BasisSettingsBinding<bool> EnableArmToHeightBlend = new("enablearmtoheightblend", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> ArmToHeightBlend = new("armtoheightblend", new BasisPlatformDefault<float>(0.5f));
 
@@ -478,7 +478,6 @@ namespace Basis.BasisUI
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
         public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> DevPoseStreamDebug = new("devposestreamdebug_v2", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
@@ -1279,6 +1278,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKSpineProportionMatch = new("fbikspineproportionmatch", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKSpineProportionMaxScale = new("fbikspineproportionmaxscale", new BasisPlatformDefault<float>(0.12f));
 
+        public static BasisSettingsBinding<bool> FBIKBodyFit = new("fbikbodyfit", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKBodyFitMaxDeviation = new("fbikbodyfitmaxdeviation", new BasisPlatformDefault<float>(Basis.IK.BasisBodyFitCore.DefaultMaxDeviation));
+
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
         // bend gets extra angle proportional to head pitch-down. 0 = constant 5°; positive = more
         // bend when looking at the floor, less (down to zero) when looking up.
@@ -1607,7 +1609,6 @@ namespace Basis.BasisUI
             SavedPlayerEyeHeight.LoadBindingValue();
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
-            DevPoseStreamDebug.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             TrackerVisuals.LoadBindingValue();
@@ -2004,6 +2005,8 @@ namespace Basis.BasisUI
             FBIKChestIKTarget.LoadBindingValue();
             FBIKSpineProportionMatch.LoadBindingValue();
             FBIKSpineProportionMaxScale.LoadBindingValue();
+            FBIKBodyFit.LoadBindingValue();
+            FBIKBodyFitMaxDeviation.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();
             FBIKSpineBendRoll.LoadBindingValue();
