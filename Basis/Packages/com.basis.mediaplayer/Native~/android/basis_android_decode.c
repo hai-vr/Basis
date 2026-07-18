@@ -1198,6 +1198,12 @@ int basis_decoder_render_update(basis_decoder_t* d) {
         d->primeStartUs = 0;
         d->lastPresentedPts = INT64_MIN;
         d->mediaStartUs = 0;
+        /* Drop any pre-seek frames now, so the present_select below can't show one
+         * (and overwrite the target position) in the window before the video-submit
+         * leg clears the ring. Same AImage_delete-under-vm as the present path. */
+        pthread_mutex_lock(&d->vm);
+        for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
+        pthread_mutex_unlock(&d->vm);
         __atomic_store_n(&d->presentedPosUs,
                          __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE), __ATOMIC_RELAXED);
     }

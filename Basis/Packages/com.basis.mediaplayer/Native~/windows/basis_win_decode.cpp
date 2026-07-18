@@ -362,12 +362,16 @@ struct basis_decoder {
     /* Seek notification. basis_decoder_seek bumps seekGen (+ latches the target)
      * on the caller thread. Each consumer leg keeps its own last-seen copy and,
      * when it differs, flushes its stale buffers and re-anchors on ITS OWN thread:
-     * the audio submit (demux) thread flushes the PCM ring + MF/Opus decoder;
-     * the render thread clears the frame ring and re-anchors the present clock to
-     * seekTargetUs. Nothing is touched across threads. */
+     * the audio-submit (demux) thread flushes the PCM ring + the MF/Opus decoder;
+     * the video-submit (demux) thread flushes the video MFT (drops its reorder
+     * buffer so retained pre-seek frames can't repopulate the ring) and clears the
+     * frame ring — it owns vdec and writes the ring; the render thread re-anchors
+     * the present clock and also clears the ring so a stale frame can't present in
+     * the window before the next video AU arrives. Nothing is touched across threads. */
     volatile LONG   seekGen = 0;
     volatile LONG64 seekTargetUs = 0;
     LONG audioSeekGen = 0;    /* audio-submit (demux) thread only */
+    LONG videoSeekGen = 0;    /* video-submit (demux) thread only */
     LONG renderSeekGen = 0;   /* render thread only */
 };
 
@@ -996,6 +1000,7 @@ static void drain_video(basis_decoder* d) {
  * process share one resolved table. A missing library or symbol degrades to
  * muted audio (the format is rejected), never a crash. */
 #define OPUS_SET_GAIN_REQUEST 4034
+#define OPUS_RESET_STATE 4028
 typedef struct OpusDecoder OpusDecoder;
 typedef struct OpusMSDecoder OpusMSDecoder;
 struct opus_api {
@@ -1484,6 +1489,17 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
     /* Bound len here, before the AV1 configOBU concatenation below adds to it — so
      * the total can't overflow int or drive an oversized allocation. */
     if (!d || !d->vdec || !annexb || len <= 0 || len > BASIS_MAX_INPUT_SAMPLE) return -1;
+    /* First video AU after a seek: flush the MFT so its reorder buffer can't emit
+     * retained pre-seek frames into the ring, and drop the frames already in the
+     * ring. Demux thread owns vdec and writes the ring (drain_video below), so both
+     * are safe here; ring slots are aligned int64, cleared the same lock-free way
+     * they're written. */
+    LONG svg = InterlockedCompareExchange(&d->seekGen, 0, 0);
+    if (svg != d->videoSeekGen) {
+        d->videoSeekGen = svg;
+        d->vdec->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
+    }
     IMFSample* s;
     bool carried_config = false;
     if (d->vConfigObusLen > 0) {
@@ -1652,7 +1668,16 @@ extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* dat
         d->audioSeekGen = sg;
         d->pcm.flush();
         if (d->adec) d->adec->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
-        d->aPtsFallback = 0;
+        /* Opus bypasses the MFT; reset its predictive/history state so the first
+         * post-seek packet doesn't decode against the pre-seek timeline. */
+        if (d->opusDec) {
+            if (d->opusIsMS) { if (g_opus.ms_ctl)  g_opus.ms_ctl((OpusMSDecoder*)d->opusDec, OPUS_RESET_STATE); }
+            else             { if (g_opus.dec_ctl) g_opus.dec_ctl((OpusDecoder*)d->opusDec, OPUS_RESET_STATE); }
+        }
+        /* Seed the no-timestamp fallback from this AU so post-seek chunks land on
+         * the target timeline; 0 would put them at the start and the serve gate
+         * would trim or mis-time them. */
+        d->aPtsFallback = pts_us;
     }
     if (d->acodec == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (d->acodec == BASIS_CODEC_OPUS) { submit_opus(d, data, len, pts_us); return 0; }
