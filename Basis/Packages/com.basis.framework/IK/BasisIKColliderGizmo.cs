@@ -1,3 +1,4 @@
+using Basis.Scripts.Common;
 using UnityEngine;
 using Basis.IK;
 
@@ -60,7 +61,7 @@ namespace Basis.Scripts.Debugging
         private static bool _visible;
         private static bool _registered;
 
-        public static void Tick(bool shouldShow, in BasisFullBodyBones bones, in BasisFullIKConstraintJob job, bool showLabels, Vector3 cameraPos)
+        public static void Tick(bool shouldShow, BasisTransformMapping bones, in BasisFullIKConstraintJob job, bool showLabels, Vector3 cameraPos)
         {
             EnsureMasterToggleHook();
 
@@ -106,14 +107,14 @@ namespace Basis.Scripts.Debugging
 
             if (elliptical)
             {
-                UpdateEllipticalBoneCapsule(HipsBase, bones.hips, bones.spine, hipsR, hipsR * ChestDepthRatio, bodyLat, bodyFwd);
+                UpdateEllipticalBoneCapsule(HipsBase, bones.Hips, bones.spine, hipsR, hipsR * ChestDepthRatio, bodyLat, bodyFwd);
                 UpdateEllipticalBoneCapsule(SpineBase, bones.spine, bones.chest, spineR, spineR * ChestDepthRatio, bodyLat, bodyFwd);
                 UpdateEllipticalCapsule(ChestBase, bones.chest.position, bones.neck.position, chestR, chestR * ChestDepthRatio, bodyLat, bodyFwd);
                 SetCapsuleActive(ChestBase, true);
             }
             else
             {
-                UpdateBoneCapsule(HipsBase, bones.hips, bones.spine, hipsR, playerUp);
+                UpdateBoneCapsule(HipsBase, bones.Hips, bones.spine, hipsR, playerUp);
                 UpdateBoneCapsule(SpineBase, bones.spine, bones.chest, spineR, playerUp);
                 UpdateCapsule(ChestBase, bones.chest.position, bones.neck.position, chestR, playerUp);
                 SetCapsuleActive(ChestBase, true);
@@ -121,8 +122,8 @@ namespace Basis.Scripts.Debugging
 
             float handR = Mathf.Max(0f, job.handRadius + job.handSkin);
 
-            UpdateHandCapsule(LeftHandBase, bones.LeftHand, bones.leftLowerArm, handR, playerUp, _pointSphereIds[0]);
-            UpdateHandCapsule(RightHandBase, bones.RightHand, bones.RightLowerArm, handR, playerUp, _pointSphereIds[1]);
+            UpdateHandCapsule(LeftHandBase, bones.leftHand, bones.leftLowerArm, handR, playerUp, _pointSphereIds[0]);
+            UpdateHandCapsule(RightHandBase, bones.rightHand, bones.RightLowerArm, handR, playerUp, _pointSphereIds[1]);
 
             // Upper-arm capsules (shoulder→elbow) are slightly wider than the
             // hand/forearm capsule; matches the multiplier SolveHand uses for the
@@ -136,7 +137,7 @@ namespace Basis.Scripts.Debugging
             _visible = true;
         }
 
-        private static void UpdateLabels(bool showLabels, Vector3 cameraPos, in BasisFullBodyBones bones, in BasisFullIKConstraintJob job)
+        private static void UpdateLabels(bool showLabels, Vector3 cameraPos, BasisTransformMapping bones, in BasisFullIKConstraintJob job)
         {
             // Match the avatar's current height scale so labels grow/shrink with the body
             // (consistent with the skeleton/tracker labels).
@@ -168,16 +169,16 @@ namespace Basis.Scripts.Debugging
             return idx < 5 ? HandColor : UpperArmColor;
         }
 
-        private static bool TryCapsuleMidpoint(in BasisFullBodyBones bones, in BasisFullIKConstraintJob job, int idx, out Vector3 mid)
+        private static bool TryCapsuleMidpoint(BasisTransformMapping bones, in BasisFullIKConstraintJob job, int idx, out Vector3 mid)
         {
             Transform a = null, b = null;
             switch (idx)
             {
-                case 0: a = bones.hips; b = bones.spine; break;
+                case 0: a = bones.Hips; b = bones.spine; break;
                 case 1: a = bones.spine; b = bones.chest; break;
                 case 2: a = bones.chest; b = bones.neck; break;
-                case 3: a = bones.LeftHand; b = bones.leftLowerArm; break;
-                case 4: a = bones.RightHand; b = bones.RightLowerArm; break;
+                case 3: a = bones.leftHand; b = bones.leftLowerArm; break;
+                case 4: a = bones.rightHand; b = bones.RightLowerArm; break;
                 case 5: a = bones.leftUpperArm; b = bones.leftLowerArm; break;
                 case 6: a = bones.RightUpperArm; b = bones.RightLowerArm; break;
             }

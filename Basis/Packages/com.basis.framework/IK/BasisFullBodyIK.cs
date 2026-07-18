@@ -1,46 +1,9 @@
 using System.Runtime.CompilerServices;
+using Basis.Scripts.Common;
 using Unity.Collections;
 using UnityEngine;
 namespace Basis.IK
 {
-    [System.Serializable]
-    public struct BasisFullBodyBones
-    {
-        public Transform hips;
-        public Transform chest;
-        public Transform neck;
-        public Transform head;
-
-        public Transform LeftUpperLeg;
-        public Transform LeftLowerLeg;
-        public Transform leftFoot;
-        public Transform RightUpperLeg;
-        public Transform RightLowerLeg;
-        public Transform RightFoot;
-
-        public Transform LeftToe;
-        public Transform RightToe;
-
-        public Transform leftUpperArm;
-        public Transform leftLowerArm;
-        public Transform LeftHand;
-
-        public Transform RightUpperArm;
-        public Transform RightLowerArm;
-        public Transform RightHand;
-
-        public Transform spine;
-        public Transform upperChest;
-        public Transform LeftShoulder;
-        public Transform RightShoulder;
-
-        // Twist bones — derived bones that absorb a fraction of wrist/elbow roll for natural
-        // forearm/upper-arm deformation. Optional per rig; when null, the side is skipped.
-        public Transform LeftUpperArmTwist;
-        public Transform LeftLowerArmTwist;
-        public Transform RightUpperArmTwist;
-        public Transform RightLowerArmTwist;
-    }
     /// <summary>
     /// Full-body pass: Head + Legs + Hips + Dual Driven TR + Dual TwoBoneIK Hands (with chest/hand capsule & elbow protection).
     /// All driven via a single job.
@@ -2236,55 +2199,55 @@ collisionsEnabled;
             }
         }
 
-        public void Create(BasisPoseSkeleton skeleton, in BasisFullBodyBones bones)
+        public void Create(BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
-            HandleHips = BindHandle(skeleton, bones.hips);
-            HandleChest = BindHandle(skeleton, bones.chest);
-            HandleNeck = BindHandle(skeleton, bones.neck);
-            HandleHead = BindHandle(skeleton, bones.head);
-            HandleLeftUpperLeg = BindHandle(skeleton, bones.LeftUpperLeg);
-            HandleLeftLowerLeg = BindHandle(skeleton, bones.LeftLowerLeg);
-            HandleLeftFoot = BindHandle(skeleton, bones.leftFoot);
-            HandleRightUpperLeg = BindHandle(skeleton, bones.RightUpperLeg);
-            HandleRightLowerLeg = BindHandle(skeleton, bones.RightLowerLeg);
-            HandleRightFoot = BindHandle(skeleton, bones.RightFoot);
-            HandleLeftToe = BindHandle(skeleton, bones.LeftToe);
-            HandleRightToe = BindHandle(skeleton, bones.RightToe);
-            HandleLeftUpperArm = BindHandle(skeleton, bones.leftUpperArm);
-            HandleLeftLowerArm = BindHandle(skeleton, bones.leftLowerArm);
-            HandleLeftHand = BindHandle(skeleton, bones.LeftHand);
-            HandleRightUpperArm = BindHandle(skeleton, bones.RightUpperArm);
-            HandleRightLowerArm = BindHandle(skeleton, bones.RightLowerArm);
-            HandleRightHand = BindHandle(skeleton, bones.RightHand);
-            HandleLeftUpperArmTwist = BindHandle(skeleton, bones.LeftUpperArmTwist);
-            HandleLeftLowerArmTwist = BindHandle(skeleton, bones.LeftLowerArmTwist);
-            HandleRightUpperArmTwist = BindHandle(skeleton, bones.RightUpperArmTwist);
-            HandleRightLowerArmTwist = BindHandle(skeleton, bones.RightLowerArmTwist);
-            HandleSpine = BindHandle(skeleton, bones.spine);
-            HandleUpperChest = BindHandle(skeleton, bones.upperChest);
-            HandleLeftShoulder = BindHandle(skeleton, bones.LeftShoulder);
-            HandleRightShoulder = BindHandle(skeleton, bones.RightShoulder);
+            HandleHips = BindHandle(skeleton, Mapping.Hips);
+            HandleChest = BindHandle(skeleton, Mapping.chest);
+            HandleNeck = BindHandle(skeleton, Mapping.neck);
+            HandleHead = BindHandle(skeleton, Mapping.head);
+            HandleLeftUpperLeg = BindHandle(skeleton, Mapping.LeftUpperLeg);
+            HandleLeftLowerLeg = BindHandle(skeleton, Mapping.LeftLowerLeg);
+            HandleLeftFoot = BindHandle(skeleton, Mapping.leftFoot);
+            HandleRightUpperLeg = BindHandle(skeleton, Mapping.RightUpperLeg);
+            HandleRightLowerLeg = BindHandle(skeleton, Mapping.RightLowerLeg);
+            HandleRightFoot = BindHandle(skeleton, Mapping.rightFoot);
+            HandleLeftToe = BindHandle(skeleton, Mapping.leftToe);
+            HandleRightToe = BindHandle(skeleton, Mapping.rightToe);
+            HandleLeftUpperArm = BindHandle(skeleton, Mapping.leftUpperArm);
+            HandleLeftLowerArm = BindHandle(skeleton, Mapping.leftLowerArm);
+            HandleLeftHand = BindHandle(skeleton, Mapping.leftHand);
+            HandleRightUpperArm = BindHandle(skeleton, Mapping.RightUpperArm);
+            HandleRightLowerArm = BindHandle(skeleton, Mapping.RightLowerArm);
+            HandleRightHand = BindHandle(skeleton, Mapping.rightHand);
+            HandleLeftUpperArmTwist = BindHandle(skeleton, Mapping.leftUpperArmTwist);
+            HandleLeftLowerArmTwist = BindHandle(skeleton, Mapping.leftLowerArmTwist);
+            HandleRightUpperArmTwist = BindHandle(skeleton, Mapping.RightUpperArmTwist);
+            HandleRightLowerArmTwist = BindHandle(skeleton, Mapping.RightLowerArmTwist);
+            HandleSpine = BindHandle(skeleton, Mapping.spine);
+            HandleUpperChest = BindHandle(skeleton, Mapping.Upperchest);
+            HandleLeftShoulder = BindHandle(skeleton, Mapping.leftShoulder);
+            HandleRightShoulder = BindHandle(skeleton, Mapping.RightShoulder);
 
             // Baked T-pose data for shoulder solve
-            TposeLeftShoulderRot = bones.LeftShoulder != null ? bones.LeftShoulder.rotation : Quaternion.identity;
-            TposeRightShoulderRot = bones.RightShoulder != null ? bones.RightShoulder.rotation : Quaternion.identity;
-            TposeChestRot = bones.chest != null ? bones.chest.rotation : Quaternion.identity;
-            TposeLeftShoulderLocalDir = (bones.LeftShoulder != null && bones.leftUpperArm != null)
-                ? (bones.leftUpperArm.position - bones.LeftShoulder.position).normalized : Vector3.left;
-            TposeRightShoulderLocalDir = (bones.RightShoulder != null && bones.RightUpperArm != null)
-                ? (bones.RightUpperArm.position - bones.RightShoulder.position).normalized : Vector3.right;
-            TposeShoulderToHandLeft = (bones.LeftShoulder != null && bones.LeftHand != null)
-                ? Vector3.Distance(bones.LeftShoulder.position, bones.LeftHand.position) : 0.6f;
-            TposeShoulderToHandRight = (bones.RightShoulder != null && bones.RightHand != null)
-                ? Vector3.Distance(bones.RightShoulder.position, bones.RightHand.position) : 0.6f;
-            TposeClavicleLenLeft = (bones.LeftShoulder != null && bones.leftUpperArm != null)
-                ? Vector3.Distance(bones.LeftShoulder.position, bones.leftUpperArm.position) : 0f;
-            TposeClavicleLenRight = (bones.RightShoulder != null && bones.RightUpperArm != null)
-                ? Vector3.Distance(bones.RightShoulder.position, bones.RightUpperArm.position) : 0f;
-            TposeShoulderToElbowLeft = (bones.LeftShoulder != null && bones.leftLowerArm != null)
-                ? Vector3.Distance(bones.LeftShoulder.position, bones.leftLowerArm.position) : 0f;
-            TposeShoulderToElbowRight = (bones.RightShoulder != null && bones.RightLowerArm != null)
-                ? Vector3.Distance(bones.RightShoulder.position, bones.RightLowerArm.position) : 0f;
+            TposeLeftShoulderRot = Mapping.leftShoulder != null ? Mapping.leftShoulder.rotation : Quaternion.identity;
+            TposeRightShoulderRot = Mapping.RightShoulder != null ? Mapping.RightShoulder.rotation : Quaternion.identity;
+            TposeChestRot = Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
+            TposeLeftShoulderLocalDir = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
+                ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
+            TposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
+                ? (Mapping.RightUpperArm.position - Mapping.RightShoulder.position).normalized : Vector3.right;
+            TposeShoulderToHandLeft = (Mapping.leftShoulder != null && Mapping.leftHand != null)
+                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftHand.position) : 0.6f;
+            TposeShoulderToHandRight = (Mapping.RightShoulder != null && Mapping.rightHand != null)
+                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.rightHand.position) : 0.6f;
+            TposeClavicleLenLeft = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
+                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftUpperArm.position) : 0f;
+            TposeClavicleLenRight = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
+                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightUpperArm.position) : 0f;
+            TposeShoulderToElbowLeft = (Mapping.leftShoulder != null && Mapping.leftLowerArm != null)
+                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftLowerArm.position) : 0f;
+            TposeShoulderToElbowRight = (Mapping.RightShoulder != null && Mapping.RightLowerArm != null)
+                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.RightLowerArm.position) : 0f;
 
             // Pair each slot with its bone handle, in HumanBodyBones order.
             slotHandles.Length = Count;
@@ -2311,7 +2274,7 @@ collisionsEnabled;
             slotHandles[20] = HandleRightToe;
             slotHandles[UpperChestSlot] = HandleUpperChest;
 
-            GenerateHeadToSpine(skeleton, bones);
+            GenerateHeadToSpine(skeleton, Mapping);
             spineMaxIterations = 20;
             spineTolerance = 0.001f;
             chestSpringState = new NativeArray<Vector3>(2, Allocator.Persistent);
@@ -2345,7 +2308,7 @@ collisionsEnabled;
         // thorax, so it inherits the LOWER thoracic ROM -- the more permissive of the two, because it is now
         // doing both jobs and clamping it to the stiffer upper-thoracic envelope would rob the avatar of
         // bend it genuinely has.
-        void BuildSpineAnatomy(Transform[] chain, in BasisFullBodyBones bones)
+        void BuildSpineAnatomy(Transform[] chain, BasisTransformMapping Mapping)
         {
             int n = chain.Length;
             ChainSpineRestFrames = new NativeArray<BasisSpineRestFrame>(n, Allocator.Persistent);
@@ -2354,11 +2317,11 @@ collisionsEnabled;
             // The subject's RIGHT, from the shoulders. A body-wide fact -- NOT a bone's local axis, which is
             // a rig convention and does not transfer between avatars. This project has been bitten by that
             // repeatedly; it is why the arm swivel model is position-only.
-            if (bones.leftUpperArm == null || bones.RightUpperArm == null)
+            if (Mapping.leftUpperArm == null || Mapping.RightUpperArm == null)
             {
                 return;   // every frame stays Valid=false, so the guard is a no-op. Decline, never guess.
             }
-            Vector3 hipsRight = bones.RightUpperArm.position - bones.leftUpperArm.position;
+            Vector3 hipsRight = Mapping.RightUpperArm.position - Mapping.leftUpperArm.position;
 
             for (int i = 1; i <= n - 2; i++)   // skip the head (0) and the hips (n-1)
             {
@@ -2371,19 +2334,19 @@ collisionsEnabled;
                 }
 
                 BasisSpineSegment segment;
-                if (bone == bones.spine)
+                if (bone == Mapping.spine)
                 {
                     segment = BasisSpineSegment.Lumbar;
                 }
-                else if (bone == bones.chest)
+                else if (bone == Mapping.chest)
                 {
                     segment = BasisSpineSegment.LowerThoracic;
                 }
-                else if (bone == bones.upperChest)
+                else if (bone == Mapping.Upperchest)
                 {
                     segment = BasisSpineSegment.UpperThoracic;
                 }
-                else if (bone == bones.neck)
+                else if (bone == Mapping.neck)
                 {
                     segment = BasisSpineSegment.Cervical;
                 }
@@ -2397,22 +2360,22 @@ collisionsEnabled;
                 ChainSpineRoms[i] = BasisSpineAnatomy.Rom(segment);
             }
         }
-        public void GenerateHeadToSpine(BasisPoseSkeleton skeleton, in BasisFullBodyBones bones)
+        public void GenerateHeadToSpine(BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
-            var HeadToSpine = bones.upperChest != null
-                ? new Transform[] { bones.head, bones.neck, bones.upperChest, bones.chest, bones.spine, bones.hips }
-                : new Transform[] { bones.head, bones.neck, bones.chest, bones.spine, bones.hips };
+            var HeadToSpine = Mapping.Upperchest != null
+                ? new Transform[] { Mapping.head, Mapping.neck, Mapping.Upperchest, Mapping.chest, Mapping.spine, Mapping.Hips }
+                : new Transform[] { Mapping.head, Mapping.neck, Mapping.chest, Mapping.spine, Mapping.Hips };
             int SpineToHeadLength = HeadToSpine.Length;
             ChainHeadToSpine = new NativeArray<BasisBoneHandle>(SpineToHeadLength, Allocator.Persistent);
-            BuildSpineAnatomy(HeadToSpine, bones);
+            BuildSpineAnatomy(HeadToSpine, Mapping);
 
             for (int i = 0; i < SpineToHeadLength; i++)
             {
                 ChainHeadToSpine[i] = skeleton.Bind(HeadToSpine[i]);
             }
-            if (bones.hips != null && bones.head != null)
+            if (Mapping.Hips != null && Mapping.head != null)
             {
-                TposeLengthHeadToHips = (bones.head.position - bones.hips.position);
+                TposeLengthHeadToHips = (Mapping.head.position - Mapping.Hips.position);
             }
             else
             {
@@ -2429,18 +2392,18 @@ collisionsEnabled;
             //
             // No head or no neck => zero, and the cue degrades exactly to the old hips->head behaviour rather
             // than to something novel and untested.
-            if (bones.head != null && bones.neck != null)
+            if (Mapping.head != null && Mapping.neck != null)
             {
-                TposeHeadToNeckLocal = Quaternion.Inverse(bones.head.rotation) * (bones.neck.position - bones.head.position);
+                TposeHeadToNeckLocal = Quaternion.Inverse(Mapping.head.rotation) * (Mapping.neck.position - Mapping.head.position);
             }
             else
             {
                 TposeHeadToNeckLocal = Vector3.zero;
             }
 
-            if (bones.hips != null && bones.neck != null)
+            if (Mapping.Hips != null && Mapping.neck != null)
             {
-                TposeLengthNeckToHips = (bones.neck.position - bones.hips.position);
+                TposeLengthNeckToHips = (Mapping.neck.position - Mapping.Hips.position);
             }
             else
             {

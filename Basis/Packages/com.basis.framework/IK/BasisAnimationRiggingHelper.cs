@@ -28,42 +28,9 @@ public static class BasisAnimationRiggingHelper
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisFullBodyBones bones, ref BasisFullIKConstraintJob job)
+    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisFullIKConstraintJob job)
     {
-        bones = default;
         job.SetDefaultValues();
-        // Torso / head chain
-        bones.hips = Mapping.Hips;
-        bones.spine = Mapping.spine;
-        bones.chest = Mapping.chest;
-        bones.upperChest = Mapping.Upperchest;
-        bones.neck = Mapping.neck;
-        bones.head = Mapping.head;
-        // Shoulders
-        bones.LeftShoulder = Mapping.leftShoulder;
-        bones.RightShoulder = Mapping.RightShoulder;
-        // Arms
-        bones.leftUpperArm = Mapping.leftUpperArm;
-        bones.leftLowerArm = Mapping.leftLowerArm;
-        bones.LeftHand = Mapping.leftHand;
-        bones.RightUpperArm = Mapping.RightUpperArm;
-        bones.RightLowerArm = Mapping.RightLowerArm;
-        bones.RightHand = Mapping.rightHand;
-        // Optional twist bones (auto-detected from rig hierarchy; null when not present)
-        bones.LeftUpperArmTwist = Mapping.leftUpperArmTwist;
-        bones.LeftLowerArmTwist = Mapping.leftLowerArmTwist;
-        bones.RightUpperArmTwist = Mapping.RightUpperArmTwist;
-        bones.RightLowerArmTwist = Mapping.RightLowerArmTwist;
-        // Legs
-        bones.LeftUpperLeg = Mapping.LeftUpperLeg;
-        bones.LeftLowerLeg = Mapping.LeftLowerLeg;
-        bones.leftFoot = Mapping.leftFoot;
-        bones.RightUpperLeg = Mapping.RightUpperLeg;
-        bones.RightLowerLeg = Mapping.RightLowerLeg;
-        bones.RightFoot = Mapping.rightFoot;
-        // Toes
-        bones.LeftToe = Mapping.leftToe;
-        bones.RightToe = Mapping.rightToe;
         // Head
         Quaternion avatarRootInv = Quaternion.Inverse(player.AvatarTransform.rotation);
         job.offsetRotationHead = Mapping.Hashead ? avatarRootInv * Mapping.head.rotation : Quaternion.identity;

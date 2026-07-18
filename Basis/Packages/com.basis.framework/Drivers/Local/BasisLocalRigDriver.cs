@@ -54,7 +54,6 @@ namespace Basis.Scripts.Drivers
         public bool RigLayerActive = true;
         public static bool DebugPoseStream;
         int _poseChecksRemaining;
-        [System.NonSerialized] public BasisFullBodyBones IKBones;
         [System.NonSerialized] public bool IKDataReady;
 
         /// <summary>
@@ -73,7 +72,7 @@ namespace Basis.Scripts.Drivers
         public Quaternion RightHandIKOffset => IKDataReady ? IKJob.offsetRotationRightHand : Quaternion.identity;
 
         private BasisLocalPlayer localPlayer;
-        private BasisTransformMapping basisTransformMapping;
+        public BasisTransformMapping basisTransformMapping;
 
         // Keep this order stable forever.
         // These indices drive your toggle arrays AND which filter instance is used.
@@ -198,9 +197,9 @@ namespace Basis.Scripts.Drivers
             PlayableGraph = animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
 
-            PoseSkeleton.Build(animator.transform, CollectIKBones(IKBones));
-            PoseSkeleton.SetTranslationFree(IKBones.hips);
-            IKJob.Create(PoseSkeleton, IKBones);
+            PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
+            PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
+            IKJob.Create(PoseSkeleton, basisTransformMapping);
             IKJobCreated = true;
             _poseChecksRemaining = 3;
 
@@ -236,7 +235,6 @@ namespace Basis.Scripts.Drivers
                 IKJobCreated = false;
             }
             PoseSkeleton.Dispose();
-            IKBones = default;
             IKDataReady = false;
         }
 
@@ -615,17 +613,17 @@ namespace Basis.Scripts.Drivers
 
                 if (BasisFootRotationDebug.Enabled)
                 {
-                    if (IKBones.leftFoot != null)
+                    if (basisTransformMapping.leftFoot != null)
                         BasisFootRotationDebug.Record("L", Time.time, footIKBlendWeightLeft,
                             !leftHasTracker && footIKBlendWeightLeft > 0.001f && footDriverReady,
-                            IKBones.leftFoot.rotation, data.targetRotationLeftLowerLeg, data.offsetRotationLeftFoot,
+                            basisTransformMapping.leftFoot.rotation, data.targetRotationLeftLowerLeg, data.offsetRotationLeftFoot,
                             BasisLocalBoneDriver.LeftFootControl.OutGoingData.rotation,
                             BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation,
                             (Quaternion)rOut[S_LeftFoot], footDriverReady ? footDriver.LeftFootRotation : Quaternion.identity);
-                    if (IKBones.RightFoot != null)
+                    if (basisTransformMapping.rightFoot != null)
                         BasisFootRotationDebug.Record("R", Time.time, footIKBlendWeightRight,
                             !rightHasTracker && footIKBlendWeightRight > 0.001f && footDriverReady,
-                            IKBones.RightFoot.rotation, data.targetRotationRightLowerLeg, data.offsetRotationRightFoot,
+                            basisTransformMapping.rightFoot.rotation, data.targetRotationRightLowerLeg, data.offsetRotationRightFoot,
                             BasisLocalBoneDriver.RightFootControl.OutGoingData.rotation,
                             BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation,
                             (Quaternion)rOut[S_RightFoot], footDriverReady ? footDriver.RightFootRotation : Quaternion.identity);
@@ -689,13 +687,13 @@ namespace Basis.Scripts.Drivers
                     float lKneeFwdWeight = 0f;
                     bool lHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
                         hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
-                        IKBones.LeftUpperLeg, IKBones.LeftLowerLeg, data.targetPositionLeftLowerLeg, data.targetRotationLeftLowerLeg,
+                        basisTransformMapping.LeftUpperLeg, basisTransformMapping.LeftLowerLeg, data.targetPositionLeftLowerLeg, data.targetRotationLeftLowerLeg,
                         ref smoothedLeftKneeFwdHint, ref smoothedLeftKneeFwdWeight,
                         out lKneeFwdHint, out lKneeFwdWeight, out lBendDir);
 
                     if (butterflyEnabled && TryComputeButterflyKnee(
                         true, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, lBendDir,
-                        IKBones.LeftUpperLeg, IKBones.LeftLowerLeg, data.targetPositionLeftLowerLeg, data.targetRotationLeftLowerLeg,
+                        basisTransformMapping.LeftUpperLeg, basisTransformMapping.LeftLowerLeg, data.targetPositionLeftLowerLeg, data.targetRotationLeftLowerLeg,
                         ref smoothedLeftButterflyHint, ref smoothedLeftButterflyWeight,
                         out Vector3 lButterflyHint, out float lButterflyWeight))
                     {
@@ -739,13 +737,13 @@ namespace Basis.Scripts.Drivers
                     float rKneeFwdWeight = 0f;
                     bool rHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
                         hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
-                        IKBones.RightUpperLeg, IKBones.RightLowerLeg, data.targetPositionRightLowerLeg, data.targetRotationRightLowerLeg,
+                        basisTransformMapping.RightUpperLeg, basisTransformMapping.RightLowerLeg, data.targetPositionRightLowerLeg, data.targetRotationRightLowerLeg,
                         ref smoothedRightKneeFwdHint, ref smoothedRightKneeFwdWeight,
                         out rKneeFwdHint, out rKneeFwdWeight, out rBendDir);
 
                     if (butterflyEnabled && TryComputeButterflyKnee(
                         false, hipsRot, playerUpDir, butterflyMaxOpenDeg, butterflySupineFloor, deltaTime, rBendDir,
-                        IKBones.RightUpperLeg, IKBones.RightLowerLeg, data.targetPositionRightLowerLeg, data.targetRotationRightLowerLeg,
+                        basisTransformMapping.RightUpperLeg, basisTransformMapping.RightLowerLeg, data.targetPositionRightLowerLeg, data.targetRotationRightLowerLeg,
                         ref smoothedRightButterflyHint, ref smoothedRightButterflyWeight,
                         out Vector3 rButterflyHint, out float rButterflyWeight))
                     {
@@ -775,17 +773,17 @@ namespace Basis.Scripts.Drivers
 
                 if (BasisLegCrouchDebug.Enabled)
                 {
-                    if (IKBones.LeftUpperLeg != null && IKBones.LeftLowerLeg != null && IKBones.leftFoot != null)
+                    if (basisTransformMapping.LeftUpperLeg != null && basisTransformMapping.LeftLowerLeg != null && basisTransformMapping.leftFoot != null)
                     {
-                        Vector3 hipL = IKBones.LeftUpperLeg.position, kneeL = IKBones.LeftLowerLeg.position;
-                        float legLenL = Vector3.Distance(hipL, kneeL) + Vector3.Distance(kneeL, IKBones.leftFoot.position);
+                        Vector3 hipL = basisTransformMapping.LeftUpperLeg.position, kneeL = basisTransformMapping.LeftLowerLeg.position;
+                        float legLenL = Vector3.Distance(hipL, kneeL) + Vector3.Distance(kneeL, basisTransformMapping.leftFoot.position);
                         BasisLegCrouchDebug.Record("L", Time.time, !leftHasTracker && footIKBlendWeightLeft > 0.001f && footDriverReady,
                             legLenL, hipL, data.targetPositionLeftLowerLeg, data.hintPositionLeftLowerLeg, kneeL);
                     }
-                    if (IKBones.RightUpperLeg != null && IKBones.RightLowerLeg != null && IKBones.RightFoot != null)
+                    if (basisTransformMapping.RightUpperLeg != null && basisTransformMapping.RightLowerLeg != null && basisTransformMapping.rightFoot != null)
                     {
-                        Vector3 hipR = IKBones.RightUpperLeg.position, kneeR = IKBones.RightLowerLeg.position;
-                        float legLenR = Vector3.Distance(hipR, kneeR) + Vector3.Distance(kneeR, IKBones.RightFoot.position);
+                        Vector3 hipR = basisTransformMapping.RightUpperLeg.position, kneeR = basisTransformMapping.RightLowerLeg.position;
+                        float legLenR = Vector3.Distance(hipR, kneeR) + Vector3.Distance(kneeR, basisTransformMapping.rightFoot.position);
                         BasisLegCrouchDebug.Record("R", Time.time, !rightHasTracker && footIKBlendWeightRight > 0.001f && footDriverReady,
                             legLenR, hipR, data.targetPositionRightLowerLeg, data.hintPositionRightLowerLeg, kneeR);
                     }
@@ -1077,7 +1075,7 @@ namespace Basis.Scripts.Drivers
             }
 
             IKJob = default;
-            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer, basisTransformMapping, ref IKBones, ref IKJob);
+            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer, basisTransformMapping, ref IKJob);
             IKDataReady = true;
 
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChangedNextFrame;
@@ -1609,17 +1607,17 @@ namespace Basis.Scripts.Drivers
             return weight > 0.001f;
         }
 
-        static List<Transform> CollectIKBones(BasisFullBodyBones d) => new List<Transform>
+        static List<Transform> CollectIKBones(BasisTransformMapping d) => new List<Transform>
         {
-            d.hips, d.spine, d.chest, d.upperChest, d.neck, d.head,
-            d.LeftShoulder, d.RightShoulder,
-            d.leftUpperArm, d.leftLowerArm, d.LeftHand,
-            d.RightUpperArm, d.RightLowerArm, d.RightHand,
-            d.LeftUpperArmTwist, d.LeftLowerArmTwist,
+            d.Hips, d.spine, d.chest, d.Upperchest, d.neck, d.head,
+            d.leftShoulder, d.RightShoulder,
+            d.leftUpperArm, d.leftLowerArm, d.leftHand,
+            d.RightUpperArm, d.RightLowerArm, d.rightHand,
+            d.leftUpperArmTwist, d.leftLowerArmTwist,
             d.RightUpperArmTwist, d.RightLowerArmTwist,
             d.LeftUpperLeg, d.LeftLowerLeg, d.leftFoot,
-            d.RightUpperLeg, d.RightLowerLeg, d.RightFoot,
-            d.LeftToe, d.RightToe,
+            d.RightUpperLeg, d.RightLowerLeg, d.rightFoot,
+            d.leftToe, d.rightToe,
         };
 
         void RunIKSolve(float deltaTime)
