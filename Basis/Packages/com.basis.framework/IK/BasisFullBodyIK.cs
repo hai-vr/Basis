@@ -39,42 +39,40 @@ namespace UnityEngine.Animations.Rigging
 
         // Property name helpers for binding
 
+        public Transform hips;
+        public Transform chest;
+        public Transform neck;
+        public Transform head;
 
+        public Transform LeftUpperLeg;
+        public Transform LeftLowerLeg;
+        public Transform leftFoot;
+        public Transform RightUpperLeg;
+        public Transform RightLowerLeg;
+        public Transform RightFoot;
 
-        Transform m_Hips;
-        Transform m_chest;
-        Transform m_neck;
-        Transform m_head;
+        public Transform LeftToe;
+        public Transform RightToe;
 
-        Transform m_LeftUpperLeg;
-        Transform m_LeftLowerLeg;
-        Transform m_leftFoot;
-        Transform m_RightUpperLeg;
-        Transform m_RightLowerLeg;
-        Transform m_RightFoot;
+        public Transform leftUpperArm;
+        public Transform leftLowerArm;
+        public Transform LeftHand;
 
-        Transform m_LeftToe;
-        Transform m_RightToe;
+        public Transform RightUpperArm;
+        public Transform RightLowerArm;
+        public Transform RightHand;
 
-        Transform m_leftUpperArm;
-        Transform m_leftLowerArm;
-        Transform m_leftHand;
-
-        Transform m_RightUpperArm;
-        Transform m_RightLowerArm;
-        Transform m_rightHand;
-
-        Transform m_Spine;
-        Transform m_UpperChest;
-        Transform m_LeftShoulder;
-        Transform m_RightShoulder;
+        public Transform spine;
+        public Transform upperChest;
+        public Transform LeftShoulder;
+        public Transform RightShoulder;
 
         // Twist bones — derived bones that absorb a fraction of wrist/elbow roll for natural
         // forearm/upper-arm deformation. Optional per rig; when null, the side is skipped.
-        Transform m_LeftUpperArmTwist;
-        Transform m_LeftLowerArmTwist;
-        Transform m_RightUpperArmTwist;
-        Transform m_RightLowerArmTwist;
+        public Transform LeftUpperArmTwist;
+        public Transform LeftLowerArmTwist;
+        public Transform RightUpperArmTwist;
+        public Transform RightLowerArmTwist;
 
         // Head
         public Vector3 PositionHead;
@@ -135,271 +133,161 @@ namespace UnityEngine.Animations.Rigging
         public Vector3 KneeBendPrefLeft;
         public Vector3 KneeBendPrefRight;
 
-        public float m_HandSkin;
-        [Min(0f)] public float m_HandRadius;
-        [Min(0f)] public float m_ChestRadius;
-        [Min(0f)] public float m_CollisionSkin;
-        bool m_CollisionsEnabled;
-        bool m_ProtectElbow;
-        bool m_UseNeuralPole;
-        bool m_CollideTrackedElbow;
+        public float HandSkin;
+        [Min(0f)] public float HandRadius;
+        [Min(0f)] public float ChestRadius;
+        [Min(0f)] public float CollisionSkin;
+        public bool CollisionsEnabled;
+        public bool ProtectElbow;
+        public bool UseNeuralPole;
+        public bool CollideTrackedElbow;
 
-        bool m_HintHeadEnabled;
-        bool m_SpineIKEnabled;
-        bool m_HasHipsTracker;
+        public bool WeightChest;
+        public bool EnabledSpineIK;
+        public bool HasHipsTracker;
 
         // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
-        float m_IKLockMode;
+        public float IKLockMode;
 
-        public bool m_LeftToeEnabled;
-        public bool m_RightToeEnabled;
+        public bool LeftToeEnabled;
+        public bool RightToeEnabled;
 
-        bool m_LeftFootIsTracker;
-        bool m_RightFootIsTracker;
-        float m_LeftLowerLegEnabled;
-        float m_RightLowerLegEnabled;
+        public bool LeftFootIsTracker;
+        public bool RightFootIsTracker;
+        public float EnableLeftLeg;
+        public float EnableRightLeg;
 
-        float m_HintLeftLowerLegEnabled;
-        float m_HintRightLowerLegEnabled;
+        public float EnableLeftLowerLeg;
+        public float EnableRightLowerLeg;
 
         // True when the knee/lower-leg hint is a physical tracker (jittery, and pole-amplified by the leg
         // solve) rather than a computed hint (foot driver / butterfly). Gates the tracked-knee output-swivel
         // smoothing in SolveLegs -- see SmoothKneeSwivel.
-        bool m_LeftLowerLegHintIsTracker;
-        bool m_RightLowerLegHintIsTracker;
+        public bool LeftLowerLegHintIsTracker;
+        public bool RightLowerLegHintIsTracker;
 
         // Hand IK weight (0..1), not a toggle: the webcam fades the hands in and out as tracking comes and
         // goes, and a hard on/off pops the arm. Mirrors the legs, which have been fractional all along.
-        float m_EnabledLeftHand;
-        float m_EnabledRightHand;
+        public float EnabledLeftHand;
+        public float EnabledRightHand;
 
-        bool m_HintRightHandEnabled;
-        bool m_HintLeftHandEnabled;
+        public bool HintWeightRightHand;
+        public bool HintWeightLeftHand;
 
-        float m_MinHeadSpineHeight;
-        public bool m_enabledLeftShoulder;
-        public bool m_enabledRightShoulder;
+        public float minHeadSpineHeight;
+        public bool EnabledLeftShoulder;
+        public bool EnabledRightShoulder;
         public Quaternion m_CalibratedRotationRightShoulder;
         public Quaternion m_CalibratedRotationLeftShoulder;
 
-        public float m_MaxBendDeg;
-        public float m_MinFactor;
-        public float m_MaxFactor;
-        public float m_MaxChestDeltaDeg;
+        public float MaxBendDeg;
+        public float MinFactor;
+        public float MaxFactor;
+        public float MaxChestDelta;
 
         // Shoulder pre-solve: raises/protracts shoulders based on hand target
-        bool m_ShoulderSolveEnabled;
-        bool m_ShoulderShrugEnabled;
-        [Range(0f, 1f)] float m_ShoulderElevationFactor;
-        [Range(0f, 1f)] float m_ShoulderProtractionFactor;
+        public bool ShoulderSolveEnabled;
+        public bool ShoulderShrugEnabled;
+        [Range(0f, 1f)] public float ShoulderElevationFactor;
+        [Range(0f, 1f)] public float ShoulderProtractionFactor;
 
         // Spine bend distribution: per-axis fractions of the hips→head bend pre-applied to lumbar
         // and thoracic joints before the chest→neck→head two-bone solve. Splitting by axis lets
         // forward bend, side bend, and twist be tuned independently — humans are very anisotropic.
-        [Range(0f, 1f)] float m_SpineBendPitch;
-        [Range(0f, 1f)] float m_SpineBendYaw;
-        [Range(0f, 1f)] float m_SpineBendRoll;
-        [Range(0f, 1f)] float m_UpperChestBendPitch;
-        [Range(0f, 1f)] float m_UpperChestBendYaw;
-        [Range(0f, 1f)] float m_UpperChestBendRoll;
+        [Range(0f, 1f)] public float SpineBendPitch;
+        [Range(0f, 1f)] public float SpineBendYaw;
+        [Range(0f, 1f)] public float SpineBendRoll;
+        [Range(0f, 1f)] public float UpperChestBendPitch;
+        [Range(0f, 1f)] public float UpperChestBendYaw;
+        [Range(0f, 1f)] public float UpperChestBendRoll;
         // Hip hinge: when forward lean exceeds the start angle, the pelvis pitches forward by a
         // capped fraction of the excess so the spine doesn't have to swallow the whole reach.
-        [Min(0f)] float m_HipHingeStartDeg;
-        [Min(0f)] float m_HipHingeMaxAddDeg;
+        [Min(0f)] public float HipHingeStartDeg;
+        [Min(0f)] public float HipHingeMaxAddDeg;
         // Chest follow spring: critically-damped second-order spring on the head target before it
         // is consumed by DistributeSpineBend, so quick head turns leave the body momentarily behind.
-        [Min(0f)] float m_ChestSpringHz;
-        [Min(0f)] float m_ChestSpringDamping;
+        [Min(0f)] public float ChestSpringHz;
+        [Min(0f)] public float ChestSpringDamping;
         // Asymmetric flexion clamps: humans flex forward much further than they extend backward.
         // Applied to the per-axis spine + upperChest contributions after distribution.
-        [Min(0f)] float m_SpineMaxForwardDeg;
-        [Min(0f)] float m_SpineMaxBackwardDeg;
-        [Min(0f)] float m_SpineMaxLateralDeg;
+        [Min(0f)] public float SpineMaxForwardDeg;
+        [Min(0f)] public float SpineMaxBackwardDeg;
+        [Min(0f)] public float SpineMaxLateralDeg;
         // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
         // the spine folds more when crouched and straightens when reaching up. 0 disables.
-        [Range(0f, 2f)] float m_SpineSquishBoost;
+        [Range(0f, 2f)] public float SpineSquishBoost;
         // How much the chest FOLLOWS the gaze (no chest tracker). 0 = rigid (the look-down-stability fix,
         // chest never folds on a pure look-down); 1 = full follow (the old phantom-lean). A small value is
         // 'a little real spine': the chest folds a touch when you look down, which reads better on desktop.
-        [Range(0f, 1f)] float m_SpineGazeFollow;
+        [Range(0f, 1f)] public float SpineGazeFollow;
         // How much EXTRA forward neck curve to add on a look-down (no chest tracker). Same idea as the
         // chest gaze-follow, but the neck's lordosis runs AFTER the head-placing CCD, so this is a
         // cosmetic post-solve curve -- it nudges the head BONE a touch (the camera rides the HMD target).
-        [Range(0f, 1f)] float m_NeckGazeFollow;
-        [Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
+        [Range(0f, 1f)] public float NeckGazeFollow;
+        [Range(0f, 2f)] public float MoveBodyBackWhenCrouching;
         // Elbow/knee swing smoothing: max swing speed (deg/s) around the root→tip axis. Lower =
         // smoother (more lag) so a torso-collision change eases in; 0 disables. See ApplySwingContinuity.
-        [Min(0f)] float m_SwingSmoothRateDeg;
+        [Min(0f)] public float SwingSmoothRateDeg;
         // Arm-swing chest follow: when hand targets shift laterally, the chest yaws to follow so
         // gestures and walking arm-swing don't read as a stiff torso. Only used without a chest
         // tracker — when one is present, it owns chest rotation directly.
-        [Range(0f, 1f)] float m_ChestArmSwingFactor;
-        [Min(0f)] float m_ChestArmSwingMaxDeg;
+        [Range(0f, 1f)] public float ChestArmSwingFactor;
+        [Min(0f)] public float ChestArmSwingMaxDeg;
         // Arm twist distribution: fractions of the wrist/elbow roll absorbed by the optional
         // forearm/upper-arm twist bones. Without these, the wrist eats 100% of the roll and the
         // mesh pinches around the elbow ("candy-wrap" deformation).
-        [Range(0f, 1f)] float m_LowerArmTwistFraction;
-        [Range(0f, 1f)] float m_UpperArmTwistFraction;
+        [Range(0f, 1f)] public float LowerArmTwistFraction;
+        [Range(0f, 1f)] public float UpperArmTwistFraction;
 
         // Anatomy: IK refinements modeled on real biomechanics. Each toggle gates its own
         // solver pass; all on by default.
-        bool m_AnatDifferentialStiffness;
-        bool m_AnatShoulderSlide;
-        bool m_AnatCervicalLordosis;
-        bool m_AnatPelvicTwistRouting;
+        public bool AnatDifferentialStiffness;
+        public bool AnatShoulderSlide;
+        public bool AnatCervicalLordosis;
+        public bool AnatPelvicTwistRouting;
         // The anatomical range-of-motion envelope on every solved vertebra. Default ON: what it replaces
         // is not a safe fallback, it is a measured error (BasisSpineAnatomy).
-        bool m_SpineAnatomicalRom;
+        public bool SpineAnatomicalRom;
         // The chest as a secondary IK target (SolveChestTarget). Default ON.
-        bool m_ChestIKTarget;
+        public bool ChestIKTarget;
         // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
         // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
-        bool m_LegSwivelSmoothing;
+        public bool LegSwivelSmoothing;
         // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
         // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
         // AnatCervicalLordosis is on.
-        [Min(0f)] float m_LordosisPitchGainDeg;
+        [Min(0f)] public float LordosisPitchGainDeg;
         // Cervical lordosis shaping (previously hardcoded consts in ApplyCervicalLordosis). Base
         // bend held in a neutral pose and how it splits between neck and upperChest; the head pitch
         // clamp; and the "extreme look" onset/full window that drives extra spine roll plus
         // hips/chest counter-translation when looking far up or down. Down* are meters of vertical
         // shift at full look-down; *LookUp are the much smaller shift when looking up. Only used
         // when AnatCervicalLordosis is on.
-        [Min(0f)] float m_LordosisBaseDeg;
-        [Range(0f, 1f)] float m_LordosisNeckShare;
-        [Range(0f, 90f)] float m_LordosisMaxHeadPitchDeg;
-        [Range(0f, 90f)] float m_LordosisExtremeStartDeg;
-        [Range(0f, 90f)] float m_LordosisExtremeFullDeg;
-        [Min(0f)] float m_LordosisExtremeRollForwardMaxDeg;
-        [Min(0f)] float m_LordosisExtremeRollBackwardMaxDeg;
-        [Min(0f)] float m_LordosisExtremeHipsHorizontalMax;
-        [Min(0f)] float m_LordosisExtremeChestHorizontalMax;
-        [Min(0f)] float m_LordosisExtremeHipsDownMax;
-        [Min(0f)] float m_LordosisExtremeChestDownMax;
-        [Min(0f)] float m_LordosisExtremeHipsDownLookUp;
-        [Min(0f)] float m_LordosisExtremeChestDownLookUp;
+        [Min(0f)] public float LordosisBaseDeg;
+        [Range(0f, 1f)] public float LordosisNeckShare;
+        [Range(0f, 90f)] public float LordosisMaxHeadPitchDeg;
+        [Range(0f, 90f)] public float LordosisExtremeStartDeg;
+        [Range(0f, 90f)] public float LordosisExtremeFullDeg;
+        [Min(0f)] public float LordosisExtremeRollForwardMaxDeg;
+        [Min(0f)] public float LordosisExtremeRollBackwardMaxDeg;
+        [Min(0f)] public float LordosisExtremeHipsHorizontalMax;
+        [Min(0f)] public float LordosisExtremeChestHorizontalMax;
+        [Min(0f)] public float LordosisExtremeHipsDownMax;
+        [Min(0f)] public float LordosisExtremeChestDownMax;
+        [Min(0f)] public float LordosisExtremeHipsDownLookUp;
+        [Min(0f)] public float LordosisExtremeChestDownLookUp;
 
         // Spine CCD solve: per-iteration under-relaxation (1 = full step) and the neck's max bend
         // cone vs the chest→neck direction, which stops the short neck bone overbending.
-        [Range(0.1f, 1f)] float m_SpineCCDRelax;
-        [Min(0f)] float m_NeckMaxConeDeg;
+        [Range(0.1f, 1f)] public float SpineCCDRelax;
+        [Min(0f)] public float NeckMaxConeDeg;
         // Axial twist the spine CCD reach may use, about the body's hips-up axis, graded down the chain:
-        // m_SpineTwistKeep is the lumbar (lower-back) end -- near-rigid in reality -- and m_SpineNeckTwistKeep
+        // SpineTwistKeep is the lumbar (lower-back) end -- near-rigid in reality -- and SpineNeckTwistKeep
         // the cervical (neck) end, which rotates freely; the joints between interpolate. Lower = a sideways
         // head reach bends instead of corkscrewing (the corkscrew flips sign across center). Hips-up, not
         // world-up, so it stays correct lying down.
-        [Range(0f, 1f)] float m_SpineTwistKeep;
-        [Range(0f, 1f)] float m_SpineNeckTwistKeep;
-        public float minHeadSpineHeight{  get => m_MinHeadSpineHeight; set => m_MinHeadSpineHeight = value; }
-        public Transform chest { get => m_chest; set => m_chest = value; }
-        public Transform neck { get => m_neck; set => m_neck = value; }
-        public Transform head { get => m_head; set => m_head = value; }
-        public Transform LeftUpperLeg { get => m_LeftUpperLeg; set => m_LeftUpperLeg = value; }
-        public Transform LeftLowerLeg { get => m_LeftLowerLeg; set => m_LeftLowerLeg = value; }
-        public Transform leftFoot { get => m_leftFoot; set => m_leftFoot = value; }
-        public Transform RightUpperLeg { get => m_RightUpperLeg; set => m_RightUpperLeg = value; }
-        public Transform RightLowerLeg { get => m_RightLowerLeg; set => m_RightLowerLeg = value; }
-        public Transform RightFoot { get => m_RightFoot; set => m_RightFoot = value; }
-        public Transform hips { get => m_Hips; set => m_Hips = value; }
-        public Transform LeftToe { get => m_LeftToe; set => m_LeftToe = value; }
-        public Transform RightToe { get => m_RightToe; set => m_RightToe = value; }
-        public Transform leftUpperArm { get => m_leftUpperArm; set => m_leftUpperArm = value; }
-        public Transform leftLowerArm { get => m_leftLowerArm; set => m_leftLowerArm = value; }
-        public Transform LeftHand { get => m_leftHand; set => m_leftHand = value; }
-        public Transform RightUpperArm { get => m_RightUpperArm; set => m_RightUpperArm = value; }
-        public Transform RightLowerArm { get => m_RightLowerArm; set => m_RightLowerArm = value; }
-        public Transform RightHand { get => m_rightHand; set => m_rightHand = value; }
-        public Transform spine { get => m_Spine; set => m_Spine = value; }
-        public Transform upperChest { get => m_UpperChest; set => m_UpperChest = value; }
-        public Transform LeftShoulder { get => m_LeftShoulder; set => m_LeftShoulder = value; }
-        public Transform RightShoulder { get => m_RightShoulder; set => m_RightShoulder = value; }
-        public Transform LeftUpperArmTwist { get => m_LeftUpperArmTwist; set => m_LeftUpperArmTwist = value; }
-        public Transform LeftLowerArmTwist { get => m_LeftLowerArmTwist; set => m_LeftLowerArmTwist = value; }
-        public Transform RightUpperArmTwist { get => m_RightUpperArmTwist; set => m_RightUpperArmTwist = value; }
-        public Transform RightLowerArmTwist { get => m_RightLowerArmTwist; set => m_RightLowerArmTwist = value; }
-        public bool WeightChest { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
-        public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
-        public bool HasHipsTracker { get => m_HasHipsTracker; set => m_HasHipsTracker = value; }
-        public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
-        public float EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
-        public bool LeftFootIsTracker { get => m_LeftFootIsTracker; set => m_LeftFootIsTracker = value; }
-        public bool RightFootIsTracker { get => m_RightFootIsTracker; set => m_RightFootIsTracker = value; }
-        public float EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
-        public float EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
-        public float EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
-        public bool LeftLowerLegHintIsTracker { get => m_LeftLowerLegHintIsTracker; set => m_LeftLowerLegHintIsTracker = value; }
-        public bool RightLowerLegHintIsTracker { get => m_RightLowerLegHintIsTracker; set => m_RightLowerLegHintIsTracker = value; }
-        public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
-        public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
-        public bool HintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
-        public float EnabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
-        public float EnabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
-        public bool ProtectElbow { get => m_ProtectElbow; set => m_ProtectElbow = value; }
-        public bool UseNeuralPole { get => m_UseNeuralPole; set => m_UseNeuralPole = value; }
-        public bool CollideTrackedElbow { get => m_CollideTrackedElbow; set => m_CollideTrackedElbow = value; }
-        public bool HintWeightRightHand { get => m_HintRightHandEnabled; set => m_HintRightHandEnabled = value; }
-        public float HandRadius { get => m_HandRadius; set => m_HandRadius = value; }
-        public float HandSkin { get => m_HandSkin; set => m_HandSkin = value; }
-        public float ChestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
-        public float CollisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
-        public bool CollisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
-        public bool EnabledRightShoulder { get => m_enabledRightShoulder; set => m_enabledRightShoulder = value; }
-        public bool EnabledLeftShoulder { get => m_enabledLeftShoulder; set => m_enabledLeftShoulder = value; }
-        public float MaxBendDeg { get => m_MaxBendDeg; set => m_MaxBendDeg = value; }
-        public float MinFactor { get => m_MinFactor; set => m_MinFactor = value; }
-        public float MaxFactor { get => m_MaxFactor; set => m_MaxFactor = value; }
-        public float MaxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
-        public bool ShoulderSolveEnabled { get => m_ShoulderSolveEnabled; set => m_ShoulderSolveEnabled = value; }
-        public bool ShoulderShrugEnabled { get => m_ShoulderShrugEnabled; set => m_ShoulderShrugEnabled = value; }
-        public float ShoulderElevationFactor { get => m_ShoulderElevationFactor; set => m_ShoulderElevationFactor = value; }
-        public float ShoulderProtractionFactor { get => m_ShoulderProtractionFactor; set => m_ShoulderProtractionFactor = value; }
-        public float SpineBendPitch { get => m_SpineBendPitch; set => m_SpineBendPitch = value; }
-        public float SpineBendYaw { get => m_SpineBendYaw; set => m_SpineBendYaw = value; }
-        public float SpineBendRoll { get => m_SpineBendRoll; set => m_SpineBendRoll = value; }
-        public float UpperChestBendPitch { get => m_UpperChestBendPitch; set => m_UpperChestBendPitch = value; }
-        public float UpperChestBendYaw { get => m_UpperChestBendYaw; set => m_UpperChestBendYaw = value; }
-        public float UpperChestBendRoll { get => m_UpperChestBendRoll; set => m_UpperChestBendRoll = value; }
-        public float HipHingeStartDeg { get => m_HipHingeStartDeg; set => m_HipHingeStartDeg = value; }
-        public float HipHingeMaxAddDeg { get => m_HipHingeMaxAddDeg; set => m_HipHingeMaxAddDeg = value; }
-        public float ChestSpringHz { get => m_ChestSpringHz; set => m_ChestSpringHz = value; }
-        public float ChestSpringDamping { get => m_ChestSpringDamping; set => m_ChestSpringDamping = value; }
-        public float SpineMaxForwardDeg { get => m_SpineMaxForwardDeg; set => m_SpineMaxForwardDeg = value; }
-        public float SpineMaxBackwardDeg { get => m_SpineMaxBackwardDeg; set => m_SpineMaxBackwardDeg = value; }
-        public float SpineMaxLateralDeg { get => m_SpineMaxLateralDeg; set => m_SpineMaxLateralDeg = value; }
-        public float SpineSquishBoost { get => m_SpineSquishBoost; set => m_SpineSquishBoost = value; }
-        public float SpineGazeFollow { get => m_SpineGazeFollow; set => m_SpineGazeFollow = value; }
-        public float NeckGazeFollow { get => m_NeckGazeFollow; set => m_NeckGazeFollow = value; }
-        public float MoveBodyBackWhenCrouching { get => m_MoveBodyBackWhenCrouching; set => m_MoveBodyBackWhenCrouching = value; }
-        public float SwingSmoothRateDeg { get => m_SwingSmoothRateDeg; set => m_SwingSmoothRateDeg = value; }
-        public float ChestArmSwingFactor { get => m_ChestArmSwingFactor; set => m_ChestArmSwingFactor = value; }
-        public float ChestArmSwingMaxDeg { get => m_ChestArmSwingMaxDeg; set => m_ChestArmSwingMaxDeg = value; }
-        public float LowerArmTwistFraction { get => m_LowerArmTwistFraction; set => m_LowerArmTwistFraction = value; }
-        public float UpperArmTwistFraction { get => m_UpperArmTwistFraction; set => m_UpperArmTwistFraction = value; }
-        public bool AnatDifferentialStiffness { get => m_AnatDifferentialStiffness; set => m_AnatDifferentialStiffness = value; }
-        public bool AnatShoulderSlide { get => m_AnatShoulderSlide; set => m_AnatShoulderSlide = value; }
-        public bool AnatCervicalLordosis { get => m_AnatCervicalLordosis; set => m_AnatCervicalLordosis = value; }
-        public bool AnatPelvicTwistRouting { get => m_AnatPelvicTwistRouting; set => m_AnatPelvicTwistRouting = value; }
-        public bool SpineAnatomicalRom { get => m_SpineAnatomicalRom; set => m_SpineAnatomicalRom = value; }
-        public bool ChestIKTarget { get => m_ChestIKTarget; set => m_ChestIKTarget = value; }
-        public bool LegSwivelSmoothing { get => m_LegSwivelSmoothing; set => m_LegSwivelSmoothing = value; }
-        public float LordosisPitchGainDeg { get => m_LordosisPitchGainDeg; set => m_LordosisPitchGainDeg = value; }
-        public float LordosisBaseDeg { get => m_LordosisBaseDeg; set => m_LordosisBaseDeg = value; }
-        public float LordosisNeckShare { get => m_LordosisNeckShare; set => m_LordosisNeckShare = value; }
-        public float LordosisMaxHeadPitchDeg { get => m_LordosisMaxHeadPitchDeg; set => m_LordosisMaxHeadPitchDeg = value; }
-        public float LordosisExtremeStartDeg { get => m_LordosisExtremeStartDeg; set => m_LordosisExtremeStartDeg = value; }
-        public float LordosisExtremeFullDeg { get => m_LordosisExtremeFullDeg; set => m_LordosisExtremeFullDeg = value; }
-        public float LordosisExtremeRollForwardMaxDeg { get => m_LordosisExtremeRollForwardMaxDeg; set => m_LordosisExtremeRollForwardMaxDeg = value; }
-        public float LordosisExtremeRollBackwardMaxDeg { get => m_LordosisExtremeRollBackwardMaxDeg; set => m_LordosisExtremeRollBackwardMaxDeg = value; }
-        public float LordosisExtremeHipsHorizontalMax { get => m_LordosisExtremeHipsHorizontalMax; set => m_LordosisExtremeHipsHorizontalMax = value; }
-        public float LordosisExtremeChestHorizontalMax { get => m_LordosisExtremeChestHorizontalMax; set => m_LordosisExtremeChestHorizontalMax = value; }
-        public float LordosisExtremeHipsDownMax { get => m_LordosisExtremeHipsDownMax; set => m_LordosisExtremeHipsDownMax = value; }
-        public float LordosisExtremeChestDownMax { get => m_LordosisExtremeChestDownMax; set => m_LordosisExtremeChestDownMax = value; }
-        public float LordosisExtremeHipsDownLookUp { get => m_LordosisExtremeHipsDownLookUp; set => m_LordosisExtremeHipsDownLookUp = value; }
-        public float LordosisExtremeChestDownLookUp { get => m_LordosisExtremeChestDownLookUp; set => m_LordosisExtremeChestDownLookUp = value; }
-        public float SpineCCDRelax { get => m_SpineCCDRelax; set => m_SpineCCDRelax = value; }
-        public float SpineTwistKeep { get => m_SpineTwistKeep; set => m_SpineTwistKeep = value; }
-        public float SpineNeckTwistKeep { get => m_SpineNeckTwistKeep; set => m_SpineNeckTwistKeep = value; }
-        public float NeckMaxConeDeg { get => m_NeckMaxConeDeg; set => m_NeckMaxConeDeg = value; }
+        [Range(0f, 1f)] public float SpineTwistKeep;
+        [Range(0f, 1f)] public float SpineNeckTwistKeep;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetTargetPosition(int idx, in Vector3 v)
         {
@@ -442,37 +330,26 @@ namespace UnityEngine.Animations.Rigging
 
         public void SetDefaultValues()
         {
-            TargetPositions.Length = Count;
-            TargetRotations.Length = Count;
-            OffsetRotations.Length = Count;
-            Weights.Length = Count;
-            for (int i = 0; i < Count; i++)
-            {
-                TargetPositions[i] = Vector3.zero;
-                TargetRotations[i] = Quaternion.identity;
-                OffsetRotations[i] = Quaternion.identity;
-                Weights[i] = false;
-            }
-            m_chest = m_neck = m_head = null;
-            m_LeftUpperLeg = m_LeftLowerLeg = m_leftFoot = null;
-            m_RightUpperLeg = m_RightLowerLeg = m_RightFoot = null;
+            chest = neck = head = null;
+            LeftUpperLeg = LeftLowerLeg = leftFoot = null;
+            RightUpperLeg = RightLowerLeg = RightFoot = null;
 
-            m_leftUpperArm = m_leftLowerArm = m_leftHand = null;
-            m_RightUpperArm = m_RightLowerArm = m_rightHand = null;
+            leftUpperArm = leftLowerArm = LeftHand = null;
+            RightUpperArm = RightLowerArm = RightHand = null;
 
-            m_Hips = null;
+            hips = null;
 
-            m_HintHeadEnabled = true;
-            m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
-            m_SpineIKEnabled = true;
-            m_HasHipsTracker = false;
-            m_LeftFootIsTracker = m_RightFootIsTracker = false;
-            m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
-            m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
-            m_IKLockMode = (float)BasisIKLockMode.LockHead;
+            WeightChest = true;
+            EnableLeftLowerLeg = EnableRightLowerLeg = 1f;
+            EnabledSpineIK = true;
+            HasHipsTracker = false;
+            LeftFootIsTracker = RightFootIsTracker = false;
+            EnableLeftLeg = EnableRightLeg = 1f;
+            LeftLowerLegHintIsTracker = RightLowerLegHintIsTracker = false;
+            IKLockMode = (float)BasisIKLockMode.LockHead;
 
-            m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
-            m_EnabledLeftHand = m_EnabledRightHand = 1f;
+            HintWeightLeftHand = HintWeightRightHand = true;
+            EnabledLeftHand = EnabledRightHand = 1f;
             m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
 
@@ -483,76 +360,76 @@ namespace UnityEngine.Animations.Rigging
             OffsetRotationHips = Quaternion.identity;
 
             // Integrated driven TR defaults
-            m_LeftToe = null;
-            m_RightToe = null;
+            LeftToe = null;
+            RightToe = null;
 
             OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
-            m_LeftToeEnabled = false;
-            m_RightToeEnabled = false;
+            LeftToeEnabled = false;
+            RightToeEnabled = false;
 
             // Chest/hand capsule defaults — read from persisted settings
-            m_chest = m_neck = null;
-            m_ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
-            m_CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
-            m_CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
-            m_HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
-            m_HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
-            m_ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
-            m_CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
+            chest = neck = null;
+            ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
+            CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
+            CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
+            HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
+            HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
+            ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
 
-            m_ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
-            m_ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
-            m_ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
-            m_ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
+            ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
+            ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
+            ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
-            m_SpineBendPitch = 0.45f;
-            m_SpineBendYaw = 0.10f;
-            m_SpineBendRoll = 0.35f;
-            m_UpperChestBendPitch = 0.25f;
-            m_UpperChestBendYaw = 0.30f;
-            m_UpperChestBendRoll = 0.20f;
-            m_HipHingeStartDeg = 40f;
-            m_HipHingeMaxAddDeg = 52f;
-            m_ChestSpringHz = 12f;
-            m_ChestSpringDamping = 1f;
-            m_SpineMaxForwardDeg = 60f;
-            m_SpineMaxBackwardDeg = 25f;
-            m_SpineMaxLateralDeg = 25f;
-            m_SpineSquishBoost = 0.5f;
-            m_SpineGazeFollow = 0.25f;
-            m_NeckGazeFollow = 0.3f;
-            m_MoveBodyBackWhenCrouching = 1f;
-            m_SwingSmoothRateDeg = 720f;
-            m_ChestArmSwingFactor = 0.3f;
-            m_ChestArmSwingMaxDeg = 15f;
-            m_LowerArmTwistFraction = 0.5f;
-            m_UpperArmTwistFraction = 0.3f;
+            SpineBendPitch = 0.45f;
+            SpineBendYaw = 0.10f;
+            SpineBendRoll = 0.35f;
+            UpperChestBendPitch = 0.25f;
+            UpperChestBendYaw = 0.30f;
+            UpperChestBendRoll = 0.20f;
+            HipHingeStartDeg = 40f;
+            HipHingeMaxAddDeg = 52f;
+            ChestSpringHz = 12f;
+            ChestSpringDamping = 1f;
+            SpineMaxForwardDeg = 60f;
+            SpineMaxBackwardDeg = 25f;
+            SpineMaxLateralDeg = 25f;
+            SpineSquishBoost = 0.5f;
+            SpineGazeFollow = 0.25f;
+            NeckGazeFollow = 0.3f;
+            MoveBodyBackWhenCrouching = 1f;
+            SwingSmoothRateDeg = 720f;
+            ChestArmSwingFactor = 0.3f;
+            ChestArmSwingMaxDeg = 15f;
+            LowerArmTwistFraction = 0.5f;
+            UpperArmTwistFraction = 0.3f;
 
-            m_AnatDifferentialStiffness = false;
-            m_AnatShoulderSlide = false;
-            m_AnatCervicalLordosis = false;
-            m_AnatPelvicTwistRouting = false;
-            m_SpineAnatomicalRom = false;
-            m_ChestIKTarget = false;
-            m_LegSwivelSmoothing = true;
-            m_LordosisPitchGainDeg = 8f;
-            m_LordosisBaseDeg = 5f;
-            m_LordosisNeckShare = 0.65f;
-            m_LordosisMaxHeadPitchDeg = 80f;
-            m_LordosisExtremeStartDeg = 50f;
-            m_LordosisExtremeFullDeg = 80f;
-            m_LordosisExtremeRollForwardMaxDeg = 10f;
-            m_LordosisExtremeRollBackwardMaxDeg = 4f;
-            m_LordosisExtremeHipsHorizontalMax = 0.025f;
-            m_LordosisExtremeChestHorizontalMax = 0.04f;
-            m_LordosisExtremeHipsDownMax = 0.015f;
-            m_LordosisExtremeChestDownMax = 0.025f;
-            m_LordosisExtremeHipsDownLookUp = 0.0005f;
-            m_LordosisExtremeChestDownLookUp = 0.001f;
-            m_SpineCCDRelax = 0.8f;
-            m_NeckMaxConeDeg = 45f;
-            m_SpineTwistKeep = 0.25f;
-            m_SpineNeckTwistKeep = 0.9f;
+            AnatDifferentialStiffness = false;
+            AnatShoulderSlide = false;
+            AnatCervicalLordosis = false;
+            AnatPelvicTwistRouting = false;
+            SpineAnatomicalRom = false;
+            ChestIKTarget = false;
+            LegSwivelSmoothing = true;
+            LordosisPitchGainDeg = 8f;
+            LordosisBaseDeg = 5f;
+            LordosisNeckShare = 0.65f;
+            LordosisMaxHeadPitchDeg = 80f;
+            LordosisExtremeStartDeg = 50f;
+            LordosisExtremeFullDeg = 80f;
+            LordosisExtremeRollForwardMaxDeg = 10f;
+            LordosisExtremeRollBackwardMaxDeg = 4f;
+            LordosisExtremeHipsHorizontalMax = 0.025f;
+            LordosisExtremeChestHorizontalMax = 0.04f;
+            LordosisExtremeHipsDownMax = 0.015f;
+            LordosisExtremeChestDownMax = 0.025f;
+            LordosisExtremeHipsDownLookUp = 0.0005f;
+            LordosisExtremeChestDownLookUp = 0.001f;
+            SpineCCDRelax = 0.8f;
+            NeckMaxConeDeg = 45f;
+            SpineTwistKeep = 0.25f;
+            SpineNeckTwistKeep = 0.9f;
 
             // Slots: identity rotations, zero positions, weights disabled.
             TargetPositions.Length = Count;
@@ -1431,7 +1308,6 @@ collisionsEnabled;
             return newPos;
         }
         static bool IsFinite(Vector3 v) => !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
-        static bool IsFinite(Quaternion q) => !float.IsNaN(q.x) && !float.IsInfinity(q.x) && !float.IsNaN(q.y) && !float.IsInfinity(q.y) && !float.IsNaN(q.z) && !float.IsInfinity(q.z) && !float.IsNaN(q.w) && !float.IsInfinity(q.w);
         // Pelvis tilts forward to share the lean past the threshold. Without this, a deep forward
         // reach makes the spine swallow the entire bend and everything above the hips folds.
         Quaternion ApplyHipHinge(BasisPoseStream stream, Vector3 headPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUp)
@@ -1688,7 +1564,6 @@ collisionsEnabled;
                 twist.SetRotation(stream, result.TwistWorldRotation);
             }
         }
-        static Quaternion ExtractTwist(Quaternion q, Vector3 axis) => BasisTwistSolveCore.ExtractTwist(q, axis);
         // Shoulder pre-solve. Runs whenever the shoulder bone exists and the global toggle is on — a
         // dedicated shoulder tracker is no longer required. hasShoulderTrackerProp (the shoulder rig
         // layer) selects the base: the tracker when present, else the chest-anchored rest. The elbow
@@ -2195,7 +2070,8 @@ collisionsEnabled;
             Vector3 bendNormal = bendNormalProp;
 
             float hintDistrust = 0f;
-            if (!(hintW > 0f))
+            bool fabricatedLeg = !hintIsTrackerProp && !footIsTrackerProp;
+            if (!(hintW > 0f) || fabricatedLeg)
             {
                 // NO KNEE TRACKER. The leg used to have no hint model AT ALL here -- it fell through to
                 // BendNormal = hips-right, a FIXED body axis. A fixed pole collapses precisely when the leg
@@ -2936,8 +2812,6 @@ collisionsEnabled;
             job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
-
-
 
             return job;
         }

@@ -179,9 +179,10 @@ namespace UnityEngine.Animations.Rigging
 
             if (!i.Seeded)
             {
+                bool deferSeedWhileSingular = i.HoldWhenSingular && conditioning < i.HoldCondHi;
                 r.State = BasisSwivelFilterCore.Seed(guardedSwivel);
-                r.Seeded = true;
-                r.WriteState = true;
+                r.Seeded = !deferSeedWhileSingular;
+                r.WriteState = !deferSeedWhileSingular;
                 r.SmoothSwivelDeg = guardedSwivel;
                 r.HoldGate = 1f;   // seeding passes the value straight through -- nothing is held on the first frame
                 return;
