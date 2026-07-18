@@ -15,12 +15,30 @@ public struct BasisFootNativeState
     /// position blends from stepStartPos -- see BasisFootSimulateJob's swing branch for why that matters.</summary>
     public quaternion stepStartRot;
     public float stepTimer, stepDur;
+    /// <summary>Floor applied to this step's arc-height strideFrac, frozen at commit alongside stepDur.
+    /// A step taken while the body is TURNING travels almost no ground -- a 20 deg re-plant only orbits the
+    /// foot ~4 cm -- so the "a short shuffle barely lifts" scaling reads it as a drift correction and collapses
+    /// the arc to ~0.46x. But a turn step is a real step and a human clears the floor for it. Frozen (not read
+    /// live from the yaw rate) because dynamicHeight must stay CONSTANT across the swing: stepStartPos and
+    /// stepTargetPos are both frozen, so a live term would move the foot's peak height mid-flight and pop it.
+    /// 0 = no floor = the pre-existing behaviour, which is what the sweep/mocap mirrors leave it at.</summary>
+    public float stepArcScale;
     public float plantedTime;       // seconds since this foot landed; gates the double-support window
 
     public float3 idealPos, filteredNormal;
     public float3 currentPos;
     public quaternion currentRot;
     public float3 kneeHint;
+
+    /// <summary>Toe MTP bend, degrees, from the toe surface probe. Positive = dorsiflexion (toes UP, the foot
+    /// bending over a rise); negative = plantarflexion. 0 when the toe probe found nothing to conform to, which
+    /// includes overhanging an edge -- a toe with no ground under it stays where the animation put it rather than
+    /// reaching into a void. Consumed by the FBIK job's toe stage, NOT by the sim job.</summary>
+    public float toeBendDeg;
+    /// <summary>World medio-lateral axis the toe bends about, built from the body frame rather than the toe bone's
+    /// own axes -- a humanoid toe's local axes are rig-dependent, which is the exact trap that silently disabled
+    /// the yaw trigger and produced the toes-up foot rotation. Zero if the probe was not run this frame.</summary>
+    public float3 toeBendAxis;
 
     // Step trigger output (read by main thread after job)
     public bool wantsStep;

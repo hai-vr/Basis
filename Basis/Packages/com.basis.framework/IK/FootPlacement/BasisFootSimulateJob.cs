@@ -91,6 +91,30 @@ public struct BasisFootSimulateJob : IJob
     // a no-op during walking (feet are fore-aft-offset there, so the euclidean gap never drops this low).
     const float k_MinFootSepFrac = 0.85f;
 
+    // TURN URGENCY vs TURN PACING -- one yaw term was doing two different jobs, and it made every turn frantic.
+    //
+    // fastYawRef is DERIVED as "the yaw rate at which even fast steps cannot keep up" (0.5*maxPlantedYaw/stepDurFast
+    // ~= 59 deg/s on an adult). As a PACING reference that is right: past it the feet must re-plant continuously or
+    // they strand. But yawFrac was then reused as the URGENCY scale for step DURATION and DOUBLE SUPPORT, and those
+    // are not the same question. A turn needs MORE steps; it does not need each individual step to be a 168 ms flick
+    // with no both-feet-planted settle. Stepping often and stepping hurriedly are independent.
+    //
+    // The cost was severe because 59 deg/s is an ordinary turn. A VR smooth-turn runs 90-120 deg/s, so yawFrac sat
+    // PINNED at 1.0 for the entire turn: stepDur locked to its minimum AND doubleSupportSec multiplied to exactly
+    // zero (a foot could lift the tick the other landed). Both weight cues gone, together, whenever you turn.
+    //
+    // So: yawFrac keeps pacing the TRIGGER and widening the stance (measured, and the anti-crossover result above
+    // depends on both). Urgency gets its own, much higher reference -- an ordinary turn stays deliberate, and only a
+    // genuine fast spin compresses the step. At mul 5 urgency saturates ~297 deg/s, which is where the measured
+    // scissor problems actually begin; a 110 deg/s smooth-turn reads 0.37 instead of 1.0.
+    // Public because BasisLocalFootDriver.FinalizeStep commits the step and must derive the SAME values. Shared
+    // rather than duplicated: fastYawRef is already copy-pasted across the job and the driver, and this file's
+    // history is full of mirrors drifting apart (the sweep, the mocap harness, and DeriveStepParameters are three).
+    public const float YawUrgencyRefMul = 5.0f;
+    // Arc floor for a step taken while turning. A turn step travels ~4 cm, which the stride-scaled lift reads as a
+    // drift correction (~0.46x height). Floor strideFrac so it clears the ground like the real step it is.
+    public const float TurnStepArcFloor = 0.65f;
+
     public BasisFootSimParams p;
     public NativeArray<BasisFootNativeState> feet;   // length 2: [0]=left, [1]=right
     public NativeArray<BasisFootSimState> simState;   // length 1
@@ -268,6 +292,8 @@ public struct BasisFootSimulateJob : IJob
         // rotation stance-widening can use it too. yawFrac is 0 in a straight walk, so widening is a no-op there.
         float fastYawRef = math.max(1f, 0.5f * p.maxPlantedYawDegrees / math.max(0.01f, p.stepDurFast));
         float yawFrac = math.saturate(math.abs(sim.smoothedYawRateDeg) / fastYawRef);
+        // Separate scale for "how HURRIED is this step" -- see k_YawUrgencyRefMul. Pacing (yawFrac) stays as it was.
+        float yawUrgency = math.saturate(math.abs(sim.smoothedYawRateDeg) / (fastYawRef * YawUrgencyRefMul));
         float halfStance = p.stanceWidth * 0.5f * math.lerp(1f, k_StanceNarrowAtSpeed, speedFrac * fwdFrac)
                            * (1f + k_RotWidenFrac * yawFrac);   // widen the base during a fast turn (anti-scissor)
 
@@ -297,7 +323,9 @@ public struct BasisFootSimulateJob : IJob
         // Pace steps by translation OR body rotation: a spin (high yaw rate, no translation) must step
         // as fast as a fast walk so the feet keep up and don't cross. fastYawRef/yawFrac were computed above
         // (the rotation stance-widening needs them too); yawFrac IS the yaw pacing term.
-        float speedT = math.max(math.saturate(speed / p.fastSpeedRef), yawFrac);
+        // How HURRIED a single step is (its duration) -- NOT how often steps fire. Translation still saturates on
+        // fastSpeedRef, but the yaw contribution uses the urgency reference so an ordinary turn stays deliberate.
+        float urgencyT = math.max(math.saturate(speed / p.fastSpeedRef), yawUrgency);
         // Idle boost only when genuinely stationary -- NOT spinning in place (which has speed ~0 but
         // a high yaw rate); boosting the trigger there steps late and the foot crosses.
         bool stationary = speed < p.idleSpeedThreshold && math.abs(sim.smoothedYawRateDeg) < 20f;
@@ -313,14 +341,29 @@ public struct BasisFootSimulateJob : IJob
         // does -- stride length saturates and cadence takes over. Capping the drift makes that happen.
         float avgLegT = (p.leftLegLen + p.rightLegLen) * 0.5f;
         float threshold = math.min(p.stepTriggerDist + speed * p.strideScale + idleBoost, avgLegT * 0.55f);
-        float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, speedT);
+        float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, urgencyT);
 
         // DOUBLE SUPPORT -- both feet on the ground together, which is what makes a walk read as WEIGHTED, and
         // what a slow deliberate walk is MOSTLY made of. Faded across the WALK range (see the const block): high
         // at a slow crawl, low at a brisk walk, and zeroed during a spin (yawFrac) so the anti-cross fix holds.
         float dsSpeedRef = math.sqrt(9.81f * avgLegT);
         float dsWalkT = math.saturate(speed / math.max(1e-3f, k_WalkTopSpeedFrac * dsSpeedRef));
-        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportSlow, k_DoubleSupportFast, dsWalkT) * (1f - yawFrac);
+        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportSlow, k_DoubleSupportFast, dsWalkT) * (1f - yawUrgency);
+
+        // ...but NEVER hold the feet longer than the turn can afford. Double support blocks stepping outright, so
+        // decaying it on the softer urgency scale risks re-creating the stranding bug it was zeroed to avoid: at
+        // 110 deg/s an unbounded 0.30 s settle would forbid stepping through 33 deg of body rotation, well past the
+        // 20 deg re-plant threshold, and the foot would sit there with its yaw trigger screaming and gated shut.
+        //
+        // Cap it at the time it takes to actually SPEND the planted-yaw budget. That is the exact quantity the
+        // trigger is measuring, so the settle can never outlast the foot's permission to stay put -- self-limiting
+        // at every rate, and it needs no tuning constant. Above ~300 deg/s urgency has already zeroed the term, so
+        // the measured 360-1200 deg/s anti-crossover behaviour is bit-identical to before.
+        float absYawRate = math.abs(sim.smoothedYawRateDeg);
+        if (absYawRate > 1f)
+        {
+            doubleSupportSec = math.min(doubleSupportSec, p.maxPlantedYawDegrees / absYawRate);
+        }
 
         // TOUCHDOWN, detected as an EDGE (airborne last tick, grounded this one).
         //
@@ -474,6 +517,20 @@ public struct BasisFootSimulateJob : IJob
             float a = 1f - math.exp(-p.plantedLerpSpeed * dt);
             f.currentPos = math.lerp(f.currentPos, f.plantedPos, a);
 
+            // Re-conform a PLANTED foot to the live surface normal. plantedRot is otherwise written only at
+            // landing, so the per-frame surface probes would be inert for exactly the foot they describe.
+            //
+            // Rebuilt from the FROZEN plantedBodyFwd, never the live one. Holding a planted foot's YAW is
+            // deliberate -- a foot that is down must not pivot as the body turns; that is the whole reason the
+            // yaw trigger and maxPlantedYawDegrees exist to arbitrate when it may re-plant. Only the TILT
+            // tracks. Because the forward is unchanged, this is exactly a no-op on flat ground (filteredNormal
+            // stays up) and a no-op when the probes are disabled (filteredNormal keeps its plant-time value).
+            if (math.lengthsq(f.plantedBodyFwd) > 1e-6f && math.lengthsq(f.filteredNormal) > 1e-6f)
+            {
+                quaternion plantedAlign = f.sideSign < 0 ? p.footAlignLeft : p.footAlignRight;
+                f.plantedRot = FootRotation(f.plantedBodyFwd, f.filteredNormal, up, plantedAlign, 0f);
+            }
+
             float ra = 1f - math.exp(-p.rotationLerpSpeed * dt);
             f.currentRot = math.slerp(f.currentRot, f.plantedRot, ra);
 
@@ -549,6 +606,10 @@ public struct BasisFootSimulateJob : IJob
             float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
             float stepDist = HDist(f.stepStartPos, f.stepTargetPos, up);
             float strideFrac = math.saturate(stepDist / math.max(1e-3f, avgLeg * p.stepHeightStrideRefFraction));
+            // A turn step covers almost no ground but is still a real step -- floor it (frozen at commit, so the
+            // peak height cannot move mid-swing). stepArcScale is 0 for every non-turn step and in the sweep/mocap
+            // mirrors, which makes this exactly a no-op there.
+            strideFrac = math.max(strideFrac, f.stepArcScale);
             float dynamicHeight = p.stepHeightCalc * math.lerp(p.stepHeightMinFraction, 1.0f, strideFrac);
 
             // Normalise the arc by its OWN peak, derived from the exponents. The hardcoded 0.234 was wrong for the

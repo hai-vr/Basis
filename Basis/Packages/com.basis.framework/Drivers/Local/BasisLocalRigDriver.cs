@@ -826,6 +826,33 @@ namespace Basis.Scripts.Drivers
                 data.TargetRotationRightShoulder = rOut[S_RightShoulder];
             }
 
+            // ── PROCEDURAL TOE ARTICULATION ──
+            // Surface-probe toe bend, scaled by the same blend weight as the rest of foot IK so it fades in and
+            // out with it rather than snapping. The FBIK job only consults these when the toe TRACKER is absent,
+            // so a real tracked toe still wins; zeroing here when the driver is not engaged keeps the toe under
+            // pure animation control on every other path.
+            if (footIKBlendWeightLeft > 0.001f && footDriverReady)
+            {
+                data.leftToeBendDeg = footDriver.LeftToeBendDegrees * footIKBlendWeightLeft;
+                data.leftToeBendAxis = footDriver.LeftToeBendAxis;
+            }
+            else
+            {
+                data.leftToeBendDeg = 0f;
+                data.leftToeBendAxis = Vector3.zero;
+            }
+
+            if (footIKBlendWeightRight > 0.001f && footDriverReady)
+            {
+                data.rightToeBendDeg = footDriver.RightToeBendDegrees * footIKBlendWeightRight;
+                data.rightToeBendAxis = footDriver.RightToeBendAxis;
+            }
+            else
+            {
+                data.rightToeBendDeg = 0f;
+                data.rightToeBendAxis = Vector3.zero;
+            }
+
             // ── SHIN ROLL (tracker-implied lower-leg BONE rotation) ──
             // A calf strap's clock angle is arbitrary and the lower-leg role gets no Recalibrated* rotation
             // offset, so the raw tracker rotation is mapped through the calibration reference before the solve

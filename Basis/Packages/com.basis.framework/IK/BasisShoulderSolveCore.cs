@@ -59,6 +59,22 @@ namespace Basis.IK
         const float k_DepressionShare = 0.25f;       // lowering below bind moves the girdle far less than raising
         const float k_DepressionBand = 0.12f;        // smooth raise/lower crossover, in chest-up units
 
+        // HIGH-ELEVATION BOOST. Scapular contribution is PROGRESSIVE: the first ~30 deg of humeral elevation is
+        // almost purely glenohumeral, and the scapula takes over late (2:1 rhythm is the whole-range average, not
+        // a constant). A single CoupleRatio cannot express that, so the shipped 0.4 -- chosen to stop the elbow
+        // reading floaty in the MID range -- leaves a large deficit at the top. Measured on this core, arms
+        // out-and-up: girdle 5.2 deg at 90, 7.9 at 135, 10.6 at 180, against an anatomical ~30/45/60. Whatever
+        // the scapula does not supply the glenohumeral joint must, so the humerus ends up tens of degrees further
+        // rotated against a shoulder that barely moved -- which is what collapses the deltoid in a starfish.
+        //
+        // `raise` = armDirL.y - restDirL.y, so it runs 0 (arms down) -> 1 (out sideways) -> 2 (overhead). Below
+        // k_HighElevRaiseStart this multiplier is EXACTLY 1, so everything the mid-range tuning covers is
+        // byte-for-byte unchanged and the floaty-elbow fix is untouched.
+        const float k_HighElevRaiseStart = 1.0f;     // ~90 deg of elevation: below this, exact identity
+        const float k_HighElevRaiseFull = 2.0f;      // ~180 deg: full boost
+        const float k_HighElevCoupleBoost = 3.0f;    // FEEL: raise to close more of the deficit, lower if the
+                                                     // girdle over-rides an overhead reach. In-headset call.
+
         // ── SHRUG, mined from the hands (or better, the elbows) ─────────────────────────────────────
         // Hanging at the side, a real shrug lifts the whole girdle: the controller RISES while the arm's
         // DIRECTION barely changes -- zero humeral swing, which is the one quantity everything above is
@@ -122,7 +138,10 @@ namespace Basis.IK
             // also keeps idle / arms-down poses near the authored bind shoulder.
             float raise = armDirL.y - restDirL.y;
             float elevGain = Mathf.Lerp(k_DepressionShare, 1f, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-k_DepressionBand, k_DepressionBand, raise)));
-            Vector3 girdleRv = new Vector3(rv.x * i.ElevationFactor * elevGain, rv.y * i.ProtractionFactor, rv.z * i.ElevationFactor * elevGain) * couple;
+            float highElev = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_HighElevRaiseStart, k_HighElevRaiseFull, raise));
+            float elevBoost = Mathf.Lerp(1f, k_HighElevCoupleBoost, highElev);
+            float elevShare = i.ElevationFactor * elevGain * elevBoost;
+            Vector3 girdleRv = new Vector3(rv.x * elevShare, rv.y * i.ProtractionFactor, rv.z * elevShare) * couple;
 
             // The shrug (see the constants block). Deliberately NOT scaled by `engage`: a shrug has zero
             // humeral swing, so the swing-based setting gate would erase exactly the gesture this exists

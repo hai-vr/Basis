@@ -90,6 +90,13 @@ hintWeightRightHand,
 protectElbow, collideTrackedElbow, useNeuralPole,
 collisionsEnabled;
 
+        /// <summary>Procedural toe articulation from BasisLocalFootDriver's surface probes. Degrees, positive =
+        /// dorsiflexion; the axis is the world medio-lateral. Only consulted when the matching toe TRACKER is
+        /// absent, so a tracked toe is never overridden. Zero = inert, which is the state on every path that does
+        /// not run the foot driver (remote players, foot trackers, foot IK disabled).</summary>
+        public float leftToeBendDeg, rightToeBendDeg;
+        public Vector3 leftToeBendAxis, rightToeBendAxis;
+
         // Per-bone override slots, indexed identically to BasisFullIKConstraintJob.
         public FixedList512Bytes<Vector3> slotPositions;
         public FixedList512Bytes<Quaternion> slotRotations;
@@ -267,9 +274,13 @@ collisionsEnabled;
             SolveArmTwist(stream, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftUpperArmTwist, upperTwist);
             SolveArmTwist(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightUpperArmTwist, upperTwist);
 
-            // 5) Toes
-            ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
-            ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
+            // 5) Toes. A toe TRACKER wins outright; otherwise the procedural surface bend from the foot driver
+            // articulates the toe over stair noses, kerbs and ramps.
+            if (leftToeEnabled) ApplyRotation(stream, true, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
+            else ApplyToeSurfaceBend(stream, HandleLeftToe, leftToeBendDeg, leftToeBendAxis);
+
+            if (RightToeEnabled) ApplyRotation(stream, true, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
+            else ApplyToeSurfaceBend(stream, HandleRightToe, rightToeBendDeg, rightToeBendAxis);
 
             // 6) Generic per-bone overrides (direct tracker control)
             for (int i = 0; i < slotHandles.Length; i++)
@@ -1341,6 +1352,29 @@ collisionsEnabled;
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
+        /// <summary>
+        /// Bend the toe about a world medio-lateral axis, on top of wherever the pose already has it.
+        ///
+        /// Deliberately RELATIVE, not an absolute target. Reading the toe's current world rotation and adding a
+        /// delta is identity at zero bend BY CONSTRUCTION, so this cannot come out toes-up the way an absolute
+        /// LookRotation-style target did -- that bug cost a whole investigation, and the foot's footAlign
+        /// rest-basis map exists solely to undo it. It also needs no calibration offset (offsetRotationLeftToe is
+        /// only meaningful when a toe CONTROL was actually calibrated, which it is not on the procedural path)
+        /// and no assumption about the rig's toe bone axes.
+        ///
+        /// Runs after SolveLegs, so the toe's composed world rotation already carries the solved foot.
+        /// Sign: positive bendDeg is DORSIFLEXION (toes up). A positive AngleAxis about world-right pitches
+        /// forward toward down in Unity's left-handed frame, hence the negation.
+        /// </summary>
+        public void ApplyToeSurfaceBend(BasisPoseStream stream, BasisBoneHandle handle, float bendDeg, Vector3 axis)
+        {
+            if (!handle.IsValid(stream)) return;
+            if (Mathf.Abs(bendDeg) < 0.01f || axis.sqrMagnitude < 1e-6f) return;
+
+            Quaternion current = handle.GetRotation(stream);
+            handle.SetRotation(stream, Quaternion.AngleAxis(-bendDeg, axis.normalized) * current);
+        }
+
         public void ApplyRotation(BasisPoseStream stream, bool enabledProp, BasisBoneHandle handle, Quaternion targetRotProp, Quaternion RotationOffset)
         {
             if (!handle.IsValid(stream))

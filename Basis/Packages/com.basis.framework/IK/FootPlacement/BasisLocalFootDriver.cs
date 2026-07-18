@@ -869,6 +869,18 @@ public partial class BasisLocalFootDriver
         LastGroundUp = groundHit ? Vector3.Dot(ch.point, cachedPlayerUp) : float.NaN;
         HipsUp = Vector3.Dot(hips.position, cachedPlayerUp);
 
+        // ── 1b. Surface conformance probes (main thread; the Burst sim job cannot raycast) ──
+        // Runs BEFORE the job so the normal it consumes is fresh this frame rather than a frame stale. Uses the
+        // feet's positions as of last frame, which is the same one-frame relationship the ground cast above has.
+        // Planted feet only, so the usual cost is 4 rays (one foot planted mid-walk) to 8 (both planted).
+        if (SurfaceProbesEnabled)
+        {
+            ref BasisFootNativeState leftProbe = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 0);
+            ref BasisFootNativeState rightProbe = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1);
+            ProbeFootSurface(ref leftProbe, dt);
+            ProbeFootSurface(ref rightProbe, dt);
+        }
+
         // ── 2. Pack input (write in place; no job is in flight here) ──
         ref BasisFootSimInput inputSlot = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimInput>(_nativeInput.GetUnsafePtr(), 0);
         inputSlot = new BasisFootSimInput
@@ -950,7 +962,13 @@ public partial class BasisLocalFootDriver
         float3 velFlat = (float3)ProjectHorizontal(sim.smoothedVelocity);
         float speed = math.length(velFlat);
         float fastYawRef = Mathf.Max(1f, 0.5f * maxPlantedYawDegrees / Mathf.Max(0.01f, stepDurFast));
-        float speedT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), Mathf.Clamp01(Mathf.Abs(sim.smoothedYawRateDeg) / fastYawRef));
+        // MUST mirror BasisFootSimulateJob's urgencyT/yawUrgency -- the job derives the same values to pace the
+        // trigger, and this commits the step. Yaw contributes on the URGENCY reference (k_YawUrgencyRefMul = 5),
+        // not the pacing one, so an ordinary turn no longer forces a minimum-duration flick of a step.
+        float absYawRate = Mathf.Abs(sim.smoothedYawRateDeg);
+        float yawPacing = Mathf.Clamp01(absYawRate / fastYawRef);
+        float yawUrgency = Mathf.Clamp01(absYawRate / (fastYawRef * BasisFootSimulateJob.YawUrgencyRefMul));
+        float urgencyT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), yawUrgency);
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;
@@ -959,7 +977,10 @@ public partial class BasisLocalFootDriver
         // time -- see the swing branch in BasisFootSimulateJob).
         f.stepStartRot = f.currentRot;
         f.stepTimer = 0f;
-        f.stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
+        f.stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, urgencyT);
+        // Freeze this step's arc floor. Scaled by the PACING term (not urgency): the thing that makes a turn step
+        // read as a real step rather than a scuff is that the body is turning at all, which is what yawFrac tracks.
+        f.stepArcScale = BasisFootSimulateJob.TurnStepArcFloor * yawPacing;
 
         float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
         Vector3 targetXZ = f.predictedTargetXZ;
@@ -1035,6 +1056,143 @@ public partial class BasisLocalFootDriver
             found = true;
         }
         return found;
+    }
+
+    // ── SURFACE CONFORMANCE PROBES ──────────────────────────────────────────────────────────────────────────
+    /// <summary>Kill switch for the per-foot surface probes and the toe articulation they drive, mirroring the
+    /// FootRotationFromDriver switch in BasisLocalRigDriver. False restores the previous behaviour exactly: the
+    /// normal then only updates at plant/re-snap/init and the toe stays under animation control.</summary>
+    public static bool SurfaceProbesEnabled = true;
+
+    // Sample offsets along the foot, as fractions of the calibrated footLength (ANKLE bone -> TOE bone, so the
+    // heel projects BEHIND the origin and the toe tip extends past the toe bone). Fractions, so they scale.
+    private const float k_HeelProbeFrac = 0.45f;   // behind the ankle
+    private const float k_BallProbeFrac = 0.85f;   // just behind the MTP joint -- still the RIGID part of the foot
+    private const float k_ToeProbeFrac = 1.30f;    // the toe tip, ahead of the MTP joint
+    private const float k_FootHalfWidthFrac = 0.28f;
+    // MTP range of motion. Extension (toes up) is the large one -- that is the toe-off direction and a real MTP
+    // reaches 60-70 deg; flexion is much smaller. Kept well inside the anatomical limit: this is surface
+    // conformance, not a push-off pose.
+    private const float k_ToeMaxDorsiDeg = 40f;
+    private const float k_ToeMaxPlantarDeg = 15f;
+    private const float k_ToeBendRate = 12f;       // exponential approach, so a stair edge eases instead of snapping
+    private const float k_SurfaceNormalRate = 14f;
+
+    /// <summary>
+    /// Conform one PLANTED foot to the surface under it: four downward probes (heel, two at the ball, one at the
+    /// toe tip) give a fitted ground plane for the foot's pitch and roll, plus a separate toe-tip sample that
+    /// articulates the toe over a break in the surface.
+    ///
+    /// Why this exists: filteredNormal was written at exactly three places -- plant, re-snap and init -- so a
+    /// PLANTED foot never re-sampled the ground. Walk onto a slope and the foot kept whatever normal it happened
+    /// to plant with; the alignment machinery in BuildFootFrame/FootRotation was fully built but starved.
+    ///
+    /// The plane is fitted from HEEL->BALL only, deliberately excluding the toe: the toe is the part that is
+    /// allowed to articulate, so including it would let a rise under the toe tilt the whole rigid foot instead
+    /// of bending the joint that exists for it.
+    /// </summary>
+    private void ProbeFootSurface(ref BasisFootNativeState f, float dt)
+    {
+        // Only planted feet conform. A swinging foot's landing normal already comes from FinalizeStep's
+        // spherecast at the step target; probing under a foot in mid-air samples whatever it is passing over.
+        if (f.phase != 0 || footLength <= 0f)
+        {
+            f.toeBendDeg = Mathf.MoveTowards(f.toeBendDeg, 0f, k_ToeMaxDorsiDeg * dt * 4f);
+            return;
+        }
+
+        // Foot frame from the BODY, never from the foot bone. A humanoid foot bone's local axes are
+        // rig-dependent -- that is precisely what silently disabled the yaw trigger (it compared against the
+        // bone's local +Z) and what made the first foot-rotation attempt come out toes-up.
+        Vector3 fwd = ProjectHorizontal((Vector3)f.plantedBodyFwd);
+        if (fwd.sqrMagnitude < 1e-6f) fwd = ProjectHorizontal(cachedPlayerFwd);
+        if (fwd.sqrMagnitude < 1e-6f) return;
+        fwd.Normalize();
+        Vector3 right = Vector3.Cross(cachedPlayerUp, fwd);
+        if (right.sqrMagnitude < 1e-6f) return;
+        right.Normalize();
+
+        Vector3 c = (Vector3)f.currentPos;
+        float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
+        float heelD = footLength * k_HeelProbeFrac;
+        float ballD = footLength * k_BallProbeFrac;
+        float toeD = footLength * k_ToeProbeFrac;
+        float halfW = footLength * k_FootHalfWidthFrac;
+
+        bool okHeel = ProbeGroundHeight(c - fwd * heelD, hipsUpComp, out float heelH);
+        bool okA = ProbeGroundHeight(c + fwd * ballD + right * halfW, hipsUpComp, out float ballAH);
+        bool okB = ProbeGroundHeight(c + fwd * ballD - right * halfW, hipsUpComp, out float ballBH);
+        bool okToe = ProbeGroundHeight(c + fwd * toeD, hipsUpComp, out float toeH);
+
+        // ── Plane -> normal ──
+        if (okHeel && okA && okB)
+        {
+            float ballH = (ballAH + ballBH) * 0.5f;
+            // Tangents along the two foot axes, following the sampled ground. cross(fwd, right) is +up for a
+            // flat surface in Unity's left-handed frame; the dot guard covers a degenerate/inverted fit.
+            Vector3 tFwd = fwd * (heelD + ballD) + cachedPlayerUp * (ballH - heelH);
+            Vector3 tRight = right * (2f * halfW) + cachedPlayerUp * (ballAH - ballBH);
+            Vector3 n = Vector3.Cross(tFwd, tRight);
+            if (n.sqrMagnitude > 1e-8f)
+            {
+                n.Normalize();
+                if (Vector3.Dot(n, cachedPlayerUp) < 0f) n = -n;
+                // A WORLD-SPACE exponential filter is CORRECT here, unlike the body-forward and knee-swivel
+                // filters this codebase has twice had to fix. Those smoothed quantities that rotate rigidly with
+                // the player root, so a deliberate turn registered as filter error. A ground normal does not
+                // rotate with the body at all -- it is a property of the world -- so there is nothing to carry.
+                Vector3 prev = (Vector3)f.filteredNormal;
+                if (prev.sqrMagnitude < 1e-6f) prev = cachedPlayerUp;
+                f.filteredNormal = Vector3.Slerp(prev, n, 1f - Mathf.Exp(-k_SurfaceNormalRate * dt)).normalized;
+            }
+
+            // ── Toe articulation ──
+            // Extrapolate the heel->ball plane out to the toe tip and compare it against what is actually there.
+            // A rise under the toe (stair nose, ramp, kerb) means the toe must dorsiflex to lie on it.
+            float span = Mathf.Max(1e-3f, heelD + ballD);
+            float expectedToeH = ballH + (ballH - heelH) / span * (toeD - ballD);
+            float toeDelta = toeH - expectedToeH;
+            // A hit far BELOW the foot plane is not a surface the toe can rest on -- it is the bottom of a
+            // stairwell or a drop the foot is overhanging. Without this the toe would hold a permanent
+            // plantarflexion (whatever the clamp allows) reaching for a floor it is nowhere near touching.
+            // Only the downward direction needs the guard: a hit far ABOVE is a riser, which is real contact.
+            bool toeHasSurface = okToe && toeDelta > -footLength * 0.5f;
+            if (toeHasSurface)
+            {
+                float bend = Mathf.Atan2(toeDelta, Mathf.Max(1e-3f, toeD - ballD)) * Mathf.Rad2Deg;
+                bend = Mathf.Clamp(bend, -k_ToeMaxPlantarDeg, k_ToeMaxDorsiDeg);
+                f.toeBendDeg = Mathf.Lerp(f.toeBendDeg, bend, 1f - Mathf.Exp(-k_ToeBendRate * dt));
+            }
+            else
+            {
+                // Nothing under the toe: overhanging an edge or a gap. Relax to neutral -- a toe with no ground
+                // beneath it should stay where the animation put it, not reach down into a void.
+                f.toeBendDeg = Mathf.Lerp(f.toeBendDeg, 0f, 1f - Mathf.Exp(-k_ToeBendRate * dt));
+            }
+            // Positive toeBendDeg means DORSIFLEXION (toes up). A positive AngleAxis about world-right pitches
+            // forward-to-down in Unity's left-handed frame, so the consumer negates -- see BasisFullBodyIK.
+            f.toeBendAxis = right;
+        }
+        else
+        {
+            f.toeBendDeg = Mathf.Lerp(f.toeBendDeg, 0f, 1f - Mathf.Exp(-k_ToeBendRate * dt));
+        }
+    }
+
+    /// <summary>One downward surface probe. Returns the hit's height along the player's up axis.</summary>
+    private bool ProbeGroundHeight(Vector3 at, float hipsUpComp, out float height)
+    {
+        // Same origin convention as FinalizeStep: start half the ray range above so a step riser cannot be
+        // stepped over, and reuse GroundCast so self-colliders, the distance==0 overlap sentinel and
+        // above-the-pelvis hits are all rejected identically.
+        Vector3 origin = at + cachedPlayerUp * (rayCastRange * 0.5f);
+        if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, hipsUpComp, out RaycastHit hit))
+        {
+            height = Vector3.Dot(hit.point, cachedPlayerUp);
+            return true;
+        }
+        height = 0f;
+        return false;
     }
 
     /// <summary>Projects a vector onto the player's horizontal plane (removes up component).</summary>
@@ -1326,6 +1484,18 @@ public partial class BasisLocalFootDriver
         if (!IsInitialized || !_nativeOutput.IsCreated) return Quaternion.identity;
         return _nativeOutput[0].pelvisDelta;
     }
+
+    /// <summary>Toe MTP bend in degrees from the surface probes; positive = dorsiflexion (toes up). Read straight
+    /// from native state rather than the managed mirror so it costs nothing to expose.</summary>
+    public unsafe float LeftToeBendDegrees => IsInitialized && _nativeFeet.IsCreated
+        ? UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 0).toeBendDeg : 0f;
+    public unsafe float RightToeBendDegrees => IsInitialized && _nativeFeet.IsCreated
+        ? UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1).toeBendDeg : 0f;
+    /// <summary>World medio-lateral axis for the corresponding bend. Zero when no probe ran.</summary>
+    public unsafe Vector3 LeftToeBendAxis => IsInitialized && _nativeFeet.IsCreated
+        ? (Vector3)UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 0).toeBendAxis : Vector3.zero;
+    public unsafe Vector3 RightToeBendAxis => IsInitialized && _nativeFeet.IsCreated
+        ? (Vector3)UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1).toeBendAxis : Vector3.zero;
 
     public bool LeftIsPlanted => left.phase == BasisFootPhase.Planted;
     public bool RightIsPlanted =>  right.phase == BasisFootPhase.Planted;
