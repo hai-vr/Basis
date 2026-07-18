@@ -283,16 +283,16 @@ namespace Basis.Scripts.Avatar
         {
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
             if (rig == null || !rig.IKDataReady) return;
-            ref BasisFullBodyData data = ref rig.IKData;
+            ref BasisFullIKConstraintJob data = ref rig.IKJob;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
 
-            LogFbikRole("Head", data.m_CalibratedRotationHead, BasisLocalBoneDriver.HeadControl, Mapping.head);
-            LogFbikRole("Hips", data.OffsetRotationHips, BasisLocalBoneDriver.HipsControl, Mapping.Hips);
-            LogFbikRole("Chest", data.m_CalibratedRotationChest, BasisLocalBoneDriver.ChestControl, Mapping.chest);
-            LogFbikRole("LeftFoot", data.M_CalibrationLeftFootRotation, BasisLocalBoneDriver.LeftFootControl, Mapping.leftFoot);
-            LogFbikRole("RightFoot", data.M_CalibrationRightFootRotation, BasisLocalBoneDriver.RightFootControl, Mapping.rightFoot);
-            LogFbikRole("LeftToe", data.m_CalibratedRotationLeftToe, BasisLocalBoneDriver.LeftToeControl, Mapping.leftToe);
-            LogFbikRole("RightToe", data.m_CalibratedRotationRightToe, BasisLocalBoneDriver.RightToeControl, Mapping.rightToe);
+            LogFbikRole("Head", data.offsetRotationHead, BasisLocalBoneDriver.HeadControl, Mapping.head);
+            LogFbikRole("Hips", data.offsetRotationHips, BasisLocalBoneDriver.HipsControl, Mapping.Hips);
+            LogFbikRole("Chest", data.offsetRotationChest, BasisLocalBoneDriver.ChestControl, Mapping.chest);
+            LogFbikRole("LeftFoot", data.offsetRotationLeftFoot, BasisLocalBoneDriver.LeftFootControl, Mapping.leftFoot);
+            LogFbikRole("RightFoot", data.offsetRotationRightFoot, BasisLocalBoneDriver.RightFootControl, Mapping.rightFoot);
+            LogFbikRole("LeftToe", data.offsetRotationLeftToe, BasisLocalBoneDriver.LeftToeControl, Mapping.leftToe);
+            LogFbikRole("RightToe", data.offsetRotationRightToe, BasisLocalBoneDriver.RightToeControl, Mapping.rightToe);
         }
 
         private static void LogFbikRole(string label, Quaternion frozen, BasisLocalBoneControl control, Transform avatarBone)
@@ -461,19 +461,19 @@ namespace Basis.Scripts.Avatar
             if (!HasCalibrationReference) return;
             var rig = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalRigDriver : null;
             if (rig == null || !rig.IKDataReady) return;
-            ref BasisFullBodyData data = ref rig.IKData;
+            ref BasisFullIKConstraintJob data = ref rig.IKJob;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
             Quaternion rootInv = Mapping.HasAnimatorRoot ? Quaternion.Inverse(Mapping.AnimatorRoot.rotation) : Quaternion.identity;
 
-            BasisLocalRigDriver.RecalibratedHead = OffsetFromReference(s_refHead, rootInv, Mapping.head, BasisBoneTrackedRole.Head, data.m_CalibratedRotationHead);
-            BasisLocalRigDriver.RecalibratedHips = OffsetFromReference(s_refHips, rootInv, Mapping.Hips, BasisBoneTrackedRole.Hips, data.OffsetRotationHips);
-            BasisLocalRigDriver.RecalibratedChest = OffsetFromReference(s_refChest, rootInv, Mapping.chest, BasisBoneTrackedRole.Chest, data.m_CalibratedRotationChest);
-            BasisLocalRigDriver.RecalibratedLeftFoot = OffsetFromReference(s_refLeftFoot, rootInv, Mapping.leftFoot, BasisBoneTrackedRole.LeftFoot, data.M_CalibrationLeftFootRotation);
-            BasisLocalRigDriver.RecalibratedRightFoot = OffsetFromReference(s_refRightFoot, rootInv, Mapping.rightFoot, BasisBoneTrackedRole.RightFoot, data.M_CalibrationRightFootRotation);
-            BasisLocalRigDriver.RecalibratedLeftToe = OffsetFromReference(s_refLeftToe, rootInv, Mapping.leftToe, BasisBoneTrackedRole.LeftToes, data.m_CalibratedRotationLeftToe);
-            BasisLocalRigDriver.RecalibratedRightToe = OffsetFromReference(s_refRightToe, rootInv, Mapping.rightToe, BasisBoneTrackedRole.RightToes, data.m_CalibratedRotationRightToe);
-            BasisLocalRigDriver.RecalibratedLeftShoulder = OffsetFromReference(s_refLeftShoulder, rootInv, Mapping.leftShoulder, BasisBoneTrackedRole.LeftShoulder, data.m_CalibratedRotationLeftShoulder);
-            BasisLocalRigDriver.RecalibratedRightShoulder = OffsetFromReference(s_refRightShoulder, rootInv, Mapping.RightShoulder, BasisBoneTrackedRole.RightShoulder, data.m_CalibratedRotationRightShoulder);
+            BasisLocalRigDriver.RecalibratedHead = OffsetFromReference(s_refHead, rootInv, Mapping.head, BasisBoneTrackedRole.Head, data.offsetRotationHead);
+            BasisLocalRigDriver.RecalibratedHips = OffsetFromReference(s_refHips, rootInv, Mapping.Hips, BasisBoneTrackedRole.Hips, data.offsetRotationHips);
+            BasisLocalRigDriver.RecalibratedChest = OffsetFromReference(s_refChest, rootInv, Mapping.chest, BasisBoneTrackedRole.Chest, data.offsetRotationChest);
+            BasisLocalRigDriver.RecalibratedLeftFoot = OffsetFromReference(s_refLeftFoot, rootInv, Mapping.leftFoot, BasisBoneTrackedRole.LeftFoot, data.offsetRotationLeftFoot);
+            BasisLocalRigDriver.RecalibratedRightFoot = OffsetFromReference(s_refRightFoot, rootInv, Mapping.rightFoot, BasisBoneTrackedRole.RightFoot, data.offsetRotationRightFoot);
+            BasisLocalRigDriver.RecalibratedLeftToe = OffsetFromReference(s_refLeftToe, rootInv, Mapping.leftToe, BasisBoneTrackedRole.LeftToes, data.offsetRotationLeftToe);
+            BasisLocalRigDriver.RecalibratedRightToe = OffsetFromReference(s_refRightToe, rootInv, Mapping.rightToe, BasisBoneTrackedRole.RightToes, data.offsetRotationRightToe);
+            BasisLocalRigDriver.RecalibratedLeftShoulder = OffsetFromReference(s_refLeftShoulder, rootInv, Mapping.leftShoulder, BasisBoneTrackedRole.LeftShoulder, data.offsetRotationLeftShoulder);
+            BasisLocalRigDriver.RecalibratedRightShoulder = OffsetFromReference(s_refRightShoulder, rootInv, Mapping.RightShoulder, BasisBoneTrackedRole.RightShoulder, data.offsetRotationRightShoulder);
             BasisLocalRigDriver.HasRecalibratedRotationOffsets = true;
         }
 

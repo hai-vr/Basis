@@ -76,7 +76,7 @@ namespace Basis.IK.Mocap
 
     public static class BasisMocapAccuracy
     {
-        // Mirrors the live defaults (BasisFullBodyData.SetDefaultValues + the driver's ApplyTuningSettings).
+        // Mirrors the live defaults (BasisFullIKConstraintJob.SetDefaultValues + the driver's ApplyTuningSettings).
         const float k_FlareMaxDeg = 45f;
         const float k_FlareInwardGain = 1f;
         const float k_FlareFullRollDeg = 70f;

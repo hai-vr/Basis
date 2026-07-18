@@ -521,7 +521,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         {
             BasisLocalPlayer player = BasisLocalPlayer.Instance;
             bool ikReady = player != null && player.LocalRigDriver != null && player.LocalRigDriver.IKDataReady;
-            BasisIKColliderGizmo.Tick(ikReady, ikReady ? player.LocalRigDriver.IKData : default, UseGizmoLabels, _camPos);
+            BasisIKColliderGizmo.Tick(ikReady, ikReady ? player.LocalRigDriver.IKBones : default, ikReady ? player.LocalRigDriver.IKJob : default, UseGizmoLabels, _camPos);
         }
 
         BasisHintOffsetGizmos.Tick(UseHintOffsets, UseGizmoLabels, _camPos);

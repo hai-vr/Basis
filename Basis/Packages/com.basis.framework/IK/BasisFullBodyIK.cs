@@ -2,43 +2,9 @@ using System.Runtime.CompilerServices;
 using Unity.Collections;
 namespace UnityEngine.Animations.Rigging
 {
-    /// <summary>
-    /// Full-body pass: Head + Legs + Hips + Dual Driven TR + Dual TwoBoneIK Hands (with chest/hand capsule & elbow protection).
-    /// All driven via a single job.
-    /// </summary>
     [System.Serializable]
-    public struct BasisFullBodyData
+    public struct BasisFullBodyBones
     {
-        public const int Count = 22;
-
-
-        // Slots are HumanBodyBones values: 0..RightToes map directly, UpperChest (54) maps to the last slot.
-        public const int UpperChestSlot = Count - 1;
-
-        // Live target positions pushed every frame from the manager.
-        public FixedList512Bytes<Vector3> TargetPositions;
-
-        // Live target rotations.
-        public FixedList512Bytes<Quaternion> TargetRotations;
-
-        // Calibration offsets (applied on top of target each frame) — final = target * offset
-        public FixedList512Bytes<Quaternion> OffsetRotations;
-
-        // Per-slot enables. Allows toggling bones independently within a single job.
-        public FixedList64Bytes<bool> Weights;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int Slot(int humanBodyBone)
-        {
-            if (humanBodyBone >= 0 && humanBodyBone <= (int)HumanBodyBones.RightToes)
-            {
-                return humanBodyBone;
-            }
-            return humanBodyBone == (int)HumanBodyBones.UpperChest ? UpperChestSlot : -1;
-        }
-
-        // Property name helpers for binding
-
         public Transform hips;
         public Transform chest;
         public Transform neck;
@@ -73,378 +39,11 @@ namespace UnityEngine.Animations.Rigging
         public Transform LeftLowerArmTwist;
         public Transform RightUpperArmTwist;
         public Transform RightLowerArmTwist;
-
-        // Head
-        public Vector3 PositionHead;
-        public Quaternion RotationHead;
-        public Vector3 ChestPosition;
-        // The chest bone's ACTUAL position, WITHOUT the chest-as-head-hint bias that ChestPosition carries
-        // (that bias pushes ~8cm 'up in chest frame' to steer the head solve -- see BasisAvatarIKStageCalibration).
-        // The chest IK target must pin to the real chest, not the hinted one, or it hauls the torso up = a lean.
-        public Vector3 ChestPositionRaw;
-        public Quaternion ChestRotation;
-        public Quaternion m_CalibratedRotationHead;
-
-        public Quaternion m_CalibratedRotationRightToe;
-        public Quaternion m_CalibratedRotationLeftToe;
-        public Quaternion m_CalibratedRotationChest;
-
-        public Quaternion LeftShoulderRotation;
-        public Quaternion RightShoulderRotation;
-
-        // Hips
-        public Vector3 PositionHips;
-        public Quaternion RotationHips;
-        public Quaternion OffsetRotationHips;
-
-        // Left Leg
-        public Vector3 LeftFootPosition;
-        public Quaternion LeftFootRotation;
-        public Vector3 PositionLeftLowerLeg;
-        public Quaternion M_CalibrationLeftFootRotation;
-
-        // Right Leg
-        public Vector3 RightFootPosition;
-        public Quaternion RightFootRotation;
-        public Vector3 PositionRightLowerLeg;
-        public Quaternion M_CalibrationRightFootRotation;
-
-        // Toes
-        public Quaternion OutGoingLeftToeRotation;
-        public Quaternion OutGoingRightToeRotation;
-
-        // Left Hand
-        public Vector3 PositionLeftHand;
-        public Quaternion RotationLeftHand;
-        public Vector3 LeftLowerArmPosition;
-        public Quaternion LeftLowerArmRotation;
-        public Quaternion m_CalibratedRotationLeftHand;
-
-        // Right Hand
-        public Vector3 PositionRightHand;
-        public Quaternion RotationRightHand;
-        public Vector3 RightLowerArmPosition;
-        public Quaternion RightLowerArmRotation;
-        public Quaternion m_CalibratedRotationRightHand;
-
-        // Misc
-        public Vector3 PlayerUp;
-
-        public Vector3 KneeBendPrefLeft;
-        public Vector3 KneeBendPrefRight;
-
-        public float HandSkin;
-        [Min(0f)] public float HandRadius;
-        [Min(0f)] public float ChestRadius;
-        [Min(0f)] public float CollisionSkin;
-        public bool CollisionsEnabled;
-        public bool ProtectElbow;
-        public bool UseNeuralPole;
-        public bool CollideTrackedElbow;
-
-        public bool WeightChest;
-        public bool EnabledSpineIK;
-        public bool HasHipsTracker;
-
-        // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
-        public float IKLockMode;
-
-        public bool LeftToeEnabled;
-        public bool RightToeEnabled;
-
-        public bool LeftFootIsTracker;
-        public bool RightFootIsTracker;
-        public float EnableLeftLeg;
-        public float EnableRightLeg;
-
-        public float EnableLeftLowerLeg;
-        public float EnableRightLowerLeg;
-
-        // True when the knee/lower-leg hint is a physical tracker (jittery, and pole-amplified by the leg
-        // solve) rather than a computed hint (foot driver / butterfly). Gates the tracked-knee output-swivel
-        // smoothing in SolveLegs -- see SmoothKneeSwivel.
-        public bool LeftLowerLegHintIsTracker;
-        public bool RightLowerLegHintIsTracker;
-
-        // Hand IK weight (0..1), not a toggle: the webcam fades the hands in and out as tracking comes and
-        // goes, and a hard on/off pops the arm. Mirrors the legs, which have been fractional all along.
-        public float EnabledLeftHand;
-        public float EnabledRightHand;
-
-        public bool HintWeightRightHand;
-        public bool HintWeightLeftHand;
-
-        public float minHeadSpineHeight;
-        public bool EnabledLeftShoulder;
-        public bool EnabledRightShoulder;
-        public Quaternion m_CalibratedRotationRightShoulder;
-        public Quaternion m_CalibratedRotationLeftShoulder;
-
-        public float MaxBendDeg;
-        public float MinFactor;
-        public float MaxFactor;
-        public float MaxChestDelta;
-
-        // Shoulder pre-solve: raises/protracts shoulders based on hand target
-        public bool ShoulderSolveEnabled;
-        public bool ShoulderShrugEnabled;
-        [Range(0f, 1f)] public float ShoulderElevationFactor;
-        [Range(0f, 1f)] public float ShoulderProtractionFactor;
-
-        // Spine bend distribution: per-axis fractions of the hips→head bend pre-applied to lumbar
-        // and thoracic joints before the chest→neck→head two-bone solve. Splitting by axis lets
-        // forward bend, side bend, and twist be tuned independently — humans are very anisotropic.
-        [Range(0f, 1f)] public float SpineBendPitch;
-        [Range(0f, 1f)] public float SpineBendYaw;
-        [Range(0f, 1f)] public float SpineBendRoll;
-        [Range(0f, 1f)] public float UpperChestBendPitch;
-        [Range(0f, 1f)] public float UpperChestBendYaw;
-        [Range(0f, 1f)] public float UpperChestBendRoll;
-        // Hip hinge: when forward lean exceeds the start angle, the pelvis pitches forward by a
-        // capped fraction of the excess so the spine doesn't have to swallow the whole reach.
-        [Min(0f)] public float HipHingeStartDeg;
-        [Min(0f)] public float HipHingeMaxAddDeg;
-        // Chest follow spring: critically-damped second-order spring on the head target before it
-        // is consumed by DistributeSpineBend, so quick head turns leave the body momentarily behind.
-        [Min(0f)] public float ChestSpringHz;
-        [Min(0f)] public float ChestSpringDamping;
-        // Asymmetric flexion clamps: humans flex forward much further than they extend backward.
-        // Applied to the per-axis spine + upperChest contributions after distribution.
-        [Min(0f)] public float SpineMaxForwardDeg;
-        [Min(0f)] public float SpineMaxBackwardDeg;
-        [Min(0f)] public float SpineMaxLateralDeg;
-        // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
-        // the spine folds more when crouched and straightens when reaching up. 0 disables.
-        [Range(0f, 2f)] public float SpineSquishBoost;
-        // How much the chest FOLLOWS the gaze (no chest tracker). 0 = rigid (the look-down-stability fix,
-        // chest never folds on a pure look-down); 1 = full follow (the old phantom-lean). A small value is
-        // 'a little real spine': the chest folds a touch when you look down, which reads better on desktop.
-        [Range(0f, 1f)] public float SpineGazeFollow;
-        // How much EXTRA forward neck curve to add on a look-down (no chest tracker). Same idea as the
-        // chest gaze-follow, but the neck's lordosis runs AFTER the head-placing CCD, so this is a
-        // cosmetic post-solve curve -- it nudges the head BONE a touch (the camera rides the HMD target).
-        [Range(0f, 1f)] public float NeckGazeFollow;
-        [Range(0f, 2f)] public float MoveBodyBackWhenCrouching;
-        // Elbow/knee swing smoothing: max swing speed (deg/s) around the root→tip axis. Lower =
-        // smoother (more lag) so a torso-collision change eases in; 0 disables. See ApplySwingContinuity.
-        [Min(0f)] public float SwingSmoothRateDeg;
-        // Arm-swing chest follow: when hand targets shift laterally, the chest yaws to follow so
-        // gestures and walking arm-swing don't read as a stiff torso. Only used without a chest
-        // tracker — when one is present, it owns chest rotation directly.
-        [Range(0f, 1f)] public float ChestArmSwingFactor;
-        [Min(0f)] public float ChestArmSwingMaxDeg;
-        // Arm twist distribution: fractions of the wrist/elbow roll absorbed by the optional
-        // forearm/upper-arm twist bones. Without these, the wrist eats 100% of the roll and the
-        // mesh pinches around the elbow ("candy-wrap" deformation).
-        [Range(0f, 1f)] public float LowerArmTwistFraction;
-        [Range(0f, 1f)] public float UpperArmTwistFraction;
-
-        // Anatomy: IK refinements modeled on real biomechanics. Each toggle gates its own
-        // solver pass; all on by default.
-        public bool AnatDifferentialStiffness;
-        public bool AnatShoulderSlide;
-        public bool AnatCervicalLordosis;
-        public bool AnatPelvicTwistRouting;
-        // The anatomical range-of-motion envelope on every solved vertebra. Default ON: what it replaces
-        // is not a safe fallback, it is a measured error (BasisSpineAnatomy).
-        public bool SpineAnatomicalRom;
-        // The chest as a secondary IK target (SolveChestTarget). Default ON.
-        public bool ChestIKTarget;
-        // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
-        // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
-        public bool LegSwivelSmoothing;
-        // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
-        // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
-        // AnatCervicalLordosis is on.
-        [Min(0f)] public float LordosisPitchGainDeg;
-        // Cervical lordosis shaping (previously hardcoded consts in ApplyCervicalLordosis). Base
-        // bend held in a neutral pose and how it splits between neck and upperChest; the head pitch
-        // clamp; and the "extreme look" onset/full window that drives extra spine roll plus
-        // hips/chest counter-translation when looking far up or down. Down* are meters of vertical
-        // shift at full look-down; *LookUp are the much smaller shift when looking up. Only used
-        // when AnatCervicalLordosis is on.
-        [Min(0f)] public float LordosisBaseDeg;
-        [Range(0f, 1f)] public float LordosisNeckShare;
-        [Range(0f, 90f)] public float LordosisMaxHeadPitchDeg;
-        [Range(0f, 90f)] public float LordosisExtremeStartDeg;
-        [Range(0f, 90f)] public float LordosisExtremeFullDeg;
-        [Min(0f)] public float LordosisExtremeRollForwardMaxDeg;
-        [Min(0f)] public float LordosisExtremeRollBackwardMaxDeg;
-        [Min(0f)] public float LordosisExtremeHipsHorizontalMax;
-        [Min(0f)] public float LordosisExtremeChestHorizontalMax;
-        [Min(0f)] public float LordosisExtremeHipsDownMax;
-        [Min(0f)] public float LordosisExtremeChestDownMax;
-        [Min(0f)] public float LordosisExtremeHipsDownLookUp;
-        [Min(0f)] public float LordosisExtremeChestDownLookUp;
-
-        // Spine CCD solve: per-iteration under-relaxation (1 = full step) and the neck's max bend
-        // cone vs the chest→neck direction, which stops the short neck bone overbending.
-        [Range(0.1f, 1f)] public float SpineCCDRelax;
-        [Min(0f)] public float NeckMaxConeDeg;
-        // Axial twist the spine CCD reach may use, about the body's hips-up axis, graded down the chain:
-        // SpineTwistKeep is the lumbar (lower-back) end -- near-rigid in reality -- and SpineNeckTwistKeep
-        // the cervical (neck) end, which rotates freely; the joints between interpolate. Lower = a sideways
-        // head reach bends instead of corkscrewing (the corkscrew flips sign across center). Hips-up, not
-        // world-up, so it stays correct lying down.
-        [Range(0f, 1f)] public float SpineTwistKeep;
-        [Range(0f, 1f)] public float SpineNeckTwistKeep;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetTargetPosition(int idx, in Vector3 v)
-        {
-            int s = Slot(idx);
-            if (s >= 0 && s < TargetPositions.Length)
-            {
-                TargetPositions[s] = v;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetTargetRotation(int idx, in Quaternion q)
-        {
-            int s = Slot(idx);
-            if (s >= 0 && s < TargetRotations.Length)
-            {
-                TargetRotations[s] = q;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetOffsetRotation(int idx, in Quaternion q)
-        {
-            int s = Slot(idx);
-            if (s >= 0 && s < OffsetRotations.Length)
-            {
-                OffsetRotations[s] = q;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetWeight(int idx, bool State)
-        {
-            int s = Slot(idx);
-            if (s >= 0 && s < Weights.Length)
-            {
-                Weights[s] = State;
-            }
-        }
-
-        public void SetDefaultValues()
-        {
-            chest = neck = head = null;
-            LeftUpperLeg = LeftLowerLeg = leftFoot = null;
-            RightUpperLeg = RightLowerLeg = RightFoot = null;
-
-            leftUpperArm = leftLowerArm = LeftHand = null;
-            RightUpperArm = RightLowerArm = RightHand = null;
-
-            hips = null;
-
-            WeightChest = true;
-            EnableLeftLowerLeg = EnableRightLowerLeg = 1f;
-            EnabledSpineIK = true;
-            HasHipsTracker = false;
-            LeftFootIsTracker = RightFootIsTracker = false;
-            EnableLeftLeg = EnableRightLeg = 1f;
-            LeftLowerLegHintIsTracker = RightLowerLegHintIsTracker = false;
-            IKLockMode = (float)BasisIKLockMode.LockHead;
-
-            HintWeightLeftHand = HintWeightRightHand = true;
-            EnabledLeftHand = EnabledRightHand = 1f;
-            m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
-            m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
-
-            PlayerUp = Vector3.up;
-
-            PositionHips = Vector3.zero;
-            RotationHips = Quaternion.identity;
-            OffsetRotationHips = Quaternion.identity;
-
-            // Integrated driven TR defaults
-            LeftToe = null;
-            RightToe = null;
-
-            OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
-            LeftToeEnabled = false;
-            RightToeEnabled = false;
-
-            // Chest/hand capsule defaults — read from persisted settings
-            chest = neck = null;
-            ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
-            CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
-            CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
-            HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
-            HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
-            ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
-            CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
-
-            ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
-            ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
-            ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
-            ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
-
-            SpineBendPitch = 0.45f;
-            SpineBendYaw = 0.10f;
-            SpineBendRoll = 0.35f;
-            UpperChestBendPitch = 0.25f;
-            UpperChestBendYaw = 0.30f;
-            UpperChestBendRoll = 0.20f;
-            HipHingeStartDeg = 40f;
-            HipHingeMaxAddDeg = 52f;
-            ChestSpringHz = 12f;
-            ChestSpringDamping = 1f;
-            SpineMaxForwardDeg = 60f;
-            SpineMaxBackwardDeg = 25f;
-            SpineMaxLateralDeg = 25f;
-            SpineSquishBoost = 0.5f;
-            SpineGazeFollow = 0.25f;
-            NeckGazeFollow = 0.3f;
-            MoveBodyBackWhenCrouching = 1f;
-            SwingSmoothRateDeg = 720f;
-            ChestArmSwingFactor = 0.3f;
-            ChestArmSwingMaxDeg = 15f;
-            LowerArmTwistFraction = 0.5f;
-            UpperArmTwistFraction = 0.3f;
-
-            AnatDifferentialStiffness = false;
-            AnatShoulderSlide = false;
-            AnatCervicalLordosis = false;
-            AnatPelvicTwistRouting = false;
-            SpineAnatomicalRom = false;
-            ChestIKTarget = false;
-            LegSwivelSmoothing = true;
-            LordosisPitchGainDeg = 8f;
-            LordosisBaseDeg = 5f;
-            LordosisNeckShare = 0.65f;
-            LordosisMaxHeadPitchDeg = 80f;
-            LordosisExtremeStartDeg = 50f;
-            LordosisExtremeFullDeg = 80f;
-            LordosisExtremeRollForwardMaxDeg = 10f;
-            LordosisExtremeRollBackwardMaxDeg = 4f;
-            LordosisExtremeHipsHorizontalMax = 0.025f;
-            LordosisExtremeChestHorizontalMax = 0.04f;
-            LordosisExtremeHipsDownMax = 0.015f;
-            LordosisExtremeChestDownMax = 0.025f;
-            LordosisExtremeHipsDownLookUp = 0.0005f;
-            LordosisExtremeChestDownLookUp = 0.001f;
-            SpineCCDRelax = 0.8f;
-            NeckMaxConeDeg = 45f;
-            SpineTwistKeep = 0.25f;
-            SpineNeckTwistKeep = 0.9f;
-
-            // Slots: identity rotations, zero positions, weights disabled.
-            TargetPositions.Length = Count;
-            TargetRotations.Length = Count;
-            OffsetRotations.Length = Count;
-            Weights.Length = Count;
-            for (int i = 0; i < Count; i++)
-            {
-                TargetPositions[i] = Vector3.zero;
-                TargetRotations[i] = Quaternion.identity;
-                OffsetRotations[i] = Quaternion.identity;
-                Weights[i] = false;
-            }
-        }
     }
+    /// <summary>
+    /// Full-body pass: Head + Legs + Hips + Dual Driven TR + Dual TwoBoneIK Hands (with chest/hand capsule & elbow protection).
+    /// All driven via a single job.
+    /// </summary>
     [Unity.Burst.BurstCompile]
     public struct BasisFullIKConstraintJob : Unity.Jobs.IJob
     {
@@ -526,7 +125,7 @@ hintWeightRightHand,
 protectElbow, collideTrackedElbow, useNeuralPole,
 collisionsEnabled;
 
-        // Per-bone override slots, indexed identically to BasisFullBodyData.
+        // Per-bone override slots, indexed identically to BasisFullIKConstraintJob.
         public FixedList512Bytes<Vector3> slotPositions;
         public FixedList512Bytes<Quaternion> slotRotations;
         public FixedList512Bytes<Quaternion> slotOffsets;
@@ -2443,378 +2042,264 @@ collisionsEnabled;
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (2.0f * aLen1 * aLen2), -1.0f, 1.0f);
             return Mathf.Acos(c);
         }
-    }
-    public static class BasisFullBodyJobBinder
-    {
 
-        public static void Sync(ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
+        public const int Count = 22;
+
+
+        // Slots are HumanBodyBones values: 0..RightToes map directly, UpperChest (54) maps to the last slot.
+        public const int UpperChestSlot = Count - 1;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Slot(int humanBodyBone)
         {
-            job.targetPositionHips = data.PositionHips;
-            job.targetPositionHead = data.PositionHead;
-            job.TargetChestPosition = data.ChestPosition;
-            job.TargetChestPositionRaw = data.ChestPositionRaw;
-            job.playerUp = data.PlayerUp;
-            job.KneeBendPrefLeft = data.KneeBendPrefLeft;
-            job.KneeBendPrefRight = data.KneeBendPrefRight;
-            job.targetPositionLeftLowerLeg = data.LeftFootPosition;
-            job.hintPositionLeftLowerLeg = data.PositionLeftLowerLeg;
-            job.targetPositionRightLowerLeg = data.RightFootPosition;
-            job.hintPositionRightLowerLeg = data.PositionRightLowerLeg;
-            job.targetPositionLeftHand = data.PositionLeftHand;
-            job.hintPositionLeftHand = data.LeftLowerArmPosition;
-            job.targetPositionRightHand = data.PositionRightHand;
-            job.hintPositionRightHand = data.RightLowerArmPosition;
-            job.targetRotationHips = data.RotationHips;
-            job.offsetRotationHips = data.OffsetRotationHips;
-            job.targetRotationHead = data.RotationHead;
-            job.targetChestRotation = data.ChestRotation;
-            job.TargetRotationLeftShoulder = data.LeftShoulderRotation;
-            job.TargetRotationRightShoulder = data.RightShoulderRotation;
-            job.targetRotationLeftLowerLeg = data.LeftFootRotation;
-            job.targetRotationRightLowerLeg = data.RightFootRotation;
-            job.leftDrivenTargetRot = data.OutGoingLeftToeRotation;
-            job.rightDrivenTargetRot = data.OutGoingRightToeRotation;
-            job.targetRotationLeftHand = data.RotationLeftHand;
-            job.hintRotationLeftHand = data.LeftLowerArmRotation;
-            job.targetRotationRightHand = data.RotationRightHand;
-            job.hintRotationRightHand = data.RightLowerArmRotation;
-            job.enabledSpineIK = data.EnabledSpineIK;
-            job.HasChestTracker = data.WeightChest;
-            job.hasHipsTracker = data.HasHipsTracker;
-            job.footIsTrackerLeftLeg = data.LeftFootIsTracker;
-            job.footIsTrackerRightLeg = data.RightFootIsTracker;
-            job.enabledLeftLowerLeg = data.EnableLeftLeg;
-            job.hintWeightLeftLowerLeg = data.EnableLeftLowerLeg;
-            job.enabledRightLowerLeg = data.EnableRightLeg;
-            job.hintWeightRightLowerLeg = data.EnableRightLowerLeg;
-            job.leftToeEnabled = data.LeftToeEnabled;
-            job.RightToeEnabled = data.RightToeEnabled;
-            job.enabledLeftHand = data.EnabledLeftHand;
-            job.hintWeightLeftHand = data.HintWeightLeftHand;
-            job.enabledRightHand = data.EnabledRightHand;
-            job.hintWeightRightHand = data.HintWeightRightHand;
-            job.protectElbow = data.ProtectElbow;
-            job.useNeuralPole = data.UseNeuralPole;
-            job.collideTrackedElbow = data.CollideTrackedElbow;
-            job.collisionsEnabled = data.CollisionsEnabled;
-            job.chestRadius = data.ChestRadius;
-            job.collisionSkin = data.CollisionSkin;
-            job.handRadius = data.HandRadius;
-            job.handSkin = data.HandSkin;
-            job.maxBendDeg = data.MaxBendDeg;
-            job.minFactor = data.MinFactor;
-            job.maxFactor = data.MaxFactor;
-            job.MaxChestDeltaProperty = data.MaxChestDelta;
-            job.enabledLeftShoulder = data.EnabledLeftShoulder;
-            job.enabledRightShoulder = data.EnabledRightShoulder;
-            job.offsetRotationLeftShoulder = data.m_CalibratedRotationLeftShoulder;
-            job.offsetRotationRightShoulder = data.m_CalibratedRotationRightShoulder;
-            job.offsetRotationHead = data.m_CalibratedRotationHead;
-            job.offsetRotationChest = data.m_CalibratedRotationChest;
-            job.offsetRotationLeftToe = data.m_CalibratedRotationLeftToe;
-            job.offsetRotationRightToe = data.m_CalibratedRotationRightToe;
-            job.offsetRotationLeftFoot = data.M_CalibrationLeftFootRotation;
-            job.offsetRotationRightFoot = data.M_CalibrationRightFootRotation;
-            job.offsetRotationLeftHand = data.m_CalibratedRotationLeftHand;
-            job.offsetRotationRightHand = data.m_CalibratedRotationRightHand;
-            job.MinHeadSpineHeight = data.minHeadSpineHeight;
-            job.shoulderSolveEnabled = data.ShoulderSolveEnabled;
-            job.shoulderShrugEnabled = data.ShoulderShrugEnabled;
-            job.shoulderElevationFactor = data.ShoulderElevationFactor;
-            job.shoulderProtractionFactor = data.ShoulderProtractionFactor;
-            job.spineBendPitch = data.SpineBendPitch;
-            job.spineBendYaw = data.SpineBendYaw;
-            job.spineBendRoll = data.SpineBendRoll;
-            job.upperChestBendPitch = data.UpperChestBendPitch;
-            job.upperChestBendYaw = data.UpperChestBendYaw;
-            job.upperChestBendRoll = data.UpperChestBendRoll;
-            job.hipHingeStartDeg = data.HipHingeStartDeg;
-            job.hipHingeMaxAddDeg = data.HipHingeMaxAddDeg;
-            job.chestSpringHz = data.ChestSpringHz;
-            job.chestSpringDamping = data.ChestSpringDamping;
-            job.spineMaxForwardDeg = data.SpineMaxForwardDeg;
-            job.spineMaxBackwardDeg = data.SpineMaxBackwardDeg;
-            job.spineMaxLateralDeg = data.SpineMaxLateralDeg;
-            job.spineSquishBoost = data.SpineSquishBoost;
-            job.spineGazeFollow = data.SpineGazeFollow;
-            job.neckGazeFollow = data.NeckGazeFollow;
-            job.moveBodyBackWhenCrouching = data.MoveBodyBackWhenCrouching;
-            job.swingSmoothRateDeg = data.SwingSmoothRateDeg;
-            job.chestArmSwingFactor = data.ChestArmSwingFactor;
-            job.chestArmSwingMaxDeg = data.ChestArmSwingMaxDeg;
-            job.lowerArmTwistFraction = data.LowerArmTwistFraction;
-            job.upperArmTwistFraction = data.UpperArmTwistFraction;
-            job.anatDifferentialStiffness = data.AnatDifferentialStiffness;
-            job.anatShoulderSlide = data.AnatShoulderSlide;
-            job.anatCervicalLordosis = data.AnatCervicalLordosis;
-            job.anatPelvicTwistRouting = data.AnatPelvicTwistRouting;
-            job.spineAnatomicalRom = data.SpineAnatomicalRom;
-            job.chestIkTarget = data.ChestIKTarget;
-            job.legSwivelSmoothing = data.LegSwivelSmoothing;
-            job.hintIsTrackerLeftLowerLeg = data.LeftLowerLegHintIsTracker;
-            job.hintIsTrackerRightLowerLeg = data.RightLowerLegHintIsTracker;
-            job.lordosisPitchGainDeg = data.LordosisPitchGainDeg;
-            job.lordosisBaseDeg = data.LordosisBaseDeg;
-            job.lordosisNeckShare = data.LordosisNeckShare;
-            job.lordosisMaxHeadPitchDeg = data.LordosisMaxHeadPitchDeg;
-            job.lordosisExtremeStartDeg = data.LordosisExtremeStartDeg;
-            job.lordosisExtremeFullDeg = data.LordosisExtremeFullDeg;
-            job.lordosisExtremeRollForwardMaxDeg = data.LordosisExtremeRollForwardMaxDeg;
-            job.lordosisExtremeRollBackwardMaxDeg = data.LordosisExtremeRollBackwardMaxDeg;
-            job.lordosisExtremeHipsHorizontalMax = data.LordosisExtremeHipsHorizontalMax;
-            job.lordosisExtremeChestHorizontalMax = data.LordosisExtremeChestHorizontalMax;
-            job.lordosisExtremeHipsDownMax = data.LordosisExtremeHipsDownMax;
-            job.lordosisExtremeChestDownMax = data.LordosisExtremeChestDownMax;
-            job.lordosisExtremeHipsDownLookUp = data.LordosisExtremeHipsDownLookUp;
-            job.lordosisExtremeChestDownLookUp = data.LordosisExtremeChestDownLookUp;
-            job.spineCCDRelax = data.SpineCCDRelax;
-            job.neckMaxConeDeg = data.NeckMaxConeDeg;
-            job.spineTwistKeep = data.SpineTwistKeep;
-            job.spineNeckTwistKeep = data.SpineNeckTwistKeep;
-            job.ikLockMode = data.IKLockMode;
-            job.slotPositions = data.TargetPositions;
-            job.slotRotations = data.TargetRotations;
-            job.slotOffsets = data.OffsetRotations;
-            job.slotWeights = data.Weights;
+            if (humanBodyBone >= 0 && humanBodyBone <= (int)HumanBodyBones.RightToes)
+            {
+                return humanBodyBone;
+            }
+            return humanBodyBone == (int)HumanBodyBones.UpperChest ? UpperChestSlot : -1;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetTargetPosition(int idx, in Vector3 v)
+        {
+            int s = Slot(idx);
+            if (s >= 0 && s < slotPositions.Length)
+            {
+                slotPositions[s] = v;
+            }
         }
 
-        public static BasisFullIKConstraintJob Create(BasisPoseSkeleton skeleton, ref BasisFullBodyData data)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetTargetRotation(int idx, in Quaternion q)
         {
-            var job = new BasisFullIKConstraintJob
+            int s = Slot(idx);
+            if (s >= 0 && s < slotRotations.Length)
             {
-                HandleHips = BindHandle(skeleton, data.hips),
-                HandleChest = BindHandle(skeleton, data.chest),
-                HandleNeck = BindHandle(skeleton, data.neck),
-                HandleHead = BindHandle(skeleton, data.head),
-                HandleLeftUpperLeg = BindHandle(skeleton, data.LeftUpperLeg),
-                HandleLeftLowerLeg = BindHandle(skeleton, data.LeftLowerLeg),
-                HandleLeftFoot = BindHandle(skeleton, data.leftFoot),
-                HandleRightUpperLeg = BindHandle(skeleton, data.RightUpperLeg),
-                HandleRightLowerLeg = BindHandle(skeleton, data.RightLowerLeg),
-                HandleRightFoot = BindHandle(skeleton, data.RightFoot),
-                HandleLeftToe = BindHandle(skeleton, data.LeftToe),
-                HandleRightToe = BindHandle(skeleton, data.RightToe),
-                HandleLeftUpperArm = BindHandle(skeleton, data.leftUpperArm),
-                HandleLeftLowerArm = BindHandle(skeleton, data.leftLowerArm),
-                HandleLeftHand = BindHandle(skeleton, data.LeftHand),
-                HandleRightUpperArm = BindHandle(skeleton, data.RightUpperArm),
-                HandleRightLowerArm = BindHandle(skeleton, data.RightLowerArm),
-                HandleRightHand = BindHandle(skeleton, data.RightHand),
-                HandleLeftUpperArmTwist = BindHandle(skeleton, data.LeftUpperArmTwist),
-                HandleLeftLowerArmTwist = BindHandle(skeleton, data.LeftLowerArmTwist),
-                HandleRightUpperArmTwist = BindHandle(skeleton, data.RightUpperArmTwist),
-                HandleRightLowerArmTwist = BindHandle(skeleton, data.RightLowerArmTwist),
-                HandleSpine = BindHandle(skeleton, data.spine),
-                HandleUpperChest = BindHandle(skeleton, data.upperChest),
-                HandleLeftShoulder = BindHandle(skeleton, data.LeftShoulder),
-                HandleRightShoulder = BindHandle(skeleton, data.RightShoulder),
-                targetPositionHips = data.PositionHips,
-                targetPositionHead = data.PositionHead,
-                TargetChestPosition = data.ChestPosition,
-                TargetChestPositionRaw = data.ChestPositionRaw,
-                playerUp = data.PlayerUp,
+                slotRotations[s] = q;
+            }
+        }
 
-                KneeBendPrefLeft = data.KneeBendPrefLeft,
-                KneeBendPrefRight = data.KneeBendPrefRight,
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetOffsetRotation(int idx, in Quaternion q)
+        {
+            int s = Slot(idx);
+            if (s >= 0 && s < slotOffsets.Length)
+            {
+                slotOffsets[s] = q;
+            }
+        }
 
-                targetPositionLeftLowerLeg = data.LeftFootPosition,
-                hintPositionLeftLowerLeg = data.PositionLeftLowerLeg,
-                targetPositionRightLowerLeg = data.RightFootPosition,
-                hintPositionRightLowerLeg = data.PositionRightLowerLeg,
-                targetPositionLeftHand = data.PositionLeftHand,
-                hintPositionLeftHand = data.LeftLowerArmPosition,
-                targetPositionRightHand = data.PositionRightHand,
-                hintPositionRightHand = data.RightLowerArmPosition,
-                targetRotationHips = data.RotationHips,
-                offsetRotationHips = data.OffsetRotationHips,
-                targetRotationHead = data.RotationHead,
-                targetChestRotation = data.ChestRotation,
-                TargetRotationLeftShoulder = data.LeftShoulderRotation,
-                TargetRotationRightShoulder = data.RightShoulderRotation,
-                targetRotationLeftLowerLeg = data.LeftFootRotation,
-                targetRotationRightLowerLeg = data.RightFootRotation,
-                leftDrivenTargetRot = data.OutGoingLeftToeRotation,
-                rightDrivenTargetRot = data.OutGoingRightToeRotation,
-                targetRotationLeftHand = data.RotationLeftHand,
-                hintRotationLeftHand = data.LeftLowerArmRotation,
-                targetRotationRightHand = data.RotationRightHand,
-                hintRotationRightHand = data.RightLowerArmRotation,
-                enabledSpineIK = data.EnabledSpineIK,
-                HasChestTracker = data.WeightChest,
-                hasHipsTracker = data.HasHipsTracker,
-                enabledLeftLowerLeg = data.EnableLeftLeg,
-                hintWeightLeftLowerLeg = data.EnableLeftLowerLeg,
-                enabledRightLowerLeg = data.EnableRightLeg,
-                hintWeightRightLowerLeg = data.EnableRightLowerLeg,
-                leftToeEnabled = data.LeftToeEnabled,
-                RightToeEnabled = data.RightToeEnabled,
-                enabledLeftHand = data.EnabledLeftHand,
-                hintWeightLeftHand = data.HintWeightLeftHand,
-                enabledRightHand = data.EnabledRightHand,
-                hintWeightRightHand = data.HintWeightRightHand,
-                protectElbow = data.ProtectElbow,
-                useNeuralPole = data.UseNeuralPole,
-                collideTrackedElbow = data.CollideTrackedElbow,
-                collisionsEnabled = data.CollisionsEnabled,
-                chestRadius = data.ChestRadius,
-                collisionSkin = data.CollisionSkin,
-                handRadius = data.HandRadius,
-                handSkin = data.HandSkin,
-                maxBendDeg = data.MaxBendDeg,
-                minFactor = data.MinFactor,
-                maxFactor = data.MaxFactor,
-                MaxChestDeltaProperty = data.MaxChestDelta,
-                enabledLeftShoulder = data.EnabledLeftShoulder,
-                enabledRightShoulder = data.EnabledRightShoulder,
-                offsetRotationLeftShoulder = data.m_CalibratedRotationLeftShoulder,
-                offsetRotationRightShoulder = data.m_CalibratedRotationRightShoulder,
-                offsetRotationHead = data.m_CalibratedRotationHead,
-                offsetRotationChest = data.m_CalibratedRotationChest,
-                offsetRotationLeftToe = data.m_CalibratedRotationLeftToe,
-                offsetRotationRightToe = data.m_CalibratedRotationRightToe,
-                offsetRotationLeftFoot = data.M_CalibrationLeftFootRotation,
-                offsetRotationRightFoot = data.M_CalibrationRightFootRotation,
-                offsetRotationLeftHand = data.m_CalibratedRotationLeftHand,
-                offsetRotationRightHand = data.m_CalibratedRotationRightHand,
-                MinHeadSpineHeight = data.minHeadSpineHeight,
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetWeight(int idx, bool State)
+        {
+            int s = Slot(idx);
+            if (s >= 0 && s < slotWeights.Length)
+            {
+                slotWeights[s] = State;
+            }
+        }
+        public void SetDefaultValues()
+        {
 
-                // Shoulder solve bindings
-                shoulderSolveEnabled = data.ShoulderSolveEnabled,
-                shoulderShrugEnabled = data.ShoulderShrugEnabled,
-                shoulderElevationFactor = data.ShoulderElevationFactor,
-                shoulderProtractionFactor = data.ShoulderProtractionFactor,
 
-                // Spine bend distribution bindings (per-axis pitch/yaw/roll)
-                spineBendPitch = data.SpineBendPitch,
-                spineBendYaw = data.SpineBendYaw,
-                spineBendRoll = data.SpineBendRoll,
-                upperChestBendPitch = data.UpperChestBendPitch,
-                upperChestBendYaw = data.UpperChestBendYaw,
-                upperChestBendRoll = data.UpperChestBendRoll,
-                hipHingeStartDeg = data.HipHingeStartDeg,
-                hipHingeMaxAddDeg = data.HipHingeMaxAddDeg,
-                chestSpringHz = data.ChestSpringHz,
-                chestSpringDamping = data.ChestSpringDamping,
-                spineMaxForwardDeg = data.SpineMaxForwardDeg,
-                spineMaxBackwardDeg = data.SpineMaxBackwardDeg,
-                spineMaxLateralDeg = data.SpineMaxLateralDeg,
-                spineSquishBoost = data.SpineSquishBoost,
-                spineGazeFollow = data.SpineGazeFollow,
-                neckGazeFollow = data.NeckGazeFollow,
-                moveBodyBackWhenCrouching = data.MoveBodyBackWhenCrouching,
-                swingSmoothRateDeg = data.SwingSmoothRateDeg,
-                chestArmSwingFactor = data.ChestArmSwingFactor,
-                chestArmSwingMaxDeg = data.ChestArmSwingMaxDeg,
-                lowerArmTwistFraction = data.LowerArmTwistFraction,
-                upperArmTwistFraction = data.UpperArmTwistFraction,
 
-                anatDifferentialStiffness = data.AnatDifferentialStiffness,
-                anatShoulderSlide = data.AnatShoulderSlide,
-                anatCervicalLordosis = data.AnatCervicalLordosis,
-                anatPelvicTwistRouting = data.AnatPelvicTwistRouting,
-                spineAnatomicalRom = data.SpineAnatomicalRom,
-                chestIkTarget = data.ChestIKTarget,
-                legSwivelSmoothing = data.LegSwivelSmoothing,
-                hintIsTrackerLeftLowerLeg = data.LeftLowerLegHintIsTracker,
-                hintIsTrackerRightLowerLeg = data.RightLowerLegHintIsTracker,
-                lordosisPitchGainDeg = data.LordosisPitchGainDeg,
-                lordosisBaseDeg = data.LordosisBaseDeg,
-                lordosisNeckShare = data.LordosisNeckShare,
-                lordosisMaxHeadPitchDeg = data.LordosisMaxHeadPitchDeg,
-                lordosisExtremeStartDeg = data.LordosisExtremeStartDeg,
-                lordosisExtremeFullDeg = data.LordosisExtremeFullDeg,
-                lordosisExtremeRollForwardMaxDeg = data.LordosisExtremeRollForwardMaxDeg,
-                lordosisExtremeRollBackwardMaxDeg = data.LordosisExtremeRollBackwardMaxDeg,
-                lordosisExtremeHipsHorizontalMax = data.LordosisExtremeHipsHorizontalMax,
-                lordosisExtremeChestHorizontalMax = data.LordosisExtremeChestHorizontalMax,
-                lordosisExtremeHipsDownMax = data.LordosisExtremeHipsDownMax,
-                lordosisExtremeChestDownMax = data.LordosisExtremeChestDownMax,
-                lordosisExtremeHipsDownLookUp = data.LordosisExtremeHipsDownLookUp,
-                lordosisExtremeChestDownLookUp = data.LordosisExtremeChestDownLookUp,
-                spineCCDRelax = data.SpineCCDRelax,
-                neckMaxConeDeg = data.NeckMaxConeDeg,
-                spineTwistKeep = data.SpineTwistKeep,
-                spineNeckTwistKeep = data.SpineNeckTwistKeep,
+            HasChestTracker = true;
+            hintWeightLeftLowerLeg = hintWeightRightLowerLeg = 1f;
+            enabledSpineIK = true;
+            hasHipsTracker = false;
+            footIsTrackerLeftLeg = footIsTrackerRightLeg = false;
+            enabledLeftLowerLeg = enabledRightLowerLeg = 1f;
+            hintIsTrackerLeftLowerLeg = hintIsTrackerRightLowerLeg = false;
+            ikLockMode = (float)BasisIKLockMode.LockHead;
 
-                // IK Lock Mode binding
-                ikLockMode = data.IKLockMode,
+            hintWeightLeftHand = hintWeightRightHand = true;
+            enabledLeftHand = enabledRightHand = 1f;
+            offsetRotationHead = offsetRotationLeftFoot = offsetRotationRightFoot = Quaternion.identity;
+            offsetRotationLeftHand = offsetRotationRightHand = Quaternion.identity;
 
-                // Baked T-pose data for shoulder solve
-                TposeLeftShoulderRot = data.LeftShoulder != null ? data.LeftShoulder.rotation : Quaternion.identity,
-                TposeRightShoulderRot = data.RightShoulder != null ? data.RightShoulder.rotation : Quaternion.identity,
-                TposeChestRot = data.chest != null ? data.chest.rotation : Quaternion.identity,
-                TposeLeftShoulderLocalDir = (data.LeftShoulder != null && data.leftUpperArm != null)
-                    ? (data.leftUpperArm.position - data.LeftShoulder.position).normalized : Vector3.left,
-                TposeRightShoulderLocalDir = (data.RightShoulder != null && data.RightUpperArm != null)
-                    ? (data.RightUpperArm.position - data.RightShoulder.position).normalized : Vector3.right,
-                TposeShoulderToHandLeft = (data.LeftShoulder != null && data.LeftHand != null)
-                    ? Vector3.Distance(data.LeftShoulder.position, data.LeftHand.position) : 0.6f,
-                TposeShoulderToHandRight = (data.RightShoulder != null && data.RightHand != null)
-                    ? Vector3.Distance(data.RightShoulder.position, data.RightHand.position) : 0.6f,
-                TposeClavicleLenLeft = (data.LeftShoulder != null && data.leftUpperArm != null)
-                    ? Vector3.Distance(data.LeftShoulder.position, data.leftUpperArm.position) : 0f,
-                TposeClavicleLenRight = (data.RightShoulder != null && data.RightUpperArm != null)
-                    ? Vector3.Distance(data.RightShoulder.position, data.RightUpperArm.position) : 0f,
-                TposeShoulderToElbowLeft = (data.LeftShoulder != null && data.leftLowerArm != null)
-                    ? Vector3.Distance(data.LeftShoulder.position, data.leftLowerArm.position) : 0f,
-                TposeShoulderToElbowRight = (data.RightShoulder != null && data.RightLowerArm != null)
-                    ? Vector3.Distance(data.RightShoulder.position, data.RightLowerArm.position) : 0f,
+            playerUp = Vector3.up;
 
-            };
+            targetPositionHips = Vector3.zero;
+            targetRotationHips = Quaternion.identity;
+            offsetRotationHips = Quaternion.identity;
 
-            // Bind slot data
-            job.slotPositions = data.TargetPositions;
-            job.slotRotations = data.TargetRotations;
-            job.slotOffsets = data.OffsetRotations;
-            job.slotWeights = data.Weights;
+            // Integrated driven TR defaults
+
+            leftDrivenTargetRot = rightDrivenTargetRot = Quaternion.identity;
+            leftToeEnabled = false;
+            RightToeEnabled = false;
+
+            // Chest/hand capsule defaults — read from persisted settings
+            chestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
+            collisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
+            collisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
+            handRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
+            handSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
+            protectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            collideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
+
+            shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
+            shoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
+            shoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
+
+            spineBendPitch = 0.45f;
+            spineBendYaw = 0.10f;
+            spineBendRoll = 0.35f;
+            upperChestBendPitch = 0.25f;
+            upperChestBendYaw = 0.30f;
+            upperChestBendRoll = 0.20f;
+            hipHingeStartDeg = 40f;
+            hipHingeMaxAddDeg = 52f;
+            chestSpringHz = 12f;
+            chestSpringDamping = 1f;
+            spineMaxForwardDeg = 60f;
+            spineMaxBackwardDeg = 25f;
+            spineMaxLateralDeg = 25f;
+            spineSquishBoost = 0.5f;
+            spineGazeFollow = 0.25f;
+            neckGazeFollow = 0.3f;
+            moveBodyBackWhenCrouching = 1f;
+            swingSmoothRateDeg = 720f;
+            chestArmSwingFactor = 0.3f;
+            chestArmSwingMaxDeg = 15f;
+            lowerArmTwistFraction = 0.5f;
+            upperArmTwistFraction = 0.3f;
+
+            anatDifferentialStiffness = false;
+            anatShoulderSlide = false;
+            anatCervicalLordosis = false;
+            anatPelvicTwistRouting = false;
+            spineAnatomicalRom = false;
+            chestIkTarget = false;
+            legSwivelSmoothing = true;
+            lordosisPitchGainDeg = 8f;
+            lordosisBaseDeg = 5f;
+            lordosisNeckShare = 0.65f;
+            lordosisMaxHeadPitchDeg = 80f;
+            lordosisExtremeStartDeg = 50f;
+            lordosisExtremeFullDeg = 80f;
+            lordosisExtremeRollForwardMaxDeg = 10f;
+            lordosisExtremeRollBackwardMaxDeg = 4f;
+            lordosisExtremeHipsHorizontalMax = 0.025f;
+            lordosisExtremeChestHorizontalMax = 0.04f;
+            lordosisExtremeHipsDownMax = 0.015f;
+            lordosisExtremeChestDownMax = 0.025f;
+            lordosisExtremeHipsDownLookUp = 0.0005f;
+            lordosisExtremeChestDownLookUp = 0.001f;
+            spineCCDRelax = 0.8f;
+            neckMaxConeDeg = 45f;
+            spineTwistKeep = 0.25f;
+            spineNeckTwistKeep = 0.9f;
+
+            // Slots: identity rotations, zero positions, weights disabled.
+            slotPositions.Length = Count;
+            slotRotations.Length = Count;
+            slotOffsets.Length = Count;
+            slotWeights.Length = Count;
+            for (int i = 0; i < Count; i++)
+            {
+                slotPositions[i] = Vector3.zero;
+                slotRotations[i] = Quaternion.identity;
+                slotOffsets[i] = Quaternion.identity;
+                slotWeights[i] = false;
+            }
+        }
+
+        public void Create(BasisPoseSkeleton skeleton, in BasisFullBodyBones bones)
+        {
+            HandleHips = BindHandle(skeleton, bones.hips);
+            HandleChest = BindHandle(skeleton, bones.chest);
+            HandleNeck = BindHandle(skeleton, bones.neck);
+            HandleHead = BindHandle(skeleton, bones.head);
+            HandleLeftUpperLeg = BindHandle(skeleton, bones.LeftUpperLeg);
+            HandleLeftLowerLeg = BindHandle(skeleton, bones.LeftLowerLeg);
+            HandleLeftFoot = BindHandle(skeleton, bones.leftFoot);
+            HandleRightUpperLeg = BindHandle(skeleton, bones.RightUpperLeg);
+            HandleRightLowerLeg = BindHandle(skeleton, bones.RightLowerLeg);
+            HandleRightFoot = BindHandle(skeleton, bones.RightFoot);
+            HandleLeftToe = BindHandle(skeleton, bones.LeftToe);
+            HandleRightToe = BindHandle(skeleton, bones.RightToe);
+            HandleLeftUpperArm = BindHandle(skeleton, bones.leftUpperArm);
+            HandleLeftLowerArm = BindHandle(skeleton, bones.leftLowerArm);
+            HandleLeftHand = BindHandle(skeleton, bones.LeftHand);
+            HandleRightUpperArm = BindHandle(skeleton, bones.RightUpperArm);
+            HandleRightLowerArm = BindHandle(skeleton, bones.RightLowerArm);
+            HandleRightHand = BindHandle(skeleton, bones.RightHand);
+            HandleLeftUpperArmTwist = BindHandle(skeleton, bones.LeftUpperArmTwist);
+            HandleLeftLowerArmTwist = BindHandle(skeleton, bones.LeftLowerArmTwist);
+            HandleRightUpperArmTwist = BindHandle(skeleton, bones.RightUpperArmTwist);
+            HandleRightLowerArmTwist = BindHandle(skeleton, bones.RightLowerArmTwist);
+            HandleSpine = BindHandle(skeleton, bones.spine);
+            HandleUpperChest = BindHandle(skeleton, bones.upperChest);
+            HandleLeftShoulder = BindHandle(skeleton, bones.LeftShoulder);
+            HandleRightShoulder = BindHandle(skeleton, bones.RightShoulder);
+
+            // Baked T-pose data for shoulder solve
+            TposeLeftShoulderRot = bones.LeftShoulder != null ? bones.LeftShoulder.rotation : Quaternion.identity;
+            TposeRightShoulderRot = bones.RightShoulder != null ? bones.RightShoulder.rotation : Quaternion.identity;
+            TposeChestRot = bones.chest != null ? bones.chest.rotation : Quaternion.identity;
+            TposeLeftShoulderLocalDir = (bones.LeftShoulder != null && bones.leftUpperArm != null)
+                ? (bones.leftUpperArm.position - bones.LeftShoulder.position).normalized : Vector3.left;
+            TposeRightShoulderLocalDir = (bones.RightShoulder != null && bones.RightUpperArm != null)
+                ? (bones.RightUpperArm.position - bones.RightShoulder.position).normalized : Vector3.right;
+            TposeShoulderToHandLeft = (bones.LeftShoulder != null && bones.LeftHand != null)
+                ? Vector3.Distance(bones.LeftShoulder.position, bones.LeftHand.position) : 0.6f;
+            TposeShoulderToHandRight = (bones.RightShoulder != null && bones.RightHand != null)
+                ? Vector3.Distance(bones.RightShoulder.position, bones.RightHand.position) : 0.6f;
+            TposeClavicleLenLeft = (bones.LeftShoulder != null && bones.leftUpperArm != null)
+                ? Vector3.Distance(bones.LeftShoulder.position, bones.leftUpperArm.position) : 0f;
+            TposeClavicleLenRight = (bones.RightShoulder != null && bones.RightUpperArm != null)
+                ? Vector3.Distance(bones.RightShoulder.position, bones.RightUpperArm.position) : 0f;
+            TposeShoulderToElbowLeft = (bones.LeftShoulder != null && bones.leftLowerArm != null)
+                ? Vector3.Distance(bones.LeftShoulder.position, bones.leftLowerArm.position) : 0f;
+            TposeShoulderToElbowRight = (bones.RightShoulder != null && bones.RightLowerArm != null)
+                ? Vector3.Distance(bones.RightShoulder.position, bones.RightLowerArm.position) : 0f;
 
             // Pair each slot with its bone handle, in HumanBodyBones order.
-            job.slotHandles.Length = BasisFullBodyData.Count;
-            job.slotHandles[0] = job.HandleHips;
-            job.slotHandles[1] = job.HandleLeftUpperLeg;
-            job.slotHandles[2] = job.HandleRightUpperLeg;
-            job.slotHandles[3] = job.HandleLeftLowerLeg;
-            job.slotHandles[4] = job.HandleRightLowerLeg;
-            job.slotHandles[5] = job.HandleLeftFoot;
-            job.slotHandles[6] = job.HandleRightFoot;
-            job.slotHandles[7] = job.HandleSpine;
-            job.slotHandles[8] = job.HandleChest;
-            job.slotHandles[9] = job.HandleNeck;
-            job.slotHandles[10] = job.HandleHead;
-            job.slotHandles[11] = job.HandleLeftShoulder;
-            job.slotHandles[12] = job.HandleRightShoulder;
-            job.slotHandles[13] = job.HandleLeftUpperArm;
-            job.slotHandles[14] = job.HandleRightUpperArm;
-            job.slotHandles[15] = job.HandleLeftLowerArm;
-            job.slotHandles[16] = job.HandleRightLowerArm;
-            job.slotHandles[17] = job.HandleLeftHand;
-            job.slotHandles[18] = job.HandleRightHand;
-            job.slotHandles[19] = job.HandleLeftToe;
-            job.slotHandles[20] = job.HandleRightToe;
-            job.slotHandles[BasisFullBodyData.UpperChestSlot] = job.HandleUpperChest;
+            slotHandles.Length = Count;
+            slotHandles[0] = HandleHips;
+            slotHandles[1] = HandleLeftUpperLeg;
+            slotHandles[2] = HandleRightUpperLeg;
+            slotHandles[3] = HandleLeftLowerLeg;
+            slotHandles[4] = HandleRightLowerLeg;
+            slotHandles[5] = HandleLeftFoot;
+            slotHandles[6] = HandleRightFoot;
+            slotHandles[7] = HandleSpine;
+            slotHandles[8] = HandleChest;
+            slotHandles[9] = HandleNeck;
+            slotHandles[10] = HandleHead;
+            slotHandles[11] = HandleLeftShoulder;
+            slotHandles[12] = HandleRightShoulder;
+            slotHandles[13] = HandleLeftUpperArm;
+            slotHandles[14] = HandleRightUpperArm;
+            slotHandles[15] = HandleLeftLowerArm;
+            slotHandles[16] = HandleRightLowerArm;
+            slotHandles[17] = HandleLeftHand;
+            slotHandles[18] = HandleRightHand;
+            slotHandles[19] = HandleLeftToe;
+            slotHandles[20] = HandleRightToe;
+            slotHandles[UpperChestSlot] = HandleUpperChest;
 
+            GenerateHeadToSpine(skeleton, bones);
+            spineMaxIterations = 20;
+            spineTolerance = 0.001f;
+            chestSpringState = new NativeArray<Vector3>(2, Allocator.Persistent);
+            chestSpringInit = new NativeArray<int>(1, Allocator.Persistent);
 
-            GenerateHeadToSpine(skeleton, ref job, ref data);
-            job.spineMaxIterations = 20;
-            job.spineTolerance = 0.001f;
-            job.chestSpringState = new NativeArray<Vector3>(2, Allocator.Persistent);
-            job.chestSpringInit = new NativeArray<int>(1, Allocator.Persistent);
-
-            job.swingLastDir = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingLastAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingLastTarget = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingContinuityInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingCollided = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingSmoothState = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingHintBend = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingHintAxis = new NativeArray<Vector3>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.swingHintInit = new NativeArray<int>(BasisFullIKConstraintJob.k_SwingCount, Allocator.Persistent);
-            job.legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
-            job.legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
-            job.legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
-
-            return job;
+            swingLastDir = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingLastAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingLastTarget = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingContinuityInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            swingCollided = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            swingSmoothState = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            swingHintBend = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingHintAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingHintInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
+            legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
+            legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
         }
+
         // Bakes each vertebra's anatomical rest frame + ROM, PARALLEL TO THE CHAIN, so the guard can be
         // applied by chain index alone. Runs in the same T-pose window as TposeHeadToNeckLocal below.
         //
@@ -2828,20 +2313,20 @@ collisionsEnabled;
         // thorax, so it inherits the LOWER thoracic ROM -- the more permissive of the two, because it is now
         // doing both jobs and clamping it to the stiffer upper-thoracic envelope would rob the avatar of
         // bend it genuinely has.
-        static void BuildSpineAnatomy(Transform[] chain, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
+        void BuildSpineAnatomy(Transform[] chain, in BasisFullBodyBones bones)
         {
             int n = chain.Length;
-            job.ChainSpineRestFrames = new NativeArray<BasisSpineRestFrame>(n, Allocator.Persistent);
-            job.ChainSpineRoms = new NativeArray<BasisSpineRom>(n, Allocator.Persistent);
+            ChainSpineRestFrames = new NativeArray<BasisSpineRestFrame>(n, Allocator.Persistent);
+            ChainSpineRoms = new NativeArray<BasisSpineRom>(n, Allocator.Persistent);
 
             // The subject's RIGHT, from the shoulders. A body-wide fact -- NOT a bone's local axis, which is
             // a rig convention and does not transfer between avatars. This project has been bitten by that
             // repeatedly; it is why the arm swivel model is position-only.
-            if (data.leftUpperArm == null || data.RightUpperArm == null)
+            if (bones.leftUpperArm == null || bones.RightUpperArm == null)
             {
                 return;   // every frame stays Valid=false, so the guard is a no-op. Decline, never guess.
             }
-            Vector3 hipsRight = data.RightUpperArm.position - data.leftUpperArm.position;
+            Vector3 hipsRight = bones.RightUpperArm.position - bones.leftUpperArm.position;
 
             for (int i = 1; i <= n - 2; i++)   // skip the head (0) and the hips (n-1)
             {
@@ -2854,19 +2339,19 @@ collisionsEnabled;
                 }
 
                 BasisSpineSegment segment;
-                if (bone == data.spine)
+                if (bone == bones.spine)
                 {
                     segment = BasisSpineSegment.Lumbar;
                 }
-                else if (bone == data.chest)
+                else if (bone == bones.chest)
                 {
                     segment = BasisSpineSegment.LowerThoracic;
                 }
-                else if (bone == data.upperChest)
+                else if (bone == bones.upperChest)
                 {
                     segment = BasisSpineSegment.UpperThoracic;
                 }
-                else if (bone == data.neck)
+                else if (bone == bones.neck)
                 {
                     segment = BasisSpineSegment.Cervical;
                 }
@@ -2875,31 +2360,31 @@ collisionsEnabled;
                     continue;
                 }
 
-                job.ChainSpineRestFrames[i] = BasisSpineAnatomy.BuildRestFrame(
+                ChainSpineRestFrames[i] = BasisSpineAnatomy.BuildRestFrame(
                     bone.position, child.position, bone.rotation, parent.rotation, hipsRight);
-                job.ChainSpineRoms[i] = BasisSpineAnatomy.Rom(segment);
+                ChainSpineRoms[i] = BasisSpineAnatomy.Rom(segment);
             }
         }
-        public static void GenerateHeadToSpine(BasisPoseSkeleton skeleton, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
+        public void GenerateHeadToSpine(BasisPoseSkeleton skeleton, in BasisFullBodyBones bones)
         {
-            var HeadToSpine = data.upperChest != null
-                ? new Transform[] { data.head, data.neck, data.upperChest, data.chest, data.spine, data.hips }
-                : new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
+            var HeadToSpine = bones.upperChest != null
+                ? new Transform[] { bones.head, bones.neck, bones.upperChest, bones.chest, bones.spine, bones.hips }
+                : new Transform[] { bones.head, bones.neck, bones.chest, bones.spine, bones.hips };
             int SpineToHeadLength = HeadToSpine.Length;
-            job.ChainHeadToSpine = new NativeArray<BasisBoneHandle>(SpineToHeadLength, Allocator.Persistent);
-            BuildSpineAnatomy(HeadToSpine, ref job, ref data);
+            ChainHeadToSpine = new NativeArray<BasisBoneHandle>(SpineToHeadLength, Allocator.Persistent);
+            BuildSpineAnatomy(HeadToSpine, bones);
 
             for (int i = 0; i < SpineToHeadLength; i++)
             {
-                job.ChainHeadToSpine[i] = skeleton.Bind(HeadToSpine[i]);
+                ChainHeadToSpine[i] = skeleton.Bind(HeadToSpine[i]);
             }
-            if (data.hips != null && data.head != null)
+            if (bones.hips != null && bones.head != null)
             {
-                job.TposeLengthHeadToHips = (data.head.position - data.hips.position);
+                TposeLengthHeadToHips = (bones.head.position - bones.hips.position);
             }
             else
             {
-                job.TposeLengthHeadToHips = Vector3.zero;
+                TposeLengthHeadToHips = Vector3.zero;
             }
 
             // The spine's bend cue, baked while the avatar is still physically T-posed (the same window
@@ -2912,46 +2397,46 @@ collisionsEnabled;
             //
             // No head or no neck => zero, and the cue degrades exactly to the old hips->head behaviour rather
             // than to something novel and untested.
-            if (data.head != null && data.neck != null)
+            if (bones.head != null && bones.neck != null)
             {
-                job.TposeHeadToNeckLocal = Quaternion.Inverse(data.head.rotation) * (data.neck.position - data.head.position);
+                TposeHeadToNeckLocal = Quaternion.Inverse(bones.head.rotation) * (bones.neck.position - bones.head.position);
             }
             else
             {
-                job.TposeHeadToNeckLocal = Vector3.zero;
+                TposeHeadToNeckLocal = Vector3.zero;
             }
 
-            if (data.hips != null && data.neck != null)
+            if (bones.hips != null && bones.neck != null)
             {
-                job.TposeLengthNeckToHips = (data.neck.position - data.hips.position);
+                TposeLengthNeckToHips = (bones.neck.position - bones.hips.position);
             }
             else
             {
-                job.TposeLengthNeckToHips = job.TposeLengthHeadToHips;
+                TposeLengthNeckToHips = TposeLengthHeadToHips;
             }
         }
         static BasisBoneHandle BindHandle(BasisPoseSkeleton skeleton, Transform t) => (t != null) ? skeleton.Bind(t) : default;
-        public static void Destroy(BasisFullIKConstraintJob job)
+        public void Destroy()
         {
-            if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
-            if (job.ChainSpineRestFrames.IsCreated) job.ChainSpineRestFrames.Dispose();
-            if (job.ChainSpineRoms.IsCreated) job.ChainSpineRoms.Dispose();
+            if (ChainHeadToSpine.IsCreated) ChainHeadToSpine.Dispose();
+            if (ChainSpineRestFrames.IsCreated) ChainSpineRestFrames.Dispose();
+            if (ChainSpineRoms.IsCreated) ChainSpineRoms.Dispose();
 
-            if (job.chestSpringState.IsCreated) job.chestSpringState.Dispose();
-            if (job.chestSpringInit.IsCreated) job.chestSpringInit.Dispose();
+            if (chestSpringState.IsCreated) chestSpringState.Dispose();
+            if (chestSpringInit.IsCreated) chestSpringInit.Dispose();
 
-            if (job.swingLastDir.IsCreated) job.swingLastDir.Dispose();
-            if (job.swingLastAxis.IsCreated) job.swingLastAxis.Dispose();
-            if (job.swingLastTarget.IsCreated) job.swingLastTarget.Dispose();
-            if (job.swingContinuityInit.IsCreated) job.swingContinuityInit.Dispose();
-            if (job.swingCollided.IsCreated) job.swingCollided.Dispose();
-            if (job.swingSmoothState.IsCreated) job.swingSmoothState.Dispose();
-            if (job.swingHintBend.IsCreated) job.swingHintBend.Dispose();
-            if (job.swingHintAxis.IsCreated) job.swingHintAxis.Dispose();
-            if (job.swingHintInit.IsCreated) job.swingHintInit.Dispose();
-            if (job.legSwivelRaw.IsCreated) job.legSwivelRaw.Dispose();
-            if (job.legSwivelSmooth.IsCreated) job.legSwivelSmooth.Dispose();
-            if (job.legSwivelInit.IsCreated) job.legSwivelInit.Dispose();
+            if (swingLastDir.IsCreated) swingLastDir.Dispose();
+            if (swingLastAxis.IsCreated) swingLastAxis.Dispose();
+            if (swingLastTarget.IsCreated) swingLastTarget.Dispose();
+            if (swingContinuityInit.IsCreated) swingContinuityInit.Dispose();
+            if (swingCollided.IsCreated) swingCollided.Dispose();
+            if (swingSmoothState.IsCreated) swingSmoothState.Dispose();
+            if (swingHintBend.IsCreated) swingHintBend.Dispose();
+            if (swingHintAxis.IsCreated) swingHintAxis.Dispose();
+            if (swingHintInit.IsCreated) swingHintInit.Dispose();
+            if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
+            if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();
+            if (legSwivelInit.IsCreated) legSwivelInit.Dispose();
         }
     }
 }

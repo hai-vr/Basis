@@ -90,7 +90,7 @@ namespace UnityEngine.Animations.Rigging
         static readonly float3 k_ElbowTuckPole = new float3(-1f, -0.35f, 0f);
         public const float ElbowTuckWeight = 0.12f;
 
-        // The neural pole is now the FBIKNeuralPole setting (default OFF) -> BasisFullBodyData.UseNeuralPole ->
+        // The neural pole is now the FBIKNeuralPole setting (default OFF) -> BasisFullIKConstraintJob.useNeuralPole ->
         // job.useNeuralPole -> ArmHint/LegHint `useNeural` (tests/harness omit the arg, so they stay on field/poly).
         // Default off: Unity A/B (BasisMocapMotionQualityTests) put it even-to-slightly-worse on CMU but pop-free.
 
