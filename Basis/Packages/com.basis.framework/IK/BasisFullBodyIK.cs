@@ -1627,22 +1627,24 @@ collisionsEnabled;
         /// <param name="mid">The transform handle for the mid transform.</param>
         /// <param name="tip">The transform handle for the tip transform.</param>
         /// <param name="target">The transform handle for the target transform.</param>
-        /// <param name="hint">The transform handle for the hint transform.</param>
+        /// <param name="hint">The world-space hint (pole) position.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
         /// <summary>Returns the shin roll applied to the mid bone, so a preserved (untracked) foot can be carried
         /// by it. Identity whenever no shin roll ran.</summary>
-        public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false)
+        public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, Vector3 hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false)
         {
             BasisLegSolveInput input = default;
-            input.Root = root.GetPosition(stream);
-            input.Mid = mid.GetPosition(stream);
+            root.GetPositionAndRotation(stream, out Vector3 rootPos, out Quaternion rootRot);
+            mid.GetPositionAndRotation(stream, out Vector3 midPos, out Quaternion midRot);
+            input.Root = rootPos;
+            input.Mid = midPos;
             input.Tip = tip.GetPosition(stream);
-            input.RootRotation = root.GetRotation(stream);
-            input.MidRotation = mid.GetRotation(stream);
+            input.RootRotation = rootRot;
+            input.MidRotation = midRot;
             input.TargetPosition = target.translation;
             input.TargetRotation = target.rotation;
-            input.HintPosition = hint.translation;
+            input.HintPosition = hint;
             input.HintWeight = hintWeight;
             input.HintDistrust = hintDistrust;
             input.TargetOffset = targetOffset;
@@ -1704,10 +1706,7 @@ collisionsEnabled;
             float hintW = hintWeightProp;
 
             BasisAffineTransform target = new BasisAffineTransform(targetPosProp, tRot);
-            // The hint's ROTATION is the tracker-implied shin BONE rotation (rig driver maps the raw tracker
-            // through the calibration reference). Only a real lower-leg tracker carries one; the model-pole
-            // branch below replaces the hint entirely and leaves this identity, which the solve reads as off.
-            BasisAffineTransform hint = new BasisAffineTransform(hintPosProp, hintIsTrackerProp ? hintRotProp : Quaternion.identity);
+            Vector3 hint = hintPosProp;
             Vector3 bendNormal = bendNormalProp;
 
             float hintDistrust = 0f;
@@ -1739,7 +1738,7 @@ collisionsEnabled;
                 if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft,
                                                 out Vector3 modelHint, out float conf, useNeuralPole))
                 {
-                    hint = new BasisAffineTransform(modelHint, Quaternion.identity);
+                    hint = modelHint;
                     hintW = 1f;
                     if (legDiagnostics.IsCreated && legSlot < legDiagnostics.Length)
                     {
@@ -1752,6 +1751,9 @@ collisionsEnabled;
                 }
             }
 
+            // hintRotation is the tracker-implied shin BONE rotation (rig driver maps the raw tracker through
+            // the calibration reference). Only a real lower-leg tracker carries one; every other path passes
+            // default, which the solve reads as off.
             Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,
                                                hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
@@ -2124,8 +2126,7 @@ collisionsEnabled;
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)
                 {
-                    Vector3 preservedHandPos = tip.GetPosition(stream);
-                    Quaternion preservedHandRot = tip.GetRotation(stream);
+                    tip.GetPositionAndRotation(stream, out Vector3 preservedHandPos, out Quaternion preservedHandRot);
                     SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
                     tip.SetPosition(stream, preservedHandPos);
                     tip.SetRotation(stream, preservedHandRot);
