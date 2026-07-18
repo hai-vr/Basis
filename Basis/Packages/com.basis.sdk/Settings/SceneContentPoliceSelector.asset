@@ -363,7 +363,6 @@ MonoBehaviour:
   - UnityEngine.Rendering.ProbeTouchupVolume
   - UnityEngine.Rendering.ProbeAdjustmentVolume
   - UnityEngine.Rendering.Volume
-  - UnityEngine.Animations.Rigging.BasisFullBodyIK
   - UnityEngine.Rendering.SceneRenderPipeline
   - UnityEngine.Rendering.LensFlareComponentSRP
   - UnityEngine.Rendering.DebugUpdater

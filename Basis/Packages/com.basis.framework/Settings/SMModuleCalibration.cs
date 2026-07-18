@@ -701,13 +701,11 @@ public class SMModuleCalibration : BasisSettingsBase
         if (BasisLocalPlayer.Instance == null || BasisLocalPlayer.Instance.LocalRigDriver == null)
             return;
 
-        var constraint = BasisLocalPlayer.Instance.LocalRigDriver.BasisFullIKConstraint;
-        if (constraint == null)
+        var rig = BasisLocalPlayer.Instance.LocalRigDriver;
+        if (!rig.IKDataReady)
             return;
 
-        var data = constraint.data;
-        data.IKLockMode = (float)CurrentIKLockMode;
-        constraint.data = data;
+        rig.IKData.IKLockMode = (float)CurrentIKLockMode;
     }
 
     private delegate void IKDataAction(ref BasisFullBodyData data);
@@ -717,13 +715,11 @@ public class SMModuleCalibration : BasisSettingsBase
         if (BasisLocalPlayer.Instance == null || BasisLocalPlayer.Instance.LocalRigDriver == null)
             return;
 
-        var constraint = BasisLocalPlayer.Instance.LocalRigDriver.BasisFullIKConstraint;
-        if (constraint == null)
+        var rig = BasisLocalPlayer.Instance.LocalRigDriver;
+        if (!rig.IKDataReady)
             return;
 
-        var data = constraint.data;
-        action(ref data);
-        constraint.data = data;
+        action(ref rig.IKData);
     }
 
     private static void ApplyIKDataFloat(IKDataAction action)

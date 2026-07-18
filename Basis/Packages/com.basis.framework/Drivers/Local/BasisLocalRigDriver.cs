@@ -51,11 +51,11 @@ namespace Basis.Scripts.Drivers
         [System.NonSerialized] public readonly BasisPoseSkeleton PoseSkeleton = new BasisPoseSkeleton();
         [System.NonSerialized] public BasisFullIKConstraintJob IKJob;
         [System.NonSerialized] public bool IKJobCreated;
-        public GameObject MainRig;
         public bool RigLayerActive = true;
         public static bool DebugPoseStream;
         int _poseChecksRemaining;
-        public BasisFullBodyIK BasisFullIKConstraint;
+        [System.NonSerialized] public BasisFullBodyData IKData;
+        [System.NonSerialized] public bool IKDataReady;
 
         /// <summary>
         /// The FBIK hand target offsets (landmark frame -> hand bone frame), as plain quaternions.
@@ -69,8 +69,8 @@ namespace Basis.Scripts.Drivers
         /// Identity when there is no constraint yet, which is the correct no-op: an uncalibrated offset must not
         /// rotate anything.
         /// </summary>
-        public Quaternion LeftHandIKOffset => BasisFullIKConstraint != null ? BasisFullIKConstraint.data.m_CalibratedRotationLeftHand : Quaternion.identity;
-        public Quaternion RightHandIKOffset => BasisFullIKConstraint != null ? BasisFullIKConstraint.data.m_CalibratedRotationRightHand : Quaternion.identity;
+        public Quaternion LeftHandIKOffset => IKDataReady ? IKData.m_CalibratedRotationLeftHand : Quaternion.identity;
+        public Quaternion RightHandIKOffset => IKDataReady ? IKData.m_CalibratedRotationRightHand : Quaternion.identity;
 
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping basisTransformMapping;
@@ -188,7 +188,7 @@ namespace Basis.Scripts.Drivers
         }
         public void BuildBuilder()
         {
-            if (localPlayer?.BasisAvatar?.Animator == null || BasisFullIKConstraint == null)
+            if (localPlayer?.BasisAvatar?.Animator == null || !IKDataReady)
             {
                 BasisDebug.LogError("Missing Localplayer || Avatar || Animator || constraint");
                 return;
@@ -198,9 +198,9 @@ namespace Basis.Scripts.Drivers
             PlayableGraph = animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
 
-            PoseSkeleton.Build(animator.transform, CollectIKBones(BasisFullIKConstraint.data));
-            PoseSkeleton.SetTranslationFree(BasisFullIKConstraint.data.hips);
-            IKJob = BasisFullBodyJobBinder.Create(PoseSkeleton, ref BasisFullIKConstraint.DataRef);
+            PoseSkeleton.Build(animator.transform, CollectIKBones(IKData));
+            PoseSkeleton.SetTranslationFree(IKData.hips);
+            IKJob = BasisFullBodyJobBinder.Create(PoseSkeleton, ref IKData);
             IKJobCreated = true;
             _poseChecksRemaining = 3;
 
@@ -214,8 +214,7 @@ namespace Basis.Scripts.Drivers
             HasRecalibratedRotationOffsets = false;
             SpineProportionRatio = 1f;
             HasSpineProportionCapturePending = false;
-            var rigGO = CreateOrGetRig("Main IK");
-            Spine(rigGO);
+            Spine();
             BasisLocalBoneControl.HasEvents = true;
             // Keep FBT rotation calibration across avatar swaps: re-derive this avatar's per-effector offsets
             // from the stored calibration reference. No-op until the user has calibrated.
@@ -237,14 +236,8 @@ namespace Basis.Scripts.Drivers
                 IKJobCreated = false;
             }
             PoseSkeleton.Dispose();
-
-            if (MainRig == null)
-            {
-                return;
-            }
-
-            GameObject.Destroy(MainRig);
-            MainRig = null;
+            IKData = default;
+            IKDataReady = false;
         }
 
         private void EnsureFilterArrays()
@@ -349,7 +342,7 @@ namespace Basis.Scripts.Drivers
         }
         public void SimulateIKDestinations(float deltaTime)
         {
-            if (BasisFullIKConstraint == null || !IKJobCreated)
+            if (!IKDataReady || !IKJobCreated)
             {
                 return;
             }
@@ -528,7 +521,7 @@ namespace Basis.Scripts.Drivers
             if (notifyReengage) footDriver.NotifyReEngaging();
 
             // ── 8. Scatter filter outputs into BasisFullBodyData ──
-            BasisFullBodyData data = BasisFullIKConstraint.data;
+            ref BasisFullBodyData data = ref IKData;
 
             // Pull out pointers once; avoids per-slot safety-handle checks on each indexer read.
             Vector3 hipsPos;
@@ -557,6 +550,7 @@ namespace Basis.Scripts.Drivers
                 data.RotationHead = rOut[S_Head];
 
                 // ── LEFT FOOT ──
+                data.LeftFootIsTracker = leftHasTracker;
                 if (leftHasTracker)
                 {
                     data.LeftFootPosition = pOut[S_LeftFoot];
@@ -599,6 +593,7 @@ namespace Basis.Scripts.Drivers
                 }
 
                 // ── RIGHT FOOT ──
+                data.RightFootIsTracker = rightHasTracker;
                 if (rightHasTracker)
                 {
                     data.RightFootPosition = pOut[S_RightFoot];
@@ -846,7 +841,6 @@ namespace Basis.Scripts.Drivers
             // the IK job. Without this the job runs on the boot-time snapshot from Spine().
             ApplyTuningSettings(ref data);
 
-            BasisFullIKConstraint.data = data;
             PlayableGraph.Evaluate(deltaTime);
             RunIKSolve(deltaTime);
 
@@ -1047,9 +1041,8 @@ namespace Basis.Scripts.Drivers
         }
         private void OnPlayersHeightChangedNextFrame(HeightModeChange HeightModeChange)
         {
-            var Data = BasisFullIKConstraint.data;
+            ref BasisFullBodyData Data = ref IKData;
             SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
-            BasisFullIKConstraint.data = Data;
         }
         public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
         {
@@ -1076,129 +1069,117 @@ namespace Basis.Scripts.Drivers
 
             BodyData.minHeadSpineHeight = minHeadSpineHeight;
         }
-        public void Spine(GameObject mainRig)
+        public void Spine()
         {
-            if (localPlayer == null || mainRig == null)
+            if (localPlayer?.BasisAvatar?.Animator == null)
             {
                 return;
             }
 
-            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer,  mainRig, basisTransformMapping, out BasisFullIKConstraint);
+            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer, basisTransformMapping, ref IKData);
+            IKDataReady = true;
 
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChangedNextFrame;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChangedNextFrame;
             OnPlayersHeightChangedNextFrame( HeightModeChange.OnTpose);
 
-            var data = BasisFullIKConstraint.data;
+            ref BasisFullBodyData data = ref IKData;
 
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
 
             BasisLocalBoneDriver.LeftLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
 
             BasisLocalBoneDriver.RightLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
 
             // Toes
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
-                BasisFullIKConstraint.data = d;
             };
             data.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
 
             BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
-                BasisFullIKConstraint.data = d;
             };
             data.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
 
             // Hands
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
 
             // Lower arms (hand hints)
             BasisLocalBoneDriver.LeftLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
-                BasisFullIKConstraint.data = d;
             };
             data.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
 
             BasisLocalBoneDriver.RightLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
-                BasisFullIKConstraint.data = d;
             };
             data.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.ChestControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
-                BasisFullIKConstraint.data = d;
             };
             data.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.RightShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                var d = BasisFullIKConstraint.data;
+                ref BasisFullBodyData d = ref IKData;
                 d.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
-                BasisFullIKConstraint.data = d;
             };
             data.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
 
@@ -1223,7 +1204,6 @@ namespace Basis.Scripts.Drivers
             data.MaxFactor = 1.05f;
             ApplyTuningSettings(ref data);
 
-            BasisFullIKConstraint.data = data;
         }
 
         // Pulls every live-tunable BasisSettingsBinding into the IK data. Called from Spine() at
@@ -1389,9 +1369,9 @@ namespace Basis.Scripts.Drivers
         }
         public void DisableAllTrackers()
         {
-            if (BasisFullIKConstraint != null)
+            if (IKDataReady)
             {
-                var data = BasisFullIKConstraint.data;
+                ref BasisFullBodyData data = ref IKData;
                 data.EnableLeftLeg = 0f;
                 data.EnableRightLeg = 0f;
                 data.EnableLeftLowerLeg = 0f;
@@ -1406,7 +1386,6 @@ namespace Basis.Scripts.Drivers
                 data.HasHipsTracker = false;
                 data.EnabledLeftShoulder = false;
                 data.EnabledRightShoulder = false;
-                BasisFullIKConstraint.data = data;
             }
         }
         /// <summary>
@@ -1420,9 +1399,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void RestoreAllTrackers()
         {
-            if (BasisFullIKConstraint != null)
+            if (IKDataReady)
             {
-                var data = BasisFullIKConstraint.data;
+                ref BasisFullBodyData data = ref IKData;
                 data.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
                 data.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
                 data.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
@@ -1436,7 +1415,6 @@ namespace Basis.Scripts.Drivers
                 data.WeightChest = HasRigLayer(BasisLocalBoneDriver.ChestControl);
                 data.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
                 data.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
-                BasisFullIKConstraint.data = data;
             }
         }
         /// <summary>
@@ -1619,18 +1597,6 @@ namespace Basis.Scripts.Drivers
             return weight > 0.001f;
         }
 
-        public GameObject CreateOrGetRig(string role)
-        {
-            if (localPlayer?.BasisAvatar?.Animator == null)
-            {
-                return null;
-            }
-
-            var anim = localPlayer.BasisAvatar.Animator;
-            MainRig = BasisAnimationRiggingHelper.CreateAndSetParent(anim.transform, $"Rig {role}");
-            return MainRig;
-        }
-
         static List<Transform> CollectIKBones(BasisFullBodyData d) => new List<Transform>
         {
             d.hips, d.spine, d.chest, d.upperChest, d.neck, d.head,
@@ -1662,7 +1628,7 @@ namespace Basis.Scripts.Drivers
                 BasisDebug.Log($"[PoseStream] {PoseSkeleton.ValidateAgainstTransforms()}");
             }
 
-            BasisFullBodyJobBinder.Sync(ref IKJob, ref BasisFullIKConstraint.DataRef);
+            BasisFullBodyJobBinder.Sync(ref IKJob, ref IKData);
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;
             IKJob.Run();
@@ -1672,18 +1638,16 @@ namespace Basis.Scripts.Drivers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
-            var data = BasisFullIKConstraint.data;
+            ref BasisFullBodyData data = ref IKData;
             data.SetWeight((int)bone, enabled);
-            BasisFullIKConstraint.data = data;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
-            var data = BasisFullIKConstraint.data;
+            ref BasisFullBodyData data = ref IKData;
             data.SetTargetPosition((int)bone, position);
             data.SetTargetRotation((int)bone, rotation);
-            BasisFullIKConstraint.data = data;
         }
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
         {

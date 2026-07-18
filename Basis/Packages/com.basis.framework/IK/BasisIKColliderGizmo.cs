@@ -60,18 +60,17 @@ namespace Basis.Scripts.Debugging
         private static bool _visible;
         private static bool _registered;
 
-        public static void Tick(bool shouldShow, BasisFullBodyIK constraint, bool showLabels, Vector3 cameraPos)
+        public static void Tick(bool shouldShow, BasisFullBodyData data, bool showLabels, Vector3 cameraPos)
         {
             EnsureMasterToggleHook();
 
-            if (!shouldShow || constraint == null)
+            if (!shouldShow)
             {
                 SetVisible(false);
                 DestroyLabels();
                 return;
             }
 
-            BasisFullBodyData data = constraint.data;
             if (data.chest == null || data.neck == null)
             {
                 SetVisible(false);

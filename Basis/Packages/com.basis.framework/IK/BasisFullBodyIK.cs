@@ -11,293 +11,285 @@ namespace UnityEngine.Animations.Rigging
     {
         public const int Count = 22;
 
-        // Live target positions (Vector3) pushed every frame from the manager.
-        [SerializeField]
-        public Vector3
-            TargetPosition0, TargetPosition1, TargetPosition2, TargetPosition3, TargetPosition4,
-            TargetPosition5, TargetPosition6, TargetPosition7, TargetPosition8, TargetPosition9,
-            TargetPosition10, TargetPosition11, TargetPosition12, TargetPosition13, TargetPosition14,
-            TargetPosition15, TargetPosition16, TargetPosition17, TargetPosition18, TargetPosition19,
-            TargetPosition20, TargetPosition54;
 
-        // Live target rotations (Quaternion) — stored as Quaternion on the component; bound as Quaternion by the job.
-        [SerializeField]
-        public Quaternion
-            TargetRotation0, TargetRotation1, TargetRotation2, TargetRotation3, TargetRotation4,
-            TargetRotation5, TargetRotation6, TargetRotation7, TargetRotation8, TargetRotation9,
-            TargetRotation10, TargetRotation11, TargetRotation12, TargetRotation13, TargetRotation14,
-            TargetRotation15, TargetRotation16, TargetRotation17, TargetRotation18, TargetRotation19,
-            TargetRotation20, TargetRotation54;
+        // Slots are HumanBodyBones values: 0..RightToes map directly, UpperChest (54) maps to the last slot.
+        public const int UpperChestSlot = Count - 1;
+
+        // Live target positions pushed every frame from the manager.
+        public FixedList512Bytes<Vector3> TargetPositions;
+
+        // Live target rotations.
+        public FixedList512Bytes<Quaternion> TargetRotations;
 
         // Calibration offsets (applied on top of target each frame) — final = target * offset
-        [SerializeField]
-        public Quaternion
-            OffsetRotation0, OffsetRotation1, OffsetRotation2, OffsetRotation3, OffsetRotation4,
-            OffsetRotation5, OffsetRotation6, OffsetRotation7, OffsetRotation8, OffsetRotation9,
-            OffsetRotation10, OffsetRotation11, OffsetRotation12, OffsetRotation13, OffsetRotation14,
-            OffsetRotation15, OffsetRotation16, OffsetRotation17, OffsetRotation18, OffsetRotation19,
-            OffsetRotation20, OffsetRotation54;
+        public FixedList512Bytes<Quaternion> OffsetRotations;
 
-        // Per-slot enable/weights (0..1). Allows toggling bones independently within a single job.
-        [SerializeField]
-        public bool
-            Weight0, Weight1, Weight2, Weight3, Weight4,
-            Weight5, Weight6, Weight7, Weight8, Weight9,
-            Weight10, Weight11, Weight12, Weight13, Weight14,
-            Weight15, Weight16, Weight17, Weight18, Weight19,
-            Weight20, Weight54;
+        // Per-slot enables. Allows toggling bones independently within a single job.
+        public FixedList64Bytes<bool> Weights;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Slot(int humanBodyBone)
+        {
+            if (humanBodyBone >= 0 && humanBodyBone <= (int)HumanBodyBones.RightToes)
+            {
+                return humanBodyBone;
+            }
+            return humanBodyBone == (int)HumanBodyBones.UpperChest ? UpperChestSlot : -1;
+        }
 
         // Property name helpers for binding
 
 
 
-        [SerializeField] Transform m_Hips;
-        [SerializeField] Transform m_chest;
-        [SerializeField] Transform m_neck;
-        [SerializeField] Transform m_head;
+        Transform m_Hips;
+        Transform m_chest;
+        Transform m_neck;
+        Transform m_head;
 
-        [SerializeField] Transform m_LeftUpperLeg;
-        [SerializeField] Transform m_LeftLowerLeg;
-        [SerializeField] Transform m_leftFoot;
-        [SerializeField] Transform m_RightUpperLeg;
-        [SerializeField] Transform m_RightLowerLeg;
-        [SerializeField] Transform m_RightFoot;
+        Transform m_LeftUpperLeg;
+        Transform m_LeftLowerLeg;
+        Transform m_leftFoot;
+        Transform m_RightUpperLeg;
+        Transform m_RightLowerLeg;
+        Transform m_RightFoot;
 
-        [SerializeField] Transform m_LeftToe;
-        [SerializeField] Transform m_RightToe;
+        Transform m_LeftToe;
+        Transform m_RightToe;
 
-        [SerializeField] Transform m_leftUpperArm;
-        [SerializeField] Transform m_leftLowerArm;
-        [SerializeField] Transform m_leftHand;
+        Transform m_leftUpperArm;
+        Transform m_leftLowerArm;
+        Transform m_leftHand;
 
-        [SerializeField] Transform m_RightUpperArm;
-        [SerializeField] Transform m_RightLowerArm;
-        [SerializeField] Transform m_rightHand;
+        Transform m_RightUpperArm;
+        Transform m_RightLowerArm;
+        Transform m_rightHand;
 
-        [SerializeField] Transform m_Spine;
-        [SerializeField] Transform m_UpperChest;
-        [SerializeField] Transform m_LeftShoulder;
-        [SerializeField] Transform m_RightShoulder;
+        Transform m_Spine;
+        Transform m_UpperChest;
+        Transform m_LeftShoulder;
+        Transform m_RightShoulder;
 
         // Twist bones — derived bones that absorb a fraction of wrist/elbow roll for natural
         // forearm/upper-arm deformation. Optional per rig; when null, the side is skipped.
-        [SerializeField] Transform m_LeftUpperArmTwist;
-        [SerializeField] Transform m_LeftLowerArmTwist;
-        [SerializeField] Transform m_RightUpperArmTwist;
-        [SerializeField] Transform m_RightLowerArmTwist;
+        Transform m_LeftUpperArmTwist;
+        Transform m_LeftLowerArmTwist;
+        Transform m_RightUpperArmTwist;
+        Transform m_RightLowerArmTwist;
 
         // Head
-        [SerializeField] public Vector3 PositionHead;
-        [SerializeField] public Quaternion RotationHead;
-        [SerializeField] public Vector3 ChestPosition;
+        public Vector3 PositionHead;
+        public Quaternion RotationHead;
+        public Vector3 ChestPosition;
         // The chest bone's ACTUAL position, WITHOUT the chest-as-head-hint bias that ChestPosition carries
         // (that bias pushes ~8cm 'up in chest frame' to steer the head solve -- see BasisAvatarIKStageCalibration).
         // The chest IK target must pin to the real chest, not the hinted one, or it hauls the torso up = a lean.
-        [SerializeField] public Vector3 ChestPositionRaw;
-        [SerializeField] public Quaternion ChestRotation;
-        [SerializeField] public Quaternion m_CalibratedRotationHead;
+        public Vector3 ChestPositionRaw;
+        public Quaternion ChestRotation;
+        public Quaternion m_CalibratedRotationHead;
 
-        [SerializeField] public Quaternion m_CalibratedRotationRightToe;
-        [SerializeField] public Quaternion m_CalibratedRotationLeftToe;
-        [SerializeField] public Quaternion m_CalibratedRotationChest;
+        public Quaternion m_CalibratedRotationRightToe;
+        public Quaternion m_CalibratedRotationLeftToe;
+        public Quaternion m_CalibratedRotationChest;
 
-        [SerializeField] public Quaternion LeftShoulderRotation;
-        [SerializeField] public Quaternion RightShoulderRotation;
+        public Quaternion LeftShoulderRotation;
+        public Quaternion RightShoulderRotation;
 
         // Hips
-        [SerializeField] public Vector3 PositionHips;
-        [SerializeField] public Quaternion RotationHips;
-        [SerializeField] public Quaternion OffsetRotationHips;
+        public Vector3 PositionHips;
+        public Quaternion RotationHips;
+        public Quaternion OffsetRotationHips;
 
         // Left Leg
-        [SerializeField] public Vector3 LeftFootPosition;
-        [SerializeField] public Quaternion LeftFootRotation;
-        [SerializeField] public Vector3 PositionLeftLowerLeg;
-        [SerializeField] public Quaternion M_CalibrationLeftFootRotation;
+        public Vector3 LeftFootPosition;
+        public Quaternion LeftFootRotation;
+        public Vector3 PositionLeftLowerLeg;
+        public Quaternion M_CalibrationLeftFootRotation;
 
         // Right Leg
-        [SerializeField] public Vector3 RightFootPosition;
-        [SerializeField] public Quaternion RightFootRotation;
-        [SerializeField] public Vector3 PositionRightLowerLeg;
-        [SerializeField] public Quaternion M_CalibrationRightFootRotation;
+        public Vector3 RightFootPosition;
+        public Quaternion RightFootRotation;
+        public Vector3 PositionRightLowerLeg;
+        public Quaternion M_CalibrationRightFootRotation;
 
         // Toes
-        [SerializeField] public Quaternion OutGoingLeftToeRotation;
-        [SerializeField] public Quaternion OutGoingRightToeRotation;
+        public Quaternion OutGoingLeftToeRotation;
+        public Quaternion OutGoingRightToeRotation;
 
         // Left Hand
-        [SerializeField] public Vector3 PositionLeftHand;
-        [SerializeField] public Quaternion RotationLeftHand;
-        [SerializeField] public Vector3 LeftLowerArmPosition;
-        [SerializeField] public Quaternion LeftLowerArmRotation;
-        [SerializeField] public Quaternion m_CalibratedRotationLeftHand;
+        public Vector3 PositionLeftHand;
+        public Quaternion RotationLeftHand;
+        public Vector3 LeftLowerArmPosition;
+        public Quaternion LeftLowerArmRotation;
+        public Quaternion m_CalibratedRotationLeftHand;
 
         // Right Hand
-        [SerializeField] public Vector3 PositionRightHand;
-        [SerializeField] public Quaternion RotationRightHand;
-        [SerializeField] public Vector3 RightLowerArmPosition;
-        [SerializeField] public Quaternion RightLowerArmRotation;
-        [SerializeField] public Quaternion m_CalibratedRotationRightHand;
+        public Vector3 PositionRightHand;
+        public Quaternion RotationRightHand;
+        public Vector3 RightLowerArmPosition;
+        public Quaternion RightLowerArmRotation;
+        public Quaternion m_CalibratedRotationRightHand;
 
         // Misc
-        [SerializeField] public Vector3 PlayerUp;
+        public Vector3 PlayerUp;
 
-        [SerializeField] public Vector3 KneeBendPrefLeft;
-        [SerializeField] public Vector3 KneeBendPrefRight;
+        public Vector3 KneeBendPrefLeft;
+        public Vector3 KneeBendPrefRight;
 
-        [SerializeField] public float m_HandSkin;
-        [SerializeField, Min(0f)] public float m_HandRadius;
-        [SerializeField, Min(0f)] public float m_ChestRadius;
-        [SerializeField, Min(0f)] public float m_CollisionSkin;
-        [SerializeField] bool m_CollisionsEnabled;
-        [SerializeField] bool m_ProtectElbow;
-        [SerializeField] bool m_UseNeuralPole;
-        [SerializeField] bool m_CollideTrackedElbow;
+        public float m_HandSkin;
+        [Min(0f)] public float m_HandRadius;
+        [Min(0f)] public float m_ChestRadius;
+        [Min(0f)] public float m_CollisionSkin;
+        bool m_CollisionsEnabled;
+        bool m_ProtectElbow;
+        bool m_UseNeuralPole;
+        bool m_CollideTrackedElbow;
 
-        [SerializeField] bool m_HintHeadEnabled;
-        [SerializeField] bool m_SpineIKEnabled;
-        [SerializeField] bool m_HasHipsTracker;
+        bool m_HintHeadEnabled;
+        bool m_SpineIKEnabled;
+        bool m_HasHipsTracker;
 
         // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
-        [SerializeField] float m_IKLockMode;
+        float m_IKLockMode;
 
-        [SerializeField] public bool m_LeftToeEnabled;
-        [SerializeField] public bool m_RightToeEnabled;
+        public bool m_LeftToeEnabled;
+        public bool m_RightToeEnabled;
 
-        [SerializeField] float m_LeftLowerLegEnabled;
-        [SerializeField] float m_RightLowerLegEnabled;
+        bool m_LeftFootIsTracker;
+        bool m_RightFootIsTracker;
+        float m_LeftLowerLegEnabled;
+        float m_RightLowerLegEnabled;
 
-        [SerializeField] float m_HintLeftLowerLegEnabled;
-        [SerializeField] float m_HintRightLowerLegEnabled;
+        float m_HintLeftLowerLegEnabled;
+        float m_HintRightLowerLegEnabled;
 
         // True when the knee/lower-leg hint is a physical tracker (jittery, and pole-amplified by the leg
         // solve) rather than a computed hint (foot driver / butterfly). Gates the tracked-knee output-swivel
         // smoothing in SolveLegs -- see SmoothKneeSwivel.
-        [SerializeField] bool m_LeftLowerLegHintIsTracker;
-        [SerializeField] bool m_RightLowerLegHintIsTracker;
+        bool m_LeftLowerLegHintIsTracker;
+        bool m_RightLowerLegHintIsTracker;
 
         // Hand IK weight (0..1), not a toggle: the webcam fades the hands in and out as tracking comes and
         // goes, and a hard on/off pops the arm. Mirrors the legs, which have been fractional all along.
-        [SerializeField] float m_EnabledLeftHand;
-        [SerializeField] float m_EnabledRightHand;
+        float m_EnabledLeftHand;
+        float m_EnabledRightHand;
 
-        [SerializeField] bool m_HintRightHandEnabled;
-        [SerializeField] bool m_HintLeftHandEnabled;
+        bool m_HintRightHandEnabled;
+        bool m_HintLeftHandEnabled;
 
-        [SerializeField] float m_MinHeadSpineHeight;
-        [SerializeField] public bool m_enabledLeftShoulder;
-        [SerializeField] public bool m_enabledRightShoulder;
-        [SerializeField] public Quaternion m_CalibratedRotationRightShoulder;
-        [SerializeField] public Quaternion m_CalibratedRotationLeftShoulder;
+        float m_MinHeadSpineHeight;
+        public bool m_enabledLeftShoulder;
+        public bool m_enabledRightShoulder;
+        public Quaternion m_CalibratedRotationRightShoulder;
+        public Quaternion m_CalibratedRotationLeftShoulder;
 
-        [SerializeField] public float m_MaxBendDeg;
-        [SerializeField] public float m_MinFactor;
-        [SerializeField] public float m_MaxFactor;
-        [SerializeField] public float m_MaxChestDeltaDeg;
+        public float m_MaxBendDeg;
+        public float m_MinFactor;
+        public float m_MaxFactor;
+        public float m_MaxChestDeltaDeg;
 
         // Shoulder pre-solve: raises/protracts shoulders based on hand target
-        [SerializeField] bool m_ShoulderSolveEnabled;
-        [SerializeField] bool m_ShoulderShrugEnabled;
-        [SerializeField, Range(0f, 1f)] float m_ShoulderElevationFactor;
-        [SerializeField, Range(0f, 1f)] float m_ShoulderProtractionFactor;
+        bool m_ShoulderSolveEnabled;
+        bool m_ShoulderShrugEnabled;
+        [Range(0f, 1f)] float m_ShoulderElevationFactor;
+        [Range(0f, 1f)] float m_ShoulderProtractionFactor;
 
         // Spine bend distribution: per-axis fractions of the hips→head bend pre-applied to lumbar
         // and thoracic joints before the chest→neck→head two-bone solve. Splitting by axis lets
         // forward bend, side bend, and twist be tuned independently — humans are very anisotropic.
-        [SerializeField, Range(0f, 1f)] float m_SpineBendPitch;
-        [SerializeField, Range(0f, 1f)] float m_SpineBendYaw;
-        [SerializeField, Range(0f, 1f)] float m_SpineBendRoll;
-        [SerializeField, Range(0f, 1f)] float m_UpperChestBendPitch;
-        [SerializeField, Range(0f, 1f)] float m_UpperChestBendYaw;
-        [SerializeField, Range(0f, 1f)] float m_UpperChestBendRoll;
+        [Range(0f, 1f)] float m_SpineBendPitch;
+        [Range(0f, 1f)] float m_SpineBendYaw;
+        [Range(0f, 1f)] float m_SpineBendRoll;
+        [Range(0f, 1f)] float m_UpperChestBendPitch;
+        [Range(0f, 1f)] float m_UpperChestBendYaw;
+        [Range(0f, 1f)] float m_UpperChestBendRoll;
         // Hip hinge: when forward lean exceeds the start angle, the pelvis pitches forward by a
         // capped fraction of the excess so the spine doesn't have to swallow the whole reach.
-        [SerializeField, Min(0f)] float m_HipHingeStartDeg;
-        [SerializeField, Min(0f)] float m_HipHingeMaxAddDeg;
+        [Min(0f)] float m_HipHingeStartDeg;
+        [Min(0f)] float m_HipHingeMaxAddDeg;
         // Chest follow spring: critically-damped second-order spring on the head target before it
         // is consumed by DistributeSpineBend, so quick head turns leave the body momentarily behind.
-        [SerializeField, Min(0f)] float m_ChestSpringHz;
-        [SerializeField, Min(0f)] float m_ChestSpringDamping;
+        [Min(0f)] float m_ChestSpringHz;
+        [Min(0f)] float m_ChestSpringDamping;
         // Asymmetric flexion clamps: humans flex forward much further than they extend backward.
         // Applied to the per-axis spine + upperChest contributions after distribution.
-        [SerializeField, Min(0f)] float m_SpineMaxForwardDeg;
-        [SerializeField, Min(0f)] float m_SpineMaxBackwardDeg;
-        [SerializeField, Min(0f)] float m_SpineMaxLateralDeg;
+        [Min(0f)] float m_SpineMaxForwardDeg;
+        [Min(0f)] float m_SpineMaxBackwardDeg;
+        [Min(0f)] float m_SpineMaxLateralDeg;
         // Squish coupling: scales per-axis bend weights by the head-to-hips compression ratio so
         // the spine folds more when crouched and straightens when reaching up. 0 disables.
-        [SerializeField, Range(0f, 2f)] float m_SpineSquishBoost;
+        [Range(0f, 2f)] float m_SpineSquishBoost;
         // How much the chest FOLLOWS the gaze (no chest tracker). 0 = rigid (the look-down-stability fix,
         // chest never folds on a pure look-down); 1 = full follow (the old phantom-lean). A small value is
         // 'a little real spine': the chest folds a touch when you look down, which reads better on desktop.
-        [SerializeField, Range(0f, 1f)] float m_SpineGazeFollow;
+        [Range(0f, 1f)] float m_SpineGazeFollow;
         // How much EXTRA forward neck curve to add on a look-down (no chest tracker). Same idea as the
         // chest gaze-follow, but the neck's lordosis runs AFTER the head-placing CCD, so this is a
         // cosmetic post-solve curve -- it nudges the head BONE a touch (the camera rides the HMD target).
-        [SerializeField, Range(0f, 1f)] float m_NeckGazeFollow;
-        [SerializeField, Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
+        [Range(0f, 1f)] float m_NeckGazeFollow;
+        [Range(0f, 2f)] float m_MoveBodyBackWhenCrouching;
         // Elbow/knee swing smoothing: max swing speed (deg/s) around the root→tip axis. Lower =
         // smoother (more lag) so a torso-collision change eases in; 0 disables. See ApplySwingContinuity.
-        [SerializeField, Min(0f)] float m_SwingSmoothRateDeg;
+        [Min(0f)] float m_SwingSmoothRateDeg;
         // Arm-swing chest follow: when hand targets shift laterally, the chest yaws to follow so
         // gestures and walking arm-swing don't read as a stiff torso. Only used without a chest
         // tracker — when one is present, it owns chest rotation directly.
-        [SerializeField, Range(0f, 1f)] float m_ChestArmSwingFactor;
-        [SerializeField, Min(0f)] float m_ChestArmSwingMaxDeg;
+        [Range(0f, 1f)] float m_ChestArmSwingFactor;
+        [Min(0f)] float m_ChestArmSwingMaxDeg;
         // Arm twist distribution: fractions of the wrist/elbow roll absorbed by the optional
         // forearm/upper-arm twist bones. Without these, the wrist eats 100% of the roll and the
         // mesh pinches around the elbow ("candy-wrap" deformation).
-        [SerializeField, Range(0f, 1f)] float m_LowerArmTwistFraction;
-        [SerializeField, Range(0f, 1f)] float m_UpperArmTwistFraction;
+        [Range(0f, 1f)] float m_LowerArmTwistFraction;
+        [Range(0f, 1f)] float m_UpperArmTwistFraction;
 
         // Anatomy: IK refinements modeled on real biomechanics. Each toggle gates its own
         // solver pass; all on by default.
-        [SerializeField] bool m_AnatDifferentialStiffness;
-        [SerializeField] bool m_AnatShoulderSlide;
-        [SerializeField] bool m_AnatCervicalLordosis;
-        [SerializeField] bool m_AnatPelvicTwistRouting;
+        bool m_AnatDifferentialStiffness;
+        bool m_AnatShoulderSlide;
+        bool m_AnatCervicalLordosis;
+        bool m_AnatPelvicTwistRouting;
         // The anatomical range-of-motion envelope on every solved vertebra. Default ON: what it replaces
         // is not a safe fallback, it is a measured error (BasisSpineAnatomy).
-        [SerializeField] bool m_SpineAnatomicalRom;
+        bool m_SpineAnatomicalRom;
         // The chest as a secondary IK target (SolveChestTarget). Default ON.
-        [SerializeField] bool m_ChestIKTarget;
+        bool m_ChestIKTarget;
         // Low-pass the knee swivel (leg roll about the hip->foot axis) on the no-foot-tracker path so a
         // near-straight standing leg doesn't twist with hips-yaw jitter. Off => identical to before.
-        [SerializeField] bool m_LegSwivelSmoothing;
+        bool m_LegSwivelSmoothing;
         // Cervical lordosis pitch coupling: extra forward bend per unit of head pitch-down (0..1
         // where 1 = looking straight down). Multiplied by the gain in degrees. Only used when
         // AnatCervicalLordosis is on.
-        [SerializeField, Min(0f)] float m_LordosisPitchGainDeg;
+        [Min(0f)] float m_LordosisPitchGainDeg;
         // Cervical lordosis shaping (previously hardcoded consts in ApplyCervicalLordosis). Base
         // bend held in a neutral pose and how it splits between neck and upperChest; the head pitch
         // clamp; and the "extreme look" onset/full window that drives extra spine roll plus
         // hips/chest counter-translation when looking far up or down. Down* are meters of vertical
         // shift at full look-down; *LookUp are the much smaller shift when looking up. Only used
         // when AnatCervicalLordosis is on.
-        [SerializeField, Min(0f)] float m_LordosisBaseDeg;
-        [SerializeField, Range(0f, 1f)] float m_LordosisNeckShare;
-        [SerializeField, Range(0f, 90f)] float m_LordosisMaxHeadPitchDeg;
-        [SerializeField, Range(0f, 90f)] float m_LordosisExtremeStartDeg;
-        [SerializeField, Range(0f, 90f)] float m_LordosisExtremeFullDeg;
-        [SerializeField, Min(0f)] float m_LordosisExtremeRollForwardMaxDeg;
-        [SerializeField, Min(0f)] float m_LordosisExtremeRollBackwardMaxDeg;
-        [SerializeField, Min(0f)] float m_LordosisExtremeHipsHorizontalMax;
-        [SerializeField, Min(0f)] float m_LordosisExtremeChestHorizontalMax;
-        [SerializeField, Min(0f)] float m_LordosisExtremeHipsDownMax;
-        [SerializeField, Min(0f)] float m_LordosisExtremeChestDownMax;
-        [SerializeField, Min(0f)] float m_LordosisExtremeHipsDownLookUp;
-        [SerializeField, Min(0f)] float m_LordosisExtremeChestDownLookUp;
+        [Min(0f)] float m_LordosisBaseDeg;
+        [Range(0f, 1f)] float m_LordosisNeckShare;
+        [Range(0f, 90f)] float m_LordosisMaxHeadPitchDeg;
+        [Range(0f, 90f)] float m_LordosisExtremeStartDeg;
+        [Range(0f, 90f)] float m_LordosisExtremeFullDeg;
+        [Min(0f)] float m_LordosisExtremeRollForwardMaxDeg;
+        [Min(0f)] float m_LordosisExtremeRollBackwardMaxDeg;
+        [Min(0f)] float m_LordosisExtremeHipsHorizontalMax;
+        [Min(0f)] float m_LordosisExtremeChestHorizontalMax;
+        [Min(0f)] float m_LordosisExtremeHipsDownMax;
+        [Min(0f)] float m_LordosisExtremeChestDownMax;
+        [Min(0f)] float m_LordosisExtremeHipsDownLookUp;
+        [Min(0f)] float m_LordosisExtremeChestDownLookUp;
 
         // Spine CCD solve: per-iteration under-relaxation (1 = full step) and the neck's max bend
         // cone vs the chest→neck direction, which stops the short neck bone overbending.
-        [SerializeField, Range(0.1f, 1f)] float m_SpineCCDRelax;
-        [SerializeField, Min(0f)] float m_NeckMaxConeDeg;
+        [Range(0.1f, 1f)] float m_SpineCCDRelax;
+        [Min(0f)] float m_NeckMaxConeDeg;
         // Axial twist the spine CCD reach may use, about the body's hips-up axis, graded down the chain:
         // m_SpineTwistKeep is the lumbar (lower-back) end -- near-rigid in reality -- and m_SpineNeckTwistKeep
         // the cervical (neck) end, which rotates freely; the joints between interpolate. Lower = a sideways
         // head reach bends instead of corkscrewing (the corkscrew flips sign across center). Hips-up, not
         // world-up, so it stays correct lying down.
-        [SerializeField, Range(0f, 1f)] float m_SpineTwistKeep;
-        [SerializeField, Range(0f, 1f)] float m_SpineNeckTwistKeep;
+        [Range(0f, 1f)] float m_SpineTwistKeep;
+        [Range(0f, 1f)] float m_SpineNeckTwistKeep;
         public float minHeadSpineHeight{  get => m_MinHeadSpineHeight; set => m_MinHeadSpineHeight = value; }
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
@@ -330,6 +322,8 @@ namespace UnityEngine.Animations.Rigging
         public bool HasHipsTracker { get => m_HasHipsTracker; set => m_HasHipsTracker = value; }
         public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
         public float EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
+        public bool LeftFootIsTracker { get => m_LeftFootIsTracker; set => m_LeftFootIsTracker = value; }
+        public bool RightFootIsTracker { get => m_RightFootIsTracker; set => m_RightFootIsTracker = value; }
         public float EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
         public float EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
         public float EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
@@ -409,133 +403,56 @@ namespace UnityEngine.Animations.Rigging
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetTargetPosition(int idx, in Vector3 v)
         {
-            switch (idx)
+            int s = Slot(idx);
+            if (s >= 0 && s < TargetPositions.Length)
             {
-                case 0: TargetPosition0 = v; break;
-                case 1: TargetPosition1 = v; break;
-                case 2: TargetPosition2 = v; break;
-                case 3: TargetPosition3 = v; break;
-                case 4: TargetPosition4 = v; break;
-                case 5: TargetPosition5 = v; break;
-                case 6: TargetPosition6 = v; break;
-                case 7: TargetPosition7 = v; break;
-                case 8: TargetPosition8 = v; break;
-                case 9: TargetPosition9 = v; break;
-                case 10: TargetPosition10 = v; break;
-                case 11: TargetPosition11 = v; break;
-                case 12: TargetPosition12 = v; break;
-                case 13: TargetPosition13 = v; break;
-                case 14: TargetPosition14 = v; break;
-                case 15: TargetPosition15 = v; break;
-                case 16: TargetPosition16 = v; break;
-                case 17: TargetPosition17 = v; break;
-                case 18: TargetPosition18 = v; break;
-                case 19: TargetPosition19 = v; break;
-                case 20: TargetPosition20 = v; break;
-                case 54: TargetPosition54 = v; break;
-                default:
-                    break;
+                TargetPositions[s] = v;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetTargetRotation(int idx, in Quaternion q)
         {
-            switch (idx)
+            int s = Slot(idx);
+            if (s >= 0 && s < TargetRotations.Length)
             {
-                case 0: TargetRotation0 = q; break;
-                case 1: TargetRotation1 = q; break;
-                case 2: TargetRotation2 = q; break;
-                case 3: TargetRotation3 = q; break;
-                case 4: TargetRotation4 = q; break;
-                case 5: TargetRotation5 = q; break;
-                case 6: TargetRotation6 = q; break;
-                case 7: TargetRotation7 = q; break;
-                case 8: TargetRotation8 = q; break;
-                case 9: TargetRotation9 = q; break;
-                case 10: TargetRotation10 = q; break;
-                case 11: TargetRotation11 = q; break;
-                case 12: TargetRotation12 = q; break;
-                case 13: TargetRotation13 = q; break;
-                case 14: TargetRotation14 = q; break;
-                case 15: TargetRotation15 = q; break;
-                case 16: TargetRotation16 = q; break;
-                case 17: TargetRotation17 = q; break;
-                case 18: TargetRotation18 = q; break;
-                case 19: TargetRotation19 = q; break;
-                case 20: TargetRotation20 = q; break;
-                case 54: TargetRotation54 = q; break;
-                default:
-                    break;
+                TargetRotations[s] = q;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOffsetRotation(int idx, in Quaternion q)
         {
-            switch (idx)
+            int s = Slot(idx);
+            if (s >= 0 && s < OffsetRotations.Length)
             {
-                case 0: OffsetRotation0 = q; break;
-                case 1: OffsetRotation1 = q; break;
-                case 2: OffsetRotation2 = q; break;
-                case 3: OffsetRotation3 = q; break;
-                case 4: OffsetRotation4 = q; break;
-                case 5: OffsetRotation5 = q; break;
-                case 6: OffsetRotation6 = q; break;
-                case 7: OffsetRotation7 = q; break;
-                case 8: OffsetRotation8 = q; break;
-                case 9: OffsetRotation9 = q; break;
-                case 10: OffsetRotation10 = q; break;
-                case 11: OffsetRotation11 = q; break;
-                case 12: OffsetRotation12 = q; break;
-                case 13: OffsetRotation13 = q; break;
-                case 14: OffsetRotation14 = q; break;
-                case 15: OffsetRotation15 = q; break;
-                case 16: OffsetRotation16 = q; break;
-                case 17: OffsetRotation17 = q; break;
-                case 18: OffsetRotation18 = q; break;
-                case 19: OffsetRotation19 = q; break;
-                case 20: OffsetRotation20 = q; break;
-                case 54: OffsetRotation54 = q; break;
-                default:
-                    break;
+                OffsetRotations[s] = q;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetWeight(int idx, bool State)
         {
-            switch (idx)
+            int s = Slot(idx);
+            if (s >= 0 && s < Weights.Length)
             {
-                case 0: Weight0 = State; break;
-                case 1: Weight1 = State; break;
-                case 2: Weight2 = State; break;
-                case 3: Weight3 = State; break;
-                case 4: Weight4 = State; break;
-                case 5: Weight5 = State; break;
-                case 6: Weight6 = State; break;
-                case 7: Weight7 = State; break;
-                case 8: Weight8 = State; break;
-                case 9: Weight9 = State; break;
-                case 10: Weight10 = State; break;
-                case 11: Weight11 = State; break;
-                case 12: Weight12 = State; break;
-                case 13: Weight13 = State; break;
-                case 14: Weight14 = State; break;
-                case 15: Weight15 = State; break;
-                case 16: Weight16 = State; break;
-                case 17: Weight17 = State; break;
-                case 18: Weight18 = State; break;
-                case 19: Weight19 = State; break;
-                case 20: Weight20 = State; break;
-                case 54: Weight54 = State; break;
-                default:
-                    break;
+                Weights[s] = State;
             }
         }
 
         public void SetDefaultValues()
         {
+            TargetPositions.Length = Count;
+            TargetRotations.Length = Count;
+            OffsetRotations.Length = Count;
+            Weights.Length = Count;
+            for (int i = 0; i < Count; i++)
+            {
+                TargetPositions[i] = Vector3.zero;
+                TargetRotations[i] = Quaternion.identity;
+                OffsetRotations[i] = Quaternion.identity;
+                Weights[i] = false;
+            }
             m_chest = m_neck = m_head = null;
             m_LeftUpperLeg = m_LeftLowerLeg = m_leftFoot = null;
             m_RightUpperLeg = m_RightLowerLeg = m_RightFoot = null;
@@ -549,6 +466,7 @@ namespace UnityEngine.Animations.Rigging
             m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
             m_SpineIKEnabled = true;
             m_HasHipsTracker = false;
+            m_LeftFootIsTracker = m_RightFootIsTracker = false;
             m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
             m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
             m_IKLockMode = (float)BasisIKLockMode.LockHead;
@@ -636,67 +554,20 @@ namespace UnityEngine.Animations.Rigging
             m_SpineTwistKeep = 0.25f;
             m_SpineNeckTwistKeep = 0.9f;
 
-            // Positions
-            TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
-            TargetPosition5 = TargetPosition6 = TargetPosition7 = TargetPosition8 = TargetPosition9 =
-            TargetPosition10 = TargetPosition11 = TargetPosition12 = TargetPosition13 = TargetPosition14 =
-            TargetPosition15 = TargetPosition16 = TargetPosition17 = TargetPosition18 = TargetPosition19 =
-            TargetPosition20 = TargetPosition54 = Vector3.zero;
-
-            // Rotations
-            TargetRotation0 = TargetRotation1 = TargetRotation2 = TargetRotation3 = TargetRotation4 =
-            TargetRotation5 = TargetRotation6 = TargetRotation7 = TargetRotation8 = TargetRotation9 =
-            TargetRotation10 = TargetRotation11 = TargetRotation12 = TargetRotation13 = TargetRotation14 =
-            TargetRotation15 = TargetRotation16 = TargetRotation17 = TargetRotation18 = TargetRotation19 =
-            TargetRotation20 = TargetRotation54 = Quaternion.identity;
-
-            // Offsets
-            OffsetRotation0 = OffsetRotation1 = OffsetRotation2 = OffsetRotation3 = OffsetRotation4 =
-            OffsetRotation5 = OffsetRotation6 = OffsetRotation7 = OffsetRotation8 = OffsetRotation9 =
-            OffsetRotation10 = OffsetRotation11 = OffsetRotation12 = OffsetRotation13 = OffsetRotation14 =
-            OffsetRotation15 = OffsetRotation16 = OffsetRotation17 = OffsetRotation18 = OffsetRotation19 =
-            OffsetRotation20 = OffsetRotation54 = Quaternion.identity;
-
-            // Weights default to disabled
-            Weight0 = Weight1 = Weight2 = Weight3 = Weight4 =
-            Weight5 = Weight6 = Weight7 = Weight8 = Weight9 =
-            Weight10 = Weight11 = Weight12 = Weight13 = Weight14 =
-            Weight15 = Weight16 = Weight17 = Weight18 = Weight19 =
-            Weight20 = Weight54 = false;
+            // Slots: identity rotations, zero positions, weights disabled.
+            TargetPositions.Length = Count;
+            TargetRotations.Length = Count;
+            OffsetRotations.Length = Count;
+            Weights.Length = Count;
+            for (int i = 0; i < Count; i++)
+            {
+                TargetPositions[i] = Vector3.zero;
+                TargetRotations[i] = Quaternion.identity;
+                OffsetRotations[i] = Quaternion.identity;
+                Weights[i] = false;
+            }
         }
     }
-    [DisallowMultipleComponent]
-    public class BasisFullBodyIK : MonoBehaviour
-    {
-        [SerializeField] BasisFullBodyData m_Data = default;
-
-        public BasisFullBodyData data { get => m_Data; set => m_Data = value; }
-
-        public ref BasisFullBodyData DataRef => ref m_Data;
-
-        void OnValidate()
-        {
-            // force serialize dirty for animated bools
-            m_Data.WeightChest = m_Data.WeightChest;
-            m_Data.EnableLeftLowerLeg = m_Data.EnableLeftLowerLeg;
-            m_Data.EnableRightLowerLeg = m_Data.EnableRightLowerLeg;
-            m_Data.EnabledSpineIK = m_Data.EnabledSpineIK;
-            // new toggles
-            m_Data.LeftToeEnabled = m_Data.LeftToeEnabled;
-            m_Data.RightToeEnabled = m_Data.RightToeEnabled;
-            // hands toggles
-            m_Data.HintWeightLeftHand = m_Data.HintWeightLeftHand;
-            m_Data.HintWeightRightHand = m_Data.HintWeightRightHand;
-            m_Data.EnabledLeftHand = m_Data.EnabledLeftHand;
-            m_Data.EnabledRightHand = m_Data.EnabledRightHand;
-            m_Data.ProtectElbow = m_Data.ProtectElbow;
-            m_Data.CollideTrackedElbow = m_Data.CollideTrackedElbow;
-            m_Data.ShoulderSolveEnabled = m_Data.ShoulderSolveEnabled;
-            m_Data.ShoulderShrugEnabled = m_Data.ShoulderShrugEnabled;
-            m_Data.IKLockMode = m_Data.IKLockMode;
-        }
-    }
-
     [Unity.Burst.BurstCompile]
     public struct BasisFullIKConstraintJob : Unity.Jobs.IJob
     {
@@ -729,10 +600,7 @@ targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
 targetPositionLeftHand, hintPositionLeftHand,
-targetPositionRightHand, hintPositionRightHand,
-p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
-p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
-p20, p54;
+targetPositionRightHand, hintPositionRightHand;
 
         public Quaternion targetRotationHead, targetChestRotation,
 targetRotationLeftLowerLeg,
@@ -744,13 +612,7 @@ offsetRotationLeftHand, offsetRotationRightHand,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
-TargetRotationLeftShoulder, TargetRotationRightShoulder,
-r0, r1, r2, r3, r4, r5, r6, r7, r8, r9,
-r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
-r20, r54,
-o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
-o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
-o20, o54;
+TargetRotationLeftShoulder, TargetRotationRightShoulder;
 
         // Swivel models: where the elbow/knee go for a user with no elbow/knee tracker.
         //
@@ -785,10 +647,14 @@ leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand,
 hintWeightRightHand,
 protectElbow, collideTrackedElbow, useNeuralPole,
-collisionsEnabled,
-w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
-w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
-w20, w54;
+collisionsEnabled;
+
+        // Per-bone override slots, indexed identically to BasisFullBodyData.
+        public FixedList512Bytes<Vector3> slotPositions;
+        public FixedList512Bytes<Quaternion> slotRotations;
+        public FixedList512Bytes<Quaternion> slotOffsets;
+        public FixedList64Bytes<bool> slotWeights;
+        public FixedList128Bytes<BasisBoneHandle> slotHandles;
         public NativeArray<BasisBoneHandle> ChainHeadToSpine;
         // The anatomical envelope, PARALLEL TO ChainHeadToSpine so a chain index guards itself. The head
         // (index 0) and the hips (the last) carry Valid=false frames -- the head is welded to the HMD and
@@ -824,6 +690,7 @@ w20, w54;
         public bool spineAnatomicalRom;
         public bool chestIkTarget;
         public bool hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
+        public bool footIsTrackerLeftLeg, footIsTrackerRightLeg;
         public float lordosisPitchGainDeg;
         public float lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
         public float lordosisExtremeStartDeg, lordosisExtremeFullDeg;
@@ -921,8 +788,8 @@ w20, w54;
             }
 
             // 3) Legs: two-bone IK with bend normal preference
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, 0);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, 1);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
 
             // 4) Hands: two-bone IK with collision + elbow protection. bodyRight (shoulder->shoulder) orients
             // the torso's elliptical collision cross-section; shared by both arms so it is computed once here.
@@ -960,28 +827,10 @@ w20, w54;
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
 
             // 6) Generic per-bone overrides (direct tracker control)
-            Apply(stream, HandleHips, p0, r0, o0, w0);
-            Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
-            Apply(stream, HandleRightUpperLeg, p2, r2, o2, w2);
-            Apply(stream, HandleLeftLowerLeg, p3, r3, o3, w3);
-            Apply(stream, HandleRightLowerLeg, p4, r4, o4, w4);
-            Apply(stream, HandleLeftFoot, p5, r5, o5, w5);
-            Apply(stream, HandleRightFoot, p6, r6, o6, w6);
-            Apply(stream, HandleSpine, p7, r7, o7, w7);
-            Apply(stream, HandleChest, p8, r8, o8, w8);
-            Apply(stream, HandleNeck, p9, r9, o9, w9);
-            Apply(stream, HandleHead, p10, r10, o10, w10);
-            Apply(stream, HandleLeftShoulder, p11, r11, o11, w11);
-            Apply(stream, HandleRightShoulder, p12, r12, o12, w12);
-            Apply(stream, HandleLeftUpperArm, p13, r13, o13, w13);
-            Apply(stream, HandleRightUpperArm, p14, r14, o14, w14);
-            Apply(stream, HandleLeftLowerArm, p15, r15, o15, w15);
-            Apply(stream, HandleRightLowerArm, p16, r16, o16, w16);
-            Apply(stream, HandleLeftHand, p17, r17, o17, w17);
-            Apply(stream, HandleRightHand, p18, r18, o18, w18);
-            Apply(stream, HandleLeftToe, p19, r19, o19, w19);
-            Apply(stream, HandleRightToe, p20, r20, o20, w20);
-            Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+            for (int i = 0; i < slotHandles.Length; i++)
+            {
+                Apply(stream, slotHandles[i], slotPositions[i], slotRotations[i], slotOffsets[i], slotWeights[i]);
+            }
         }
         public void SolveSpine(BasisPoseStream stream)
         {
@@ -2308,7 +2157,7 @@ w20, w54;
             root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
             tip.SetRotation(stream, result.TipRotation);
         }
-        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, int legSlot)
+        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, bool footIsTrackerProp, int legSlot)
         {
             float posWeight = enabledProp;
             if (posWeight <= 0f)
@@ -2400,7 +2249,11 @@ w20, w54;
             //    jitter via the bend normal -> heavy 1 Hz floor (the original leg-twist fix).
             if (legSwivelSmoothing)
             {
-                if (hintIsTrackerProp || !preserveTip)
+                // A REAL foot tracker -- not merely a non-sentinel target rotation. FootRotationFromDriver
+                // makes the procedural driver emit a real quaternion, so !preserveTip stopped meaning
+                // "tracked foot" and a desktop leg was taking the responsive branch, losing the heavy
+                // standing floor that exists to stop hips-yaw jitter rolling a near-straight leg.
+                if (hintIsTrackerProp || footIsTrackerProp)
                 {
                     // Something REAL drives this leg -- a knee/lower-leg tracker, or (no knee tracker but) a FOOT
                     // tracker. Track it responsively.
@@ -2752,6 +2605,8 @@ w20, w54;
             job.enabledSpineIK = data.EnabledSpineIK;
             job.HasChestTracker = data.WeightChest;
             job.hasHipsTracker = data.HasHipsTracker;
+            job.footIsTrackerLeftLeg = data.LeftFootIsTracker;
+            job.footIsTrackerRightLeg = data.RightFootIsTracker;
             job.enabledLeftLowerLeg = data.EnableLeftLeg;
             job.hintWeightLeftLowerLeg = data.EnableLeftLowerLeg;
             job.enabledRightLowerLeg = data.EnableRightLeg;
@@ -2841,94 +2696,10 @@ w20, w54;
             job.spineTwistKeep = data.SpineTwistKeep;
             job.spineNeckTwistKeep = data.SpineNeckTwistKeep;
             job.ikLockMode = data.IKLockMode;
-            job.p0 = data.TargetPosition0;
-            job.p1 = data.TargetPosition1;
-            job.p2 = data.TargetPosition2;
-            job.p3 = data.TargetPosition3;
-            job.p4 = data.TargetPosition4;
-            job.p5 = data.TargetPosition5;
-            job.p6 = data.TargetPosition6;
-            job.p7 = data.TargetPosition7;
-            job.p8 = data.TargetPosition8;
-            job.p9 = data.TargetPosition9;
-            job.p10 = data.TargetPosition10;
-            job.p11 = data.TargetPosition11;
-            job.p12 = data.TargetPosition12;
-            job.p13 = data.TargetPosition13;
-            job.p14 = data.TargetPosition14;
-            job.p15 = data.TargetPosition15;
-            job.p16 = data.TargetPosition16;
-            job.p17 = data.TargetPosition17;
-            job.p18 = data.TargetPosition18;
-            job.p19 = data.TargetPosition19;
-            job.p20 = data.TargetPosition20;
-            job.p54 = data.TargetPosition54;
-            job.r0 = data.TargetRotation0;
-            job.r1 = data.TargetRotation1;
-            job.r2 = data.TargetRotation2;
-            job.r3 = data.TargetRotation3;
-            job.r4 = data.TargetRotation4;
-            job.r5 = data.TargetRotation5;
-            job.r6 = data.TargetRotation6;
-            job.r7 = data.TargetRotation7;
-            job.r8 = data.TargetRotation8;
-            job.r9 = data.TargetRotation9;
-            job.r10 = data.TargetRotation10;
-            job.r11 = data.TargetRotation11;
-            job.r12 = data.TargetRotation12;
-            job.r13 = data.TargetRotation13;
-            job.r14 = data.TargetRotation14;
-            job.r15 = data.TargetRotation15;
-            job.r16 = data.TargetRotation16;
-            job.r17 = data.TargetRotation17;
-            job.r18 = data.TargetRotation18;
-            job.r19 = data.TargetRotation19;
-            job.r20 = data.TargetRotation20;
-            job.r54 = data.TargetRotation54;
-            job.o0 = data.OffsetRotation0;
-            job.o1 = data.OffsetRotation1;
-            job.o2 = data.OffsetRotation2;
-            job.o3 = data.OffsetRotation3;
-            job.o4 = data.OffsetRotation4;
-            job.o5 = data.OffsetRotation5;
-            job.o6 = data.OffsetRotation6;
-            job.o7 = data.OffsetRotation7;
-            job.o8 = data.OffsetRotation8;
-            job.o9 = data.OffsetRotation9;
-            job.o10 = data.OffsetRotation10;
-            job.o11 = data.OffsetRotation11;
-            job.o12 = data.OffsetRotation12;
-            job.o13 = data.OffsetRotation13;
-            job.o14 = data.OffsetRotation14;
-            job.o15 = data.OffsetRotation15;
-            job.o16 = data.OffsetRotation16;
-            job.o17 = data.OffsetRotation17;
-            job.o18 = data.OffsetRotation18;
-            job.o19 = data.OffsetRotation19;
-            job.o20 = data.OffsetRotation20;
-            job.o54 = data.OffsetRotation54;
-            job.w0 = data.Weight0;
-            job.w1 = data.Weight1;
-            job.w2 = data.Weight2;
-            job.w3 = data.Weight3;
-            job.w4 = data.Weight4;
-            job.w5 = data.Weight5;
-            job.w6 = data.Weight6;
-            job.w7 = data.Weight7;
-            job.w8 = data.Weight8;
-            job.w9 = data.Weight9;
-            job.w10 = data.Weight10;
-            job.w11 = data.Weight11;
-            job.w12 = data.Weight12;
-            job.w13 = data.Weight13;
-            job.w14 = data.Weight14;
-            job.w15 = data.Weight15;
-            job.w16 = data.Weight16;
-            job.w17 = data.Weight17;
-            job.w18 = data.Weight18;
-            job.w19 = data.Weight19;
-            job.w20 = data.Weight20;
-            job.w54 = data.Weight54;
+            job.slotPositions = data.TargetPositions;
+            job.slotRotations = data.TargetRotations;
+            job.slotOffsets = data.OffsetRotations;
+            job.slotWeights = data.Weights;
         }
 
         public static BasisFullIKConstraintJob Create(BasisPoseSkeleton skeleton, ref BasisFullBodyData data)
@@ -3115,98 +2886,36 @@ w20, w54;
 
             };
 
-            // Bind positions
-            job.p0 = data.TargetPosition0;
-            job.p1 = data.TargetPosition1;
-            job.p2 = data.TargetPosition2;
-            job.p3 = data.TargetPosition3;
-            job.p4 = data.TargetPosition4;
-            job.p5 = data.TargetPosition5;
-            job.p6 = data.TargetPosition6;
-            job.p7 = data.TargetPosition7;
-            job.p8 = data.TargetPosition8;
-            job.p9 = data.TargetPosition9;
-            job.p10 = data.TargetPosition10;
-            job.p11 = data.TargetPosition11;
-            job.p12 = data.TargetPosition12;
-            job.p13 = data.TargetPosition13;
-            job.p14 = data.TargetPosition14;
-            job.p15 = data.TargetPosition15;
-            job.p16 = data.TargetPosition16;
-            job.p17 = data.TargetPosition17;
-            job.p18 = data.TargetPosition18;
-            job.p19 = data.TargetPosition19;
-            job.p20 = data.TargetPosition20;
-            job.p54 = data.TargetPosition54;
-            // Bind rotations (as Quaternion)
-            job.r0 = data.TargetRotation0;
-            job.r1 = data.TargetRotation1;
-            job.r2 = data.TargetRotation2;
-            job.r3 = data.TargetRotation3;
-            job.r4 = data.TargetRotation4;
-            job.r5 = data.TargetRotation5;
-            job.r6 = data.TargetRotation6;
-            job.r7 = data.TargetRotation7;
-            job.r8 = data.TargetRotation8;
-            job.r9 = data.TargetRotation9;
-            job.r10 = data.TargetRotation10;
-            job.r11 = data.TargetRotation11;
-            job.r12 = data.TargetRotation12;
-            job.r13 = data.TargetRotation13;
-            job.r14 = data.TargetRotation14;
-            job.r15 = data.TargetRotation15;
-            job.r16 = data.TargetRotation16;
-            job.r17 = data.TargetRotation17;
-            job.r18 = data.TargetRotation18;
-            job.r19 = data.TargetRotation19;
-            job.r20 = data.TargetRotation20;
-            job.r54 = data.TargetRotation54;
-            // Bind offsets
-            job.o0 = data.OffsetRotation0;
-            job.o1 = data.OffsetRotation1;
-            job.o2 = data.OffsetRotation2;
-            job.o3 = data.OffsetRotation3;
-            job.o4 = data.OffsetRotation4;
-            job.o5 = data.OffsetRotation5;
-            job.o6 = data.OffsetRotation6;
-            job.o7 = data.OffsetRotation7;
-            job.o8 = data.OffsetRotation8;
-            job.o9 = data.OffsetRotation9;
-            job.o10 = data.OffsetRotation10;
-            job.o11 = data.OffsetRotation11;
-            job.o12 = data.OffsetRotation12;
-            job.o13 = data.OffsetRotation13;
-            job.o14 = data.OffsetRotation14;
-            job.o15 = data.OffsetRotation15;
-            job.o16 = data.OffsetRotation16;
-            job.o17 = data.OffsetRotation17;
-            job.o18 = data.OffsetRotation18;
-            job.o19 = data.OffsetRotation19;
-            job.o20 = data.OffsetRotation20;
-            job.o54 = data.OffsetRotation54;
-            // Bind per-slot weights
-            job.w0 = data.Weight0;
-            job.w1 = data.Weight1;
-            job.w2 = data.Weight2;
-            job.w3 = data.Weight3;
-            job.w4 = data.Weight4;
-            job.w5 = data.Weight5;
-            job.w6 = data.Weight6;
-            job.w7 = data.Weight7;
-            job.w8 = data.Weight8;
-            job.w9 = data.Weight9;
-            job.w10 = data.Weight10;
-            job.w11 = data.Weight11;
-            job.w12 = data.Weight12;
-            job.w13 = data.Weight13;
-            job.w14 = data.Weight14;
-            job.w15 = data.Weight15;
-            job.w16 = data.Weight16;
-            job.w17 = data.Weight17;
-            job.w18 = data.Weight18;
-            job.w19 = data.Weight19;
-            job.w20 = data.Weight20;
-            job.w54 = data.Weight54;
+            // Bind slot data
+            job.slotPositions = data.TargetPositions;
+            job.slotRotations = data.TargetRotations;
+            job.slotOffsets = data.OffsetRotations;
+            job.slotWeights = data.Weights;
+
+            // Pair each slot with its bone handle, in HumanBodyBones order.
+            job.slotHandles.Length = BasisFullBodyData.Count;
+            job.slotHandles[0] = job.HandleHips;
+            job.slotHandles[1] = job.HandleLeftUpperLeg;
+            job.slotHandles[2] = job.HandleRightUpperLeg;
+            job.slotHandles[3] = job.HandleLeftLowerLeg;
+            job.slotHandles[4] = job.HandleRightLowerLeg;
+            job.slotHandles[5] = job.HandleLeftFoot;
+            job.slotHandles[6] = job.HandleRightFoot;
+            job.slotHandles[7] = job.HandleSpine;
+            job.slotHandles[8] = job.HandleChest;
+            job.slotHandles[9] = job.HandleNeck;
+            job.slotHandles[10] = job.HandleHead;
+            job.slotHandles[11] = job.HandleLeftShoulder;
+            job.slotHandles[12] = job.HandleRightShoulder;
+            job.slotHandles[13] = job.HandleLeftUpperArm;
+            job.slotHandles[14] = job.HandleRightUpperArm;
+            job.slotHandles[15] = job.HandleLeftLowerArm;
+            job.slotHandles[16] = job.HandleRightLowerArm;
+            job.slotHandles[17] = job.HandleLeftHand;
+            job.slotHandles[18] = job.HandleRightHand;
+            job.slotHandles[19] = job.HandleLeftToe;
+            job.slotHandles[20] = job.HandleRightToe;
+            job.slotHandles[BasisFullBodyData.UpperChestSlot] = job.HandleUpperChest;
 
 
             GenerateHeadToSpine(skeleton, ref job, ref data);

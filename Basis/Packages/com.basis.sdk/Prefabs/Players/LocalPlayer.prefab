@@ -531,7 +531,6 @@ MonoBehaviour:
       ApplyScale: 0
       FinalScale: {x: 1, y: 1, z: 1}
   LocalRigDriver:
-    MainRig: {fileID: 0}
     RigLayerActive: 1
     BasisFullIKConstraint: {fileID: 0}
     timeAccumulator: 0

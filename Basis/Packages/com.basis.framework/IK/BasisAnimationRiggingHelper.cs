@@ -28,12 +28,9 @@ public static class BasisAnimationRiggingHelper
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, GameObject parent, BasisTransformMapping Mapping, out BasisFullBodyIK BasisFullIKConstraint)
+    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisFullBodyData data)
     {
-        // Holder + component
-        var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
-        BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullBodyIK>(go);
-        var data = BasisFullIKConstraint.data;
+        data = default;
         data.SetDefaultValues();
         // Torso / head chain
         data.hips = Mapping.Hips;
@@ -217,7 +214,6 @@ public static class BasisAnimationRiggingHelper
         data.ShoulderElevationFactor = 0.4f;
         data.ShoulderProtractionFactor = 0.3f;
 
-        BasisFullIKConstraint.data = data;
     }
 
     /// <summary>
@@ -286,23 +282,5 @@ public static class BasisAnimationRiggingHelper
         }
         up.Normalize();
         return Quaternion.LookRotation(forward, up);
-    }
-    public static GameObject CreateAndSetParent(Transform parent, string name)
-    {
-        Transform[] Children = parent.transform.GetComponentsInChildren<Transform>();
-        foreach (Transform child in Children)
-        {
-            if (child.name == name)
-            {
-                return child.gameObject;
-            }
-        }
-
-        // Create a new empty GameObject
-        GameObject newObject = new GameObject(name);
-
-        // Set its parent
-        newObject.transform.SetParent(parent);
-        return newObject;
     }
 }

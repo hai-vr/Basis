@@ -6,6 +6,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 namespace Basis.Scripts.Avatar
 {
     /// <summary>
@@ -281,8 +282,8 @@ namespace Basis.Scripts.Avatar
         private static void LogFbikRotationCalibration()
         {
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
-            if (rig == null || rig.BasisFullIKConstraint == null) return;
-            var data = rig.BasisFullIKConstraint.data;
+            if (rig == null || !rig.IKDataReady) return;
+            ref BasisFullBodyData data = ref rig.IKData;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
 
             LogFbikRole("Head", data.m_CalibratedRotationHead, BasisLocalBoneDriver.HeadControl, Mapping.head);
@@ -411,7 +412,7 @@ namespace Basis.Scripts.Avatar
         private static void RecomputeFbikRotationCalibration()
         {
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
-            if (rig == null || rig.BasisFullIKConstraint == null) return;
+            if (rig == null || !rig.IKDataReady) return;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
             // Calibration body frame: derived from the head (the frame DriveTpose would drive the root
             // to) instead of reading the live avatar root — the live root only matches in the instant
@@ -459,8 +460,8 @@ namespace Basis.Scripts.Avatar
         {
             if (!HasCalibrationReference) return;
             var rig = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalRigDriver : null;
-            if (rig == null || rig.BasisFullIKConstraint == null) return;
-            var data = rig.BasisFullIKConstraint.data;
+            if (rig == null || !rig.IKDataReady) return;
+            ref BasisFullBodyData data = ref rig.IKData;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
             Quaternion rootInv = Mapping.HasAnimatorRoot ? Quaternion.Inverse(Mapping.AnimatorRoot.rotation) : Quaternion.identity;
 

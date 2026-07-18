@@ -91,13 +91,13 @@ public class BasisPoseStreamWindow : EditorWindow
             : "anchor=<none>  (treated as identity)";
 
         var rig = BasisLocalPlayer.Instance.LocalRigDriver;
-        var d = rig.BasisFullIKConstraint != null ? rig.BasisFullIKConstraint.data : default;
+        var d = rig.IKDataReady ? rig.IKData : default;
         var calib = new StringBuilder();
         calib.AppendLine($"HasRecalibratedRotationOffsets={BasisLocalRigDriver.HasRecalibratedRotationOffsets}");
         calib.AppendLine($"  LeftFoot  live={Fmt(d.M_CalibrationLeftFootRotation.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedLeftFoot.eulerAngles)}   |q|={QLen(d.M_CalibrationLeftFootRotation):F4}");
         calib.AppendLine($"  RightFoot live={Fmt(d.M_CalibrationRightFootRotation.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedRightFoot.eulerAngles)}   |q|={QLen(d.M_CalibrationRightFootRotation):F4}");
         calib.AppendLine($"  boneSim   L={Fmt(BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation.eulerAngles)}   R={Fmt(BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation.eulerAngles)}");
-        calib.AppendLine($"ENABLES  leg L={d.EnableLeftLeg:F2} R={d.EnableRightLeg:F2}   lowerLeg L={d.EnableLeftLowerLeg:F2} R={d.EnableRightLowerLeg:F2}   toe L={d.LeftToeEnabled} R={d.RightToeEnabled}");
+        calib.AppendLine($"SOLVE-W leg L={d.EnableLeftLeg:F2} R={d.EnableRightLeg:F2}   HINT-W knee L={d.EnableLeftLowerLeg:F2} R={d.EnableRightLowerLeg:F2}   toe L={d.LeftToeEnabled} R={d.RightToeEnabled}   (hint>0 = foot-driver pole, 0 = swivel model)");
         calib.Append($"HasRigLayer  LFoot={BasisLocalBoneDriver.LeftFootControl.HasRigLayer} RFoot={BasisLocalBoneDriver.RightFootControl.HasRigLayer}" +
                      $"  LLowerLeg={BasisLocalBoneDriver.LeftLowerLegControl.HasRigLayer} RLowerLeg={BasisLocalBoneDriver.RightLowerLegControl.HasRigLayer}");
         _calibInfo = calib.ToString();
