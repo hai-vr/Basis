@@ -165,6 +165,12 @@ int basis_decoder_try_open_url(basis_decoder_t* dec, const char* url);
 int  basis_decoder_render_update(basis_decoder_t* dec);
 void basis_decoder_render_release(basis_decoder_t* dec);
 
+/* Seek notification (any thread; typically the caller of basis_media_seek_us).
+ * Sets a target + bumps a generation the decoder's consumer legs observe; each
+ * leg flushes its own stale buffers and re-anchors the clock ON ITS OWN THREAD,
+ * so nothing is flushed across threads. Idempotent per generation. */
+void basis_decoder_seek(basis_decoder_t* dec, int64_t target_us);
+
 /* Accessors mirrored by the public ABI (any thread unless noted). */
 void*    basis_decoder_get_texture(basis_decoder_t* dec, int* out_w, int* out_h);
 uint64_t basis_decoder_get_frame_counter(basis_decoder_t* dec);
