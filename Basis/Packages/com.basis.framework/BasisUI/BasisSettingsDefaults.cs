@@ -478,6 +478,7 @@ namespace Basis.BasisUI
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
         public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevPoseStreamDebug = new("devposestreamdebug_v2", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
@@ -1192,6 +1193,10 @@ namespace Basis.BasisUI
         // the foot's toe lines up with the leg, handing off to the butterfly splay.
         public static BasisSettingsBinding<bool> FBIKKneeFollowsFoot = new("fbikkneefollowsfoot", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKKneeFootFollowUpright = new("fbikkneefootfollowupright", new BasisPlatformDefault<float>(0.75f));
+        // Neural pole (elbow/knee): drive the no-tracker elbow and knee from small fitted MLPs instead of the
+        // polynomial/field. DEFAULT OFF -- on CMU mocap it measures a wash-to-marginal vs the tuned polys; this is
+        // an in-headset A/B toggle, since the feel/naturalness is the real test the mocap metric cannot see.
+        public static BasisSettingsBinding<bool> FBIKNeuralPole = new("fbikneuralpole", new BasisPlatformDefault<bool>(false));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1595,6 +1600,7 @@ namespace Basis.BasisUI
             SavedPlayerEyeHeight.LoadBindingValue();
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
+            DevPoseStreamDebug.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             TrackerVisuals.LoadBindingValue();
@@ -1986,6 +1992,7 @@ namespace Basis.BasisUI
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
             FBIKKneeFollowsFoot.LoadBindingValue();
             FBIKKneeFootFollowUpright.LoadBindingValue();
+            FBIKNeuralPole.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
             FBIKSpineProportionMatch.LoadBindingValue();

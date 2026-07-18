@@ -2676,6 +2676,11 @@ namespace Basis.BasisUI
             toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
             toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
 
+            PanelToggle togglePoseStreamDebug = PanelToggle.CreateNewEntry(container);
+            togglePoseStreamDebug.Descriptor.SetTitle("IK pose stream debug");
+            togglePoseStreamDebug.Descriptor.SetTooltip("Logs the IK pose stream's composed world pose against the real bone transforms every frame. Diagnostic only.");
+            togglePoseStreamDebug.AssignBinding(BasisSettingsDefaults.DevPoseStreamDebug);
+
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(developerOptionsToggle, container, developerOptionsStart, false,
                 _ => descriptor.ForceRebuild());
 

@@ -627,6 +627,10 @@
       "value": "Plant your avatar's feet on the ground and on steps automatically."
     },
     {
+      "key": "settings.bodyTracking.neuralPole.tooltip",
+      "value": "Experimental: place the invented elbow and knee (when they aren't tracked) using small neural networks trained on human motion, instead of the default polynomials. Off by default."
+    },
+    {
       "key": "settings.bodyTracking.disableAnimFbt.tooltip",
       "value": "Turn off built-in animations while full-body tracking is active."
     },
@@ -4721,6 +4725,10 @@
     {
       "key": "settings.bodyTracking.footIk",
       "value": "Foot IK"
+    },
+    {
+      "key": "settings.bodyTracking.neuralPole",
+      "value": "Neural Elbow/Knee (experimental)"
     },
     {
       "key": "settings.bodyTracking.disableAnimFbt",

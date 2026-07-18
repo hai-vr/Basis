@@ -337,7 +337,7 @@ namespace Basis.BasisUI
             if (!_calibrated && BasisLocalAvatarDriver.CurrentlyTposing)
             {
                 BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
-                BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+                BasisLocalPlayer.Instance.LocalRigDriver.RigLayerActive = true;
             }
 
             BasisUINeedsVisibleTrackers.Remove(BasisLocalPlayer.Instance);

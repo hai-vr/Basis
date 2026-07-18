@@ -105,7 +105,7 @@ namespace UnityEngine.Animations.Rigging
             Vector3 armDirL = (invChest * armVec).normalized;
 
             // Twist-free by construction: FromToRotation's axis is perpendicular to the arm, so no roll.
-            Quaternion swing = QuaternionExt.FromToRotation(restDirL, armDirL);
+            Quaternion swing = BasisQuaternionExt.FromToRotation(restDirL, armDirL);
             Vector3 rv = QuatToRotationVector(swing);   // chest-local rotation vector (rad), the humeral swing
             float swingDeg = rv.magnitude * Mathf.Rad2Deg;
 
@@ -174,7 +174,7 @@ namespace UnityEngine.Animations.Rigging
                 girdleRv *= maxRad / mag;
             }
 
-            Quaternion girdleL = QuaternionExt.NormalizeSafe(RotationVectorToQuat(girdleRv));
+            Quaternion girdleL = BasisQuaternionExt.NormalizeSafe(RotationVectorToQuat(girdleRv));
 
             // shoulder world = live chest  *  girdle swing  *  rest shoulder-in-chest.
             Quaternion shoulderRestLocal = Quaternion.Inverse(i.TposeChestRot) * i.TposeShoulderRot;

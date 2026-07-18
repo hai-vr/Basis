@@ -90,32 +90,9 @@ namespace UnityEngine.Animations.Rigging
         static readonly float3 k_ElbowTuckPole = new float3(-1f, -0.35f, 0f);
         public const float ElbowTuckWeight = 0.12f;
 
-        /// <summary>
-        /// LIVE-RIG SWITCH for the neural pole models. Only the live solve reads it: BasisFullBodyIK passes it to
-        /// ArmHint/LegHint as `useNeural`, while the harness's ElbowField baseline row and every ArmHint/LegHint
-        /// UNIT TEST omit that arg (it defaults false), so they keep exercising the field/polynomial unchanged --
-        /// flipping this does NOT turn the field-behaviour suite red or corrupt the harness A/B baseline.
-        ///
-        /// `static readonly`, not a settable bool, ON PURPOSE: ArmHint/LegHint run inside the Burst job
-        /// (BasisFullIKConstraintJob), and Burst forbids loading a MUTABLE static field (BC1040). A readonly
-        /// static folds to a constant, so both branches compile. (Same trick as BasisElbowFieldModel.UseStereoField.)
-        ///
-        /// ⚠️ DEFAULT false, AND THAT IS A MEASURED DECISION, not caution. The offline pole-error proxy said the
-        /// MLPs were +13-22% and ~10x smoother, but that proxy does NOT track the FULL solver. Measured in
-        /// Unity (BasisMocapMotionQualityTests, ELBOW/KNEE err %limb through BasisArm/LegSolveCore + tuck +
-        /// gain-cap), the neural pole is MARGINALLY WORSE than the tuned polynomials it replaces:
-        ///     elbow  ElbowField 7.13 vs NeuralField(v2) 7.48  |  SwivelModel 3.62 vs NeuralSwivel 3.89
-        ///     knee   SwivelModel 2.21 vs NeuralSwivel 2.20 (wash; +2 invented pops)
-        /// All are pop-free; the gap is ~1-1.5 mm of elbow. So this stays OFF: do not ship even a marginal
-        /// regression as the default. Flip true only to A/B IN A HEADSET (where mm-accuracy on CMU is not the
-        /// whole story and the pole-flip smoothness might still feel better). The real path to beating the
-        /// polynomials is training against the SOLVER's metric, not the bend-angle proxy -- see the neural_ik memo.
-        ///
-        /// ELBOW: neural POSITION model (BasisArmElbowNeuralFieldModel, v2 singularity-free, sign-safe drop-in
-        /// for ElbowField.Elbow). KNEE: neural ANGLE model (BasisLegSwivelNeuralModel, clean since LegHint is
-        /// angle-based). Both Burst-compile and run in the live rig when flipped on (verified in batch mode).
-        /// </summary>
-        public static readonly bool UseNeuralPole = false;
+        // The neural pole is now the FBIKNeuralPole setting (default OFF) -> BasisFullBodyData.UseNeuralPole ->
+        // job.useNeuralPole -> ArmHint/LegHint `useNeural` (tests/harness omit the arg, so they stay on field/poly).
+        // Default off: Unity A/B (BasisMocapMotionQualityTests) put it even-to-slightly-worse on CMU but pop-free.
 
         /// <summary>|(s,c)| at or below which the leg model has no usable opinion and the solve should
         /// fall back to its own anatomical bend pole.</summary>

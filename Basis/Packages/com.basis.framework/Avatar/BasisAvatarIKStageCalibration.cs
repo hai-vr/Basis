@@ -248,7 +248,7 @@ namespace Basis.Scripts.Avatar
                     if (BasisLocalAvatarDriver.CurrentlyTposing)
                     {
                         BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
-                        BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
+                        BasisLocalPlayer.Instance.LocalRigDriver.RigLayerActive = true;
                     }
                 }
 

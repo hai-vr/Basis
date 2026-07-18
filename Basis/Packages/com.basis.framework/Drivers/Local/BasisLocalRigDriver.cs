@@ -47,11 +47,14 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public static float SmoothingStrength = 1f;
 
-        public RigBuilder Builder;
-        public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
         [System.NonSerialized] public PlayableGraph PlayableGraph;
-        public Rig MainRig;
-        public RigLayer RigLayer;
+        [System.NonSerialized] public readonly BasisPoseSkeleton PoseSkeleton = new BasisPoseSkeleton();
+        [System.NonSerialized] public BasisFullIKConstraintJob IKJob;
+        [System.NonSerialized] public bool IKJobCreated;
+        public GameObject MainRig;
+        public bool RigLayerActive = true;
+        public static bool DebugPoseStream;
+        int _poseChecksRemaining;
         public BasisFullBodyIK BasisFullIKConstraint;
 
         /// <summary>
@@ -185,15 +188,21 @@ namespace Basis.Scripts.Drivers
         }
         public void BuildBuilder()
         {
-            if (localPlayer?.BasisAvatar?.Animator == null || Builder == null)
+            if (localPlayer?.BasisAvatar?.Animator == null || BasisFullIKConstraint == null)
             {
-                BasisDebug.LogError("Missing Localplayer || Avatar || Animator || builder");
+                BasisDebug.LogError("Missing Localplayer || Avatar || Animator || constraint");
                 return;
             }
 
-            PlayableGraph = localPlayer.BasisAvatar.Animator.playableGraph;
+            Animator animator = localPlayer.BasisAvatar.Animator;
+            PlayableGraph = animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-            Builder.Build(PlayableGraph);
+
+            PoseSkeleton.Build(animator.transform, CollectIKBones(BasisFullIKConstraint.data));
+            PoseSkeleton.SetTranslationFree(BasisFullIKConstraint.data.hips);
+            IKJob = BasisFullBodyJobBinder.Create(PoseSkeleton, ref BasisFullIKConstraint.DataRef);
+            IKJobCreated = true;
+            _poseChecksRemaining = 3;
 
             ResetSmoothingState();
         }
@@ -205,7 +214,7 @@ namespace Basis.Scripts.Drivers
             HasRecalibratedRotationOffsets = false;
             SpineProportionRatio = 1f;
             HasSpineProportionCapturePending = false;
-            var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
+            var rigGO = CreateOrGetRig("Main IK");
             Spine(rigGO);
             BasisLocalBoneControl.HasEvents = true;
             // Keep FBT rotation calibration across avatar swaps: re-derive this avatar's per-effector offsets
@@ -221,14 +230,21 @@ namespace Basis.Scripts.Drivers
             DisposeFilterArrays();
             DisposeIKPublishArrays();
 
+            if (IKJobCreated)
+            {
+                BasisFullBodyJobBinder.Destroy(IKJob);
+                IKJob = default;
+                IKJobCreated = false;
+            }
+            PoseSkeleton.Dispose();
+
             if (MainRig == null)
             {
                 return;
             }
 
-            GameObject.Destroy(MainRig.gameObject);
+            GameObject.Destroy(MainRig);
             MainRig = null;
-            RigLayer = default;
         }
 
         private void EnsureFilterArrays()
@@ -278,25 +294,13 @@ namespace Basis.Scripts.Drivers
 
         public void OnTPose(bool currentlyTposing)
         {
-            if (Builder == null)
-            {
-                BasisDebug.LogWarning($"{nameof(BasisLocalRigDriver)}: Trying to T-pose while Builder is null!");
-                return;
-            }
-
-            // While in T-pose, disable all rig layers
             if (currentlyTposing)
             {
-                foreach (var layer in Builder.layers)
-                {
-                    if (layer != null)
-                    {
-                        layer.active = false;
-                    }
-                }
-
+                RigLayerActive = false;
                 return;
             }
+
+            RigLayerActive = true;
 
             // Notify controls when exiting T-pose
             var driver = BasisLocalPlayer.Instance?.LocalBoneDriver;
@@ -344,7 +348,7 @@ namespace Basis.Scripts.Drivers
         }
         public void SimulateIKDestinations(float deltaTime)
         {
-            if (BasisFullIKConstraint == null || Builder == null)
+            if (BasisFullIKConstraint == null || !IKJobCreated)
             {
                 return;
             }
@@ -842,8 +846,8 @@ namespace Basis.Scripts.Drivers
             ApplyTuningSettings(ref data);
 
             BasisFullIKConstraint.data = data;
-            Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
+            RunIKSolve(deltaTime);
 
             // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
             // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
@@ -1354,6 +1358,7 @@ namespace Basis.Scripts.Drivers
             // running on the boot-time snapshot.
             data.CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
             data.ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            data.UseNeuralPole = Basis.BasisUI.BasisSettingsDefaults.FBIKNeuralPole.RawValue;
             data.CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
             data.ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             data.ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
@@ -1613,43 +1618,56 @@ namespace Basis.Scripts.Drivers
             return weight > 0.001f;
         }
 
-        public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)
+        public GameObject CreateOrGetRig(string role)
         {
-            rig = null;
-            rigLayer = default;
-
             if (localPlayer?.BasisAvatar?.Animator == null)
             {
                 return null;
             }
 
-            if (Builder != null)
-            {
-                foreach (var layer in Builder.layers)
-                {
-                    if (layer?.rig != null && layer.rig.name == $"Rig {role}")
-                    {
-                        rig = layer.rig;
-                        rigLayer = layer;
-                        return layer.rig.gameObject;
-                    }
-                }
-            }
-
             var anim = localPlayer.BasisAvatar.Animator;
-            GameObject rigGO = BasisAnimationRiggingHelper.CreateAndSetParent(anim.transform, $"Rig {role}");
+            MainRig = BasisAnimationRiggingHelper.CreateAndSetParent(anim.transform, $"Rig {role}");
+            return MainRig;
+        }
 
-            rig = BasisHelpers.GetOrAddComponent<Rig>(rigGO);
-            rigLayer = new RigLayer(rig, enabled);
+        static List<Transform> CollectIKBones(BasisFullBodyData d) => new List<Transform>
+        {
+            d.hips, d.spine, d.chest, d.upperChest, d.neck, d.head,
+            d.LeftShoulder, d.RightShoulder,
+            d.leftUpperArm, d.leftLowerArm, d.LeftHand,
+            d.RightUpperArm, d.RightLowerArm, d.RightHand,
+            d.LeftUpperArmTwist, d.LeftLowerArmTwist,
+            d.RightUpperArmTwist, d.RightLowerArmTwist,
+            d.LeftUpperLeg, d.LeftLowerLeg, d.leftFoot,
+            d.RightUpperLeg, d.RightLowerLeg, d.RightFoot,
+            d.LeftToe, d.RightToe,
+        };
 
-            if (Builder == null)
+        void RunIKSolve(float deltaTime)
+        {
+            if (!RigLayerActive || !IKJobCreated || !PoseSkeleton.IsCreated)
             {
-                Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(anim.gameObject);
+                return;
             }
 
-            Builder.layers.Add(rigLayer);
+            PoseSkeleton.ScheduleGather().Complete();
 
-            return rigGO;
+            if (DebugPoseStream || Basis.BasisUI.BasisSettingsDefaults.DevPoseStreamDebug.RawValue || _poseChecksRemaining > 0)
+            {
+                if (_poseChecksRemaining > 0)
+                {
+                    _poseChecksRemaining--;
+                }
+                BasisDebug.Log($"[PoseStream] {PoseSkeleton.ValidateAgainstTransforms()}");
+            }
+
+            BasisFullBodyJobBinder.Sync(ref IKJob, ref BasisFullIKConstraint.DataRef);
+            IKJob.Stream = PoseSkeleton.Stream;
+            IKJob.Stream.deltaTime = deltaTime;
+            IKJob.jobWeight = 1f;
+            IKJob.Run();
+
+            PoseSkeleton.ScheduleScatter().Complete();
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)

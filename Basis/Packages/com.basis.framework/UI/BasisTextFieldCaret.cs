@@ -135,6 +135,22 @@ namespace Basis.Scripts.UI
             }
         }
 
+        private static int ResolveCaret(TMP_InputField tmp, int textLength)
+        {
+            return Mathf.Clamp(
+                Mathf.Max(tmp.selectionStringAnchorPosition, tmp.selectionStringFocusPosition),
+                0,
+                textLength);
+        }
+
+        private static int ResolveCaret(InputField legacy, int textLength)
+        {
+            return Mathf.Clamp(
+                Mathf.Max(legacy.selectionAnchorPosition, legacy.selectionFocusPosition),
+                0,
+                textLength);
+        }
+
         public static void InsertAtCaret(TMP_InputField tmp, InputField legacy, string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -145,7 +161,7 @@ namespace Basis.Scripts.UI
             if (tmp != null)
             {
                 string text = tmp.text ?? string.Empty;
-                int position = Mathf.Clamp(tmp.stringPosition, 0, text.Length);
+                int position = ResolveCaret(tmp, text.Length);
                 tmp.text = text.Insert(position, value);
                 tmp.stringPosition = Mathf.Min(position + value.Length, tmp.text.Length);
                 EnsureCaretVisible(tmp);
@@ -153,7 +169,7 @@ namespace Basis.Scripts.UI
             else if (legacy != null)
             {
                 string text = legacy.text ?? string.Empty;
-                int position = Mathf.Clamp(legacy.caretPosition, 0, text.Length);
+                int position = ResolveCaret(legacy, text.Length);
                 legacy.text = text.Insert(position, value);
                 legacy.caretPosition = Mathf.Min(position + value.Length, legacy.text.Length);
                 legacy.ForceLabelUpdate();
@@ -169,7 +185,7 @@ namespace Basis.Scripts.UI
                 {
                     return;
                 }
-                int position = Mathf.Clamp(tmp.stringPosition, 0, text.Length);
+                int position = ResolveCaret(tmp, text.Length);
                 if (position <= 0)
                 {
                     return;
@@ -185,7 +201,7 @@ namespace Basis.Scripts.UI
                 {
                     return;
                 }
-                int position = Mathf.Clamp(legacy.caretPosition, 0, text.Length);
+                int position = ResolveCaret(legacy, text.Length);
                 if (position <= 0)
                 {
                     return;

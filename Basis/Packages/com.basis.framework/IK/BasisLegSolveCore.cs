@@ -277,7 +277,7 @@ namespace UnityEngine.Animations.Rigging
             Quaternion rootDelta = Quaternion.identity;
             if (atCorrectedLen > k_Epsilon)
             {
-                rootDelta = QuaternionExt.FromToRotation(ac, atCorrected);
+                rootDelta = BasisQuaternionExt.FromToRotation(ac, atCorrected);
                 rootRot = rootDelta * rootRot;
                 bPosition = aPosition + rootDelta * (bPosition - aPosition);
                 cPosition = aPosition + rootDelta * (cPosition - aPosition);
@@ -291,7 +291,7 @@ namespace UnityEngine.Animations.Rigging
             // acNorm, and the ankle is one -- so reach preservation is structural, true at every weight, and
             // not merely something that happens to hold away from the singularity.
             //
-            // QuaternionExt.FromToRotation(abProj, ahProj) used to do this job. It agrees with the named axis
+            // BasisQuaternionExt.FromToRotation(abProj, ahProj) used to do this job. It agrees with the named axis
             // in the general case: both inputs are perpendicular to acNorm, so their cross product lies along
             // it. But when the two go ANTI-PARALLEL -- a hint pointing straight across the leg from the knee,
             // which the sweep reaches every single revolution -- Unity's implementation abandons the plane and

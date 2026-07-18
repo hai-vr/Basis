@@ -217,14 +217,6 @@ public static class BasisAnimationRiggingHelper
         data.ShoulderProtractionFactor = 0.3f;
 
         BasisFullIKConstraint.data = data;
-
-        GeneratedRequiredTransforms(player, Mapping.head);
-
-        GeneratedRequiredTransforms(player, Mapping.leftFoot);
-        GeneratedRequiredTransforms(player, Mapping.rightFoot);
-
-        GeneratedRequiredTransforms(player, Mapping.leftHand);
-        GeneratedRequiredTransforms(player, Mapping.rightHand);
     }
 
     /// <summary>
@@ -293,40 +285,6 @@ public static class BasisAnimationRiggingHelper
         }
         up.Normalize();
         return Quaternion.LookRotation(forward, up);
-    }
-    public static void GeneratedRequiredTransforms(BasisLocalPlayer player,Transform baseLevel)
-    {
-        if (baseLevel == null)
-        {
-            return;
-        }
-
-        Transform hips = BasisLocalAvatarDriver.Mapping.Hips;
-        Transform current = baseLevel;
-
-        // Stop when we reach either the hips or the player root.
-        while (current != null && current != hips && current != player.transform)
-        {
-            AddRigTransformIfMissing(player, current);
-            current = current.parent;
-        }
-
-        AddRigTransformIfMissing(player, hips);
-    }
-
-
-    private static void AddRigTransformIfMissing(BasisLocalPlayer player, Transform t)
-    {
-        if (!t.TryGetComponent<RigTransform>(out var rig))
-        {
-            rig = t.gameObject.AddComponent<RigTransform>();
-        }
-
-        var list = player.LocalRigDriver.AdditionalTransforms;
-        if (!list.Contains(rig))
-        {
-            list.Add(rig);
-        }
     }
     public static GameObject CreateAndSetParent(Transform parent, string name)
     {

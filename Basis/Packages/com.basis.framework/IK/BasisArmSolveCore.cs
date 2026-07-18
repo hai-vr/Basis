@@ -239,7 +239,7 @@ namespace UnityEngine.Animations.Rigging
             Quaternion rootDelta = Quaternion.identity;
             if (atCorrectedLen > k_Epsilon)
             {
-                rootDelta = QuaternionExt.FromToRotation(ac, atCorrected);
+                rootDelta = BasisQuaternionExt.FromToRotation(ac, atCorrected);
                 rootRot = rootDelta * rootRot;
                 // Propagate root rotation to its children (mid + tip), pivoting about A.
                 bPosition = aPosition + rootDelta * (bPosition - aPosition);
@@ -371,7 +371,7 @@ namespace UnityEngine.Animations.Rigging
                         // rotation about it cannot move the hand: reach preservation is structural, holds at
                         // every weight, and the promise made in the bend comment above is finally kept.
                         //
-                        // QuaternionExt.FromToRotation(abProj, ahProj) used to build this. It takes its axis
+                        // BasisQuaternionExt.FromToRotation(abProj, ahProj) used to build this. It takes its axis
                         // from Cross(from, to), which DOES lie along acNorm in the general case -- but when the
                         // two go anti-parallel it abandons the plane and returns 180 deg about
                         // Cross(from, Vector3.right), an arbitrary WORLD axis, and swinging the arm about that

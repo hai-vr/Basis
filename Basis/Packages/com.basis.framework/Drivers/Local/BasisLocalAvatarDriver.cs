@@ -140,7 +140,6 @@ namespace Basis.Scripts.Drivers
             player.LocalRigDriver.Initialize(player, Mapping);
 
             player.LocalRigDriver.CleanupBeforeContinue();
-            player.LocalRigDriver.AdditionalTransforms.Clear();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
             ScaleAvatarModification.ReInitialize(player.BasisAvatar.Animator);
 
@@ -188,8 +187,6 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
-            player.LocalRigDriver.Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(AvatarAnimatorParent);
-            player.LocalRigDriver.Builder.enabled = false;
 
             Calibration(player);
 

@@ -1,5 +1,19 @@
 # neural_ik — learned swivel-pole models for fullbody IK
 
+> **BOTTOM LINE (2026-07-18, after a deep pass).** The hand-tuned polynomials are **essentially optimal**
+> for hand-position-only input. The winning model is a **bounded residual** —
+> `swivel = BasisArmSwivelModel.SwivelRad(t) + 25°·tanh(MLP(t))` (`solver_residual.py`) — Unity-verified at
+> **3.61% vs the poly's 3.62%, 0 pops**: a real but MARGINAL win (~0.06 mm). Everything else failed and taught
+> the lesson: the rad-weighted bend-angle **proxy lied** (+13–22% offline, worse in Unity); a free MLP trained
+> against the differentiable **solver port** looked +11% cross-validated but was a **19% / 65-pop disaster in
+> Unity** (the per-frame port is blind to temporal pops, so training found sharp poles that game it); **velocity
+> carries no swivel signal** (k-NN floor ~3.7%). The residual works ONLY because a bounded correction on the
+> smooth poly stays smooth on the trajectory — the one regime the port is faithful in, so the offline gain
+> transfers. **Verify pole models in Unity (temporal), never on a per-frame surrogate.** Default is OFF
+> (`UseNeuralPole=false`); the bigger headroom is the live gain-capped path (`ElbowField` 7.13%), which needs
+> `BasisElbowSwingCapCore` ported. Method: `solver_metric.py` (validated port) → `solver_residual.py` (winner);
+> the batch-mode Unity loop is `Unity.exe -runTests -batchmode -testFilter BasisMocapMotionQualityTests`.
+
 Small MLPs that replace the polynomial elbow/knee **swivel-pole** predictors
 (`BasisArmSwivelModel`, `BasisLegSwivelModel`, `BasisElbowFieldModel`) with drop-ins that predict the
 same `(sin, cos)` swivel from the same features — **more accurate AND smoother**, and inline into the
