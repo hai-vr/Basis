@@ -792,11 +792,13 @@ void* basis_hls_open(const char* url, const basis_http_provider_t* http,
     /* Start the read-ahead producer so segments buffer ahead of playout. */
     h->ring_cap = HLS_RING_CAP;
     h->ring = (uint8_t*)malloc((size_t)h->ring_cap);
-    if (!h->ring) { free(h); return NULL; }
+    if (!h->ring) { free(h->vod_uri); free(h->vod_dur_ms); free(h); return NULL; }
     hls_mutex_init(&h->lock);
     if (!hls_thread_start(h)) {
         hls_mutex_destroy(&h->lock);
         free(h->ring);
+        free(h->vod_uri);
+        free(h->vod_dur_ms);
         free(h);
         return NULL;
     }
