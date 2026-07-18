@@ -6,6 +6,7 @@ using Basis.Network.Server.Ownership;
 using Xunit;
 using BasisNetworkIDDatabase = BasisNetworkCore.BasisNetworkIDDatabase;
 using ClientAvatarChangeMessage = global::SerializableBasis.ClientAvatarChangeMessage;
+using ClientBodyFitMessage = global::SerializableBasis.ClientBodyFitMessage;
 using ClientMetaDataMessage = global::SerializableBasis.ClientMetaDataMessage;
 using OwnershipTransferMessage = DarkRift.Basis_Common.Serializable.SerializableBasis.OwnershipTransferMessage;
 using PlayerIdMessage = global::SerializableBasis.PlayerIdMessage;
@@ -335,6 +336,141 @@ public class BasisSavedStateTests
         {
             BasisSavedState.RemovePlayer(peer.Id);
         }
+    }
+
+    // ── Body fit ────────────────────────────────────────────────────────────
+    // The fit is stored on the avatar record so the late-join replay carries it, but it arrives on its
+    // own message. These pin the merge: a fit update must never disturb which avatar is worn, and an
+    // avatar change must never silently revert the wearer's proportions.
+
+    [Fact]
+    public void BodyFit_MergesIntoTheAvatarRecord_WithoutDisturbingTheAvatar()
+    {
+        var peer = new OwnershipFakeNetPeer(51010);
+        try
+        {
+            BasisSavedState.AddLastData(peer, new ClientAvatarChangeMessage
+            {
+                loadMode = 1,
+                byteArray = new byte[] { 4, 5, 6 },
+                LocalAvatarIndex = 12,
+                ArmScale = 1f,
+                LegScale = 1f,
+                TorsoScale = 1f,
+            });
+
+            BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage
+            {
+                ArmScale = 1.0625f,
+                LegScale = 0.9375f,
+                TorsoScale = 1.125f,
+            });
+
+            Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
+            Assert.Equal(1.0625f, avatar.ArmScale);
+            Assert.Equal(0.9375f, avatar.LegScale);
+            Assert.Equal(1.125f, avatar.TorsoScale);
+            // The avatar itself must be untouched — a recalibration is not an avatar swap.
+            Assert.Equal((byte)1, avatar.loadMode);
+            Assert.Equal(new byte[] { 4, 5, 6 }, avatar.byteArray);
+            Assert.Equal((byte)12, avatar.LocalAvatarIndex);
+        }
+        finally
+        {
+            BasisSavedState.RemovePlayer(peer.Id);
+        }
+    }
+
+    /// <summary>
+    /// A fit can land before any avatar change (recalibrating while the avatar is still loading).
+    /// It has to be held, not dropped, or that player renders unfitted until they recalibrate again.
+    /// </summary>
+    [Fact]
+    public void BodyFit_ArrivingBeforeAnyAvatar_IsHeldOnAPlaceholder()
+    {
+        var peer = new OwnershipFakeNetPeer(51011);
+        try
+        {
+            BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage
+            {
+                ArmScale = 1.05f,
+                LegScale = 0.95f,
+                TorsoScale = 1.02f,
+            });
+
+            Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
+            Assert.Null(avatar.byteArray);
+            Assert.Equal(1.05f, avatar.ArmScale);
+            Assert.Equal(0.95f, avatar.LegScale);
+            Assert.Equal(1.02f, avatar.TorsoScale);
+        }
+        finally
+        {
+            BasisSavedState.RemovePlayer(peer.Id);
+        }
+    }
+
+    [Fact]
+    public void BodyFit_LatestWriteWins()
+    {
+        var peer = new OwnershipFakeNetPeer(51012);
+        try
+        {
+            BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage { ArmScale = 1.1f, LegScale = 1.1f, TorsoScale = 1.1f });
+            BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage { ArmScale = 0.9f, LegScale = 0.8f, TorsoScale = 1.2f });
+
+            Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
+            Assert.Equal(0.9f, avatar.ArmScale);
+            Assert.Equal(0.8f, avatar.LegScale);
+            Assert.Equal(1.2f, avatar.TorsoScale);
+        }
+        finally
+        {
+            BasisSavedState.RemovePlayer(peer.Id);
+        }
+    }
+
+    /// <summary>
+    /// An avatar change carries its own fit, so it legitimately replaces the stored one — the client
+    /// stamps its current fit into that message and corrects it once the new avatar has re-solved.
+    /// </summary>
+    [Fact]
+    public void AvatarChange_AfterBodyFit_CarriesItsOwnFit()
+    {
+        var peer = new OwnershipFakeNetPeer(51013);
+        try
+        {
+            BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage { ArmScale = 1.1f, LegScale = 1.1f, TorsoScale = 1.1f });
+            BasisSavedState.AddLastData(peer, new ClientAvatarChangeMessage
+            {
+                loadMode = 0,
+                byteArray = new byte[] { 9 },
+                LocalAvatarIndex = 3,
+                ArmScale = 1.03f,
+                LegScale = 1.04f,
+                TorsoScale = 1.05f,
+            });
+
+            Assert.True(BasisSavedState.GetLastAvatarChangeState(peer, out var avatar));
+            Assert.Equal(new byte[] { 9 }, avatar.byteArray);
+            Assert.Equal(1.03f, avatar.ArmScale);
+            Assert.Equal(1.04f, avatar.LegScale);
+            Assert.Equal(1.05f, avatar.TorsoScale);
+        }
+        finally
+        {
+            BasisSavedState.RemovePlayer(peer.Id);
+        }
+    }
+
+    [Fact]
+    public void BodyFit_IsClearedWithThePlayer()
+    {
+        var peer = new OwnershipFakeNetPeer(51014);
+        BasisSavedState.UpdateBodyFit(peer, new ClientBodyFitMessage { ArmScale = 1.1f, LegScale = 1.1f, TorsoScale = 1.1f });
+        BasisSavedState.RemovePlayer(peer.Id);
+
+        Assert.False(BasisSavedState.GetLastAvatarChangeState(peer, out _));
     }
 
     [Fact]

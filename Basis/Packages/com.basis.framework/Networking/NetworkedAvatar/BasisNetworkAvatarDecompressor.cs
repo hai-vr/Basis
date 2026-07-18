@@ -168,7 +168,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (quality == BasisAvatarBitPacking.BitQuality.High)
             {
                 basisAvatarBuffer.EffectorMask = BasisAvatarEndEffectors.Decode(
-                    data, offset, basisAvatarBuffer.EffectorPos, basisAvatarBuffer.EffectorRot, basisAvatarBuffer.EffectorSwivel);
+                    data, offset, basisAvatarBuffer.EffectorPos, basisAvatarBuffer.EffectorRot);
                 offset += BasisAvatarEndEffectors.BlockBytes;
             }
             else

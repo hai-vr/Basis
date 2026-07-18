@@ -449,6 +449,14 @@ namespace BasisServerHandle
         #region Avatar and Voice Handling
         public static void SendAvatarMessageToClients(NetPacketReader Reader, NetPeer Peer)
         {
+            // Leading kind byte multiplexes this channel — see BasisNetworkCommons.AvatarChangeKind*.
+            byte kind = Reader.GetByte();
+            if (kind == BasisNetworkCommons.AvatarChangeKindBodyFit)
+            {
+                SendBodyFitMessageToClients(Reader, Peer);
+                return;
+            }
+
             ClientAvatarChangeMessage ClientAvatarChangeMessage = new ClientAvatarChangeMessage();
             ClientAvatarChangeMessage.Deserialize(Reader);
             Reader.Recycle();
@@ -480,7 +488,39 @@ namespace BasisServerHandle
             };
             BasisSavedState.AddLastData(Peer, ClientAvatarChangeMessage);
             NetDataWriter Writer = NetworkServer.RentWriter();
+            Writer.Put(BasisNetworkCommons.AvatarChangeKindFull);
             serverAvatarChangeMessage.Serialize(Writer);
+
+            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, Peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(Writer);
+        }
+
+        /// <summary>
+        /// Handles a body-fit-only update: merge it into this peer's saved avatar record (so a late
+        /// joiner receives the current proportions with the avatar, not the authored ones) and relay it
+        /// to everyone else. Deliberately not gated by the global avatar lock — nothing is being loaded,
+        /// this only resizes segments of an avatar the peer is already wearing.
+        /// </summary>
+        private static void SendBodyFitMessageToClients(NetPacketReader Reader, NetPeer Peer)
+        {
+            ClientBodyFitMessage bodyFit = new ClientBodyFitMessage();
+            bodyFit.Deserialize(Reader);
+            Reader.Recycle();
+
+            BasisSavedState.UpdateBodyFit(Peer, bodyFit);
+
+            ServerBodyFitMessage serverBodyFitMessage = new ServerBodyFitMessage
+            {
+                bodyFit = bodyFit,
+                uShortPlayerId = new PlayerIdMessage
+                {
+                    playerID = (ushort)Peer.Id
+                }
+            };
+
+            NetDataWriter Writer = NetworkServer.RentWriter();
+            Writer.Put(BasisNetworkCommons.AvatarChangeKindBodyFit);
+            serverBodyFitMessage.Serialize(Writer);
 
             NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, Peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(Writer);
@@ -812,39 +852,78 @@ namespace BasisServerHandle
         /// send everyone to the new client
         /// </summary>
         /// <param name="authClient"></param>
+        /// <summary>
+        /// Tells a joining client about every player already present, batched into compressed runs
+        /// rather than one packet per player. See ServerReadyBatchMessage for why the compression sits
+        /// at the batch level and not inside each avatar record.
+        /// </summary>
         public static void SendClientListToNewClient(NetPeer authClient)
         {
             try
             {
                 NetPeer[] peers = NetworkServer.PeerSnapshot;
-                NetDataWriter writer = NetworkServer.RentWriter();
+                NetDataWriter batchBuffer = NetworkServer.RentWriter();
+                NetDataWriter sendWriter = NetworkServer.RentWriter();
+                ushort batched = 0;
+
                 foreach (var peer in peers)
                 {
                     if (peer == authClient)
                     {
                         continue;
                     }
-                    writer.Reset();
-                    if (CreateServerReadyMessageForPeer(peer, out ServerReadyMessage Message))
+                    if (!CreateServerReadyMessageForPeer(peer, out ServerReadyMessage Message))
                     {
-                        Message.Serialize(writer);
-                        //  BNL.Log($"Writing Data with size {writer.Length}");
-                        NetworkServer.TrySend(authClient, writer, BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, DeliveryMethod.ReliableOrdered);
+                        continue;
+                    }
+
+                    Message.Serialize(batchBuffer);
+                    batched++;
+
+                    if (batchBuffer.Length >= ServerReadyBatchMessage.MaxPayloadBytes)
+                    {
+                        FlushReadyBatch(authClient, batchBuffer, sendWriter, ref batched);
                     }
                 }
-                NetworkServer.ReturnWriter(writer);
+
+                FlushReadyBatch(authClient, batchBuffer, sendWriter, ref batched);
+
+                NetworkServer.ReturnWriter(sendWriter);
+                NetworkServer.ReturnWriter(batchBuffer);
             }
             catch (Exception ex)
             {
                 BNL.LogError($"Failed to send client list: {ex.Message}\n{ex.StackTrace}");
             }
         }
+
+        private static void FlushReadyBatch(NetPeer authClient, NetDataWriter batchBuffer, NetDataWriter sendWriter, ref ushort batched)
+        {
+            if (batched == 0)
+            {
+                return;
+            }
+
+            ServerReadyBatchMessage batch = new ServerReadyBatchMessage
+            {
+                Count = batched,
+                Payload = batchBuffer.CopyData(),
+            };
+
+            sendWriter.Reset();
+            batch.Serialize(sendWriter);
+            NetworkServer.TrySend(authClient, sendWriter, BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, DeliveryMethod.ReliableOrdered);
+
+            batchBuffer.Reset();
+            batched = 0;
+        }
         private static bool CreateServerReadyMessageForPeer(NetPeer peer, out ServerReadyMessage ServerReadyMessage)
         {
             try
             {
                 ClientAvatarChangeMessage changeState;
-                bool haveAvatar = BasisSavedState.GetLastAvatarChangeState(peer, out changeState) && changeState.byteArray != null;
+                bool haveRecord = BasisSavedState.GetLastAvatarChangeState(peer, out changeState);
+                bool haveAvatar = haveRecord && changeState.byteArray != null;
                 if (!haveAvatar)
                 {
                     BNL.Log($"No avatar state yet for peer {peer.Id}; sending placeholder spawn so the remote player is created on the joining client.");
@@ -852,7 +931,13 @@ namespace BasisServerHandle
                     {
                         loadMode = 0,
                         byteArray = null,
-                        LocalAvatarIndex = 0
+                        LocalAvatarIndex = 0,
+                        // Carry the fit through even with no avatar yet: a body-fit update can land
+                        // before the avatar change (recalibration mid-load), and dropping it here would
+                        // leave this joiner rendering authored proportions until the next recalibration.
+                        ArmScale = haveRecord ? changeState.ArmScale : 1f,
+                        LegScale = haveRecord ? changeState.LegScale : 1f,
+                        TorsoScale = haveRecord ? changeState.TorsoScale : 1f,
                     };
                 }
 

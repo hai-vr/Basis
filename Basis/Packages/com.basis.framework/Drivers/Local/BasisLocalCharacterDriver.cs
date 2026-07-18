@@ -440,7 +440,11 @@ namespace Basis.Scripts.BasisCharacterController
             // Handle jumping and falling
             if (CanJump && HasJumpAction)
             {
-                currentVerticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+                // jumpHeight is an apex in metres, so it scales linearly with the avatar. That is exactly
+                // Froude-correct: v0 = sqrt(2gh), so h proportional to L gives v0 proportional to sqrt(L).
+                // Unscaled, a half-size avatar jumped 2.30 leg-lengths against an adult's 1.15 — the cause
+                // BasisFootSimulateJob already names above its airborne-detection fix.
+                currentVerticalSpeed = Mathf.Sqrt(jumpHeight * AvatarSizeRatio() * -2f * gravityValue);
                 coyoteTimeCounter = 0f; // Consume coyote time to prevent double jumps
                 JustJumped?.Invoke();
             }
@@ -449,8 +453,11 @@ namespace Basis.Scripts.BasisCharacterController
                 currentVerticalSpeed += gravityValue * DeltaTime;
             }
 
-            // Ensure we don't exceed maximum gravity value speed
-            currentVerticalSpeed = Mathf.Max(currentVerticalSpeed, -Mathf.Abs(gravityValue));
+            // Terminal velocity. This clamped against gravityValue — an m/s^2 constant used as an m/s
+            // cap, which also meant terminal was reached after exactly 1.0 s of fall on every avatar.
+            // Speeds go as sqrt(g*L), so the cap tracks avatar size by the sqrt of the ratio. The
+            // default-size value is the old 9.81 so scale-1 behaviour is unchanged.
+            currentVerticalSpeed = Mathf.Max(currentVerticalSpeed, -TerminalVelocity());
 
 
             HasJumpAction = false;
@@ -460,12 +467,48 @@ namespace Basis.Scripts.BasisCharacterController
             Flags = characterController.Move(totalMoveDirection);
             BasisLocalPlayerTransform.GetPositionAndRotation(out CurrentPosition, out CurrentRotation);
         }
+        // Authored (unscaled) capsule dimensions, captured once. CalculateCharacterSize writes
+        // avatar-scaled values back onto the controller, so re-reading the controller on a later
+        // call would compound the scale factor every time the avatar is resized.
+        private float _authoredRadius = -1f;
+        private float _authoredSkinWidth = -1f;
+        private float _authoredStepOffset = -1f;
+
+        /// <summary>Guarded avatar size ratio; 1 when the height driver has nothing sane to report.</summary>
+        public static float AvatarSizeRatio()
+        {
+            float s = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            return (float.IsNaN(s) || float.IsInfinity(s) || s <= 0f) ? 1f : s;
+        }
+
+        /// <summary>Fall-speed cap at default avatar size, in m/s. Was implicitly abs(gravityValue).</summary>
+        private const float TerminalVelocityAtDefaultSize = 9.81f;
+
+        /// <summary>Fall-speed cap for this avatar. Speeds scale as sqrt(g*L).</summary>
+        public static float TerminalVelocity() => TerminalVelocityAtDefaultSize * Mathf.Sqrt(AvatarSizeRatio());
+
+        /// <summary>
+        /// Locomotion speed multiplier. Gait is modelled on the Froude number v/sqrt(g*L) and every step
+        /// parameter is derived from the avatar's own leg, but movement speed was a fixed m/s — so a small
+        /// avatar's v-hat inflated by 1/sqrt(scale), pinning speedScale and urgencyT at maximum and roughly
+        /// doubling step cadence at half size. Scaling speed by sqrt(ratio) holds v-hat constant, so cadence,
+        /// bob, sway and double-support all match at every size (0.5x size keeps 71% of speed, not 50%).
+        /// </summary>
+        public static float LocomotionSpeedScale() => Mathf.Sqrt(AvatarSizeRatio());
+
         public void Validate()
         {
             radius = characterController.radius;
             if (float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f)
             {
                 radius = 0.1f;
+            }
+
+            if (_authoredRadius <= 0f)
+            {
+                _authoredRadius = radius;
+                _authoredSkinWidth = characterController.skinWidth;
+                _authoredStepOffset = characterController.stepOffset;
             }
 
             characterController.radius = radius;
@@ -476,6 +519,16 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 eyePos = hasEye
                 ? BasisLocalBoneDriver.EyeControl.OutGoingData.position
                 : default;
+
+            // Capsule radius and skin are authored in metres at default avatar size, and the player root
+            // is never scaled (the avatar transform is), so without this they stay adult-sized on every
+            // avatar — and the 2*radius height floor below then exceeds a small avatar's whole body.
+            // Derived from the authored values, never from the controller's current (already scaled) ones.
+            float sizeRatio = AvatarSizeRatio();
+            if (_authoredRadius > 0f)
+            {
+                radius = _authoredRadius * sizeRatio;
+            }
 
             // Bit-exact change check — Vector3 == uses an epsilon (~9.99e-11 squared)
             // which would silently swallow sub-epsilon eye drift; the height stays
@@ -506,6 +559,12 @@ namespace Basis.Scripts.BasisCharacterController
                 rawEyeHeight = MinimumColliderSize;
             }
 
+            if (_authoredRadius > 0f)
+            {
+                characterController.radius = radius;
+                characterController.skinWidth = _authoredSkinWidth * sizeRatio;
+            }
+
             // Ensure height is valid relative to radius
             float minHeight = 2f * radius + 0.001f;
             float finalHeight = Mathf.Max(rawEyeHeight, minHeight);
@@ -533,7 +592,10 @@ namespace Basis.Scripts.BasisCharacterController
             maxStep = Mathf.Max(0f, maxStep);
             maxStep = Mathf.Min(maxStep, finalHeight * 0.25f);
 
-            characterController.stepOffset = Mathf.Min(characterController.stepOffset, maxStep);
+            // Assignment, not Min-against-itself: Mathf.Min is monotonic decreasing, so shrinking the
+            // avatar and growing it back left stepOffset stuck at the small value for the whole session.
+            float desiredStep = _authoredStepOffset > 0f ? _authoredStepOffset * sizeRatio : maxStep;
+            characterController.stepOffset = Mathf.Min(desiredStep, maxStep);
 
             _sizeCache_HasEye = hasEye;
             _sizeCache_EyePos = eyePos;

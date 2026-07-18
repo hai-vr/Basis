@@ -467,7 +467,7 @@ namespace Basis.Scripts.Drivers
                         {
                             type = JiggleCollider.JiggleColliderType.Capsule,
                             localToWorldMatrix = m,
-                            radius = Radius * invAvgScale,
+                            radius = Radius,
                             height = boneLength * invAvgScale,
                             capsuleAxis = axis,
                             localOffset = localOffset
@@ -478,10 +478,6 @@ namespace Basis.Scripts.Drivers
                 else
                 {
                     hasCached = false;
-                    float lossyScaleMag = Mathf.Sqrt(
-                        m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
-                        m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
-                        m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
 
                     target.Add(new JiggleColliderSerializable
                     {
@@ -489,7 +485,7 @@ namespace Basis.Scripts.Drivers
                         {
                             type = JiggleCollider.JiggleColliderType.Sphere,
                             localToWorldMatrix = m,
-                            radius = tipRadius / (lossyScaleMag / 3f)
+                            radius = tipRadius
                         },
                         transform = t
                     });
@@ -503,7 +499,8 @@ namespace Basis.Scripts.Drivers
         /// <param name="target">List the created collider is appended to.</param>
         /// <param name="Parent">Transform that defines the collider's transform and space.</param>
         /// <param name="Scale">
-        /// Base radius used to size the collider. Final radius is scaled by <c>1 / (Parent.lossyScale.magnitude / 3)</c>.
+        /// Base radius in bone-local units. JiggleCollider.Read multiplies it by the bone's own average
+        /// scale each frame, so the world radius tracks the avatar's rendered size for free.
         /// Default is <c>0.005</c>.
         /// </param>
         public void JiggleCreatorHelper(List<JiggleColliderSerializable> target, Transform Parent, float Scale = 0.005f)
@@ -511,10 +508,6 @@ namespace Basis.Scripts.Drivers
             if (Parent != null)
             {
                 Matrix4x4 m = Parent.localToWorldMatrix;
-                float lossyScaleMag = Mathf.Sqrt(
-                    m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20 +
-                    m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21 +
-                    m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22);
 
                 target.Add(new JiggleColliderSerializable
                 {
@@ -522,7 +515,7 @@ namespace Basis.Scripts.Drivers
                     {
                         type = JiggleCollider.JiggleColliderType.Sphere,
                         localToWorldMatrix = m,
-                        radius = Scale / (lossyScaleMag / 3f)
+                        radius = Scale
                     },
                     transform = Parent
                 });

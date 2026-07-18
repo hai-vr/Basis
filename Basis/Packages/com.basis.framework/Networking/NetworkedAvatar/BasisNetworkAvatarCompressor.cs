@@ -89,8 +89,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         const int RawHipsRotOffset = RawHipsDeltaOffset + 3;           // hips local rot delta
         const int RawEffPosOffset = RawHipsRotOffset + 4;              // 4 effector positions
         const int RawEffRotOffset = RawEffPosOffset + 12;              // 4 effector rotations
-        const int RawSwivelOffset = RawEffRotOffset + 16;              // 4 swivels
-        const int RawScaleOffset = RawSwivelOffset + 4;                // scale
+        const int RawScaleOffset = RawEffRotOffset + 16;               // scale
         const int RawMaskOffset = RawScaleOffset + 1;                  // effector mask (exact)
         const int RawFloatCount = RawMaskOffset + 1;
         static readonly float[] sRawCurrent = new float[RawFloatCount];
@@ -375,10 +374,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // never encodes a zero quaternion for unanchored slots).
         static readonly Unity.Mathematics.float3[] sEffectorPos = new Unity.Mathematics.float3[BasisAvatarEndEffectors.EffectorCount];
         static readonly quaternion[] sEffectorRot = { quaternion.identity, quaternion.identity, quaternion.identity, quaternion.identity };
-        static readonly float[] sEffectorSwivel = new float[BasisAvatarEndEffectors.EffectorCount];
 
         /// <summary>
-        /// Fills the effector scratch arrays with hips-local target offset + tip world rotation + swivel
+        /// Fills the effector scratch arrays with hips-local target offset + tip world rotation
         /// for each world-anchored effector and returns the mask (bit i set = effector i anchored).
         /// An effector is anchored only when the sender's own copy is genuinely world-stable (a held
         /// controller/tracker or a planted foot) — otherwise FK is left alone so emotes/poses survive.
@@ -387,29 +385,24 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static byte CaptureEndEffectors(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot, float scale)
         {
             byte mask = 0;
-            if (TryCaptureEffector(0, BasisLocalBoneDriver.LeftHandControl, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm, HumanBodyBones.LeftHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 0;
-            if (TryCaptureEffector(1, BasisLocalBoneDriver.RightHandControl, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm, HumanBodyBones.RightHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 1;
-            if (TryCaptureEffector(2, BasisLocalBoneDriver.LeftFootControl, HumanBodyBones.LeftUpperLeg, HumanBodyBones.LeftLowerLeg, HumanBodyBones.LeftFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 2;
-            if (TryCaptureEffector(3, BasisLocalBoneDriver.RightFootControl, HumanBodyBones.RightUpperLeg, HumanBodyBones.RightLowerLeg, HumanBodyBones.RightFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 3;
+            if (TryCaptureEffector(0, BasisLocalBoneDriver.LeftHandControl, HumanBodyBones.LeftHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 0;
+            if (TryCaptureEffector(1, BasisLocalBoneDriver.RightHandControl, HumanBodyBones.RightHand, hipsWorldPos, hipsWorldRot)) mask |= 1 << 1;
+            if (TryCaptureEffector(2, BasisLocalBoneDriver.LeftFootControl, HumanBodyBones.LeftFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 2;
+            if (TryCaptureEffector(3, BasisLocalBoneDriver.RightFootControl, HumanBodyBones.RightFoot, hipsWorldPos, hipsWorldRot)) mask |= 1 << 3;
             return mask;
         }
 
-        static bool TryCaptureEffector(int idx, BasisLocalBoneControl tipControl, HumanBodyBones rootBone, HumanBodyBones jointBone, HumanBodyBones tipBone,
+        static bool TryCaptureEffector(int idx, BasisLocalBoneControl tipControl, HumanBodyBones tipBone,
             Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot)
         {
             if (tipControl == null || tipControl.HasTracked != BasisHasTracked.HasTracker) return false;
-            if (!BasisLocalAvatarDriver.Mapping.GetTransform(rootBone, out var root)) return false;
-            if (!BasisLocalAvatarDriver.Mapping.GetTransform(jointBone, out var joint)) return false;
             if (!BasisLocalAvatarDriver.Mapping.GetTransform(tipBone, out var tip)) return false;
 
             tip.GetPositionAndRotation(out var tipWorldPos, out var tipWorldRot);
             Unity.Mathematics.float3 tipPos = tipWorldPos;
-            Unity.Mathematics.float3 rootPos = root.position;
-            Unity.Mathematics.float3 jointPos = joint.position;
 
             sEffectorPos[idx] = math.mul(math.conjugate(hipsWorldRot), tipPos - hipsWorldPos);
             sEffectorRot[idx] = tipWorldRot;
-            sEffectorSwivel[idx] = BasisRemoteLimbIK.EncodeSwivel(rootPos, jointPos, tipPos, math.mul(hipsWorldRot, math.up()));
             return true;
         }
 
@@ -479,7 +472,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 // arrays + returns the anchored mask from the local rig; the receiver two-bone-IKs the
                 // anchored limbs to these targets. Mask 0 (nothing world-stable) makes it inert.
                 byte effectorMask = CaptureEndEffectors(hipsWorldPos, hipsWorldRot, ScaleTransform.localScale.y);
-                BasisAvatarEndEffectors.Encode(AvatarData.LASM.array, offset, effectorMask, sEffectorPos, sEffectorRot, sEffectorSwivel);
+                BasisAvatarEndEffectors.Encode(AvatarData.LASM.array, offset, effectorMask, sEffectorPos, sEffectorRot);
                 offset += BasisAvatarEndEffectors.BlockBytes;
 
                 CaptureRawPose(hipsWorldPos, hipsWorldRot, hipsDelta, hipsRotDelta, ScaleTransform.localScale.y, effectorMask);
@@ -524,7 +517,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 float4 er = sEffectorRot[e].value;
                 int ro = RawEffRotOffset + e * 4;
                 raw[ro] = er.x; raw[ro + 1] = er.y; raw[ro + 2] = er.z; raw[ro + 3] = er.w;
-                raw[RawSwivelOffset + e] = sEffectorSwivel[e];
             }
             raw[RawScaleOffset] = scale;
             raw[RawMaskOffset] = effectorMask;
@@ -549,7 +541,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawBoneOffset, 51 * 4), l.Slice(RawBoneOffset, 51 * 4), sBoneMinAbsDot)) return false;
             if (!BasisAvatarDeadband.ValuesWithin(c.Slice(RawEffPosOffset, 12), l.Slice(RawEffPosOffset, 12), BasisAvatarDeadband.EffectorPositionMeters)) return false;
             if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawEffRotOffset, 16), l.Slice(RawEffRotOffset, 16), sBoneMinAbsDot)) return false;
-            if (!BasisAvatarDeadband.ValuesWithin(c.Slice(RawSwivelOffset, 4), l.Slice(RawSwivelOffset, 4), BasisAvatarDeadband.SwivelUnits)) return false;
             return true;
         }
 

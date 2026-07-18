@@ -30,8 +30,6 @@ namespace Basis.Network.Core.Compression
         public const float HipsDeltaMeters = 0.0015f;
         /// <summary>End-effector target position deadband per axis (metres).</summary>
         public const float EffectorPositionMeters = 0.002f;
-        /// <summary>End-effector swivel deadband (normalized swivel units; 8-bit wire).</summary>
-        public const float SwivelUnits = 0.004f;
         /// <summary>Avatar scale deadband (posit16 wire; scale is normally bit-stable).</summary>
         public const float ScaleUnits = 1e-4f;
 

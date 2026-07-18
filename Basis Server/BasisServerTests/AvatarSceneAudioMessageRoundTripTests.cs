@@ -1,4 +1,4 @@
-using Basis.Network.Core;
+﻿using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Xunit;
 using BitQuality = Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality;
@@ -874,7 +874,7 @@ public class ServerCompositeMessageWireTests
         };
         var w = new NetDataWriter();
         msg.Serialize(w);
-        Assert.Equal(2 + 1 + 2 + 12 + 1, w.Length);
+        Assert.Equal(2 + 1 + 2 + 12 + 1 + 6, w.Length);    // +6 = three quantized body-fit scales
 
         var result = default(ServerAvatarChangeMessage);
         result.Deserialize(Wire.Reader(w));
@@ -909,19 +909,31 @@ public class ServerCompositeMessageWireTests
 }
 
 /// <summary>
-/// ClientAvatarChangeMessage: [loadMode:1][length:2][bytes][LocalAvatarIndex:1];
+/// ClientAvatarChangeMessage: [loadMode:1][length:2][bytes][LocalAvatarIndex:1][arm:2][leg:2][torso:2];
 /// a zero length round-trips to a null byteArray.
 /// </summary>
 public class ClientAvatarChangeMessageWireTests
 {
+    const int FitBytes = 6;   // 3 scales x ushort, quantized over [0.5, 1.5]
+    // 16 bits over a range of 1.0 => 1.5e-5 step, so a round-tripped scale lands within half of that.
+    const float FitTol = 1e-4f;
+
     [Fact]
     public void ClientAvatarChangeMessage_RoundTrip_PreservesAllFields()
     {
         byte[] avatarBytes = Wire.RandomBytes(new Random(51), 40);
-        var msg = new ClientAvatarChangeMessage { loadMode = 2, byteArray = avatarBytes, LocalAvatarIndex = 254 };
+        var msg = new ClientAvatarChangeMessage
+        {
+            loadMode = 2,
+            byteArray = avatarBytes,
+            LocalAvatarIndex = 254,
+            ArmScale = 1.0625f,
+            LegScale = 0.9375f,
+            TorsoScale = 1.125f,
+        };
         var w = new NetDataWriter();
         msg.Serialize(w);
-        Assert.Equal(1 + 2 + 40 + 1, w.Length);
+        Assert.Equal(1 + 2 + 40 + 1 + FitBytes, w.Length);
 
         var result = default(ClientAvatarChangeMessage);
         var reader = Wire.Reader(w);
@@ -929,6 +941,9 @@ public class ClientAvatarChangeMessageWireTests
         Assert.Equal((byte)2, result.loadMode);
         Assert.Equal(avatarBytes, result.byteArray);
         Assert.Equal((byte)254, result.LocalAvatarIndex);
+        Assert.Equal(1.0625f, result.ArmScale, FitTol);
+        Assert.Equal(0.9375f, result.LegScale, FitTol);
+        Assert.Equal(1.125f, result.TorsoScale, FitTol);
         Assert.Equal(0, reader.AvailableBytes);
     }
 
@@ -938,13 +953,46 @@ public class ClientAvatarChangeMessageWireTests
         var msg = new ClientAvatarChangeMessage { loadMode = 1, byteArray = null, LocalAvatarIndex = 7 };
         var w = new NetDataWriter();
         msg.Serialize(w);
-        Assert.Equal(4, w.Length);
+        Assert.Equal(4 + FitBytes, w.Length);
 
         var result = default(ClientAvatarChangeMessage);
         result.Deserialize(Wire.Reader(w));
         Assert.Equal((byte)1, result.loadMode);
         Assert.Null(result.byteArray);
         Assert.Equal((byte)7, result.LocalAvatarIndex);
+    }
+
+    /// <summary>
+    /// Most construction sites never touch the fit fields, so a default-constructed message must put
+    /// identity on the wire — a raw 0 would collapse every fitted bone to zero length on the receiver.
+    /// </summary>
+    [Fact]
+    public void ClientAvatarChangeMessage_UnsetFit_SerializesAsIdentityNotZero()
+    {
+        var msg = new ClientAvatarChangeMessage { loadMode = 0, byteArray = null, LocalAvatarIndex = 0 };
+        Assert.Equal(0f, msg.ArmScale);   // default(struct) really is zero
+
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        var result = default(ClientAvatarChangeMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal(1f, result.ArmScale, FitTol);
+        Assert.Equal(1f, result.LegScale, FitTol);
+        Assert.Equal(1f, result.TorsoScale, FitTol);
+    }
+
+    [Theory]
+    [InlineData(0f, 1f)]              // unset / collapse
+    [InlineData(-2f, 1f)]             // negative would mirror the bone through its parent
+    [InlineData(float.NaN, 1f)]
+    [InlineData(float.PositiveInfinity, 1f)]
+    [InlineData(1e9f, 1.5f)]          // above the band clamps to the ceiling
+    [InlineData(1e-9f, 0.5f)]         // below the band clamps to the floor
+    [InlineData(1.15f, 1.15f)]        // a legitimate fit passes through untouched
+    public void SanitizeFitScale_ClampsToTheValidBand(float input, float expected)
+    {
+        Assert.Equal(expected, ClientAvatarChangeMessage.SanitizeFitScale(input));
     }
 
     [Fact]
@@ -987,6 +1035,523 @@ public class ClientAvatarChangeMessageWireTests
         var w2 = new NetDataWriter();
         mid.Serialize(w2);
         Assert.Equal(w1.CopyData(), w2.CopyData());
+    }
+}
+
+/// <summary>
+/// ClientBodyFitMessage / ServerBodyFitMessage — the body-fit-only update that rides
+/// AvatarChangeMessageChannel under AvatarChangeKindBodyFit. Three floats, no avatar bytes, so a
+/// recalibration never makes a receiver reload the avatar.
+/// </summary>
+public class BodyFitMessageWireTests
+{
+    // 16 bits over a range of 1.0 => 1.5e-5 step, so a round-tripped scale lands within half of that.
+    const float FitTol = 1e-4f;
+
+    /// <summary>
+    /// Everything BasisBodyFitCore can solve lands in [0.5, 1.5] (it clamps to 1 +/- maxDeviation with
+    /// MaxDeviationCeiling 0.5), which is exactly the quantized range — so no legitimate fit is degraded
+    /// beyond ~0.013 mm on a leg span, and nothing outside the band is representable at all.
+    /// </summary>
+    [Fact]
+    public void EveryScaleTheSolverCanProduce_SurvivesQuantization()
+    {
+        for (int i = 0; i <= 1000; i++)
+        {
+            float scale = 0.5f + i * (1f / 1000f);
+            float roundTripped = ClientAvatarChangeMessage.DecompressFitScale(
+                ClientAvatarChangeMessage.CompressFitScale(scale));
+            Assert.Equal(scale, roundTripped, FitTol);
+        }
+    }
+
+    [Fact]
+    public void QuantizedScale_IsNeverOutsideTheValidBand()
+    {
+        foreach (ushort raw in new ushort[] { 0, 1, 32767, 32768, 65534, 65535 })
+        {
+            float decoded = ClientAvatarChangeMessage.DecompressFitScale(raw);
+            Assert.InRange(decoded, ClientAvatarChangeMessage.FitScaleMin, ClientAvatarChangeMessage.FitScaleMax);
+        }
+    }
+
+    [Fact]
+    public void ClientBodyFitMessage_RoundTrip_PreservesScales()
+    {
+        var msg = new ClientBodyFitMessage { ArmScale = 1.0625f, LegScale = 0.9375f, TorsoScale = 1.125f };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+        Assert.Equal(6, w.Length);
+
+        var result = default(ClientBodyFitMessage);
+        var reader = Wire.Reader(w);
+        result.Deserialize(reader);
+        Assert.Equal(1.0625f, result.ArmScale, FitTol);
+        Assert.Equal(0.9375f, result.LegScale, FitTol);
+        Assert.Equal(1.125f, result.TorsoScale, FitTol);
+        Assert.Equal(0, reader.AvailableBytes);
+    }
+
+    [Fact]
+    public void ClientBodyFitMessage_UnsetScales_ReadBackAsIdentity()
+    {
+        var w = new NetDataWriter();
+        default(ClientBodyFitMessage).Serialize(w);
+
+        var result = default(ClientBodyFitMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal(1f, result.ArmScale, FitTol);
+        Assert.Equal(1f, result.LegScale, FitTol);
+        Assert.Equal(1f, result.TorsoScale, FitTol);
+    }
+
+    [Fact]
+    public void ServerBodyFitMessage_RoundTrip_PreservesSenderAndScales()
+    {
+        var msg = new ServerBodyFitMessage
+        {
+            uShortPlayerId = new PlayerIdMessage { playerID = 4242 },
+            bodyFit = new ClientBodyFitMessage { ArmScale = 1.05f, LegScale = 0.95f, TorsoScale = 1.02f },
+        };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+        Assert.Equal(2 + 6, w.Length);
+
+        var result = default(ServerBodyFitMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal((ushort)4242, result.uShortPlayerId.playerID);
+        Assert.Equal(1.05f, result.bodyFit.ArmScale, FitTol);
+        Assert.Equal(0.95f, result.bodyFit.LegScale, FitTol);
+        Assert.Equal(1.02f, result.bodyFit.TorsoScale, FitTol);
+    }
+
+    [Fact]
+    public void ServerBodyFitMessage_DoubleRoundTrip_IsByteIdentical()
+    {
+        var msg = new ServerBodyFitMessage
+        {
+            uShortPlayerId = new PlayerIdMessage { playerID = 17 },
+            bodyFit = new ClientBodyFitMessage { ArmScale = 0.88f, LegScale = 1.12f, TorsoScale = 0.94f },
+        };
+        var w1 = new NetDataWriter();
+        msg.Serialize(w1);
+
+        var mid = default(ServerBodyFitMessage);
+        mid.Deserialize(Wire.Reader(w1));
+        var w2 = new NetDataWriter();
+        mid.Serialize(w2);
+        Assert.Equal(w1.CopyData(), w2.CopyData());
+    }
+
+    /// <summary>
+    /// A hostile or corrupt scale must be clamped at the boundary, not carried into a remote's skeleton.
+    /// </summary>
+    [Fact]
+    public void ClientBodyFitMessage_HostileScales_AreClampedOnRead()
+    {
+        var w = new NetDataWriter();
+        // Values that cannot survive the quantizer: written through the same compressor a client
+        // would use, so this pins that the compressor is where the clamping happens.
+        w.Put(ClientAvatarChangeMessage.CompressFitScale(0f));
+        w.Put(ClientAvatarChangeMessage.CompressFitScale(float.NaN));
+        w.Put(ClientAvatarChangeMessage.CompressFitScale(1e9f));
+
+        var result = default(ClientBodyFitMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal(1f, result.ArmScale, FitTol);
+        Assert.Equal(1f, result.LegScale, FitTol);
+        Assert.Equal(1.5f, result.TorsoScale, FitTol);
+    }
+}
+
+/// <summary>
+/// BasisCompactId — the polymorphic player-id encoding. Deployments use did:key, Steam64, Meta/Oculus
+/// numeric ids, GUIDs, or anything an operator plugs in, so the contract that matters is: whatever goes
+/// in comes back out byte-identical, and the recognised shapes get smaller.
+/// </summary>
+public class BasisCompactIdWireTests
+{
+    static string RoundTrip(string input)
+    {
+        var w = new NetDataWriter();
+        BasisCompactId.Write(w, input);
+        return BasisCompactId.Read(Wire.Reader(w));
+    }
+
+    static int Encoded(string input)
+    {
+        var w = new NetDataWriter();
+        BasisCompactId.Write(w, input);
+        return w.Length;
+    }
+
+    /// <summary>Old cost: a 2-byte length prefix plus UTF-8.</summary>
+    static int Legacy(string input) => 2 + System.Text.Encoding.UTF8.GetByteCount(input);
+
+    [Theory]
+    // Steam64 and Meta/Oculus ids are plain decimal and fit a ulong.
+    [InlineData("76561198012345678")]
+    [InlineData("76561197960287930")]
+    [InlineData("18446744073709551615")]   // ulong.MaxValue, the longest numeric id that still packs
+    [InlineData("0")]
+    // GUIDs, all four renderings.
+    [InlineData("d3b07384-d9a0-4f1e-8b1a-2c3d4e5f6071")]
+    [InlineData("D3B07384-D9A0-4F1E-8B1A-2C3D4E5F6071")]
+    [InlineData("d3b07384d9a04f1e8b1a2c3d4e5f6071")]
+    [InlineData("D3B07384D9A04F1E8B1A2C3D4E5F6071")]
+    // did:key — this project's own auth identity.
+    [InlineData("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")]
+    // Hex ids (SHA-256 and friends).
+    [InlineData("7a0ab549e93cf2bc804168473e065a2f4d293b1be6cefb87df862eb6de086219")]
+    [InlineData("7A0AB549E93CF2BC804168473E065A2F4D293B1BE6CEFB87DF862EB6DE086219")]
+    // Shapes that must fall back rather than be mangled.
+    [InlineData("")]
+    [InlineData("Failure")]
+    [InlineData("007")]                                  // leading zeros would not survive a ulong
+    [InlineData("99999999999999999999999")]              // overflows ulong
+    [InlineData("dEadBeEf")]                             // mixed-case hex
+    [InlineData("steam:76561198012345678")]              // prefixed / operator-specific
+    [InlineData("did:web:example.com:users:alice")]
+    [InlineData("a-perfectly-ordinary-username")]
+    [InlineData("ünïcøde-ïd-ヘ")]
+    public void AnyId_RoundTripsExactly(string input)
+    {
+        Assert.Equal(input, RoundTrip(input));
+    }
+
+    [Fact]
+    public void NullId_RoundTripsAsEmpty()
+    {
+        Assert.Equal(string.Empty, RoundTrip(null!));
+    }
+
+    [Theory]
+    [InlineData("76561198012345678", 9)]                                                   // was 19
+    [InlineData("d3b07384-d9a0-4f1e-8b1a-2c3d4e5f6071", 18)]                               // was 38
+    [InlineData("d3b07384d9a04f1e8b1a2c3d4e5f6071", 18)]                                   // was 34
+    [InlineData("7a0ab549e93cf2bc804168473e065a2f4d293b1be6cefb87df862eb6de086219", 35)]   // was 66
+    public void RecognisedShapes_GetSmaller(string input, int expectedBytes)
+    {
+        Assert.Equal(expectedBytes, Encoded(input));
+        Assert.True(Encoded(input) < Legacy(input),
+            $"{input} encoded to {Encoded(input)}B, legacy was {Legacy(input)}B");
+    }
+
+    [Fact]
+    public void DidKey_ElidesItsFixedPrefix()
+    {
+        const string did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+        Assert.Equal(Legacy(did) - 8, Encoded(did));
+    }
+
+    /// <summary>
+    /// The fallback must never cost more than one byte over the old encoding, so an id shape nobody
+    /// anticipated cannot regress the wire.
+    /// </summary>
+    [Theory]
+    [InlineData("a-perfectly-ordinary-username")]
+    [InlineData("steam:76561198012345678")]
+    [InlineData("dEadBeEf")]
+    [InlineData("")]
+    public void UnrecognisedShapes_CostAtMostOneExtraByte(string input)
+    {
+        Assert.True(Encoded(input) <= Legacy(input) + 1,
+            $"{input} encoded to {Encoded(input)}B vs legacy {Legacy(input)}B");
+    }
+
+    [Fact]
+    public void LongIds_StillRoundTrip()
+    {
+        string longHex = new string('a', 600);          // past the hex fast path
+        string longText = new string('x', 4000);
+        Assert.Equal(longHex, RoundTrip(longHex));
+        Assert.Equal(longText, RoundTrip(longText));
+    }
+}
+
+/// <summary>
+/// BasisPlatformCodec — Application.platform names collapse to one byte; anything unknown still
+/// round-trips as a string so a new Unity platform is never blocked.
+/// </summary>
+public class BasisPlatformCodecWireTests
+{
+    static string RoundTrip(string input)
+    {
+        var w = new NetDataWriter();
+        BasisPlatformCodec.Write(w, input);
+        return BasisPlatformCodec.Read(Wire.Reader(w));
+    }
+
+    static int Encoded(string input)
+    {
+        var w = new NetDataWriter();
+        BasisPlatformCodec.Write(w, input);
+        return w.Length;
+    }
+
+    [Theory]
+    [InlineData("WindowsPlayer")]
+    [InlineData("WindowsEditor")]
+    [InlineData("Android")]
+    [InlineData("OSXPlayer")]
+    [InlineData("LinuxPlayer")]
+    [InlineData("IPhonePlayer")]
+    [InlineData("PS5")]
+    [InlineData("VisionOS")]
+    [InlineData("WebGLPlayer")]
+    public void KnownPlatform_RoundTripsInOneByte(string platform)
+    {
+        Assert.Equal(platform, RoundTrip(platform));
+        Assert.Equal(1, Encoded(platform));
+    }
+
+    [Theory]
+    [InlineData("SomeFuturePlatform")]
+    [InlineData("Failure")]
+    [InlineData("")]
+    [InlineData("windowsplayer")]   // case-sensitive on purpose: Application.platform is stable
+    public void UnknownPlatform_FallsBackToAString(string platform)
+    {
+        Assert.Equal(platform, RoundTrip(platform));
+    }
+
+    [Fact]
+    public void NullPlatform_RoundTripsAsEmpty()
+    {
+        Assert.Equal(string.Empty, RoundTrip(null!));
+    }
+}
+
+/// <summary>
+/// ClientMetaDataMessage now carries a compact id + platform. These pin the join-fill saving, since the
+/// message is replicated once per existing player to every joiner.
+/// </summary>
+public class ClientMetaDataMessageWireTests
+{
+    [Fact]
+    public void MetaData_RoundTripsAllThreeFields()
+    {
+        var msg = new ClientMetaDataMessage
+        {
+            playerUUID = "76561198012345678",
+            playerDisplayName = "Some Player",
+            playerPlatform = "WindowsPlayer",
+        };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        var result = default(ClientMetaDataMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal("76561198012345678", result.playerUUID);
+        Assert.Equal("Some Player", result.playerDisplayName);
+        Assert.Equal("WindowsPlayer", result.playerPlatform);
+    }
+
+    [Fact]
+    public void EmptyFields_StillReportFailureAsBefore()
+    {
+        var msg = new ClientMetaDataMessage();
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        var result = default(ClientMetaDataMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal("Failure", result.playerUUID);
+        Assert.Equal("Failure", result.playerDisplayName);
+        Assert.Equal("Failure", result.playerPlatform);
+    }
+
+    [Fact]
+    public void SteamIdOnWindows_IsSmallerThanTheOldEncoding()
+    {
+        var msg = new ClientMetaDataMessage
+        {
+            playerUUID = "76561198012345678",
+            playerDisplayName = "Some Player",
+            playerPlatform = "WindowsPlayer",
+        };
+        var w = new NetDataWriter();
+        msg.Serialize(w);
+
+        int legacy = (2 + 17) + (2 + 11) + (2 + 13);   // three length-prefixed UTF-8 strings
+        Assert.True(w.Length < legacy, $"encoded {w.Length}B, legacy {legacy}B");
+        Assert.Equal(9 + (2 + 11) + 1, w.Length);
+    }
+}
+
+/// <summary>
+/// ServerReadyBatchMessage — the join fill. One packet per player at 2000 players meant 1999 reliable
+/// sends and per-record compression that recovered almost nothing; batching moves the compression to
+/// where the redundancy actually lives.
+/// </summary>
+public class ServerReadyBatchWireTests
+{
+    static byte[] Payload(int length, int seed)
+    {
+        // Join-fill-shaped data: a small alphabet with heavy repetition across records, which is
+        // exactly why batch compression pays where per-record compression did not.
+        var rng = new Random(seed);
+        string[] urls =
+        {
+            "https://BasisFramework.b-cdn.net/Avatars/BEE/BEE/leona/27ca99b1efe04383b061c7def2684f60.BEE",
+            "https://BasisFramework.b-cdn.net/Avatars/BEE/BEE/rex/8812aa4cfe1140239bb17ce4a1120fa2.BEE",
+        };
+        var sb = new System.Text.StringBuilder();
+        while (sb.Length < length) sb.Append(urls[rng.Next(urls.Length)]);
+        return System.Text.Encoding.UTF8.GetBytes(sb.ToString(0, length));
+    }
+
+    [Fact]
+    public void Batch_RoundTripsPayloadAndCount()
+    {
+        byte[] payload = Payload(4096, 11);
+        var batch = new ServerReadyBatchMessage { Count = 37, Payload = payload };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        var result = default(ServerReadyBatchMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal((ushort)37, result.Count);
+        Assert.Equal(payload, result.Payload);
+    }
+
+    [Fact]
+    public void RepetitiveBatch_IsActuallyCompressed()
+    {
+        byte[] payload = Payload(8192, 12);
+        var batch = new ServerReadyBatchMessage { Count = 60, Payload = payload };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        Assert.True(batch.WasCompressed);
+        Assert.True(w.Length < payload.Length / 2, $"batch was {w.Length}B for {payload.Length}B of payload");
+    }
+
+    /// <summary>
+    /// Deflate expands short or high-entropy input, so the encoder must be free to skip it — and the
+    /// decoder must honour the per-batch flag rather than assuming compression happened.
+    /// </summary>
+    [Fact]
+    public void TinyBatch_SkipsCompressionAndStillRoundTrips()
+    {
+        byte[] payload = System.Text.Encoding.UTF8.GetBytes("one small record");
+        var batch = new ServerReadyBatchMessage { Count = 1, Payload = payload };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        Assert.False(batch.WasCompressed);
+        var result = default(ServerReadyBatchMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal(payload, result.Payload);
+    }
+
+    [Fact]
+    public void IncompressibleBatch_IsNotStoredLargerThanRaw()
+    {
+        byte[] payload = Wire.RandomBytes(new Random(13), 4096);   // high entropy, deflate cannot win
+        var batch = new ServerReadyBatchMessage { Count = 5, Payload = payload };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        var result = default(ServerReadyBatchMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal(payload, result.Payload);
+        Assert.True(w.Length <= payload.Length + 16, $"batch grew to {w.Length}B from {payload.Length}B");
+    }
+
+    [Fact]
+    public void EmptyBatch_RoundTrips()
+    {
+        var batch = new ServerReadyBatchMessage { Count = 0, Payload = Array.Empty<byte>() };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        var result = default(ServerReadyBatchMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Equal((ushort)0, result.Count);
+        Assert.Empty(result.Payload);
+    }
+
+    [Fact]
+    public void NullPayload_SerializesAsEmpty()
+    {
+        var batch = new ServerReadyBatchMessage { Count = 0, Payload = null };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        var result = default(ServerReadyBatchMessage);
+        result.Deserialize(Wire.Reader(w));
+        Assert.Empty(result.Payload);
+    }
+
+    [Fact]
+    public void LengthBeyondAvailable_Throws()
+    {
+        var w = new NetDataWriter();
+        w.Put((ushort)3);
+        w.Put(false);
+        w.Put(9999);                       // claims far more than follows
+        w.Put(new byte[] { 1, 2, 3 });
+
+        var batch = default(ServerReadyBatchMessage);
+        Assert.Throws<ArgumentException>(() => batch.Deserialize(Wire.Reader(w)));
+    }
+
+    /// <summary>
+    /// The real shape: many ServerReadyMessages concatenated, then read back one at a time.
+    /// </summary>
+    [Fact]
+    public void ConcatenatedReadyMessages_ReadBackIndividually()
+    {
+        var inner = new NetDataWriter();
+        const int count = 25;
+        for (int i = 0; i < count; i++)
+        {
+            new ServerReadyMessage
+            {
+                playerIdMessage = new PlayerIdMessage { playerID = (ushort)(1000 + i) },
+                localReadyMessage = new ReadyMessage
+                {
+                    playerMetaDataMessage = new ClientMetaDataMessage
+                    {
+                        playerUUID = $"7656119801234{i:D4}",
+                        playerDisplayName = $"Player{i}",
+                        playerPlatform = "WindowsPlayer",
+                    },
+                    clientAvatarChangeMessage = new ClientAvatarChangeMessage
+                    {
+                        loadMode = 1,
+                        byteArray = new byte[] { 1, 2, 3, 4 },
+                        LocalAvatarIndex = (byte)i,
+                    },
+                    localAvatarSyncMessage = new LocalAvatarSyncMessage
+                    {
+                        DataQualityLevel = (byte)BitQuality.High,
+                        array = new byte[Wire.PayloadSize(BitQuality.High)],
+                    },
+                },
+            }.Serialize(inner);
+        }
+
+        var batch = new ServerReadyBatchMessage { Count = count, Payload = inner.CopyData() };
+        var w = new NetDataWriter();
+        batch.Serialize(w);
+
+        var received = default(ServerReadyBatchMessage);
+        received.Deserialize(Wire.Reader(w));
+        Assert.Equal((ushort)count, received.Count);
+
+        var batchReader = new NetDataReader(received.Payload);
+        for (int i = 0; i < count; i++)
+        {
+            var srm = default(ServerReadyMessage);
+            srm.Deserialize(batchReader);
+            Assert.Equal((ushort)(1000 + i), srm.playerIdMessage.playerID);
+            Assert.Equal($"7656119801234{i:D4}", srm.localReadyMessage.playerMetaDataMessage.playerUUID);
+            Assert.Equal("WindowsPlayer", srm.localReadyMessage.playerMetaDataMessage.playerPlatform);
+            Assert.Equal((byte)i, srm.localReadyMessage.clientAvatarChangeMessage.LocalAvatarIndex);
+        }
+        Assert.Equal(0, batchReader.AvailableBytes);
     }
 }
 

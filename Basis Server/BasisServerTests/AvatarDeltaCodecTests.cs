@@ -129,7 +129,7 @@ public class AvatarDeltaCodecTests
         Assert.Equal(109, S.PayloadSize(BitQuality.VeryLow)); // 9 pos (int24 mm) + 78 rot + 22 tail
         Assert.Equal(128, S.PayloadSize(BitQuality.Low));     // 9 pos + 97 rot + 22 tail
         Assert.Equal(153, S.PayloadSize(BitQuality.Medium));  // 9 pos + 122 rot + 22 tail
-        Assert.Equal(236, S.PayloadSize(BitQuality.High));    // 12 pos (float32) + 163 (12-bit rot) + 22 tail + 39 effector
+        Assert.Equal(232, S.PayloadSize(BitQuality.High));    // 12 pos (float32) + 163 (12-bit rot) + 22 tail + 35 effector
         Assert.Equal(8, BasisAvatarDeltaCompression.DirtyMaskBytes);
         Assert.Equal(57, BasisAvatarDeltaCompression.FieldCount);
     }

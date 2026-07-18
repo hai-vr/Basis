@@ -308,8 +308,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
             float extraReach = 0;
             if (Device_Management.BasisDeviceManagement.IsUserInDesktop())
             {
-                // Adding half the player's height mimics a VR user's arm reach.
-                extraReach = BasisHeightDriver.SelectedScaledPlayerHeight / 2;
+                // Adding half the AVATAR's height mimics a VR user's arm reach. It must be the avatar's,
+                // not the player's: this is a world-space distance test, and SelectedScaledPlayerHeight is
+                // the real human's eye height, which does not move when the avatar is scaled — so on a
+                // 0.5x avatar the reach bonus was roughly its entire body height.
+                extraReach = BasisHeightDriver.SelectedScaledAvatarHeight / 2;
             }
             return Vector3.Distance(GetClosestPoint(source), source) <= interactRange + extraReach;
         }

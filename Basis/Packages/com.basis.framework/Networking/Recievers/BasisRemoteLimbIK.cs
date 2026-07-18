@@ -6,8 +6,9 @@ using Unity.Mathematics;
 ///
 /// The remote skeleton is posed by forward kinematics off the interpolated hips, so a hand/foot at
 /// the end of a chain accumulates every joint's error and drifts. When the sender marks an effector
-/// "anchored" (a held controller/tracker or a planted foot) it also ships the tip's WORLD target +
-/// an elbow/knee swivel; the receiver then bends that one limb so the tip lands exactly on the target.
+/// "anchored" (a held controller/tracker or a planted foot) it ships the tip's WORLD target; the
+/// receiver then bends that one limb so the tip lands exactly on the target, taking its pole hint from
+/// the FK joint rather than a networked swivel angle.
 ///
 /// The solve AIMS the current FK bones with minimal rotations (no avatar-specific bind-pose axes
 /// needed): rotate the upper bone so the joint reaches the analytic elbow/knee position, then rotate
@@ -55,37 +56,6 @@ public static class BasisRemoteLimbIK
         return root + dir * a + perp * h;
     }
 
-    /// <summary>
-    /// Signed swivel angle of the joint around the root→tip axis, measured from a reference direction
-    /// (the body-up projected perpendicular to the axis). Sender and receiver share the synced hips
-    /// orientation as <paramref name="refUp"/>, so they agree on the zero. Range (-π, π].
-    /// </summary>
-    public static float EncodeSwivel(float3 root, float3 joint, float3 tip, float3 refUp)
-    {
-        float3 a = math.normalizesafe(tip - root, new float3(0, 0, 1));
-        float3 r = RefPerp(a, refUp);
-        float3 e = math.normalizesafe((joint - root) - a * math.dot(joint - root, a), r);
-        return math.atan2(math.dot(math.cross(r, e), a), math.dot(r, e));
-    }
-
-    /// <summary>
-    /// Reconstructs a pole-hint point from a swivel angle: rotate the reference perpendicular by the
-    /// angle around the root→tip axis. Feed the result to <see cref="Solve"/> as poleHint.
-    /// </summary>
-    public static float3 PoleFromSwivel(float3 root, float3 tip, float3 refUp, float swivel)
-    {
-        float3 a = math.normalizesafe(tip - root, new float3(0, 0, 1));
-        float3 r = RefPerp(a, refUp);
-        float3 e = r * math.cos(swivel) + math.cross(a, r) * math.sin(swivel);   // r ⊥ a, so Rodrigues collapses
-        return root + e;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static float3 RefPerp(float3 axis, float3 refUp)
-    {
-        float3 r = refUp - axis * math.dot(refUp, axis);
-        return math.length(r) < 1e-4f ? PerpAny(axis) : math.normalize(r);   // refUp ∥ axis → any perpendicular
-    }
 
     /// <summary>
     /// Two-bone solve. Given the current FK world positions/rotations of the upper (root..joint) and

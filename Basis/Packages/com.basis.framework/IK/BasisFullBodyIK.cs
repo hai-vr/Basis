@@ -120,6 +120,12 @@ collisionsEnabled;
         // squish coupling, which now measures the SPINE's compression instead of the head's.
         public Vector3 TposeHeadToNeckLocal;
         public Vector3 TposeLengthNeckToHips;
+        /// <summary>
+        /// The avatar size ratio in force when the Tpose* scalars below were measured. They are baked from
+        /// live bone positions ONCE per avatar load, but ApplyAvatarScale rescales the root without
+        /// rebuilding the rig — so without this they carry the previous scale forever.
+        /// </summary>
+        public float TposeBakeScale;
         public float handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, MaxChestDeltaProperty;
         public float shoulderElevationFactor, shoulderProtractionFactor;
         public float spineBendPitch, spineBendYaw, spineBendRoll;
@@ -2394,10 +2400,13 @@ collisionsEnabled;
                 ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
             TposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
                 ? (Mapping.RightUpperArm.position - Mapping.RightShoulder.position).normalized : Vector3.right;
+            // 0.6 m is an adult arm; on a small avatar it is the same shoulder-inert / shrug-latched failure
+            // a stale bake produces, so the fallback tracks avatar size too.
+            float fallbackArmLength = 0.6f * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             TposeShoulderToHandLeft = (Mapping.leftShoulder != null && Mapping.leftHand != null)
-                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftHand.position) : 0.6f;
+                ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftHand.position) : fallbackArmLength;
             TposeShoulderToHandRight = (Mapping.RightShoulder != null && Mapping.rightHand != null)
-                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.rightHand.position) : 0.6f;
+                ? Vector3.Distance(Mapping.RightShoulder.position, Mapping.rightHand.position) : fallbackArmLength;
             TposeClavicleLenLeft = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
                 ? Vector3.Distance(Mapping.leftShoulder.position, Mapping.leftUpperArm.position) : 0f;
             TposeClavicleLenRight = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
@@ -2567,6 +2576,46 @@ collisionsEnabled;
             {
                 TposeLengthNeckToHips = TposeLengthHeadToHips;
             }
+
+            // Record the size these were measured at, so a later rescale can carry them along.
+            TposeBakeScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        }
+
+        /// <summary>
+        /// Carries the baked Tpose* scalars to a new avatar size. They are DENOMINATORS of ratio tests whose
+        /// numerators are read live, so a stale value does not degrade the test — it saturates it: the
+        /// shoulder solve goes inert (rawReach never reaches ReachEngage), the shrug latches at maximum on
+        /// the elbow-tracker path, squishMult pins at 1+boost, and ComputeNeckCue lands at the wrong distance
+        /// from the head, which mis-cues DistributeSpineBend, ApplyTrunkCounterbalance and ApplyHipHinge.
+        /// All of it inverts above 1x. No-ops before the first bake and when the size has not moved.
+        /// </summary>
+        public void RescaleTposeScalars(float newScale)
+        {
+            if (float.IsNaN(newScale) || float.IsInfinity(newScale) || newScale <= 0f)
+            {
+                return;
+            }
+            if (TposeBakeScale <= 0f)
+            {
+                return;
+            }
+            float k = newScale / TposeBakeScale;
+            if (Mathf.Abs(k - 1f) < 1e-6f)
+            {
+                return;
+            }
+
+            TposeShoulderToHandLeft *= k;
+            TposeShoulderToHandRight *= k;
+            TposeClavicleLenLeft *= k;
+            TposeClavicleLenRight *= k;
+            TposeShoulderToElbowLeft *= k;
+            TposeShoulderToElbowRight *= k;
+            TposeLengthHeadToHips *= k;
+            TposeHeadToNeckLocal *= k;
+            TposeLengthNeckToHips *= k;
+
+            TposeBakeScale = newScale;
         }
         static BasisBoneHandle BindHandle(BasisPoseSkeleton skeleton, Transform t) => (t != null) ? skeleton.Bind(t) : default;
         public void Destroy()

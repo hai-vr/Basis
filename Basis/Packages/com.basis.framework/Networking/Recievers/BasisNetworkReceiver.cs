@@ -226,8 +226,8 @@ namespace Basis.Scripts.Networking.Receivers
         public static bool EndEffectorIKEnabled = true;
 
         /// <summary>
-        /// Interpolates this player's anchored end-effector targets (hips-local offset + tip rotation +
-        /// swivel) and writes them to the remote bone job system's playerId-keyed inputs. Runs on the
+        /// Interpolates this player's anchored end-effector targets (hips-local offset + tip rotation)
+        /// and writes them to the remote bone job system's playerId-keyed inputs. Runs on the
         /// pre-schedule receiver pass — no transform access; the Burst read/compute/write jobs do the
         /// actual anchoring. Only limbs anchored in BOTH bracketing frames stay masked; the rest FK.
         /// </summary>
@@ -245,20 +245,12 @@ namespace Basis.Scripts.Networking.Receivers
             int n = BasisAvatarEndEffectors.EffectorCount;
             float3* offsets = stackalloc float3[n];
             quaternion* tipRots = stackalloc quaternion[n];
-            float* swivels = stackalloc float[n];
             for (int i = 0; i < n; i++)
             {
                 offsets[i] = math.lerp(cur.EffectorPos[i], nxt.EffectorPos[i], t);
                 tipRots[i] = BasisRemoteInterpolationCore.NlerpShortest(cur.EffectorRot[i], nxt.EffectorRot[i], t);
-                swivels[i] = AngleLerpShortest(cur.EffectorSwivel[i], nxt.EffectorSwivel[i], t);
             }
-            BasisRemoteNetworkDriver.WriteEffectorInputs(playerId, (byte)mask, offsets, tipRots, swivels);
-        }
-
-        static float AngleLerpShortest(float a, float b, float t)
-        {
-            float d = math.atan2(math.sin(b - a), math.cos(b - a));   // wrapped shortest delta, safe across ±π
-            return a + d * t;
+            BasisRemoteNetworkDriver.WriteEffectorInputs(playerId, (byte)mask, offsets, tipRots);
         }
 
         /// <summary>Records received bytes-on-wire for this player (call from the packet handler; thread-safe).</summary>

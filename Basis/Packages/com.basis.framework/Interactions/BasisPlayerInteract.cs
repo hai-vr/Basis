@@ -400,7 +400,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private BasisInteractableObject PointRaycasterFindInteractable(BasisInteractInput interactInput)
         {
-            bool hit = interactInput.input.BasisPointRaycaster.FirstHit(out RaycastHit rayHit, raycastDistance);
+            bool hit = interactInput.input.BasisPointRaycaster.FirstHit(out RaycastHit rayHit, AvatarScaledRange(raycastDistance));
             if (!hit)
             {
                 return null;

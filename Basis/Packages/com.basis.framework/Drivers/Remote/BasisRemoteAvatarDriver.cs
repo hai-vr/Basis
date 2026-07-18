@@ -62,16 +62,21 @@ namespace Basis.Scripts.Drivers
         public bool InBoneDriver = false;
 
         // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). The wearer's networked spine
-        //      scale re-spaced this remote avatar's spine bones. Whole block commented; uncomment to re-enable. ====
-        // public float SpineProportionScale = 1f;
-        // static readonly HumanBodyBones[] s_spineBones =
-        // {
-        //     HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.UpperChest,
-        //     HumanBodyBones.Neck, HumanBodyBones.Head,
-        // };
-        // readonly Vector3[] _spineRestLocal = new Vector3[5];
-        // readonly bool[] _spineRestValid = new bool[5];
-        // bool _spineRestCaptured;
+        //      scale re-spaced this remote avatar's spine bones. Superseded on the wire by the body fit
+        //      below, which carries arm/leg/torso segment scales instead of one torso number. ====
+
+        /// <summary>
+        /// The wearer's networked body fit (see Basis.IK.BasisBodyFitCore). They stretch/collapse their
+        /// own avatar's arm, leg and spine segments to match their real proportions; without replaying
+        /// that here every remote would render them at the avatar's authored proportions instead.
+        /// Identity (all 1) is a no-op end to end.
+        /// </summary>
+        public Basis.IK.BasisBodyFitResult AppliedBodyFit = Basis.IK.BasisBodyFitResult.Identity;
+
+        readonly Transform[] _fitBones = new Transform[Basis.IK.BasisBodyFitApply.BoneCount];
+        readonly Vector3[] _fitRestLocal = new Vector3[Basis.IK.BasisBodyFitApply.BoneCount];
+        readonly float[] _fitScales = new float[Basis.IK.BasisBodyFitApply.BoneCount];
+        bool _fitRestCaptured;
 
         /// <summary>
         /// Performs remote-avatar calibration and registers it with the job system.
@@ -128,17 +133,25 @@ namespace Basis.Scripts.Drivers
             // References.AnimatorRoot caches the actual animator root — downstream
             // calibration steps then read References.AnimatorRoot instead of going
             // through the Animator.transform property each time.
-            BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: false, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
+            // Twist bones are detected on remotes too: a networked body fit scales the forearm/upper-arm
+            // segments, and the twist helpers sit partway along those segments. Scaling the arm without
+            // moving the twists leaves them at the wrong fraction of a now-longer bone, which shows up as
+            // mesh distortion around the elbow. Cost is a one-time child-name search per arm at load.
+            BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: true, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
             BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
 
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
             CaptureReceiverBoneData(RemotePlayer);
 
-            // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to re-space the
-            //      spine to the wearer's calibrated torso length (captures the fresh T-pose bind, then applies). ====
-            // CaptureSpineRestLocal();
-            // ApplyRemoteSpineScale();
+            // Capture the fresh authored bind, then apply this player's body fit. Order matters: the
+            // rest capture must see authored local positions, so it runs before any fit is written.
+            // Seeding from CACM covers every path that supplies an avatar record — a live avatar change,
+            // initial load, and the server's late-join replay all set it before calibration runs — while
+            // a fit-only update that arrived since is already in AppliedBodyFit and survives the reseed.
+            SeedBodyFitFromAvatarRecord(RemotePlayer);
+            CaptureBodyFitRestLocal();
+            ApplyRemoteBodyFit();
 
             // Initialize any jiggle rigs. Performance-limit enforcement lives in
             // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
@@ -384,44 +397,60 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). SetSpineProportionScale /
-        //      CaptureSpineRestLocal / ApplyRemoteSpineScale re-spaced this remote avatar's spine to the wearer's
-        //      networked torso scale. Whole block commented; uncomment (with the fields above + the calls in
-        //      RemoteCalibration + BasisSpineProportionNetworking) to re-enable. ====
-        // public void SetSpineProportionScale(float scale)
-        // {
-        //     SpineProportionScale = (scale > 0f) ? scale : 1f;
-        //     ApplyRemoteSpineScale();
-        // }
-        //
-        // private void CaptureSpineRestLocal()
-        // {
-        //     for (int i = 0; i < s_spineBones.Length; i++)
-        //     {
-        //         _spineRestValid[i] = References.GetTransform(s_spineBones[i], out Transform t) && t != null;
-        //         if (_spineRestValid[i])
-        //         {
-        //             _spineRestLocal[i] = t.localPosition;
-        //         }
-        //     }
-        //     _spineRestCaptured = true;
-        // }
-        //
-        // private void ApplyRemoteSpineScale()
-        // {
-        //     if (!_spineRestCaptured)
-        //     {
-        //         return;
-        //     }
-        //     float scale = (SpineProportionScale > 0f) ? SpineProportionScale : 1f;
-        //     for (int i = 0; i < s_spineBones.Length; i++)
-        //     {
-        //         if (_spineRestValid[i] && References.GetTransform(s_spineBones[i], out Transform t) && t != null)
-        //         {
-        //             t.localPosition = _spineRestLocal[i] * scale;
-        //         }
-        //     }
-        // }
+        /// <summary>
+        /// Applies the wearer's networked body fit to this remote avatar. Safe to call before the avatar
+        /// has loaded — the fit is stored and replayed by RemoteCalibration once the bind is captured.
+        /// Main thread only (touches Transform.localPosition).
+        /// </summary>
+        public void SetBodyFit(in Basis.IK.BasisBodyFitResult fit)
+        {
+            AppliedBodyFit = fit;
+            ApplyRemoteBodyFit();
+        }
+
+        private void SeedBodyFitFromAvatarRecord(BasisRemotePlayer RemotePlayer)
+        {
+            if (RemotePlayer == null)
+            {
+                return;
+            }
+            AppliedBodyFit = Basis.IK.BasisBodyFitNetworking.ToFitResult(
+                RemotePlayer.CACM.ArmScale, RemotePlayer.CACM.LegScale, RemotePlayer.CACM.TorsoScale);
+        }
+
+        /// <summary>
+        /// Snapshots the authored local positions of every fitted bone. Keying off this copy rather than
+        /// the live value is what makes re-applying idempotent — writing rest*scale over an already
+        /// scaled transform would compound the fit every time a new one arrived.
+        /// </summary>
+        private void CaptureBodyFitRestLocal()
+        {
+            Basis.IK.BasisBodyFitApply.CollectBones(References, _fitBones);
+            for (int i = 0; i < _fitBones.Length; i++)
+            {
+                Transform bone = _fitBones[i];
+                _fitRestLocal[i] = bone != null ? bone.localPosition : Vector3.zero;
+            }
+            _fitRestCaptured = true;
+        }
+
+        private void ApplyRemoteBodyFit()
+        {
+            if (!_fitRestCaptured)
+            {
+                return;
+            }
+
+            Basis.IK.BasisBodyFitApply.CollectScales(in AppliedBodyFit, _fitScales);
+            for (int i = 0; i < _fitBones.Length; i++)
+            {
+                Transform bone = _fitBones[i];
+                if (bone != null)
+                {
+                    bone.localPosition = _fitRestLocal[i] * _fitScales[i];
+                }
+            }
+        }
 
         /// <summary>
         /// True while the avatar is temporarily swapped to a TPose animator.

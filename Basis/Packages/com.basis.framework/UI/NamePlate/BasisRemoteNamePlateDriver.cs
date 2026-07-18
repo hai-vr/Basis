@@ -105,10 +105,17 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static float lastPlateWorldScale = float.NaN;
 
+        /// <summary>
+        /// Nameplates are sized in metres, so they must track the VIEWER's avatar size or a small avatar
+        /// sees adult-sized plates filling its view. Was AppliedUpScale, which is only the explicit scale
+        /// MODIFICATION — 1.0 for a naturally-short avatar, so that viewer got no compensation at all —
+        /// and was additionally gated to scale down but never up. Now the same size ratio every other UI
+        /// system uses (BasisMenuMover, BasisUIRaycast, BasisDirectTouch, BasisOnScreenControls).
+        /// </summary>
         public static float LocalViewerNamePlateScale()
         {
-            float scale = BasisHeightDriver.AppliedUpScale;
-            return (scale > 0f && scale < 1f) ? scale : 1f;
+            float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+            return (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 0f) ? 1f : scale;
         }
 
         public static float PlateWorldScale() => 0.02f * NamePlateSize * LocalViewerNamePlateScale();

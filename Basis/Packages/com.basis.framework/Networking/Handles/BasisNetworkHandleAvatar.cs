@@ -1,3 +1,4 @@
+using Basis.IK;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking;
@@ -57,6 +58,16 @@ public static class BasisNetworkHandleAvatar
 
     public static void HandleAvatarChangeMessage(NetPacketReader reader)
     {
+        // Leading kind byte multiplexes this channel — see BasisNetworkCommons.AvatarChangeKind*.
+        byte kind = reader.GetByte();
+        if (kind == BasisNetworkCommons.AvatarChangeKindBodyFit)
+        {
+            ServerBodyFitMessage fitMsg = new ServerBodyFitMessage();
+            fitMsg.Deserialize(reader);
+            BasisBodyFitNetworking.Receive(fitMsg.uShortPlayerId.playerID, fitMsg.bodyFit);
+            return;
+        }
+
         ServerAvatarChangeMessage msg = new ServerAvatarChangeMessage();
         msg.Deserialize(reader);
 

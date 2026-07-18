@@ -38,12 +38,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public double SecondsInterval = 0.01;
 
         // End-effector anchoring (High quality only). Mask bit i => effector i is world-anchored
-        // (0=LHand 1=RHand 2=LFoot 3=RFoot). Pos = hips-local target offset, Rot = tip world rotation,
-        // Swivel = elbow/knee pole angle. Interpolated alongside the hips and applied by two-bone IK.
+        // (0=LHand 1=RHand 2=LFoot 3=RFoot). Pos = hips-local target offset, Rot = tip world rotation.
+        // Interpolated alongside the hips and applied by two-bone IK, which takes its pole from the FK
+        // joint position rather than a networked swivel angle.
         public byte EffectorMask;
         public readonly float3[] EffectorPos = new float3[BasisAvatarEndEffectors.EffectorCount];
         public readonly quaternion[] EffectorRot = new quaternion[BasisAvatarEndEffectors.EffectorCount];
-        public readonly float[] EffectorSwivel = new float[BasisAvatarEndEffectors.EffectorCount];
 
         public bool IsDisposed = false;
 

@@ -88,12 +88,11 @@ public static class BasisRemoteNetworkDriver
     // LOD skip flag per player
     static NativeArray<byte> _skipBones;
 
-    // End-effector IK inputs, playerId-keyed (mask [playerId]; offset/tipRot/swivel [playerId*4 + effector]).
+    // End-effector IK inputs, playerId-keyed (mask [playerId]; offset/tipRot [playerId*4 + effector]).
     static NativeArray<byte> _effMask;
     static NativeArray<float3> _effOffset;
     static NativeArray<quaternion> _effTipRot;
-    static NativeArray<float> _effSwivel;
-    static IntPtr _ptrEffMask, _ptrEffOffset, _ptrEffTipRot, _ptrEffSwivel;
+    static IntPtr _ptrEffMask, _ptrEffOffset, _ptrEffTipRot;
 
     // State
     static bool _initialized;
@@ -280,7 +279,6 @@ public static class BasisRemoteNetworkDriver
         _ptrEffMask = (IntPtr)_effMask.GetUnsafePtr();
         _ptrEffOffset = (IntPtr)_effOffset.GetUnsafePtr();
         _ptrEffTipRot = (IntPtr)_effTipRot.GetUnsafePtr();
-        _ptrEffSwivel = (IntPtr)_effSwivel.GetUnsafePtr();
     }
 
     /// <summary>
@@ -737,7 +735,7 @@ public static class BasisRemoteNetworkDriver
     /// Writes a player's interpolated end-effector IK inputs (main thread, playerId-keyed). Read by
     /// EffectorIKComputeJob via the sKeyArray remap. Writes through cached pointers like SetFrameInputs.
     /// </summary>
-    public static unsafe void WriteEffectorInputs(int playerId, byte mask, float3* offsets, quaternion* tipRots, float* swivels)
+    public static unsafe void WriteEffectorInputs(int playerId, byte mask, float3* offsets, quaternion* tipRots)
     {
         if (!_initialized || (uint)playerId >= FixedCapacity) return;
         if (mask != 0) AnyEffectorAnchored = true;
@@ -747,7 +745,6 @@ public static class BasisRemoteNetworkDriver
         {
             ((float3*)(void*)_ptrEffOffset)[b + e] = offsets[e];
             ((quaternion*)(void*)_ptrEffTipRot)[b + e] = tipRots[e];
-            ((float*)(void*)_ptrEffSwivel)[b + e] = swivels[e];
         }
     }
 
@@ -772,7 +769,6 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> EffMask;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> EffOffset;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> EffTipRot;
-        [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float> EffSwivel;
         [ReadOnly] public NativeArray<float3> HipsWorldPos;
         [ReadOnly] public NativeArray<quaternion> HipsWorldRot;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> ReadPos;
@@ -827,10 +823,10 @@ public static class BasisRemoteNetworkDriver
                 quaternion jointLocal = ReadLocalRot[fJoint];
                 quaternion tipLocal = ReadLocalRot[fTip];
 
-                // Pole = the FK joint (elbow/knee) world position, not the sent swivel: the FK joint comes
-                // from the well-synced bone rotations (stable, preserves articulation) and has no reference-
-                // axis degeneracy — the swivel referenced hips-up, which is ~parallel to a standing leg and
-                // made the knee jitter. EffSwivel is now unused on the wire.
+                // Pole = the FK joint (elbow/knee) world position. The FK joint comes from the well-synced
+                // bone rotations (stable, preserves articulation) and has no reference-axis degeneracy —
+                // the swivel angle this replaced referenced hips-up, which is ~parallel to a standing leg
+                // and made the knee jitter. That swivel was dropped from the wire entirely.
                 float3 pole = jointPos;
                 BasisRemoteLimbIK.Solve(rootPos, jointPos, tipPos, upperRot, lowerRot, target, pole,
                     out quaternion newUpper, out quaternion newLower, out _);
@@ -893,7 +889,6 @@ public static class BasisRemoteNetworkDriver
             EffMask = _effMask,
             EffOffset = _effOffset,
             EffTipRot = _effTipRot,
-            EffSwivel = _effSwivel,
             HipsWorldPos = hipsWorldPos,
             HipsWorldRot = hipsWorldRot,
             ReadPos = readPos,
@@ -1006,7 +1001,6 @@ public static class BasisRemoteNetworkDriver
         _effMask = new NativeArray<byte>(capacity, _allocator, NativeArrayOptions.ClearMemory);
         _effOffset = new NativeArray<float3>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
         _effTipRot = new NativeArray<quaternion>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
-        _effSwivel = new NativeArray<float>(capacity * 4, _allocator, NativeArrayOptions.ClearMemory);
     }
 
     static void DisposeAll()
@@ -1027,7 +1021,7 @@ public static class BasisRemoteNetworkDriver
         D(ref _HasScaleChange); D(ref _lastAppliedScales); D(ref _skipBones);
         D(ref _p0BoneRotations); D(ref _prevBoneRotations);
         D(ref _targetBoneRotations); D(ref _p3BoneRotations); D(ref _outBoneRotations);
-        D(ref _effMask); D(ref _effOffset); D(ref _effTipRot); D(ref _effSwivel);
+        D(ref _effMask); D(ref _effOffset); D(ref _effTipRot);
     }
 
     // ─── JOBS ───

@@ -198,7 +198,10 @@ public struct BasisFootSimulateJob : IJob
         // Turning in place is speed ~0, so the speed test alone always picked the slow rate exactly when the body
         // was rotating fastest. Any real turn (physical or stick) gets the responsive rate.
         bool turning = math.abs(sim.smoothedYawRateDeg) > 20f;
-        float fwdRate = (speed > 0.1f || turning) ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
+        // Relative, not an absolute 0.1 m/s — same reasoning as the hip-bob gate in ComputeHipBob: a small
+        // avatar's whole speed range scales as sqrt(g*L), so a fixed cutoff left it below the threshold and
+        // building step targets from a stale facing.
+        float fwdRate = (speed > 0.034f * p.fastSpeedRef || turning) ? p.bodyFwdRateMoving : p.bodyFwdRateStationary;
         // Track a fast PHYSICAL spin (which the root-yaw carry above cannot help, because the root does not
         // rotate) by opening the filter rate in proportion to the yaw rate -- see k_YawTrackGain.
         if (turning)
@@ -269,7 +272,10 @@ public struct BasisFootSimulateJob : IJob
         }
 
         // ── Ideal positions ──
-        float3 moveDir = math.lengthsq(velDir) > 0.01f ? math.normalize(velDir) : bodyFwd;
+        // Relative move-direction gate (was an absolute (0.1 m/s)^2): below it the velocity bias and lead
+        // offset collapse to bodyFwd, so a fixed cutoff robbed a small avatar of directional prediction.
+        float moveDirGate = 0.034f * p.fastSpeedRef;
+        float3 moveDir = math.lengthsq(velDir) > moveDirGate * moveDirGate ? math.normalize(velDir) : bodyFwd;
         float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
         float maxOffset = avgLeg * p.maxVelocityOffsetFraction;
         float baseBias = math.min(speed * p.velocityBiasFactor, maxOffset);
@@ -676,7 +682,9 @@ public struct BasisFootSimulateJob : IJob
         // (Execute writes back only at its end).
         float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
         float3 svFlat = smoothedVelocity - up * math.dot(smoothedVelocity, up);
-        float3 moveDir = math.lengthsq(svFlat) > 0.01f
+        // Relative, matching the reachGate below which already uses sqrt(g*L) — was an absolute (0.1 m/s)^2.
+        float predMoveGate = 0.034f * p.fastSpeedRef;
+        float3 moveDir = math.lengthsq(svFlat) > predMoveGate * predMoveGate
             ? math.normalize(svFlat)
             : bodyFwd;
         float predAmount = math.min(speed * stepDur * p.predictionFactor, avgLeg * p.maxPredictionFraction);

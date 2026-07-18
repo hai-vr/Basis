@@ -149,7 +149,7 @@ public class IdleSuppressionTests
     [Fact]
     public void PrintPacketAndByteTable()
     {
-        int payload = S.PayloadSize(BitQuality.High); // 236 B High
+        int payload = S.PayloadSize(BitQuality.High); // 232 B High
         const int wireOverhead = 1;                   // app sequence byte (LiteNetLib header excluded)
         int perPacket = payload + wireOverhead;
         _out.WriteLine($"High payload = {payload} B, per-packet wire ≈ {perPacket} B (excl. UDP/LiteNetLib header)");

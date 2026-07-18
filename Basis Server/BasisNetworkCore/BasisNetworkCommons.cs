@@ -93,6 +93,14 @@ namespace Basis.Network.Core
         // ── Avatar management ────────────────────────────────────────────────
         /// <summary>Swap to a different avatar</summary>
         public const byte AvatarChangeMessageChannel = 14;
+
+        // AvatarChangeMessageChannel carries two message kinds, discriminated by a leading byte, because
+        // all 64 LiteNetLib channels are assigned and a body-fit update has nowhere else to go that is
+        // both server-stored and replayed to late joiners. Both kinds update the same saved record.
+        /// <summary>Full avatar change: ClientAvatarChangeMessage / ServerAvatarChangeMessage.</summary>
+        public const byte AvatarChangeKindFull = 0;
+        /// <summary>Body-fit-only update: ClientBodyFitMessage / ServerBodyFitMessage. No avatar reload.</summary>
+        public const byte AvatarChangeKindBodyFit = 1;
         /// <summary>Generic avatar script data</summary>
         public const byte AvatarChannel = 15;
 

@@ -341,7 +341,7 @@ public class CorePrimitiveCompressionTests
         Assert.Equal(109, BasisBoneRotationCompression.ConvertToSize(BitQuality.VeryLow));
         Assert.Equal(128, BasisBoneRotationCompression.ConvertToSize(BitQuality.Low));
         Assert.Equal(153, BasisBoneRotationCompression.ConvertToSize(BitQuality.Medium));
-        Assert.Equal(236, BasisBoneRotationCompression.ConvertToSize(BitQuality.High));
+        Assert.Equal(232, BasisBoneRotationCompression.ConvertToSize(BitQuality.High));
     }
 
     // ────────────────────────────────────────────────────────────

@@ -138,18 +138,36 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 return;
             }
-            //same as remote player but just used at the start
+            //same as remote player but just used at the start — arrives as a compressed batch of players
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 try
                 {
                     BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-                    ServerReadyMessage srm = new ServerReadyMessage();
-                    srm.Deserialize(Reader);
-                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+
+                    ServerReadyBatchMessage batch = new ServerReadyBatchMessage();
+                    batch.Deserialize(Reader);
+
+                    NetDataReader batchReader = new NetDataReader(batch.Payload);
+                    for (int i = 0; i < batch.Count; i++)
                     {
-                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
-                    });
+                        // One corrupt entry must not cost the whole batch: every player after it in this
+                        // packet would otherwise never spawn. Stop at the bad record, keep the good ones.
+                        ServerReadyMessage srm = new ServerReadyMessage();
+                        try
+                        {
+                            srm.Deserialize(batchReader);
+                        }
+                        catch (Exception ex)
+                        {
+                            BNL.LogError($"Dropping remote-player spawn batch at entry {i}/{batch.Count}: {ex.Message}");
+                            break;
+                        }
+                        BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                        {
+                            BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                        });
+                    }
                 }
                 catch (Exception ex)
                 {

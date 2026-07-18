@@ -214,7 +214,11 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// <summary>Rescales the camera when the local player’s avatar height changes.</summary>
     private void OnHeightChanged(BasisHeightDriver.HeightModeChange HeightModeChange)
     {
-        transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *  BasisHeightDriver.ScaledToMatchValue;
+        // Must match the factor used when the prop is first sized, or this handler (which fires on every
+        // avatar swap and scale change) permanently overwrites it with a different one. ScaledToMatchValue
+        // is the authored->target ratio and is 1.0 for any avatar that was not auto-scaled, which left a
+        // naturally-small avatar holding a full adult-sized camera.
+        transform.localScale = Vector3.one * cameraDefaultScale * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
     }
 
     /// <summary>

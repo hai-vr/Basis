@@ -510,7 +510,11 @@ public partial class BasisLocalFootDriver
             stepArcDropExp = stepArcDropExp,
             stepHeightMinFraction = stepHeightMinFraction,
             stepHeightStrideRefFraction = stepHeightStrideRefFraction,
-            idleSpeedThreshold = idleSpeedThreshold,
+            // Authored in m/s at the reference adult leg (k_RefLeg = 0.87 -> sqrt(g*L) = 2.921), converted
+            // to this avatar's own speed scale. Exactly a no-op at reference size. Unscaled, a small avatar
+            // creeping proportionally slower than 0.05 m/s still read as "moving", lost the idle step-trigger
+            // boost and mince-stepped.
+            idleSpeedThreshold = idleSpeedThreshold * (fastSpeedRef / 2.921f),
             idleBoostFraction = idleBoostFraction,
             maxPlantedYawDegrees = maxPlantedYawDegrees,
             idealSideEnforceFraction = idealSideEnforceFraction,

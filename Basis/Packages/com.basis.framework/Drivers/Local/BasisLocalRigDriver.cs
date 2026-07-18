@@ -219,6 +219,7 @@ namespace Basis.Scripts.Drivers
                     PoseSkeleton.WriteFittedLocalPositions();
                 }
                 AppliedBodyFit = BasisBodyFitResult.Identity;
+                BasisBodyFitNetworking.UpdateLocalFit(in AppliedBodyFit);
                 return;
             }
 
@@ -241,6 +242,11 @@ namespace Basis.Scripts.Drivers
 
             BasisBodyFitApply.Apply(PoseSkeleton, basisTransformMapping, fit);
             AppliedBodyFit = fit;
+
+            // Remotes render the authored avatar unless they are told these scales — the pose channel
+            // carries rotations only, never segment lengths. Send-on-change lives in the networking
+            // class; this runs on every rig build and settings change, most of which are no-ops.
+            BasisBodyFitNetworking.UpdateLocalFit(in fit);
 
             // Push the new lengths onto the bone transforms right now rather than waiting for the next
             // RunIKSolve scatter. Calibration captures its tracker offsets against live bone positions
@@ -1180,6 +1186,11 @@ namespace Basis.Scripts.Drivers
             minHeadSpineHeight += Vector3.Distance(neck.position, head.position);
 
             BodyData.MinHeadSpineHeight = minHeadSpineHeight;
+
+            // MinHeadSpineHeight above was the only baked metre scalar this handler refreshed; the arm,
+            // clavicle and neck-cue scalars are measured in the same one-shot rig build and were left to go
+            // stale on every rescale. Same event, same fix.
+            BodyData.RescaleTposeScalars(Scale);
         }
         public void Spine()
         {
@@ -1441,12 +1452,19 @@ namespace Basis.Scripts.Drivers
             data.lordosisExtremeFullDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeFullDeg.RawValue;
             data.lordosisExtremeRollForwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollForwardMaxDeg.RawValue;
             data.lordosisExtremeRollBackwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg.RawValue;
-            data.lordosisExtremeHipsHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.RawValue;
-            data.lordosisExtremeChestHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.RawValue;
-            data.lordosisExtremeHipsDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.RawValue;
-            data.lordosisExtremeChestDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.RawValue;
-            data.lordosisExtremeHipsDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.RawValue;
-            data.lordosisExtremeChestDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.RawValue;
+            // Avatar scale, shared by every metre-valued tuning value below.
+            float collisionScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+
+            // These six are METRES added straight to the hips/chest world position in ApplyCervicalLordosis,
+            // so they must scale with the avatar. Unscaled they were a fixed ~2.5 cm pelvis and ~4 cm chest
+            // shove at every size — double the body-relative displacement at 0.5x, and since the chest term
+            // is 1.6x the hips term the torso visibly sheared. The Deg values above are angles; leave them.
+            data.lordosisExtremeHipsHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.RawValue * collisionScale;
+            data.lordosisExtremeChestHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.RawValue * collisionScale;
+            data.lordosisExtremeHipsDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.RawValue * collisionScale;
+            data.lordosisExtremeChestDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.RawValue * collisionScale;
+            data.lordosisExtremeHipsDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.RawValue * collisionScale;
+            data.lordosisExtremeChestDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.RawValue * collisionScale;
 
             // Toggles + shoulder-solve params that previously only flowed at init. Without these
             // here, flipping the matching toggle/slider in the IK panel left the animation job
@@ -1462,7 +1480,6 @@ namespace Basis.Scripts.Drivers
 
             // Collision capsule dimensions × avatar scale. Slider defaults now match the
             // hardcoded values previously in SetHandCollisionScale, so this is the canonical path.
-            float collisionScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             data.handRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue * collisionScale;
             data.handSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue * collisionScale;
             data.chestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue * collisionScale;

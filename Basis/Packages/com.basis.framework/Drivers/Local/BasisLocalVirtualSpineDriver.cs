@@ -44,7 +44,7 @@ public class BasisLocalVirtualSpineDriver
     public float HipsXZFollowBlend = 0.35f;
 
     /// <summary>Legacy inspector field — runtime reads BasisSettingsDefaults.VSpineHipsForwardBias.</summary>
-    public float HipsForwardBias = 0.02f; // meters
+    public float HipsForwardBias = 0f; // meters
 
     /// <summary>Initialization guard.</summary>
     private bool _initialized;

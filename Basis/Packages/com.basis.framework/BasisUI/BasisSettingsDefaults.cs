@@ -1337,11 +1337,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> VSpineHipsRotationSpeed = new("vspinehipsrotationspeed", new BasisPlatformDefault<float>(20f));
 
         // Hips forward bias: small forward offset (meters at default avatar scale) so hips don't
-        // sit perfectly under the neck — gives a subtle pelvic tilt that reads as more natural
-        // standing posture. (The former VSpineHipsXZFollowBlend setting was removed in favor of a
-        // hard-coded counterbalance/pendulum model in the virtual spine driver — see
-        // BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
-        public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias", new BasisPlatformDefault<float>(0.02f));
+        // sit perfectly under the neck. Now 0 — it is the only unconditional forward translation of
+        // the pelvis, and with no hips tracker (desktop, headset-only VR) it stacked on an already
+        // head-anchored pelvis and read as "body too far forward". Key bumped to _v2 so installs
+        // that persisted 0.02 pick the new default up. (The former VSpineHipsXZFollowBlend setting
+        // was removed in favor of a hard-coded counterbalance/pendulum model in the virtual spine
+        // driver — see BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
+        public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias_v2", new BasisPlatformDefault<float>(0f));
 
         // Spine compression: the synthesized hips Y is neck - rigid spine length, so lowering the head
         // (leaning to touch toes, sitting) drags the pelvis straight down the full rest length and the
