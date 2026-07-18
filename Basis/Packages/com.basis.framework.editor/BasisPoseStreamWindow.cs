@@ -22,6 +22,9 @@ public class BasisPoseStreamWindow : EditorWindow
         public Quaternion StreamWorldRotation;
         public Vector3 ActualWorldPosition;
         public Quaternion ActualWorldRotation;
+        public float BindLength;
+        public float CurrentLength;
+        public bool TranslationFree;
         public float PositionErrorMm;
         public float RotationErrorDeg;
     }
@@ -99,6 +102,9 @@ public class BasisPoseStreamWindow : EditorWindow
                 Parent = stream.Parent[i],
                 Name = t.name,
                 Writable = skeleton.IsWritable(i),
+                BindLength = skeleton.BindLengthOf(i),
+                CurrentLength = ((Vector3)stream.LocalPosition[i]).magnitude,
+                TranslationFree = skeleton.TranslationFreeOf(i),
                 LocalPosition = stream.LocalPosition[i],
                 LocalRotation = stream.LocalRotation[i],
                 StreamWorldPosition = worldPosition,
@@ -169,6 +175,9 @@ public class BasisPoseStreamWindow : EditorWindow
             GUILayout.Label("par", GUILayout.Width(28));
             GUILayout.Label("bone", GUILayout.Width(150));
             GUILayout.Label("W", GUILayout.Width(20));
+            GUILayout.Label("bindLen", GUILayout.Width(70));
+            GUILayout.Label("curLen", GUILayout.Width(70));
+            GUILayout.Label("stretch%", GUILayout.Width(70));
             GUILayout.Label("posErr mm", GUILayout.Width(80));
             GUILayout.Label("rotErr deg", GUILayout.Width(80));
             GUILayout.Label("stream world pos", GUILayout.Width(190));
@@ -193,6 +202,12 @@ public class BasisPoseStreamWindow : EditorWindow
                 GUILayout.Label(row.Parent.ToString(), style, GUILayout.Width(28));
                 GUILayout.Label(row.Name, style, GUILayout.Width(150));
                 GUILayout.Label(row.Writable ? "*" : "", style, GUILayout.Width(20));
+                float stretch = row.BindLength > 1e-6f ? (row.CurrentLength / row.BindLength - 1f) * 100f : 0f;
+                var stretchStyle = new GUIStyle(style);
+                if (!row.TranslationFree && stretch > 0.5f) { stretchStyle.normal.textColor = new Color(1f, 0.5f, 0f); }
+                GUILayout.Label(row.BindLength.ToString("F4"), style, GUILayout.Width(70));
+                GUILayout.Label(row.CurrentLength.ToString("F4"), style, GUILayout.Width(70));
+                GUILayout.Label(row.TranslationFree ? "free" : stretch.ToString("F2"), stretchStyle, GUILayout.Width(70));
                 GUILayout.Label(row.PositionErrorMm.ToString("F3"), style, GUILayout.Width(80));
                 GUILayout.Label(row.RotationErrorDeg.ToString("F3"), style, GUILayout.Width(80));
                 GUILayout.Label(Fmt(row.StreamWorldPosition), style, GUILayout.Width(190));
@@ -217,7 +232,7 @@ public class BasisPoseStreamWindow : EditorWindow
         var sb = new StringBuilder();
         sb.AppendLine("# " + _status);
         sb.AppendLine("# " + _anchorInfo);
-        sb.AppendLine("index,parent,bone,writable,posErrMm,rotErrDeg," +
+        sb.AppendLine("index,parent,bone,writable,bindLen,curLen,translationFree,posErrMm,rotErrDeg," +
                       "localPosX,localPosY,localPosZ,localRotX,localRotY,localRotZ,localRotW," +
                       "streamWorldPosX,streamWorldPosY,streamWorldPosZ," +
                       "actualWorldPosX,actualWorldPosY,actualWorldPosZ," +
@@ -231,6 +246,7 @@ public class BasisPoseStreamWindow : EditorWindow
             sb.AppendLine(string.Join(",", new string[]
             {
                 r.Index.ToString(c), r.Parent.ToString(c), r.Name, r.Writable ? "1" : "0",
+                r.BindLength.ToString("F6", c), r.CurrentLength.ToString("F6", c), r.TranslationFree ? "1" : "0",
                 r.PositionErrorMm.ToString("F6", c), r.RotationErrorDeg.ToString("F6", c),
                 r.LocalPosition.x.ToString("F6", c), r.LocalPosition.y.ToString("F6", c), r.LocalPosition.z.ToString("F6", c),
                 r.LocalRotation.x.ToString("F6", c), r.LocalRotation.y.ToString("F6", c), r.LocalRotation.z.ToString("F6", c), r.LocalRotation.w.ToString("F6", c),

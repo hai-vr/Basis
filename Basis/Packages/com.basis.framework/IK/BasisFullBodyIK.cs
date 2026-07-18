@@ -20,7 +20,7 @@ namespace UnityEngine.Animations.Rigging
             TargetPosition15, TargetPosition16, TargetPosition17, TargetPosition18, TargetPosition19,
             TargetPosition20, TargetPosition54;
 
-        // Live target rotations (Quaternion) — stored as Quaternion on the component; bound as Vector4 by the job.
+        // Live target rotations (Quaternion) — stored as Quaternion on the component; bound as Quaternion by the job.
         [SerializeField]
         public Quaternion
             TargetRotation0, TargetRotation1, TargetRotation2, TargetRotation3, TargetRotation4,
@@ -406,159 +406,6 @@ namespace UnityEngine.Animations.Rigging
         public float SpineTwistKeep { get => m_SpineTwistKeep; set => m_SpineTwistKeep = value; }
         public float SpineNeckTwistKeep { get => m_SpineNeckTwistKeep; set => m_SpineNeckTwistKeep = value; }
         public float NeckMaxConeDeg { get => m_NeckMaxConeDeg; set => m_NeckMaxConeDeg = value; }
-        public bool IsValid()
-        {
-            bool hipsValid = m_Hips != null;
-
-            bool head = (m_head && m_neck && m_chest &&
-                         m_head.IsChildOf(m_neck) && m_neck.IsChildOf(m_chest));
-
-            bool lLeg = (m_leftFoot && m_LeftLowerLeg && m_LeftUpperLeg &&
-                         m_leftFoot.IsChildOf(m_LeftLowerLeg) && m_LeftLowerLeg.IsChildOf(m_LeftUpperLeg));
-
-            bool rLeg = (m_RightFoot && m_RightLowerLeg && m_RightUpperLeg &&
-                         m_RightFoot.IsChildOf(m_RightLowerLeg) && m_RightLowerLeg.IsChildOf(m_RightUpperLeg));
-
-            bool lHand = (m_leftHand && m_leftLowerArm && m_leftUpperArm &&
-                          m_leftHand.IsChildOf(m_leftLowerArm) && m_leftLowerArm.IsChildOf(m_leftUpperArm));
-
-            bool rHand = (m_rightHand && m_RightLowerArm && m_RightUpperArm &&
-                          m_rightHand.IsChildOf(m_RightLowerArm) && m_RightLowerArm.IsChildOf(m_RightUpperArm));
-
-            // Any of these being valid is enough to run.
-            return head || lLeg || rLeg || lHand || rHand || hipsValid || (m_LeftToe != null) || (m_RightToe != null);
-        }
-        public void SetDefaultValues()
-        {
-            m_chest = m_neck = m_head = null;
-            m_LeftUpperLeg = m_LeftLowerLeg = m_leftFoot = null;
-            m_RightUpperLeg = m_RightLowerLeg = m_RightFoot = null;
-
-            m_leftUpperArm = m_leftLowerArm = m_leftHand = null;
-            m_RightUpperArm = m_RightLowerArm = m_rightHand = null;
-
-            m_Hips = null;
-
-            m_HintHeadEnabled = true;
-            m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
-            m_SpineIKEnabled = true;
-            m_HasHipsTracker = false;
-            m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
-            m_LeftLowerLegHintIsTracker = m_RightLowerLegHintIsTracker = false;
-            m_IKLockMode = (float)BasisIKLockMode.LockHead;
-
-            m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
-            m_EnabledLeftHand = m_EnabledRightHand = 1f;
-            m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
-            m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
-
-            PlayerUp = Vector3.up;
-
-            PositionHips = Vector3.zero;
-            RotationHips = Quaternion.identity;
-            OffsetRotationHips = Quaternion.identity;
-
-            // Integrated driven TR defaults
-            m_LeftToe = null;
-            m_RightToe = null;
-
-            OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
-            m_LeftToeEnabled = false;
-            m_RightToeEnabled = false;
-
-            // Chest/hand capsule defaults — read from persisted settings
-            m_chest = m_neck = null;
-            m_ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
-            m_CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
-            m_CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
-            m_HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
-            m_HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
-            m_ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
-            m_UseNeuralPole = Basis.BasisUI.BasisSettingsDefaults.FBIKNeuralPole.RawValue;
-            m_CollideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
-
-            m_ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
-            m_ShoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
-            m_ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
-            m_ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
-
-            m_SpineBendPitch = 0.45f;
-            m_SpineBendYaw = 0.10f;
-            m_SpineBendRoll = 0.35f;
-            m_UpperChestBendPitch = 0.25f;
-            m_UpperChestBendYaw = 0.30f;
-            m_UpperChestBendRoll = 0.20f;
-            m_HipHingeStartDeg = 40f;
-            m_HipHingeMaxAddDeg = 52f;
-            m_ChestSpringHz = 12f;
-            m_ChestSpringDamping = 1f;
-            m_SpineMaxForwardDeg = 60f;
-            m_SpineMaxBackwardDeg = 25f;
-            m_SpineMaxLateralDeg = 25f;
-            m_SpineSquishBoost = 0.5f;
-            m_SpineGazeFollow = 0.25f;
-            m_NeckGazeFollow = 0.3f;
-            m_MoveBodyBackWhenCrouching = 1f;
-            m_SwingSmoothRateDeg = 720f;
-            m_ChestArmSwingFactor = 0.3f;
-            m_ChestArmSwingMaxDeg = 15f;
-            m_LowerArmTwistFraction = 0.5f;
-            m_UpperArmTwistFraction = 0.3f;
-
-            m_AnatDifferentialStiffness = false;
-            m_AnatShoulderSlide = false;
-            m_AnatCervicalLordosis = false;
-            m_AnatPelvicTwistRouting = false;
-            m_SpineAnatomicalRom = false;
-            m_ChestIKTarget = false;
-            m_LegSwivelSmoothing = true;
-            m_LordosisPitchGainDeg = 8f;
-            m_LordosisBaseDeg = 5f;
-            m_LordosisNeckShare = 0.65f;
-            m_LordosisMaxHeadPitchDeg = 80f;
-            m_LordosisExtremeStartDeg = 50f;
-            m_LordosisExtremeFullDeg = 80f;
-            m_LordosisExtremeRollForwardMaxDeg = 10f;
-            m_LordosisExtremeRollBackwardMaxDeg = 4f;
-            m_LordosisExtremeHipsHorizontalMax = 0.025f;
-            m_LordosisExtremeChestHorizontalMax = 0.04f;
-            m_LordosisExtremeHipsDownMax = 0.015f;
-            m_LordosisExtremeChestDownMax = 0.025f;
-            m_LordosisExtremeHipsDownLookUp = 0.0005f;
-            m_LordosisExtremeChestDownLookUp = 0.001f;
-            m_SpineCCDRelax = 0.8f;
-            m_NeckMaxConeDeg = 45f;
-            m_SpineTwistKeep = 0.25f;
-            m_SpineNeckTwistKeep = 0.9f;
-
-            // Positions
-            TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
-            TargetPosition5 = TargetPosition6 = TargetPosition7 = TargetPosition8 = TargetPosition9 =
-            TargetPosition10 = TargetPosition11 = TargetPosition12 = TargetPosition13 = TargetPosition14 =
-            TargetPosition15 = TargetPosition16 = TargetPosition17 = TargetPosition18 = TargetPosition19 =
-            TargetPosition20 = TargetPosition54 = Vector3.zero;
-
-            // Rotations
-            TargetRotation0 = TargetRotation1 = TargetRotation2 = TargetRotation3 = TargetRotation4 =
-            TargetRotation5 = TargetRotation6 = TargetRotation7 = TargetRotation8 = TargetRotation9 =
-            TargetRotation10 = TargetRotation11 = TargetRotation12 = TargetRotation13 = TargetRotation14 =
-            TargetRotation15 = TargetRotation16 = TargetRotation17 = TargetRotation18 = TargetRotation19 =
-            TargetRotation20 = TargetRotation54 = Quaternion.identity;
-
-            // Offsets
-            OffsetRotation0 = OffsetRotation1 = OffsetRotation2 = OffsetRotation3 = OffsetRotation4 =
-            OffsetRotation5 = OffsetRotation6 = OffsetRotation7 = OffsetRotation8 = OffsetRotation9 =
-            OffsetRotation10 = OffsetRotation11 = OffsetRotation12 = OffsetRotation13 = OffsetRotation14 =
-            OffsetRotation15 = OffsetRotation16 = OffsetRotation17 = OffsetRotation18 = OffsetRotation19 =
-            OffsetRotation20 = OffsetRotation54 = Quaternion.identity;
-
-            // Weights default to disabled
-            Weight0 = Weight1 = Weight2 = Weight3 = Weight4 =
-            Weight5 = Weight6 = Weight7 = Weight8 = Weight9 =
-            Weight10 = Weight11 = Weight12 = Weight13 = Weight14 =
-            Weight15 = Weight16 = Weight17 = Weight18 = Weight19 =
-            Weight20 = Weight54 = false;
-        }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetTargetPosition(int idx, in Vector3 v)
         {
@@ -758,7 +605,7 @@ p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
 p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
 p20, p54;
 
-        public Vector4 targetRotationHead, targetChestRotation,
+        public Quaternion targetRotationHead, targetChestRotation,
 targetRotationLeftLowerLeg,
 targetRotationRightLowerLeg,
 targetRotationHips, offsetRotationHips,
@@ -899,31 +746,25 @@ w20, w54;
         public float TposeShoulderToHandLeft, TposeShoulderToHandRight;
         public float TposeClavicleLenLeft, TposeClavicleLenRight;
         public float TposeShoulderToElbowLeft, TposeShoulderToElbowRight;
-        public float jobWeight;
         public BasisPoseStream Stream;
 
         public void Execute() => ProcessAnimation(Stream);
 
         public void ProcessAnimation(BasisPoseStream stream)
         {
-            float w = jobWeight;
-            if (w <= 0f)
-            {
-                return;
-            }
 
             // Per-frame reads so FBT recalibration (which updates these on the constraint data)
             // reaches the running job; the originals were copied once at job build (issue #531).
-            targetOffsetHead = V4ToQuat(offsetRotationHead);
-            targetOffsetChest = V4ToQuat(offsetRotationChest);
-            targetOffsetLeftFoot = V4ToQuat(offsetRotationLeftFoot);
-            targetOffsetRightFoot = V4ToQuat(offsetRotationRightFoot);
-            targetOffsetLeftToe = V4ToQuat(offsetRotationLeftToe);
-            targetOffsetRightToe = V4ToQuat(offsetRotationRightToe);
-            targetOffsetLeftShoulder = V4ToQuat(offsetRotationLeftShoulder);
-            targetOffsetRightShoulder = V4ToQuat(offsetRotationRightShoulder);
-            targetOffsetLeftHand = V4ToQuat(offsetRotationLeftHand);
-            targetOffsetRightHand = V4ToQuat(offsetRotationRightHand);
+            targetOffsetHead = offsetRotationHead;
+            targetOffsetChest = offsetRotationChest;
+            targetOffsetLeftFoot = offsetRotationLeftFoot;
+            targetOffsetRightFoot = offsetRotationRightFoot;
+            targetOffsetLeftToe = offsetRotationLeftToe;
+            targetOffsetRightToe = offsetRotationRightToe;
+            targetOffsetLeftShoulder = offsetRotationLeftShoulder;
+            targetOffsetRightShoulder = offsetRotationRightShoulder;
+            targetOffsetLeftHand = offsetRotationLeftHand;
+            targetOffsetRightHand = offsetRotationRightHand;
 
             // 1) Spine: hips + chest/neck/head chain
             SolveSpine(stream);
@@ -1023,10 +864,10 @@ w20, w54;
             Vector3 headTargetPos = targetPositionHead;
             Vector3 hipsTargetPos = targetPositionHips;
 
-            Quaternion headTargetRot = V4ToQuat(targetRotationHead);
-            Quaternion hipsTargetRot = V4ToQuat(targetRotationHips);
-            Quaternion offsetHips = V4ToQuat(offsetRotationHips);
-            Quaternion chestTargetRot = V4ToQuat(targetChestRotation);
+            Quaternion headTargetRot = targetRotationHead;
+            Quaternion hipsTargetRot = targetRotationHips;
+            Quaternion offsetHips = offsetRotationHips;
+            Quaternion chestTargetRot = targetChestRotation;
 
             Quaternion hipDesired = hipsTargetRot * offsetHips;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
@@ -1101,7 +942,7 @@ w20, w54;
                 HandleChest.SetRotation(stream, clampedChestRot);
 
                 Vector3 headPos = targetPositionHead;
-                Quaternion headRot = V4ToQuat(targetRotationHead);
+                Quaternion headRot = targetRotationHead;
 
                 DistributeSpineBend(stream, headPos);
                 BiasSpineTowardChest(stream);
@@ -1111,7 +952,7 @@ w20, w54;
             else if (HandleChest.IsValid(stream) && HandleNeck.IsValid(stream) && HandleHead.IsValid(stream))
             {
                 Vector3 headPos = targetPositionHead;
-                Quaternion headRot = V4ToQuat(targetRotationHead);
+                Quaternion headRot = targetRotationHead;
 
                 DistributeSpineBend(stream, headPos);
                 ApplyArmSwingChestFollow(stream);
@@ -1461,7 +1302,7 @@ w20, w54;
             }
 
             Quaternion hipsRot = HandleHips.GetRotation(stream);
-            Quaternion headWorldRot = V4ToQuat(targetRotationHead) * targetOffsetHead;
+            Quaternion headWorldRot = targetRotationHead * targetOffsetHead;
 
             // ==========================================================================================
             // THE SPINE IS CUED OFF THE NECK, NOT THE HEAD. This is the fix for "looking down forces chest
@@ -1504,7 +1345,7 @@ w20, w54;
             // knob, small by default, and it costs nothing with a chest tracker (the pitch weight is zeroed).
             Vector3 spineCue = Vector3.Lerp(neckCue, headTargetPos, Mathf.Clamp01(spineGazeFollow));
 
-            Quaternion hipsBind = V4ToQuat(offsetRotationHips);
+            Quaternion hipsBind = offsetRotationHips;
 
             BasisSpineBendInput input;
             input.HipsRot = hipsRot;
@@ -1512,7 +1353,7 @@ w20, w54;
             input.ChestPos = HandleChest.GetPosition(stream);
             input.SmoothedHead = ApplyChestSpring(stream, spineCue);
             input.HipsBind = hipsBind;
-            input.HeadTargetRot = V4ToQuat(targetRotationHead);
+            input.HeadTargetRot = targetRotationHead;
             input.SpineMaxForwardDeg = spineMaxForwardDeg;
             input.SpineMaxBackwardDeg = spineMaxBackwardDeg;
             input.SpineMaxLateralDeg = spineMaxLateralDeg;
@@ -1638,7 +1479,7 @@ w20, w54;
             input.HeadTargetPos = headTargetPos;
             input.HipsPos = hipsPos;
             input.HipsRot = hipsRot;
-            input.Bind = V4ToQuat(offsetRotationHips);
+            input.Bind = offsetRotationHips;
             input.PlayerUp = playerUpDir;
             input.Factor = moveBodyBackWhenCrouching;
             input.RestDist = MinHeadSpineHeight;
@@ -1683,7 +1524,7 @@ w20, w54;
             input.ExtremeChestDownLookUp = lordosisExtremeChestDownLookUp;
             input.PitchGainDeg = Mathf.Max(0f, lordosisPitchGainDeg);
             input.ReferenceUp = referenceUp;
-            input.HeadTargetRot = V4ToQuat(targetRotationHead);
+            input.HeadTargetRot = targetRotationHead;
             input.HasUpperChest = HandleUpperChest.IsValid(stream);
 
             BasisCervicalSolveCore.Solve(input, out BasisCervicalResult result);
@@ -1805,7 +1646,7 @@ w20, w54;
             // Bind-cancelled hips frame (hipsRot * inv(bind)): the hand-midpoint is decomposed into yaw/pitch
             // in the body's ANATOMICAL right/forward, and the delta re-applied about the same axes. In the raw
             // hips-bone frame a rolled bind turned the forward-follow into a chest roll. No-op at identity bind.
-            Quaternion hipsAnat = HandleHips.GetRotation(stream) * Quaternion.Inverse(V4ToQuat(offsetRotationHips));
+            Quaternion hipsAnat = HandleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips);
             Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
             Vector3 localMid = invHipsAnat * (handMid - hipsPos);
 
@@ -1881,7 +1722,7 @@ w20, w54;
                 return;
             }
 
-            Quaternion trackerRot = V4ToQuat(isLeft ? TargetRotationLeftShoulder : TargetRotationRightShoulder);
+            Quaternion trackerRot = isLeft ? TargetRotationLeftShoulder : TargetRotationRightShoulder;
 
             BasisShoulderSolveInput input;
             input.ShoulderPos = shoulderHandle.GetPosition(stream);
@@ -2029,7 +1870,7 @@ w20, w54;
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
-        public void ApplyRotation(BasisPoseStream stream, bool enabledProp, BasisBoneHandle handle, Vector4 targetRotProp, Quaternion RotationOffset)
+        public void ApplyRotation(BasisPoseStream stream, bool enabledProp, BasisBoneHandle handle, Quaternion targetRotProp, Quaternion RotationOffset)
         {
             if (!handle.IsValid(stream))
             {
@@ -2038,7 +1879,7 @@ w20, w54;
 
             if (enabledProp)
             {
-                handle.SetRotation(stream, V4ToQuat(targetRotProp) * RotationOffset);
+                handle.SetRotation(stream, targetRotProp * RotationOffset);
             }
         }
         public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset)
@@ -2338,8 +2179,7 @@ w20, w54;
             root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
             tip.SetRotation(stream, result.TipRotation);
         }
-        public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Vector4 targetRotProp, Vector3 hintPosProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, int legSlot)
+        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, int legSlot)
         {
             float posWeight = enabledProp;
             if (posWeight <= 0f)
@@ -2356,7 +2196,7 @@ w20, w54;
             Quaternion origTipRot = tip.GetRotation(stream);
 
             // Solve at full strength toward the IK target
-            Quaternion tRot = V4ToQuat(targetRotProp);
+            Quaternion tRot = targetRotProp;
             // Zero-quaternion target = position-only foot IK: keep the foot's pre-solve (animation) rotation,
             // which is already correct, instead of applying target*offset. Sidesteps the foot offset entirely.
             //
@@ -2474,7 +2314,7 @@ w20, w54;
             }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Apply(BasisPoseStream stream, BasisBoneHandle h, Vector3 p, Vector4 r, Vector4 o, bool sw)
+        public void Apply(BasisPoseStream stream, BasisBoneHandle h, Vector3 p, Quaternion r, Quaternion o, bool sw)
         {
             if (h.IsValid(stream))
             {
@@ -2482,8 +2322,8 @@ w20, w54;
                 {
 
                     Vector3 targetPos = p;
-                    Quaternion targetRot = V4ToQuat(r);
-                    Quaternion offsetRot = V4ToQuat(o);
+                    Quaternion targetRot = r;
+                    Quaternion offsetRot = o;
                     Quaternion finalRot = targetRot * offsetRot;
 
                     h.SetPosition(stream, targetPos);
@@ -2572,7 +2412,7 @@ w20, w54;
             tip.SetPosition(stream, preFoot);
             tip.SetRotation(stream, preFootRot);
         }
-        public void SolveHand(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Vector4 targetRotProp, Vector3 hintPosProp, Vector4 hintRotProp, bool hintWeightProp, Quaternion targetOffset, BasisBoneHandle chestStart, BasisBoneHandle chestEnd, float chestRadius, float collisionSkin, bool collisionsEnabled, float handRadius, float handSkin, bool protectElbow, bool collideTrackedElbow, Vector3 bodyRight, int swingSlot)
+        public void SolveHand(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, Quaternion hintRotProp, bool hintWeightProp, Quaternion targetOffset, BasisBoneHandle chestStart, BasisBoneHandle chestEnd, float chestRadius, float collisionSkin, bool collisionsEnabled, float handRadius, float handSkin, bool protectElbow, bool collideTrackedElbow, Vector3 bodyRight, int swingSlot)
         {
             // Written `!(w > 0)` so a NaN weight takes the reject branch rather than solving on garbage.
             float weight = enabledProp;
@@ -2593,9 +2433,9 @@ w20, w54;
 
             // Read inputs
             Vector3 tgtPos = targetPosProp;
-            Quaternion tgtRot = V4ToQuat(targetRotProp);
+            Quaternion tgtRot = targetRotProp;
             Vector3 hintPos = hintPosProp;
-            Quaternion hintRot = V4ToQuat(hintRotProp);
+            Quaternion hintRot = hintRotProp;
 
             var target = new BasisAffineTransform(tgtPos, tgtRot);
             var hint = new BasisAffineTransform(hintPos, hintRot);
@@ -2748,7 +2588,6 @@ w20, w54;
     }
     public static class BasisFullBodyJobBinder
     {
-        public static Vector4 V4(Quaternion q) => new Vector4(q.x, q.y, q.z, q.w);
 
         public static void Sync(ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
@@ -2767,20 +2606,20 @@ w20, w54;
             job.hintPositionLeftHand = data.LeftLowerArmPosition;
             job.targetPositionRightHand = data.PositionRightHand;
             job.hintPositionRightHand = data.RightLowerArmPosition;
-            job.targetRotationHips = BasisFullBodyJobBinder.V4(data.RotationHips);
-            job.offsetRotationHips = BasisFullBodyJobBinder.V4(data.OffsetRotationHips);
-            job.targetRotationHead = BasisFullBodyJobBinder.V4(data.RotationHead);
-            job.targetChestRotation = BasisFullBodyJobBinder.V4(data.ChestRotation);
-            job.TargetRotationLeftShoulder = BasisFullBodyJobBinder.V4(data.LeftShoulderRotation);
-            job.TargetRotationRightShoulder = BasisFullBodyJobBinder.V4(data.RightShoulderRotation);
-            job.targetRotationLeftLowerLeg = BasisFullBodyJobBinder.V4(data.LeftFootRotation);
-            job.targetRotationRightLowerLeg = BasisFullBodyJobBinder.V4(data.RightFootRotation);
-            job.leftDrivenTargetRot = BasisFullBodyJobBinder.V4(data.OutGoingLeftToeRotation);
-            job.rightDrivenTargetRot = BasisFullBodyJobBinder.V4(data.OutGoingRightToeRotation);
-            job.targetRotationLeftHand = BasisFullBodyJobBinder.V4(data.RotationLeftHand);
-            job.hintRotationLeftHand = BasisFullBodyJobBinder.V4(data.LeftLowerArmRotation);
-            job.targetRotationRightHand = BasisFullBodyJobBinder.V4(data.RotationRightHand);
-            job.hintRotationRightHand = BasisFullBodyJobBinder.V4(data.RightLowerArmRotation);
+            job.targetRotationHips = data.RotationHips;
+            job.offsetRotationHips = data.OffsetRotationHips;
+            job.targetRotationHead = data.RotationHead;
+            job.targetChestRotation = data.ChestRotation;
+            job.TargetRotationLeftShoulder = data.LeftShoulderRotation;
+            job.TargetRotationRightShoulder = data.RightShoulderRotation;
+            job.targetRotationLeftLowerLeg = data.LeftFootRotation;
+            job.targetRotationRightLowerLeg = data.RightFootRotation;
+            job.leftDrivenTargetRot = data.OutGoingLeftToeRotation;
+            job.rightDrivenTargetRot = data.OutGoingRightToeRotation;
+            job.targetRotationLeftHand = data.RotationLeftHand;
+            job.hintRotationLeftHand = data.LeftLowerArmRotation;
+            job.targetRotationRightHand = data.RotationRightHand;
+            job.hintRotationRightHand = data.RightLowerArmRotation;
             job.enabledSpineIK = data.EnabledSpineIK;
             job.HasChestTracker = data.WeightChest;
             job.hasHipsTracker = data.HasHipsTracker;
@@ -2808,16 +2647,16 @@ w20, w54;
             job.MaxChestDeltaProperty = data.MaxChestDelta;
             job.enabledLeftShoulder = data.EnabledLeftShoulder;
             job.enabledRightShoulder = data.EnabledRightShoulder;
-            job.offsetRotationLeftShoulder = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftShoulder);
-            job.offsetRotationRightShoulder = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightShoulder);
-            job.offsetRotationHead = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationHead);
-            job.offsetRotationChest = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationChest);
-            job.offsetRotationLeftToe = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftToe);
-            job.offsetRotationRightToe = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightToe);
-            job.offsetRotationLeftFoot = BasisFullBodyJobBinder.V4(data.M_CalibrationLeftFootRotation);
-            job.offsetRotationRightFoot = BasisFullBodyJobBinder.V4(data.M_CalibrationRightFootRotation);
-            job.offsetRotationLeftHand = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftHand);
-            job.offsetRotationRightHand = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightHand);
+            job.offsetRotationLeftShoulder = data.m_CalibratedRotationLeftShoulder;
+            job.offsetRotationRightShoulder = data.m_CalibratedRotationRightShoulder;
+            job.offsetRotationHead = data.m_CalibratedRotationHead;
+            job.offsetRotationChest = data.m_CalibratedRotationChest;
+            job.offsetRotationLeftToe = data.m_CalibratedRotationLeftToe;
+            job.offsetRotationRightToe = data.m_CalibratedRotationRightToe;
+            job.offsetRotationLeftFoot = data.M_CalibrationLeftFootRotation;
+            job.offsetRotationRightFoot = data.M_CalibrationRightFootRotation;
+            job.offsetRotationLeftHand = data.m_CalibratedRotationLeftHand;
+            job.offsetRotationRightHand = data.m_CalibratedRotationRightHand;
             job.MinHeadSpineHeight = data.minHeadSpineHeight;
             job.shoulderSolveEnabled = data.ShoulderSolveEnabled;
             job.shoulderShrugEnabled = data.ShoulderShrugEnabled;
@@ -2895,50 +2734,50 @@ w20, w54;
             job.p19 = data.TargetPosition19;
             job.p20 = data.TargetPosition20;
             job.p54 = data.TargetPosition54;
-            job.r0 = BasisFullBodyJobBinder.V4(data.TargetRotation0);
-            job.r1 = BasisFullBodyJobBinder.V4(data.TargetRotation1);
-            job.r2 = BasisFullBodyJobBinder.V4(data.TargetRotation2);
-            job.r3 = BasisFullBodyJobBinder.V4(data.TargetRotation3);
-            job.r4 = BasisFullBodyJobBinder.V4(data.TargetRotation4);
-            job.r5 = BasisFullBodyJobBinder.V4(data.TargetRotation5);
-            job.r6 = BasisFullBodyJobBinder.V4(data.TargetRotation6);
-            job.r7 = BasisFullBodyJobBinder.V4(data.TargetRotation7);
-            job.r8 = BasisFullBodyJobBinder.V4(data.TargetRotation8);
-            job.r9 = BasisFullBodyJobBinder.V4(data.TargetRotation9);
-            job.r10 = BasisFullBodyJobBinder.V4(data.TargetRotation10);
-            job.r11 = BasisFullBodyJobBinder.V4(data.TargetRotation11);
-            job.r12 = BasisFullBodyJobBinder.V4(data.TargetRotation12);
-            job.r13 = BasisFullBodyJobBinder.V4(data.TargetRotation13);
-            job.r14 = BasisFullBodyJobBinder.V4(data.TargetRotation14);
-            job.r15 = BasisFullBodyJobBinder.V4(data.TargetRotation15);
-            job.r16 = BasisFullBodyJobBinder.V4(data.TargetRotation16);
-            job.r17 = BasisFullBodyJobBinder.V4(data.TargetRotation17);
-            job.r18 = BasisFullBodyJobBinder.V4(data.TargetRotation18);
-            job.r19 = BasisFullBodyJobBinder.V4(data.TargetRotation19);
-            job.r20 = BasisFullBodyJobBinder.V4(data.TargetRotation20);
-            job.r54 = BasisFullBodyJobBinder.V4(data.TargetRotation54);
-            job.o0 = BasisFullBodyJobBinder.V4(data.OffsetRotation0);
-            job.o1 = BasisFullBodyJobBinder.V4(data.OffsetRotation1);
-            job.o2 = BasisFullBodyJobBinder.V4(data.OffsetRotation2);
-            job.o3 = BasisFullBodyJobBinder.V4(data.OffsetRotation3);
-            job.o4 = BasisFullBodyJobBinder.V4(data.OffsetRotation4);
-            job.o5 = BasisFullBodyJobBinder.V4(data.OffsetRotation5);
-            job.o6 = BasisFullBodyJobBinder.V4(data.OffsetRotation6);
-            job.o7 = BasisFullBodyJobBinder.V4(data.OffsetRotation7);
-            job.o8 = BasisFullBodyJobBinder.V4(data.OffsetRotation8);
-            job.o9 = BasisFullBodyJobBinder.V4(data.OffsetRotation9);
-            job.o10 = BasisFullBodyJobBinder.V4(data.OffsetRotation10);
-            job.o11 = BasisFullBodyJobBinder.V4(data.OffsetRotation11);
-            job.o12 = BasisFullBodyJobBinder.V4(data.OffsetRotation12);
-            job.o13 = BasisFullBodyJobBinder.V4(data.OffsetRotation13);
-            job.o14 = BasisFullBodyJobBinder.V4(data.OffsetRotation14);
-            job.o15 = BasisFullBodyJobBinder.V4(data.OffsetRotation15);
-            job.o16 = BasisFullBodyJobBinder.V4(data.OffsetRotation16);
-            job.o17 = BasisFullBodyJobBinder.V4(data.OffsetRotation17);
-            job.o18 = BasisFullBodyJobBinder.V4(data.OffsetRotation18);
-            job.o19 = BasisFullBodyJobBinder.V4(data.OffsetRotation19);
-            job.o20 = BasisFullBodyJobBinder.V4(data.OffsetRotation20);
-            job.o54 = BasisFullBodyJobBinder.V4(data.OffsetRotation54);
+            job.r0 = data.TargetRotation0;
+            job.r1 = data.TargetRotation1;
+            job.r2 = data.TargetRotation2;
+            job.r3 = data.TargetRotation3;
+            job.r4 = data.TargetRotation4;
+            job.r5 = data.TargetRotation5;
+            job.r6 = data.TargetRotation6;
+            job.r7 = data.TargetRotation7;
+            job.r8 = data.TargetRotation8;
+            job.r9 = data.TargetRotation9;
+            job.r10 = data.TargetRotation10;
+            job.r11 = data.TargetRotation11;
+            job.r12 = data.TargetRotation12;
+            job.r13 = data.TargetRotation13;
+            job.r14 = data.TargetRotation14;
+            job.r15 = data.TargetRotation15;
+            job.r16 = data.TargetRotation16;
+            job.r17 = data.TargetRotation17;
+            job.r18 = data.TargetRotation18;
+            job.r19 = data.TargetRotation19;
+            job.r20 = data.TargetRotation20;
+            job.r54 = data.TargetRotation54;
+            job.o0 = data.OffsetRotation0;
+            job.o1 = data.OffsetRotation1;
+            job.o2 = data.OffsetRotation2;
+            job.o3 = data.OffsetRotation3;
+            job.o4 = data.OffsetRotation4;
+            job.o5 = data.OffsetRotation5;
+            job.o6 = data.OffsetRotation6;
+            job.o7 = data.OffsetRotation7;
+            job.o8 = data.OffsetRotation8;
+            job.o9 = data.OffsetRotation9;
+            job.o10 = data.OffsetRotation10;
+            job.o11 = data.OffsetRotation11;
+            job.o12 = data.OffsetRotation12;
+            job.o13 = data.OffsetRotation13;
+            job.o14 = data.OffsetRotation14;
+            job.o15 = data.OffsetRotation15;
+            job.o16 = data.OffsetRotation16;
+            job.o17 = data.OffsetRotation17;
+            job.o18 = data.OffsetRotation18;
+            job.o19 = data.OffsetRotation19;
+            job.o20 = data.OffsetRotation20;
+            job.o54 = data.OffsetRotation54;
             job.w0 = data.Weight0;
             job.w1 = data.Weight1;
             job.w2 = data.Weight2;
@@ -3010,20 +2849,20 @@ w20, w54;
                 hintPositionLeftHand = data.LeftLowerArmPosition,
                 targetPositionRightHand = data.PositionRightHand,
                 hintPositionRightHand = data.RightLowerArmPosition,
-                targetRotationHips = BasisFullBodyJobBinder.V4(data.RotationHips),
-                offsetRotationHips = BasisFullBodyJobBinder.V4(data.OffsetRotationHips),
-                targetRotationHead = BasisFullBodyJobBinder.V4(data.RotationHead),
-                targetChestRotation = BasisFullBodyJobBinder.V4(data.ChestRotation),
-                TargetRotationLeftShoulder = BasisFullBodyJobBinder.V4(data.LeftShoulderRotation),
-                TargetRotationRightShoulder = BasisFullBodyJobBinder.V4(data.RightShoulderRotation),
-                targetRotationLeftLowerLeg = BasisFullBodyJobBinder.V4(data.LeftFootRotation),
-                targetRotationRightLowerLeg = BasisFullBodyJobBinder.V4(data.RightFootRotation),
-                leftDrivenTargetRot = BasisFullBodyJobBinder.V4(data.OutGoingLeftToeRotation),
-                rightDrivenTargetRot = BasisFullBodyJobBinder.V4(data.OutGoingRightToeRotation),
-                targetRotationLeftHand = BasisFullBodyJobBinder.V4(data.RotationLeftHand),
-                hintRotationLeftHand = BasisFullBodyJobBinder.V4(data.LeftLowerArmRotation),
-                targetRotationRightHand = BasisFullBodyJobBinder.V4(data.RotationRightHand),
-                hintRotationRightHand = BasisFullBodyJobBinder.V4(data.RightLowerArmRotation),
+                targetRotationHips = data.RotationHips,
+                offsetRotationHips = data.OffsetRotationHips,
+                targetRotationHead = data.RotationHead,
+                targetChestRotation = data.ChestRotation,
+                TargetRotationLeftShoulder = data.LeftShoulderRotation,
+                TargetRotationRightShoulder = data.RightShoulderRotation,
+                targetRotationLeftLowerLeg = data.LeftFootRotation,
+                targetRotationRightLowerLeg = data.RightFootRotation,
+                leftDrivenTargetRot = data.OutGoingLeftToeRotation,
+                rightDrivenTargetRot = data.OutGoingRightToeRotation,
+                targetRotationLeftHand = data.RotationLeftHand,
+                hintRotationLeftHand = data.LeftLowerArmRotation,
+                targetRotationRightHand = data.RotationRightHand,
+                hintRotationRightHand = data.RightLowerArmRotation,
                 enabledSpineIK = data.EnabledSpineIK,
                 HasChestTracker = data.WeightChest,
                 hasHipsTracker = data.HasHipsTracker,
@@ -3051,16 +2890,16 @@ w20, w54;
                 MaxChestDeltaProperty = data.MaxChestDelta,
                 enabledLeftShoulder = data.EnabledLeftShoulder,
                 enabledRightShoulder = data.EnabledRightShoulder,
-                offsetRotationLeftShoulder = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftShoulder),
-                offsetRotationRightShoulder = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightShoulder),
-                offsetRotationHead = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationHead),
-                offsetRotationChest = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationChest),
-                offsetRotationLeftToe = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftToe),
-                offsetRotationRightToe = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightToe),
-                offsetRotationLeftFoot = BasisFullBodyJobBinder.V4(data.M_CalibrationLeftFootRotation),
-                offsetRotationRightFoot = BasisFullBodyJobBinder.V4(data.M_CalibrationRightFootRotation),
-                offsetRotationLeftHand = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationLeftHand),
-                offsetRotationRightHand = BasisFullBodyJobBinder.V4(data.m_CalibratedRotationRightHand),
+                offsetRotationLeftShoulder = data.m_CalibratedRotationLeftShoulder,
+                offsetRotationRightShoulder = data.m_CalibratedRotationRightShoulder,
+                offsetRotationHead = data.m_CalibratedRotationHead,
+                offsetRotationChest = data.m_CalibratedRotationChest,
+                offsetRotationLeftToe = data.m_CalibratedRotationLeftToe,
+                offsetRotationRightToe = data.m_CalibratedRotationRightToe,
+                offsetRotationLeftFoot = data.M_CalibrationLeftFootRotation,
+                offsetRotationRightFoot = data.M_CalibrationRightFootRotation,
+                offsetRotationLeftHand = data.m_CalibratedRotationLeftHand,
+                offsetRotationRightHand = data.m_CalibratedRotationRightHand,
                 MinHeadSpineHeight = data.minHeadSpineHeight,
 
                 // Shoulder solve bindings
@@ -3170,52 +3009,52 @@ w20, w54;
             job.p19 = data.TargetPosition19;
             job.p20 = data.TargetPosition20;
             job.p54 = data.TargetPosition54;
-            // Bind rotations (as Vector4)
-            job.r0 = BasisFullBodyJobBinder.V4(data.TargetRotation0);
-            job.r1 = BasisFullBodyJobBinder.V4(data.TargetRotation1);
-            job.r2 = BasisFullBodyJobBinder.V4(data.TargetRotation2);
-            job.r3 = BasisFullBodyJobBinder.V4(data.TargetRotation3);
-            job.r4 = BasisFullBodyJobBinder.V4(data.TargetRotation4);
-            job.r5 = BasisFullBodyJobBinder.V4(data.TargetRotation5);
-            job.r6 = BasisFullBodyJobBinder.V4(data.TargetRotation6);
-            job.r7 = BasisFullBodyJobBinder.V4(data.TargetRotation7);
-            job.r8 = BasisFullBodyJobBinder.V4(data.TargetRotation8);
-            job.r9 = BasisFullBodyJobBinder.V4(data.TargetRotation9);
-            job.r10 = BasisFullBodyJobBinder.V4(data.TargetRotation10);
-            job.r11 = BasisFullBodyJobBinder.V4(data.TargetRotation11);
-            job.r12 = BasisFullBodyJobBinder.V4(data.TargetRotation12);
-            job.r13 = BasisFullBodyJobBinder.V4(data.TargetRotation13);
-            job.r14 = BasisFullBodyJobBinder.V4(data.TargetRotation14);
-            job.r15 = BasisFullBodyJobBinder.V4(data.TargetRotation15);
-            job.r16 = BasisFullBodyJobBinder.V4(data.TargetRotation16);
-            job.r17 = BasisFullBodyJobBinder.V4(data.TargetRotation17);
-            job.r18 = BasisFullBodyJobBinder.V4(data.TargetRotation18);
-            job.r19 = BasisFullBodyJobBinder.V4(data.TargetRotation19);
-            job.r20 = BasisFullBodyJobBinder.V4(data.TargetRotation20);
-            job.r54 = BasisFullBodyJobBinder.V4(data.TargetRotation54);
+            // Bind rotations (as Quaternion)
+            job.r0 = data.TargetRotation0;
+            job.r1 = data.TargetRotation1;
+            job.r2 = data.TargetRotation2;
+            job.r3 = data.TargetRotation3;
+            job.r4 = data.TargetRotation4;
+            job.r5 = data.TargetRotation5;
+            job.r6 = data.TargetRotation6;
+            job.r7 = data.TargetRotation7;
+            job.r8 = data.TargetRotation8;
+            job.r9 = data.TargetRotation9;
+            job.r10 = data.TargetRotation10;
+            job.r11 = data.TargetRotation11;
+            job.r12 = data.TargetRotation12;
+            job.r13 = data.TargetRotation13;
+            job.r14 = data.TargetRotation14;
+            job.r15 = data.TargetRotation15;
+            job.r16 = data.TargetRotation16;
+            job.r17 = data.TargetRotation17;
+            job.r18 = data.TargetRotation18;
+            job.r19 = data.TargetRotation19;
+            job.r20 = data.TargetRotation20;
+            job.r54 = data.TargetRotation54;
             // Bind offsets
-            job.o0 = BasisFullBodyJobBinder.V4(data.OffsetRotation0);
-            job.o1 = BasisFullBodyJobBinder.V4(data.OffsetRotation1);
-            job.o2 = BasisFullBodyJobBinder.V4(data.OffsetRotation2);
-            job.o3 = BasisFullBodyJobBinder.V4(data.OffsetRotation3);
-            job.o4 = BasisFullBodyJobBinder.V4(data.OffsetRotation4);
-            job.o5 = BasisFullBodyJobBinder.V4(data.OffsetRotation5);
-            job.o6 = BasisFullBodyJobBinder.V4(data.OffsetRotation6);
-            job.o7 = BasisFullBodyJobBinder.V4(data.OffsetRotation7);
-            job.o8 = BasisFullBodyJobBinder.V4(data.OffsetRotation8);
-            job.o9 = BasisFullBodyJobBinder.V4(data.OffsetRotation9);
-            job.o10 = BasisFullBodyJobBinder.V4(data.OffsetRotation10);
-            job.o11 = BasisFullBodyJobBinder.V4(data.OffsetRotation11);
-            job.o12 = BasisFullBodyJobBinder.V4(data.OffsetRotation12);
-            job.o13 = BasisFullBodyJobBinder.V4(data.OffsetRotation13);
-            job.o14 = BasisFullBodyJobBinder.V4(data.OffsetRotation14);
-            job.o15 = BasisFullBodyJobBinder.V4(data.OffsetRotation15);
-            job.o16 = BasisFullBodyJobBinder.V4(data.OffsetRotation16);
-            job.o17 = BasisFullBodyJobBinder.V4(data.OffsetRotation17);
-            job.o18 = BasisFullBodyJobBinder.V4(data.OffsetRotation18);
-            job.o19 = BasisFullBodyJobBinder.V4(data.OffsetRotation19);
-            job.o20 = BasisFullBodyJobBinder.V4(data.OffsetRotation20);
-            job.o54 = BasisFullBodyJobBinder.V4(data.OffsetRotation54);
+            job.o0 = data.OffsetRotation0;
+            job.o1 = data.OffsetRotation1;
+            job.o2 = data.OffsetRotation2;
+            job.o3 = data.OffsetRotation3;
+            job.o4 = data.OffsetRotation4;
+            job.o5 = data.OffsetRotation5;
+            job.o6 = data.OffsetRotation6;
+            job.o7 = data.OffsetRotation7;
+            job.o8 = data.OffsetRotation8;
+            job.o9 = data.OffsetRotation9;
+            job.o10 = data.OffsetRotation10;
+            job.o11 = data.OffsetRotation11;
+            job.o12 = data.OffsetRotation12;
+            job.o13 = data.OffsetRotation13;
+            job.o14 = data.OffsetRotation14;
+            job.o15 = data.OffsetRotation15;
+            job.o16 = data.OffsetRotation16;
+            job.o17 = data.OffsetRotation17;
+            job.o18 = data.OffsetRotation18;
+            job.o19 = data.OffsetRotation19;
+            job.o20 = data.OffsetRotation20;
+            job.o54 = data.OffsetRotation54;
             // Bind per-slot weights
             job.w0 = data.Weight0;
             job.w1 = data.Weight1;

@@ -1664,7 +1664,6 @@ namespace Basis.Scripts.Drivers
             BasisFullBodyJobBinder.Sync(ref IKJob, ref BasisFullIKConstraint.DataRef);
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;
-            IKJob.jobWeight = 1f;
             IKJob.Run();
 
             PoseSkeleton.ScheduleScatter().Complete();

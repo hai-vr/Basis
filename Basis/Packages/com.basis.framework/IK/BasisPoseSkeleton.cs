@@ -220,6 +220,10 @@ namespace UnityEngine.Animations.Rigging
 
         public Transform[] DebugNodes => _ordered;
 
+        public float BindLengthOf(int index) => Stream.BindLength.IsCreated ? Stream.BindLength[index] : 0f;
+
+        public bool TranslationFreeOf(int index) => Stream.TranslationFree.IsCreated && Stream.TranslationFree[index] != 0;
+
         public bool IsWritable(int index)
         {
             for (int i = 0; i < _writeIndices.Length; i++)

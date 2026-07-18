@@ -107,8 +107,6 @@ namespace UnityEngine.Animations.Rigging
         public float deltaTime;
         public int Count;
 
-        public bool isValid => Count > 0 && LocalRotation.IsCreated;
-
         public unsafe void GetWorld(int index, out float3 position, out quaternion rotation, out float3 scale)
         {
             int* chain = stackalloc int[MaxDepth];
