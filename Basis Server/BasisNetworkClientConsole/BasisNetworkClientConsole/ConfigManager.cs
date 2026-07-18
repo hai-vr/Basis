@@ -1,4 +1,4 @@
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 
 namespace Basis.Config
 {
@@ -15,6 +15,22 @@ namespace Basis.Config
 
         public static bool UseRandomAvatarFromKeyStore = true;
         public static string AvatarKeyStorePath = "";
+
+        // Report a mix of real client platforms instead of "Headless" for every simulated client.
+        // Off by default: a load client honestly IS headless, and reporting otherwise makes the user
+        // list lie about what is connected. Turn it on when the point of the run is measuring what
+        // per-player metadata costs a real mixed crowd, since 1000 identical platform strings compress
+        // away across the join fill in a way a real crowd does not.
+        public static bool SimulateRealisticPlatforms = false;
+
+        // On by default: real players are calibrated, so identity body-fit scales are the unrealistic
+        // case. This also keeps the quantizer exercised across its range rather than at a single value.
+        public static bool SimulateBodyFit = true;
+
+        // Radius (metres) of the disc simulated clients spawn across. The server tiers avatar quality
+        // and send interval by pair distance, so spawning everyone on one spot measures a worst case
+        // no real instance hits. 0 keeps the legacy sub-metre cluster.
+        public static float SpawnRadiusMeters = 40f;
 
         private static readonly object _lock = new();
         static XElement? Child(XElement parent, string name) =>
@@ -72,6 +88,26 @@ namespace Basis.Config
             return value;
         }
 
+        static float ReadFloat(XElement root, string name, float fallback)
+        {
+            var el = Child(root, name);
+            if (el == null)
+            {
+                BNL.Log($"Missing <{name}>, using fallback {fallback}.");
+                return fallback;
+            }
+
+            if (!float.TryParse(el.Value.Trim(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var value))
+            {
+                BNL.Log($"Invalid <{name}> value '{el.Value}', using fallback {fallback}.");
+                return fallback;
+            }
+
+            BNL.Log($"Loaded {name}: {value}");
+            return value;
+        }
+
         // ---------------- MAIN ENTRY ----------------
 
         public static void LoadOrCreateConfigXml(string filePath)
@@ -109,7 +145,13 @@ namespace Basis.Config
                                 new XComment(" When true, each fake client advertises a random avatar from the Basis client's saved avatars (ItemKeyStore.json, Mode = Avatar) so load tests cover varied avatar types. When false, every client uses the single AvatarUrl/AvatarPassword/AvatarLoadMode above. bool: true or false. "),
                                 new XElement("UseRandomAvatarFromKeyStore", UseRandomAvatarFromKeyStore),
                                 new XComment(" Path to the avatar keystore (ItemKeyStore.json) read when UseRandomAvatarFromKeyStore is true. Leave empty to auto-detect the local Basis client's persistentDataPath. string. "),
-                                new XElement("AvatarKeyStorePath", AvatarKeyStorePath)
+                                new XElement("AvatarKeyStorePath", AvatarKeyStorePath),
+                                new XComment(" Report a spread of real platforms (WindowsPlayer/Android/etc) instead of Headless. Off by default (a load client really is headless); turn on to measure what a real mixed crowd costs in per-player metadata. bool. "),
+                                new XElement("SimulateRealisticPlatforms", SimulateRealisticPlatforms),
+                                new XComment(" Send per-client body-fit scales instead of identity, so the avatar record and join fill carry realistic proportions. bool. "),
+                                new XElement("SimulateBodyFit", SimulateBodyFit),
+                                new XComment(" Radius in metres that simulated clients spawn across. The server reduces avatar quality and send rate by pair distance, so a spread-out crowd is what resting network usage actually looks like; 0 clusters everyone at spawn (worst case). float. "),
+                                new XElement("SpawnRadiusMeters", SpawnRadiusMeters)
                             )
                         );
 
@@ -160,6 +202,9 @@ namespace Basis.Config
                     AvatarLoadMode = ReadInt(root, "AvatarLoadMode", AvatarLoadMode);
                     UseRandomAvatarFromKeyStore = ReadBool(root, "UseRandomAvatarFromKeyStore", UseRandomAvatarFromKeyStore);
                     AvatarKeyStorePath = ReadString(root, "AvatarKeyStorePath", AvatarKeyStorePath);
+                    SimulateRealisticPlatforms = ReadBool(root, "SimulateRealisticPlatforms", SimulateRealisticPlatforms);
+                    SimulateBodyFit = ReadBool(root, "SimulateBodyFit", SimulateBodyFit);
+                    SpawnRadiusMeters = ReadFloat(root, "SpawnRadiusMeters", SpawnRadiusMeters);
                 }
                 catch (Exception ex)
                 {

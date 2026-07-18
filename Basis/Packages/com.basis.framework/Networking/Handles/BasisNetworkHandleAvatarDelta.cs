@@ -59,10 +59,21 @@ public static class BasisNetworkHandleAvatarDelta
         peer.Send(writer, BasisNetworkCommons.DeltaAvatarChannel, DeliveryMethod.ReliableOrdered);
     }
 
-    public static void Handle(NetDataReader reader)
+    /// <summary>
+    /// Decodes one delta frame.
+    /// </summary>
+    /// <returns>
+    /// True when unread bytes are left DELIBERATELY — the frame was dropped for a reason this code
+    /// expects (no receiver yet, no matching baseline, a control frame). The caller passes this to
+    /// Recycle so the "bytes remaining, is this a parsing bug?" warning stays meaningful: those drops
+    /// are routine, and at join they are the common case, which is why that warning used to fire
+    /// constantly on this channel. A false return means the frame was consumed to the end, so anything
+    /// left really is a parsing bug.
+    /// </returns>
+    public static bool Handle(NetDataReader reader)
     {
         int wireBytes = reader.AvailableBytes;
-        if (!reader.TryGetByte(out byte header)) return;
+        if (!reader.TryGetByte(out byte header)) return true;
 
         if (BasisNetworkCommons.IsDeltaControlHeader(header))
         {
@@ -72,44 +83,47 @@ public static class BasisNetworkHandleAvatarDelta
             {
                 BasisNetworkAvatarCompressor.ForceUplinkKeyframe();
             }
-            return;
+            return true;
         }
 
         byte quality = BasisNetworkCommons.DeltaHeaderQuality(header);
         var q = (BasisAvatarBitPacking.BitQuality)quality;
-        if (!BasisAvatarBitPacking.IsValidQuality(q)) return;
+        if (!BasisAvatarBitPacking.IsValidQuality(q)) return true;
         bool hasAdditional = BasisNetworkCommons.DeltaHeaderHasAdditionalData(header);
         bool largeId = BasisNetworkCommons.DeltaHeaderLargeId(header);
 
         ushort playerId;
         if (largeId)
         {
-            if (!reader.TryGetUShort(out playerId)) return;
+            if (!reader.TryGetUShort(out playerId)) return true;
         }
         else
         {
-            if (!reader.TryGetByte(out byte b)) return;
+            if (!reader.TryGetByte(out byte b)) return true;
             playerId = b;
         }
 
-        if (!reader.TryGetByte(out byte interval)) return;
-        if (!reader.TryGetByte(out byte sequence)) return;
-        if (!reader.TryGetByte(out byte baseSeq)) return;
+        if (!reader.TryGetByte(out byte interval)) return true;
+        if (!reader.TryGetByte(out byte sequence)) return true;
+        if (!reader.TryGetByte(out byte baseSeq)) return true;
 
+        // Routine while joining: the join fill creates receivers asynchronously off the lifecycle
+        // queue, so deltas for a player we have not built yet arrive first and are simply dropped.
         if (!BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver player))
-            return;
+            return true;
 
         // Drop the delta unless we hold the exact keyframe baseline it references (quality + baseSeq).
         // A keyframe re-baselines us; ask for one instead of waiting out the (possibly stretched)
-        // periodic cadence — this is the correctness guarantee over unreliable UDP.
+        // periodic cadence — this is the correctness guarantee over unreliable UDP. A fresh joiner
+        // holds no baselines at all, so this is the other path that fires on every delta at join.
         if (!player.TryGetKeyframeBaseline(quality, baseSeq, out byte[] baseline))
         {
             RequestKeyframeFromServer(playerId);
-            return;
+            return true;
         }
 
         int bodyLen = BasisAvatarDeltaCompression.DeltaBodyLength(reader.RawData, reader.Position, reader.AvailableBytes, q);
-        if (bodyLen < 0 || bodyLen > reader.AvailableBytes) return;
+        if (bodyLen < 0 || bodyLen > reader.AvailableBytes) return true;
 
         int payloadSize = BasisAvatarDeltaCompression.PayloadSize(q);
         byte[] recon = _reconstruct;
@@ -120,7 +134,7 @@ public static class BasisNetworkHandleAvatarDelta
         }
 
         if (!BasisAvatarDeltaCompression.TryApplyDelta(baseline, reader.RawData, reader.Position, bodyLen, q, recon))
-            return;
+            return true;
         reader.SkipBytes(bodyLen);
 
         if (!_ssmInit)
@@ -142,5 +156,6 @@ public static class BasisNetworkHandleAvatarDelta
 
         player.AccountReceivedBytes(wireBytes);
         BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, ssm);
+        return false;
     }
 }

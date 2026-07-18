@@ -1,4 +1,4 @@
-using Basis.Network.Core.Compression;
+﻿using Basis.Network.Core.Compression;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -536,6 +536,18 @@ public static class RemoteBoneJobSystem
     static NativeList<byte> sSkeletonValid;
     /// <summary>Precomputed local rotations (T-pose × network delta) consumed by <see cref="ApplySkeletonRotationsJob"/>.</summary>
     static NativeArray<quaternion> sSkeletonRotations;
+
+    /// <summary>
+    /// Capacity to allocate for a required length: rounds up so a steadily growing instance
+    /// reallocates O(log n) times instead of on every single join.
+    /// </summary>
+    static int GrowCapacity(int required)
+    {
+        if (required <= 0) return 0;
+        int capacity = 64;
+        while (capacity < required) capacity <<= 1;
+        return capacity;
+    }
     /// <summary>End-effector IK flat buffers, parallel to sSkeletonBones: read-pose outputs + local overrides.</summary>
     static NativeArray<float3> sIkReadPos;
     static NativeArray<quaternion> sIkReadWorldRot;
@@ -1023,19 +1035,25 @@ public static class RemoteBoneJobSystem
             return;
         }
 
+        // Grow-only with slack. An exact-length check reallocated every one of these buffers on any
+        // join or leave, because the count changes by one — a free+malloc storm on the main thread
+        // inside Schedule() at exactly the moment a crowd is forming. Every consumer is dimensioned
+        // by a TransformAccessArray length or an explicit count, never by this array's Length, so
+        // trailing slack is simply unused. Shrinks only when massively oversized, to bound the
+        // footprint after a large instance drains.
         void AllocOrResize<T>(ref NativeArray<T> arr, int len) where T : struct
         {
             if (arr.IsCreated)
             {
-                if (arr.Length != len)
+                if (arr.Length < len || arr.Length > len * 4 + 64)
                 {
                     arr.Dispose();
-                    arr = new NativeArray<T>(len, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                    arr = new NativeArray<T>(GrowCapacity(len), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
                 }
             }
             else
             {
-                arr = new NativeArray<T>(len, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                arr = new NativeArray<T>(GrowCapacity(len), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             }
         }
         AllocOrResize(ref sTmpRootPos, count);
@@ -1243,10 +1261,16 @@ public static class RemoteBoneJobSystem
         int totalBones = sSkeletonTpose.Length;
         if (totalBones > 0)
         {
-            if (!sSkeletonRotations.IsCreated || sSkeletonRotations.Length != totalBones)
+            // Grow-only with slack: totalBones changes by SyncBoneCount on every join/leave, and an
+            // exact-length check meant disposing and reallocating ~800 KB each time. Both consumers
+            // below take an explicit length (totalBones) or run over a TransformAccessArray, so the
+            // trailing slack is never read.
+            if (!sSkeletonRotations.IsCreated
+                || sSkeletonRotations.Length < totalBones
+                || sSkeletonRotations.Length > totalBones * 4 + 64)
             {
                 if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
-                sSkeletonRotations = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
+                sSkeletonRotations = new NativeArray<quaternion>(GrowCapacity(totalBones), Allocator.Persistent);
             }
 
             // Adaptive batch — same reasoning as BoneSimulation: a fixed batch leaves

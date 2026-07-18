@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
@@ -92,11 +92,17 @@ namespace Basis.Network
             {
                 PlayersCurrentPosition[i] = PinSpacingMeters > 0f
                     ? new Vector3 { x = i * PinSpacingMeters, y = 1f, z = 0f }
-                    : Randomizer.GetRandomOffset();
-                ActivePlayerData[i] = Generate();
+                    : Randomizer.GetSpawnPosition(Basis.Config.ConfigManager.SpawnRadiusMeters);
+                ActivePlayerData[i] = Generate(i);
             }
         }
-        public static PlayerData Generate()
+        /// <summary>
+        /// Builds a starting payload. Pass the player's index so the pose carries the position that
+        /// player was actually spawned at — the server reads the join pose to decide what quality
+        /// every other player should be sent at, so a mismatch here makes the whole join snapshot
+        /// tier from the wrong place.
+        /// </summary>
+        public static PlayerData Generate(int playerIndex = -1)
         {
             var message = new LocalAvatarSyncMessage
             {
@@ -110,8 +116,13 @@ namespace Basis.Network
             // Per-player random phase offset so idle animations aren't synchronized
             float phase = (float)(Random.Shared.NextDouble() * MathF.PI * 2f);
 
+            Scripts.Networking.Compression.Vector3 spawn =
+                (playerIndex >= 0 && PlayersCurrentPosition != null && playerIndex < PlayersCurrentPosition.Length)
+                    ? PlayersCurrentPosition[playerIndex]
+                    : Randomizer.GetSpawnPosition(Basis.Config.ConfigManager.SpawnRadiusMeters);
+
             // Build the full initial payload (position, bone rotations, scale, hips rotation)
-            WriteInitialPayload(ref message, phase);
+            WriteInitialPayload(ref message, phase, spawn);
 
             return new PlayerData
             {
@@ -121,7 +132,7 @@ namespace Basis.Network
             };
         }
 
-        private static void WriteInitialPayload(ref LocalAvatarSyncMessage message, float phase)
+        private static void WriteInitialPayload(ref LocalAvatarSyncMessage message, float phase, Scripts.Networking.Compression.Vector3 spawn)
         {
             // Make sure buffer is correct size for High
             int size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
@@ -132,7 +143,7 @@ namespace Basis.Network
 
             // 1) Position (after the recent flip this is the HIPS WORLD position)
             int offset = 0;
-            WritePosition(Randomizer.GetRandomOffset(), ref message.array, ref offset);
+            WritePosition(spawn, ref message.array, ref offset);
 
             // 2) Bone rotations: natural standing pose with idle animation
             FakePoseGenerator.WriteBoneRotations(message.array, RotationRegionOffset, BitQuality.High, time, phase);

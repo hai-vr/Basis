@@ -769,7 +769,30 @@ namespace Basis.Scripts.UI.NamePlate
                     {
                         RemoteFrameOutput f = framePtr[slot];
                         Vector3 platePos = new Vector3(f.pos_Hips.x, f.pos_Hips.y + f.HeightAvatarHipCoord, f.pos_Hips.z);
-                        if (Physics.Linecast(camPos, platePos, OcclusionMask, QueryTriggerInteraction.Ignore)) slot = -1;
+
+                        // Reject on the cheap tests BEFORE paying for a scene query. Physics.Linecast
+                        // is a synchronous main-thread query costing microseconds each; at high player
+                        // counts running one per plate dominates the frame. Phase 2 below already
+                        // culls by distance and by behind-camera, but it runs after this loop — so
+                        // without these two lines every plate behind you, or hundreds of metres away,
+                        // still paid for a raycast that its own result was about to discard.
+                        // These two tests MIRROR BuildMatricesJob below exactly (including the
+                        // distance-normalized behind test) so the visible result is unchanged — the
+                        // only difference is not paying for a query whose answer gets thrown away.
+                        Vector3 toPlate = platePos - camPos;
+                        float distSqr = toPlate.sqrMagnitude;
+                        bool wouldBeCulled = distSqr > maxDistSqr;
+                        if (!wouldBeCulled && cullBehind && distSqr > 1e-6f)
+                        {
+                            float along = Vector3.Dot(camFwd, toPlate);
+                            if (along < BehindDotThreshold * Mathf.Sqrt(distSqr)) wouldBeCulled = true;
+                        }
+
+                        if (!wouldBeCulled &&
+                            Physics.Linecast(camPos, platePos, OcclusionMask, QueryTriggerInteraction.Ignore))
+                        {
+                            slot = -1;
+                        }
                     }
                 }
                 slotPtr[gi] = slot;

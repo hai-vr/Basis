@@ -295,8 +295,10 @@ public static class BasisNetworkEvents
             }
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.PlayerAvatar, Reader.AvailableBytes);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
-            BasisNetworkHandleAvatarDelta.Handle(Reader);
-            Reader.Recycle();
+            // A dropped delta (no receiver yet, no baseline yet) deliberately leaves its body unread —
+            // both are routine at join. Tell Recycle so the parse-bug warning stays meaningful.
+            bool leftoverIsExpected = BasisNetworkHandleAvatarDelta.Handle(Reader);
+            Reader.Recycle(leftoverIsExpected);
         });
 
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.SceneChannel, (peer, Reader, channel, deliveryMethod) =>

@@ -248,6 +248,9 @@ public static partial class SerializableBasis
             "EmbeddedLinuxArm64", "EmbeddedLinuxArm32", "EmbeddedLinuxX64", "EmbeddedLinuxX86",
             "QNXArm32", "QNXArm64", "QNXX64", "QNXX86",
             "Stadia", "CloudRendering", "LinuxHeadlessSimulation", "Lumin",
+            // Not a Unity platform: what the load-test console reports. Without it every simulated
+            // client falls back to a raw string, which overstates metadata cost in a 2k load run.
+            "Headless",
         };
 
         public static void Write(NetDataWriter writer, string platform)

@@ -1305,6 +1305,18 @@ public class BasisPlatformCodecWireTests
         Assert.Equal(1, Encoded(platform));
     }
 
+    /// <summary>
+    /// The load-test console reports "Headless", which is not a Unity platform. Left out of the table
+    /// it falls back to a 10-byte string on every simulated client, which quietly overstates per-player
+    /// metadata in exactly the 2000-client runs the tool exists to measure.
+    /// </summary>
+    [Fact]
+    public void HeadlessLoadTestPlatform_IsInTheTable()
+    {
+        Assert.Equal("Headless", RoundTrip("Headless"));
+        Assert.Equal(1, Encoded("Headless"));
+    }
+
     [Theory]
     [InlineData("SomeFuturePlatform")]
     [InlineData("Failure")]

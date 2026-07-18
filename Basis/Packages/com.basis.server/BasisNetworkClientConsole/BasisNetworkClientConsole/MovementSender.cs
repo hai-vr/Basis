@@ -1,4 +1,5 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using System.Threading;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
@@ -50,12 +51,27 @@ namespace Basis.Network
             public long LastKeyframeTicks;
             public byte[] DeltaScratch;
             public bool ForceKeyframe;
+            // Per-sender strictly-increasing face counter embedded in the synthetic
+            // AdditionalAvatarData payload; the observer verifies monotonicity per sender.
+            public int FaceCounter;
+            public AdditionalAvatarData[] FaceScratch;
         }
 
         // Send v42 uplink deltas like a real client (false = legacy all-keyframe uploads).
         public static bool UseUplinkDeltas = true;
         private const int UplinkKeyframeIntervalMs = 500;
         private static readonly long UplinkKeyframeIntervalTicks = Stopwatch.Frequency * UplinkKeyframeIntervalMs / 1000;
+
+        // Attach a synthetic AdditionalAvatarData (face-tracking shaped: [16][timing][values...])
+        // to every send, mirroring how the real client ships HVR high-frequency variables. The
+        // observer side (MessageHandler) logs when these arrive, so a server+2-client run proves
+        // additional data end-to-end over real UDP. Off by default — this is a load tester.
+        public static bool EmitFaceData = false;
+
+        // BASIS_FACE_SPACING: pin client i at (i * spacing, 1, 0) and stop the random walk, so a
+        // run can hold every sender/receiver pair at an exact distance tier (High ≤10m,
+        // Medium ≤30m, Low ≤50m, VeryLow beyond) to prove tier-dependent stripping live.
+        public static float PinSpacingMeters = 0f;
 
         /// <summary>Server NACK (DeltaControlUplinkKeyframeRequest) → next send is a keyframe.</summary>
         public static void RequestKeyframe(int index)
@@ -74,11 +90,19 @@ namespace Basis.Network
 
             for (int i = 0; i < clientCount; i++)
             {
-                PlayersCurrentPosition[i] = Randomizer.GetRandomOffset();
-                ActivePlayerData[i] = Generate();
+                PlayersCurrentPosition[i] = PinSpacingMeters > 0f
+                    ? new Vector3 { x = i * PinSpacingMeters, y = 1f, z = 0f }
+                    : Randomizer.GetSpawnPosition(Basis.Config.ConfigManager.SpawnRadiusMeters);
+                ActivePlayerData[i] = Generate(i);
             }
         }
-        public static PlayerData Generate()
+        /// <summary>
+        /// Builds a starting payload. Pass the player's index so the pose carries the position that
+        /// player was actually spawned at — the server reads the join pose to decide what quality
+        /// every other player should be sent at, so a mismatch here makes the whole join snapshot
+        /// tier from the wrong place.
+        /// </summary>
+        public static PlayerData Generate(int playerIndex = -1)
         {
             var message = new LocalAvatarSyncMessage
             {
@@ -92,8 +116,13 @@ namespace Basis.Network
             // Per-player random phase offset so idle animations aren't synchronized
             float phase = (float)(Random.Shared.NextDouble() * MathF.PI * 2f);
 
+            Scripts.Networking.Compression.Vector3 spawn =
+                (playerIndex >= 0 && PlayersCurrentPosition != null && playerIndex < PlayersCurrentPosition.Length)
+                    ? PlayersCurrentPosition[playerIndex]
+                    : Randomizer.GetSpawnPosition(Basis.Config.ConfigManager.SpawnRadiusMeters);
+
             // Build the full initial payload (position, bone rotations, scale, hips rotation)
-            WriteInitialPayload(ref message, phase);
+            WriteInitialPayload(ref message, phase, spawn);
 
             return new PlayerData
             {
@@ -103,7 +132,7 @@ namespace Basis.Network
             };
         }
 
-        private static void WriteInitialPayload(ref LocalAvatarSyncMessage message, float phase)
+        private static void WriteInitialPayload(ref LocalAvatarSyncMessage message, float phase, Scripts.Networking.Compression.Vector3 spawn)
         {
             // Make sure buffer is correct size for High
             int size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
@@ -114,7 +143,7 @@ namespace Basis.Network
 
             // 1) Position (after the recent flip this is the HIPS WORLD position)
             int offset = 0;
-            WritePosition(Randomizer.GetRandomOffset(), ref message.array, ref offset);
+            WritePosition(spawn, ref message.array, ref offset);
 
             // 2) Bone rotations: natural standing pose with idle animation
             FakePoseGenerator.WriteBoneRotations(message.array, RotationRegionOffset, BitQuality.High, time, phase);
@@ -166,8 +195,11 @@ namespace Basis.Network
             double time = AnimTimer.Elapsed.TotalSeconds;
             float phase = pd.PhaseOffset;
 
-            // Update position
-            PlayersCurrentPosition[index] += Randomizer.GetRandomOffset();
+            // Update position (held fixed when pinned to a distance tier)
+            if (PinSpacingMeters <= 0f)
+            {
+                PlayersCurrentPosition[index] += Randomizer.GetRandomOffset();
+            }
 
             var msg = pd.Message;
 
@@ -185,6 +217,29 @@ namespace Basis.Network
 
             byte seq = pd.SequenceByte;
             unchecked { pd.SequenceByte++; }
+
+            // Face-data test mode: ride one AdditionalAvatarData on this frame, exactly like the
+            // real client ships HVR high-frequency face variables (messageIndex 1, payload
+            // [16][timing][counter…]). The per-sender counter lets the observer verify ordering.
+            bool hasAdditional = false;
+            if (EmitFaceData)
+            {
+                int counter = unchecked((ushort)(++pd.FaceCounter));
+                pd.FaceScratch ??= new AdditionalAvatarData[1];
+                pd.FaceScratch[0] = new AdditionalAvatarData
+                {
+                    messageIndex = 1,
+                    array = new byte[] { 16, 1, (byte)(counter & 0xFF), (byte)((counter >> 8) & 0xFF), 200, 150, 100 },
+                };
+                msg.AdditionalAvatarDatas = pd.FaceScratch;
+                msg.LinkedAvatarIndex = 0;
+                hasAdditional = true;
+            }
+            else
+            {
+                msg.AdditionalAvatarDatas = null;
+                msg.AdditionalAvatarDataSize = 0;
+            }
 
             long now = Stopwatch.GetTimestamp();
             bool keyframe = !UseUplinkDeltas
@@ -209,10 +264,10 @@ namespace Basis.Network
             if (keyframe)
             {
                 // Full keyframe on the High channel — the server snapshots it as this
-                // sender's uplink delta baseline.
+                // sender's uplink delta baseline. Odd channel when additional data rides along.
                 writer.Put(seq);
                 msg.SerializeForChannel(writer, BitQuality.High);
-                byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)BitQuality.High, false);
+                byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)BitQuality.High, hasAdditional);
                 peer.Send(writer, channel, DeliveryMethod.Unreliable);
 
                 if (UseUplinkDeltas)
@@ -228,11 +283,12 @@ namespace Basis.Network
             }
             else
             {
-                // v42 uplink delta: [hdr][seq][baseSeq][body] on DeltaAvatarChannel.
-                writer.Put(BasisNetworkCommons.BuildDeltaHeader((int)BitQuality.High, false, false));
+                // v42 uplink delta: [hdr][seq][baseSeq][body][additional?] on DeltaAvatarChannel.
+                writer.Put(BasisNetworkCommons.BuildDeltaHeader((int)BitQuality.High, hasAdditional, false));
                 writer.Put(seq);
                 writer.Put(pd.BaselineSeq);
                 writer.Put(pd.DeltaScratch, 0, deltaLen);
+                if (hasAdditional) msg.SerializeAdditionalOnly(writer);
                 peer.Send(writer, BasisNetworkCommons.DeltaAvatarChannel, DeliveryMethod.Unreliable);
             }
 

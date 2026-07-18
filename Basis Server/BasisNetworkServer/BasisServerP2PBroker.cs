@@ -1,6 +1,7 @@
-using Basis.Network.Core;
+﻿using Basis.Network.Core;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Threading;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static SerializableBasis;
 using LiteNatPunchListener = LiteNetLib.EventBasedNatPunchListener;
@@ -40,9 +41,20 @@ namespace BasisNetworkServer
             return ((long)lo << 32) | (uint)hi;
         }
 
+        /// <summary>
+        /// False when no pair is offloaded at all, which is the overwhelmingly common case. The avatar
+        /// send loop tests this before <see cref="IsP2POffloaded"/> so a server with no NAT-punched
+        /// sessions pays a register compare per pair instead of a ConcurrentDictionary lookup — at 1000
+        /// players that is a million hash lookups per tick that no longer happen.
+        /// </summary>
+        public static bool HasOffloadedPairs => Volatile.Read(ref _offloadedPairCount) != 0;
+
+        private static int _offloadedPairCount;
+
         public static bool IsP2POffloaded(int a, int b)
         {
             if (a == b) return false;
+            if (Volatile.Read(ref _offloadedPairCount) == 0) return false;
             return _offloadedPairs.ContainsKey(PackPair(a, b));
         }
 
@@ -122,7 +134,10 @@ namespace BasisNetworkServer
             BNL.Log($"[P2P] LinkUp from peer {senderId} (token {Preview(s.Token)}); flags InitiatorUp={s.InitiatorLinkUp} TargetUp={s.TargetLinkUp}.");
             if (s.InitiatorLinkUp && s.TargetLinkUp)
             {
-                _offloadedPairs[PackPair(s.InitiatorPeerId, s.TargetPeerId)] = 0;
+                if (_offloadedPairs.TryAdd(PackPair(s.InitiatorPeerId, s.TargetPeerId), 0))
+                {
+                    Interlocked.Increment(ref _offloadedPairCount);
+                }
                 BNL.Log($"[P2P] OFFLOADED pair ({s.InitiatorPeerId},{s.TargetPeerId}) — server will skip relaying voice + avatar between them.");
 
                 // Positive confirmation to BOTH peers that the pair is fully direct now. A
@@ -224,7 +239,10 @@ namespace BasisNetworkServer
                 s.InitiatorLinkUp = false;
                 s.TargetLinkUp = false;
                 s.State = SessionState.ReadyForPunch;
-                _offloadedPairs.TryRemove(PackPair(s.InitiatorPeerId, s.TargetPeerId), out _);
+                if (_offloadedPairs.TryRemove(PackPair(s.InitiatorPeerId, s.TargetPeerId), out _))
+                {
+                    Interlocked.Decrement(ref _offloadedPairCount);
+                }
                 BNL.Log($"[P2P] LinkLost from peer {senderId} (token {Preview(s.Token)}); re-armed for punch, offload {(wasOffloaded ? "cleared (relay resumed)" : "already cleared")}.");
             }
             // Forward to the other peer (guarded) without dropping the session (re-armed above).
@@ -365,7 +383,10 @@ namespace BasisNetworkServer
             if (!_sessions.TryRemove(token, out Session s)) return;
             UntrackPeerSession(s.InitiatorPeerId, token);
             UntrackPeerSession(s.TargetPeerId, token);
-            _offloadedPairs.TryRemove(PackPair(s.InitiatorPeerId, s.TargetPeerId), out _);
+            if (_offloadedPairs.TryRemove(PackPair(s.InitiatorPeerId, s.TargetPeerId), out _))
+            {
+                Interlocked.Decrement(ref _offloadedPairCount);
+            }
         }
 
         private static void TrackPeerSession(int peerId, string token)
@@ -410,6 +431,7 @@ namespace BasisNetworkServer
             _sessions.Clear();
             _peerSessions.Clear();
             _offloadedPairs.Clear();
+            Volatile.Write(ref _offloadedPairCount, 0);
         }
 
         // Registers a session the way HandleRequest would (session record + per-peer tracking),

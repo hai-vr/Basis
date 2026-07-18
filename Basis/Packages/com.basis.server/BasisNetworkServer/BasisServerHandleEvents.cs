@@ -1,4 +1,4 @@
-using Basis.Network.Core;
+﻿using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
 using BasisNetworkCore;
@@ -793,7 +793,7 @@ namespace BasisServerHandle
         {
             ServerReadyMessage serverReadyMessage = LoadInitialState(authClient, readyMessage);
             NotifyExistingClients(serverReadyMessage, authClient);
-            SendClientListToNewClient(authClient);
+            SendClientListToNewClient(authClient, readyMessage.localAvatarSyncMessage);
         }
 
         public static ServerReadyMessage LoadInitialState(NetPeer authClient, ReadyMessage readyMessage)
@@ -857,10 +857,25 @@ namespace BasisServerHandle
         /// rather than one packet per player. See ServerReadyBatchMessage for why the compression sits
         /// at the batch level and not inside each avatar record.
         /// </summary>
-        public static void SendClientListToNewClient(NetPeer authClient)
+        public static void SendClientListToNewClient(NetPeer authClient, LocalAvatarSyncMessage joinerPose)
         {
             try
             {
+                // The joiner's own position, taken from the pose it just sent. Used to pick each
+                // player's quality tier; a zero here simply means everyone is measured from the origin,
+                // which is the same answer the reduction system would reach a tick later.
+                Basis.Scripts.Networking.Compression.Vector3 viewerPosition = default;
+                // Only High carries the position as 3 float32; the lower tiers use int24 millimetres,
+                // which would decode as garbage here and produce nonsense distances. Clients send High,
+                // so anything else means fall back to the origin (and therefore to High for everyone).
+                if (joinerPose.array != null
+                    && joinerPose.DataQualityLevel == (byte)Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality.High
+                    && joinerPose.array.Length >= Basis.Network.Core.Compression.BasisAvatarBitPacking.WritePosition)
+                {
+                    byte[] poseBytes = joinerPose.array;
+                    viewerPosition = Basis.Network.Core.Compression.BasisNetworkCompressionExtensions.ReadPosition(ref poseBytes);
+                }
+
                 NetPeer[] peers = NetworkServer.PeerSnapshot;
                 NetDataWriter batchBuffer = NetworkServer.RentWriter();
                 NetDataWriter sendWriter = NetworkServer.RentWriter();
@@ -872,7 +887,7 @@ namespace BasisServerHandle
                     {
                         continue;
                     }
-                    if (!CreateServerReadyMessageForPeer(peer, out ServerReadyMessage Message))
+                    if (!CreateServerReadyMessageForPeer(peer, viewerPosition, out ServerReadyMessage Message))
                     {
                         continue;
                     }
@@ -917,7 +932,9 @@ namespace BasisServerHandle
             batchBuffer.Reset();
             batched = 0;
         }
-        private static bool CreateServerReadyMessageForPeer(NetPeer peer, out ServerReadyMessage ServerReadyMessage)
+        /// <param name="viewerPosition">Where the joining player is. Selects the quality tier for
+        /// <paramref name="peer"/>, exactly as the steady-state send loop would.</param>
+        private static bool CreateServerReadyMessageForPeer(NetPeer peer, Basis.Scripts.Networking.Compression.Vector3 viewerPosition, out ServerReadyMessage ServerReadyMessage)
         {
             try
             {
@@ -943,9 +960,12 @@ namespace BasisServerHandle
 
                 int id = peer.Id;
                 LocalAvatarSyncMessage syncState;
-                if (BasisServerReductionSystemEvents.playerStates.TryGetValue(id, out PlayerState state))
+                // Distance-tiered: a joiner gets the same quality for this player that the reduction
+                // system would pick on its next tick, instead of a full High payload for everyone in
+                // the instance. At crowd scale almost everyone is past the VeryLow threshold.
+                if (BasisServerReductionSystemEvents.TryGetJoinSnapshot(viewerPosition, id, out LocalAvatarSyncMessage tiered))
                 {
-                    syncState = state.SyncMessage.avatarSerialization;
+                    syncState = tiered;
                 }
                 else
                 {
