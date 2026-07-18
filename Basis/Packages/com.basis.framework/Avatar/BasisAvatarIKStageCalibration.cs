@@ -36,6 +36,22 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
+        /// Per-role tracker-to-bone rotation reference, captured at calibration: <c>Inverse(trackerWorld) *
+        /// boneWorld</c>, so <c>trackerWorldLive * reference</c> is the tracker-implied BONE world rotation.
+        /// A limb strap's clock angle around the limb is arbitrary and gets no <c>Recalibrated*</c> offset
+        /// (those cover only head/hips/chest/feet/toes/shoulders), so a raw tracker rotation cannot be
+        /// compared against a bone directly.
+        /// </summary>
+        public static class BasisLimbRollStore
+        {
+            public static readonly Dictionary<BasisBoneTrackedRole, Quaternion> TrackerToBone = new();
+
+            public static void Set(BasisBoneTrackedRole role, Quaternion trackerToBone) => TrackerToBone[role] = trackerToBone;
+            public static bool TryGet(BasisBoneTrackedRole role, out Quaternion trackerToBone) => TrackerToBone.TryGetValue(role, out trackerToBone);
+            public static void Clear() => TrackerToBone.Clear();
+        }
+
+        /// <summary>
         /// Read-only snapshot of the most recent constellation calibration pass. Populated
         /// each time FullBodyCalibration runs and consumed by the editor visualizer. Live
         /// runtime never reads this — flipping any field cannot affect avatar behavior.
@@ -176,6 +192,7 @@ namespace Basis.Scripts.Avatar
                 HasFBIKTrackers = false;
                 BasisHintBiasStore.Clear();
                 BasisBendNormalStore.Clear();
+                BasisLimbRollStore.Clear();
                 BasisDeviceManagement.UnassignFBTrackers();
                 BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 
@@ -1362,6 +1379,8 @@ namespace Basis.Scripts.Avatar
                     {
                         BasisBendNormalStore.Set(BasisBoneTrackedRole.LeftLowerLeg,
                             Basis.IK.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+
+                        CaptureLimbRoll(storedRoleTransforms, BasisBoneTrackedRole.LeftLowerLeg, trackerRot);
                     }
                 }
 
@@ -1381,6 +1400,8 @@ namespace Basis.Scripts.Avatar
                     {
                         BasisBendNormalStore.Set(BasisBoneTrackedRole.RightLowerLeg,
                             Basis.IK.BasisTrackerBendNormalCore.CaptureLocalAxis(trackerRot, hipsRefRot * Vector3.right));
+
+                        CaptureLimbRoll(storedRoleTransforms, BasisBoneTrackedRole.RightLowerLeg, trackerRot);
                     }
                 }
             }
@@ -1388,6 +1409,40 @@ namespace Basis.Scripts.Avatar
             // forearm pronation and pops the elbow (the knees can keep theirs because the knee is a hinge).
             // Elbow-tracker conditioning is handled solver-side (BasisArmSolveCore HintIsTracker trusts a real
             // tracker further before the down-stabilizer overrides), not by a tracker-local offset.
+            //
+            // A ROLL REFERENCE is a different thing and IS baked, for the same reason the lower legs bake one:
+            // BasisArmSolveCore's tracker forearm roll compares the tracker's rotation against the solved
+            // forearm, and an elbow strap's clock angle around the limb is arbitrary. Without this the strap
+            // angle lands as a constant forearm twist. This stores only a rotation reference -- it does not
+            // move the elbow pole, so the note above still holds.
+            {
+                var lla = BasisLocalBoneDriver.LeftLowerArmControl;
+                if (lla != null && lla.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    CaptureLimbRoll(storedRoleTransforms, BasisBoneTrackedRole.LeftLowerArm, lla.OutgoingWorldData.rotation);
+                }
+
+                var rla = BasisLocalBoneDriver.RightLowerArmControl;
+                if (rla != null && rla.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    CaptureLimbRoll(storedRoleTransforms, BasisBoneTrackedRole.RightLowerArm, rla.OutgoingWorldData.rotation);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Store <c>Inverse(trackerWorld) * boneWorld</c> for a limb role, so the live path can recover the
+        /// tracker-implied BONE rotation as <c>trackerWorldLive * reference</c>. A strap is rigid on the limb,
+        /// so the reference is exactly the inverse of the strap offset and cancels it for any mounting angle.
+        /// Roles with no entry leave the consumer's zero-quaternion "feature off" sentinel in place.
+        /// </summary>
+        static void CaptureLimbRoll(Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms,
+                                    BasisBoneTrackedRole role, Quaternion trackerWorldRot)
+        {
+            if (storedRoleTransforms.TryGetValue(role, out Transform bone) && bone != null)
+            {
+                BasisLimbRollStore.Set(role, Quaternion.Inverse(trackerWorldRot) * bone.rotation);
+            }
         }
         // Helper local function to compute a tracker-local offset vector that points "up and out"
         static Vector3 ComputeHintBiasLocal(

@@ -1228,6 +1228,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKNeckGazeFollow = new("fbikneckgazefollow", new BasisPlatformDefault<float>(0.3f));
         // Spine relax: crouch counterweight (hips shift back as the head drops)
         public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
+        // Postural counterbalance: how far the pelvis travels BACK as the trunk folds forward, as a fraction
+        // of how far the neck has travelled forward. ~0.38 falls out of segment masses (keep the COM over the
+        // feet); 0 pins the pelvis, which is what made a look-down drive the chest down into the body.
+        public static BasisSettingsBinding<float> FBIKTrunkCounterbalance = new("fbiktrunkcounterbalance", new BasisPlatformDefault<float>(0.38f));
         // Swing continuity: max elbow/knee swing speed (deg/s); lower = smoother, 0 = off
         public static BasisSettingsBinding<float> FBIKSwingSmoothRate = new("fbikswingsmoothrate", new BasisPlatformDefault<float>(720f));
         // On/off for the swing continuity above (off forces the rate to 0). Lets the elbow swing free.
@@ -1259,7 +1263,10 @@ namespace Basis.BasisUI
         // default: the lumbar spine, the upper chest and the neck previously had NO per-joint limit at all
         // once the spine CCD ran, and nothing anywhere limited axial rotation. That is not a safe fallback
         // to keep, it is a measured defect.
-        public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom_v2", new BasisPlatformDefault<bool>(false));
+        // Key bumped to _v3: the _v2 rename shipped this false alongside the deliberate FBIKChestIKTarget
+        // disable, so every install that ran that build has false pinned on disk and a value-only change
+        // would not reach them.
+        public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom_v3", new BasisPlatformDefault<bool>(true));
         // The chest becomes a real (secondary) IK target instead of a free FK consequence of the head
         // solve. Placed by the lower spine, with the head restored by the upper joints so it is never
         // traded away. ON by default; the clear win is chest-tracker users, marginal-but-harmless without.
@@ -2014,6 +2021,7 @@ namespace Basis.BasisUI
             FBIKSpineGazeFollow.LoadBindingValue();
             FBIKNeckGazeFollow.LoadBindingValue();
             FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
+            FBIKTrunkCounterbalance.LoadBindingValue();
             FBIKSwingSmoothRate.LoadBindingValue();
             FBIKElbowSwingEnabled.LoadBindingValue();
             FBIKSpineCCDRelax.LoadBindingValue();

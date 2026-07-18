@@ -8,6 +8,15 @@ using Basis.IK;
 
 public static class BasisAnimationRiggingHelper
 {
+    /// <summary>Maps a limb tracker's raw rotation onto the BONE it is strapped to, using the reference
+    /// captured at calibration. Zero (no reference yet) is the solve's "feature off" sentinel.</summary>
+    static Quaternion TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role, Quaternion trackerRotation)
+    {
+        return Basis.Scripts.Avatar.BasisAvatarIKStageCalibration.BasisLimbRollStore.TryGet(role, out Quaternion trackerToBone)
+            ? trackerRotation * trackerToBone
+            : default;
+    }
+
     /// <summary>Per-effector bind offset captured in T-pose with the avatar root aligned to the player:
     /// Inverse(bone-sim world outgoing) * avatar bone, the same form FBT calibration uses.</summary>
     public static Quaternion CalibratedRotationOffset(BasisLocalBoneControl control, Transform animatorRoot, Transform avatarBone)
@@ -116,9 +125,9 @@ public static class BasisAnimationRiggingHelper
 
         // --- Arms ---
         job.hintPositionLeftHand = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.position, leftLowerArm.rotation);
-        job.hintRotationLeftHand = leftLowerArm.rotation;
+        job.hintRotationLeftHand = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.rotation);
         job.hintPositionRightHand = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.position, rightLowerArm.rotation);
-        job.hintRotationRightHand = rightLowerArm.rotation;
+        job.hintRotationRightHand = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.rotation);
 
         // --- Shoulders ---
         job.TargetRotationLeftShoulder = leftShoulder.rotation;
@@ -127,6 +136,8 @@ public static class BasisAnimationRiggingHelper
         // --- Legs ---
         job.hintPositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
         job.hintPositionRightLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.position, rightLowerLeg.rotation);
+        job.hintRotationLeftLowerLeg = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.rotation);
+        job.hintRotationRightLowerLeg = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.rotation);
 
         // --- Chest ---
         // Raw (un-hinted) chest for the chest IK target; the hinted one below is a head-solve hint.

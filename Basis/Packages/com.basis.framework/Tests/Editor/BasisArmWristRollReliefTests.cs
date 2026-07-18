@@ -371,5 +371,81 @@ namespace Basis.Tests.IK
 
         static Vector3 MirrorV(Vector3 v) => new Vector3(-v.x, v.y, v.z);
         static Quaternion MirrorQ(Quaternion q) => new Quaternion(q.x, -q.y, -q.z, q.w);
+
+        /// <summary>
+        /// An elbow tracker is rigid on the forearm: trackerRot(t) = foreRot(t) * K, with K the strap offset.
+        /// K's clock angle around the limb is ARBITRARY and carries no pronation information, so it must not
+        /// reach the forearm. Calibration stores Qref = Inverse(trackerWorld) * boneWorld = Inverse(K), and the
+        /// rig driver feeds trackerRot_live * Qref, which recovers the true forearm for any K.
+        ///
+        /// Measured before the mapping was added: a 90 deg strap angle produced 80.6 deg of forearm roll at zero
+        /// pronation, swinging the wrist residual from +26.4 to -54.2 deg. LowerArm has no Recalibrated* offset,
+        /// so nothing else in the pipeline was cancelling it.
+        /// </summary>
+        /// The invariant is CLOCK-INDEPENDENCE, not an absolute roll: unlike the leg (which rolls the shin
+        /// straight to the tracker), the arm deliberately blends the measured roll with the hand's demand at
+        /// TrackerRollHandBlend, so the applied roll is a blend and asserting a raw pronation figure would be
+        /// testing the blend constant rather than the calibration.
+        [Test]
+        public void ElbowStrapClockAngle_DoesNotReachTheForearm([Values(0f, 25f)] float pronationDeg)
+        {
+            BasisArmSolveInput baseline = Pose(Vector3.down, Vector3.forward, 20f);
+            baseline.HintPosition = baseline.Elbow;
+            baseline.HintWeight = true;
+            baseline.HintIsTracker = true;
+            BasisArmSolveCore.Solve(baseline, out BasisArmSolveResult off);
+
+            Vector3 foreAxis = (off.HandSolved - off.ElbowSolved).normalized;
+            Quaternion trueFore = Quaternion.AngleAxis(pronationDeg, foreAxis) * off.MidRotationSolved;
+
+            float reference = float.NaN;
+            foreach (float clockDeg in new[] { 0f, 30f, 90f, -60f })
+            {
+                Quaternion K = Quaternion.AngleAxis(clockDeg, foreAxis) * Quaternion.AngleAxis(17f, Vector3.right);
+                Quaternion qRef = Quaternion.Inverse(off.MidRotationSolved * K) * off.MidRotationSolved;
+
+                BasisArmSolveInput i = baseline;
+                i.HintRotation = (trueFore * K) * qRef;
+                BasisArmSolveCore.Solve(i, out BasisArmSolveResult on);
+
+                if (float.IsNaN(reference)) reference = on.ForearmRollDeg;
+
+                Assert.That(on.ForearmRollDeg, Is.EqualTo(reference).Within(0.5f),
+                    $"a {clockDeg:F0} deg strap clock angle changed the forearm roll ({on.ForearmRollDeg:F2} vs {reference:F2}) " +
+                    $"-- the mounting angle carries no pronation information and must cancel");
+            }
+
+            // And the roll must still RESPOND to genuine pronation, or the calibration has simply killed it.
+            if (pronationDeg > 0f)
+            {
+                Assert.That(Mathf.Abs(reference), Is.GreaterThan(1f),
+                    "real pronation must still reach the forearm after the mapping");
+            }
+            else
+            {
+                Assert.That(Mathf.Abs(reference), Is.LessThan(1f),
+                    "with no pronation and only a strap offset, nothing should reach the forearm");
+            }
+        }
+
+        /// <summary>
+        /// A user who never calibrated has no BasisLimbRollStore entry, so the rig driver feeds the zero
+        /// quaternion and the feature must switch itself off. Before the mapping the driver fed a raw unit
+        /// quaternion unconditionally, so this path could not exist.
+        /// </summary>
+        [Test]
+        public void NoCalibrationReference_DisablesTheTrackerForearmRoll()
+        {
+            BasisArmSolveInput i = Pose(Vector3.down, Vector3.forward, 20f);
+            i.HintPosition = i.Elbow;
+            i.HintWeight = true;
+            i.HintIsTracker = true;
+            i.HintRotation = default;
+
+            BasisArmSolveCore.Solve(i, out BasisArmSolveResult r);
+
+            Assert.That(r.ForearmRollDeg, Is.EqualTo(0f), "an uncalibrated tracker must not roll the forearm");
+            Assert.That(r.MidPostRoll.w, Is.EqualTo(1f), "MidPostRoll must be identity, never the zero quaternion");
+        }
     }
 }

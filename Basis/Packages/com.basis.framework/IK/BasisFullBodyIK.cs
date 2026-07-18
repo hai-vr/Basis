@@ -52,6 +52,7 @@ offsetRotationLeftHand, offsetRotationRightHand,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
+hintRotationLeftLowerLeg, hintRotationRightLowerLeg,
 TargetRotationLeftShoulder, TargetRotationRightShoulder;
 
         // Swivel models: where the elbow/knee go for a user with no elbow/knee tracker.
@@ -123,6 +124,9 @@ collisionsEnabled;
         public float spineGazeFollow;
         public float neckGazeFollow;
         public float moveBodyBackWhenCrouching;
+        // Postural counterbalance gain: the fraction of the neck's forward travel the pelvis answers with as
+        // the trunk folds. 0 disables it. See BasisTrunkCounterbalanceCore.
+        public float trunkCounterbalance;
         public float swingSmoothRateDeg;
         public float chestArmSwingFactor, chestArmSwingMaxDeg;
         public float lowerArmTwistFraction, upperArmTwistFraction;
@@ -229,8 +233,8 @@ collisionsEnabled;
             }
 
             // 3) Legs: two-bone IK with bend normal preference
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
 
             // 4) Hands: two-bone IK with collision + elbow protection. bodyRight (shoulder->shoulder) orients
             // the torso's elliptical collision cross-section; shared by both arms so it is computed once here.
@@ -325,7 +329,25 @@ collisionsEnabled;
                     break;
             }
 
-            hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up);
+            // The gaze-invariant trunk cue, shared by everything below that reads torso POSTURE. The HMD sits
+            // forward of the neck pivot, so a pure look-down swings headTargetPos forward and any consumer
+            // that mistakes it for the torso reads a lean that never happened. DistributeSpineBend was fixed
+            // to use this cue; the pelvis stages below were still on the raw head.
+            Vector3 neckCue = ComputeNeckCue(headTargetPos);
+
+            // Postural counterbalance: the pelvis travels BACK as the trunk folds forward, so the fold happens
+            // at the hip instead of driving the torso down into itself. Runs before the crouch sit-back and
+            // reports how much of the pose is a forward fold, so the crouch term -- which is driven by head
+            // HEIGHT and therefore cannot tell a squat from a waist-bend -- is faded out by the complement
+            // rather than stacking on top. Gated on the HIPS tracker alone (deliberately narrower than the
+            // crouch gate): a chest tracker measures lean, but the pelvis POSITION is still synthesised here.
+            float crouchFade = 1f;
+            if (!hasHipsTracker)
+            {
+                hipsTargetPos = ApplyTrunkCounterbalance(neckCue, hipsTargetPos, up, out float flexionFrac);
+                crouchFade = 1f - flexionFrac;
+            }
+            hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
             targetPositionHips = hipsTargetPos;
 
             // The hinge SYNTHESISES an anterior pelvis pitch on a deep lean so the spine does not swallow the
@@ -336,7 +358,7 @@ collisionsEnabled;
             // do not invent pelvis motion on top of a tracker.
             if (!hasHipsTracker)
             {
-                hipDesired = ApplyHipHinge(stream, headTargetPos, hipsTargetPos, hipDesired, up);
+                hipDesired = ApplyHipHinge(stream, neckCue, hipsTargetPos, hipDesired, up);
             }
 
             // Apply hips driver if valid
@@ -706,6 +728,35 @@ collisionsEnabled;
         // Pipeline: (chest spring smooths target) → (decompose bend into pitch/roll, twist into yaw)
         //   → (per-axis weight) → (asymmetric clamp) → (apply as hips-local delta).
         // The chest→neck→head two-bone solve afterwards handles whatever residual reach remains.
+        // The neck, estimated RIGIDLY off the head target, and therefore EXACTLY invariant to a gaze: if the
+        // head orbits the neck by Q then Q's two lever arms cancel algebraically (written out in full inside
+        // DistributeSpineBend). Every consumer that wants to know where the TORSO is must read this and not
+        // headTargetPos -- the HMD sits forward of the neck pivot, so the raw head target reports a lean the
+        // moment you look down. Shared by the spine bend, the postural counterbalance and the hip hinge so
+        // the three cannot drift apart.
+        Vector3 ComputeNeckCue(Vector3 headTargetPos)
+        {
+            return headTargetPos + (targetRotationHead * targetOffsetHead) * TposeHeadToNeckLocal;
+        }
+        // Wrapper for BasisTrunkCounterbalanceCore: the pelvis travels back as the trunk folds forward, so the
+        // bend happens at the hip instead of the torso folding down into itself. The cap scales with the
+        // avatar's own spine (MinHeadSpineHeight is the T-pose hips->head chain), so it is avatar-relative
+        // rather than a fixed number of metres. Gating (no hip tracker) is the caller's, as with ApplyHipHinge.
+        Vector3 ApplyTrunkCounterbalance(Vector3 neckCue, Vector3 hipsPos, Vector3 playerUp, out float flexionFrac)
+        {
+            BasisTrunkCounterbalanceInput input;
+            input.HipsPos = hipsPos;
+            input.NeckCue = neckCue;
+            input.PlayerUp = playerUp;
+            input.Gain = trunkCounterbalance;
+            input.MaxShift = k_TrunkCounterbalanceMaxSpineFrac * MinHeadSpineHeight;
+            BasisTrunkCounterbalanceCore.Solve(input, out BasisTrunkCounterbalanceResult result);
+            flexionFrac = result.FlexionFrac;
+            return result.HipsPos;
+        }
+        // Ceiling on the posterior pelvic shift, as a fraction of T-pose spine length: ~25 cm on a 0.55 m
+        // spine, the top of the measured range for a real full forward bend. Eased into, never a step.
+        const float k_TrunkCounterbalanceMaxSpineFrac = 0.45f;
         public void DistributeSpineBend(BasisPoseStream stream, Vector3 headTargetPos)
         {
             if (!HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
@@ -721,7 +772,6 @@ collisionsEnabled;
             }
 
             Quaternion hipsRot = HandleHips.GetRotation(stream);
-            Quaternion headWorldRot = targetRotationHead * targetOffsetHead;
 
             // ==========================================================================================
             // THE SPINE IS CUED OFF THE NECK, NOT THE HEAD. This is the fix for "looking down forces chest
@@ -753,7 +803,7 @@ collisionsEnabled;
             // gaze, so neither does the squish. RestLen moves to hips->NECK to match: the spine spans the
             // spine, and the head was never part of it.
             // ==========================================================================================
-            Vector3 neckCue = headTargetPos + headWorldRot * TposeHeadToNeckLocal;
+            Vector3 neckCue = ComputeNeckCue(headTargetPos);
 
             // A LITTLE REAL SPINE. neckCue is invariant to a pure gaze (the head orbits the neck by Q, the
             // rigid re-attachment un-orbits it -- that is the look-down-stability fix, chest pitch 0.000 deg
@@ -886,7 +936,11 @@ collisionsEnabled;
             BasisHipHingeCore.Solve(input, out BasisHipHingeResult result);
             return result.HipsRot;
         }
-        Vector3 ApplyCrouchBodyOffset(BasisPoseStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir)
+        // `fade` is 1 - sin(trunk flexion) from the postural counterbalance. This term reads head HEIGHT, so
+        // it cannot tell a squat from a waist-fold and would double-count the pelvis travel the counterbalance
+        // has already applied; fading it out as the trunk folds lets each own the posture it describes -- the
+        // crouch sit-back for a squat with an upright trunk, the counterbalance for a bend.
+        Vector3 ApplyCrouchBodyOffset(BasisPoseStream stream, Vector3 headTargetPos, Vector3 hipsPos, Quaternion hipsRot, Vector3 playerUpDir, float fade)
         {
             if (HasChestTracker || hasHipsTracker)
             {
@@ -899,7 +953,7 @@ collisionsEnabled;
             input.HipsRot = hipsRot;
             input.Bind = offsetRotationHips;
             input.PlayerUp = playerUpDir;
-            input.Factor = moveBodyBackWhenCrouching;
+            input.Factor = moveBodyBackWhenCrouching * Mathf.Clamp01(fade);
             input.RestDist = MinHeadSpineHeight;
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
             return result.HipsPos;
@@ -1305,11 +1359,14 @@ collisionsEnabled;
             // exact same elbow math. The core returns incremental deltas; apply them through
             // the stream in the original order (identity steps are exact no-ops).
             BasisArmSolveInput input = default;
-            input.Shoulder = root.GetPosition(stream);
-            input.Elbow = mid.GetPosition(stream);
-            input.Hand = tip.GetPosition(stream);
-            input.RootRotation = root.GetRotation(stream);
-            input.MidRotation = mid.GetRotation(stream);
+            root.GetPositionAndRotation(stream, out Vector3 shoulderPos, out Quaternion shoulderRot);
+            mid.GetPositionAndRotation(stream, out Vector3 elbowPos, out Quaternion elbowRot);
+            tip.GetPositionAndRotation(stream, out Vector3 handPos, out Quaternion handRot);
+            input.Shoulder = shoulderPos;
+            input.Elbow = elbowPos;
+            input.Hand = handPos;
+            input.RootRotation = shoulderRot;
+            input.MidRotation = elbowRot;
             input.TargetPosition = target.translation;
             input.TargetRotation = target.rotation;
             input.HintPosition = hint.translation;
@@ -1326,7 +1383,7 @@ collisionsEnabled;
             input.HintMaxStepDeg = float.MaxValue;
             // The ANIMATED hand rotation (nothing has written the tip yet this frame): the neutral the
             // wrist-roll relief measures the controller's roll against.
-            input.TipRotation = tip.GetRotation(stream);
+            input.TipRotation = handRot;
             // A real tracker's measured lower-arm rotation feeds the forearm roll; zero keeps it off for
             // the model path, whose hint rotation is just the stale property value.
             input.HintRotation = hintIsTracker ? hint.rotation : default;
@@ -1573,7 +1630,9 @@ collisionsEnabled;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1)
+        /// <summary>Returns the shin roll applied to the mid bone, so a preserved (untracked) foot can be carried
+        /// by it. Identity whenever no shin roll ran.</summary>
+        public Quaternion SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1, Quaternion hintRotation = default, bool hintIsTracker = false)
         {
             BasisLegSolveInput input = default;
             input.Root = root.GetPosition(stream);
@@ -1588,6 +1647,8 @@ collisionsEnabled;
             input.HintDistrust = hintDistrust;
             input.TargetOffset = targetOffset;
             input.BendNormal = BendNormal;
+            input.HintRotation = hintRotation;
+            input.HintIsTracker = hintIsTracker;
 
             BasisLegSolveCore.Solve(input, out BasisLegSolveResult result);
 
@@ -1599,15 +1660,18 @@ collisionsEnabled;
                 d.AxisSource = result.AxisSource;
                 d.HintApplied = result.HintApplied ? 1f : 0f;
                 d.HintDistrust = hintDistrust;
+                d.ShinRollDeg = result.ShinRollDeg;
                 legDiagnostics[diagSlot] = d;
             }
 
             mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
             root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
             root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
+            mid.SetRotation(stream, result.MidPostRoll * mid.GetRotation(stream));
             tip.SetRotation(stream, result.TipRotation);
+            return result.MidPostRoll;
         }
-        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, bool footIsTrackerProp, int legSlot)
+        public void SolveLegs(BasisPoseStream stream, float enabledProp, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPosProp, Quaternion targetRotProp, Vector3 hintPosProp, Quaternion hintRotProp, float hintWeightProp, Quaternion targetOffset, Vector3 bendNormalProp, bool hintIsTrackerProp, bool footIsTrackerProp, int legSlot)
         {
             float posWeight = enabledProp;
             if (posWeight <= 0f)
@@ -1640,8 +1704,10 @@ collisionsEnabled;
             float hintW = hintWeightProp;
 
             BasisAffineTransform target = new BasisAffineTransform(targetPosProp, tRot);
-            // Hint rotation is unused by the leg solve (BasisLegSolveInput has no rotation field).
-            BasisAffineTransform hint = new BasisAffineTransform(hintPosProp, Quaternion.identity);
+            // The hint's ROTATION is the tracker-implied shin BONE rotation (rig driver maps the raw tracker
+            // through the calibration reference). Only a real lower-leg tracker carries one; the model-pole
+            // branch below replaces the hint entirely and leaves this identity, which the solve reads as off.
+            BasisAffineTransform hint = new BasisAffineTransform(hintPosProp, hintIsTrackerProp ? hintRotProp : Quaternion.identity);
             Vector3 bendNormal = bendNormalProp;
 
             float hintDistrust = 0f;
@@ -1686,7 +1752,8 @@ collisionsEnabled;
                 }
             }
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot);
+            Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,
+                                               hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
             // translate bones off the FK chain (dislocated foot) mid-fade.
             if (posWeight < 1f)
@@ -1695,7 +1762,17 @@ collisionsEnabled;
                 mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), posWeight));
                 tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), posWeight));
             }
-            if (preserveTip) tip.SetRotation(stream, origTipRot);
+            // Position-only foot: keep the animation rotation, but CARRIED BY THE SHIN ROLL. A shin tracker with
+            // no foot tracker still rolls the shin, and a real foot rides its shin -- restoring the raw animation
+            // rotation would leave the ankle counter-twisted by exactly the roll, which is the artifact this
+            // whole change exists to remove, just with the sign flipped.
+            if (preserveTip)
+            {
+                Quaternion carriedTip = shinRoll * origTipRot;
+                tip.SetRotation(stream, posWeight < 1f ? Quaternion.Slerp(origTipRot, carriedTip, posWeight) : carriedTip);
+            }
+
+            RecordHipDiagnostics(stream, root, mid, legSlot);
 
             // Body-relative One-Euro on the OUTPUT knee swivel (leg roll about the hip->foot axis): damps
             // swivel jitter without lagging bulk locomotion (translation/turn move the whole leg, so the
@@ -1753,6 +1830,48 @@ collisionsEnabled;
                 }
             }
         }
+        // Femur pose in the PELVIS frame. Diagnostic only -- nothing in the solve constrains the femur against
+        // the pelvis, so this reports whether a hip complaint is genuinely out of anatomical range. Flexion and
+        // abduction are read off the femur DIRECTION (positions only, no bind convention); the twist is taken
+        // about the femur's own axis and is meaningful as a relative signal, not an absolute angle.
+        void RecordHipDiagnostics(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, int slot)
+        {
+            if (!legDiagnostics.IsCreated || slot < 0 || slot >= legDiagnostics.Length || !HandleHips.IsValid(stream))
+            {
+                return;
+            }
+
+            Vector3 femur = mid.GetPosition(stream) - root.GetPosition(stream);
+            if (!(femur.sqrMagnitude > 1e-8f))
+            {
+                return;
+            }
+
+            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            Quaternion hipsInv = Quaternion.Inverse(hipsRot);
+            Vector3 femurLocal = (hipsInv * femur).normalized;
+
+            BasisLegDiagnostics d = legDiagnostics[slot];
+            // Pelvis frame: -Y is straight down the leg, +Z forward, +X the player's right.
+            d.HipFlexionDeg = Mathf.Atan2(femurLocal.z, -femurLocal.y) * Mathf.Rad2Deg;
+            d.HipAbductionDeg = Mathf.Atan2(femurLocal.x, -femurLocal.y) * Mathf.Rad2Deg;
+            d.FemurTwistDeg = TwistDeg(hipsInv * root.GetRotation(stream), femurLocal);
+            legDiagnostics[slot] = d;
+        }
+
+        static float TwistDeg(Quaternion q, Vector3 axis)
+        {
+            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
+            float c = q.w;
+            if (c < 0f) { s = -s; c = -c; }
+            if (!(s * s + c * c > 1e-8f))
+            {
+                return 0f;
+            }
+
+            return 2f * Mathf.Atan2(s, c) * Mathf.Rad2Deg;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(BasisPoseStream stream, BasisBoneHandle h, Vector3 p, Quaternion r, Quaternion o, bool sw)
         {
@@ -2153,6 +2272,7 @@ collisionsEnabled;
             spineGazeFollow = 0.25f;
             neckGazeFollow = 0.3f;
             moveBodyBackWhenCrouching = 1f;
+            trunkCounterbalance = BasisTrunkCounterbalanceCore.DerivedGain;
             swingSmoothRateDeg = 720f;
             chestArmSwingFactor = 0.3f;
             chestArmSwingMaxDeg = 15f;

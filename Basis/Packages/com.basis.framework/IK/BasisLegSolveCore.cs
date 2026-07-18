@@ -19,6 +19,13 @@ namespace Basis.IK
         public float HintDistrust;
         public Quaternion TargetOffset;
         public Vector3 BendNormal;
+
+        /// <summary>The lower-leg tracker's measured SHIN BONE world rotation (its raw rotation already
+        /// mapped through the calibration reference). Zero (the struct default) disables the shin roll.</summary>
+        public Quaternion HintRotation;
+
+        /// <summary>Hint is a REAL lower-leg tracker rather than a model-derived pole.</summary>
+        public bool HintIsTracker;
     }
 
     public struct BasisLegSolveResult
@@ -26,8 +33,10 @@ namespace Basis.IK
         public Quaternion MidDelta;
         public Quaternion RootDelta;
         public Quaternion HintDelta;
+        public Quaternion MidPostRoll;   // WORLD premultiply on the shin, applied AFTER the root deltas.
         public Quaternion TipRotation;
         public bool HintApplied;
+        public float ShinRollDeg;
 
         public Vector3 KneeSolved;
         public Vector3 FootSolved;
@@ -121,6 +130,11 @@ namespace Basis.IK
         public const float KneeAnteriorSoftDeg = 85f;
         public const float KneeAnteriorHardDeg = 89.5f;
 
+        // Bound on the shin roll taken from a lower-leg tracker. Tibial rotation on a flexed knee runs to
+        // ~40-50 deg of total range; past that the signal is a slipped strap or a stale calibration, and a
+        // bounded wrong shin beats an unbounded one (BasisArmSolveCore.TrackerForearmRollMaxDeg, same trade).
+        public const float TrackerShinRollMaxDeg = 45f;
+
         // Compress a knee swivel (degrees from anterior) into the anterior half-space.
         //
         // Below `softDeg` this is the IDENTITY -- byte for byte, so a legitimate pose is not perturbed by a guard
@@ -169,6 +183,9 @@ namespace Basis.IK
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
         {
             r = default;
+            // default(Quaternion) is the ZERO quaternion and the runtime multiplies MidPostRoll into the shin
+            // unconditionally -- it must be a rotation on every path out of this method.
+            r.MidPostRoll = Quaternion.identity;
 
             Vector3 aPosition = i.Root;
             Vector3 bPosition = i.Mid;
@@ -443,6 +460,39 @@ namespace Basis.IK
                 }
             }
 
+            // TRACKER SHIN ROLL. BEND/AIM/SWIVEL spend all three DOF on knee and ankle POSITION, so the shin's
+            // rotation about its own long axis is a by-product of the swivel that places the knee -- the leg has
+            // no tibial-rotation DOF. Cross a foot over the other leg and the tibial rotation the user really
+            // performed has nowhere to go but the ankle, which cannot produce it. A lower-leg tracker is strapped
+            // to the shin and MEASURES that rotation; the solver was using only its position.
+            //
+            // A pure roll about the shin's own long axis MOVES NO JOINT: the knee pivots on the axis and the ankle
+            // LIES on it, so the knee stays exactly on the tracker pole and the foot stays exactly on target.
+            float hintRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
+                             + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+            if (i.HintIsTracker && hintRotSqr > 0.5f)
+            {
+                Vector3 shinRoll = cPosition - bPosition;
+                if (shinRoll.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 shinRollN = shinRoll.normalized;
+                    float roll = TwistAngleRad(i.HintRotation * Quaternion.Inverse(midRot), shinRollN);
+
+                    // Bound, then apply -- reject-unless-good, because Mathf.Clamp waves NaN through and a NaN
+                    // written to a bone persists.
+                    float rollAbs = Mathf.Abs(roll);
+                    float rollCap = TrackerShinRollMaxDeg * Mathf.Deg2Rad;
+                    if (rollAbs > rollCap) rollAbs = rollCap;
+                    if (rollAbs > 1e-6f)
+                    {
+                        float rollSigned = roll < 0f ? -rollAbs : rollAbs;
+                        r.MidPostRoll = AngleAxisRad(rollSigned, shinRollN);
+                        midRot = r.MidPostRoll * midRot;
+                        r.ShinRollDeg = rollSigned * Mathf.Rad2Deg;
+                    }
+                }
+            }
+
             r.MidDelta = deltaR;
             r.RootDelta = rootDelta;
             r.HintDelta = hintR;
@@ -489,6 +539,22 @@ namespace Basis.IK
             float h = 0.5f * radians;
             float s = Mathf.Sin(h);
             return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Mathf.Cos(h));
+        }
+
+        // Swing-twist decomposition: the rotation of `q` about `axis` alone. No normalization because a common
+        // positive scale cancels; forcing w >= 0 first picks the principal branch of the double cover.
+        // NaN-safe by shape: `!(x > eps)` rejects NaN.
+        static float TwistAngleRad(Quaternion q, Vector3 axis)
+        {
+            float s = q.x * axis.x + q.y * axis.y + q.z * axis.z;
+            float c = q.w;
+            if (c < 0f) { s = -s; c = -c; }
+            if (!(s * s + c * c > k_SqrEpsilon))
+            {
+                return 0f;
+            }
+
+            return 2f * Mathf.Atan2(s, c);
         }
 
         // Apply partial weight to a swivel the way this solver always has.

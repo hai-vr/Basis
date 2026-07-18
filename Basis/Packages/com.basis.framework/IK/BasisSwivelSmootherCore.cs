@@ -101,6 +101,8 @@ namespace Basis.IK
         public const float DefaultHoldCondLo = 0.05f;
         public const float DefaultHoldCondHi = 0.12f;
 
+        const float k_HoldReseedDeg = 25f;
+
         public static void Solve(in BasisSwivelSmootherInput i, out BasisSwivelSmootherResult r)
         {
             r = default;
@@ -237,9 +239,22 @@ namespace Basis.IK
             float holdGate = 1f;
             if (i.HoldWhenSingular)
             {
-                holdGate = Smoothstep(i.HoldCondLo, i.HoldCondHi, conditioning);
-                float innovation = Mathf.DeltaAngle(i.State.Smooth, state.Smooth);
-                state.Smooth = i.State.Smooth + innovation * holdGate;   // gate 0 => frozen, gate 1 => full One-Euro
+                // The hold exists to reject a slow postural sway the low-pass cannot, so it must only ever be
+                // asked to sit on a value that is already right. A held value can be WRONG -- seeded from a
+                // degenerate frame during load, for instance -- and then the freeze is what prevents it from
+                // ever recovering: the knee stays parked at the stale angle until something bends it out of
+                // the band. Divergence that large is not the sway this is built for, so re-seed instead of
+                // defending it. Well above any real sway, well below the 85 deg clamp a bad seed lands on.
+                if (Mathf.Abs(Mathf.DeltaAngle(i.State.Smooth, guardedSwivel)) > k_HoldReseedDeg)
+                {
+                    state = BasisSwivelFilterCore.Seed(guardedSwivel);
+                }
+                else
+                {
+                    holdGate = Smoothstep(i.HoldCondLo, i.HoldCondHi, conditioning);
+                    float innovation = Mathf.DeltaAngle(i.State.Smooth, state.Smooth);
+                    state.Smooth = i.State.Smooth + innovation * holdGate;   // gate 0 => frozen, gate 1 => full One-Euro
+                }
             }
             r.HoldGate = holdGate;
             r.State = state;

@@ -767,6 +767,10 @@
       "value": "How far your body shifts backward as you crouch down."
     },
     {
+      "key": "settings.bodyTracking.trunkCounterbalance.title.tooltip",
+      "value": "How far your hips travel back as you bend forward."
+    },
+    {
       "key": "settings.bodyTracking.swingSmoothRate.title.tooltip",
       "value": "How quickly body swing motion settles; higher reacts faster."
     },
@@ -5390,6 +5394,14 @@
     {
       "key": "settings.bodyTracking.moveBodyBackWhenCrouching.description",
       "value": "Shifts the hips back as the head drops, so a squat or forward bow sits over the feet instead of folding straight down. Multiplies the head's drop distance; 0 disables. Default: 1"
+    },
+    {
+      "key": "settings.bodyTracking.trunkCounterbalance.title",
+      "value": "Trunk Counterbalance"
+    },
+    {
+      "key": "settings.bodyTracking.trunkCounterbalance.description",
+      "value": "Moves the hips back as your trunk folds forward, the way a real body counterweights a bend to keep its balance over the feet. Without it the whole fold happens around a pinned pelvis and the chest drives down into the body. Multiplies how far your neck travels forward; 0 disables. Default: 0.38"
     },
     {
       "key": "settings.bodyTracking.swingSmoothRate.title",

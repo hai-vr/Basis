@@ -637,6 +637,15 @@ public static class SettingsProviderIK
         //         moveBodyBack.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.moveBodyBackWhenCrouching.title.tooltip"));
         //     }
 
+        //     var trunkCounterbalance = PanelSlider.CreateAndBind(
+        //         dynamicsParent,
+        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.trunkCounterbalance.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+        //         BasisSettingsDefaults.FBIKTrunkCounterbalance);
+        //     if (trunkCounterbalance != null)
+        //     {
+        //         trunkCounterbalance.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.trunkCounterbalance.title.tooltip"));
+        //     }
+
         //     var elbowSwingToggle = PanelToggle.CreateNewEntry(dynamicsParent);
         //     elbowSwingToggle.Descriptor.SetTitle("Elbow Swing Smoothing");
         //     elbowSwingToggle.AssignBinding(BasisSettingsDefaults.FBIKElbowSwingEnabled);
@@ -1230,6 +1239,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHipHingeStartDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.ResetToDefault();
+        BasisSettingsDefaults.FBIKTrunkCounterbalance.ResetToDefault();
         BasisSettingsDefaults.FBIKSwingSmoothRate.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowSwingEnabled.ResetToDefault();
         BasisSettingsDefaults.FBIKChestSpringHz.ResetToDefault();

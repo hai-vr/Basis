@@ -22,6 +22,18 @@ namespace Basis.IK
         public Quaternion GetRotation(BasisPoseStream stream) =>
             IsValid(stream) ? stream.GetWorldRotation(Index) : Quaternion.identity;
 
+        public void GetPositionAndRotation(BasisPoseStream stream, out Vector3 position, out Quaternion rotation)
+        {
+            if (IsValid(stream))
+            {
+                stream.GetWorldPositionAndRotation(Index, out position, out rotation);
+                return;
+            }
+
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+        }
+
         public void SetPosition(BasisPoseStream stream, Vector3 position)
         {
             if (IsValid(stream))

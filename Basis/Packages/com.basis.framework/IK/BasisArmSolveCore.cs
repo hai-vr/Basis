@@ -17,7 +17,11 @@ namespace Basis.IK
         public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
         public bool HintIsTracker;     // hint is a REAL elbow tracker (trust it further before the down-stabilizer overrides); false = lookup-derived
         public Quaternion TipRotation; // ANIMATED hand world rotation (pre-IK), like RootRotation/MidRotation. Zero (the default) disables wrist-roll relief.
-        public Quaternion HintRotation; // the tracker's measured lower-arm WORLD rotation (calibrated to the bone). Zero (the default) disables the tracker forearm roll.
+        /// <summary>The lower-arm tracker's measured FOREARM BONE world rotation (its raw rotation already
+        /// mapped through the calibration reference -- BasisLimbRollStore, applied by the rig driver; an elbow
+        /// strap's clock angle is arbitrary and would otherwise land as a constant forearm twist). Zero (the
+        /// struct default) disables the tracker forearm roll.</summary>
+        public Quaternion HintRotation;
     }
 
     public struct BasisArmSolveResult

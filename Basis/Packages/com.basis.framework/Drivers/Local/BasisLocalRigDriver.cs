@@ -800,15 +800,22 @@ namespace Basis.Scripts.Drivers
                 // (the forearm rolls about its own axis) and keys off a solver-overwritten bone, which pops the
                 // elbow. The knees keep their bias only because the knee is a hinge. Elbow-tracker conditioning
                 // is handled solver-side (BasisArmSolveCore HintIsTracker), not by a tracker-local offset.
+                // The ROTATION is mapped through the calibration reference, exactly as the lower legs are: the
+                // solve compares it against the solved forearm, and an elbow strap's clock angle is arbitrary.
+                // No reference (never calibrated) leaves the zero quaternion, which the solve reads as off.
                 llaPos = pOut[S_LeftLowerArm];
                 llaRot = rOut[S_LeftLowerArm];
                 data.hintPositionLeftHand = llaPos;
-                data.hintRotationLeftHand = llaRot;
+                data.hintRotationLeftHand = BasisLimbRollStore.TryGet(BasisBoneTrackedRole.LeftLowerArm, out var leftArmToBone)
+                    ? llaRot * leftArmToBone
+                    : default;
 
                 rlaPos = pOut[S_RightLowerArm];
                 rlaRot = rOut[S_RightLowerArm];
                 data.hintPositionRightHand = rlaPos;
-                data.hintRotationRightHand = rlaRot;
+                data.hintRotationRightHand = BasisLimbRollStore.TryGet(BasisBoneTrackedRole.RightLowerArm, out var rightArmToBone)
+                    ? rlaRot * rightArmToBone
+                    : default;
 
                 // ── TOES ──
                 data.leftDrivenTargetRot = rOut[S_LeftToe];
@@ -818,6 +825,18 @@ namespace Basis.Scripts.Drivers
                 data.TargetRotationLeftShoulder = rOut[S_LeftShoulder];
                 data.TargetRotationRightShoulder = rOut[S_RightShoulder];
             }
+
+            // ── SHIN ROLL (tracker-implied lower-leg BONE rotation) ──
+            // A calf strap's clock angle is arbitrary and the lower-leg role gets no Recalibrated* rotation
+            // offset, so the raw tracker rotation is mapped through the calibration reference before the solve
+            // may compare it against the shin. No reference (never calibrated) leaves the zero quaternion,
+            // which BasisLegSolveCore reads as "feature off".
+            data.hintRotationLeftLowerLeg = (leftLLHasTracker && BasisLimbRollStore.TryGet(BasisBoneTrackedRole.LeftLowerLeg, out var leftToBone))
+                ? BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation * leftToBone
+                : default;
+            data.hintRotationRightLowerLeg = (rightLLHasTracker && BasisLimbRollStore.TryGet(BasisBoneTrackedRole.RightLowerLeg, out var rightToBone))
+                ? BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation * rightToBone
+                : default;
 
             // ── DERIVED BEND PREFS ──
             Vector3 hipsRight = hipsRot * Vector3.right;
@@ -1297,6 +1316,7 @@ namespace Basis.Scripts.Drivers
             data.spineGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineGazeFollow.RawValue;
             data.neckGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckGazeFollow.RawValue;
             data.moveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
+            data.trunkCounterbalance = Basis.BasisUI.BasisSettingsDefaults.FBIKTrunkCounterbalance.RawValue;
             data.swingSmoothRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowSwingEnabled.RawValue
                 ? Basis.BasisUI.BasisSettingsDefaults.FBIKSwingSmoothRate.RawValue
                 : 0f;
