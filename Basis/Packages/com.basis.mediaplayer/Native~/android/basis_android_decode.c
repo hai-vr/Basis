@@ -281,6 +281,10 @@ struct basis_decoder {
     int audioSeekGen;         /* audio-submit (demux) thread only */
     int videoSeekGen;         /* video-submit (demux) thread only */
     int renderSeekGen;        /* render thread only */
+    int videoSeekAck;         /* atomic: demux publishes seekGen once it has flushed the
+                               * codec + released pre-seek frames; the render leg holds
+                               * until it matches so it neither anchors to nor deletes a
+                               * post-seek frame the producer has already enqueued */
 
     /* debug counters */
     long dbg_render, dbg_nodue, dbg_acqfail, dbg_drop, dbg_lagms;
@@ -894,6 +898,10 @@ int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int le
         pthread_mutex_lock(&d->vm);
         for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
         pthread_mutex_unlock(&d->vm);
+        /* Publish the generation so the render leg knows the pre-seek frames are gone
+         * and it can re-anchor. Releasing frames on this (owning) thread only stops
+         * the render leg from deleting post-seek frames drain_video_output re-enqueues. */
+        __atomic_store_n(&d->videoSeekAck, svg, __ATOMIC_RELEASE);
     }
     int rc = -1;
     ssize_t ii = AMediaCodec_dequeueInputBuffer(d->vcodec, 2000);
@@ -1189,8 +1197,9 @@ int basis_decoder_render_update(basis_decoder_t* d) {
     if (basis_engine_is_paused(d->engine)) return 0;
     /* First render after a seek: reset the present clock so present_select re-locks
      * it to the first post-seek frame instead of staying clamped to the stale decode
-     * edge (BUG: video/clock freeze on a cold forward seek). Render-thread-owned
-     * clock; the frame ring itself is cleared on the demux thread (submit_video). */
+     * edge (a video/clock freeze on a cold forward seek). Render-thread-owned clock;
+     * the frame ring is cleared by the demux thread that owns it (submit_video), and
+     * this leg waits on that clear (videoSeekAck) before selecting a frame. */
     int rsg = __atomic_load_n(&d->seekGen, __ATOMIC_ACQUIRE);
     if (rsg != d->renderSeekGen) {
         d->renderSeekGen = rsg;
@@ -1198,16 +1207,17 @@ int basis_decoder_render_update(basis_decoder_t* d) {
         d->primeStartUs = 0;
         d->lastPresentedPts = INT64_MIN;
         d->mediaStartUs = 0;
-        /* Drop any pre-seek frames now, so the present_select below can't show one
-         * (and overwrite the target position) in the window before the video-submit
-         * leg clears the ring. Same AImage_delete-under-vm as the present path. */
-        pthread_mutex_lock(&d->vm);
-        for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
-        pthread_mutex_unlock(&d->vm);
         __atomic_store_n(&d->presentedPosUs,
                          __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE), __ATOMIC_RELAXED);
     }
-    present_select(d);
+    /* Hold frame selection until the demux thread has flushed the codec and released
+     * the pre-seek frames. Selecting before then would show a stale frame, and
+     * releasing them here would race the producer and could delete post-seek frames
+     * it has already enqueued (notably when seeking while paused). Keep rendering so
+     * the last frame stays up during the hold. */
+    if (__atomic_load_n(&d->videoSeekAck, __ATOMIC_ACQUIRE) == rsg) {
+        present_select(d);
+    }
     return basis_vk_render_update(d->vk);
 }
 void basis_decoder_render_release(basis_decoder_t* d) { if (d && d->vk) basis_vk_release(d->vk); }
@@ -1236,6 +1246,11 @@ int basis_decoder_get_frame_origin(basis_decoder_t* d) { (void)d; return 0; }
  * (start-up, audio-only) so early consumers still see the clock move. */
 void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
     if (!d) return;
+    /* Drop any pre-seek PCM still queued so the audio callback stops serving it
+     * immediately rather than up to the next audio AU. ring_flush takes the pcm
+     * mutex, safe from this (caller) thread; the codec reset stays on the submit
+     * thread where the decoder is owned. */
+    ring_flush(&d->pcm);
     /* Latch the target before bumping the generation so any leg that sees the new
      * generation reads the matching target. presentedPosUs is set here so the seek
      * bar snaps to the target immediately, before a post-seek frame presents. */
