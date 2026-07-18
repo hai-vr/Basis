@@ -209,6 +209,7 @@ collisionsEnabled;
         public NativeArray<Vector3> legSwivelRaw;
         public NativeArray<Vector3> legSwivelSmooth;
         public NativeArray<int> legSwivelInit;
+        public NativeArray<BasisLegDiagnostics> legDiagnostics;
         public float ikLockMode;
         public bool shoulderSolveEnabled;
         public bool shoulderShrugEnabled;
@@ -1609,7 +1610,7 @@ collisionsEnabled;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f)
+        public void SolveTwoBone(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal, float hintDistrust = 0f, int diagSlot = -1)
         {
             BasisLegSolveInput input = default;
             input.Root = root.GetPosition(stream);
@@ -1626,6 +1627,17 @@ collisionsEnabled;
             input.BendNormal = BendNormal;
 
             BasisLegSolveCore.Solve(input, out BasisLegSolveResult result);
+
+            if (diagSlot >= 0 && legDiagnostics.IsCreated && diagSlot < legDiagnostics.Length)
+            {
+                BasisLegDiagnostics d = legDiagnostics[diagSlot];
+                d.ReachRatio = result.ReachRatio;
+                d.KneeAngleDeg = result.KneeAngleDeg;
+                d.AxisSource = result.AxisSource;
+                d.HintApplied = result.HintApplied ? 1f : 0f;
+                d.HintDistrust = hintDistrust;
+                legDiagnostics[diagSlot] = d;
+            }
 
             mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
             root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
@@ -1700,11 +1712,18 @@ collisionsEnabled;
                 {
                     hint = new BasisAffineTransform(modelHint, Quaternion.identity);
                     hintW = 1f;
+                    if (legDiagnostics.IsCreated && legSlot < legDiagnostics.Length)
+                    {
+                        BasisLegDiagnostics d = legDiagnostics[legSlot];
+                        d.ModelHintUsed = 1f;
+                        d.ModelConfidence = conf;
+                        legDiagnostics[legSlot] = d;
+                    }
                     hintDistrust = 1f - BasisSwivelHintCore.LegModelTrust(conf);
                 }
             }
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust);
+            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot);
             // Rotation-only fade: the solve produces rotations, so blending positions here would
             // translate bones off the FK chain (dislocated foot) mid-fade.
             if (posWeight < 1f)
@@ -1853,6 +1872,17 @@ collisionsEnabled;
             input.Seeded = legSwivelInit[slot] != 0;
 
             BasisSwivelSmootherCore.Solve(input, out BasisSwivelSmootherResult result);
+            if (legDiagnostics.IsCreated && slot < legDiagnostics.Length)
+            {
+                BasisLegDiagnostics d = legDiagnostics[slot];
+                d.RawSwivelDeg = result.RawSwivelDeg;
+                d.SmoothSwivelDeg = result.SmoothSwivelDeg;
+                d.Conditioning = result.Conditioning;
+                d.HoldGate = result.HoldGate;
+                d.AnteriorGuardApplied = result.AnteriorGuardApplied ? 1f : 0f;
+                d.Seeded = result.Seeded ? 1f : 0f;
+                legDiagnostics[slot] = d;
+            }
             if (result.WriteState)
             {
                 legSwivelRaw[slot] = new Vector3(result.State.Raw, result.State.Vel, 0f);
@@ -2299,6 +2329,7 @@ collisionsEnabled;
             legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
+            legDiagnostics = new NativeArray<BasisLegDiagnostics>(2, Allocator.Persistent);
         }
 
         // Bakes each vertebra's anatomical rest frame + ROM, PARALLEL TO THE CHAIN, so the guard can be
@@ -2435,6 +2466,7 @@ collisionsEnabled;
             if (swingHintBend.IsCreated) swingHintBend.Dispose();
             if (swingHintAxis.IsCreated) swingHintAxis.Dispose();
             if (swingHintInit.IsCreated) swingHintInit.Dispose();
+            if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
             if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();
             if (legSwivelInit.IsCreated) legSwivelInit.Dispose();

@@ -1398,6 +1398,17 @@ namespace Basis.Scripts.Drivers
         /// stuck at zero weight (the avatar and controller arms look broken until the next
         /// calibrate). HasHipsTracker is omitted on purpose — the per-frame Simulate recomputes it.
         /// </summary>
+        public bool TryGetLegDiagnostics(int slot, out Basis.IK.BasisLegDiagnostics diagnostics)
+        {
+            if (IKJobCreated && IKJob.legDiagnostics.IsCreated && (uint)slot < (uint)IKJob.legDiagnostics.Length)
+            {
+                diagnostics = IKJob.legDiagnostics[slot];
+                return true;
+            }
+            diagnostics = default;
+            return false;
+        }
+
         public void RestoreAllTrackers()
         {
             if (IKDataReady)

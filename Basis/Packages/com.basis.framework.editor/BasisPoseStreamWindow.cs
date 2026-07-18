@@ -100,6 +100,18 @@ public class BasisPoseStreamWindow : EditorWindow
         calib.AppendLine($"SOLVE-W leg L={d.enabledLeftLowerLeg:F2} R={d.enabledRightLowerLeg:F2}   HINT-W knee L={d.hintWeightLeftLowerLeg:F2} R={d.hintWeightRightLowerLeg:F2}   toe L={d.leftToeEnabled} R={d.RightToeEnabled}   (hint>0 = foot-driver pole, 0 = swivel model)");
         calib.Append($"HasRigLayer  LFoot={BasisLocalBoneDriver.LeftFootControl.HasRigLayer} RFoot={BasisLocalBoneDriver.RightFootControl.HasRigLayer}" +
                      $"  LLowerLeg={BasisLocalBoneDriver.LeftLowerLegControl.HasRigLayer} RLowerLeg={BasisLocalBoneDriver.RightLowerLegControl.HasRigLayer}");
+        for (int leg = 0; leg < 2; leg++)
+        {
+            if (rig.TryGetLegDiagnostics(leg, out Basis.IK.BasisLegDiagnostics dg))
+            {
+                string name = leg == 0 ? "L" : "R";
+                calib.AppendLine();
+                calib.Append($"LEG {name}  reach={dg.ReachRatio:F3} knee={dg.KneeAngleDeg:F1}deg  axisSrc={dg.AxisSource:F0} " +
+                             $"hintApplied={dg.HintApplied:F0} modelUsed={dg.ModelHintUsed:F0} conf={dg.ModelConfidence:F2} distrust={dg.HintDistrust:F2}  " +
+                             $"raw={dg.RawSwivelDeg:F1} smooth={dg.SmoothSwivelDeg:F1} cond={dg.Conditioning:F3} hold={dg.HoldGate:F2} " +
+                             $"antGuard={dg.AnteriorGuardApplied:F0} seeded={dg.Seeded:F0}");
+            }
+        }
         _calibInfo = calib.ToString();
 
         Transform[] nodes = skeleton.DebugNodes;
