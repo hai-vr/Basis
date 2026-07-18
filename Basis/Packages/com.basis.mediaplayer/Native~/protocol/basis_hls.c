@@ -56,7 +56,14 @@ static void hls_mutex_unlock(hls_mutex_t* m)  { pthread_mutex_unlock(m); }
 #define HLS_MAX_PLAYLIST   (1 << 20) /* 1 MiB playlist cap                         */
 #define HLS_MAX_EMPTY_RELOADS 8  /* consecutive no-new-media reloads before giving up */
 #define HLS_LIVE_MARGIN_SEGMENTS 3 /* playout buffer kept behind the live edge for plain (non-LL) HLS */
-#define HLS_RING_CAP (4 * 1024 * 1024) /* read-ahead byte buffer (~5 s of 1080p HD) */
+/* Read-ahead byte buffer. Sized to bank several media segments ahead: an fMP4
+ * (moof+mdat) segment is consumed a whole fragment at a time — the demuxer reads
+ * the entire mdat before emitting any sample — so the ring must hold the next
+ * fragment while the current one plays out, or playback starves at every segment
+ * boundary (a ~4MiB ring held only ~one fragment: play a few seconds, stall,
+ * repeat). TS is emitted incrementally and needs far less; sizing for the fMP4
+ * case covers both. One heap allocation per HLS stream. */
+#define HLS_RING_CAP (16 * 1024 * 1024)
 
 /* (msn, part) media position. part == -1 means a whole segment. */
 typedef struct {
