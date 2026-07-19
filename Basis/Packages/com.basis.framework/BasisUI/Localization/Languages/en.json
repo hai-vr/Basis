@@ -1307,6 +1307,18 @@
       "value": "Maximum distance from a camera at which jiggle collisions still run."
     },
     {
+      "key": "settings.perf.jiggleCullExpansion.tooltip",
+      "value": "Widens the culling view before off-screen collisions are dropped, so colliders keep working slightly outside your view. Higher values reduce jiggle popping when you turn quickly, at a small performance cost. 1.00 culls exactly at the screen edge."
+    },
+    {
+      "key": "settings.perf.jiggleCullNearKeep.tooltip",
+      "value": "Colliders closer than this to a camera never get culled, whatever the frustum and distance settings say."
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize.tooltip",
+      "value": "Size of one cell in the grid used to find which colliders each jiggle bone can touch. Smaller cells test fewer colliders per bone but build more cells and use more memory. Changing this only takes effect after a restart."
+    },
+    {
       "key": "settings.perf.jiggleColliderLod.toggle.tooltip",
       "value": "Cut back remote avatars' arm, finger and foot jiggle colliders by distance to save performance in crowded instances."
     },
@@ -7649,6 +7661,22 @@
     {
       "key": "settings.perf.jiggleDistanceCull.slider",
       "value": "Max Collision Distance"
+    },
+    {
+      "key": "settings.perf.jiggleCullExpansion",
+      "value": "Off-Screen Collision Margin"
+    },
+    {
+      "key": "settings.perf.jiggleCullNearKeep",
+      "value": "Always-On Collision Radius"
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize",
+      "value": "Collision Grid Cell Size"
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize.restart",
+      "value": "Collision Grid Cell Size (restart to apply)"
     },
     {
       "key": "settings.perf.jiggleColliderLod.toggle",

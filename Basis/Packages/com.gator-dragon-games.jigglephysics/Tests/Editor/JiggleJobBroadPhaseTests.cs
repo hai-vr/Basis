@@ -122,11 +122,41 @@ internal class JiggleJobColliderCullTests {
     public void ColliderCellSpanLimit_DecidesGridVersusGlobal() {
         colliders[0] = JiggleTestFactory.Sphere(float3.zero, 1.2f);
 
-        BuildJob(maxColliderCellSpan: 16).Execute(0);
+        BuildJob(maxColliderCellSpan: 25).Execute(0);
         Assert.AreEqual(JiggleColliderBroadPhaseEntry.StateGrid, entries[0].state);
 
-        BuildJob(maxColliderCellSpan: 15).Execute(0);
+        BuildJob(maxColliderCellSpan: 24).Execute(0);
         Assert.AreEqual(JiggleColliderBroadPhaseEntry.StateGlobal, entries[0].state);
+    }
+
+    /// <summary>
+    /// Absurd radii push the cell keys past what an int can hold, and the resulting span can come
+    /// out negative. However the arithmetic lands, the entry must never ask the broad phase to walk
+    /// an unbounded range of cells.
+    /// </summary>
+    [Test]
+    public void ColliderSpansThatOverflowIntegerKeys_NeverAskForAGiantGridWalk() {
+        colliders[0] = JiggleTestFactory.Sphere(new float3(1e9f, 0f, 0f), 2e9f);
+
+        BuildJob(maxColliderCellSpan: 100).Execute(0);
+
+        Assert.LessOrEqual(WalkedCells(entries[0]), 100L);
+    }
+
+    [Test]
+    public void SymmetricOverflow_AlsoStaysBounded() {
+        colliders[0] = JiggleTestFactory.Sphere(float3.zero, 3e9f);
+
+        BuildJob(maxColliderCellSpan: 100).Execute(0);
+
+        Assert.LessOrEqual(WalkedCells(entries[0]), 100L);
+    }
+
+    private static long WalkedCells(JiggleColliderBroadPhaseEntry entry) {
+        if (entry.state != JiggleColliderBroadPhaseEntry.StateGrid) {
+            return 0L;
+        }
+        return ((long)entry.maxCell.x - entry.minCell.x + 1) * ((long)entry.maxCell.y - entry.minCell.y + 1);
     }
 
     [Test]
@@ -677,10 +707,10 @@ internal class JiggleSettingsTests {
     }
 
     [Test]
-    public void CellStalenessFrames_IsNonNegative() {
+    public void CellStalenessFrames_IsAtLeastOne() {
         JiggleSettings.CellStalenessFrames = -4;
 
-        Assert.AreEqual(0, JiggleSettings.CellStalenessFrames);
+        Assert.AreEqual(1, JiggleSettings.CellStalenessFrames);
     }
 
     [Test]

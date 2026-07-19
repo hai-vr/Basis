@@ -550,7 +550,6 @@ internal class JiggleTreeInputParametersTests {
         parameters.collisionRadius = new JiggleTreeCurvedFloat(-2f);
         parameters.rootStretch = 3f;
         parameters.soften = -1f;
-        parameters.blend = 9f;
 
         parameters.OnValidate();
 
@@ -559,7 +558,22 @@ internal class JiggleTreeInputParametersTests {
         Assert.AreEqual(0f, parameters.collisionRadius.value, 1e-4f);
         Assert.AreEqual(1f, parameters.rootStretch, 1e-4f);
         Assert.AreEqual(0f, parameters.soften, 1e-4f);
-        Assert.AreEqual(1f, parameters.blend, 1e-4f);
+    }
+
+    /// <summary>
+    /// Every shipped preset serialised its retired input blend as 0, so the runtime blend must stay
+    /// pinned at 1. Sourcing it from the asset would slerp each correction back to the animated pose
+    /// and silently disable jiggle on every one of them.
+    /// </summary>
+    [Test]
+    public void Blend_IsAlwaysFullyApplied() {
+        var parameters = JiggleTreeInputParameters.Default();
+
+        Assert.AreEqual(1f, parameters.ToJigglePointParameters(0f).blend, 1e-6f);
+        Assert.AreEqual(1f, parameters.ToJigglePointParameters(1f).blend, 1e-6f);
+
+        parameters.advancedToggle = true;
+        Assert.AreEqual(1f, parameters.ToJigglePointParameters(0.5f).blend, 1e-6f);
     }
 }
 

@@ -560,6 +560,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseJiggleCollisionFrustumCull = new("usejigglecollisionfrustumcull", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UseJiggleCollisionDistanceCull = new("usejigglecollisiondistancecull", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> JiggleCollisionCullDistance = new("jigglecollisionculldistance", new BasisPlatformDefault<float>(20));
+        public static BasisSettingsBinding<float> JiggleCullFrustumExpansion = new("jigglecullfrustumexpansion", new BasisPlatformDefault<float>(1.2f));
+        public static BasisSettingsBinding<float> JiggleCullNearKeepRadius = new("jigglecullnearkeepradius", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> JiggleBroadPhaseCellSize = new("jigglebroadphasecellsize", new BasisPlatformDefault<float>(0.5f));
 
         // Distance-based reduction of remote avatars' jiggle colliders: past Near drop the finger
         // colliders (hands become a single sphere), past Mid drop the arm/foot colliders too, past
@@ -1871,6 +1874,9 @@ namespace Basis.BasisUI
             UseJiggleCollisionFrustumCull.LoadBindingValue();
             UseJiggleCollisionDistanceCull.LoadBindingValue();
             JiggleCollisionCullDistance.LoadBindingValue();
+            JiggleCullFrustumExpansion.LoadBindingValue();
+            JiggleCullNearKeepRadius.LoadBindingValue();
+            JiggleBroadPhaseCellSize.LoadBindingValue();
             UseJiggleColliderDistanceLod.LoadBindingValue();
             JiggleColliderLodNearDistance.LoadBindingValue();
             JiggleColliderLodMidDistance.LoadBindingValue();

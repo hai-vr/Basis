@@ -66,7 +66,7 @@ public struct JiggleJobSimulate : IJobFor {
     }
 
 
-    private unsafe void Cache(ref JiggleTreeJobData tree) {
+    private unsafe void Cache(JiggleTreeJobData tree, out int2 minExtentPosition, out int2 maxExtentPosition) {
         float3 min = new float3(float.MaxValue);
         float3 max = new float3(float.MinValue);
         
@@ -115,8 +115,8 @@ public struct JiggleJobSimulate : IJobFor {
             tree.points[i] = point;
         }
 
-        tree.minExtentPosition = JiggleGridCell.GetKeyForPosition(min, inverseCellSize);
-        tree.maxExtentPosition = JiggleGridCell.GetKeyForPosition(max, inverseCellSize);
+        minExtentPosition = JiggleGridCell.GetKeyForPosition(min, inverseCellSize);
+        maxExtentPosition = JiggleGridCell.GetKeyForPosition(max, inverseCellSize);
     }
 
     private unsafe void VerletIntegrate(JiggleTreeJobData tree) {
@@ -379,7 +379,7 @@ public struct JiggleJobSimulate : IJobFor {
         }
         return false;
     }
-    private unsafe void Constrain(JiggleTreeJobData tree) {
+    private unsafe void Constrain(JiggleTreeJobData tree, int2 minExtentPosition, int2 maxExtentPosition) {
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points+i;
             var pointParameters = tree.parameters + i;
@@ -400,8 +400,8 @@ public struct JiggleJobSimulate : IJobFor {
             }
 
             // TODO: to convert a float to a grid location we just cast, but this always rounds towards zero. Probably should be a math.round()
-            int2 min = tree.minExtentPosition;
-            int2 max = tree.maxExtentPosition;
+            int2 min = minExtentPosition;
+            int2 max = maxExtentPosition;
             // Corrupt or runaway point positions produce extents spanning millions of cells;
             // walking them would hang the sim for seconds. A healthy tree spans a handful of
             // cells, so skip the grid walk (global colliders above still applied) when the
@@ -657,9 +657,9 @@ public struct JiggleJobSimulate : IJobFor {
             return;
         }
         #endif
-        Cache(ref tree);
+        Cache(tree, out var minExtentPosition, out var maxExtentPosition);
         VerletIntegrate(tree);
-        Constrain(tree);
+        Constrain(tree, minExtentPosition, maxExtentPosition);
         FinishStep(tree);
         ApplyPose(tree);
         jiggleTrees[index].Sanitize();

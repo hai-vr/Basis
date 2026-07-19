@@ -108,20 +108,51 @@ internal unsafe class JiggleJobSimulateCacheTests {
         Assert.AreEqual(0f, tip.worldRadius, JiggleTestFactory.Tolerance);
     }
 
-    [Test]
-    public void Extents_CoverRealPointsInflatedByWorldRadius() {
-        var tree = JiggleTestTree.Chain(2, new float3(0f, 0f, 0f), new float3(1f, 0f, 0f), 4f,
-            JiggleTestFactory.Params(collisionRadius: 0.5f));
+    /// <summary>
+    /// The extents Cache() derives are scratch state on the job's local copy of the tree, so they
+    /// are only observable through which broadphase cells Constrain() goes on to walk. A chain from
+    /// x=0 to x=1 inflated by a 0.3 collision radius reaches cell 3 but not cell 4.
+    /// </summary>
+    private JiggleSimHarness BuildInflatedChain() {
+        var tree = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f,
+            JiggleTestFactory.Params(collisionRadius: 0.3f));
         harness = new JiggleSimHarness(tree);
+        harness.sceneColliders[0] = JiggleTestFactory.Sphere(new float3(1f, -0.5f, 0f), 1f);
+        return harness;
+    }
+
+    [Test]
+    public void Extents_ReachTheCellCoveredByTheInflatedRadius() {
+        BuildInflatedChain();
+        harness.AddGridCollider(new int2(3, 0), 0);
 
         harness.Step();
 
-        var expectedMin = JiggleTestFactory.Key(new float3(-0.5f, 0f, -0.5f));
-        var expectedMax = JiggleTestFactory.Key(new float3(4.5f, 0f, 0.5f));
-        Assert.AreEqual(expectedMin.x, harness.Tree.minExtentPosition.x);
-        Assert.AreEqual(expectedMin.y, harness.Tree.minExtentPosition.y);
-        Assert.AreEqual(expectedMax.x, harness.Tree.maxExtentPosition.x);
-        Assert.AreEqual(expectedMax.y, harness.Tree.maxExtentPosition.y);
+        Assert.Greater(harness.Point(2).position.y, 0f);
+    }
+
+    [Test]
+    public void Extents_StopShortOfTheNextCell() {
+        BuildInflatedChain();
+        harness.AddGridCollider(new int2(4, 0), 0);
+
+        harness.Step();
+
+        Assert.AreEqual(0f, harness.Point(2).position.y, JiggleTestFactory.Tolerance);
+    }
+
+    [Test]
+    public void Extents_WidenWithTheCollisionRadius() {
+        var tree = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f,
+            JiggleTestFactory.Params(collisionRadius: 0.05f));
+        harness = new JiggleSimHarness(tree);
+        harness.sceneColliders[0] = JiggleTestFactory.Sphere(new float3(1f, -0.5f, 0f), 1f);
+        harness.AddGridCollider(new int2(3, 0), 0);
+
+        harness.Step();
+
+        Assert.AreEqual(0f, harness.Point(2).position.y, JiggleTestFactory.Tolerance,
+            "a thinner chain should not reach the cell a fatter one does");
     }
 
     [Test]

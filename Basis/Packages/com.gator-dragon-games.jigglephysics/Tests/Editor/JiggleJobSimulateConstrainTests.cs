@@ -215,14 +215,32 @@ internal unsafe class JiggleJobSimulateConstrainTests {
         Assert.Less(soft, hard);
     }
 
+    /// <summary>
+    /// Back-propagation reads the point's own parameters while the angle constraint that follows it
+    /// reads the parent's, so the parent is left slack to keep it from immediately undoing the pull.
+    /// </summary>
     [Test]
     public void BackPropagation_MovesAMidChainPointWhenItsChildIsReal() {
-        BuildChain(3, JiggleTestFactory.Params(angleElasticity: 1f, lengthElasticity: 1f));
+        BuildChain(3, JiggleTestFactory.Params());
+        harness.SetParameters(1, JiggleTestFactory.Params(angleElasticity: 0f, lengthElasticity: 0f));
+        harness.SetParameters(2, JiggleTestFactory.Params(angleElasticity: 1f, lengthElasticity: 1f));
         Displace(harness, 3, new float3(0f, -1f, 0f));
 
         harness.Step();
 
         Assert.Less(harness.Point(2).position.y, 0f);
+    }
+
+    [Test]
+    public void BackPropagation_IsGatedByThePointsOwnAngleElasticity() {
+        BuildChain(3, JiggleTestFactory.Params());
+        harness.SetParameters(1, JiggleTestFactory.Params(angleElasticity: 0f, lengthElasticity: 0f));
+        harness.SetParameters(2, JiggleTestFactory.Params(angleElasticity: 0f, lengthElasticity: 1f));
+        Displace(harness, 3, new float3(0f, -1f, 0f));
+
+        harness.Step();
+
+        Assert.AreEqual(0f, harness.Point(2).position.y, JiggleTestFactory.Tolerance);
     }
 
     [Test]

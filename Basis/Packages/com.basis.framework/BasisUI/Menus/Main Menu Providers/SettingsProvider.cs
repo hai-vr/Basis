@@ -122,11 +122,26 @@ namespace Basis.BasisUI
 
         private static void ApplyJiggleCollisionCulling()
         {
+            JiggleSettings.CullFrustumExpansion = BasisSettingsDefaults.JiggleCullFrustumExpansion.RawValue;
+            JiggleSettings.CullNearKeepRadius = BasisSettingsDefaults.JiggleCullNearKeepRadius.RawValue;
             JigglePhysics.SetCollisionCulling(
                 BasisSettingsDefaults.UseJiggleCollisionFrustumCull.RawValue,
                 BasisSettingsDefaults.UseJiggleCollisionDistanceCull.RawValue,
                 Mathf.Max(0f, BasisSettingsDefaults.JiggleCollisionCullDistance.RawValue));
         }
+
+        private static float appliedJiggleBroadPhaseCellSize = float.NaN;
+
+        public static void ApplyJiggleStartupSettings()
+        {
+            JiggleSettings.BroadPhaseCellSize = BasisSettingsDefaults.JiggleBroadPhaseCellSize.RawValue;
+            appliedJiggleBroadPhaseCellSize = JiggleSettings.BroadPhaseCellSize;
+        }
+
+        public static bool JiggleBroadPhaseCellSizeNeedsRestart =>
+            !float.IsNaN(appliedJiggleBroadPhaseCellSize)
+            && !Mathf.Approximately(appliedJiggleBroadPhaseCellSize,
+                Mathf.Max(0.01f, BasisSettingsDefaults.JiggleBroadPhaseCellSize.RawValue));
 
         public const string StaticTitleKey = "settings.title";
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);

@@ -234,6 +234,7 @@ namespace Basis.Scripts.Device_Management
             Basis.BasisUI.BasisLocalization.Initialize();
             Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
             BasisSettingsDefaults.LoadAll();
+            Basis.BasisUI.SettingsProvider.ApplyJiggleStartupSettings();
             try
             {
                 await Initialize();

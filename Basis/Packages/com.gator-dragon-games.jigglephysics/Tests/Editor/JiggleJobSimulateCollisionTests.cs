@@ -157,22 +157,30 @@ internal unsafe class JiggleJobSimulateCollisionTests {
         Assert.GreaterOrEqual(math.distance(harness.Point(2).position, new float3(1f, -0.5f, 0f)), 0.6f + 0.25f - 1e-2f);
     }
 
+    /// <summary>
+    /// A shaft centred at the origin only reaches the point at x=1 when it runs along X; along Z it
+    /// stays a metre away and must not touch it.
+    /// </summary>
     [Test]
-    public void Capsule_HonoursItsConfiguredAxis() {
+    public void Capsule_AlongItsAxis_ReachesThePoint() {
         BuildCollidable();
-        harness.sceneColliders[0] = JiggleTestFactory.Capsule(new float3(1f, -0.6f, 0f), 0.4f, 6f, JiggleCollider.CapsuleAxis.X);
+        harness.sceneColliders[0] = JiggleTestFactory.Capsule(new float3(0f, -0.6f, 0f), 0.4f, 6f, JiggleCollider.CapsuleAxis.X);
         harness.AddGlobalCollider(0);
-        harness.Step();
-        var alongX = harness.Point(2).position;
 
-        harness.Dispose();
+        harness.Step();
+
+        Assert.Greater(harness.Point(2).position.y, 0f);
+    }
+
+    [Test]
+    public void Capsule_AcrossItsAxis_LeavesThePointAlone() {
         BuildCollidable();
-        harness.sceneColliders[0] = JiggleTestFactory.Capsule(new float3(1f, -0.6f, 0f), 0.4f, 6f, JiggleCollider.CapsuleAxis.Z);
+        harness.sceneColliders[0] = JiggleTestFactory.Capsule(new float3(0f, -0.6f, 0f), 0.4f, 6f, JiggleCollider.CapsuleAxis.Z);
         harness.AddGlobalCollider(0);
-        harness.Step();
-        var alongZ = harness.Point(2).position;
 
-        Assert.Greater(math.distance(alongX, alongZ), 1e-3f);
+        harness.Step();
+
+        Assert.AreEqual(0f, harness.Point(2).position.y, JiggleTestFactory.Tolerance);
     }
 
     [Test]

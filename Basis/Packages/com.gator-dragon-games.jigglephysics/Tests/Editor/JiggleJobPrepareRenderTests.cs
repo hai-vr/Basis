@@ -140,18 +140,28 @@ internal unsafe class JiggleJobPrepareRenderTests {
         Assert.AreEqual(4f * 0.5f + 0.25f, lengthScale, 1e-3f);
     }
 
+    /// <summary>
+    /// The mesh is authored along Y, so the long axis stays in column 1 and the permutation instead
+    /// steers that column onto the collider's configured world axis.
+    /// </summary>
     [Test]
-    public void CapsuleMatrix_PermutesForNonYAxes() {
+    public void CapsuleMatrix_PointsItsLongAxisAlongTheConfiguredAxis() {
         personal[0] = JiggleTestFactory.Capsule(float3.zero, 0.25f, 4f, JiggleCollider.CapsuleAxis.X);
         BuildJob(personalCount: 1).Execute();
-        var alongX = capsuleChunks[0].matrix;
+        var alongX = capsuleChunks[0].matrix.c1.xyz;
+
+        personal[0] = JiggleTestFactory.Capsule(float3.zero, 0.25f, 4f, JiggleCollider.CapsuleAxis.Y);
+        BuildJob(personalCount: 1).Execute();
+        var alongY = capsuleChunks[0].matrix.c1.xyz;
 
         personal[0] = JiggleTestFactory.Capsule(float3.zero, 0.25f, 4f, JiggleCollider.CapsuleAxis.Z);
         BuildJob(personalCount: 1).Execute();
-        var alongZ = capsuleChunks[0].matrix;
+        var alongZ = capsuleChunks[0].matrix.c1.xyz;
 
-        Assert.AreEqual(2.25f, math.length(alongX.c0.xyz), 1e-3f);
-        Assert.AreEqual(2.25f, math.length(alongZ.c2.xyz), 1e-3f);
+        Assert.AreEqual(2.25f, math.length(alongX), 1e-3f);
+        JiggleAssert.AreEqual(new float3(1f, 0f, 0f), math.normalize(alongX), 1e-3f);
+        JiggleAssert.AreEqual(new float3(0f, 1f, 0f), math.normalize(alongY), 1e-3f);
+        JiggleAssert.AreEqual(new float3(0f, 0f, 1f), math.normalize(alongZ), 1e-3f);
     }
 
     [Test]
