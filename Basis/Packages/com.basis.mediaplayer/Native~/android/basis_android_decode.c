@@ -263,6 +263,8 @@ struct basis_decoder {
     int64_t mediaStartUs;
     int64_t lastPresentedPts; /* PTS of the frame currently shown; INT64_MIN = none */
     int64_t presentedPosUs;   /* stable position for get_position_us; -1 until first present */
+    int  audioSettling;       /* audio-only position: hold get_position at the seek target
+                               * until post-seek audio serves near it (main thread only) */
     int64_t frameIntervalUs;  /* EMA of inter-frame PTS delta (source frame period) */
     int64_t prevWritePts;     /* last frame PTS enqueued (for the interval EMA) */
     int64_t audClockOffsetUs; /* published media-time offset from the monotonic clock; INT64_MIN = not started */
@@ -278,6 +280,7 @@ struct basis_decoder {
      * re-anchors the present clock. seekGen/seekTargetUs are cross-thread (atomics). */
     int     seekGen;          /* atomic */
     int64_t seekTargetUs;     /* atomic */
+    int64_t seekFromUs;       /* pre-seek audio front, for the audio-only settle (main thread only) */
     int audioSeekGen;         /* audio-submit (demux) thread only */
     int videoSeekGen;         /* video-submit (demux) thread only */
     int renderSeekGen;        /* render thread only */
@@ -1207,8 +1210,14 @@ int basis_decoder_render_update(basis_decoder_t* d) {
         d->primeStartUs = 0;
         d->lastPresentedPts = INT64_MIN;
         d->mediaStartUs = 0;
-        __atomic_store_n(&d->presentedPosUs,
-                         __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE), __ATOMIC_RELAXED);
+        /* Only with video: report the target so get_position_us tracks before the
+         * first post-seek frame presents (present_select overwrites it once one does).
+         * Audio-only has no present to advance a pinned value, so leaving it set would
+         * freeze the position at the target — leave it unset and let the audio-front
+         * settle in get_position_us own the position (matches basis_decoder_seek). */
+        if (d->vcodec)
+            __atomic_store_n(&d->presentedPosUs,
+                             __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE), __ATOMIC_RELAXED);
     }
     /* Hold frame selection until the demux thread has flushed the codec and released
      * the pre-seek frames. Selecting before then would show a stale frame, and
@@ -1246,16 +1255,39 @@ int basis_decoder_get_frame_origin(basis_decoder_t* d) { (void)d; return 0; }
  * (start-up, audio-only) so early consumers still see the clock move. */
 void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
     if (!d) return;
+    /* Record the pre-seek audio front before the flush clears it, so the audio-only
+     * settle can tell post-seek audio (near the target) from a stale pre-seek frame
+     * that slipped the drop (near this origin) — see get_position_us. A rapid re-seek
+     * with the ring already empty falls back to the prior target (where we were). */
+    pthread_mutex_lock(&d->pcm.m);
+    int64_t from = d->pcm.playedUs;
+    pthread_mutex_unlock(&d->pcm.m);
+    d->seekFromUs = from != INT64_MIN ? from : __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE);
     /* Drop any pre-seek PCM still queued so the audio callback stops serving it
      * immediately rather than up to the next audio AU. ring_flush takes the pcm
      * mutex, safe from this (caller) thread; the codec reset stays on the submit
      * thread where the decoder is owned. */
     ring_flush(&d->pcm);
     /* Latch the target before bumping the generation so any leg that sees the new
-     * generation reads the matching target. presentedPosUs is set here so the seek
-     * bar snaps to the target immediately, before a post-seek frame presents. */
+     * generation reads the matching target. */
     __atomic_store_n(&d->seekTargetUs, target_us, __ATOMIC_RELEASE);
-    __atomic_store_n(&d->presentedPosUs, target_us, __ATOMIC_RELAXED);
+    if (d->vcodec) {
+        /* Video present: snap the presentation clock to the target so the seek bar
+         * shows the target immediately, before the first post-seek frame presents. */
+        __atomic_store_n(&d->presentedPosUs, target_us, __ATOMIC_RELAXED);
+    } else {
+        /* Audio-only: no frame ever presents, so nothing would advance a pinned
+         * presentedPosUs and get_position_us (which returns it whenever >= 0) would
+         * freeze at the target. Leave it unset so get_position_us reports the audio
+         * front (playedUs), and mark the position settling: the ring was just
+         * flushed, but a pre-seek AU decoded in the window before the demuxer
+         * repositions can still drain a stale chunk into it, which would bounce the
+         * reported position (and the seek bar) to the old spot. get_position_us holds
+         * at the target through the settle until post-seek audio serves near it — the
+         * audio mirror of the video present clock re-anchoring to the target. */
+        __atomic_store_n(&d->presentedPosUs, -1, __ATOMIC_RELAXED);
+        d->audioSettling = 1;
+    }
     __atomic_add_fetch(&d->seekGen, 1, __ATOMIC_RELEASE);
 }
 
@@ -1264,10 +1296,27 @@ int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     int64_t presented = __atomic_load_n(&d->presentedPosUs, __ATOMIC_RELAXED);
     if (presented >= 0) return presented;
     if (d->lastPtsUs >= 0) return d->lastPtsUs;
-    /* Audio-only: no video ever presents, so report the audio playback front. */
+    /* Audio-only: no video ever presents, so report the audio playback front.
+     * Through a post-seek settle, hold at the target until served audio lands nearer
+     * the target than the pre-seek origin. The core drops pre-seek audio before the
+     * ring, but that drop is not airtight (a frame can slip the seek-generation
+     * visibility window); latching on the first served sample would then report ~the
+     * pre-seek position. A slipped frame sits near the origin and post-seek audio near
+     * the target, so "nearer target than origin" rejects the former at any seek size —
+     * unlike a fixed proximity window, which a slip within it (a short seek) defeats. */
     pthread_mutex_lock(&d->pcm.m);
     int64_t played = d->pcm.playedUs;
     pthread_mutex_unlock(&d->pcm.m);
+    if (d->audioSettling) {
+        int64_t target = __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE);
+        if (played != INT64_MIN) {
+            int64_t from = d->seekFromUs;
+            uint64_t dTarget = played >= target ? (uint64_t)played - (uint64_t)target : (uint64_t)target - (uint64_t)played;
+            uint64_t dFrom   = played >= from   ? (uint64_t)played - (uint64_t)from   : (uint64_t)from   - (uint64_t)played;
+            if (dTarget <= dFrom) { d->audioSettling = 0; return played; }
+        }
+        return target;
+    }
     return played != INT64_MIN ? played : -1;
 }
 int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {

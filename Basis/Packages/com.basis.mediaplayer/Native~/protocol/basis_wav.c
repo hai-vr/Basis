@@ -45,7 +45,8 @@ static int skip_bytes(basis_media_sink_t* sink, basis_read_fn rd, void* ctx, uin
     return 1;
 }
 
-int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
+int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx,
+                  basis_reseek_fn reseek, void* reseek_ctx) {
     uint8_t hdr[12];
     if (read_full(sink, rd, ctx, hdr, 12) < 12 ||
         memcmp(hdr, "RIFF", 4) != 0 || memcmp(hdr + 8, "WAVE", 4) != 0) {
@@ -56,10 +57,12 @@ int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
     int fmt_seen = 0;
     int channels = 0, rate = 0, bits = 0, block_align = 0;
     uint32_t byte_rate = 0;
+    int64_t pos = 12;   /* absolute body offset consumed so far (for reseek) */
 
     for (;;) {
         uint8_t ch8[8];
         if (read_full(sink, rd, ctx, ch8, 8) < 8) return 0; /* clean EOF before data */
+        pos += 8;
         uint32_t csz = rd_le32(ch8 + 4);
 
         if (memcmp(ch8, "fmt ", 4) == 0) {
@@ -70,6 +73,7 @@ int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
                 if (take < 16) { sink->on_error(sink->user, "WAV fmt chunk truncated"); return -1; }
                 return 0;
             }
+            pos += csz + (csz & 1);
             int tag    = rd_le16(f);
             channels   = rd_le16(f + 2);
             rate       = (int)rd_le32(f + 4);
@@ -88,6 +92,7 @@ int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
 
         if (memcmp(ch8, "data", 4) != 0) {
             if (!skip_bytes(sink, rd, ctx, csz + (csz & 1))) return 0;
+            pos += csz + (csz & 1);
             continue;
         }
 
@@ -104,9 +109,13 @@ int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
         uint8_t cfg[3] = { 0, (uint8_t)(bits == 16 ? 1 : 3), 1 };
         sink->on_audio_format(sink->user, BASIS_CODEC_LPCM, rate, channels, cfg, 3);
 
-        /* 0/0xFFFFFFFF = unknown length (streaming capture): play to EOF. */
+        int64_t data_abs = pos;   /* body offset of the first PCM byte, for reseek */
+
+        /* 0/0xFFFFFFFF = unknown length (streaming capture): play to EOF. Only a
+         * reseekable source reports a duration — reporting one implies a working
+         * seek bar, so gate it on the hook (matching MP4/WebM/Ogg). */
         int bounded = (csz != 0 && csz != 0xFFFFFFFFu);
-        if (bounded && sink->on_duration && byte_rate > 0)
+        if (bounded && reseek && sink->on_duration && byte_rate > 0)
             sink->on_duration(sink->user, (int64_t)csz * 1000000 / byte_rate);
 
         int frame_bytes = block_align;
@@ -118,6 +127,25 @@ int basis_wav_run(basis_media_sink_t* sink, basis_read_fn rd, void* ctx) {
         int64_t frames_sent = 0;
         uint32_t left = csz;
         while (sink->is_running(sink->user)) {
+            /* Absolute-seek handshake: take the posted seek (which acknowledges it to the
+             * core's pre-seek drop) and reposition. PCM is linear, so the target maps
+             * straight to a frame-aligned byte offset. Gate on the loop-invariant reseek
+             * hook before polling take_seek (as the MP3 demuxer does): a non-reseekable
+             * source reports no duration and so posts no seek, and not consuming one keeps
+             * a seek from being silently swallowed if that duration-gating ever changes. */
+            int64_t target_us;
+            if (reseek && byte_rate > 0 && sink->take_seek && sink->take_seek(sink->user, &target_us)) {
+                if (target_us < 0) target_us = 0;
+                int64_t byte_off = (int64_t)((double)target_us * (double)byte_rate / 1000000.0);
+                byte_off -= byte_off % frame_bytes;                 /* whole frames only */
+                if (bounded && byte_off > (int64_t)csz) byte_off = (int64_t)csz - (int64_t)csz % frame_bytes;
+                if (byte_off < 0) byte_off = 0;
+                if (reseek(reseek_ctx, data_abs + byte_off) == 0) {
+                    frames_sent = byte_off / frame_bytes;
+                    left = bounded ? (uint32_t)((int64_t)csz - byte_off) : csz;
+                    continue;
+                }
+            }
             int want = chunk_bytes;
             if (bounded && (uint32_t)want > left) want = (int)left;
             if (want <= 0) break;

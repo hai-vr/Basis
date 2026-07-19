@@ -370,9 +370,12 @@ struct basis_decoder {
      * the window before the next video AU arrives. Nothing is touched across threads. */
     volatile LONG   seekGen = 0;
     volatile LONG64 seekTargetUs = 0;
+    int64_t seekFromUs = 0;   /* pre-seek audio front, for the audio-only settle (main thread only) */
     LONG audioSeekGen = 0;    /* audio-submit (demux) thread only */
     LONG videoSeekGen = 0;    /* video-submit (demux) thread only */
     LONG renderSeekGen = 0;   /* render thread only */
+    int  audioSettling = 0;   /* audio-only position: hold get_position at the seek target
+                               * until post-seek audio serves near it (main thread only) */
     volatile LONG videoSeekAck = 0; /* demux publishes seekGen here once it has flushed
                                      * vdec + dropped pre-seek frames; the render leg
                                      * holds until it matches so it neither anchors to a
@@ -2088,18 +2091,42 @@ extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) 
     if (w) *w = d->sharedW; if (h) *h = d->sharedH; return 0;
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
+
 extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
     if (!d) return;
+    /* Record the pre-seek audio front before the flush clears it, so the audio-only
+     * settle can tell post-seek audio (near the target) from a stale pre-seek frame
+     * that slipped the drop (near this origin) — see get_position_us. A rapid re-seek
+     * with the ring already empty falls back to the prior target (where we were). */
+    EnterCriticalSection(&d->pcm.cs);
+    int64_t from = d->pcm.playedUs;
+    LeaveCriticalSection(&d->pcm.cs);
+    d->seekFromUs = from != INT64_MIN ? from : InterlockedCompareExchange64(&d->seekTargetUs, 0, 0);
     /* Drop any pre-seek PCM still queued so the audio callback stops serving it
      * immediately rather than up to the next audio AU. pcm.flush() is cs-guarded,
      * safe from this (caller) thread; the codec-state reset stays on the submit
      * thread where the MFT/Opus decoder is owned. */
     d->pcm.flush();
     /* Latch target before bumping the generation so any leg that observes the new
-     * generation reads the matching target. presentedPosUs is set here too so the
-     * seek bar snaps to the target immediately, before a frame is presented. */
+     * generation reads the matching target. */
     InterlockedExchange64(&d->seekTargetUs, target_us);
-    InterlockedExchange64(&d->presentedPosUs, target_us);
+    if (d->vdec) {
+        /* Video present: snap the presentation clock to the target so the seek bar
+         * shows the target immediately, before the first post-seek frame presents. */
+        InterlockedExchange64(&d->presentedPosUs, target_us);
+    } else {
+        /* Audio-only: no frame ever presents, so nothing would advance a pinned
+         * presentedPosUs and get_position_us (which returns it whenever >= 0) would
+         * freeze at the target. Leave it unset so get_position_us reports the audio
+         * front (playedUs), and mark the position settling: the ring was just
+         * flushed, but a pre-seek AU decoded in the window before the demuxer
+         * repositions can still drain a stale chunk into it, which would bounce the
+         * reported position (and the seek bar) to the old spot. get_position_us
+         * holds at the target through the settle until post-seek audio serves near
+         * it — the audio mirror of the video render leg re-anchoring to the target. */
+        InterlockedExchange64(&d->presentedPosUs, -1);
+        d->audioSettling = 1;
+    }
     InterlockedIncrement(&d->seekGen);
 }
 
@@ -2110,10 +2137,27 @@ extern "C" int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     int64_t presented = InterlockedCompareExchange64((volatile LONG64*)&d->presentedPosUs, 0, 0);
     if (presented >= 0) return presented;
     if (d->lastPtsUs >= 0) return d->lastPtsUs;
-    /* Audio-only: no video ever presents, so report the audio playback front. */
+    /* Audio-only: no video ever presents, so report the audio playback front.
+     * Through a post-seek settle, hold at the target until served audio lands nearer
+     * the target than the pre-seek origin. The core drops pre-seek audio before the
+     * ring, but that drop is not airtight (a frame can slip the seek-generation
+     * visibility window); latching on the first served sample would then report ~the
+     * pre-seek position. A slipped frame sits near the origin and post-seek audio near
+     * the target, so "nearer target than origin" rejects the former at any seek size —
+     * unlike a fixed proximity window, which a slip within it (a short seek) defeats. */
     EnterCriticalSection(&d->pcm.cs);
     int64_t played = d->pcm.playedUs;
     LeaveCriticalSection(&d->pcm.cs);
+    if (d->audioSettling) {
+        int64_t target = InterlockedCompareExchange64((volatile LONG64*)&d->seekTargetUs, 0, 0);
+        if (played != INT64_MIN) {
+            int64_t from = d->seekFromUs;
+            uint64_t dTarget = played >= target ? (uint64_t)played - (uint64_t)target : (uint64_t)target - (uint64_t)played;
+            uint64_t dFrom   = played >= from   ? (uint64_t)played - (uint64_t)from   : (uint64_t)from   - (uint64_t)played;
+            if (dTarget <= dFrom) { d->audioSettling = 0; return played; }
+        }
+        return target;
+    }
     return played != INT64_MIN ? played : -1;
 }
 extern "C" int basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) {
