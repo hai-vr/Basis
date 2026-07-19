@@ -64,14 +64,58 @@ internal unsafe class JiggleJobSimulateIntegrateTests {
         JiggleAssert.AreEqual(new float3(-1f, 0f, 0f), harness.Point(0).position, JiggleTestFactory.Tolerance);
     }
 
+    /// <summary>
+    /// Each substep is a whole fixed step, so gravity accrues once per substep rather than being
+    /// divided among them. The old behaviour scaled the step down instead, which is why falling
+    /// behind used to slow the simulation rather than let it catch up.
+    /// </summary>
     [Test]
-    public void TimeIncrements_ScaleDownTheIntegrationStep() {
+    public void Substeps_EachAdvanceAFullFixedStep() {
         BuildChain(JiggleTestFactory.Params(gravityMultiplier: 1f), Gravity);
-        harness.job.timeIncrements = 2;
+        harness.job.substeps = 2;
 
         harness.Step();
 
-        JiggleAssert.AreEqual(new float3(1f, Gravity.y * Dt * Dt * 0.5f, 0f), harness.Point(2).position, JiggleTestFactory.Tolerance);
+        // Two Verlet steps under constant acceleration land at 3gt², not 2gt².
+        JiggleAssert.AreEqual(new float3(1f, Gravity.y * Dt * Dt * 3f, 0f), harness.Point(2).position, JiggleTestFactory.Tolerance);
+    }
+
+    /// <summary>
+    /// The property the whole substep mechanism exists for: one frame that owes two steps must land
+    /// exactly where two frames owing one step each would. Without it, jiggle runs slower the lower
+    /// the frame rate goes.
+    /// </summary>
+    [Test]
+    public void Substeps_MatchRunningTheSameNumberOfSingleSteps() {
+        BuildChain(JiggleTestFactory.Params(angleElasticity: 0.5f, lengthElasticity: 0.8f,
+            gravityMultiplier: 1f, drag: 0.1f, airDrag: 0.05f), Gravity);
+        harness.job.substeps = 1;
+        harness.Step(6);
+        var singleSteps = harness.Point(2).position;
+
+        harness.Dispose();
+        BuildChain(JiggleTestFactory.Params(angleElasticity: 0.5f, lengthElasticity: 0.8f,
+            gravityMultiplier: 1f, drag: 0.1f, airDrag: 0.05f), Gravity);
+        harness.job.substeps = 3;
+        harness.Step(2);
+        var substepped = harness.Point(2).position;
+
+        JiggleAssert.AreEqual(singleSteps, substepped, 1e-5f);
+    }
+
+    [Test]
+    public void SubstepsOfOne_AreTheSameAsNoSubstepping() {
+        BuildChain(JiggleTestFactory.Params(gravityMultiplier: 1f, drag: 0.1f), Gravity);
+        harness.job.substeps = 1;
+        harness.Step(4);
+        var baseline = harness.Point(2).position;
+
+        harness.Dispose();
+        BuildChain(JiggleTestFactory.Params(gravityMultiplier: 1f, drag: 0.1f), Gravity);
+        harness.job.substeps = 0;
+        harness.Step(4);
+
+        JiggleAssert.AreEqual(baseline, harness.Point(2).position, 0f);
     }
 
     [Test]

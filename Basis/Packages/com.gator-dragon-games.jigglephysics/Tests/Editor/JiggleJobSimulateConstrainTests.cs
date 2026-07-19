@@ -149,21 +149,26 @@ internal unsafe class JiggleJobSimulateConstrainTests {
         Assert.Less(softened, unsoftened);
     }
 
+    /// <summary>
+    /// Substeps re-solve the constraint because they re-run the whole step, not because the solve is
+    /// iterated in place. The old code looped the lerp instead, which stiffened the chain rather than
+    /// advancing it, so falling behind changed how the rig felt.
+    /// </summary>
     [Test]
-    public void TimeIncrements_ApplyTheAngleConstraintRepeatedly() {
+    public void Substeps_ConvergeTowardsThePoseLikeRepeatedFrames() {
         BuildChain(2, JiggleTestFactory.Params(angleElasticity: 0.5f));
         Displace(harness, 2, new float3(0f, -1f, 0f));
-        harness.Step();
-        var single = harness.Point(2).position.y;
+        harness.Step(4);
+        var fourFrames = harness.Point(2).position;
 
         harness.Dispose();
         BuildChain(2, JiggleTestFactory.Params(angleElasticity: 0.5f));
-        harness.job.timeIncrements = 4;
+        harness.job.substeps = 4;
         Displace(harness, 2, new float3(0f, -1f, 0f));
         harness.Step();
-        var repeated = harness.Point(2).position.y;
+        var oneFrameFourSubsteps = harness.Point(2).position;
 
-        Assert.Greater(repeated, single);
+        JiggleAssert.AreEqual(fourFrames, oneFrameFourSubsteps, 1e-5f);
     }
 
     [Test]

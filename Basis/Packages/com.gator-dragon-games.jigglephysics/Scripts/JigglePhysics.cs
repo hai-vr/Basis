@@ -53,7 +53,7 @@ public static class JigglePhysics {
         
         while (realTime - lastFixedCurrentTime > fixedDeltaTime) {
             lastFixedCurrentTime += fixedDeltaTime;
-            skips = Mathf.Min(skips + 1, 1);
+            skips = Mathf.Min(skips + 1, JiggleSettings.MaxSubsteps);
         }
             
         var rootJiggleTreeSegmentsCount = rootJiggleTreeSegments.Count;
@@ -240,8 +240,15 @@ public static class JigglePhysics {
         jobs?.ScheduleRemoveBatch(colliders);
     }
 
-    public static void FreeOnComplete(IntPtr pointer) {
-        jobs.FreeOnComplete(pointer);
+    public static unsafe void FreeOnComplete(IntPtr pointer) {
+        // Trees outlive the pipeline on shutdown and domain reload, and there is nothing left to
+        // defer the free behind at that point. Without this the dispose threw and leaked the buffer,
+        // which is why FreeOnCommitFlip below already guards the same way.
+        if (jobs != null) {
+            jobs.FreeOnComplete(pointer);
+        } else {
+            UnsafeUtility.Free((void*)pointer, Allocator.Persistent);
+        }
     }
 
     public static unsafe void FreeOnCommitFlip(IntPtr pointer) {
@@ -406,6 +413,12 @@ public static class JigglePhysics {
             var pos = jiggleRig.rootBone.position;
             var childPos = jiggleRig.GetValidChild(jiggleRig.rootBone, 0).position;
             var diff = pos - childPos;
+            // An exporter helper bone sitting exactly on the root leaves nothing to project along, and
+            // a virtual root landing on the root bone makes Visit treat the root as zero length and
+            // merge it away, dropping it from the simulation entirely.
+            if (diff.sqrMagnitude < MERGE_DISTANCE * MERGE_DISTANCE) {
+                diff = jiggleRig.rootBone.up * 0.25f;
+            }
             backProjection = pos + diff;
         } else {
             backProjection = jiggleRig.rootBone.position + jiggleRig.rootBone.up * 0.25f;
@@ -505,9 +518,9 @@ public static class JigglePhysics {
                         animated = false,
                     });
                     parameters.Add(lastJiggleRig.GetJiggleBoneParameter(cache.normalizedDistanceFromRoot));
-                    var record = points[parentIndex];
-                    AddChildToPoint(ref record, points.Count - 1);
-                    points[parentIndex] = record;
+                    // Registering here as well as returning the index had every caller add this tip
+                    // to its parent a second time, inflating childrenCount and making the multi child
+                    // averaging in ApplyPose weight the same tip twice.
                     newIndex = points.Count - 1;
                 }
                 return;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Jobs;
@@ -83,7 +84,7 @@ public class JiggleJobs {
     private const int MaxCullingCameras = 16;
 
     private bool capturedStartupSettings;
-    private int colliderCullBatchSize = 64;
+    private int colliderCullMinBatch = 64;
 
     public delegate void JiggleFinishSimulateAction(JiggleJobs job, double simulatedTime);
     public event JiggleFinishSimulateAction OnFinishSimulate;
@@ -133,7 +134,7 @@ public class JiggleJobs {
         jobSimulate.inverseCellSize = inverseCellSize;
         jobSimulate.maxTreeCellSpan = JiggleSettings.MaxTreeCellSpan;
         jobBroadPhaseClear.maxStalenessFrames = JiggleSettings.CellStalenessFrames;
-        colliderCullBatchSize = JiggleSettings.ColliderCullBatchSize;
+        colliderCullMinBatch = JiggleSettings.ColliderCullMinBatch;
         JiggleSettings.MarkBooted();
     }
 
@@ -237,7 +238,7 @@ public class JiggleJobs {
         freePointers.Clear();
     }
 
-    public void Simulate(double simulateTime, double realTime, int timeIncrements) {
+    public void Simulate(double simulateTime, double realTime, int substeps) {
         if (_memoryBus.transformCount == 0) {
             _memoryBus.CommitTrees();
             _memoryBus.CommitColliders();
@@ -281,7 +282,7 @@ public class JiggleJobs {
         Profiler.EndSample();
 
         jobSimulate.UpdateArrays(_memoryBus);
-        jobSimulate.timeIncrements = timeIncrements;
+        jobSimulate.substeps = substeps;
         jobBulkTransformReset.UpdateArrays(_memoryBus);
         jobBulkTransformRead.UpdateArrays(_memoryBus);
         jobBulkTransformReadReset.UpdateArrays(_memoryBus);
@@ -326,8 +327,12 @@ public class JiggleJobs {
         hasHandleBroadPhaseClear = true;
 
         var sceneColliderCount = _memoryBus.sceneColliderCount;
+        // Read live rather than captured at startup: the worker pool can be resized at runtime, and
+        // the same build runs on a 4 core headset and a 32 thread desktop.
+        var cullBatchSize = JiggleJobColliderCull.GetBatchSize(sceneColliderCount,
+            JobsUtility.JobWorkerCount, colliderCullMinBatch);
         handleColliderCull = sceneColliderCount > 0
-            ? jobColliderCull.Schedule(sceneColliderCount, colliderCullBatchSize, handleSceneColliderRead)
+            ? jobColliderCull.Schedule(sceneColliderCount, cullBatchSize, handleSceneColliderRead)
             : handleSceneColliderRead;
         hasHandleColliderCull = true;
 

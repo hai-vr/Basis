@@ -68,9 +68,11 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
     /// </summary>
     public void ResampleRestPose() {
         jiggleRigData.ResampleRestPose();
-        if (segment != null && segment.jiggleTree != null) {
-            segment.jiggleTree.SetDirty();
-        }
+        // Has to go through the segment: JiggleTree.SetDirty raises its dirty flag before invoking
+        // the callback, so by the time the segment's own SetDirty runs its `dirty: false` guard the
+        // guard is already false and the tree is never scheduled for removal. It then gets added a
+        // second time under the same rootID, leaking its transform slice.
+        segment?.SetDirty();
     }
 
     public void SnapToRestPose() {

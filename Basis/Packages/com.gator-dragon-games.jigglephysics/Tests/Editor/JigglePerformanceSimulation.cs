@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using NUnit.Framework;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Jobs.LowLevel.Unsafe;
@@ -29,6 +30,25 @@ namespace GatorDragonGames.JigglePhysics.Tests {
 internal unsafe class JigglePerformanceSimulation {
     private const int WarmupIterations = 10;
     private const int MeasuredIterations = 51;
+
+    private bool previousSynchronousCompilation;
+
+    /// <summary>
+    /// Burst compiles asynchronously in the editor, so a job runs the slow managed path until its
+    /// compiled version is ready. That window can span several rows of a sweep and reads as a step
+    /// change partway down the table, indistinguishable from a real effect of whatever is being
+    /// swept. Forcing synchronous compilation makes the warmup actually warm.
+    /// </summary>
+    [OneTimeSetUp]
+    public void EnableSynchronousBurst() {
+        previousSynchronousCompilation = BurstCompiler.Options.EnableBurstCompileSynchronously;
+        BurstCompiler.Options.EnableBurstCompileSynchronously = true;
+    }
+
+    [OneTimeTearDown]
+    public void RestoreBurstCompilation() {
+        BurstCompiler.Options.EnableBurstCompileSynchronously = previousSynchronousCompilation;
+    }
 
     /// <summary>
     /// Roughly one avatar's worth of colliders, matching the shape of a humanoid rig: a lot of
@@ -193,18 +213,27 @@ internal unsafe class JigglePerformanceSimulation {
 
     private static readonly int[] ColliderCounts = { 128, 512, 2048, 8192, 32768 };
 
+    /// <summary>
+    /// The batch size production would derive for this collider count on this machine, so the
+    /// tables track what JiggleJobs actually schedules rather than a fixed constant.
+    /// </summary>
+    private static int ProductionBatch(int colliderCount) {
+        return JiggleJobColliderCull.GetBatchSize(colliderCount, JobsUtility.JobWorkerCount,
+            JiggleSettings.ColliderCullMinBatch);
+    }
+
     [Test]
     public void ColliderCull_SerialVersusParallel() {
         var report = new StringBuilder();
         report.AppendLine("=== collider cull: same Burst job, one thread (Run) vs workers (Schedule) ===");
-        report.AppendLine($"job worker threads: {JobsUtility.JobWorkerCount}, batch size: {JiggleSettings.ColliderCullBatchSize}, cameras: 2");
+        report.AppendLine($"job worker threads: {JobsUtility.JobWorkerCount}, batch: derived per count, cameras: 2");
         report.AppendLine("colliders |  serial ms | parallel ms | speedup |   kept");
         report.AppendLine("----------+------------+-------------+---------+-------");
 
         foreach (var count in ColliderCounts) {
             using var scenario = Scenario.Build(count, cameraCount: 2);
             var job = scenario.CullJob();
-            var batch = JiggleSettings.ColliderCullBatchSize;
+            var batch = ProductionBatch(count);
 
             var serial = MedianMilliseconds(() => job.Run(count));
             var kept = scenario.SurvivingColliderCount();
@@ -234,7 +263,7 @@ internal unsafe class JigglePerformanceSimulation {
             var cull = scenario.CullJob();
             var broadPhase = scenario.BroadPhaseJob();
             var clear = scenario.ClearJob();
-            var batch = JiggleSettings.ColliderCullBatchSize;
+            var batch = ProductionBatch(count);
 
             var cullSerial = MedianMilliseconds(() => cull.Run(count));
             var cullParallel = MedianMilliseconds(() => cull.Schedule(count, batch).Complete());
@@ -267,7 +296,7 @@ internal unsafe class JigglePerformanceSimulation {
         foreach (var cameraCount in new[] { 1, 2, 4, 8, 16 }) {
             using var scenario = Scenario.Build(count, cameraCount);
             var job = scenario.CullJob();
-            var batch = JiggleSettings.ColliderCullBatchSize;
+            var batch = ProductionBatch(count);
 
             var serial = MedianMilliseconds(() => job.Run(count));
             var kept = scenario.SurvivingColliderCount();
@@ -281,7 +310,7 @@ internal unsafe class JigglePerformanceSimulation {
 
     /// <summary>
     /// Batch size trades scheduling overhead against how evenly the work spreads. Prints the curve
-    /// so JiggleSettings.ColliderCullBatchSize can be set from data instead of taste.
+    /// so JiggleSettings.ColliderCullMinBatch can be set from data instead of taste.
     /// </summary>
     [Test]
     public void ColliderCull_CostByBatchSize() {
@@ -316,7 +345,7 @@ internal unsafe class JigglePerformanceSimulation {
         foreach (var count in ColliderCounts) {
             using var scenario = Scenario.Build(count, cameraCount: 0);
             var job = scenario.CullJob(frustumCull: false, distanceCull: false);
-            var batch = JiggleSettings.ColliderCullBatchSize;
+            var batch = ProductionBatch(count);
 
             var serial = MedianMilliseconds(() => job.Run(count));
             var parallel = MedianMilliseconds(() => job.Schedule(count, batch).Complete());

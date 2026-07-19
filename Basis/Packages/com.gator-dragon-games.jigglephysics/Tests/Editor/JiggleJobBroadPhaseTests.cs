@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace GatorDragonGames.JigglePhysics.Tests {
@@ -58,6 +59,117 @@ internal class JiggleJobColliderCullTests {
             plane4 = new float4(0f, 0f, 1f, 0f),
             plane5 = new float4(0f, 0f, -1f, 100f),
         };
+    }
+
+    private const int MinBatch = 64;
+
+    private static int Batch(int colliderCount, int workerCount) {
+        return JiggleJobColliderCull.GetBatchSize(colliderCount, workerCount, MinBatch);
+    }
+
+    [Test]
+    public void BatchSize_CollapsesToASingleBatchBelowOneBatchPerWorker() {
+        Assert.AreEqual(128, Batch(128, 31));
+        Assert.AreEqual(512, Batch(512, 31));
+        Assert.AreEqual(1983, Batch(1983, 31), "31 workers x 64 is the spread threshold");
+    }
+
+    [Test]
+    public void BatchSize_SpreadsOnceThereIsAFullBatchPerWorker() {
+        Assert.AreEqual(64, Batch(1984, 31));
+    }
+
+    /// <summary>
+    /// The measured optimum on a 31 worker machine was 64 colliders per batch at 8192; the derived
+    /// size should land on that without anyone tuning a constant.
+    /// </summary>
+    [Test]
+    public void BatchSize_ReproducesTheMeasuredOptimum() {
+        Assert.AreEqual(64, Batch(8192, 31));
+    }
+
+    /// <summary>
+    /// Batch size stays put as the scene grows; it is the batch count that scales. Sizing batches as
+    /// a share of the work measured 25% slower at 32768 colliders.
+    /// </summary>
+    [Test]
+    public void BatchSize_StaysConstantAsWorkGrows() {
+        Assert.AreEqual(64, Batch(8192, 31));
+        Assert.AreEqual(64, Batch(32768, 31));
+        Assert.AreEqual(64, Batch(1_000_000, 31));
+    }
+
+    /// <summary>
+    /// The same build ships to a headset with a handful of workers, where both the spread threshold
+    /// and the batch size have to come out far smaller than they do on a desktop.
+    /// </summary>
+    [Test]
+    public void BatchSize_AdaptsToASmallWorkerPool() {
+        Assert.AreEqual(128, Batch(128, 4), "below 4 x 64 it should stay a single batch");
+        Assert.AreEqual(64, Batch(1024, 4));
+        Assert.AreEqual(64, Batch(8192, 4));
+    }
+
+    /// <summary>Batch count grows with the workload, which is what gives the pool stealing headroom.</summary>
+    [Test]
+    public void BatchCount_GrowsWithTheWorkload() {
+        Assert.AreEqual(128, 8192 / Batch(8192, 31));
+        Assert.AreEqual(512, 32768 / Batch(32768, 31));
+    }
+
+    [Test]
+    public void BatchSize_NeverDropsBelowTheMinimum() {
+        Assert.GreaterOrEqual(Batch(4096, 31), MinBatch);
+        Assert.GreaterOrEqual(Batch(1_000_000, 2), MinBatch);
+    }
+
+    [Test]
+    public void BatchSize_HandlesDegenerateInputs() {
+        Assert.GreaterOrEqual(JiggleJobColliderCull.GetBatchSize(0, 31, 64), 1);
+        Assert.GreaterOrEqual(JiggleJobColliderCull.GetBatchSize(8192, 0, 64), 1);
+        Assert.GreaterOrEqual(JiggleJobColliderCull.GetBatchSize(8192, 31, 0), 1);
+    }
+
+    [Test]
+    public void BatchSize_NeverExceedsTheWorkAvailable() {
+        foreach (var count in new[] { 1, 7, 63, 64, 255, 1984, 8192, 32768 }) {
+            foreach (var workers in new[] { 1, 2, 4, 8, 31 }) {
+                var batch = Batch(count, workers);
+                Assert.That(batch, Is.InRange(1, count), $"count {count}, workers {workers}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// A single batch must classify every collider exactly as the spread schedule does; the batch
+    /// count is a scheduling hint, never a behavioural switch.
+    /// </summary>
+    [Test]
+    public void SingleBatch_ClassifiesIdenticallyToSpreadBatches() {
+        var count = 6;
+        colliders[0] = JiggleTestFactory.Sphere(new float3(1f, 0f, 1f), 0.1f);
+        colliders[1] = JiggleTestFactory.Plane(float3.zero, new float3(0f, 1f, 0f));
+        colliders[2] = JiggleTestFactory.Sphere(float3.zero, 50f);
+        colliders[3] = JiggleTestFactory.Capsule(float3.zero, 0.1f, 4f, JiggleCollider.CapsuleAxis.X);
+        colliders[4] = JiggleTestFactory.Sphere(float3.zero, 0.2f, enabled: false);
+        colliders[5] = JiggleTestFactory.Sphere(new float3(-3f, 0f, 2f), 0.3f);
+
+        var job = BuildJob();
+        for (int i = 0; i < count; i++) {
+            job.Execute(i);
+        }
+        var spread = new JiggleColliderBroadPhaseEntry[count];
+        for (int i = 0; i < count; i++) {
+            spread[i] = entries[i];
+        }
+
+        job.Schedule(count, JiggleJobColliderCull.GetBatchSize(count, 31, 64)).Complete();
+
+        for (int i = 0; i < count; i++) {
+            Assert.AreEqual(spread[i].state, entries[i].state, $"collider {i} state");
+            Assert.AreEqual(spread[i].minCell, entries[i].minCell, $"collider {i} minCell");
+            Assert.AreEqual(spread[i].maxCell, entries[i].maxCell, $"collider {i} maxCell");
+        }
     }
 
     [Test]
@@ -637,7 +749,7 @@ internal class JiggleSettingsTests {
     private int colliderSpan;
     private int treeSpan;
     private int staleness;
-    private int batchSize;
+    private int minBatch;
     private float nearKeep;
     private float frustumMargin;
     private float frustumExpansion;
@@ -649,7 +761,7 @@ internal class JiggleSettingsTests {
         colliderSpan = JiggleSettings.MaxColliderCellSpan;
         treeSpan = JiggleSettings.MaxTreeCellSpan;
         staleness = JiggleSettings.CellStalenessFrames;
-        batchSize = JiggleSettings.ColliderCullBatchSize;
+        minBatch = JiggleSettings.ColliderCullMinBatch;
         nearKeep = JiggleSettings.CullNearKeepRadius;
         frustumMargin = JiggleSettings.CullFrustumMargin;
         frustumExpansion = JiggleSettings.CullFrustumExpansion;
@@ -662,7 +774,7 @@ internal class JiggleSettingsTests {
         JiggleSettings.MaxColliderCellSpan = colliderSpan;
         JiggleSettings.MaxTreeCellSpan = treeSpan;
         JiggleSettings.CellStalenessFrames = staleness;
-        JiggleSettings.ColliderCullBatchSize = batchSize;
+        JiggleSettings.ColliderCullMinBatch = minBatch;
         JiggleSettings.CullNearKeepRadius = nearKeep;
         JiggleSettings.CullFrustumMargin = frustumMargin;
         JiggleSettings.CullFrustumExpansion = frustumExpansion;
@@ -714,10 +826,17 @@ internal class JiggleSettingsTests {
     }
 
     [Test]
-    public void ColliderCullBatchSize_IsAtLeastOne() {
-        JiggleSettings.ColliderCullBatchSize = 0;
+    public void ColliderCullMinBatch_IsAtLeastOne() {
+        JiggleSettings.ColliderCullMinBatch = 0;
 
-        Assert.AreEqual(1, JiggleSettings.ColliderCullBatchSize);
+        Assert.AreEqual(1, JiggleSettings.ColliderCullMinBatch);
+    }
+
+    [Test]
+    public void ColliderCullMinBatch_RoundTrips() {
+        JiggleSettings.ColliderCullMinBatch = 128;
+
+        Assert.AreEqual(128, JiggleSettings.ColliderCullMinBatch);
     }
 
     [Test]

@@ -305,7 +305,7 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
         job.SetFixedDeltaTime(fixedDeltaTime);
         job.inverseCellSize = JiggleSettings.InverseBroadPhaseCellSize;
         job.maxTreeCellSpan = JiggleSettings.MaxTreeCellSpan;
-        job.timeIncrements = 1;
+        job.substeps = 1;
         job.gravity = gravity;
         job.timeStamp = 0.0;
         job.sceneColliderCount = 0;

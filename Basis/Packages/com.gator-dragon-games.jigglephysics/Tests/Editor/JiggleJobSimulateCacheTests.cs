@@ -121,10 +121,15 @@ internal unsafe class JiggleJobSimulateCacheTests {
         return harness;
     }
 
+    /// <summary>The furthest cell the chain's inflated extent should reach along +X.</summary>
+    private static int2 EdgeCell(float radius) {
+        return JiggleTestFactory.Key(new float3(1f + radius, 0f, 0f));
+    }
+
     [Test]
     public void Extents_ReachTheCellCoveredByTheInflatedRadius() {
         BuildInflatedChain();
-        harness.AddGridCollider(new int2(3, 0), 0);
+        harness.AddGridCollider(EdgeCell(0.3f), 0);
 
         harness.Step();
 
@@ -134,7 +139,7 @@ internal unsafe class JiggleJobSimulateCacheTests {
     [Test]
     public void Extents_StopShortOfTheNextCell() {
         BuildInflatedChain();
-        harness.AddGridCollider(new int2(4, 0), 0);
+        harness.AddGridCollider(EdgeCell(0.3f) + new int2(1, 0), 0);
 
         harness.Step();
 
@@ -143,11 +148,17 @@ internal unsafe class JiggleJobSimulateCacheTests {
 
     [Test]
     public void Extents_WidenWithTheCollisionRadius() {
+        var fat = EdgeCell(0.3f);
+        var thin = EdgeCell(0.05f);
+        if (fat.Equals(thin)) {
+            Assert.Ignore("cell size is too coarse for the two radii to land in different cells");
+        }
+
         var tree = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f,
             JiggleTestFactory.Params(collisionRadius: 0.05f));
         harness = new JiggleSimHarness(tree);
         harness.sceneColliders[0] = JiggleTestFactory.Sphere(new float3(1f, -0.5f, 0f), 1f);
-        harness.AddGridCollider(new int2(3, 0), 0);
+        harness.AddGridCollider(fat, 0);
 
         harness.Step();
 

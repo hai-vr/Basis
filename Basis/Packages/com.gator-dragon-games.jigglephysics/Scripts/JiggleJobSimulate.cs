@@ -12,7 +12,7 @@ public struct JiggleJobSimulate : IJobFor {
     // TODO: doubles are strictly a bad way to track time, probably should be ints or longs.
     public double timeStamp;
     public float3 gravity;
-    public int timeIncrements;
+    public int substeps;
     
     public int sceneColliderCount;
 
@@ -45,7 +45,7 @@ public struct JiggleJobSimulate : IJobFor {
         gravity = Physics.gravity;
         sceneColliderCount = 0;
         deltaTimeSquared = fixedDeltaTime * fixedDeltaTime;
-        timeIncrements = 1;
+        substeps = 1;
         inverseCellSize = JiggleSettings.InverseBroadPhaseCellSize;
         maxTreeCellSpan = JiggleSettings.MaxTreeCellSpan;
     }
@@ -124,7 +124,6 @@ public struct JiggleJobSimulate : IJobFor {
         var rootPosition = tree.points[0].workingPosition;
         var rootLastPosition = tree.points[0].position;
         var rootDelta = rootPosition - rootLastPosition;
-        var inverseScaleFactor = (1f / timeIncrements);
 
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points[i];
@@ -144,15 +143,15 @@ public struct JiggleJobSimulate : IJobFor {
             }
             var parent = tree.points[point.parentIndex];
 
-            var delta = (point.position - point.lastPosition)*inverseScaleFactor;
-            var parentDelta = (parent.position - parent.lastPosition)*inverseScaleFactor;
+            var delta = point.position - point.lastPosition;
+            var parentDelta = parent.position - parent.lastPosition;
             var localSpaceVelocity = delta - parentDelta;
             var velocity = delta - localSpaceVelocity;
             var parameters = parent.parentIndex != -1 ? tree.parameters + point.parentIndex : tree.parameters + i;
             point.workingPosition = point.position
                                      + velocity * (1f - parameters->airDrag)
                                      +localSpaceVelocity * (1f - parameters->drag)
-                                     + gravity * parameters->gravityMultiplier * deltaTimeSquared * inverseScaleFactor;
+                                     + gravity * parameters->gravityMultiplier * deltaTimeSquared;
             tree.points[i] = point;
         }
     }
@@ -399,7 +398,6 @@ public struct JiggleJobSimulate : IJobFor {
                 DepenetrateCollider(tree, point, parent, pointParameters, parentParameters, sceneCollider);
             }
 
-            // TODO: to convert a float to a grid location we just cast, but this always rounds towards zero. Probably should be a math.round()
             int2 min = minExtentPosition;
             int2 max = maxExtentPosition;
             // Corrupt or runaway point positions produce extents spanning millions of cells;
@@ -509,9 +507,7 @@ public struct JiggleJobSimulate : IJobFor {
             }
             error = math.min(error, 1.0f);
             error = math.pow(error, parentParameters->elasticitySoften);
-            for (int j = 0; j < timeIncrements; j++) {
-                point->workingPosition = math.lerp(point->workingPosition, desiredPosition, parentParameters->angleElasticity * error);
-            }
+            point->workingPosition = math.lerp(point->workingPosition, desiredPosition, parentParameters->angleElasticity * error);
 
             #endregion
 
@@ -657,10 +653,16 @@ public struct JiggleJobSimulate : IJobFor {
             return;
         }
         #endif
+        // Cache reads the animated pose, which has a single sample per frame, so it is hoisted out of
+        // the substep loop. Each substep is then a whole fixed step: two of them advance the sim by
+        // exactly as much as two frames would, which is what makes the result frame rate independent.
         Cache(tree, out var minExtentPosition, out var maxExtentPosition);
-        VerletIntegrate(tree);
-        Constrain(tree, minExtentPosition, maxExtentPosition);
-        FinishStep(tree);
+        var stepCount = math.max(substeps, 1);
+        for (int step = 0; step < stepCount; step++) {
+            VerletIntegrate(tree);
+            Constrain(tree, minExtentPosition, maxExtentPosition);
+            FinishStep(tree);
+        }
         ApplyPose(tree);
         jiggleTrees[index].Sanitize();
     }

@@ -228,17 +228,19 @@ internal unsafe class JiggleJobSimulateCollisionTests {
     }
 
     /// <summary>
-    /// A tree spanning a plausible number of broadphase cells still walks the grid; the runaway
-    /// guard must not fire on legitimately long trees.
+    /// A long but physically real tree still walks the grid; the runaway guard must only fire on
+    /// corrupt extents. Note the guard counts cells, not metres, so the length this tolerates scales
+    /// with <see cref="JiggleSettings.BroadPhaseCellSize"/> squared.
     /// </summary>
     [Test]
-    public void BroadphaseGuard_AllowsGridWalkForLargeButPlausibleExtents() {
+    public void BroadphaseGuard_AllowsGridWalkForLongButRealExtents() {
+        const float length = 20f;
         var tree = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f,
             JiggleTestFactory.Params(collisionRadius: 0.25f));
         harness = new JiggleSimHarness(tree, Dt);
-        harness.SetInputPosition(2, new float3(500f, 0f, 0f));
-        harness.sceneColliders[0] = JiggleTestFactory.Sphere(new float3(500f, -0.5f, 0f), 1f);
-        harness.AddGridCollider(JiggleTestFactory.Key(new float3(500f, 0f, 0f)), 0);
+        harness.SetInputPosition(2, new float3(length, 0f, 0f));
+        harness.sceneColliders[0] = JiggleTestFactory.Sphere(new float3(length, -0.5f, 0f), 1f);
+        harness.AddGridCollider(JiggleTestFactory.Key(new float3(length, 0f, 0f)), 0);
 
         harness.Step();
 

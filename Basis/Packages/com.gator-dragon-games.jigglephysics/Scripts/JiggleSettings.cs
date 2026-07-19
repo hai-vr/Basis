@@ -13,16 +13,17 @@ namespace GatorDragonGames.JigglePhysics {
 public static class JiggleSettings {
     private static bool booted;
 
-    private static float broadPhaseCellSize = 0.5f;
-    private static float inverseBroadPhaseCellSize = 1f / 0.5f;
-    private static int maxColliderCellSpan = 100;
-    private static int maxTreeCellSpan = 4096;
+    private static float broadPhaseCellSize = 0.25f;
+    private static float inverseBroadPhaseCellSize = 1f / 0.25f;
+    private static int maxColliderCellSpan = 400;
+    private static int maxTreeCellSpan = 16384;
     private static int cellStalenessFrames = 3;
     private static bool cullingEnabled = true;
     private static float cullNearKeepRadius = 2.5f;
     private static float cullFrustumMargin = 0.5f;
     private static float cullFrustumExpansion = 1f;
-    private static int colliderCullBatchSize = 64;
+    private static int colliderCullMinBatch = 64;
+    private static int maxSubsteps = 2;
 
     internal static void ResetBootLatch() => booted = false;
 
@@ -39,6 +40,10 @@ public static class JiggleSettings {
     /// <summary>
     /// Startup setting. Edge length in meters of one broad phase grid cell. Smaller cells mean fewer
     /// colliders tested per point, but more cells built and walked per collider and per jiggle tree.
+    /// The insert side is the cheap side: over a 60 avatar scene, going from 0.5 to 0.25 cost 0.010ms
+    /// more inserting and saved 0.150ms simulating, and 0.125 was cheaper again at roughly seven
+    /// times the live cells. 0.25 takes most of the win without the memory. Sparse scenes with a few
+    /// large colliders want the opposite, so this is worth sweeping per project.
     /// </summary>
     public static float BroadPhaseCellSize {
         get => broadPhaseCellSize;
@@ -58,6 +63,16 @@ public static class JiggleSettings {
     /// global cell and tested against every jiggle point instead of being inserted per cell. Scales
     /// with the square of <see cref="BroadPhaseCellSize"/>, so halving cell size quadruples the span
     /// a given collider reports.
+    ///
+    /// Because of that scaling this is really a world area threshold wearing cell units: the collider
+    /// footprint it admits is span * cellSize^2, so 400 at a cell size of 0.25 is the same 25 square
+    /// meters that 100 was at 0.5. Rescale it by the same factor whenever cell size changes, or the
+    /// threshold moves without anyone asking it to.
+    ///
+    /// Err high rather than low. The global cell is tested against every point of every tree, so
+    /// pushing colliders into it is the expensive direction: forcing 127 colliders global measured
+    /// 3.10ms against 0.60ms for the same scene gridded. Values from 4 up to 1024 were otherwise
+    /// indistinguishable on a 60 avatar scene, since ordinary avatar colliders never approach it.
     /// </summary>
     public static int MaxColliderCellSpan {
         get => maxColliderCellSpan;
@@ -72,7 +87,10 @@ public static class JiggleSettings {
     /// <summary>
     /// Startup setting. Upper bound on how many grid cells a single jiggle tree may walk while
     /// looking for colliders. Trees reporting a larger extent skip the grid walk entirely, which
-    /// keeps corrupt or runaway point positions from stalling the simulation for seconds.
+    /// keeps corrupt or runaway point positions from stalling the simulation for seconds. Counted in
+    /// cells, not metres, so it scales with the square of <see cref="BroadPhaseCellSize"/>: halving
+    /// cell size quarters the physical area this covers. Raise it alongside any cell size decrease,
+    /// or long legitimate trees will quietly stop seeing grid colliders.
     /// </summary>
     public static int MaxTreeCellSpan {
         get => maxTreeCellSpan;
@@ -99,19 +117,46 @@ public static class JiggleSettings {
         }
     }
 
+    // All replaced by ColliderCullMinBatch: a fixed batch size and a fixed spread threshold are only
+    // ever right for the core count they were measured on, and the cull now derives both from
+    // JobsUtility.JobWorkerCount every frame instead. Sizing batches as a share of the work needed a
+    // per-worker count too, but measured worse than holding the batch constant, so that went with it.
+    //public static int ColliderCullBatchSize { ... }
+    //public static int ColliderCullParallelThreshold { ... }
+    //public static int ColliderCullBatchesPerWorker { ... }
+
     /// <summary>
-    /// Startup setting. Colliders per batch in the parallel cull job that feeds the broad phase.
-    /// Lower values spread the work over more worker threads at the cost of more scheduling
-    /// overhead.
+    /// Startup setting. Smallest number of colliders worth handing to a worker as its own batch.
+    /// Also sets the point where the cull stops spreading at all: below one full batch per worker
+    /// the whole range goes to a single batch, because waking the pool costs more than the split
+    /// saves. Measured on a 31 worker machine the spread schedule loses by 16x at 128 colliders and
+    /// only overtakes a single batch at roughly 1500, which is what 64 x 31 predicts.
     /// </summary>
-    public static int ColliderCullBatchSize {
-        get => colliderCullBatchSize;
+    public static int ColliderCullMinBatch {
+        get => colliderCullMinBatch;
         set {
-            if (RejectLateChange(nameof(ColliderCullBatchSize))) {
+            if (RejectLateChange(nameof(ColliderCullMinBatch))) {
                 return;
             }
-            colliderCullBatchSize = math.max(value, 1);
+            colliderCullMinBatch = math.max(value, 1);
         }
+    }
+
+    /// <summary>
+    /// Live setting. Most fixed steps the simulation will run in a single frame when it has fallen
+    /// behind. Each substep is a whole fixed step, so two of them advance the sim by exactly what two
+    /// frames would: without this, a frame that owes two steps still only ever ran one, and jiggle
+    /// quietly slowed down as the frame rate dropped.
+    ///
+    /// Costs a full simulate pass per substep, and the frames that need them are the ones already
+    /// struggling, so this is capped rather than unbounded — past the cap the clock still advances
+    /// and the sim simply accepts the drift instead of spiralling. 2 covers a 50Hz step down to 25fps.
+    ///
+    /// Setting it to 1 restores the previous behaviour exactly.
+    /// </summary>
+    public static int MaxSubsteps {
+        get => maxSubsteps;
+        set => maxSubsteps = math.max(value, 1);
     }
 
     /// <summary>

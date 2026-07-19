@@ -287,7 +287,11 @@ public struct JiggleRigData {
             var parameter = GetJiggleBoneParameter(cache.normalizedDistanceFromRoot);
             // Mirror the pinned override CreateJiggleTree's Visit assigns, otherwise every
             // animated-parameter push unpins an excluded root and the whole chain sways.
-            if ((excludeRoot && bone == rootBone) || GetIsExcluded(bone)) {
+            // Slot 0 is exempt: it is the back projected virtual root, which only borrows the root
+            // bone's transform to keep the bone and point arrays aligned. Visit never sees it, so
+            // CreateJiggleTree leaves it on the authored parameters — overriding it here instead
+            // zeroed the gravity the first real bone integrates against.
+            if (i != 0 && ((excludeRoot && bone == rootBone) || GetIsExcluded(bone))) {
                 parameter = new JigglePointParameters() {
                     angleElasticity = 1f,
                     lengthElasticity = 1f,
