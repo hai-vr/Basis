@@ -596,6 +596,10 @@ namespace Basis.Scripts.BasisSdk.Players
             // destroyed — the job holds the nameplate and mouth transforms.
             RemoveFromBoneDriver();
 
+            // Same constraint: JigglePhysics keys scene colliders off their Transform, so this
+            // has to run while those transforms are still alive.
+            RemoteAvatarDriver?.RemoveJiggleRigColliders();
+
             if (RemoteFaceDriver != null)
             {
                 RemoteFaceDriver.OnDestroy();

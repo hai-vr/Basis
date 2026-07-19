@@ -1964,6 +1964,13 @@ collisionsEnabled;
             // degenerate here. Reference off body forward (the knee bulges forward); body right as the fallback.
             input.ReferenceLocal = Vector3.forward;
             input.FallbackLocal = Vector3.right;
+            // ⭐ Transport `forward` onto the leg's swing plane from body-DOWN rather than PROJECTING it there.
+            // The projection REVERSES as hip->ankle sweeps through body-forward -- legs straight out in front,
+            // i.e. sitting on the floor, a front kick, lying supine -- flipping the measured swivel a full 180
+            // deg and clicking the knee. Body-down is the direction a leg hangs, so the transport is a no-op for
+            // every sagittal pose and its own singularity (thigh straight up out of the pelvis) is unreachable.
+            // Leg only: the arm's reference IS body-down, so it needs a different home and its own change.
+            input.TransportHomeLocal = Vector3.down;
             input.Dt = dt;
             input.MinCutoffHz = minCutoffHz;
             input.Beta = beta;

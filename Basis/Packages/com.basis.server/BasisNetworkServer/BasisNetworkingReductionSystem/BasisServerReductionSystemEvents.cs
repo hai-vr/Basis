@@ -187,7 +187,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+            // Use every core. The reserved core dated from when the tick thread itself was the
+            // bottleneck; measurement says it is not — the send loop already achieves near-perfect
+            // parallelism during its phase, and the idle capacity is in the phases around it.
+            MaxDegreeOfParallelism = Environment.ProcessorCount
         };
 
         public static ShardedConcurrentDictionary<PlayerState> playerStates = new();
@@ -277,7 +280,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Reusable snapshot list for draining currentMessages each tick  avoids allocation per tick.
         private static readonly List<QueuedMessage> _messagesSnapshot = new(1024);
 
-        // Static delegate for Parallel.ForEach — avoids closure allocation every tick.
+        // Static delegates — avoid closure allocation every tick. The index form is what the tick
+        // loop uses (see the range-partitioning note there); the message form is kept for callers
+        // that already hold the message.
         private static readonly Action<QueuedMessage> s_processMessageAction = msg =>
         {
             try
@@ -290,12 +295,42 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
         };
 
+        private static readonly Action<int> s_processMessageByIndexAction = i =>
+        {
+            try
+            {
+                ProcessMessage(_messagesSnapshot[i]);
+            }
+            catch (Exception ex)
+            {
+                BNL.LogError($"[ProcessMessage] Exception: {ex}");
+            }
+        };
+
         // Distance -> Quality thresholds (squared meters)
         public static float HighDistanceSq = 100f;      // 10m
         public static float MediumDistanceSq = 900f;    // 30m
         public static float LowDistanceSq = 2500f;      // 50m
 
-        public static long intervalMs = 4;
+        /// <summary>
+        /// Current tick period in ms, adapted at runtime between <see cref="MinTickIntervalMs"/> and
+        /// <see cref="MaxTickIntervalMs"/>.
+        ///
+        /// Ticking faster is NOT free and buys nothing below a point: clients publish at roughly 11 Hz
+        /// and the shortest distance-derived send interval is 50 ms (20 Hz), so at the old fixed 250 Hz
+        /// the loop spun 12-20 times between any actual send to a given pair. Each of those ticks still
+        /// paid full fork/join barriers on several Parallel loops, and split the work into batches too
+        /// small to partition well. Slowing down under load therefore *increases* throughput: bigger
+        /// batches, better parallel efficiency, fewer barriers — and no added latency while the period
+        /// stays under the shortest send interval.
+        /// </summary>
+        public static long intervalMs = 10;
+
+        // 4 ms (250 Hz) floor: no pair is ever scheduled faster than 20 Hz, so going below this only
+        // adds barriers. 20 ms (50 Hz) ceiling: still comfortably under the 50 ms shortest interval,
+        // so even fully backed off the tick never becomes the thing limiting delivery rate.
+        public const long MinTickIntervalMs = 4;
+        public const long MaxTickIntervalMs = 20;
         // Fallback wake while the server is empty; _tickWake.Set() does the real wake.
         private const int IdleWaitMs = 250;
         // Load-adaptive inter-tick wait: if the tick left more than this much of its budget
@@ -320,9 +355,57 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Minimum receivers per distance slice. Below roughly this the Parallel.For dispatch costs
         // more than the work it schedules; see UpdateDistanceCacheSlice.
         private const int MinDistanceSliceReceivers = 128;
-        // Smoothed tick duration driving the slice controller, and a rate limit for its log line.
+        // Smoothed tick duration driving the load controller, and a rate limit for its log line.
         private static double _tickMsEma;
         private static long _lastSliceLogTick;
+
+        // Overrun-ratio control signal. Evaluated once per window rather than per tick so the
+        // controller cannot chatter, and so a single slow tick cannot move it.
+        // ⚠️ WINDOW LENGTH IS LOAD-BEARING. It bounds how fast the controller can respond, and each
+        // evaluation moves exactly one step. At 128 ticks the server needed thousands of ticks to
+        // reach the slicing an overloaded instance requires — measured: it sat undegraded while the
+        // tick climbed to 339 ms, because 4M pairs/tick piled up faster than it could react. Short
+        // enough to respond within a second, long enough that a GC pause cannot flip it.
+        private const int TickControlWindow = 16;
+        private const double OverrunEscalateRatio = 0.25;   // a quarter of ticks missing = real load
+        private const double OverrunRecoverRatio = 0.05;    // almost never missing = give capacity back
+        // Above this, the server is not merely behind — it is collapsing, and one step per window is
+        // too slow to catch up. Escalation takes several steps at once until it is back in control.
+        private const double OverrunPanicRatio = 0.75;
+        private const int PanicEscalationSteps = 4;
+        // Cap on how far shedding may stretch an interval. 3 doublings = 8x, so a VeryLow pair on a
+        // ~500 ms interval bottoms out around 4 s — slow and obviously distant, but still visibly
+        // alive. Without a cap the interval would grow until it was indistinguishable from frozen,
+        // which is the failure this whole mechanism exists to avoid.
+        private const int MaxShedIntervalDoublings = 3;
+        private static int _tickWindowCount;
+        private static int _tickOverrunCount;
+        private static double _tickOverrunRatio;
+        private static bool _tickControlReady;
+
+        // Distance-ordered load shedding. 0 = send everything. 1 = drop VeryLow pairs (the furthest),
+        // 2 = also drop Low, 3 = High only. Raised before slicing because slicing degrades everyone
+        // uniformly, which costs nearby players the most (see the send loop for the full reasoning).
+        private static int _loadShedTier;
+        // Capped at 2 deliberately. Tier 3 would mean "High only", i.e. nobody past ~10 m updates at
+        // all — measured at 2000 players the controller drove straight to it and the world outside
+        // arm's reach froze. 2 still guarantees everyone inside the Medium band (~30 m) keeps
+        // updating, which is the population a player can actually perceive moving.
+        private const int MaxLoadShedTier = 2;
+        /// <summary>
+        /// Master switch for distance-ordered shedding. When false the server keeps the old behaviour
+        /// of slicing only — every receiver's rate drops uniformly under load, and no player is ever
+        /// dropped outright. Leave it on unless something depends on distant players always updating.
+        /// </summary>
+        public static bool LoadSheddingEnabled = true;
+
+        private static string LoadShedTierName(int tier) => tier switch
+        {
+            0 => "none",
+            1 => "dropping VeryLow (furthest)",
+            2 => "dropping VeryLow+Low",
+            _ => "High only (nearest)",
+        };
         public static int DistanceUpdateIntervalTicks = 125;
 
         // Cached muscle+tail byte counts for the position-only fast path (skip repack).
@@ -631,7 +714,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (profiling) { BSRProfiler.drainTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
             // Phase 2: Process messages (static delegate avoids closure allocation per tick)
-            Parallel.ForEach(_messagesSnapshot, parallelOptions, s_processMessageAction);
+            // Range-partitioned rather than Parallel.ForEach over the List. The default enumerable
+            // partitioner chunks with buffering and rebalances poorly at these counts — measured
+            // ~300 messages/tick taking 0.95 ms against a ~0.06 ms ideal, i.e. ~15x off, because the
+            // per-chunk overhead swamped ~6 us of actual work per message. An index range over the
+            // backing list lets the scheduler split evenly with no per-item bookkeeping.
+            int messageCount = _messagesSnapshot.Count;
+            if (messageCount > 0)
+            {
+                Parallel.For(0, messageCount, parallelOptions, s_processMessageByIndexAction);
+            }
             if (profiling) { BSRProfiler.processTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
             ProcessPendingRemovals();
@@ -675,45 +767,113 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             BSRProfiler.TryPrint();
 
-            // Adaptive slice count. Slicing is a LAST RESORT: it cuts every receiver's send rate by
-            // the slice factor, silently overriding the distance-derived intervals the whole reduction
-            // system exists to compute. At _sliceCount=32 a 250Hz tick delivers to each receiver at
-            // ~7.8Hz no matter how close they are.
+            // Load controller. It has three levers, escalated in order of how much a player notices:
+            //   1. tick PERIOD  — invisible while it stays under the shortest send interval
+            //   2. shed tier    — distant players stop updating
+            //   3. slicing      — LAST RESORT, cuts everyone's rate uniformly, so it hurts the
+            //                     players standing next to you most (their intervals are the short
+            //                     ones; a distant player is already on a long interval and unaffected)
+            // Recovery unwinds in reverse, restoring visibility before rate.
             //
-            // The thresholds used to be raise>3ms / lower<1ms. That leaves a dead band from 1-3ms in
-            // which the count can only ever go UP, and a loaded server sits squarely in that band — so
-            // it ratcheted monotonically to the cap and stayed there, with nothing logged. The bands
-            // now meet at the tick budget so the controller can settle instead of pinning, and a
-            // change is logged because a silently reduced send rate is very hard to diagnose from
-            // the outside.
-            // Drive off a SMOOTHED tick time, not the instantaneous one. Individual ticks swing wildly
-            // (measured 1.9-8.3 ms on a busy host) because of GC, OS scheduling and bursty inbound
-            // traffic, so reacting per tick just makes the controller chatter — it flipped up and down
-            // thousands of times a minute, and every flip changes everyone's effective send rate.
+            // Kept for the log line only — the controller no longer steers on it, see below.
             _tickMsEma = _tickMsEma <= 0.0 ? elapsedMs : (_tickMsEma * 0.9 + elapsedMs * 0.1);
 
-            const double RaiseAboveMs = 3.5;
-            const double LowerBelowMs = 2.0;
-            int previousSliceCount = _sliceCount;
-            if (_tickMsEma > RaiseAboveMs && _sliceCount < 32)
+            // ── Control signal: how OFTEN we miss the period, not the average time ──
+            // An EMA of tick duration is the wrong signal here. Tick time is heavy-tailed (GC, OS
+            // scheduling, bursty inbound), so a handful of slow ticks drag the mean well above the
+            // typical tick — measured 18 ms EMA against a 13.2 ms real average at 2000 players. The
+            // controller then escalated against load that was not there and kept shedding players
+            // while 42% of the box sat idle. Counting overruns is bounded and outlier-insensitive:
+            // one 60 ms tick is one overrun, not a permanent shift in the average.
+            _tickWindowCount++;
+            if (elapsedMs > intervalMs) _tickOverrunCount++;
+
+            if (_tickWindowCount >= TickControlWindow)
             {
-                _sliceCount++;
+                _tickOverrunRatio = _tickOverrunCount / (double)_tickWindowCount;
+                _tickWindowCount = 0;
+                _tickOverrunCount = 0;
+                _tickControlReady = true;
             }
-            else if (_tickMsEma < LowerBelowMs && _sliceCount > 1)
+
+            if (!_tickControlReady)
             {
-                _sliceCount--;
+                return;
+            }
+            _tickControlReady = false;
+
+            // Adapt the tick PERIOD before degrading anything the players can see. Stretching the
+            // period costs nothing while it stays under the shortest send interval, and it directly
+            // buys back parallel efficiency (bigger batches, fewer barriers). Only once the period is
+            // maxed out do we start shedding distant pairs, and only after that do we slice.
+            bool overloaded = _tickOverrunRatio > OverrunEscalateRatio;
+            bool comfortable = _tickOverrunRatio < OverrunRecoverRatio;
+            int escalationSteps = _tickOverrunRatio > OverrunPanicRatio ? PanicEscalationSteps : 1;
+            int previousSliceCount = _sliceCount;
+            int previousShedTier = _loadShedTier;
+            long previousInterval = intervalMs;
+
+            if (overloaded && intervalMs < MaxTickIntervalMs)
+            {
+                intervalMs = Math.Min(MaxTickIntervalMs, intervalMs + 2L * escalationSteps);
+            }
+            else if (comfortable && intervalMs > MinTickIntervalMs
+                     && _sliceCount == 1 && _loadShedTier == 0)
+            {
+                // Only tighten the period once nothing is being degraded — otherwise the loop would
+                // speed back up while still dropping players, which is the wrong order of recovery.
+                intervalMs = Math.Max(MinTickIntervalMs, intervalMs - 1);
+            }
+
+            if (overloaded)
+            {
+                // Shed the furthest pairs FIRST, and only fall back to slicing once even a
+                // High-quality-only workload cannot fit the budget. Slicing is the blunt instrument:
+                // it cuts everyone's rate uniformly, which hurts nearby players most (their intervals
+                // are the short ones), so it must be the last resort rather than the first.
+                if (intervalMs < MaxTickIntervalMs)
+                {
+                    // Period is still stretching — give that a chance before degrading anything.
+                }
+                else if (LoadSheddingEnabled && _loadShedTier < MaxLoadShedTier)
+                {
+                    _loadShedTier = Math.Min(MaxLoadShedTier, _loadShedTier + escalationSteps);
+                }
+                else if (_sliceCount < 32)
+                {
+                    _sliceCount = Math.Min(32, _sliceCount + escalationSteps);
+                }
+            }
+            else if (comfortable)
+            {
+                // Recover visibility BEFORE rate. Restoring a dropped player at a low update rate is
+                // far better than leaving them frozen while everyone else speeds up — and unwinding
+                // slicing first proved to be a trap: slicing oscillates under normal jitter, so the
+                // tier never got a chance to come back down and the server sat permanently at maximum
+                // shedding even once the tick was comfortably inside budget.
+                if (_loadShedTier > 0)
+                {
+                    _loadShedTier--;
+                }
+                else if (_sliceCount > 1)
+                {
+                    _sliceCount--;
+                }
             }
 
             // Rate-limited: this is a health signal, not a per-change trace.
-            if (_sliceCount != previousSliceCount)
+            if (_sliceCount != previousSliceCount || _loadShedTier != previousShedTier || intervalMs != previousInterval)
             {
                 long nowLog = Stopwatch.GetTimestamp();
                 if (nowLog - _lastSliceLogTick > Stopwatch.Frequency * 5)
                 {
                     _lastSliceLogTick = nowLog;
-                    BNL.Log($"[BSR] Tick slicing now {_sliceCount} (smoothed tick {_tickMsEma:F2} ms). " +
-                            $"Each receiver is serviced every {_sliceCount} ticks — a value near the cap " +
-                            $"means the send loop cannot keep up and effective send rate is reduced.");
+                    BNL.Log($"[BSR] Load: {_tickOverrunRatio:P0} of ticks over budget " +
+                            $"(mean {_tickMsEma:F2} ms), period {intervalMs} ms " +
+                            $"({1000 / Math.Max(1, intervalMs)} Hz), shed tier {_loadShedTier} " +
+                            $"({LoadShedTierName(_loadShedTier)}), slicing {_sliceCount}. " +
+                            $"Period alone is harmless; tier > 0 means distant players stop updating; " +
+                            $"slicing > 1 means everyone's rate is reduced.");
                 }
             }
         }
@@ -994,6 +1154,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // Fallback interval for pairs not yet in the distance cache (new players).
             long minIntervalTicks = (long)(BSRSMillisecondDefaultInterval * BSRBaseMultiplier * MsToTick);
 
+            // Floor on the interval we advertise this tick: a receiver is only visited every
+            // _sliceCount ticks, so nothing can actually arrive faster than that regardless of what
+            // distance says. Encoded once here rather than per pair.
+            int deliverableIntervalMs = (int)(intervalMs * Math.Max(1, _sliceCount));
+            byte degradedIntervalByte = BasisNetworkCommons.EncodeAvatarIntervalByte(
+                deliverableIntervalMs, BSRSMillisecondDefaultInterval);
+
             // Tick slicing: only process a slice of receivers per tick
             int sliceSize = (playerCount + _sliceCount - 1) / _sliceCount;
             int start = _sliceIndex * sliceSize;
@@ -1079,21 +1246,68 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     // Full-quality broadcast bypasses the distance throttle + quality reduction; the new-data gate still bounds it to the source rate.
                     bool bypassReduction = stateJ.BypassReduction;
 
-                    // 2. Interval check using cached distance results (no float math)
+                    // Quality tier for this pair, from the distance cache. Needed before the
+                    // interval check because load shedding scales the interval by it.
+                    int qi = bypassReduction ? 3 : tracking[jId].CachedQualityIndex;
+
+                    // 2. Interval check using cached distance results (no float math).
+                    //    Load shedding is applied here as an interval MULTIPLIER rather than as a
+                    //    drop, so an overloaded server slows distant players down instead of freezing
+                    //    them. A player 100 m away updating at 1 Hz reads as "far away"; the same
+                    //    player receiving nothing reads as a broken client, which is exactly what
+                    //    dropping the tier outright looked like in testing. Each tier below the shed
+                    //    threshold doubles the interval, so degradation is graded by distance.
                     if (!bypassReduction)
                     {
                         long elapsed = nowTicks - tracking[jId].LastSentTime;
                         long required = tracking[jId].CachedIntervalTicks;
                         if (required <= 0) required = minIntervalTicks;
+
+                        int shedSteps = _loadShedTier - qi;
+                        if (shedSteps > 0)
+                        {
+                            required <<= Math.Min(shedSteps, MaxShedIntervalDoublings);
+                        }
+
                         if (elapsed < required)
                         {
                             continue;
                         }
                     }
 
-                    // 3. Quality + interval byte from distance cache
-                    int qi = bypassReduction ? 3 : tracking[jId].CachedQualityIndex;
-                    byte startAtZeroInterval = bypassReduction ? (byte)0 : tracking[jId].CachedIntervalByte;
+                    // Why shed by distance at all: tick slicing gets the priority backwards. Slicing
+                    // visits a receiver once every _sliceCount ticks, capping its effective rate at
+                    // tickRate/_sliceCount. A DISTANT sender is already on a ~500 ms interval so
+                    // slicing costs it nothing; a NEARBY sender wants ~20 Hz and gets cut hard. So
+                    // slicing hurts precisely the players you can see. Stretching intervals by tier is
+                    // O(1) per pair, needs no sorting, and degrades the least visible pairs first.
+                    // Report the cadence we will ACTUALLY deliver at, not the one distance asked for.
+                    // The client decodes this byte into the interpolation window it plays the pose
+                    // over, so a server that promises 50 ms while slicing delivers every 128 ms leaves
+                    // every client extrapolating past the end of its window — visible as remote-player
+                    // stutter that looks like a client bug. degradedIntervalByte is computed once per
+                    // tick from the current slice factor and period; the encoding is monotonic in ms,
+                    // so taking the larger byte is the same as taking the longer interval.
+                    byte startAtZeroInterval;
+                    if (bypassReduction)
+                    {
+                        startAtZeroInterval = 0;
+                    }
+                    else
+                    {
+                        // Include the shed stretch: if this pair is being slowed to a quarter rate the
+                        // client must interpolate over that longer window, or it runs off the end of
+                        // its buffer and stutters exactly like an under-delivering server.
+                        int shedSteps = _loadShedTier - qi;
+                        byte pairInterval = tracking[jId].CachedIntervalByte;
+                        if (shedSteps > 0)
+                        {
+                            int stretched = BasisNetworkCommons.DecodeAvatarIntervalMs(pairInterval, BSRSMillisecondDefaultInterval)
+                                            << Math.Min(shedSteps, MaxShedIntervalDoublings);
+                            pairInterval = BasisNetworkCommons.EncodeAvatarIntervalByte(stretched, BSRSMillisecondDefaultInterval);
+                        }
+                        startAtZeroInterval = Math.Max(pairInterval, degradedIntervalByte);
+                    }
 
                     // Delta vs keyframe: send a delta only when the current frame is a delta, the
                     // receiver already holds the current keyframe at this quality, and the delta is

@@ -119,6 +119,9 @@ public struct JiggleJobBroadPhase : IJob {
     public void Execute() {
         for (int i = 0; i < jiggleColliderCount; i++) {
             var collider = jiggleColliders[i];
+            if (!collider.enabled) {
+                continue;
+            }
             float3 position = collider.localToWorldMatrix.c3.xyz;
             if (IsColliderCulled(collider, position)) {
                 continue;

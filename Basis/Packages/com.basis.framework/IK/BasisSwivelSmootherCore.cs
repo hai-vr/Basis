@@ -23,6 +23,11 @@ namespace Basis.IK
         public Quaternion BodyRotation;  // solved hips rotation; the frame the swivel is measured in
         public Vector3 ReferenceLocal;   // body-local reference dir (arm: down, leg: forward)
         public Vector3 FallbackLocal;    // body-local fallback when ReferenceLocal is colinear with the axis; zero = none
+
+        // ⭐ Body-local axis to PARALLEL-TRANSPORT ReferenceLocal from, instead of PROJECTING it onto the
+        // limb's swing plane. Zero (the struct default) keeps the legacy projection, so the elbow path and
+        // every existing test are untouched. The leg passes body-DOWN. See the block in Solve.
+        public Vector3 TransportHomeLocal;
         public float Dt;
         public float MinCutoffHz;
         public float Beta;
@@ -129,10 +134,87 @@ namespace Basis.IK
             }
             Vector3 axis = ac / Mathf.Sqrt(acSqr);
 
-            Vector3 refDir = Vector3.ProjectOnPlane(body * i.ReferenceLocal, axis);
-            if (refDir.sqrMagnitude < k_SqrEpsilon && i.FallbackLocal.sqrMagnitude > k_SqrEpsilon)
+            // =========================================================================================
+            // ⭐ THE REFERENCE IS TRANSPORTED, NOT PROJECTED.
+            //
+            // A projection onto the swing plane does not merely SHRINK as the reference goes colinear with
+            // the limb axis -- it REVERSES through it. ProjectOnPlane(forward, axis) = forward - axis*dot,
+            // and as the hip->ankle axis sweeps through body-forward that residual passes through zero and
+            // comes out pointing the other way. The measured swivel therefore jumps a full 180 deg for an
+            // arbitrarily small motion of the leg, and every downstream consumer -- the One-Euro, the
+            // anterior guard, the 25 deg reseed -- inherits the discontinuity.
+            //
+            // AND THE LEG REACHES IT. hip->ankle lies along body-forward whenever the legs are straight out
+            // in front: sitting on the floor, a front kick, lying supine with the legs up. Measured on the
+            // shipped core, sweeping the leg through that direction moved the guarded output 89.3 deg in a
+            // single 0.5 deg step. The existing `sqrMagnitude < 1e-8` fallback is ~4 orders of magnitude too
+            // small to catch it -- |refDir| is already down at 0.009 one step away, and the damage is the
+            // REVERSAL, which happens at full magnitude either side of the crossing.
+            //
+            // So do not project. Take the minimal rotation that carries the body's HOME axis (body-down for a
+            // leg -- the direction the limb hangs in) onto the actual limb axis, and carry the reference along
+            // it. The transported vector is perpendicular to the axis by construction, because the reference
+            // is perpendicular to home and rotations preserve angles. There is no projection left to collapse.
+            //
+            // ⭐ EXACT NO-OP FOR EVERY SAGITTAL POSE. Whenever the limb axis lies in the plane spanned by home
+            // and the reference -- standing, walking, squatting, sitting in a chair, sitting on the floor with
+            // the legs out, kneeling, lunging -- the transport and the projection produce the SAME unit vector
+            // to 0.00 deg, so none of the leg tuning moves.
+            //
+            // They DO differ for out-of-sagittal poses (measured: 13 deg on a butterfly/cobbler sit). That is
+            // not a regression, and the reason is worth stating, because it is the opposite of what you would
+            // assume: BasisLegSolveCore uses a THIRD convention for anterior -- Cross(acNorm, AnteriorNormal)
+            // -- and that is the frame that actually PLACES the knee, so it is the one this smoother has to
+            // agree with or it drags the knee off the solve's own pole. Measured against it across a pose set
+            // (standing / walking / squat / chair / floor / kneel / lunge / butterfly / cross-legged / abducted
+            // / side split / stairs / supine):
+            //
+            //      projected reference (shipping):  worst disagreement 180.00 deg
+            //      transported reference (this):    worst disagreement  16.05 deg
+            //
+            // The transport is closer to the solver on every pose in the set and never further. The 180 is the
+            // supine-legs-raised row, where the solve core says the knee is dead anterior and the PROJECTION
+            // says it is dead posterior -- the reversal, seen from the other side. And no legal pose is pushed
+            // past the guard's soft edge by the change: butterfly reads 39 deg where the free band ends at 85.
+            //
+            // Same doctrine as the torso-yaw swing-twist fix: pick a formulation whose singularity is outside
+            // the reachable workspace rather than damping one that is inside it. The only singularity left is
+            // axis == -home, the thigh pointing straight up out of the pelvis, which a hip cannot do; if it
+            // somehow arrives, fall back to the projection rather than freezing the bone.
+            // =========================================================================================
+            Vector3 refDir = Vector3.zero;
+            bool transported = false;
+            if (i.TransportHomeLocal.sqrMagnitude > k_SqrEpsilon)
             {
-                refDir = Vector3.ProjectOnPlane(body * i.FallbackLocal, axis);
+                Vector3 home = body * i.TransportHomeLocal;
+                float homeSqr = home.sqrMagnitude;
+                if (homeSqr > k_SqrEpsilon)
+                {
+                    home /= Mathf.Sqrt(homeSqr);
+
+                    // Minimal (swing) rotation home -> axis as an unnormalized quaternion: (cross, 1 + dot).
+                    // Its w vanishes only when the two are antipodal, which is the unreachable pole above.
+                    Vector3 swingXyz = Vector3.Cross(home, axis);
+                    float swingW = 1f + Vector3.Dot(home, axis);
+                    float swingSqr = swingXyz.sqrMagnitude + swingW * swingW;
+                    if (swingW > 1e-4f && swingSqr > k_SqrEpsilon)
+                    {
+                        float inv = 1f / Mathf.Sqrt(swingSqr);
+                        Quaternion swing = new Quaternion(swingXyz.x * inv, swingXyz.y * inv, swingXyz.z * inv, swingW * inv);
+                        refDir = swing * (body * i.ReferenceLocal);
+                        refDir -= axis * Vector3.Dot(refDir, axis);   // float tidy-up; exact in theory
+                        transported = refDir.sqrMagnitude > k_SqrEpsilon;
+                    }
+                }
+            }
+
+            if (!transported)
+            {
+                refDir = Vector3.ProjectOnPlane(body * i.ReferenceLocal, axis);
+                if (refDir.sqrMagnitude < k_SqrEpsilon && i.FallbackLocal.sqrMagnitude > k_SqrEpsilon)
+                {
+                    refDir = Vector3.ProjectOnPlane(body * i.FallbackLocal, axis);
+                }
             }
             Vector3 upper = i.Mid - i.Root;
             Vector3 pole = Vector3.ProjectOnPlane(upper, axis);

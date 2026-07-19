@@ -153,21 +153,6 @@ namespace Basis.Scripts.Drivers
             CaptureBodyFitRestLocal();
             ApplyRemoteBodyFit();
 
-            // Initialize any jiggle rigs. Performance-limit enforcement lives in
-            // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
-            // BasisAvatarFactory.InitializePlayerAvatar), so by the time we get
-            // here the tree has already been trimmed to the allowed count — this
-            // loop just wires up whatever's left.
-            var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
-            int length = JiggleRigs.Length;
-            for (int Index = 0; Index < length; Index++)
-            {
-                JiggleRig Rig = JiggleRigs[Index];
-                JiggleRigData Data = Rig.GetJiggleRigData();
-                Rig.HasAnimatedParameters = false;
-                Rig.OnInitialize();
-            }
-
             // Register authored motion (drives non-humanoid transforms the bone job / IK don't touch); rest captured at the current TPose.
             var authoredMotions = RemotePlayer.BasisAvatar.AuthoredMotions;
             if (authoredMotions != null)
@@ -220,6 +205,9 @@ namespace Basis.Scripts.Drivers
             var receiver = RemotePlayer.NetworkReceiver;
             Transform animatorRoot = References.AnimatorRoot;
             Vector3 animatorRootPos = animatorRoot.position;
+            // Sampled before the network rescale below writes this same transform — jiggle collider
+            // radii are authored in metres against this scale and rebased off it at build time.
+            ColliderScaleReference = animatorRoot.localScale;
             // TPose hips localPosition + localRotation feed the per-frame
             // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
             // turns the received hips world pose into a derived root world
@@ -277,6 +265,18 @@ namespace Basis.Scripts.Drivers
             SetupAvatarJiggleColliders();
             ResetAvatarAnimator();
 
+            var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+            int jiggleRigCount = JiggleRigs.Length;
+            var jiggleRootsBeforeSnap = new Vector3[jiggleRigCount];
+            for (int Index = 0; Index < jiggleRigCount; Index++)
+            {
+                var jiggleRoot = JiggleRigs[Index].GetJiggleRigData().rootBone;
+                if (jiggleRoot != null)
+                {
+                    jiggleRootsBeforeSnap[Index] = jiggleRoot.position;
+                }
+            }
+
             // Apply scale before snapping any pose so localScale is in place for
             // the first frame; UpdateAllAvatarsJob's HasScaleChange tick would
             // otherwise overwrite the network scale on the first iteration.
@@ -302,6 +302,24 @@ namespace Basis.Scripts.Drivers
             // doesn't disturb the result — hips lands exactly at the received
             // high-precision world pose.
             References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+
+            // Initialize any jiggle rigs. Performance-limit enforcement lives in
+            // BasisAvatarPerformanceLimits.TrimExcessComponents (called earlier by
+            // BasisAvatarFactory.InitializePlayerAvatar), so by the time we get
+            // here the tree has already been trimmed to the allowed count — this
+            // loop just wires up whatever's left.
+            for (int Index = 0; Index < jiggleRigCount; Index++)
+            {
+                JiggleRig Rig = JiggleRigs[Index];
+                Rig.HasAnimatedParameters = false;
+                Rig.OnInitialize();
+                var jiggleRoot = Rig.GetJiggleRigData().rootBone;
+                if (jiggleRoot != null)
+                {
+                    Rig.Teleport(jiggleRoot.position - jiggleRootsBeforeSnap[Index]);
+                }
+            }
+
             CalibrationComplete?.Invoke();
         }
 
@@ -511,6 +529,10 @@ namespace Basis.Scripts.Drivers
         {
             RemoveJiggleRigColliders();
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            if (Player == null || Player.IsDestroyed)
+            {
+                return;
+            }
             if (BasisPlayerSettingsData.AvatarInteraction && Player.IsConsideredFallBackAvatar == false)
             {
                 AddJiggleRigColliders(References, allowColliderLOD: true);

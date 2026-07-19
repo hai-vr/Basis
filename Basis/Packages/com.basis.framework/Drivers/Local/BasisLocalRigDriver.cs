@@ -166,6 +166,8 @@ namespace Basis.Scripts.Drivers
         private NativeArray<quaternion> _rotOutputs;
         private NativeArray<byte> _posModeNative;
         private NativeArray<byte> _rotModeNative;
+        private NativeArray<float4> _posTuning;
+        private NativeArray<float4> _rotTuning;
         private NativeArray<float3> _fallbackPosStates;
         private NativeArray<quaternion> _fallbackRotStates;
         private NativeArray<BasisEuroVec3State> _euroPosStates;
@@ -317,6 +319,8 @@ namespace Basis.Scripts.Drivers
             _rotOutputs = new NativeArray<quaternion>(SlotCount, Allocator.Persistent);
             _posModeNative = new NativeArray<byte>(SlotCount, Allocator.Persistent);
             _rotModeNative = new NativeArray<byte>(SlotCount, Allocator.Persistent);
+            _posTuning = new NativeArray<float4>(SlotCount, Allocator.Persistent);
+            _rotTuning = new NativeArray<float4>(SlotCount, Allocator.Persistent);
             _fallbackPosStates = new NativeArray<float3>(SlotCount, Allocator.Persistent);
             _fallbackRotStates = new NativeArray<quaternion>(SlotCount, Allocator.Persistent);
             _euroPosStates = new NativeArray<BasisEuroVec3State>(SlotCount, Allocator.Persistent);
@@ -339,6 +343,8 @@ namespace Basis.Scripts.Drivers
             if (_rotOutputs.IsCreated) _rotOutputs.Dispose();
             if (_posModeNative.IsCreated) _posModeNative.Dispose();
             if (_rotModeNative.IsCreated) _rotModeNative.Dispose();
+            if (_posTuning.IsCreated) _posTuning.Dispose();
+            if (_rotTuning.IsCreated) _rotTuning.Dispose();
             if (_fallbackPosStates.IsCreated) _fallbackPosStates.Dispose();
             if (_fallbackRotStates.IsCreated) _fallbackRotStates.Dispose();
             if (_euroPosStates.IsCreated) _euroPosStates.Dispose();
@@ -350,6 +356,46 @@ namespace Basis.Scripts.Drivers
         {
             if (!smoothEnabled) return (byte)BasisFilterMode.Passthrough;
             return euroEnabled ? (byte)BasisFilterMode.Euro : (byte)BasisFilterMode.Fallback;
+        }
+
+        private static readonly float4[] _groupPosTuning = new float4[BasisSmoothingProfiles.GroupCount];
+        private static readonly float4[] _groupRotTuning = new float4[BasisSmoothingProfiles.GroupCount];
+        private static readonly bool[] _groupOff = new bool[BasisSmoothingProfiles.GroupCount];
+
+        private static void ResolveSmoothingGroups(float deltaTime)
+        {
+            var groups = Basis.BasisUI.BasisSettingsDefaults.FBIKSmoothingGroups;
+            for (int Index = 0; Index < BasisSmoothingProfiles.GroupCount; Index++)
+            {
+                var bindings = groups[Index];
+                _groupOff[Index] = BasisSmoothingProfiles.IsOff(bindings.Preset.RawValue);
+
+                BasisSmoothingProfile profile;
+                float strength;
+                if (bindings.Custom.RawValue)
+                {
+                    profile = new BasisSmoothingProfile(
+                        bindings.MinCutoff.RawValue,
+                        bindings.Beta.RawValue,
+                        DerivativeCutoff,
+                        bindings.PositionHz.RawValue,
+                        bindings.RotationHz.RawValue);
+                    strength = Mathf.Max(1f, bindings.Strength.RawValue);
+                }
+                else
+                {
+                    if (!BasisSmoothingProfiles.TryGetPreset(bindings.Preset.RawValue, out profile))
+                    {
+                        profile = new BasisSmoothingProfile(MinCutoff, Beta, DerivativeCutoff, PositionSmoothingHz, RotationSmoothingHz);
+                    }
+                    strength = Mathf.Max(1f, SmoothingStrength);
+                }
+
+                float minCutoff = profile.MinCutoff / strength;
+                float dCutoff = profile.DerivativeCutoff / strength;
+                _groupPosTuning[Index] = new float4(minCutoff, profile.Beta, dCutoff, ExpAlpha(profile.PositionHz / strength, deltaTime));
+                _groupRotTuning[Index] = new float4(minCutoff, profile.Beta, dCutoff, ExpAlpha(profile.RotationHz / strength, deltaTime));
+            }
         }
         public void OnTPose() => OnTPose(BasisLocalAvatarDriver.CurrentlyTposing);
 
@@ -424,13 +470,8 @@ namespace Basis.Scripts.Drivers
 
             EnsureFilterArrays();
 
-            // Fallback smoothing alphas are identical for every slot this frame;
-            // compute once instead of running Mathf.Exp per call.
-            float smoothingStrength = Mathf.Max(1f, SmoothingStrength);
-            float fallbackPosAlpha = ExpAlpha(PositionSmoothingHz / smoothingStrength, deltaTime);
-            float fallbackRotAlpha = ExpAlpha(RotationSmoothingHz / smoothingStrength, deltaTime);
-            float effectiveMinCutoff = MinCutoff / smoothingStrength;
-            float effectiveDCutoff = DerivativeCutoff / smoothingStrength;
+            // Filter tuning is per smoothing group; resolve the 7 groups once, then scatter to the 15 slots.
+            ResolveSmoothingGroups(deltaTime);
             float safeDt = Mathf.Max(deltaTime, 1e-6f);
 
             // ── 1. Gather raw inputs from bone controls (main thread only) ──
@@ -464,6 +505,12 @@ namespace Basis.Scripts.Drivers
                 quaternion* rotPtr = (quaternion*)_rotInputs.GetUnsafePtr();
                 byte* posModePtr = (byte*)_posModeNative.GetUnsafePtr();
                 byte* rotModePtr = (byte*)_rotModeNative.GetUnsafePtr();
+                float4* posTunePtr = (float4*)_posTuning.GetUnsafePtr();
+                float4* rotTunePtr = (float4*)_rotTuning.GetUnsafePtr();
+                BasisEuroVec3State* euroPosPtr = (BasisEuroVec3State*)_euroPosStates.GetUnsafePtr();
+                BasisEuroQuatState* euroRotPtr = (BasisEuroQuatState*)_euroRotStates.GetUnsafePtr();
+                float3* fallbackPosPtr = (float3*)_fallbackPosStates.GetUnsafePtr();
+                quaternion* fallbackRotPtr = (quaternion*)_fallbackRotStates.GetUnsafePtr();
 
                 posPtr[S_Hips] = hipsData.position;                 rotPtr[S_Hips] = hipsData.rotation;
                 posPtr[S_Head] = headData.position;                 rotPtr[S_Head] = headData.rotation;
@@ -481,11 +528,37 @@ namespace Basis.Scripts.Drivers
                 posPtr[S_LeftShoulder] = float3.zero;                rotPtr[S_LeftShoulder] = leftShoulderRot;
                 posPtr[S_RightShoulder] = float3.zero;               rotPtr[S_RightShoulder] = rightShoulderRot;
 
-                // ── 2. Compute filter modes from toggles ──
+                // ── 2. Compute filter modes from toggles, and scatter each slot's group tuning ──
                 for (int i = 0; i < SlotCount; i++)
                 {
-                    posModePtr[i] = PickMode(SmoothPos[i], EuroPos[i]);
-                    rotModePtr[i] = PickMode(SmoothRot[i], EuroRot[i]);
+                    byte group = BasisSmoothingProfiles.SlotGroup[i];
+                    posTunePtr[i] = _groupPosTuning[group];
+                    rotTunePtr[i] = _groupRotTuning[group];
+
+                    byte newPosMode = (byte)BasisFilterMode.Passthrough;
+                    byte newRotMode = (byte)BasisFilterMode.Passthrough;
+                    if (!_groupOff[group])
+                    {
+                        newPosMode = PickMode(SmoothPos[i], EuroPos[i]);
+                        newRotMode = PickMode(SmoothRot[i], EuroRot[i]);
+                    }
+
+                    // Changing a preset live re-modes the slot. Its filter state is then whatever the previous
+                    // mode left behind, which would glide the bone in from a stale pose; reseed from the live
+                    // input so a settings change is silent.
+                    if (newPosMode != posModePtr[i])
+                    {
+                        euroPosPtr[i] = default;
+                        fallbackPosPtr[i] = posPtr[i];
+                    }
+                    if (newRotMode != rotModePtr[i])
+                    {
+                        euroRotPtr[i] = default;
+                        fallbackRotPtr[i] = rotPtr[i];
+                    }
+
+                    posModePtr[i] = newPosMode;
+                    rotModePtr[i] = newRotMode;
                 }
                 // Shoulders have no position target — always passthrough to skip wasted work.
                 posModePtr[S_LeftShoulder] = (byte)BasisFilterMode.Passthrough;
@@ -505,27 +578,21 @@ namespace Basis.Scripts.Drivers
             {
                 mode = _posModeNative,
                 rawInputs = _posInputs,
+                tuning = _posTuning,
                 euroStates = _euroPosStates,
                 fallbackStates = _fallbackPosStates,
                 outputs = _posOutputs,
                 dt = safeDt,
-                minCutoff = effectiveMinCutoff,
-                beta = Beta,
-                dCutoff = effectiveDCutoff,
-                fallbackAlpha = fallbackPosAlpha,
             };
             var rotJob = new BasisBatchRotationFilterJob
             {
                 mode = _rotModeNative,
                 rawInputs = _rotInputs,
+                tuning = _rotTuning,
                 euroStates = _euroRotStates,
                 fallbackStates = _fallbackRotStates,
                 outputs = _rotOutputs,
                 dt = safeDt,
-                minCutoff = effectiveMinCutoff,
-                beta = Beta,
-                dCutoff = effectiveDCutoff,
-                fallbackAlpha = fallbackRotAlpha,
             };
             JobHandle posHandle = posJob.Schedule(SlotCount, 4);
             JobHandle rotHandle = rotJob.Schedule(SlotCount, 4);

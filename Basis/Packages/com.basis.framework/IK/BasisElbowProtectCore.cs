@@ -62,6 +62,66 @@ namespace Basis.IK
         const float k_Epsilon = 1e-5f;
         const float k_ClearMargin = 0.003f;   // land a hair (3 mm) outside the torso surface
         const int k_SwivelSteps = 48;
+        // Bisections that turn the coarse sweep's BRACKET into the actual clearing angle. 12 halvings take
+        // the residual grid step from 1/48 of the arc to under a thousandth of a degree, which is far below
+        // anything the eye or the rest of the chain can resolve.
+        const int k_ClearRefineSteps = 12;
+        // Golden-section iterations that locate the best-clearing swivel when nothing clears outright.
+        const int k_MaxRefineSteps = 12;
+
+        // =============================================================================================
+        // A FLAT-TOPPED MAXIMUM HAS NO WELL-DEFINED ARGMAX, AND THAT IS WHERE THE CLICK LIVES.
+        //
+        // When no swivel on the arc clears the torso, the fallback is "take the least-penetrating one".
+        // But measured along a hand run up the chest, the top of that clearance curve is a PLATEAU: the
+        // residual clearance holds at -8.0 mm to four decimal places while the winning swivel wanders
+        // across 17% of the arc. The VALUE is well determined; the LOCATION is not. So the elbow gets
+        // shoved around by whichever end of the plateau happens to score a few microns higher -- and
+        // since that is decided by float noise, it hops. Refining the search only converts the hop into
+        // jitter; it cannot invent information the objective does not contain.
+        //
+        // The fix is to stop asking a question with no unique answer. Score the swivel on clearance MINUS
+        // a small price on the swing itself, so that among poses that clear equally well the SMALLEST
+        // swing wins outright. That makes the maximum unique, makes it move continuously as the plateau's
+        // edge moves, and restores what this file says it does in its own header -- swing by the MINIMUM
+        // that clears -- to the branch that had quietly stopped doing it.
+        //
+        // Expressed as a FRACTION OF THE CHEST RADIUS, not in metres. Every length in here is already
+        // avatar-scaled by the driver, so a hardcoded metre value would be a quarter of a small avatar's
+        // torso and a sliver of a large one -- the same knob meaning two different things. At 1/16 of the
+        // chest radius this is ~5 mm on a default body: a full-arc swing must buy more than that to be
+        // worth taking. The plateau above is flat to well under a millimetre, so this decides it; a
+        // genuinely peaked curve (the 51 mm the swing buys on that same trace) does not even notice.
+        // =============================================================================================
+        const float k_SwingPreferenceRatio = 0.0625f;
+
+        // =============================================================================================
+        // THE BARRIER HAS TO START BEFORE THE SURFACE, THE WAY A REAL CONTACT DOES.
+        //
+        // A rigid solver switches on the instant it detects overlap: one frame the elbow is untouched,
+        // the next it is carrying a fully-formed correction. The size of that first correction is set by
+        // the geometry, not by how far in you are -- flipCommit alone can hand it a FULL swing to outDir
+        // on the very first penetrating frame. So contact is a STEP, and a step is a snap you can feel.
+        //
+        // Every physics engine solves this the same way: a speculative contact margin. Start responding
+        // while there is still a gap and scale the response by how far into the margin you have come, so
+        // the force is already moving by the time the surfaces actually meet. That is what this is.
+        //
+        //     clearance >= margin ... untouched, and BIT-IDENTICAL to the old early-out
+        //     clearance in (0,margin) ... the swing ramps in smoothly from exactly zero
+        //     clearance <= 0 ... full response, BIT-IDENTICAL to what it always was
+        //
+        // Note the ramp lives entirely OUTSIDE the surface. It never weakens the clearing once you are
+        // actually inside, so this buys smoothness without giving back any penetration.
+        //
+        // It matters most on a SMALL collider. Measured sliding a hand up the chest: shrinking the torso
+        // without this took the worst pop from 1.6 mm back up to 10.4 mm, because a smaller torso means
+        // the arm crosses the contact boundary far more often, and every crossing was a step.
+        //
+        // A FRACTION OF THE CHEST RADIUS, for the same reason as k_SwingPreferenceRatio -- a margin fixed
+        // in metres would swallow a small avatar's torso whole and barely graze a large one.
+        // =============================================================================================
+        const float k_ContactMarginRatio = 0.25f;
 
         // =============================================================================================
         // THE TORSO IS AN ELLIPSE, NOT A CIRCLE. A real chest is roughly 1.4x wider left-to-right than it is
@@ -166,10 +226,14 @@ namespace Basis.IK
                 bodyLat = Vector3.zero;   // fully degenerate -> SegmentClearance falls back to a round radius
             }
 
+            // Both derived from the chest radius so they carry avatar scale with the collider they guard.
+            float contactMargin = chestR * k_ContactMarginRatio;
+            float swingPreference = chestR * k_SwingPreferenceRatio;
+
             float natClear = MinTorsoClearance(i, shoulderPos, elbowPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
             float worstPen = natClear < 0f ? -natClear : 0f;
             r.WorstPenetration = worstPen;
-            if (worstPen <= k_Epsilon)
+            if (natClear >= contactMargin)
             {
                 return;
             }
@@ -193,25 +257,88 @@ namespace Basis.IK
             float thetaOut = Mathf.Atan2(Vector3.Dot(Vector3.Cross(currentDir, outDir), acDir),
                 Vector3.Dot(currentDir, outDir)) * Mathf.Rad2Deg;
             float firstClearT = -1f;
+            float lastBlockedT = 0f;   // the sample just below firstClearT, known NOT to clear
             float bestClear = float.NegativeInfinity;
-            float bestClearT = 0f;
+            int bestClearK = 0;
             for (int k = 0; k <= k_SwivelSteps; k++)
             {
                 float t = (float)k / k_SwivelSteps;
-                Vector3 d = Quaternion.AngleAxis(thetaOut * t, acDir) * currentDir;
-                float c = MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
-                if (c >= k_ClearMargin && firstClearT < 0f)
+                float c = SwivelClearance(i, t, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
+                    shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+                if (firstClearT < 0f)
                 {
-                    firstClearT = t;
+                    if (c >= k_ClearMargin)
+                    {
+                        firstClearT = t;
+                    }
+                    else
+                    {
+                        lastBlockedT = t;
+                    }
                 }
-                if (c > bestClear)
+                float s = c - swingPreference * t;
+                if (s > bestClear)
                 {
-                    bestClear = c;
-                    bestClearT = t;
+                    bestClear = s;
+                    bestClearK = k;
                 }
             }
+            float bestClearT = (float)bestClearK / k_SwivelSteps;
 
+            // ---------------------------------------------------------------------------------------------
+            // THE SWEEP ABOVE IS A GRID, AND A GRID ANSWER IS A STAIRCASE.
+            //
+            // The true clearing angle moves CONTINUOUSLY as the hand slides along the torso, but the loop can
+            // only ever report a multiple of 1/k_SwivelSteps. So the swing sits still, sits still, then jumps a
+            // whole grid cell at once -- which is exactly what a hand run up the chest feels like: a series of
+            // discrete CLICKS. Measured on a 0.5 mm hand step: up to 18 mm of elbow travel in one frame, a 37x
+            // amplification of the motion that caused it, on ~4% of samples along the sweep.
+            //
+            // The grid is only a BRACKET. We know the crossing lies between lastBlockedT and firstClearT, so
+            // bisect it and hand back the real angle. The grid keeps doing the job it is good at -- finding
+            // WHICH lobe clears -- and stops being the answer's resolution.
+            // ---------------------------------------------------------------------------------------------
             bool cleared = firstClearT >= 0f;
+            if (cleared)
+            {
+                if (firstClearT > 0f)
+                {
+                    float lo = lastBlockedT, hi = firstClearT;
+                    for (int b = 0; b < k_ClearRefineSteps; b++)
+                    {
+                        float mid = 0.5f * (lo + hi);
+                        float c = SwivelClearance(i, mid, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
+                            shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+                        if (c >= k_ClearMargin)
+                        {
+                            hi = mid;
+                        }
+                        else
+                        {
+                            lo = mid;
+                        }
+                    }
+                    firstClearT = hi;
+                }
+            }
+            else
+            {
+                // ...AND THE SAME STAIRCASE, ONE BRANCH OVER. When nothing on the arc clears -- the arm is
+                // pressed too close to wrap around the torso, which is most of a hand run up the chest -- the
+                // answer is the ARGMAX of the same grid, and an argmax over samples is every bit as quantised
+                // as a threshold crossing. It is in fact the WORSE of the two: measured, every single one of
+                // the worst clicks along the sweep came through here, none through the clear branch.
+                //
+                // The peak drifts smoothly as the hand moves, so bracket it with the grid neighbours and let
+                // golden-section find where it actually is. A boundary peak (k = 0 or k = steps) brackets
+                // one-sided and converges onto the boundary, so that case stays put instead of special-casing.
+                float lo = (float)Mathf.Max(0, bestClearK - 1) / k_SwivelSteps;
+                float hi = (float)Mathf.Min(k_SwivelSteps, bestClearK + 1) / k_SwivelSteps;
+                bestClearT = RefineClearanceMax(i, lo, hi, thetaOut, acDir, currentDir, elbowCenter,
+                    elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd,
+                    swingPreference);
+            }
+
             float chosenT = cleared ? firstClearT : bestClearT;
             // Near anti-parallel (|thetaOut|~180) the partial clear-swing direction is ambiguous and
             // snaps sides on smooth motion (the pole flip). Commit toward fully-out (chosenT->1, the
@@ -231,17 +358,81 @@ namespace Basis.IK
                 Mathf.Clamp01((reach - k_AuthorityFadeStart) / (k_AuthorityFadeEnd - k_AuthorityFadeStart)));
             chosenT *= authority;
 
-            // At zero authority chosenT is exactly 0, so `dir` is exactly `currentDir` and DesiredElbow is
-            // exactly the elbow we were handed. SwingElbowAroundAC then sees v1 == v2 and applies the
-            // identity. The no-op is structural, not a tolerance -- there is no residual roll to leak.
+            // The speculative contact ramp (see k_ContactMargin). Applied LAST, after flipCommit, because
+            // flipCommit is the term that can hand a full swing to outDir the moment contact is detected --
+            // it is precisely what has to be eased in rather than switched on.
+            float approach = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(natClear / contactMargin));
+            chosenT *= approach;
+
+            // At zero authority OR at the outer edge of the contact margin chosenT is exactly 0, so `dir` is
+            // exactly `currentDir` and DesiredElbow is exactly the elbow we were handed. SwingElbowAroundAC
+            // then sees v1 == v2 and applies the identity. The no-op is structural, not a tolerance -- there
+            // is no residual roll to leak.
             Vector3 dir = Quaternion.AngleAxis(thetaOut * chosenT, acDir) * currentDir;
 
             r.DesiredElbow = elbowCenter + dir * elbowRadius;
             r.SwingAngleDeg = Mathf.Abs(thetaOut * chosenT);
             r.BlendUsed = chosenT;
-            r.CollisionState = cleared ? 1 : 2;
+            // Reported state stays keyed to ACTUAL penetration, not to the margin: SolveHand feeds this to
+            // BasisSwingContinuityCore, which rate-limits on a state CHANGE, and that tag should still flip
+            // where the surfaces really meet rather than where the soft ramp begins.
+            r.CollisionState = worstPen <= k_Epsilon ? 0 : (cleared ? 1 : 2);
             r.ResidualClearance = MinTorsoClearance(i, shoulderPos, r.DesiredElbow, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
             r.Engaged = true;
+        }
+
+        // Golden-section search for the best-SCORING swivel on [lo, hi] (clearance less the swing price --
+        // see k_SwingPreference). Used when nothing on the arc clears outright, so the grid's argmax stops
+        // being the answer's resolution. Continuous in the bracket, which is the whole point: the optimum
+        // drifts as the hand moves, and the reported angle must drift with it rather than hop between cells.
+        static float RefineClearanceMax(in BasisElbowProtectInput i, float lo, float hi, float thetaOut,
+            Vector3 acDir, Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
+            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
+            float swingPreference)
+        {
+            const float invPhi = 0.6180339887f;
+            float a = lo, b = hi;
+            float t1 = b - invPhi * (b - a);
+            float t2 = a + invPhi * (b - a);
+            float f1 = SwivelScore(i, t1, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+            float f2 = SwivelScore(i, t2, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+            for (int n = 0; n < k_MaxRefineSteps; n++)
+            {
+                if (f1 < f2)
+                {
+                    a = t1; t1 = t2; f1 = f2;
+                    t2 = a + invPhi * (b - a);
+                    f2 = SwivelScore(i, t2, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+                }
+                else
+                {
+                    b = t2; t2 = t1; f2 = f1;
+                    t1 = b - invPhi * (b - a);
+                    f1 = SwivelScore(i, t1, thetaOut, acDir, currentDir, elbowCenter, elbowRadius, shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference);
+                }
+            }
+            return 0.5f * (a + b);
+        }
+
+        // What the fallback branch actually maximises: clearance, less a small price on the swing, so a
+        // plateau resolves to its SMALLEST swing instead of to float noise. See k_SwingPreference.
+        static float SwivelScore(in BasisElbowProtectInput i, float t, float thetaOut, Vector3 acDir,
+            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
+            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
+            float swingPreference)
+        {
+            return SwivelClearance(i, t, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
+                shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd) - swingPreference * t;
+        }
+
+        // Torso clearance with the elbow swivelled to `t` along the natural->out arc. Shared by the coarse
+        // sweep and the bisection that refines it, so both score the exact same candidate pose.
+        static float SwivelClearance(in BasisElbowProtectInput i, float t, float thetaOut, Vector3 acDir,
+            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
+            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd)
+        {
+            Vector3 d = Quaternion.AngleAxis(thetaOut * t, acDir) * currentDir;
+            return MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
         }
 
         // Signed worst-case clearance (gap > 0, penetration < 0) of the upper-arm capsule against the
@@ -251,16 +442,19 @@ namespace Basis.IK
         static float MinTorsoClearance(in BasisElbowProtectInput i, Vector3 shoulderPos, Vector3 elbowPos,
             float upperArmR, float chestLatR, float spineLatR, float hipsLatR, Vector3 bodyLat, Vector3 bodyFwd)
         {
+            // Each segment TAPERS from its own radius to its neighbour's, so the radius the arm feels is
+            // continuous all the way up the torso. See the k_ChestDepthRatio block for why a step here is
+            // felt as a click.
             float worst = float.PositiveInfinity;
             if (i.HasHips && i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.HipsPos, i.SpinePos, hipsLatR, bodyLat, bodyFwd));
+                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.HipsPos, i.SpinePos, hipsLatR, spineLatR, bodyLat, bodyFwd));
             }
             if (i.HasSpine)
             {
-                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.SpinePos, i.ChestPos, spineLatR, bodyLat, bodyFwd));
+                worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.SpinePos, i.ChestPos, spineLatR, chestLatR, bodyLat, bodyFwd));
             }
-            worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.ChestPos, i.NeckPos, chestLatR, bodyLat, bodyFwd));
+            worst = Mathf.Min(worst, SegmentClearance(shoulderPos, elbowPos, upperArmR, i.ChestPos, i.NeckPos, chestLatR, chestLatR, bodyLat, bodyFwd));
             return worst;
         }
 
@@ -270,13 +464,20 @@ namespace Basis.IK
         // radius toward the closest-approach direction is the ellipse's radius in that direction, so the
         // arm clears the chest FRONT far sooner than its SIDES -- the whole point. Falls back to a round
         // radius (latR) when the frame is unavailable or the separation is along the segment axis.
-        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2, float latR,
-            Vector3 bodyLat, Vector3 bodyFwd)
+        static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2,
+            float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
         {
-            BasisFullIKConstraintJob.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out _, out Vector3 c1, out Vector3 c2);
+            BasisFullIKConstraintJob.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out float segT, out Vector3 c1, out Vector3 c2);
             Vector3 sep = c1 - c2;
             float sepLen = sep.magnitude;
 
+            // TAPER, so the torso has no CLIFF at a joint. The three segments carry different radii
+            // (hips 1.4x, spine 0.8x, chest 1.0x), and holding each one CONSTANT along its length puts a
+            // 4 cm step in the surface exactly where two segments meet. Slide a hand up the chest and the
+            // clearance the solver is chasing jumps at that seam -- a click you can feel, at the same height
+            // every time. Interpolating to the neighbour's radius at the shared joint removes the seam
+            // outright: same radius at each joint, no step left to fall off.
+            float latR = latR0 + (latR1 - latR0) * segT;
             float rEff = latR;
             float apR = latR * k_ChestDepthRatio;
             Vector3 axis = q2 - p2;

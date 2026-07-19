@@ -612,7 +612,15 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             for (int i = 0; i < pendingAddSceneColliderCount; i++) {
                 var collider = pendingSceneColliderAdd[i];
                 collider.collider.enabled = true;
-                
+
+                // Re-adding a transform that is already committed must refresh its slot, not take
+                // a second one: allocating again overwrites the transform->index entry and orphans
+                // the old slot, which stays allocated and enabled with no way to ever remove it.
+                if (sceneColliderTransformToIndex.TryGetValue(collider.transform, out var existingIndex)) {
+                    sceneColliderArray[existingIndex] = collider.collider;
+                    continue;
+                }
+
                 var found = sceneColliderMemoryFragmenter.TryAllocate(1, out var index);
                 if (!found) {
                     throw new UnityException( "Ran out of scene collider memory, this is a bug please report it! (It should've been allocated in advance");
@@ -634,6 +642,16 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         } else if (commitSceneColliderState == CommitState.ProcessingTransformAccess) {
             doubleBufferSceneColliderTransformAccessArray.GenerateNewAccessArrays(ref currentSceneColliderTransformAccessIndex, out var hasFinishedSceneColliders, sceneColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedSceneColliders) return;
+            // The managed mirror is the writer for scene colliders, so it has to retire slots whose
+            // transform died without a matching remove — otherwise this copy resurrects them, undoing
+            // the read job's isValid self-heal, and the collider keeps colliding from wherever it was.
+            for (int i = 0; i < sceneColliderCount; i++) {
+                if (!sceneColliderArray[i].enabled) continue;
+                if (i < sceneColliderTransformAccessList.Count && sceneColliderTransformAccessList[i]) continue;
+                var deadCollider = sceneColliderArray[i];
+                deadCollider.enabled = false;
+                sceneColliderArray[i] = deadCollider;
+            }
             NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
             doubleBufferSceneColliderTransformAccessArray.Flip();
             commitSceneColliderState = CommitState.Idle;
@@ -855,7 +873,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
     public void ScheduleRemove(JiggleColliderSerializable jiggleCollider) {
         var count = pendingSceneColliderAdd.Count;
         for (int i = 0; i < count; i++) {
-            if (pendingSceneColliderAdd[i].transform == jiggleCollider.transform) {
+            // ReferenceEquals, not ==: Unity's equality operator reports any two destroyed
+            // transforms as equal, so a removal issued after the avatar was destroyed would
+            // cancel an unrelated pending add and drop the real removal on the floor.
+            if (ReferenceEquals(pendingSceneColliderAdd[i].transform, jiggleCollider.transform)) {
                 pendingSceneColliderAdd.RemoveAt(i);
                 pendingSceneColliderAddSet.Remove(jiggleCollider.transform);
                 return;

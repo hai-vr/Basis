@@ -1,6 +1,10 @@
 using Basis;
 using Basis.BasisUI;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -993,6 +997,11 @@ public static class SettingsProviderIK
                 smoothingStrength.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothingStrength.title.tooltip"));
             }
 
+            for (int Index = 0; Index < BasisSettingsDefaults.FBIKSmoothingGroups.Length; Index++)
+            {
+                AddSmoothingGroup(smoothingParent, tabDesc, BasisSettingsDefaults.FBIKSmoothingGroups[Index]);
+            }
+
             // var posHz = PanelSlider.CreateAndBind(
             //     smoothingParent,
             //     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.posSmoothingHz.title"), 0.01f, 60f, false, 2, ValueDisplayMode.Raw),
@@ -1123,6 +1132,8 @@ public static class SettingsProviderIK
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.bodyFit"),
             "Body Fit", "Body Fit Max Deviation", "Arm Fit", "Body Fit Arm Scale", "Body Fit Arm Length",
+            "Body Fit Player Arm Length", "Body Fit Arm Ratio (raw)",
+            "Hand Device To Wrist L", "Hand Device To Wrist R",
             "Leg & Spine Fit", "Body Fit Leg Scale", "Body Fit Torso Scale", "Body Fit Hip Height",
             "Body Fit Head Height Shift");
 
@@ -1223,6 +1234,10 @@ public static class SettingsProviderIK
         "Body Fit Arm Length" => BasisLocalRigDriver.AppliedBodyFit.HasArmFit
             ? $"{AvatarArmLength():F4} -> {AvatarArmLength() * BasisLocalRigDriver.AppliedBodyFit.ArmScale:F4} m"
             : "unchanged",
+        "Body Fit Player Arm Length" => $"{PlayerArmLength():F4} m",
+        "Body Fit Arm Ratio (raw)" => RawArmRatio(),
+        "Hand Device To Wrist L" => HandDeviceToWristGap(BasisBoneTrackedRole.LeftHand),
+        "Hand Device To Wrist R" => HandDeviceToWristGap(BasisBoneTrackedRole.RightHand),
         "Body Fit Hip Height" => BasisLocalRigDriver.AppliedBodyFit.HasBodyFit
             ? $"{BasisHeightDriver.AvatarHipHeight:F4} -> {FittedHipHeight():F4} m (target {BasisHeightDriver.PlayerHipHeight * SafeSpaceRatio():F4})"
             : "unchanged",
@@ -1241,6 +1256,57 @@ public static class SettingsProviderIK
 
     private static float SafeSpaceRatio() =>
         BasisHeightDriver.PlayerEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight / BasisHeightDriver.PlayerEyeHeight : 1f;
+
+    /// <summary>
+    /// The player's arm length in avatar space, derived exactly as BasisBodyFitCore.SolveArms does it,
+    /// so this can be read straight against "Avatar Arm Length" — the two numbers are the ratio.
+    /// </summary>
+    private static float PlayerArmLength() =>
+        Mathf.Max(0f, (BasisHeightDriver.PlayerArmSpan * SafeSpaceRatio() - BasisHeightDriver.AvatarShoulderWidth) * 0.5f);
+
+    /// <summary>
+    /// The arm ratio before the max-deviation clamp. When this sits well above 1 while "Body Fit Arm
+    /// Scale" rests on the band edge, the fit wants more than the clamp allows and the measurements
+    /// feeding it are worth doubting before the band is widened.
+    /// </summary>
+    private static string RawArmRatio()
+    {
+        float avatarArm = AvatarArmLength();
+        if (avatarArm <= 0f)
+        {
+            return "--";
+        }
+
+        float raw = PlayerArmLength() / avatarArm;
+        float deviation = BasisSettingsDefaults.FBIKBodyFitMaxDeviation.RawValue;
+        bool clamped = raw > 1f + deviation || raw < 1f - deviation;
+        return $"{raw:F4} ({(raw - 1f):+0.0%;-0.0%;0.0%}){(clamped ? " - clamped" : string.Empty)}";
+    }
+
+    /// <summary>
+    /// Distance between the point the arm-span calibration samples for this hand and the wrist bone the
+    /// arm fit resizes toward. OpenVR bakes the wrist into the device coord before the height calculator
+    /// reads it, so it lands near zero there; OpenXR leaves the device coord on the grip pose, so a
+    /// reading of a few cm is the player arm span over-reading by that much per hand, doubled across the
+    /// span, before it ever reaches the solver.
+    /// </summary>
+    private static string HandDeviceToWristGap(BasisBoneTrackedRole role)
+    {
+        BasisDeviceManagement manager = BasisDeviceManagement.Instance;
+        if (manager == null || !manager.FindDevice(out BasisInput input, role) || input == null)
+        {
+            return "-- (no device)";
+        }
+
+        var mapping = BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping;
+        Transform wrist = role == BasisBoneTrackedRole.LeftHand ? mapping?.leftHand : mapping?.rightHand;
+        if (wrist == null)
+        {
+            return "-- (no wrist bone)";
+        }
+
+        return $"{Vector3.Distance(input.ScaledDeviceCoord.position, wrist.position):F4} m";
+    }
 
     private static float FittedHipHeight() =>
         BasisHeightDriver.AvatarHipHeight + (BasisLocalRigDriver.AppliedBodyFit.LegScale - 1f) * BasisHeightDriver.AvatarLegSpan;
@@ -1310,6 +1376,18 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKDerivativeCutoff.ResetToDefault();
         BasisSettingsDefaults.FBIKPositionSmoothingHz.ResetToDefault();
         BasisSettingsDefaults.FBIKRotationSmoothingHz.ResetToDefault();
+
+        for (int Index = 0; Index < BasisSettingsDefaults.FBIKSmoothingGroups.Length; Index++)
+        {
+            BasisSettingsDefaults.SmoothingGroupBindings group = BasisSettingsDefaults.FBIKSmoothingGroups[Index];
+            group.Preset.ResetToDefault();
+            group.Custom.ResetToDefault();
+            group.MinCutoff.ResetToDefault();
+            group.Beta.ResetToDefault();
+            group.Strength.ResetToDefault();
+            group.PositionHz.ResetToDefault();
+            group.RotationHz.ResetToDefault();
+        }
 
         // Bone selection UI state (optional, but usually desired)
         BasisSettingsDefaults.SelectedBone.ResetToDefault();
@@ -1574,6 +1652,56 @@ public static class SettingsProviderIK
         // Explanatory text on hover (tooltip) instead of inline, to keep the page compact.
         toggle.Descriptor.SetTooltip(BasisLocalization.Get(descriptionKey));
         toggle.AssignBinding(binding);
+    }
+
+    private static void AddSmoothingGroup(RectTransform parent, PanelElementDescriptor rebuildTarget, BasisSettingsDefaults.SmoothingGroupBindings group)
+    {
+        var presetDropdown = PanelDropdown.CreateNewEntry(parent);
+        presetDropdown.Descriptor.SetTitle(BasisLocalization.Get(group.NameKey));
+        presetDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothing.preset.tooltip"));
+        presetDropdown.AssignLocalizedEntries(
+            new List<string>(BasisSmoothingProfiles.PresetOrder),
+            new List<string>(BasisSmoothingProfiles.PresetLocalizationKeys));
+        presetDropdown.AssignBinding(group.Preset);
+
+        var customToggle = PanelToggle.CreateNewEntry(parent);
+        customToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.smoothing.custom"));
+        customToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothing.custom.tooltip"));
+        customToggle.AssignBinding(group.Custom);
+
+        var sliders = new List<PanelSlider>(5);
+        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.minCutoff.title", 0.1f, 10f, group.MinCutoff);
+        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.beta.title", 0f, 10f, group.Beta);
+        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.smoothingStrength.title", 1f, 100f, group.Strength);
+        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.posSmoothingHz.title", 0.01f, 60f, group.PositionHz);
+        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.rotSmoothingHz.title", 0.01f, 60f, group.RotationHz);
+
+        void ApplyCustomVisibility(bool visible)
+        {
+            for (int Index = 0; Index < sliders.Count; Index++)
+            {
+                sliders[Index].Descriptor.SetActive(visible);
+            }
+        }
+
+        ApplyCustomVisibility(customToggle.Value);
+        customToggle.OnValueChanged += value =>
+        {
+            ApplyCustomVisibility(value);
+            rebuildTarget.ForceRebuild();
+        };
+    }
+
+    private static void AddSmoothingGroupSlider(List<PanelSlider> sliders, RectTransform parent, string titleKey, float min, float max, BasisSettingsBinding<float> binding)
+    {
+        var slider = PanelSlider.CreateAndBind(
+            parent,
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get(titleKey), min, max, false, 2, ValueDisplayMode.Raw),
+            binding);
+        if (slider != null)
+        {
+            sliders.Add(slider);
+        }
     }
 
     private static void CreateCollapsibleSection(PanelElementDescriptor tabDesc, PanelElementDescriptor parentGroup, string title, string description, bool defaultOpen, Action<RectTransform> addContent)

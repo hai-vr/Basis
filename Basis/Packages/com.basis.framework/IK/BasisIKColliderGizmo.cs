@@ -107,9 +107,10 @@ namespace Basis.Scripts.Debugging
 
             if (elliptical)
             {
-                UpdateEllipticalBoneCapsule(HipsBase, bones.Hips, bones.spine, hipsR, hipsR * ChestDepthRatio, bodyLat, bodyFwd);
-                UpdateEllipticalBoneCapsule(SpineBase, bones.spine, bones.chest, spineR, spineR * ChestDepthRatio, bodyLat, bodyFwd);
-                UpdateEllipticalCapsule(ChestBase, bones.chest.position, bones.neck.position, chestR, chestR * ChestDepthRatio, bodyLat, bodyFwd);
+                // Each segment tapers to its neighbour's radius, exactly as MinTorsoClearance does.
+                UpdateEllipticalBoneCapsule(HipsBase, bones.Hips, bones.spine, hipsR, spineR, bodyLat, bodyFwd);
+                UpdateEllipticalBoneCapsule(SpineBase, bones.spine, bones.chest, spineR, chestR, bodyLat, bodyFwd);
+                UpdateEllipticalCapsule(ChestBase, bones.chest.position, bones.neck.position, chestR, chestR, bodyLat, bodyFwd);
                 SetCapsuleActive(ChestBase, true);
             }
             else
@@ -243,20 +244,25 @@ namespace Basis.Scripts.Debugging
             SetCapsuleActive(baseIdx, true);
         }
 
-        private static void UpdateEllipticalBoneCapsule(int baseIdx, Transform a, Transform b, float latR, float apR, Vector3 bodyLat, Vector3 bodyFwd)
+        private static void UpdateEllipticalBoneCapsule(int baseIdx, Transform a, Transform b, float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
         {
             if (a == null || b == null)
             {
                 SetCapsuleActive(baseIdx, false);
                 return;
             }
-            UpdateEllipticalCapsule(baseIdx, a.position, b.position, latR, apR, bodyLat, bodyFwd);
+            UpdateEllipticalCapsule(baseIdx, a.position, b.position, latR0, latR1, bodyLat, bodyFwd);
             SetCapsuleActive(baseIdx, true);
         }
 
-        // Elliptical cross-section: latR along the body-lateral axis (wide), apR along body-forward (thin).
-        // Both axes are projected into the plane perpendicular to the segment so the ring sits square on it.
-        private static void UpdateEllipticalCapsule(int baseIdx, Vector3 a, Vector3 b, float latR, float apR, Vector3 bodyLat, Vector3 bodyFwd)
+        // Elliptical cross-section: latR along the body-lateral axis (wide), latR*ChestDepthRatio along
+        // body-forward (thin). Both axes are projected into the plane perpendicular to the segment so the
+        // ring sits square on it.
+        //
+        // TAPERED: latR0 at a, latR1 at b, matching BasisElbowProtectCore.SegmentClearance, which
+        // interpolates each segment's radius to its neighbour's so the torso has no step at a joint.
+        // Drawn straight is what let the old 4 cm cliff at the spine hide in plain sight.
+        private static void UpdateEllipticalCapsule(int baseIdx, Vector3 a, Vector3 b, float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
         {
             Vector3 axis = b - a;
             float h = axis.magnitude;
@@ -267,22 +273,25 @@ namespace Basis.Scripts.Debugging
             Vector3 w = bodyFwd - dir * Vector3.Dot(bodyFwd, dir);
             w = w.sqrMagnitude > 1e-8f ? w.normalized : Vector3.Cross(dir, u).normalized;
 
-            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 0], a + u * latR, b + u * latR);
-            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 1], a - u * latR, b - u * latR);
-            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 2], a + w * apR, b + w * apR);
-            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 3], a - w * apR, b - w * apR);
+            float apR0 = latR0 * ChestDepthRatio;
+            float apR1 = latR1 * ChestDepthRatio;
+
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 0], a + u * latR0, b + u * latR1);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 1], a - u * latR0, b - u * latR1);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 2], a + w * apR0, b + w * apR1);
+            BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + 3], a - w * apR0, b - w * apR1);
 
             float step = Mathf.PI * 2f / CapSegments;
             for (int s = 0; s < CapSegments; s++)
             {
                 float t = step * s;
-                _capBuffer[s] = a + u * (Mathf.Cos(t) * latR) + w * (Mathf.Sin(t) * apR);
+                _capBuffer[s] = a + u * (Mathf.Cos(t) * latR0) + w * (Mathf.Sin(t) * apR0);
             }
             BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapA_Offset], _capBuffer);
             for (int s = 0; s < CapSegments; s++)
             {
                 float t = step * s;
-                _capBuffer[s] = b + u * (Mathf.Cos(t) * latR) + w * (Mathf.Sin(t) * apR);
+                _capBuffer[s] = b + u * (Mathf.Cos(t) * latR1) + w * (Mathf.Sin(t) * apR1);
             }
             BasisGizmoManager.UpdateLineGizmo(_lineIds[baseIdx + CapB_Offset], _capBuffer);
         }

@@ -9,6 +9,16 @@ public static class BasisLocalHeightCalculator
 {
     // 30% tolerance band
     private const float EyeArmTolerance = 0.30f;
+
+    /// <summary>
+    /// The point to measure a hand's span from: the wrist the avatar's hand bone is driven to, which is
+    /// the same landmark <see cref="CalculateAvatarArmSpan"/> reads on the avatar side (the LeftHand /
+    /// RightHand bones). Sampling the raw device pose instead compares a grip against a wrist on backends
+    /// that report one, over-reading the span on both sides — and the body fit turns that straight into
+    /// arm length, because its whole job is to make the avatar's shoulder-to-wrist match the player's.
+    /// </summary>
+    private static Vector3 HandSpanPoint(BasisInput input) =>
+        input is BasisInputController controller ? controller.UnscaledHandTarget : input.UnscaledDeviceCoord.position;
     public static void CalculatePlayerArmSpan()
     {
         bool hasLeft = BasisDeviceManagement.Instance.FindDevice(out BasisInput left, BasisBoneTrackedRole.LeftHand);
@@ -47,7 +57,7 @@ public static class BasisLocalHeightCalculator
             if (hasRight) right.LatePollData();
 
             var head = lockToInput.BasisInput.UnscaledDeviceCoord.position;
-            var hand = hasLeft ? left.UnscaledDeviceCoord.position : right.UnscaledDeviceCoord.position;
+            var hand = HandSpanPoint(hasLeft ? left : right);
 
             var headFlat = new Vector3(head.x, 0f, head.z);
             var handFlat = new Vector3(hand.x, 0f, hand.z);
@@ -60,8 +70,8 @@ public static class BasisLocalHeightCalculator
         left.LatePollData();
         right.LatePollData();
 
-        Vector3 l = left.UnscaledDeviceCoord.position;
-        Vector3 r = right.UnscaledDeviceCoord.position;
+        Vector3 l = HandSpanPoint(left);
+        Vector3 r = HandSpanPoint(right);
 
         Vector3 lFlat = new Vector3(l.x, 0f, l.z);
         Vector3 rFlat = new Vector3(r.x, 0f, r.z);

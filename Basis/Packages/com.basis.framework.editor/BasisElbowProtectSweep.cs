@@ -58,9 +58,9 @@ namespace Basis.IK.Debugging
                 ChestHeight = 0.32f,
                 NeckHeight = 0.52f,
                 // Production FBIK collider defaults (BasisSettingsDefaults), so absolute numbers
-                // match the live rig. Combined upper-arm+chest reach ~0.17 m.
-                ChestRadiusBase = 0.07f,
-                CollisionSkin = 0.05f,
+                // match the live rig. Combined upper-arm+chest reach ~0.13 m at the _v3 sizes.
+                ChestRadiusBase = 0.055f,
+                CollisionSkin = 0.025f,
                 HandRadius = 0.01f,
                 HandSkin = 0.03f,
 

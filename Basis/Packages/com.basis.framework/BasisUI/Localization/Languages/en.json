@@ -5784,6 +5784,66 @@
       "value": "Controls how much motion speed affects smoothing behavior. Lower values are steadier; higher values feel more responsive but noisier."
     },
     {
+      "key": "settings.bodyTracking.smoothing.group.head",
+      "value": "Head"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.hands",
+      "value": "Hands"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.elbows",
+      "value": "Elbows"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.chest",
+      "value": "Chest"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.hips",
+      "value": "Hips"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.knees",
+      "value": "Knees"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.feet",
+      "value": "Feet"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.light",
+      "value": "Light"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.standard",
+      "value": "Standard"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.heavy",
+      "value": "Heavy"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.optical",
+      "value": "Optical"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.tooltip",
+      "value": "How hard this group of trackers is filtered. Off passes the tracker through untouched. Light suits lighthouse trackers and controllers, which are already quiet. Standard is the default. Heavy suits IMU trackers such as SlimeVR that drift and buzz. Optical suits camera hand tracking: very steady when you hold still, and it lets go quickly when you move fast."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.custom",
+      "value": "Custom Tuning"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.custom.tooltip",
+      "value": "Ignore the preset above and tune this group by hand with the sliders below."
+    },
+    {
       "key": "settings.nameplates.title",
       "value": "Nameplates"
     },

@@ -798,6 +798,91 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSmoothingStrength =
             new("fbiksmoothingstrength", new BasisPlatformDefault<float>(2.5f));
 
+        // ---------------- PER-GROUP SMOOTHING PROFILES ----------------
+        // One profile per tracker group so hardware with different noise characteristics can be tuned
+        // independently. Preset picks a tuning curve; Custom replaces it with the five sliders below.
+        public struct SmoothingGroupBindings
+        {
+            public string NameKey;
+            public BasisSettingsBinding<string> Preset;
+            public BasisSettingsBinding<bool> Custom;
+            public BasisSettingsBinding<float> MinCutoff;
+            public BasisSettingsBinding<float> Beta;
+            public BasisSettingsBinding<float> Strength;
+            public BasisSettingsBinding<float> PositionHz;
+            public BasisSettingsBinding<float> RotationHz;
+        }
+
+        private const string SmoothingPresetDefault = "Standard";
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetHead = new("fbiksmoothpresethead", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomHead = new("fbiksmoothcustomhead", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffHead = new("fbiksmoothmincutoffhead", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaHead = new("fbiksmoothbetahead", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthHead = new("fbiksmoothstrengthhead", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzHead = new("fbiksmoothposhzhead", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzHead = new("fbiksmoothrothzhead", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetHands = new("fbiksmoothpresethands", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomHands = new("fbiksmoothcustomhands", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffHands = new("fbiksmoothmincutoffhands", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaHands = new("fbiksmoothbetahands", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthHands = new("fbiksmoothstrengthhands", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzHands = new("fbiksmoothposhzhands", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzHands = new("fbiksmoothrothzhands", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetElbows = new("fbiksmoothpresetelbows", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomElbows = new("fbiksmoothcustomelbows", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffElbows = new("fbiksmoothmincutoffelbows", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaElbows = new("fbiksmoothbetaelbows", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthElbows = new("fbiksmoothstrengthelbows", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzElbows = new("fbiksmoothposhzelbows", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzElbows = new("fbiksmoothrothzelbows", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetChest = new("fbiksmoothpresetchest", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomChest = new("fbiksmoothcustomchest", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffChest = new("fbiksmoothmincutoffchest", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaChest = new("fbiksmoothbetachest", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthChest = new("fbiksmoothstrengthchest", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzChest = new("fbiksmoothposhzchest", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzChest = new("fbiksmoothrothzchest", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetHips = new("fbiksmoothpresethips", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomHips = new("fbiksmoothcustomhips", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffHips = new("fbiksmoothmincutoffhips", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaHips = new("fbiksmoothbetahips", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthHips = new("fbiksmoothstrengthhips", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzHips = new("fbiksmoothposhzhips", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzHips = new("fbiksmoothrothzhips", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetKnees = new("fbiksmoothpresetknees", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomKnees = new("fbiksmoothcustomknees", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffKnees = new("fbiksmoothmincutoffknees", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaKnees = new("fbiksmoothbetaknees", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthKnees = new("fbiksmoothstrengthknees", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzKnees = new("fbiksmoothposhzknees", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzKnees = new("fbiksmoothrothzknees", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<string> FBIKSmoothPresetFeet = new("fbiksmoothpresetfeet", new BasisPlatformDefault<string>(SmoothingPresetDefault));
+        public static BasisSettingsBinding<bool> FBIKSmoothCustomFeet = new("fbiksmoothcustomfeet", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> FBIKSmoothMinCutoffFeet = new("fbiksmoothmincutofffeet", new BasisPlatformDefault<float>(5.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothBetaFeet = new("fbiksmoothbetafeet", new BasisPlatformDefault<float>(3.25f));
+        public static BasisSettingsBinding<float> FBIKSmoothStrengthFeet = new("fbiksmoothstrengthfeet", new BasisPlatformDefault<float>(2.5f));
+        public static BasisSettingsBinding<float> FBIKSmoothPosHzFeet = new("fbiksmoothposhzfeet", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKSmoothRotHzFeet = new("fbiksmoothrothzfeet", new BasisPlatformDefault<float>(25f));
+
+        // Order MUST match Basis.Scripts.Drivers.BasisSmoothingGroup.
+        public static readonly SmoothingGroupBindings[] FBIKSmoothingGroups =
+        {
+            new() { NameKey = "settings.bodyTracking.smoothing.group.head", Preset = FBIKSmoothPresetHead, Custom = FBIKSmoothCustomHead, MinCutoff = FBIKSmoothMinCutoffHead, Beta = FBIKSmoothBetaHead, Strength = FBIKSmoothStrengthHead, PositionHz = FBIKSmoothPosHzHead, RotationHz = FBIKSmoothRotHzHead },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.hands", Preset = FBIKSmoothPresetHands, Custom = FBIKSmoothCustomHands, MinCutoff = FBIKSmoothMinCutoffHands, Beta = FBIKSmoothBetaHands, Strength = FBIKSmoothStrengthHands, PositionHz = FBIKSmoothPosHzHands, RotationHz = FBIKSmoothRotHzHands },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.elbows", Preset = FBIKSmoothPresetElbows, Custom = FBIKSmoothCustomElbows, MinCutoff = FBIKSmoothMinCutoffElbows, Beta = FBIKSmoothBetaElbows, Strength = FBIKSmoothStrengthElbows, PositionHz = FBIKSmoothPosHzElbows, RotationHz = FBIKSmoothRotHzElbows },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.chest", Preset = FBIKSmoothPresetChest, Custom = FBIKSmoothCustomChest, MinCutoff = FBIKSmoothMinCutoffChest, Beta = FBIKSmoothBetaChest, Strength = FBIKSmoothStrengthChest, PositionHz = FBIKSmoothPosHzChest, RotationHz = FBIKSmoothRotHzChest },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.hips", Preset = FBIKSmoothPresetHips, Custom = FBIKSmoothCustomHips, MinCutoff = FBIKSmoothMinCutoffHips, Beta = FBIKSmoothBetaHips, Strength = FBIKSmoothStrengthHips, PositionHz = FBIKSmoothPosHzHips, RotationHz = FBIKSmoothRotHzHips },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.knees", Preset = FBIKSmoothPresetKnees, Custom = FBIKSmoothCustomKnees, MinCutoff = FBIKSmoothMinCutoffKnees, Beta = FBIKSmoothBetaKnees, Strength = FBIKSmoothStrengthKnees, PositionHz = FBIKSmoothPosHzKnees, RotationHz = FBIKSmoothRotHzKnees },
+            new() { NameKey = "settings.bodyTracking.smoothing.group.feet", Preset = FBIKSmoothPresetFeet, Custom = FBIKSmoothCustomFeet, MinCutoff = FBIKSmoothMinCutoffFeet, Beta = FBIKSmoothBetaFeet, Strength = FBIKSmoothStrengthFeet, PositionHz = FBIKSmoothPosHzFeet, RotationHz = FBIKSmoothRotHzFeet },
+        };
+
         // ---------------- HIPS ----------------
         public static BasisSettingsBinding<bool> FBIKHipsSmoothPos =
             new("fbikhipssmoothpos", new BasisPlatformDefault<bool>(false));
@@ -1171,8 +1256,15 @@ namespace Basis.BasisUI
         // multiplies by AvatarToDefaultRatioScaledWithAvatarScale. Keys bumped to _v2 so existing
         // installs pick up the corrected defaults — the previous slider values disagreed with the
         // hardcoded constants in SetHandCollisionScale and were never actually consumed.
-        public static BasisSettingsBinding<float> FBIKChestRadius = new("fbikchestradius_v2", new BasisPlatformDefault<float>(0.07f));
-        public static BasisSettingsBinding<float> FBIKCollisionSkin = new("fbikcollisionskin_v2", new BasisPlatformDefault<float>(0.05f));
+        //
+        // _v3: the torso was too fat. Chest radius 0.07 -> 0.055 and skin 0.05 -> 0.025 takes the chest's
+        // effective lateral half-width (radius + skin + the upper arm's own 0.048) from 0.168 m to 0.128 m
+        // — a 33 cm wide no-arm zone down to 25 cm — and the hips from 0.196 to 0.150. The skin took the
+        // larger cut because at 0.05 it was 42% of the chest radius, i.e. most of the bulk was padding.
+        // Bumped rather than edited in place: a default only reaches an existing install through a new
+        // key, so editing the value alone would have changed nothing for anyone who had already run it.
+        public static BasisSettingsBinding<float> FBIKChestRadius = new("fbikchestradius_v3", new BasisPlatformDefault<float>(0.055f));
+        public static BasisSettingsBinding<float> FBIKCollisionSkin = new("fbikcollisionskin_v3", new BasisPlatformDefault<float>(0.025f));
         public static BasisSettingsBinding<float> FBIKHandRadius = new("fbikhandradius_v2", new BasisPlatformDefault<float>(0.01f));
         public static BasisSettingsBinding<float> FBIKHandSkin = new("fbikhandskin_v2", new BasisPlatformDefault<float>(0.03f));
         public static BasisSettingsBinding<bool> FBIKShoulderSolveEnabled = new("fbikshouldersolveenabled", new BasisPlatformDefault<bool>(true));
@@ -1856,6 +1948,18 @@ namespace Basis.BasisUI
             FBIKDerivativeCutoff.LoadBindingValue();
             FBIKPositionSmoothingHz.LoadBindingValue();
             FBIKRotationSmoothingHz.LoadBindingValue();
+
+            for (int Index = 0; Index < FBIKSmoothingGroups.Length; Index++)
+            {
+                SmoothingGroupBindings group = FBIKSmoothingGroups[Index];
+                group.Preset.LoadBindingValue();
+                group.Custom.LoadBindingValue();
+                group.MinCutoff.LoadBindingValue();
+                group.Beta.LoadBindingValue();
+                group.Strength.LoadBindingValue();
+                group.PositionHz.LoadBindingValue();
+                group.RotationHz.LoadBindingValue();
+            }
             FBIKSmoothingStrength.LoadBindingValue();
 
             // Hips

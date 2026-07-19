@@ -155,17 +155,66 @@ namespace Basis.IK
         //     out = soft + M * e / (M + e),   e = |x| - soft,   M = hard - soft
         //
         // Slope-1 at the handover means NO derivative step: the knee eases into the limit instead of hitting a wall,
-        // which is the difference between a guard and a jerk. The asymptote means the limit is never even reached,
-        // let alone crossed, so `dot > 0` holds by construction and not by a tolerance. And it is a rational
-        // function -- no transcendentals, safe and cheap inside a Burst job.
+        // which is the difference between a guard and a jerk. And it is a rational function -- no transcendentals,
+        // safe and cheap inside a Burst job.
         //
         // Shared, not duplicated: this is the ONE implementation, called by the solve (which places the knee) and by
         // BasisSwivelSmootherCore (which can move it afterwards). Two copies of an anatomical constraint is exactly
         // the hand-mirror failure that has bitten this codebase repeatedly -- the sweep and the runtime silently
         // disagreeing about what the rule was.
+        //
+        // =============================================================================================
+        // ⭐ THE SWIVEL IS AN ANGLE ON A CIRCLE, NOT A NUMBER ON A LINE. That distinction is the whole of
+        // the "knee clicks rotationally" bug, and the saturation above is only half the guard.
+        //
+        // The saturation is MONOTONE in |x|, so on its own it maps
+        //
+        //     clamp(+179.9) = +89.296        clamp(-179.9) = -89.296
+        //
+        // and +179.9 and -179.9 are the SAME PLACE give or take a fifth of a degree -- both are "the knee is
+        // directly behind the leg". So a 0.2 deg real motion across the back of the leg FLIPS the output 178.6 deg,
+        // from hard left of the leg to hard right of it. Measured on the shipped cores by finite difference:
+        // 714x gain in BasisLegSolveCore (at EVERY reach ratio from 0.70 to 1.00, so this is not the extension
+        // singularity) and 698x through BasisSwivelSmootherCore. In a 3 s trace of a knee parked 178 deg round with
+        // ordinary tracker noise, that fired EIGHT times, each a ~174 deg instantaneous snap -- and because the jump
+        // clears BasisSwivelSmootherCore's 25 deg reseed threshold it also blows the One-Euro away, so not one of
+        // them was even filtered. That is the click.
+        //
+        // A FADE CANNOT FIX THIS AND NEITHER CAN A SMALLER STEP. It is not ill-conditioning, it is a BRANCH CUT:
+        // the function is discontinuous at the one input where its two one-sided limits disagree by 179 deg.
+        //
+        // THE FIX IS TO CLOSE THE CIRCLE -- taper the compressed angle back to zero as the pole approaches dead
+        // posterior, so that f(+180) == f(-180) == 0 and the map is continuous the whole way round:
+        //
+        //     out = (soft + M*e/(M+e)) * (1 - t^2),    t = e / (180 - soft)
+        //
+        // t^2 rather than t because the taper must be FLAT at the handover (d/de of t^2 is 0 at e=0), which is what
+        // preserves the slope-1 easing the saturation was built for. Properties, all of them structural:
+        //
+        //   * |x| <= soft is still the EXACT identity -- the free band is untouched, bit for bit.
+        //   * f(+-180) = 0. Dead posterior maps to dead ANTERIOR, which is the safe default and, by the argument
+        //     below, the only value it is allowed to take.
+        //   * |out| peaks at ~87.3 deg and is therefore still strictly inside the half-space -- a TIGHTER bound
+        //     than the old asymptote, so `dot(kneeDir, anterior) > 0` still holds by construction.
+        //   * worst gain drops from 714x to 1.9x, bounded by hard*2/(180-soft) and reached only dead posterior.
+        //
+        // ⚠️ IT IS A THEOREM THAT THIS GUARD CANNOT BE MONOTONE. Mirror symmetry makes f odd, so f(-180) = -f(180);
+        // being a function of a DIRECTION makes f 360-periodic, so f(-180) = f(180); together f(180) = 0. If f were
+        // also monotone on [0,180] it would be identically zero there and could not be the identity below soft.
+        // So "monotone in |x|" and "continuous as a function of the knee's direction" are INCOMPATIBLE, and the old
+        // guard bought the first at the cost of the second. Continuity is the one that shows up in a headset.
+        // (The old BasisKneeInversionTests.Guard_IsMonotonicAndContinuous_AcrossTheHandover asserted monotonicity
+        // and so pinned the branch cut in place; it now asserts the circle continuity its own comment asked for.)
+        // =============================================================================================
         public static float ClampKneeSwivelDeg(float swivelDeg, float softDeg, float hardDeg)
         {
-            float mag = swivelDeg < 0f ? -swivelDeg : swivelDeg;
+            // Fold onto (-180, 180] FIRST -- the guard is a function of a direction, so 250 deg and -110 deg have to
+            // come out the same. Every live caller already hands us a SignedAngle in range, where Floor() returns 0
+            // and this subtracts exactly 0f, so the free-band identity below stays bit-for-bit.
+            // NaN-safe: Floor(NaN) is NaN, so a NaN input stays NaN and is caught by the reject-unless-good below.
+            float wrapped = swivelDeg - 360f * Mathf.Floor((swivelDeg + 180f) / 360f);
+
+            float mag = wrapped < 0f ? -wrapped : wrapped;
 
             // Reject-unless-good. NaN fails every ordered comparison, so `!(mag >= 0f)` is TRUE for NaN and sends it
             // to the safe anterior default. Written the other way round (`if (float.IsNaN(mag))` aside), a guard of
@@ -177,18 +226,29 @@ namespace Basis.IK
 
             if (!(mag > softDeg))
             {
-                return swivelDeg;   // inside the free band: identity, exactly
+                return wrapped;   // inside the free band: identity, exactly
             }
 
             float maxExcess = hardDeg - softDeg;
             if (!(maxExcess > 0f))
             {
-                return swivelDeg < 0f ? -softDeg : softDeg;   // degenerate limits: fall back to a hard clamp
+                return wrapped < 0f ? -softDeg : softDeg;   // degenerate limits: fall back to a hard clamp
             }
 
             float excess = mag - softDeg;
             float compressed = softDeg + maxExcess * excess / (maxExcess + excess);
-            return swivelDeg < 0f ? -compressed : compressed;
+
+            // Close the circle (see the block above). Guarded so a degenerate softDeg >= 180 simply keeps the old
+            // monotone saturation rather than dividing by zero.
+            float span = 180f - softDeg;
+            if (span > 0f)
+            {
+                float t = excess / span;
+                if (t > 1f) t = 1f;
+                compressed *= 1f - t * t;
+            }
+
+            return wrapped < 0f ? -compressed : compressed;
         }
 
         public static void Solve(in BasisLegSolveInput i, out BasisLegSolveResult r)
@@ -391,6 +451,38 @@ namespace Basis.IK
                         pole = ahProj;
                     }
 
+                    // ⭐ GUARD FIRST, THEN EASE -- the order is load-bearing, not tidiness.
+                    //
+                    // Both eases below are Vector3.Slerp toward bendPole, and a slerp between two ANTI-PARALLEL
+                    // directions has no shortest great circle: the arc flips to the far side of the sphere as the
+                    // pole crosses -bendPole, so the interpolated result jumps. Measured on this solver, sweeping
+                    // a lower-leg tracker around the leg axis: 610x knee gain (610 deg of knee per degree of hint)
+                    // at hint azimuth 180, and it is REACHABLE -- a shin tracker on a standing leg sits at
+                    // poleSin ~0.34, well inside the k_PoleColinearSin band where the ease runs.
+                    //
+                    // There is no way to interpolate a direction toward a fixed direction continuously; it is a
+                    // degree argument, not a numerical one (the identity map has degree 1, the constant map 0, and
+                    // no homotopy connects them). So do not try to fix the interpolation -- make the anti-parallel
+                    // INPUT unreachable instead. Guarding first bounds the pole strictly inside the anterior
+                    // half-space, so it cannot sit opposite bendPole and the slerp never straddles the far side.
+                    // Same doctrine as the reference transport in BasisSwivelSmootherCore: move the singularity
+                    // out of the workspace rather than damping it once you are standing in it.
+                    //
+                    // ⚠️ HOW FAR THAT HOLDS, precisely: the guard bounds the pole against ANTERIOR (hips-right,
+                    // always body-frame) while the eases pull toward BENDPOLE (shin-tracker-derived when
+                    // FBIKTrackerBendNormal is on, which is the default), so the two frames can diverge. Measured
+                    // worst knee gain against that divergence: 1.3x flat from 0 to 90 deg of skew, then 316x at
+                    // 120 and 471x at 180. Anatomical tibial rotation is ~45 deg of total range, so the realistic
+                    // envelope sits at half the margin -- but a slipped strap or a stale bend-normal capture can
+                    // exceed it, and there the anti-parallel slerp returns. If that ever shows up in a headset the
+                    // answer is to bound the bend normal against the body frame, not to re-fade the pole here.
+                    //
+                    // The guard runs again after the eases (below). It is the exact identity in the free band, so
+                    // the second pass costs nothing on a legal pose and is what keeps the anterior bound true when
+                    // those two frames disagree -- easing toward bendPole can otherwise walk a guarded pole back
+                    // out of the anterior half-space.
+                    pole = GuardPoleAnterior(pole, anteriorPole, acNorm, hasAnteriorPole, ref axisSource);
+
                     // Pole-vector singularity: as the hint closes on the leg axis its perpendicular component
                     // shrinks and its DIRECTION goes to noise, which used to snap the knee backward. Ease onto
                     // the BendNormal pole rather than trust it. Same intent as the old axis blend -- but done
@@ -437,23 +529,7 @@ namespace Basis.IK
                 // cannot save us either, because it saturates at a straight leg rather than refusing -- so the only
                 // place the inversion can be stopped is here, at the pole.
                 // -----------------------------------------------------------------------------------------
-                if (hasAnteriorPole && pole.sqrMagnitude > k_SqrEpsilon)
-                {
-                    Vector3 anterior = anteriorPole.normalized;
-                    float poleDeg = SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
-                    float guardedDeg = ClampKneeSwivelDeg(poleDeg, KneeAnteriorSoftDeg, KneeAnteriorHardDeg);
-
-                    // Only rebuild when the guard actually bit. ClampKneeSwivelDeg returns its argument unchanged
-                    // inside the free band, so this compares equal and every legitimate pose takes the untouched
-                    // path -- no normalisation, no float drift, bit-for-bit the pre-guard solver.
-                    // A NaN pole angle lands here too: the clamp returns 0, and `0f != NaN` is true, so the knee is
-                    // rebuilt pointing dead ahead rather than being fed NaN.
-                    if (guardedDeg != poleDeg)
-                    {
-                        pole = AngleAxisRad(guardedDeg * Mathf.Deg2Rad, acNorm) * anterior;
-                        axisSource = 5;
-                    }
-                }
+                pole = GuardPoleAnterior(pole, anteriorPole, acNorm, hasAnteriorPole, ref axisSource);
 
                 // No near-extension fade, and no near-extension blend back toward BendNormal. Both used to live
                 // here, and both were guarding the WRONG QUANTITY -- the same mistake, one level up, that the
@@ -537,6 +613,36 @@ namespace Basis.IK
             r.KneeAngleDeg = AngleDeg(aPosition - bPosition, cPosition - bPosition);
             r.AxisSource = axisSource;
             r.FootError = (cPosition - tPosition).magnitude;
+        }
+
+        // ANTERIOR HALF-SPACE GUARD, factored out because it is applied TWICE -- once to the raw hint pole before
+        // the near-colinear/distrust eases (so neither slerp can be handed an anti-parallel pair) and once after
+        // them (so easing toward bendPole cannot walk the pole back out when AnteriorNormal != BendNormal).
+        //
+        // Idempotent on anything already inside the free band, so the second application is free on a legal pose.
+        static Vector3 GuardPoleAnterior(Vector3 pole, Vector3 anteriorPole, Vector3 acNorm, bool hasAnteriorPole, ref byte axisSource)
+        {
+            if (!hasAnteriorPole || !(pole.sqrMagnitude > k_SqrEpsilon))
+            {
+                return pole;
+            }
+
+            Vector3 anterior = anteriorPole.normalized;
+            float poleDeg = SignedAngleRad(anterior, pole, acNorm) * Mathf.Rad2Deg;
+            float guardedDeg = ClampKneeSwivelDeg(poleDeg, KneeAnteriorSoftDeg, KneeAnteriorHardDeg);
+
+            // Only rebuild when the guard actually bit. ClampKneeSwivelDeg returns its argument unchanged
+            // inside the free band, so this compares equal and every legitimate pose takes the untouched
+            // path -- no normalisation, no float drift, bit-for-bit the pre-guard solver.
+            // A NaN pole angle lands here too: the clamp returns 0, and `0f != NaN` is true, so the knee is
+            // rebuilt pointing dead ahead rather than being fed NaN.
+            if (guardedDeg != poleDeg)
+            {
+                pole = AngleAxisRad(guardedDeg * Mathf.Deg2Rad, acNorm) * anterior;
+                axisSource = 5;
+            }
+
+            return pole;
         }
 
         // Signed angle from `from` to `to` measured about `axis` (normalized). Both vectors are already in the

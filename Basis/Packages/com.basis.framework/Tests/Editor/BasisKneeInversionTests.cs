@@ -227,26 +227,61 @@ namespace Basis.Tests.IK
 
                 Assert.Less(Mathf.Abs(outDeg), BasisLegSolveCore.KneeAnteriorHardDeg, $"guard failed to bound {deg}deg");
                 Assert.Less(Mathf.Abs(outDeg), 90f, $"{deg}deg escaped the anterior half-space");
-                Assert.AreEqual(Mathf.Sign(deg), Mathf.Sign(outDeg), $"guard flipped the side of a {deg}deg swivel");
+
+                // Side is checked against the WRAPPED input, because the guard's argument is a DIRECTION and not a
+                // distance along a line: 250deg and -110deg are the same place, so the correct output for 250 is
+                // negative. (This assert used to compare against Mathf.Sign(deg) unwrapped, which quietly required
+                // the guard to be a function on the LINE -- one of the two things that pinned the +-180 branch cut
+                // in place. See ClampKneeSwivelDeg. Every live caller passes a SignedAngle, already in range.)
+                float wrapped = deg - 360f * Mathf.Floor((deg + 180f) / 360f);
+                if (Mathf.Abs(wrapped) > 1e-3f && Mathf.Abs(Mathf.Abs(wrapped) - 180f) > 1e-3f)
+                {
+                    Assert.AreEqual(Mathf.Sign(wrapped), Mathf.Sign(outDeg), $"guard flipped the side of a {deg}deg swivel");
+                }
             }
         }
 
         [Test]
-        public void Guard_IsMonotonicAndContinuous_AcrossTheHandover()
+        public void Guard_IsContinuous_AllTheWayAroundTheCircle()
         {
             // A guard that snaps trades a flip for a jerk. The clamp is built with slope exactly 1 where it takes
             // over, so there is no derivative step at the boundary -- walk across it in fine increments and prove no
             // sample jumps.
-            float prev = BasisLegSolveCore.ClampKneeSwivelDeg(0f, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
-            for (float deg = 0.1f; deg <= 180f; deg += 0.1f)
-            {
-                float cur = BasisLegSolveCore.ClampKneeSwivelDeg(
-                    deg, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
+            //
+            // ⚠️ THIS TEST USED TO ASSERT MONOTONICITY, AND THAT ASSERTION WAS ITSELF THE BUG.
+            //
+            // The guard's argument is an angle on a CIRCLE, so -180 and +180 are the same knee direction and the
+            // sweep has to close. Mirror symmetry makes the guard odd, so f(-180) = -f(180); closing the circle
+            // makes f(-180) = f(180); together those force f(180) = 0. A guard that is ALSO monotone on [0,180]
+            // would then have to be identically zero there -- so it could not be the identity below the soft edge.
+            // Monotone-on-the-line and continuous-on-the-circle are therefore INCOMPATIBLE, and requiring the first
+            // is what forced clamp(+179.9) = +89.3 against clamp(-179.9) = -89.3: a 178.6deg output flip for a
+            // fifth of a degree of real motion. Measured 714x knee gain in the solve core and 698x through the
+            // smoother, and it is the "knees click rotationally" report.
+            //
+            // So assert what the comment above always MEANT -- no sample jumps -- and assert it the whole way
+            // round, which is the property that actually shows up in a headset.
+            const float step = 0.1f;
+            const float maxStep = 0.25f;   // slope is <= 1 rising and <= hard*2/(180-soft) ~ 1.9 falling
 
-                Assert.GreaterOrEqual(cur, prev - 1e-4f, $"guard is not monotonic at {deg}deg");
-                Assert.Less(cur - prev, 0.15f, $"guard jumped at {deg}deg ({prev:F3} -> {cur:F3}) -- that is a visible pop");
+            float prev = BasisLegSolveCore.ClampKneeSwivelDeg(-180f, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
+            for (float deg = -180f + step; deg <= 180f + step; deg += step)
+            {
+                float sample = deg > 180f ? deg - 360f : deg;   // wrap past the top so the circle closes
+                float cur = BasisLegSolveCore.ClampKneeSwivelDeg(
+                    sample, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
+
+                Assert.Less(Mathf.Abs(cur - prev), maxStep,
+                    $"guard jumped at {sample:F1}deg ({prev:F3} -> {cur:F3}) -- that is a visible pop");
                 prev = cur;
             }
+
+            // And the join itself, stated directly rather than left to the sweep's step size.
+            float atPlus = BasisLegSolveCore.ClampKneeSwivelDeg(179.9f, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
+            float atMinus = BasisLegSolveCore.ClampKneeSwivelDeg(-179.9f, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
+            Assert.Less(Mathf.Abs(atPlus - atMinus), 1f,
+                $"the guard is discontinuous across the posterior ray: clamp(+179.9) = {atPlus:F2}, " +
+                $"clamp(-179.9) = {atMinus:F2}. Those are the same knee direction, so that difference is a click.");
         }
 
         [Test]
