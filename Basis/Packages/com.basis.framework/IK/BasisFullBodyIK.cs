@@ -88,7 +88,13 @@ leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand,
 hintWeightRightHand,
 protectElbow, collideTrackedElbow, useNeuralPole,
+elbowDragEnabled,
 collisionsEnabled;
+
+        /// <summary>Corner frequency of the no-elbow-tracker pole drag, Hz. Lower = heavier drag (tau =
+        /// 1/(2*pi*hz)). Only consulted on the model path — a real elbow tracker is the user's own input and
+        /// is never lagged. See BasisElbowDragCore.</summary>
+        public float elbowDragHz;
 
         /// <summary>Procedural toe articulation from BasisLocalFootDriver's surface probes. Degrees, positive =
         /// dorsiflexion; the axis is the world medio-lateral. Only consulted when the matching toe TRACKER is
@@ -177,6 +183,11 @@ collisionsEnabled;
         // and an init flag reset whenever the no-tracker model did not drive the elbow (so it re-seeds).
         public NativeArray<Vector3> swingHintBend;
         public NativeArray<Vector3> swingHintAxis;
+        /// <summary>Last DRAGGED pole per arm — the drag's own state, deliberately not the cap's. See SolveHand.</summary>
+        public NativeArray<Vector3> swingHintDrag;
+        /// <summary>Body (hips) rotation when swingHintDrag was stored, so a pure turn can be carried out of
+        /// the drag instead of damped. See BasisElbowDragCore.</summary>
+        public NativeArray<Quaternion> swingHintBodyRot;
         public NativeArray<int> swingHintInit;
         // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
         //
@@ -1753,6 +1764,7 @@ collisionsEnabled;
             Vector3 bendNormal = bendNormalProp;
 
             float hintDistrust = 0f;
+            bool usedModelHint = false;
             bool fabricatedLeg = !hintIsTrackerProp && !footIsTrackerProp;
             if (!(hintW > 0f) || fabricatedLeg)
             {
@@ -1783,6 +1795,7 @@ collisionsEnabled;
                 {
                     hint = modelHint;
                     hintW = 1f;
+                    usedModelHint = true;
                     if (legDiagnostics.IsCreated && legSlot < legDiagnostics.Length)
                     {
                         BasisLegDiagnostics d = legDiagnostics[legSlot];
@@ -1857,9 +1870,32 @@ collisionsEnabled;
                     // separates sustained shin motion from mm jitter. That unconditioned model is EXACTLY what
                     // BasisLegTwistSmoothingTests.TrackedFilter_RejectsAmplifiedHintJitter gates -- the live path
                     // now matches its own test. Foot-only keeps the conditioning: its pole is still invented.
+                    // ⭐ A FOOT-DERIVED POLE IS A MEASUREMENT TOO. With foot trackers and NO knee tracker
+                    // (canonical 6-point FBT) the pole is not invented: BasisKneeForwardCore builds it from the
+                    // foot tracker's own ROTATION (toe azimuth) and BasisButterflyKneeCore from its instep roll.
+                    // Both were written after the flags below, and the flags still assumed the only thing driving
+                    // a foot-tracked leg was BasisLegSwivelModel -- which reads foot POSITION and never rotation.
+                    //
+                    // That assumption is what "the legs are not using the feet for direction" is. Two separate
+                    // gates were suppressing the foot signal:
+                    //   ConditionOnPole multiplies beta by the conditioning (~0.035 standing), so the designed
+                    //     0.20 responsiveness became ~0.007 -- the same strangle the knee-tracker path was fixed
+                    //     for on 2026-07-17, for the same wrong reason.
+                    //   HoldWhenSingular FREEZES the swivel outright below HoldCondLo, and standing IS below it
+                    //     -- so turning a foot in place moved the knee not at all. The hold exists to reject a
+                    //     slow postural sway that the measurement cannot distinguish from signal; a deliberate
+                    //     foot rotation IS signal, and it arrives on a channel the driver has ALREADY damped
+                    //     (smoothedBendDir, KneeForwardSmoothRate = 10), so holding it again is redundant.
+                    //
+                    // So both now key on whether the pole is MEASURED, not on which tracker happens to exist.
+                    // A model pole on a foot-tracked leg (butterfly and knee-follow both disabled or gated off)
+                    // is still invented and still gets both guards. The knee-TRACKER path is untouched: it keeps
+                    // the hold that 2026-07-18 verified against the slow back-and-forth roll.
+                    bool footDerivedPole = !hintIsTrackerProp && footIsTrackerProp && !usedModelHint;
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz,
-                        conditionOnPole: !hintIsTrackerProp);
+                        conditionOnPole: !hintIsTrackerProp && !footDerivedPole,
+                        holdWhenSingular: !footDerivedPole);
                 }
                 else
                 {
@@ -1871,7 +1907,7 @@ collisionsEnabled;
                     // barely changes and there is nothing real for the filter to lag.
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         BasisSwivelFilterCore.MinCutoffHz, BasisSwivelFilterCore.Beta, BasisSwivelFilterCore.DerivCutoffHz,
-                        conditionOnPole: true);
+                        conditionOnPole: true, holdWhenSingular: true);
                 }
             }
         }
@@ -1949,7 +1985,7 @@ collisionsEnabled;
         // locomotion (both move the whole leg, leaving the swivel angle ~unchanged). Called on the no-foot-
         // tracker path (standing twist) and the tracked-knee path (pole-amplified tracker jitter); the
         // caller passes the appropriate One-Euro cutoffs. Per-leg slot.
-        void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole)
+        void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
         {
             if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !HandleHips.IsValid(stream))
             {
@@ -1999,7 +2035,7 @@ collisionsEnabled;
             // Freeze the swivel in the near-straight band; release the instant the knee bends (HoldCondHi), so
             // deliberate shin motion is byte-for-byte untouched. See BasisSwivelSmootherCore. Applies to BOTH the
             // tracked and invented-pole knee paths -- both live on the same standing singularity.
-            input.HoldWhenSingular = true;
+            input.HoldWhenSingular = holdWhenSingular;
             input.HoldCondLo = BasisSwivelSmootherCore.DefaultHoldCondLo;
             input.HoldCondHi = BasisSwivelSmootherCore.DefaultHoldCondHi;
             input.State = new BasisSwivelFilterState { Raw = legSwivelRaw[slot].x, Vel = legSwivelRaw[slot].y, Smooth = legSwivelSmooth[slot].x };
@@ -2115,14 +2151,47 @@ collisionsEnabled;
                         // Unity.Mathematics.float3 implicitly.
                         Vector3 curAxis = curAxisV / axLen;
                         Vector3 rawBend = rawBendV / rbLen;
-                        Vector3 cappedBend = swingHintInit[swingSlot] == 0
-                            ? rawBend
-                            : (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
-                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain);
+                        bool seeded = swingHintInit[swingSlot] != 0;
+                        Vector3 cappedBend = seeded
+                            ? (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
+                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain)
+                            : rawBend;
                         swingHintBend[swingSlot] = cappedBend;
                         swingHintAxis[swingSlot] = curAxis;
+
+                        // DRAG — no-tracker path only, and it keeps its OWN state rather than feeding back into
+                        // the cap's. That separation is load-bearing, not tidiness:
+                        //
+                        // The cap's budget is `MaxGain * (hand rotation this frame)`, so a STILL hand licenses
+                        // ZERO elbow motion. Today that is harmless -- with no lag the bend already sits on the
+                        // field, the requested angle is 0, and a cap of 0 clamps nothing. Chain the drag through
+                        // the same state and it stops being harmless: the elbow now trails the field, so when the
+                        // hand stops there IS a residual angle, and a zero budget FORBIDS THE CATCH-UP. The elbow
+                        // parks wherever the lag left it, permanently, at a pose that depends on how you got
+                        // there. Measured: it never came within 5 mm of the correct pose in 1.1 s of holding
+                        // still. (Real tracker noise would mask this by keeping dHand off zero -- which is worse,
+                        // because it makes correctness depend on jitter.)
+                        //
+                        // So the cap chases the FIELD from its own last output, exactly as before and
+                        // bit-identically whether or not drag is on, and the drag is a pure post-filter on top.
+                        // Nothing gates the drag's convergence, so a stopped hand settles onto the field.
+                        // Body frame for the drag. The hips are solved in step 1 and the hands in step 4, so
+                        // this rotation is final by now — the same source SmoothKneeSwivel uses. Identity when
+                        // the hips are unavailable, which degrades to the world-frame behaviour rather than
+                        // fabricating a frame.
+                        Quaternion bodyRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
+
+                        Vector3 outBend = cappedBend;
+                        if (elbowDragEnabled && seeded)
+                        {
+                            Quaternion bodyDelta = bodyRot * Quaternion.Inverse(swingHintBodyRot[swingSlot]);
+                            outBend = (Vector3)BasisElbowDragCore.Apply(swingHintDrag[swingSlot], bodyDelta, curAxis, cappedBend,
+                                                                       BasisElbowDragCore.Alpha(elbowDragHz, stream.deltaTime));
+                        }
+                        swingHintDrag[swingSlot] = outBend;
+                        swingHintBodyRot[swingSlot] = bodyRot;
                         swingHintInit[swingSlot] = 1;
-                        modelHint = shoulderPos + 0.5f * armLen * cappedBend;
+                        modelHint = shoulderPos + 0.5f * armLen * outBend;
                     }
 
                     hint = new BasisAffineTransform(modelHint, hintRot);
@@ -2299,6 +2368,8 @@ collisionsEnabled;
             handRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
             handSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
             protectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
+            elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
+            elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
             collideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
 
             shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
@@ -2462,6 +2533,8 @@ collisionsEnabled;
             swingSmoothState = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingHintBend = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingHintDrag = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingHintBodyRot = new NativeArray<Quaternion>(k_SwingCount, Allocator.Persistent);
             swingHintInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
@@ -2642,6 +2715,8 @@ collisionsEnabled;
             if (swingSmoothState.IsCreated) swingSmoothState.Dispose();
             if (swingHintBend.IsCreated) swingHintBend.Dispose();
             if (swingHintAxis.IsCreated) swingHintAxis.Dispose();
+            if (swingHintDrag.IsCreated) swingHintDrag.Dispose();
+            if (swingHintBodyRot.IsCreated) swingHintBodyRot.Dispose();
             if (swingHintInit.IsCreated) swingHintInit.Dispose();
             if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();

@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using Unity.Mathematics;
@@ -66,6 +67,9 @@ public class BasisOpenXRHandInput : BasisInputController
         leftHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
         rightHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
 
+        // Quest swaps this device between a held controller and articulated hand tracking at runtime, so
+        // the honest answer changes frame to frame; OnHandUpdate re-stamps it from the subsystem.
+        TrackingHardware = BasisTrackingHardware.InsideOut;
         InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole, true);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
         string devicePosePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<PalmPose>{LeftHand}" : "<PalmPose>{RightHand}";
@@ -233,6 +237,14 @@ public class BasisOpenXRHandInput : BasisInputController
     public void OnHandUpdate(XRHandSubsystem subsystem, XRHandSubsystem.UpdateSuccessFlags flags, XRHandSubsystem.UpdateType updateType)
     {
         if (!TryGetRole(out BasisBoneTrackedRole assignedRole)) return;
+
+        // Articulated hands are camera-tracked and want far heavier filtering than the controller this
+        // same device reports as when one is picked back up.
+        if (assignedRole == BasisBoneTrackedRole.LeftHand || assignedRole == BasisBoneTrackedRole.RightHand)
+        {
+            bool opticallyTracked = assignedRole == BasisBoneTrackedRole.LeftHand ? subsystem.leftHand.isTracked : subsystem.rightHand.isTracked;
+            TrackingHardware = opticallyTracked ? BasisTrackingHardware.Optical : BasisTrackingHardware.InsideOut;
+        }
 
         float playerToAvatar = BasisHeightDriver.DeviceScale;
 

@@ -88,12 +88,22 @@ namespace Basis.IK
         //
         // Expressed as a FRACTION OF THE CHEST RADIUS, not in metres. Every length in here is already
         // avatar-scaled by the driver, so a hardcoded metre value would be a quarter of a small avatar's
-        // torso and a sliver of a large one -- the same knob meaning two different things. At 1/16 of the
-        // chest radius this is ~5 mm on a default body: a full-arc swing must buy more than that to be
-        // worth taking. The plateau above is flat to well under a millimetre, so this decides it; a
-        // genuinely peaked curve (the 51 mm the swing buys on that same trace) does not even notice.
+        // torso and a sliver of a large one -- the same knob meaning two different things.
+        //
+        // ⚠️ SIZE IT AGAINST THE PLATEAU, NOT AGAINST "FEELS SMALL". The first cut used 1/16 of the chest
+        // radius (~7.5 mm of clearance per full swing), reasoning that it was negligible next to the 51 mm
+        // a swing buys on a chest-slide. It was not: BasisElbowProtectRollTests caught it commanding a
+        // 0.0017 degree swing where it used to command tens of degrees, i.e. the tie-break had stopped
+        // breaking ties and started BUYING OFF the whole correction on any pose whose clearance profile is
+        // merely shallow rather than flat. That is the failure this codebase names "the fade has eaten the
+        // feature instead of the singularity".
+        //
+        // The plateau it has to resolve is flat to WELL UNDER A MILLIMETRE across ~17% of the arc, so the
+        // penalty only ever needs to be worth about a millimetre. At 1/80 of the chest radius it is ~1 mm
+        // on a default body: still an order of magnitude above the plateau's own flatness, and now two
+        // orders BELOW anything the protect would be right to do.
         // =============================================================================================
-        const float k_SwingPreferenceRatio = 0.0625f;
+        const float k_SwingPreferenceRatio = 0.0125f;
 
         // =============================================================================================
         // THE BARRIER HAS TO START BEFORE THE SURFACE, THE WAY A REAL CONTACT DOES.

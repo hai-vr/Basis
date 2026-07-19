@@ -19,6 +19,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole)
         {
             Device = device;
+            // SteamVR's own trackers are lighthouse-tracked; InitializeTracking downgrades this for the
+            // SlimeVR and Standable devices that also arrive through OpenVR.
+            TrackingHardware = BasisTrackingHardware.Lighthouse;
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
         }
         public override void LateDoPollData()

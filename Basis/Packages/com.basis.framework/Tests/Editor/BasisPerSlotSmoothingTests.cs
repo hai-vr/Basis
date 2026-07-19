@@ -1,4 +1,7 @@
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using Basis.Scripts.Device_Management;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -245,6 +248,16 @@ namespace Basis.Tests.IK
             // Standard deliberately has no table entry: it falls through to the live global tuning statics.
             Assert.IsFalse(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetStandard, out _));
 
+            // Custom is a sentinel too -- the driver swaps in the per-group sliders before ever consulting
+            // the table. If it ever resolved here it would silently outrank the user's own values.
+            Assert.IsTrue(BasisSmoothingProfiles.IsCustom(BasisSmoothingProfiles.PresetCustom));
+            Assert.IsFalse(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetCustom, out _));
+            Assert.IsFalse(BasisSmoothingProfiles.IsOff(BasisSmoothingProfiles.PresetCustom));
+            Assert.IsFalse(BasisSmoothingProfiles.IsCustom(BasisSmoothingProfiles.PresetStandard));
+
+            Assert.AreEqual(BasisSmoothingProfiles.PresetOrder.Length, new HashSet<string>(BasisSmoothingProfiles.PresetOrder).Count,
+                "preset ids must be unique -- the dropdown resolves a selection back to a value by string match");
+
             Assert.IsTrue(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetLight, out var light));
             Assert.IsTrue(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetHeavy, out var heavy));
             Assert.IsTrue(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetOptical, out var optical));
@@ -256,5 +269,51 @@ namespace Basis.Tests.IK
             Assert.Greater(heavy.Beta, light.Beta, "Heavy needs more speed adaptation than Light");
             Assert.Greater(optical.Beta, heavy.Beta, "Optical needs more speed adaptation than Heavy");
         }
+
+        /// <summary>
+        /// Auto exists so a SlimeVR hip is not filtered like a lighthouse puck just because both arrive
+        /// through OpenVR. These gates cover the mapping, not the feel.
+        /// </summary>
+        [Test]
+        public void AutoResolvesEachHardwareToASelectablePreset()
+        {
+            // Auto is a sentinel like Off and Custom -- the driver substitutes a real preset before the
+            // table is ever consulted.
+            Assert.IsTrue(BasisSmoothingProfiles.IsAuto(BasisSmoothingProfiles.PresetAuto));
+            Assert.IsFalse(BasisSmoothingProfiles.TryGetPreset(BasisSmoothingProfiles.PresetAuto, out _));
+
+            Assert.AreEqual(BasisSmoothingProfiles.PresetHeavy, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Inertial),
+                "IMU trackers drift and buzz -- filtering them lightly is the bug Auto exists to prevent");
+            Assert.AreEqual(BasisSmoothingProfiles.PresetLight, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Lighthouse));
+            Assert.AreEqual(BasisSmoothingProfiles.PresetOptical, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Optical));
+            Assert.AreEqual(BasisSmoothingProfiles.PresetStandard, BasisSmoothingProfiles.PresetForHardware(BasisTrackingHardware.Unknown),
+                "unidentified hardware must behave exactly as it did before Auto existed");
+
+            foreach (BasisTrackingHardware hardware in Enum.GetValues(typeof(BasisTrackingHardware)))
+            {
+                string resolved = BasisSmoothingProfiles.PresetForHardware(hardware);
+                CollectionAssert.Contains(BasisSmoothingProfiles.PresetOrder, resolved, $"{hardware} resolved to a preset that is not selectable");
+                Assert.IsFalse(BasisSmoothingProfiles.IsAuto(resolved), $"{hardware} resolved Auto back to itself");
+                Assert.IsFalse(BasisSmoothingProfiles.IsCustom(resolved), $"{hardware} handed the user's own sliders back as an automatic choice");
+            }
+        }
+
+        /// <summary>
+        /// The per-group resolve takes the numerically highest hardware feeding a group, so a group fed by
+        /// mixed hardware is filtered for its noisiest contributor. Renumbering the enum silently inverts
+        /// that, which is why the order is asserted rather than assumed.
+        /// </summary>
+        [Test]
+        public void TrackingHardwareIsOrderedByFilteringNeed()
+        {
+            Assert.Less((byte)BasisTrackingHardware.Unknown, (byte)BasisTrackingHardware.Simulated,
+                "Unknown must lose to any device that identified itself");
+            Assert.Less((byte)BasisTrackingHardware.Simulated, (byte)BasisTrackingHardware.Lighthouse);
+            Assert.Less((byte)BasisTrackingHardware.Lighthouse, (byte)BasisTrackingHardware.InsideOut);
+            Assert.Less((byte)BasisTrackingHardware.InsideOut, (byte)BasisTrackingHardware.Optical);
+            Assert.Less((byte)BasisTrackingHardware.Optical, (byte)BasisTrackingHardware.Estimated);
+            Assert.Less((byte)BasisTrackingHardware.Estimated, (byte)BasisTrackingHardware.Inertial);
+        }
+
     }
 }

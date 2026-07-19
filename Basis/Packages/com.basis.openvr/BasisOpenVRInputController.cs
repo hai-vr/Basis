@@ -45,6 +45,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             inputSource = SteamVR_Input_Sources;
             Device = device;
+            TrackingHardware = BasisTrackingHardware.Lighthouse;
 
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
 

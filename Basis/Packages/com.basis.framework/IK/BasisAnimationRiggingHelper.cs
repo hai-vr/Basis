@@ -183,6 +183,10 @@ public static class BasisAnimationRiggingHelper
         job.collisionsEnabled = true;
         job.protectElbow = true;
         job.collideTrackedElbow = false;
+        // Without these the struct default (false / 0 Hz) would leave the no-tracker elbow drag off on this
+        // setup path, so the feature would silently depend on which path built the job.
+        job.elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
+        job.elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
         job.enabledSpineIK = true;
         job.ikLockMode = (float)SMModuleCalibration.CurrentIKLockMode;
 

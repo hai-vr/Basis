@@ -141,6 +141,45 @@ namespace Basis.IK
         public const float KneeAnteriorSoftDeg = 85f;
         public const float KneeAnteriorHardDeg = 89.5f;
 
+        // Where the guard starts closing the circle. Below this it is the ORIGINAL flat saturation, bit for
+        // bit; from here to 180 it eases to zero so the map joins up (see ClampKneeSwivelDeg).
+        //
+        // =============================================================================================
+        // ⭐ WHY THIS IS A NARROW WINDOW AND NOT A WHOLE-BAND TAPER -- three in-headset reports, one cause.
+        //
+        // The first cut spread the taper across the entire 85..180 band (out = base * (1 - t^p)). That fixed
+        // the click and broke three other things, because the old flat asymptote was doing FAR more work than
+        // just bounding the angle:
+        //
+        //   1. POSTURE. Flat meant a pole anywhere from 90 to 180 landed on ~88 deg -- knee held LATERAL. A
+        //      whole-band taper swung it toward dead ahead (at exponent 2: 120 deg -> 77, 140 deg -> 59).
+        //      "The legs stopped looking human."
+        //   2. JELLY. Flat also made that band a NOISE DEAD ZONE -- measured amplification 0.01 deg of knee
+        //      per degree of pole jitter at 120-140. Giving the band a slope handed that jitter straight to
+        //      the bone: 0.72 at 140 deg, 1.85 at 160 (exponent 4). "Now there's jelly knees."
+        //   3. HIP COUPLING. When the guard bites, the knee is REBUILT from `anterior`, which is derived from
+        //      hips-right -- so a guarded knee follows the PELVIS, not the shin tracker. The deeper the guard
+        //      bites the more hips-driven the knee becomes. "Keeps wanting to move with my hip."
+        //
+        // All three are the same mistake: the guard is a LAST RESORT for an anatomically impossible pole, and
+        // the taper turned it into something that shapes ordinary posture. Measured, +-2 deg of pole jitter,
+        // degrees of knee per degree of jitter:
+        //
+        //     pole      120     140     160     175      posture@140
+        //     old      0.01    0.01    0.00    0.00           89.16
+        //     p=4      0.18    0.72    1.85    3.20           79.14
+        //     this     0.01    0.01    0.62    4.93           89.16   <- old everywhere that matters
+        //
+        // A knee cannot point more than 90 deg off anterior, so 160+ is not a pose -- it is a pole that has
+        // already failed, and the only thing that matters there is that the map joins up continuously. Keeping
+        // the window narrow buys posture, noise rejection and tracker authority everywhere else, at the cost of
+        // a slightly steeper (still bounded, still smooth) ease in a band no real knee occupies.
+        //
+        // Lower toward 120 only if a genuinely posterior pole still snaps; raise toward 175 to hand even more
+        // of the band back to the original flat behaviour.
+        // =============================================================================================
+        public const float KneeAnteriorTaperStartDeg = 160f;
+
         // Bound on the shin roll taken from a lower-leg tracker. Tibial rotation on a flexed knee runs to
         // ~40-50 deg of total range; past that the signal is a slipped strap or a stale calibration, and a
         // bounded wrong shin beats an unbounded one (BasisArmSolveCore.TrackerForearmRollMaxDeg, same trade).
@@ -186,17 +225,23 @@ namespace Basis.IK
         // THE FIX IS TO CLOSE THE CIRCLE -- taper the compressed angle back to zero as the pole approaches dead
         // posterior, so that f(+180) == f(-180) == 0 and the map is continuous the whole way round:
         //
-        //     out = (soft + M*e/(M+e)) * (1 - t^2),    t = e / (180 - soft)
+        //     out = (soft + M*e/(M+e)) * (1 - t^p),    t = e / (180 - soft),   p = KneeAnteriorTaperExponent
         //
-        // t^2 rather than t because the taper must be FLAT at the handover (d/de of t^2 is 0 at e=0), which is what
-        // preserves the slope-1 easing the saturation was built for. Properties, all of them structural:
+        // p >= 2 so the taper is FLAT at the handover (d/de of t^p is 0 at e=0), which is what preserves the
+        // slope-1 easing the saturation was built for. Properties, all of them structural:
         //
         //   * |x| <= soft is still the EXACT identity -- the free band is untouched, bit for bit.
         //   * f(+-180) = 0. Dead posterior maps to dead ANTERIOR, which is the safe default and, by the argument
         //     below, the only value it is allowed to take.
-        //   * |out| peaks at ~87.3 deg and is therefore still strictly inside the half-space -- a TIGHTER bound
+        //   * |out| peaks under 89 deg and is therefore still strictly inside the half-space -- a TIGHTER bound
         //     than the old asymptote, so `dot(kneeDir, anterior) > 0` still holds by construction.
-        //   * worst gain drops from 714x to 1.9x, bounded by hard*2/(180-soft) and reached only dead posterior.
+        //   * worst gain drops from 714x to hard*p/(180-soft) -- 3.8x at the shipped p = 4 -- and is reached only
+        //     dead posterior.
+        //
+        // ⚠️ p IS A POSTURE KNOB AND IT SHIPPED WRONG ONCE. At p = 2 the taper reached far enough down the band to
+        // swing a 120 deg pole from 89 deg (lateral) to 77 deg, and a 140 deg one from 89 to 59 -- in a headset
+        // that reads as the knees rotating to face forward, "the legs stopped looking human". See the measured
+        // table on KneeAnteriorTaperExponent before changing it.
         //
         // ⚠️ IT IS A THEOREM THAT THIS GUARD CANNOT BE MONOTONE. Mirror symmetry makes f odd, so f(-180) = -f(180);
         // being a function of a DIRECTION makes f 360-periodic, so f(-180) = f(180); together f(180) = 0. If f were
@@ -238,14 +283,20 @@ namespace Basis.IK
             float excess = mag - softDeg;
             float compressed = softDeg + maxExcess * excess / (maxExcess + excess);
 
-            // Close the circle (see the block above). Guarded so a degenerate softDeg >= 180 simply keeps the old
-            // monotone saturation rather than dividing by zero.
-            float span = 180f - softDeg;
-            if (span > 0f)
+            // Close the circle, but ONLY over the last stretch (see KneeAnteriorTaperStartDeg). Below the start
+            // angle this whole block is skipped and the result is the original flat saturation, bit for bit --
+            // which is what keeps posture, noise rejection and tracker authority intact everywhere a real knee
+            // pole can actually be.
+            //
+            // Smoothstep rather than a power curve because it is flat at BOTH ends: flat where it takes over, so
+            // there is no derivative step at the start angle, and flat again at 180, so the gain falls back to
+            // zero exactly at the ray instead of peaking there.
+            float taperSpan = 180f - KneeAnteriorTaperStartDeg;
+            if (mag > KneeAnteriorTaperStartDeg && taperSpan > 0f)
             {
-                float t = excess / span;
-                if (t > 1f) t = 1f;
-                compressed *= 1f - t * t;
+                float u = (mag - KneeAnteriorTaperStartDeg) / taperSpan;
+                if (u > 1f) u = 1f;
+                compressed *= 1f - u * u * (3f - 2f * u);
             }
 
             return wrapped < 0f ? -compressed : compressed;

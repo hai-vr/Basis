@@ -4755,6 +4755,22 @@
       "value": "How far the knees may fall open in the butterfly pose, clamped to the hip's natural range. Default: 60"
     },
     {
+      "key": "settings.bodyTracking.kneeFollowsFoot",
+      "value": "Knee Follows Foot"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFollowsFoot.tooltip",
+      "value": "With foot trackers (and no knee trackers), point a foot and the knee turns to follow it instead of always aiming straight ahead. Fades out as you lie down, where the butterfly splay takes over. Default: On"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootFollow.title",
+      "value": "Knee Follows Foot Amount"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootFollow.title.tooltip",
+      "value": "How far the knee turns to match the foot while standing. 1 = the knee points exactly where the toe does; lower values keep it a little inboard of the foot, like a real leg. Default: 1"
+    },
+    {
       "key": "settings.bodyTracking.playspaceMover.title",
       "value": "Playspace Mover"
     },
@@ -5130,7 +5146,6 @@
       "key": "settings.bodyTracking.anat.chestIkTarget.description",
       "value": "Places the chest at its own target instead of leaving it wherever the head solve happens to put it, so the torso follows your real chest (or a chest tracker) more faithfully. The head stays exactly on the headset."
     },
-
     {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.title",
       "value": "Leg Swivel Smoothing"
@@ -5198,6 +5213,30 @@
     {
       "key": "settings.bodyTracking.collideTrackedElbow.description",
       "value": "Allow body collision to push the elbow even when an elbow tracker is driving it. Off lets the tracker fully control a tracked elbow."
+    },
+    {
+      "key": "settings.bodyTracking.elbowDrag.title",
+      "value": "Elbow Drag"
+    },
+    {
+      "key": "settings.bodyTracking.elbowDrag.title.tooltip",
+      "value": "Adds weight to the predicted elbow so waving your hands does not throw it around."
+    },
+    {
+      "key": "settings.bodyTracking.elbowDrag.description",
+      "value": "Only applies when you have no elbow tracker. Lags the predicted elbow slightly, the way a real forearm's weight does, so fast hand motion does not swing it. An elbow tracker is your own input and is never lagged."
+    },
+    {
+      "key": "settings.bodyTracking.elbowDragHz.title",
+      "value": "Elbow Drag Frequency"
+    },
+    {
+      "key": "settings.bodyTracking.elbowDragHz.title.tooltip",
+      "value": "Lower is heavier drag. 1 Hz is very heavy, 8 Hz is barely noticeable."
+    },
+    {
+      "key": "settings.bodyTracking.elbowDragHz.description",
+      "value": "Corner frequency of the elbow drag, in Hz. Lower values damp waving harder but make the elbow trail further behind a deliberate reach. Default 2.5."
     },
     {
       "key": "settings.bodyTracking.handCapsule.title",
@@ -5812,6 +5851,10 @@
       "value": "Feet"
     },
     {
+      "key": "settings.bodyTracking.smoothing.preset.auto",
+      "value": "Auto"
+    },
+    {
       "key": "settings.bodyTracking.smoothing.preset.off",
       "value": "Off"
     },
@@ -5832,8 +5875,12 @@
       "value": "Optical"
     },
     {
+      "key": "settings.bodyTracking.smoothing.preset.custom",
+      "value": "Custom"
+    },
+    {
       "key": "settings.bodyTracking.smoothing.preset.tooltip",
-      "value": "How hard this group of trackers is filtered. Off passes the tracker through untouched. Light suits lighthouse trackers and controllers, which are already quiet. Standard is the default. Heavy suits IMU trackers such as SlimeVR that drift and buzz. Optical suits camera hand tracking: very steady when you hold still, and it lets go quickly when you move fast."
+      "value": "How hard this group of trackers is filtered. Auto picks for you from the hardware actually driving these bones, and follows it if you swap. Off passes the tracker through untouched. Light suits lighthouse trackers and controllers, which are already quiet. Standard is the default. Heavy suits IMU trackers such as SlimeVR that drift and buzz. Optical suits camera hand tracking: very steady when you hold still, and it lets go quickly when you move fast. Custom replaces the preset with the sliders below."
     },
     {
       "key": "settings.bodyTracking.smoothing.custom",

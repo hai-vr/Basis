@@ -907,6 +907,7 @@ namespace Basis.MediaPipe
 
             BasisInputXRSimulate input = go.AddComponent<BasisInputXRSimulate>();
             input.IsCameraTracked = true;
+            input.TrackingHardware = BasisTrackingHardware.Optical;
             input.FollowMovement = move;
             input.InitializeTracking(id, SubSystem, SubSystem, false, role);
             input.AssignRoleAndTracker(role);

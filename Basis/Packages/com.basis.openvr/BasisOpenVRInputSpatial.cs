@@ -37,6 +37,7 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
         {
             Device = device;
             InitialRole = basisBoneTrackedRole;
+            TrackingHardware = BasisTrackingHardware.Lighthouse;
 
             InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
 

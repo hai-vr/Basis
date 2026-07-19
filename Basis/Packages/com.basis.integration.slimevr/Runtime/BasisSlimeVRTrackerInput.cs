@@ -1,4 +1,5 @@
 #if BASIS_FRAMEWORK_EXISTS
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using solarxr_protocol.datatypes;
@@ -21,6 +22,7 @@ namespace Basis.Integration.SlimeVR
         {
             BodyPart = bodyPart;
             DeviceSerial = deviceSerial;
+            TrackingHardware = BasisTrackingHardware.Inertial;
             // No forced role: the announced-role scanner binds this by its serial, exactly as for an
             // OpenVR-sourced SlimeVR tracker.
             InitializeTracking(uniqueID, unUniqueID, subSystem, false, BasisBoneTrackedRole.CenterEye);

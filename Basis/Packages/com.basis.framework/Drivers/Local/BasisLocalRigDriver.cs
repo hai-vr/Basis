@@ -1,6 +1,8 @@
 ﻿using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -361,18 +363,88 @@ namespace Basis.Scripts.Drivers
         private static readonly float4[] _groupPosTuning = new float4[BasisSmoothingProfiles.GroupCount];
         private static readonly float4[] _groupRotTuning = new float4[BasisSmoothingProfiles.GroupCount];
         private static readonly bool[] _groupOff = new bool[BasisSmoothingProfiles.GroupCount];
+        private static readonly BasisTrackingHardware[] _groupHardware = new BasisTrackingHardware[BasisSmoothingProfiles.GroupCount];
+
+        /// <summary>
+        /// Notes the noisiest tracking technology feeding each body group, so the Auto preset can filter a
+        /// group for the hardware it actually has. Recomputed rather than cached: devices connect, get
+        /// re-roled by calibration, and on Quest a hand swaps between controller and camera tracking mid
+        /// session, so a cached map would go stale silently. It is a dozen devices and only runs when
+        /// something is set to Auto.
+        /// </summary>
+        private static void ResolveGroupHardware()
+        {
+            for (int Index = 0; Index < _groupHardware.Length; Index++)
+            {
+                _groupHardware[Index] = BasisTrackingHardware.Unknown;
+            }
+
+            BasisDeviceManagement manager = BasisDeviceManagement.Instance;
+            if (manager == null)
+            {
+                return;
+            }
+
+            var devices = manager.AllInputDevices;
+            for (int Index = 0; Index < devices.Count; Index++)
+            {
+                BasisInput device = devices[Index];
+                // Linked halves are averaged into a virtual midpoint that carries their hardware already;
+                // counting them too would say nothing new.
+                if (device == null || device.IsLinked)
+                {
+                    continue;
+                }
+
+                if (!device.TryGetRole(out BasisBoneTrackedRole role) ||
+                    !BasisSmoothingProfiles.TryGetGroupForRole(role, out int group))
+                {
+                    continue;
+                }
+
+                if ((byte)device.TrackingHardware > (byte)_groupHardware[group])
+                {
+                    _groupHardware[group] = device.TrackingHardware;
+                }
+            }
+        }
+
+        private static bool AnyGroupIsAuto(Basis.BasisUI.BasisSettingsDefaults.SmoothingGroupBindings[] groups)
+        {
+            for (int Index = 0; Index < BasisSmoothingProfiles.GroupCount; Index++)
+            {
+                if (BasisSmoothingProfiles.IsAuto(groups[Index].Preset.RawValue))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         private static void ResolveSmoothingGroups(float deltaTime)
         {
             var groups = Basis.BasisUI.BasisSettingsDefaults.FBIKSmoothingGroups;
+            if (AnyGroupIsAuto(groups))
+            {
+                ResolveGroupHardware();
+            }
+
             for (int Index = 0; Index < BasisSmoothingProfiles.GroupCount; Index++)
             {
                 var bindings = groups[Index];
-                _groupOff[Index] = BasisSmoothingProfiles.IsOff(bindings.Preset.RawValue);
+                string preset = bindings.Preset.RawValue;
+                // Auto resolves to a real preset up front, so everything below is unchanged by it.
+                if (BasisSmoothingProfiles.IsAuto(preset))
+                {
+                    preset = BasisSmoothingProfiles.PresetForHardware(_groupHardware[Index]);
+                }
+
+                _groupOff[Index] = BasisSmoothingProfiles.IsOff(preset);
 
                 BasisSmoothingProfile profile;
                 float strength;
-                if (bindings.Custom.RawValue)
+                if (BasisSmoothingProfiles.IsCustom(preset))
                 {
                     profile = new BasisSmoothingProfile(
                         bindings.MinCutoff.RawValue,
@@ -384,7 +456,7 @@ namespace Basis.Scripts.Drivers
                 }
                 else
                 {
-                    if (!BasisSmoothingProfiles.TryGetPreset(bindings.Preset.RawValue, out profile))
+                    if (!BasisSmoothingProfiles.TryGetPreset(preset, out profile))
                     {
                         profile = new BasisSmoothingProfile(MinCutoff, Beta, DerivativeCutoff, PositionSmoothingHz, RotationSmoothingHz);
                     }
@@ -1540,6 +1612,8 @@ namespace Basis.Scripts.Drivers
             data.protectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
             data.useNeuralPole = Basis.BasisUI.BasisSettingsDefaults.FBIKNeuralPole.RawValue;
             data.collideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
+            data.elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
+            data.elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
             data.shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             data.shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
             data.shoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
@@ -1834,7 +1908,36 @@ namespace Basis.Scripts.Drivers
             IKJob.Stream.deltaTime = deltaTime;
             IKJob.Run();
 
+            // Leg diagnostics are written INSIDE the job, so read them here and not before Run().
+            if (BasisLegSwivelDebug.Enabled)
+            {
+                if (TryGetLegDiagnostics(0, out Basis.IK.BasisLegDiagnostics dl))
+                {
+                    BasisLegSwivelDebug.Record("L", Time.time, dl, BendVsAnteriorDeg(IKJob.KneeBendPrefLeft));
+                }
+                if (TryGetLegDiagnostics(1, out Basis.IK.BasisLegDiagnostics dr))
+                {
+                    BasisLegSwivelDebug.Record("R", Time.time, dr, BendVsAnteriorDeg(IKJob.KneeBendPrefRight));
+                }
+            }
+
             PoseSkeleton.ScheduleScatter().Complete();
+        }
+
+        // How far a leg's bend plane has drifted from the body frame. BendNormal rides the lower-leg TRACKER
+        // when FBIKTrackerBendNormal is on; KneeAnteriorRef is always hips-right. The anterior guard is measured
+        // against the second and the pole eases pull toward the first, so a large angle here is what turns a
+        // well-conditioned leg into an ill-conditioned one -- and it is per-leg, which is what makes it the
+        // first thing to check when only one knee misbehaves. See BasisLegSwivelDebug.
+        float BendVsAnteriorDeg(Vector3 bendNormal)
+        {
+            Vector3 anterior = IKJob.KneeAnteriorRef;
+            if (bendNormal.sqrMagnitude < 1e-8f || anterior.sqrMagnitude < 1e-8f)
+            {
+                return 0f;
+            }
+
+            return Vector3.Angle(bendNormal, anterior);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)

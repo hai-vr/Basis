@@ -59,6 +59,15 @@ namespace Basis.Scripts.Device_Management.Devices
         public bool IsCameraTracked;
 
         /// <summary>
+        /// What kind of tracking produces this device's pose, and therefore how noisy it is. Set by the
+        /// backend that creates the device before it calls <see cref="InitializeTracking"/>, then refined
+        /// there from the device identity strings. Read by the "Auto" smoothing preset to filter each body
+        /// group for the hardware actually driving it.
+        /// </summary>
+        [SerializeField]
+        public BasisTrackingHardware TrackingHardware = BasisTrackingHardware.Unknown;
+
+        /// <summary>
         /// The bone control this input drives (e.g., left hand, right foot).
         /// </summary>
         public BasisLocalBoneControl Control = null;
@@ -249,6 +258,9 @@ namespace Basis.Scripts.Device_Management.Devices
             CommonDeviceIdentifier = unUniqueDeviceID;
             UniqueDeviceIdentifier = uniqueID;
             HasRayCastOverrideSupport = hasRayCastOverrideSupport;
+            // A backend's guess is only as good as its class: OpenVR alone carries lighthouse trackers,
+            // SlimeVR's virtual ones and Standable's estimates. The identity strings are set by now.
+            TrackingHardware = BasisTrackingHardwareClassifier.Refine(TrackingHardware, CommonDeviceIdentifier, DeviceSerial, IsCameraTracked);
             // Resolve capabilities/overrides (role, visuals, raycast support...)
             DeviceMatchSettings = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier, basisBoneTrackedRole, ForceAssignTrackedRole);
             if (DeviceMatchSettings.HasTrackedRole)

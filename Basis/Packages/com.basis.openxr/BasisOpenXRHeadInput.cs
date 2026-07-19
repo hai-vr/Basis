@@ -16,6 +16,7 @@ public class BasisOpenXRHeadInput : BasisInput
 
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole)
     {
+        TrackingHardware = BasisTrackingHardware.InsideOut;
         InitializeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, BasisBoneTrackedRole.CenterEye);
 
         Position = new InputActionProperty(new InputAction("<XRHMD>/centerEyePosition", InputActionType.Value, "<XRHMD>/centerEyePosition", expectedControlType: "Vector3"));

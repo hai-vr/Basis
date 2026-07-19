@@ -16,6 +16,7 @@ public class BasisOpenXRTracker : BasisInput
     public void Initialize(InputDevice device, string usage, string UniqueID, string UnUniqueID, string subSystems)
     {
         InputDevice = device;
+        TrackingHardware = BasisTrackingHardware.InsideOut;
         InitializeTracking(UniqueID, UnUniqueID + usage, subSystems, false, BasisBoneTrackedRole.CenterEye);
         var layoutName = device.GetType().Name;
         Position = new InputActionProperty(new InputAction($"Position_{usage}", InputActionType.Value, $"<{layoutName}>{{{usage}}}/devicePosition", expectedControlType: "Vector3"));

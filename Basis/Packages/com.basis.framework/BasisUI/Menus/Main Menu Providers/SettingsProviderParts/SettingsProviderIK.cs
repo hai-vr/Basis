@@ -81,8 +81,8 @@ public static class SettingsProviderIK
             customScaleToggle.OnValueChanged += visible =>
             {
                 avatarScaleSlider.gameObject.SetActive(visible);
-                tabDesc.ForceRebuild();
-                ikGroup.ForceRebuild();
+                RebuildLayout(ikGroup);
+                RebuildLayout(tabDesc);
             };
         }
 
@@ -279,6 +279,29 @@ public static class SettingsProviderIK
             collideTrackedElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKCollideTrackedElbow);
             collideTrackedElbowToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title.tooltip"));
 
+            // Elbow drag (no elbow tracker only). How heavy this should feel is subjective and cannot be
+            // settled offline, so the corner frequency is exposed rather than baked. The slider's minimum is
+            // a real value (1 Hz = heaviest), not a "0 means default" sentinel.
+            var elbowDragToggle = PanelToggle.CreateNewEntry(collisionParent);
+            elbowDragToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.elbowDrag.title"));
+            elbowDragToggle.AssignBinding(BasisSettingsDefaults.FBIKElbowDrag);
+            elbowDragToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.elbowDrag.title.tooltip"));
+
+            var elbowDragSlider = PanelSlider.CreateAndBind(
+                collisionParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.elbowDragHz.title"), 0.5f, 8f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKElbowDragHz);
+            if (elbowDragSlider != null)
+            {
+                elbowDragSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.elbowDragHz.title.tooltip"));
+                elbowDragSlider.Descriptor.SetActive(elbowDragToggle.Value);
+                elbowDragToggle.OnValueChanged += value =>
+                {
+                    elbowDragSlider.Descriptor.SetActive(value);
+                    RebuildLayoutChain(collisionParent, tabDesc);
+                };
+            }
+
             // var chestRadiusSlider = PanelSlider.CreateAndBind(
             //     collisionParent,
             //     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.chestRadius.title"), 0.01f, 0.5f, false, 3, ValueDisplayMode.Raw),
@@ -464,46 +487,46 @@ public static class SettingsProviderIK
         });
 
         // ============== Spine: Reach Limits ==============
-        // CreateCollapsibleSection(tabDesc, colliderGroup,
-        //     BasisLocalization.Get("settings.bodyTracking.section.spineReach.title"),
-        //     BasisLocalization.Get("settings.bodyTracking.section.spineReach.description"), false, reachParent =>
-        // {
-        //     var maxBendSlider = PanelSlider.CreateAndBind(
-        //         reachParent,
-        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.maxBendDeg.title"), 0f, 180f, false, 0, ValueDisplayMode.Raw),
-        //         BasisSettingsDefaults.FBIKMaxBendDeg);
-        //     if (maxBendSlider != null)
-        //     {
-        //         maxBendSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.maxBendDeg.title.tooltip"));
-        //     }
+        CreateCollapsibleSection(tabDesc, colliderGroup,
+            BasisLocalization.Get("settings.bodyTracking.section.spineReach.title"),
+            BasisLocalization.Get("settings.bodyTracking.section.spineReach.description"), false, reachParent =>
+        {
+            var maxBendSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.maxBendDeg.title"), 0f, 180f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKMaxBendDeg);
+            if (maxBendSlider != null)
+            {
+                maxBendSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.maxBendDeg.title.tooltip"));
+            }
 
-        //     var maxChestDeltaSlider = PanelSlider.CreateAndBind(
-        //         reachParent,
-        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.maxChestDelta.title"), 0f, 180f, false, 0, ValueDisplayMode.Raw),
-        //         BasisSettingsDefaults.FBIKMaxChestDelta);
-        //     if (maxChestDeltaSlider != null)
-        //     {
-        //         maxChestDeltaSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.maxChestDelta.title.tooltip"));
-        //     }
+            var maxChestDeltaSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.maxChestDelta.title"), 0f, 180f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKMaxChestDelta);
+            if (maxChestDeltaSlider != null)
+            {
+                maxChestDeltaSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.maxChestDelta.title.tooltip"));
+            }
 
-        //     var butterflyMaxOpenSlider = PanelSlider.CreateAndBind(
-        //         reachParent,
-        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
-        //         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg);
-        //     if (butterflyMaxOpenSlider != null)
-        //     {
-        //         butterflyMaxOpenSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title.tooltip"));
-        //     }
+            var butterflyMaxOpenSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg);
+            if (butterflyMaxOpenSlider != null)
+            {
+                butterflyMaxOpenSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.butterflyKneeMaxOpen.title.tooltip"));
+            }
 
-        //     var kneeFootFollowSlider = PanelSlider.CreateAndBind(
-        //         reachParent,
-        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title"), 0.1f, 1f, false, 2, ValueDisplayMode.Raw),
-        //         BasisSettingsDefaults.FBIKKneeFootFollowUpright);
-        //     if (kneeFootFollowSlider != null)
-        //     {
-        //         kneeFootFollowSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title.tooltip"));
-        //     }
-        // });
+            var kneeFootFollowSlider = PanelSlider.CreateAndBind(
+                reachParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title"), 0.1f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKKneeFootFollowUpright);
+            if (kneeFootFollowSlider != null)
+            {
+                kneeFootFollowSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFootFollow.title.tooltip"));
+            }
+        });
 
         // ============== Spine: Bend Distribution ==============
         // CreateCollapsibleSection(tabDesc, colliderGroup,
@@ -999,7 +1022,7 @@ public static class SettingsProviderIK
 
             for (int Index = 0; Index < BasisSettingsDefaults.FBIKSmoothingGroups.Length; Index++)
             {
-                AddSmoothingGroup(smoothingParent, tabDesc, BasisSettingsDefaults.FBIKSmoothingGroups[Index]);
+                AddSmoothingGroup(tabDesc, smoothingParent, BasisSettingsDefaults.FBIKSmoothingGroups[Index]);
             }
 
             // var posHz = PanelSlider.CreateAndBind(
@@ -1052,14 +1075,14 @@ public static class SettingsProviderIK
         advancedToggle.OnExpandedChanged += visible =>
         {
             colliderGroup.gameObject.SetActive(visible);
-            tabDesc.ForceRebuild();
-            colliderGroup.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
+            RebuildLayout(colliderGroup.GetComponentInParent<PanelElementDescriptor>());
+            RebuildLayout(tabDesc);
         };
 
         PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ikSectionToggle, ikGroup, false, _ =>
         {
-            ikGroup.ForceRebuild();
-            tabDesc.ForceRebuild();
+            RebuildLayout(ikGroup);
+            RebuildLayout(tabDesc);
         });
 
         // ------------------
@@ -1070,7 +1093,7 @@ public static class SettingsProviderIK
         // ONE RESET BUTTON FOR THIS PAGE — kept last so debug info sits above it.
         SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
 
-        tabDesc.ForceRebuild();
+        RebuildLayout(tabDesc);
         return tabPage;
     }
 
@@ -1153,7 +1176,7 @@ public static class SettingsProviderIK
             {
                 RefreshDebugData();
             }
-            tabDesc.ForceRebuild();
+            RebuildLayout(tabDesc);
         };
     }
 
@@ -1403,6 +1426,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKCollideTrackedElbow.ResetToDefault();
+        BasisSettingsDefaults.FBIKElbowDrag.ResetToDefault();
+        BasisSettingsDefaults.FBIKElbowDragHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();
         BasisSettingsDefaults.FBIKCollisionSkin.ResetToDefault();
         BasisSettingsDefaults.FBIKHandRadius.ResetToDefault();
@@ -1631,7 +1656,7 @@ public static class SettingsProviderIK
             }
         }
 
-        _boneEuroEditorGroup.ForceRebuild();
+        RebuildLayout(_boneEuroEditorGroup);
 
         SyncMasterEuroFromChildren();
     }
@@ -1654,27 +1679,67 @@ public static class SettingsProviderIK
         toggle.AssignBinding(binding);
     }
 
-    private static void AddSmoothingGroup(RectTransform parent, PanelElementDescriptor rebuildTarget, BasisSettingsDefaults.SmoothingGroupBindings group)
+    private static void RebuildLayout(PanelElementDescriptor descriptor)
     {
+        RectTransform content = descriptor != null ? descriptor.ContentParent : null;
+        if (content != null)
+        {
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds outward from a container whose contents just changed height, hitting every ancestor that
+    /// actually carries a layout controller, innermost first, so each outer pass sees the corrected inner
+    /// height. Rows revealed inside a nested group otherwise leave every group above them at its stale
+    /// height and overflow. Stops at the tab page so one reveal does not rebuild the whole menu.
+    /// </summary>
+    private static void RebuildLayoutChain(RectTransform from, PanelElementDescriptor tabDesc)
+    {
+        RectTransform stop = tabDesc != null ? tabDesc.ContentParent : null;
+        RectTransform current = from;
+        while (current != null)
+        {
+            if (current.GetComponent<UnityEngine.UI.ILayoutController>() != null)
+            {
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(current);
+            }
+
+            if (current == stop)
+            {
+                return;
+            }
+
+            current = current.parent as RectTransform;
+        }
+    }
+
+    private static void AddSmoothingGroup(PanelElementDescriptor tabDesc, RectTransform parent, BasisSettingsDefaults.SmoothingGroupBindings group)
+    {
+        string groupName = BasisLocalization.Get(group.NameKey);
+
         var presetDropdown = PanelDropdown.CreateNewEntry(parent);
-        presetDropdown.Descriptor.SetTitle(BasisLocalization.Get(group.NameKey));
+        presetDropdown.Descriptor.SetTitle(groupName);
         presetDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothing.preset.tooltip"));
         presetDropdown.AssignLocalizedEntries(
             new List<string>(BasisSmoothingProfiles.PresetOrder),
             new List<string>(BasisSmoothingProfiles.PresetLocalizationKeys));
         presetDropdown.AssignBinding(group.Preset);
 
-        var customToggle = PanelToggle.CreateNewEntry(parent);
-        customToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.smoothing.custom"));
-        customToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothing.custom.tooltip"));
-        customToggle.AssignBinding(group.Custom);
+        // Folded into the dropdown above as the "Custom" preset entry.
+        // var customToggle = PanelToggle.CreateNewEntry(parent);
+        // customToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.smoothing.custom"));
+        // customToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.smoothing.custom.tooltip"));
+        // customToggle.AssignBinding(group.Custom);
 
+        // Every group's sliders carry the same five titles, so the group name goes on the row itself —
+        // with two groups tuned by hand the flat list is otherwise ten rows of "Beta" and "Min Cutoff".
         var sliders = new List<PanelSlider>(5);
-        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.minCutoff.title", 0.1f, 10f, group.MinCutoff);
-        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.beta.title", 0f, 10f, group.Beta);
-        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.smoothingStrength.title", 1f, 100f, group.Strength);
-        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.posSmoothingHz.title", 0.01f, 60f, group.PositionHz);
-        AddSmoothingGroupSlider(sliders, parent, "settings.bodyTracking.rotSmoothingHz.title", 0.01f, 60f, group.RotationHz);
+        AddSmoothingGroupSlider(sliders, parent, groupName, "settings.bodyTracking.minCutoff.title", 0.1f, 10f, group.MinCutoff);
+        AddSmoothingGroupSlider(sliders, parent, groupName, "settings.bodyTracking.beta.title", 0f, 10f, group.Beta);
+        AddSmoothingGroupSlider(sliders, parent, groupName, "settings.bodyTracking.smoothingStrength.title", 1f, 100f, group.Strength);
+        AddSmoothingGroupSlider(sliders, parent, groupName, "settings.bodyTracking.posSmoothingHz.title", 0.01f, 60f, group.PositionHz);
+        AddSmoothingGroupSlider(sliders, parent, groupName, "settings.bodyTracking.rotSmoothingHz.title", 0.01f, 60f, group.RotationHz);
 
         void ApplyCustomVisibility(bool visible)
         {
@@ -1684,19 +1749,20 @@ public static class SettingsProviderIK
             }
         }
 
-        ApplyCustomVisibility(customToggle.Value);
-        customToggle.OnValueChanged += value =>
+        ApplyCustomVisibility(BasisSmoothingProfiles.IsCustom(presetDropdown.Value));
+        presetDropdown.OnValueChanged += value =>
         {
-            ApplyCustomVisibility(value);
-            rebuildTarget.ForceRebuild();
+            ApplyCustomVisibility(BasisSmoothingProfiles.IsCustom(value));
+            RebuildLayoutChain(parent, tabDesc);
         };
     }
 
-    private static void AddSmoothingGroupSlider(List<PanelSlider> sliders, RectTransform parent, string titleKey, float min, float max, BasisSettingsBinding<float> binding)
+    private static void AddSmoothingGroupSlider(List<PanelSlider> sliders, RectTransform parent, string groupName, string titleKey, float min, float max, BasisSettingsBinding<float> binding)
     {
+        string title = $"{groupName}: {BasisLocalization.Get(titleKey)}";
         var slider = PanelSlider.CreateAndBind(
             parent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get(titleKey), min, max, false, 2, ValueDisplayMode.Raw),
+            PanelSlider.SliderSettings.Advanced(title, min, max, false, 2, ValueDisplayMode.Raw),
             binding);
         if (slider != null)
         {
@@ -1721,8 +1787,11 @@ public static class SettingsProviderIK
 
         PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, sectionGroup, defaultOpen, _ =>
         {
-            tabDesc.ForceRebuild();
-            parentGroup.ForceRebuild();
+            // Rebuild the containers that actually carry the VerticalLayoutGroup, innermost first, so the
+            // outer pass sees the corrected inner height. ForceRebuild() on a descriptor root only recurses
+            // when that rect has an ILayoutController, which the tab page and group roots do not.
+            RebuildLayout(parentGroup);
+            RebuildLayout(tabDesc);
         });
     }
 

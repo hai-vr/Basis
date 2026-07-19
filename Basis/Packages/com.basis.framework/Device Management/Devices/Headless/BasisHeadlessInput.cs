@@ -205,6 +205,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             UnscaledDeviceCoord.rotation = Quaternion.identity;
             ConvertToScaledDeviceCoord();
 
+            TrackingHardware = BasisTrackingHardware.Simulated;
             InitializeTracking(ID, ID, subSystems, true, BasisBoneTrackedRole.CenterEye);
 
             if (BasisHelpers.CheckInstance(Instance))

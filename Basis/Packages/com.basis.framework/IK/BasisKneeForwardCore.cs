@@ -62,11 +62,21 @@ namespace Basis.IK
     // the existing PositionLeftLowerLeg / EnableLeftLowerLeg channel. Sibling of BasisButterflyKneeCore.
     public static class BasisKneeForwardCore
     {
-        // How far the knee follows the foot's toe with no knee tracker. Foot-DOMINANT by default: a deliberate foot
-        // yaw is proximal (hip), so the knee follows most of the way and only stays a little inboard. Passive neutral
-        // stance still lands inside the measured tibia-vs-pelvis band (7 deg foot -> ~5 deg knee). Tunable; the whole
-        // feature is gated off by Strength <= 0.
-        public const float DefaultUprightCoupling = 0.75f;
+        // How far the knee follows the foot's toe with no knee tracker. FULL follow by default: a deliberate foot
+        // yaw is proximal (hip external rotation), which swings the femur and therefore the knee with it, so the
+        // knee tracks the toe the whole way. Tunable (settings slider, 0.1-1); the whole feature is gated off by
+        // Strength <= 0.
+        //
+        // ⚠️ 1.0 GIVES UP THE FREE "KNEE SITS INBOARD OF THE FOOT" TERM. Below 1 the knee lands between
+        // body-forward and the toe, which reproduces foot-progression / tibial torsion (a real knee is a few
+        // degrees inboard of the foot) with no explicit model. At 1.0 the knee points exactly where the toe does,
+        // which is what a user asking for maximum foot authority is asking for -- but it is the reason this is a
+        // slider and not a constant. Drop toward 0.85 to get the inboard bias back.
+        public const float DefaultUprightCoupling = 1.0f;
+
+        // Where the follow starts fading out as the toe swings toward pointing back down the body. Below this the
+        // fade is the exact identity, so every ordinary foot angle is untouched. See the block in Solve.
+        public const float FollowFadeStartDeg = 120f;
 
         // A safety cap on the azimuth swing off body-forward. The knee should never chase a wildly-yawed foot past the
         // hip's own external-rotation range; the leg solve's anterior half-space guard is the hard limit, this is the
@@ -134,9 +144,38 @@ namespace Basis.IK
             else
             {
                 Vector3 footPerpN = footPerp.normalized;
-                float rawAngle = Vector3.Angle(bodyPerpN, footPerpN);
+
+                // ⭐ NAME THE AXIS. bodyPerpN and footPerpN are BOTH perpendicular to `axis` by construction, so
+                // the rotation between them IS about `axis`, exactly. Vector3.RotateTowards instead DISCOVERS its
+                // axis from Cross(from, to) -- and that vanishes when the toe points opposite body-forward, where
+                // Unity then falls back to an arbitrary one. Measured on this core, sweeping the toe around the
+                // leg: 480 deg of bend direction per degree of toe motion at a toe azimuth of 180, at EVERY
+                // coupling. A body turn over a planted foot reaches that every time. Same fix, and the same
+                // reason, as the swivel axis in BasisLegSolveCore: the axis is known, so do not go looking for it.
+                float signedDeg = Vector3.SignedAngle(bodyPerpN, footPerpN, axis);
+                float rawAngle = signedDeg < 0f ? -signedDeg : signedDeg;
+
                 followDeg = Mathf.Min(Saturate(i.Coupling) * legVertical01 * rawAngle, MaxFollowDeg);
-                bendDir = Vector3.RotateTowards(bodyPerpN, footPerpN, followDeg * Mathf.Deg2Rad, 0f);
+
+                // ⭐ CLOSE THE CIRCLE. Naming the axis fixes WHICH WAY the rotation goes but not the cap: clamping
+                // to MaxFollowDeg holds the follow at full magnitude right up to the posterior ray, so it flips
+                // sign the instant the toe crosses it -- +60 to -60, a 120 deg knee swing for a fraction of a
+                // degree of foot motion.
+                //
+                // The honest reading of a toe pointing back down the body is that it is NOT steering the knee: it
+                // is far past anything a hip can follow (external rotation tops out ~45-60 deg), and at exactly
+                // 180 the side it should pick is genuinely undefined -- mirror symmetry means any continuous
+                // answer there has to be zero. So fade the follow out over the last stretch and let the sagittal
+                // default take back over. Below FollowFadeStartDeg this is the EXACT identity, so every ordinary
+                // foot angle -- and the entire range a hip can actually follow -- is untouched.
+                if (rawAngle > FollowFadeStartDeg)
+                {
+                    float u = (rawAngle - FollowFadeStartDeg) / (180f - FollowFadeStartDeg);
+                    if (u > 1f) u = 1f;
+                    followDeg *= 1f - u * u * (3f - 2f * u);
+                }
+
+                bendDir = Quaternion.AngleAxis(signedDeg < 0f ? -followDeg : followDeg, axis) * bodyPerpN;
                 bendDir = Vector3.ProjectOnPlane(bendDir, axis);
                 bendDir = bendDir.sqrMagnitude > k_SqrEpsilon ? bendDir.normalized : bodyPerpN;
             }

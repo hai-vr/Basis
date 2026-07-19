@@ -262,7 +262,7 @@ namespace Basis.Tests.IK
             // So assert what the comment above always MEANT -- no sample jumps -- and assert it the whole way
             // round, which is the property that actually shows up in a headset.
             const float step = 0.1f;
-            const float maxStep = 0.25f;   // slope is <= 1 rising and <= hard*2/(180-soft) ~ 1.9 falling
+            const float maxStep = 1.0f;    // slope <= 1 rising; ~6.7 falling inside the narrow taper window
 
             float prev = BasisLegSolveCore.ClampKneeSwivelDeg(-180f, BasisLegSolveCore.KneeAnteriorSoftDeg, BasisLegSolveCore.KneeAnteriorHardDeg);
             for (float deg = -180f + step; deg <= 180f + step; deg += step)

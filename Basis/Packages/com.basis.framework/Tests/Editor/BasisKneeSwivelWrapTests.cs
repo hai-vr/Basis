@@ -112,9 +112,67 @@ namespace Basis.Tests.IK
                 prev = cur;
             }
 
-            Assert.Less(worstGain, 3f,
+            // The taper window is narrow, so the ease is steeper inside it -- ~6.7x, reached only past 160deg.
+            // 10 leaves room to widen the window without going stale. It is 500x below the 714x fold either way;
+            // the property being defended is "bounded and smooth", not a specific number.
+            Assert.Less(worstGain, 10f,
                 $"guard gain peaked at {worstGain:F1}x near {worstAt:F1}deg -- a knee that moves several degrees " +
                 "per degree of pole motion reads as a snap");
+        }
+
+        [Test]
+        public void Guard_IsBitIdentical_BelowTheTaperWindow()
+        {
+            // ⚠️ THE REGRESSION THIS EXISTS TO STOP, and it took three separate in-headset reports to find.
+            //
+            // The first cut tapered across the whole 85..180 band. Closing the circle forces f(180) = 0, but
+            // spreading that descent downward broke three things at once, because the old FLAT asymptote was
+            // doing far more than bounding the angle:
+            //   posture -- a 120deg pole went 89 (lateral) -> 77, a 140deg one 89 -> 59: "not looking human"
+            //   noise   -- flat was a DEAD ZONE; giving it slope handed pole jitter to the bone: "jelly knees"
+            //   hips    -- a guarded knee is rebuilt from `anterior` (hips-right), so the deeper the guard bites
+            //              the more the knee follows the PELVIS instead of the shin tracker: "moves with my hip"
+            //
+            // So below the taper window the guard must be the ORIGINAL function, exactly -- not close, exactly.
+            foreach (float deg in new[] { 86f, 90f, 100f, 110f, 120f, 140f, 155f, BasisLegSolveCore.KneeAnteriorTaperStartDeg })
+            {
+                Assert.AreEqual(LegacyClamp(deg), Clamp(deg), 1e-4f,
+                    $"a {deg}deg pole no longer matches the pre-fix guard. The click fix is not licensed to " +
+                    "re-pose the leg, re-couple it to the hips, or make it track noise -- raise " +
+                    "BasisLegSolveCore.KneeAnteriorTaperStartDeg.");
+            }
+        }
+
+        [Test]
+        public void Guard_StillRejectsPoleNoise_WhereItUsedTo()
+        {
+            // "Jelly knees" stated as a measurement rather than a vibe: degrees of KNEE per degree of pole
+            // JITTER. The old flat asymptote scored ~0.01 through the posterior band -- the guard swallowed the
+            // noise whole. A whole-band taper scored 0.72 at 140deg, which is what reached the bone.
+            //
+            // Compared against the legacy guard rather than an absolute, so this measures the REGRESSION and
+            // cannot drift if the constants are retuned.
+            foreach (float mean in new[] { 100f, 120f, 140f })
+            {
+                float legacy = Amplification(mean, LegacyClamp);
+                float now = Amplification(mean, Clamp);
+                Assert.Less(now, legacy + 0.05f,
+                    $"at a {mean}deg pole the guard now passes {now:F2}deg of knee per degree of pole jitter " +
+                    $"(was {legacy:F2}). That is the knee tracking noise it used to swallow -- jelly.");
+            }
+        }
+
+        static float Amplification(float meanDeg, System.Func<float, float> f)
+        {
+            const float jitter = 2f;
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int k = 0; k < 64; k++)
+            {
+                float v = f(meanDeg + jitter * Mathf.Sin(2f * Mathf.PI * k / 64f));
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
+            return (hi - lo) / (2f * jitter);
         }
 
         [Test]
