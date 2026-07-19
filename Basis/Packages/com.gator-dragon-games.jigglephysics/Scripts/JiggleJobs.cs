@@ -44,6 +44,9 @@ public class JiggleJobs {
     
     private JobHandle handleBroadPhase;
     private bool hasHandleBroadPhase;
+
+    private JobHandle handleColliderCull;
+    private bool hasHandleColliderCull;
     
     private JobHandle handleInputInterpolate;
     private bool hasHandleInputInterpolate;
@@ -58,6 +61,7 @@ public class JiggleJobs {
     private JiggleJobInterpolation jobInterpolation;
     private JiggleJobBroadPhaseClear jobBroadPhaseClear;
     private JiggleJobBroadPhase jobBroadPhase;
+    private JiggleJobColliderCull jobColliderCull;
     private JiggleJobInputInterpolation jobInputInterpolation;
 
     private JiggleJobTransformWrite jobTransformWrite;
@@ -77,8 +81,9 @@ public class JiggleJobs {
     private float pendingMaxDistance;
 
     private const int MaxCullingCameras = 16;
-    private const float CullNearKeepRadius = 2.5f;
-    private const float CullFrustumMargin = 0.5f;
+
+    private bool capturedStartupSettings;
+    private int colliderCullBatchSize = 64;
 
     public delegate void JiggleFinishSimulateAction(JiggleJobs job, double simulatedTime);
     public event JiggleFinishSimulateAction OnFinishSimulate;
@@ -96,6 +101,7 @@ public class JiggleJobs {
         jobTransformWrite = new JiggleJobTransformWrite(_memoryBus);
         jobBroadPhase = new JiggleJobBroadPhase(_memoryBus);
         jobBroadPhaseClear = new JiggleJobBroadPhaseClear(_memoryBus);
+        jobColliderCull = new JiggleJobColliderCull(_memoryBus);
         jobInputInterpolation = new JiggleJobInputInterpolation(_memoryBus, fixedTime, fixedDeltaTime);
         freePointers = new List<IntPtr>();
         cullingCameras = new NativeArray<JiggleCullingCamera>(MaxCullingCameras, Allocator.Persistent);
@@ -116,6 +122,21 @@ public class JiggleJobs {
         jobInputInterpolation.SetFixedDeltaTime(fixedDeltaTime);
     }
 
+    private void CaptureStartupSettings() {
+        if (capturedStartupSettings) {
+            return;
+        }
+        capturedStartupSettings = true;
+        var inverseCellSize = JiggleSettings.InverseBroadPhaseCellSize;
+        jobColliderCull.inverseCellSize = inverseCellSize;
+        jobColliderCull.maxColliderCellSpan = JiggleSettings.MaxColliderCellSpan;
+        jobSimulate.inverseCellSize = inverseCellSize;
+        jobSimulate.maxTreeCellSpan = JiggleSettings.MaxTreeCellSpan;
+        jobBroadPhaseClear.maxStalenessFrames = JiggleSettings.CellStalenessFrames;
+        colliderCullBatchSize = JiggleSettings.ColliderCullBatchSize;
+        JiggleSettings.MarkBooted();
+    }
+
     public void SetCollisionCulling(bool frustum, bool distance, float maxDistance, JiggleCullingCamera[] cameras, int cameraCount) {
         pendingFrustumCull = frustum;
         pendingDistanceCull = distance;
@@ -133,6 +154,7 @@ public class JiggleJobs {
         if (hasHandleInterpolate) handleInterpolate.Complete();
         if (hasHandlePersonalColliderRead) handlePersonalColliderRead.Complete();
         if (hasHandleSceneColliderRead) handleSceneColliderRead.Complete();
+        if (hasHandleColliderCull) handleColliderCull.Complete();
         if (hasHandleBroadPhase) handleBroadPhase.Complete();
         if (hasHandleBroadPhaseClear) handleBroadPhaseClear.Complete();
         if (hasHandleInputInterpolate) handleInputInterpolate.Complete();
@@ -228,6 +250,7 @@ public class JiggleJobs {
             jobBulkSceneColliderTransformRead.UpdateArrays(_memoryBus.sceneColliders);
             jobTransformWrite.UpdateArrays(_memoryBus);
             jobBroadPhase.UpdateArrays(_memoryBus);
+            jobColliderCull.UpdateArrays(_memoryBus);
             jobBroadPhaseClear.UpdateArrays(_memoryBus);
             jobInputInterpolation.UpdateArrays(_memoryBus);
             return;
@@ -265,6 +288,7 @@ public class JiggleJobs {
         jobBulkPersonalColliderTransformRead.UpdateArrays(_memoryBus.personalColliders);
         jobBulkSceneColliderTransformRead.UpdateArrays(_memoryBus.sceneColliders);
         jobBroadPhase.UpdateArrays(_memoryBus);
+        jobColliderCull.UpdateArrays(_memoryBus);
         jobBroadPhaseClear.UpdateArrays(_memoryBus);
         jobInputInterpolation.UpdateArrays(_memoryBus);
 
@@ -275,13 +299,15 @@ public class JiggleJobs {
         for (int ci = 0; ci < cullingCameraCount; ci++) {
             cullingCameras[ci] = pendingCullingCameras[ci];
         }
-        jobBroadPhase.cullingCameras = cullingCameras;
-        jobBroadPhase.cullingCameraCount = cullingCameraCount;
-        jobBroadPhase.frustumCull = frustumCull;
-        jobBroadPhase.distanceCull = distanceCull;
-        jobBroadPhase.maxCollisionDistance = maxCollisionDistance;
-        jobBroadPhase.nearKeepRadius = CullNearKeepRadius;
-        jobBroadPhase.frustumMargin = CullFrustumMargin;
+        var cullingActive = JiggleSettings.CullingEnabled;
+        jobColliderCull.cullingCameras = cullingCameras;
+        jobColliderCull.cullingCameraCount = cullingActive ? cullingCameraCount : 0;
+        jobColliderCull.frustumCull = frustumCull;
+        jobColliderCull.distanceCull = distanceCull;
+        jobColliderCull.maxCollisionDistance = maxCollisionDistance;
+        jobColliderCull.nearKeepRadius = JiggleSettings.CullNearKeepRadius;
+        jobColliderCull.frustumMargin = JiggleSettings.CullFrustumMargin;
+        CaptureStartupSettings();
 
         if (hasHandleSimulate) {
             handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128, handleSimulate);
@@ -298,7 +324,14 @@ public class JiggleJobs {
         
         handleBroadPhaseClear = jobBroadPhaseClear.Schedule();
         hasHandleBroadPhaseClear = true;
-        handleBroadPhase = jobBroadPhase.Schedule(JobHandle.CombineDependencies(colliderHandles, handleBroadPhaseClear));
+
+        var sceneColliderCount = _memoryBus.sceneColliderCount;
+        handleColliderCull = sceneColliderCount > 0
+            ? jobColliderCull.Schedule(sceneColliderCount, colliderCullBatchSize, handleSceneColliderRead)
+            : handleSceneColliderRead;
+        hasHandleColliderCull = true;
+
+        handleBroadPhase = jobBroadPhase.Schedule(JobHandle.CombineDependencies(handleColliderCull, handleBroadPhaseClear));
         hasHandleBroadPhase = true;
 
         var bulkResetDep = hasHandleTransformWrite
@@ -320,7 +353,7 @@ public class JiggleJobs {
 
         jobSimulate.gravity = gravity;
         jobSimulate.timeStamp = simulateTime;
-        handleSimulate = jobSimulate.ScheduleParallel(_memoryBus.treeCount, 1, JobHandle.CombineDependencies(handleBroadPhase, handleInputInterpolate));
+        handleSimulate = jobSimulate.ScheduleParallel(_memoryBus.treeCount, 1, JobHandle.CombineDependencies(handleBroadPhase, handleInputInterpolate, handlePersonalColliderRead));
         hasHandleSimulate = true;
 
         JobHandle.ScheduleBatchedJobs();
@@ -328,7 +361,7 @@ public class JiggleJobs {
 
     public void Teleport(JiggleTree tree, float3 deltaPosition) {
         if (tree == null) return;
-        _memoryBus.ScheduleTeleport(tree.rootID, deltaPosition);
+        _memoryBus.ScheduleTeleport(tree, deltaPosition);
     }
 
     public void ScheduleAdd(JiggleTree tree) {

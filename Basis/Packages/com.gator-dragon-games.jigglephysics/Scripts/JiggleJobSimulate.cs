@@ -30,7 +30,8 @@ public struct JiggleJobSimulate : IJobFor {
 
     private float deltaTimeSquared;
 
-    private const long MAX_BROADPHASE_CELLS = 4096;
+    public float inverseCellSize;
+    public int maxTreeCellSpan;
 
     public JiggleJobSimulate(JiggleMemoryBus bus, float fixedDeltaTime) {
         inputPoses = bus.simulateInputPoses;
@@ -45,6 +46,8 @@ public struct JiggleJobSimulate : IJobFor {
         sceneColliderCount = 0;
         deltaTimeSquared = fixedDeltaTime * fixedDeltaTime;
         timeIncrements = 1;
+        inverseCellSize = JiggleSettings.InverseBroadPhaseCellSize;
+        maxTreeCellSpan = JiggleSettings.MaxTreeCellSpan;
     }
 
     public void UpdateArrays(JiggleMemoryBus bus) {
@@ -112,8 +115,8 @@ public struct JiggleJobSimulate : IJobFor {
             tree.points[i] = point;
         }
 
-        tree.minExtentPosition = JiggleGridCell.GetKeyForPosition(min);
-        tree.maxExtentPosition = JiggleGridCell.GetKeyForPosition(max);
+        tree.minExtentPosition = JiggleGridCell.GetKeyForPosition(min, inverseCellSize);
+        tree.maxExtentPosition = JiggleGridCell.GetKeyForPosition(max, inverseCellSize);
     }
 
     private unsafe void VerletIntegrate(JiggleTreeJobData tree) {
@@ -405,7 +408,9 @@ public struct JiggleJobSimulate : IJobFor {
             // extent is implausible. long math: garbage extents overflow int subtraction.
             long cellSpanX = (long)max.x - min.x + 1;
             long cellSpanY = (long)max.y - min.y + 1;
-            if (cellSpanX > 0 && cellSpanY > 0 && cellSpanX * cellSpanY <= MAX_BROADPHASE_CELLS) {
+            if (cellSpanX > 0 && cellSpanY > 0
+                && cellSpanX <= maxTreeCellSpan && cellSpanY <= maxTreeCellSpan
+                && cellSpanX * cellSpanY <= maxTreeCellSpan) {
                 for (int x = min.x; x <= max.x; x++) {
                     for (int y = min.y; y <= max.y; y++) {
                         int2 grid = new int2(x, y);

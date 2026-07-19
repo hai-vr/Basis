@@ -60,9 +60,6 @@ public class JiggleTreeSegment {
     
     public void UpdateParameters() {
         if (jiggleTree != null) {
-            // Manual API entry point — the sim job may be mid-flight, and SetParameters
-            // MemCpys into a buffer it reads.
-            JigglePhysics.CompleteSimulate();
             jiggleRigData.UpdateParameters(jiggleTree, parametersCache);
         }
     }

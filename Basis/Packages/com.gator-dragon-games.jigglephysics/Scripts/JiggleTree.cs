@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
@@ -64,6 +65,20 @@ public class JiggleTree {
             bones[i].GetLocalPositionAndRotation(out var pos, out var rot);
             restPositions[i] = pos;
             restRotations[i] = rot;
+        }
+    }
+
+    public void Translate(float3 deltaPosition) {
+        var pointCount = points.Length;
+        for (int i = 0; i < pointCount; i++) {
+            points[i].lastPosition += deltaPosition;
+            points[i].position += deltaPosition;
+            points[i].workingPosition += deltaPosition;
+            points[i].pose += deltaPosition;
+            points[i].parentPose += deltaPosition;
+        }
+        if (hasJiggleTreeStruct) {
+            jiggleTreeJobData.Translate(deltaPosition);
         }
     }
 

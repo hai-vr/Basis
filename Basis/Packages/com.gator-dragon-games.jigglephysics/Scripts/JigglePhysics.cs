@@ -39,8 +39,8 @@ public static class JigglePhysics {
     private const int MaxCullingCameras = 16;
     private static readonly JiggleCullingCamera[] cullingCameraBuffer = new JiggleCullingCamera[MaxCullingCameras];
     private static int cullingCameraCount;
-    private static bool collisionFrustumCull = true;
-    private static bool collisionDistanceCull = true;
+    private static bool collisionFrustumCull = false;
+    private static bool collisionDistanceCull = false;
     private static float collisionCullDistance = 20f;
     private static readonly Plane[] cullingFrustumScratch = new Plane[6];
 
@@ -111,6 +111,7 @@ public static class JigglePhysics {
     
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Initialize() {
+        JiggleSettings.ResetBootLatch();
         lastFixedCurrentTime = 0f;
         accumulator = 0;
         parametersCache = new();
@@ -129,6 +130,7 @@ public static class JigglePhysics {
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
         _globalDirty = true;
         jobs = null;
+        JiggleSettings.ResetBootLatch();
         // JiggleRenderer.Dispose released the instancers and chunk buffers, so leaving this latched
         // would skip the OnEnable that rebuilds them and silently stop drawing gizmos for the rest
         // of the session (Initialize only runs again on a domain reload).
@@ -144,6 +146,10 @@ public static class JigglePhysics {
             initializedRendering = true;
         }
         JiggleRenderer.PrepareRender(jobs);
+    }
+
+    public static void CompleteRender(Material proceduralMaterial, Mesh sphere) {
+        CompleteRender(proceduralMaterial, sphere, null);
     }
 
     public static void CompleteRender(Material proceduralMaterial, Mesh sphere, Mesh capsule) {
@@ -170,12 +176,27 @@ public static class JigglePhysics {
         int count = 0;
         if (cameras != null) {
             var cameraCount = cameras.Count;
+            var expansion = JiggleSettings.CullFrustumExpansion;
             for (int i = 0; i < cameraCount && count < MaxCullingCameras; i++) {
                 var cam = cameras[i];
                 if (cam == null) {
                     continue;
                 }
-                GeometryUtility.CalculateFrustumPlanes(cam, cullingFrustumScratch);
+                if (expansion > 1f) {
+                    var projection = cam.projectionMatrix;
+                    var inverseExpansion = 1f / expansion;
+                    projection.m00 *= inverseExpansion;
+                    projection.m01 *= inverseExpansion;
+                    projection.m02 *= inverseExpansion;
+                    projection.m03 *= inverseExpansion;
+                    projection.m10 *= inverseExpansion;
+                    projection.m11 *= inverseExpansion;
+                    projection.m12 *= inverseExpansion;
+                    projection.m13 *= inverseExpansion;
+                    GeometryUtility.CalculateFrustumPlanes(projection * cam.worldToCameraMatrix, cullingFrustumScratch);
+                } else {
+                    GeometryUtility.CalculateFrustumPlanes(cam, cullingFrustumScratch);
+                }
                 cullingCameraBuffer[count] = new JiggleCullingCamera() {
                     plane0 = PlaneToFloat4(cullingFrustumScratch[0]),
                     plane1 = PlaneToFloat4(cullingFrustumScratch[1]),

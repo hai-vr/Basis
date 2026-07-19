@@ -65,6 +65,8 @@ public class JiggleMemoryBus {
 
     public NativeArray<JiggleCollider> sceneColliders;
 
+    public NativeArray<JiggleColliderBroadPhaseEntry> broadPhaseEntries;
+
     private List<Transform> transformAccessList;
     private List<Transform> transformRootAccessList;
     private List<Transform> personalColliderTransformAccessList;
@@ -237,6 +239,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             sceneColliders.Dispose();
         }
         sceneColliders = new NativeArray<JiggleCollider>(sceneColliderArray, Allocator.Persistent);
+        if (broadPhaseEntries.IsCreated) {
+            broadPhaseEntries.Dispose();
+        }
+        broadPhaseEntries = new NativeArray<JiggleColliderBroadPhaseEntry>(newColliderCapacity, Allocator.Persistent);
         sceneColliderCapacity = newColliderCapacity;
     }
 
@@ -534,6 +540,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
         
         jiggleTreeStructs[treeCount] = jiggleTreeJobData;
+        if (rootIDToTreeIndex.ContainsKey(jiggleTreeJobData.rootID)) {
+            Debug.LogError($"JigglePhysics: Duplicate jiggle tree rootID {jiggleTreeJobData.rootID}. Tree tracking will leak a slot and removal will target the wrong tree.");
+        }
         rootIDToTreeIndex[jiggleTreeJobData.rootID] = treeCount;
         var root = jiggleTree.bones[0];
         if (!root) {
@@ -623,7 +632,8 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
                 var found = sceneColliderMemoryFragmenter.TryAllocate(1, out var index);
                 if (!found) {
-                    throw new UnityException( "Ran out of scene collider memory, this is a bug please report it! (It should've been allocated in advance");
+                    Debug.LogError("JigglePhysics: Ran out of scene collider memory, this is a bug please report it! (It should've been allocated in advance)");
+                    continue;
                 }
 
                 while (sceneColliderTransformAccessList.Count < index+1) {
@@ -934,7 +944,15 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         deferredFlipFrees.Clear();
     }
 
-    public void ScheduleTeleport(int rootID, float3 deltaPosition) {
+    public void ScheduleTeleport(JiggleTree tree, float3 deltaPosition) {
+        if (tree == null) {
+            return;
+        }
+        var rootID = tree.rootID;
+        if (!rootIDToTreeIndex.ContainsKey(rootID)) {
+            tree.Translate(deltaPosition);
+            return;
+        }
         if (pendingTeleports.TryGetValue(rootID, out var existing)) {
             pendingTeleports[rootID] = existing + deltaPosition;
         } else {
@@ -1026,6 +1044,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             interpolationPreviousPoseData.Dispose();
             personalColliders.Dispose();
             sceneColliders.Dispose();
+            if (broadPhaseEntries.IsCreated) {
+                broadPhaseEntries.Dispose();
+            }
             inputPosesCurrent.Dispose();
             inputPosesPrevious.Dispose();
         }
