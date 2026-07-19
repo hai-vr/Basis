@@ -288,17 +288,6 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
         if (yf == VK_FILTER_LINEAR && !linearSample) yf = VK_FILTER_NEAREST;
         samplerFilter = yf;
     }
-    /* Diagnostic (once per distinct external format): the buffer's own format
-     * description. Compares e.g. VP9 (UBWC 0x7fa30c06) vs H.264 to pin down the
-     * green-corruption cause on-device — does the format advertise linear chroma,
-     * does the driver return a concrete VkFormat, what model/range does it want. */
-    __android_log_print(ANDROID_LOG_INFO, "basis_media",
-        "vk ycbcr fmt: ext=0x%llx vkfmt=%d features=0x%x model=%d range=%d xoff=%d yoff=%d chroma=%s sampler=%s",
-        (unsigned long long)externalFormat, (int)fmt->format, (unsigned)features,
-        (int)fmt->suggestedYcbcrModel, (int)fmt->suggestedYcbcrRange,
-        (int)fmt->suggestedXChromaOffset, (int)fmt->suggestedYChromaOffset,
-        yf == VK_FILTER_LINEAR ? "linear" : "nearest",
-        samplerFilter == VK_FILTER_LINEAR ? "linear" : "nearest");
     VkSamplerYcbcrConversionCreateInfo cy = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO };
     cy.pNext = &extFmt;
     cy.format = VK_FORMAT_UNDEFINED;
