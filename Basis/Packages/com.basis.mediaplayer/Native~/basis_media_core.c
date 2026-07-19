@@ -1359,6 +1359,11 @@ BASIS_API int BASIS_CALL basis_media_seek_us(basis_media_engine_t* e, int64_t ta
      * that boundary before the generation is visible. */
     e->seek_target_us = target_us;
     e->seek_seq++;
+    /* Notify the decoder to drop its pre-seek audio/video buffers and re-anchor
+     * the present clock to the target (each leg does it on its own thread). The
+     * demuxer only repositions the byte source; without this the decoder keeps
+     * serving stale buffers — post-seek audio silence and a frozen video clock. */
+    if (e->decoder) basis_decoder_seek(e->decoder, target_us);
     void* hls = e->active_hls;
     int rc = hls ? basis_hls_request_seek(hls, target_us / 1000) : 0;
     mutex_unlock(&e->lock);

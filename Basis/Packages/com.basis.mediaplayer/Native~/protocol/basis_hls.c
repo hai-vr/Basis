@@ -56,7 +56,11 @@ static void hls_mutex_unlock(hls_mutex_t* m)  { pthread_mutex_unlock(m); }
 #define HLS_MAX_PLAYLIST   (1 << 20) /* 1 MiB playlist cap                         */
 #define HLS_MAX_EMPTY_RELOADS 8  /* consecutive no-new-media reloads before giving up */
 #define HLS_LIVE_MARGIN_SEGMENTS 3 /* playout buffer kept behind the live edge for plain (non-LL) HLS */
-#define HLS_RING_CAP (4 * 1024 * 1024) /* read-ahead byte buffer (~5 s of 1080p HD) */
+/* Read-ahead byte buffer (~5 s of 1080p HD). Kept small on purpose: a larger
+ * read-ahead makes the VOD producer reach the end of the playlist further ahead
+ * of playout, which widens the window where a seek is rejected outright (the
+ * producer_done path). One heap allocation per HLS stream. */
+#define HLS_RING_CAP (4 * 1024 * 1024)
 
 /* (msn, part) media position. part == -1 means a whole segment. */
 typedef struct {
@@ -785,11 +789,13 @@ void* basis_hls_open(const char* url, const basis_http_provider_t* http,
     /* Start the read-ahead producer so segments buffer ahead of playout. */
     h->ring_cap = HLS_RING_CAP;
     h->ring = (uint8_t*)malloc((size_t)h->ring_cap);
-    if (!h->ring) { free(h); return NULL; }
+    if (!h->ring) { free(h->vod_uri); free(h->vod_dur_ms); free(h); return NULL; }
     hls_mutex_init(&h->lock);
     if (!hls_thread_start(h)) {
         hls_mutex_destroy(&h->lock);
         free(h->ring);
+        free(h->vod_uri);
+        free(h->vod_dur_ms);
         free(h);
         return NULL;
     }

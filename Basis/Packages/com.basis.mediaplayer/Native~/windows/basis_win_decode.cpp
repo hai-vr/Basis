@@ -198,6 +198,18 @@ struct PcmRing {
         LeaveCriticalSection(&cs);
         return got;
     }
+
+    /* Drop everything buffered. Used on a seek so pre-seek chunks can neither
+     * gate the ring (a backward seek leaves front chunks whose PTS is ahead of
+     * the target, which block the newer post-seek audio queued behind them) nor
+     * play out ahead of the post-seek audio that replaces them. */
+    void flush() {
+        EnterCriticalSection(&cs);
+        head = 0; tail = 0;
+        chead = 0; ccount = 0;
+        playedUs = INT64_MIN;
+        LeaveCriticalSection(&cs);
+    }
 };
 
 /* ---- decoder ------------------------------------------------------------ */
@@ -346,6 +358,25 @@ struct basis_decoder {
      * target forward so samples released now come due exactly when they reach
      * the speaker. */
     volatile LONG audLatencyUs = 60000;
+
+    /* Seek notification. basis_decoder_seek bumps seekGen (+ latches the target)
+     * on the caller thread. Each consumer leg keeps its own last-seen copy and,
+     * when it differs, flushes its stale buffers and re-anchors on ITS OWN thread:
+     * the audio-submit (demux) thread flushes the PCM ring + the MF/Opus decoder;
+     * the video-submit (demux) thread flushes the video MFT (drops its reorder
+     * buffer so retained pre-seek frames can't repopulate the ring) and clears the
+     * frame ring — it owns vdec and writes the ring; the render thread re-anchors
+     * the present clock and also clears the ring so a stale frame can't present in
+     * the window before the next video AU arrives. Nothing is touched across threads. */
+    volatile LONG   seekGen = 0;
+    volatile LONG64 seekTargetUs = 0;
+    LONG audioSeekGen = 0;    /* audio-submit (demux) thread only */
+    LONG videoSeekGen = 0;    /* video-submit (demux) thread only */
+    LONG renderSeekGen = 0;   /* render thread only */
+    volatile LONG videoSeekAck = 0; /* demux publishes seekGen here once it has flushed
+                                     * vdec + dropped pre-seek frames; the render leg
+                                     * holds until it matches so it neither anchors to a
+                                     * stale frame nor races the producer's ring clear */
 };
 
 /* ---- D3D / MF helpers --------------------------------------------------- */
@@ -973,6 +1004,7 @@ static void drain_video(basis_decoder* d) {
  * process share one resolved table. A missing library or symbol degrades to
  * muted audio (the format is rejected), never a crash. */
 #define OPUS_SET_GAIN_REQUEST 4034
+#define OPUS_RESET_STATE 4028
 typedef struct OpusDecoder OpusDecoder;
 typedef struct OpusMSDecoder OpusMSDecoder;
 struct opus_api {
@@ -1461,6 +1493,22 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
     /* Bound len here, before the AV1 configOBU concatenation below adds to it — so
      * the total can't overflow int or drive an oversized allocation. */
     if (!d || !d->vdec || !annexb || len <= 0 || len > BASIS_MAX_INPUT_SAMPLE) return -1;
+    /* First video AU after a seek: flush the MFT so its reorder buffer can't emit
+     * retained pre-seek frames into the ring, and drop the frames already in the
+     * ring. Demux thread owns vdec and writes the ring (drain_video below), so both
+     * are safe here; ring slots are aligned int64, cleared the same lock-free way
+     * they're written. */
+    LONG svg = InterlockedCompareExchange(&d->seekGen, 0, 0);
+    if (svg != d->videoSeekGen) {
+        d->videoSeekGen = svg;
+        d->vdec->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
+        /* The ring is this (demux) thread's to clear — do it here only, then publish
+         * the generation so the render leg knows the pre-seek frames are gone. That
+         * keeps a single writer of the ring on seek and stops the render leg from
+         * clearing frames this thread may already have repopulated. */
+        InterlockedExchange(&d->videoSeekAck, svg);
+    }
     IMFSample* s;
     bool carried_config = false;
     if (d->vConfigObusLen > 0) {
@@ -1620,6 +1668,26 @@ static void submit_opus(basis_decoder* d, const uint8_t* data, int len, int64_t 
 
 extern "C" int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len, int64_t pts_us) {
     if (!d || !data || len <= 0) return -1;
+    /* First audio AU after a seek: drop the stale pre-seek ring so this post-seek
+     * audio serves immediately (BUG: multi-second post-seek silence), and flush
+     * the MF decoder so it doesn't overlap-add across the discontinuity. Runs on
+     * the demux thread, which is the only thread that touches `adec`. */
+    LONG sg = InterlockedCompareExchange(&d->seekGen, 0, 0);
+    if (sg != d->audioSeekGen) {
+        d->audioSeekGen = sg;
+        d->pcm.flush();
+        if (d->adec) d->adec->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+        /* Opus bypasses the MFT; reset its predictive/history state so the first
+         * post-seek packet doesn't decode against the pre-seek timeline. */
+        if (d->opusDec) {
+            if (d->opusIsMS) { if (g_opus.ms_ctl)  g_opus.ms_ctl((OpusMSDecoder*)d->opusDec, OPUS_RESET_STATE); }
+            else             { if (g_opus.dec_ctl) g_opus.dec_ctl((OpusDecoder*)d->opusDec, OPUS_RESET_STATE); }
+        }
+        /* Seed the no-timestamp fallback from this AU so post-seek chunks land on
+         * the target timeline; 0 would put them at the start and the serve gate
+         * would trim or mis-time them. */
+        d->aPtsFallback = pts_us;
+    }
     if (d->acodec == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (d->acodec == BASIS_CODEC_OPUS) { submit_opus(d, data, len, pts_us); return 0; }
     if (!d->adec) return -1;
@@ -1677,6 +1745,33 @@ extern "C" int basis_decoder_render_update(basis_decoder_t* d) {
 
     LARGE_INTEGER nowq; QueryPerformanceCounter(&nowq);
     EnterCriticalSection(&d->presentLock);
+
+    /* First render after a seek: re-anchor the present clock to the first post-seek
+     * frame instead of the stale `newest` — without a re-anchor the clock stays
+     * clamped and freezes until a post-seek frame arrives (a ~18s video hang on a
+     * cold forward seek). The ring is cleared by the demux thread that owns it (see
+     * submit_video); this leg only re-anchors, then waits on that clear before
+     * proceeding so it never anchors to a stale frame or races the producer. */
+    {
+        LONG sg = InterlockedCompareExchange(&d->seekGen, 0, 0);
+        if (sg != d->renderSeekGen) {
+            d->renderSeekGen = sg;
+            d->clockStarted = false;
+            d->primeStartQpc = 0;
+            d->lastPresentedPts = INT64_MIN;
+            d->videoBasePts = INT64_MIN;
+            /* Report the target now so get_position_us tracks before the first
+             * post-seek frame presents; render overwrites it once it does. */
+            InterlockedExchange64(&d->presentedPosUs, InterlockedCompareExchange64(&d->seekTargetUs, 0, 0));
+        }
+        /* Hold until the demux thread has flushed vdec and dropped the pre-seek
+         * frames. The prime/anchor path below then re-locks to the first post-seek
+         * frame the producer writes. */
+        if (InterlockedCompareExchange(&d->videoSeekAck, 0, 0) != sg) {
+            LeaveCriticalSection(&d->presentLock);
+            return 0;
+        }
+    }
 
     /* newest available PTS in the ring */
     int64_t newest = INT64_MIN;
@@ -1993,6 +2088,21 @@ extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) 
     if (w) *w = d->sharedW; if (h) *h = d->sharedH; return 0;
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
+extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
+    if (!d) return;
+    /* Drop any pre-seek PCM still queued so the audio callback stops serving it
+     * immediately rather than up to the next audio AU. pcm.flush() is cs-guarded,
+     * safe from this (caller) thread; the codec-state reset stays on the submit
+     * thread where the MFT/Opus decoder is owned. */
+    d->pcm.flush();
+    /* Latch target before bumping the generation so any leg that observes the new
+     * generation reads the matching target. presentedPosUs is set here too so the
+     * seek bar snaps to the target immediately, before a frame is presented. */
+    InterlockedExchange64(&d->seekTargetUs, target_us);
+    InterlockedExchange64(&d->presentedPosUs, target_us);
+    InterlockedIncrement(&d->seekGen);
+}
+
 extern "C" int64_t basis_decoder_get_position_us(basis_decoder_t* d) {
     if (!d) return -1;
     /* Presentation position once a frame has shown; decode-side before that

@@ -269,6 +269,25 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
     /* Y'CbCr conversion described by the AHB external format. */
     VkExternalFormatANDROID extFmt = { VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID };
     extFmt.externalFormat = externalFormat;
+    /* Linear filtering is only valid when the format advertises the matching
+     * feature bit, and each filter has its own bit: chroma reconstruction needs
+     * YCBCR_CONVERSION_LINEAR_FILTER, the ordinary sampler mag/min needs
+     * SAMPLED_IMAGE_FILTER_LINEAR, and the two filters may only differ when
+     * SEPARATE_RECONSTRUCTION_FILTER is present. Qualcomm's UBWC external formats
+     * (VP9/AV1 on Adreno) frequently advertise none of these, and forcing LINEAR
+     * there is undefined behaviour. Pick each filter from its own bit; when separate
+     * reconstruction is absent, force them equal (downgrading chroma to nearest if
+     * the sampler cannot do linear). */
+    VkFormatFeatureFlags features = fmt->formatFeatures;
+    int separate     = (features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT) != 0;
+    int linearSample = (features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+    VkFilter yf = (features & VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT)
+                  ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+    VkFilter samplerFilter = linearSample ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+    if (!separate) {
+        if (yf == VK_FILTER_LINEAR && !linearSample) yf = VK_FILTER_NEAREST;
+        samplerFilter = yf;
+    }
     VkSamplerYcbcrConversionCreateInfo cy = { VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO };
     cy.pNext = &extFmt;
     cy.format = VK_FORMAT_UNDEFINED;
@@ -277,7 +296,7 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
     cy.components = fmt->samplerYcbcrConversionComponents;
     cy.xChromaOffset = fmt->suggestedXChromaOffset;
     cy.yChromaOffset = fmt->suggestedYChromaOffset;
-    cy.chromaFilter = VK_FILTER_LINEAR;
+    cy.chromaFilter = yf;
     if (vkCreateSamplerYcbcrConversion(v->device, &cy, NULL, &v->ycbcr) != VK_SUCCESS) return -1;
 
     /* immutable sampler with the conversion attached */
@@ -285,7 +304,7 @@ static int ensure_format_objects(basis_vk_present* v, uint64_t externalFormat,
     cvInfo.conversion = v->ycbcr;
     VkSamplerCreateInfo sci = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
     sci.pNext = &cvInfo;
-    sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR;
+    sci.magFilter = samplerFilter; sci.minFilter = samplerFilter;
     sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
