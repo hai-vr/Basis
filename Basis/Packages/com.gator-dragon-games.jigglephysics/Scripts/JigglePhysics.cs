@@ -129,9 +129,16 @@ public static class JigglePhysics {
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
         _globalDirty = true;
         jobs = null;
+        // JiggleRenderer.Dispose released the instancers and chunk buffers, so leaving this latched
+        // would skip the OnEnable that rebuilds them and silently stop drawing gizmos for the rest
+        // of the session (Initialize only runs again on a domain reload).
+        initializedRendering = false;
     }
 
     public static void ScheduleRender() {
+        if (jobs == null) {
+            return;
+        }
         if (!initializedRendering) {
             JiggleRenderer.OnEnable(jobs);
             initializedRendering = true;
@@ -140,6 +147,9 @@ public static class JigglePhysics {
     }
 
     public static void CompleteRender(Material proceduralMaterial, Mesh sphere, Mesh capsule) {
+        if (jobs == null) {
+            return;
+        }
         if (!initializedRendering) {
             JiggleRenderer.OnEnable(jobs);
             initializedRendering = true;

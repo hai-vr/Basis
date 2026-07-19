@@ -40,6 +40,14 @@ public struct JiggleJobPrepareRender : IJob {
 
         for (int i = 0; i < personalColliderCount; i++) {
             var collider = personalColliders[i];
+            // Retired slots keep their last matrix, and freshly added ones are counted before the
+            // collider TransformAccessArray flips — so until the read job has visited them their
+            // matrix is whatever it was built with (or all zeros). Drawing either one pins a gizmo
+            // wherever the avatar was when it spawned. worldRadius is only ever set by Read, so it
+            // doubles as "this slot has been sampled at least once".
+            if (!collider.enabled || collider.worldRadius <= 0f) {
+                continue;
+            }
             var position = collider.localToWorldMatrix.c3.xyz;
             switch (collider.type) {
                 case JiggleCollider.JiggleColliderType.Sphere: {
@@ -67,6 +75,9 @@ public struct JiggleJobPrepareRender : IJob {
 
         for (int i = 0; i < sceneColliderCount; i++) {
             var collider = sceneColliders[i];
+            if (!collider.enabled || collider.worldRadius <= 0f) {
+                continue;
+            }
             var position = collider.localToWorldMatrix.c3.xyz;
             switch (collider.type) {
                 case JiggleCollider.JiggleColliderType.Sphere: {
