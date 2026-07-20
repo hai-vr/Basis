@@ -546,7 +546,37 @@ namespace Basis.Scripts.Drivers
             ResolveSmoothingGroups(deltaTime);
             float safeDt = Mathf.Max(deltaTime, 1e-6f);
 
-            // ── 1. Gather raw inputs from bone controls (main thread only) ──
+            // ── 1. Schedule foot sim FIRST ──
+            // It is one long single-threaded Burst job, and everything from the bone gather through the filter
+            // scheduling below reads none of its state, so it all overlaps. Scheduled after the filter jobs it
+            // had ~20 lines to finish in and CompleteSimulate was mostly a stall.
+            bool fbtEnabled = Basis.BasisUI.BasisSettingsDefaults.EnableFBT.RawValue;
+            bool leftHasTracker = fbtEnabled && (BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker
+                || BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
+            bool rightHasTracker = fbtEnabled && (BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
+                || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
+
+            bool locomotionAnimActive = localPlayer.LocalCharacterDriver.MovementVector.sqrMagnitude > 0.001f;
+            if (locomotionAnimActive) stationaryTimer = 0f;
+            else stationaryTimer += deltaTime;
+
+            BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
+            bool footDriverReady = footDriver.IsInitialized;
+            bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds;
+            bool footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
+            bool footIKReady = footDriverReady && isStationaryEnough && footIKSetting;
+            bool leftWantIK = footIKReady && !leftHasTracker;
+            bool rightWantIK = footIKReady && !rightHasTracker;
+            bool leftOrRightDrive = !leftHasTracker || !rightHasTracker;
+
+            bool footSimScheduled = false;
+            if (footDriverReady && leftOrRightDrive)
+            {
+                footDriver.ScheduleSimulate(deltaTime);
+                footSimScheduled = true;
+            }
+
+            // ── 2. Gather raw inputs from bone controls (main thread only) ──
             var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
             var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
             var leftFootData = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
@@ -600,7 +630,7 @@ namespace Basis.Scripts.Drivers
                 posPtr[S_LeftShoulder] = float3.zero;                rotPtr[S_LeftShoulder] = leftShoulderRot;
                 posPtr[S_RightShoulder] = float3.zero;               rotPtr[S_RightShoulder] = rightShoulderRot;
 
-                // ── 2. Compute filter modes from toggles, and scatter each slot's group tuning ──
+                // ── 3. Compute filter modes from toggles, and scatter each slot's group tuning ──
                 for (int i = 0; i < SlotCount; i++)
                 {
                     byte group = BasisSmoothingProfiles.SlotGroup[i];
@@ -637,7 +667,7 @@ namespace Basis.Scripts.Drivers
                 posModePtr[S_RightShoulder] = (byte)BasisFilterMode.Passthrough;
             }
 
-            // ── 3. On first use, seed fallback states from live inputs so we don't lerp from zero ──
+            // ── 4. On first use, seed fallback states from live inputs so we don't lerp from zero ──
             if (!hasFallbackState)
             {
                 hasFallbackState = true;
@@ -645,7 +675,7 @@ namespace Basis.Scripts.Drivers
                 _fallbackRotStates.CopyFrom(_rotInputs);
             }
 
-            // ── 4. Schedule batched filter jobs ──
+            // ── 5. Schedule batched filter jobs ──
             var posJob = new BasisBatchPositionFilterJob
             {
                 mode = _posModeNative,
@@ -668,33 +698,6 @@ namespace Basis.Scripts.Drivers
             };
             JobHandle posHandle = posJob.Schedule(SlotCount, 4);
             JobHandle rotHandle = rotJob.Schedule(SlotCount, 4);
-
-            // ── 5. Schedule foot sim in parallel with filters ──
-            bool fbtEnabled = Basis.BasisUI.BasisSettingsDefaults.EnableFBT.RawValue;
-            bool leftHasTracker = fbtEnabled && (BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker
-                || BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
-            bool rightHasTracker = fbtEnabled && (BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
-                || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
-
-            bool locomotionAnimActive = localPlayer.LocalCharacterDriver.MovementVector.sqrMagnitude > 0.001f;
-            if (locomotionAnimActive) stationaryTimer = 0f;
-            else stationaryTimer += deltaTime;
-
-            BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
-            bool footDriverReady = footDriver.IsInitialized;
-            bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds;
-            bool footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
-            bool footIKReady = footDriverReady && isStationaryEnough && footIKSetting;
-            bool leftWantIK = footIKReady && !leftHasTracker;
-            bool rightWantIK = footIKReady && !rightHasTracker;
-            bool leftOrRightDrive = !leftHasTracker || !rightHasTracker;
-
-            bool footSimScheduled = false;
-            if (footDriverReady && leftOrRightDrive)
-            {
-                footDriver.ScheduleSimulate(deltaTime);
-                footSimScheduled = true;
-            }
 
             // ── 6. Main-thread bookkeeping runs parallel with filter + foot jobs ──
             float leftBlendTarget = leftWantIK ? 1f : 0f;
@@ -726,6 +729,11 @@ namespace Basis.Scripts.Drivers
             // NotifyReEngaging reads live bone control data (not foot sim output), but kept after
             // completion so all foot state is coherent when the next sim starts.
             if (notifyReengage) footDriver.NotifyReEngaging();
+
+            // Surface probes cast from the feet's FINAL positions this frame and are consumed at the top of
+            // next frame's ScheduleSimulate, so the rays run on a worker across the frame boundary and cost
+            // the main thread nothing. Must stay after NotifyReEngaging, which rewrites currentPos.
+            if (footSimScheduled) footDriver.ScheduleSurfaceProbes();
 
             // ── 8. Scatter filter outputs into BasisFullIKConstraintJob ──
             ref BasisFullIKConstraintJob data = ref IKJob;

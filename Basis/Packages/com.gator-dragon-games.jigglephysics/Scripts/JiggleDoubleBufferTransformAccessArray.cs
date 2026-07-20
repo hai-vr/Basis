@@ -46,13 +46,12 @@ public class JiggleDoubleBufferTransformAccessArray {
             return;
         }
 
-        int removeCount = Mathf.Min(newTransformCount, maxRemoveCount);
-        for (int i = 0; i < removeCount; i++) {
-            newTransformCount--;
-            newTransformAccessArray.RemoveAtSwapBack(newTransformCount);
-        }
+        var capacity = newTransformAccessArray.capacity;
+        newTransformAccessArray.Dispose();
+        newTransformAccessArray = new TransformAccessArray(capacity);
 
-        shouldClear = newTransformCount > 0;
+        newTransformCount = 0;
+        shouldClear = false;
         Profiler.EndSample();
     }
 

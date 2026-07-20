@@ -7,9 +7,9 @@ namespace GatorDragonGames.JigglePhysics.Tests {
 
 /// <summary>
 /// Covers JiggleDoubleBufferTransformAccessArray, the sliced rebuild that keeps a structural change
-/// from registering thousands of transforms in one frame. Registration and de-registration are both
-/// budgeted per call, so the tests here are mostly about how a rebuild behaves when it cannot finish
-/// in one go — which is the normal case during a join storm.
+/// from registering thousands of transforms in one frame. Registration is budgeted per call while
+/// de-registration empties the stale buffer outright, so the tests here are mostly about how a
+/// rebuild behaves when it cannot finish in one go — which is the normal case during a join storm.
 /// </summary>
 [TestFixture]
 internal class JiggleTransformAccessTests {
@@ -53,11 +53,10 @@ internal class JiggleTransformAccessTests {
     }
 
     /// <summary>
-    /// ClearIfNeeded drains the stale buffer with RemoveAtSwapBack, indexing it by a count it keeps
-    /// itself rather than by the array's own length. That is only correct while the two agree, so
-    /// this cycles the buffer at a batch size small enough to slice both the drain and the refill,
-    /// and shrinks the list as well as growing it. Any drift shows up as residue that resurfaces the
-    /// next time the buffer is published.
+    /// ClearIfNeeded empties the stale buffer and resets the count it keeps alongside it. That is
+    /// only correct while the two agree, so this cycles the buffer at a batch size small enough to
+    /// slice the refill, and shrinks the list as well as growing it. Any drift shows up as residue
+    /// that resurfaces the next time the buffer is published.
     /// </summary>
     [Test]
     public void RepeatedRebuilds_AtASlicingBatchSize_PublishExactlyTheRequestedTransforms() {
@@ -198,8 +197,8 @@ internal class JiggleTransformAccessTests {
 
     /// <summary>
     /// The buffer that just went out of service still holds the previous frame's registrations, and
-    /// draining them is budgeted too — so the first rebuild call after a flip always spends itself
-    /// clearing rather than adding.
+    /// the first rebuild call after a flip always spends itself clearing rather than adding — the
+    /// drain is one call now, but it still consumes that call.
     /// </summary>
     [Test]
     public void Generate_AfterAFlip_SpendsACallDrainingTheStaleBuffer() {
@@ -214,8 +213,12 @@ internal class JiggleTransformAccessTests {
         Assert.AreEqual(0, index, "nothing may be added while the stale buffer is still draining");
     }
 
+    /// <summary>
+    /// The drain empties the stale buffer wholesale, so it costs one call regardless of how many
+    /// entries are registered and never eats into the add budget.
+    /// </summary>
     [Test]
-    public void ClearIfNeeded_DrainsTheStaleBufferInSlices() {
+    public void ClearIfNeeded_DrainsTheStaleBufferInOneCall() {
         var transforms = Transforms(4);
         BuildAll(transforms);
         buffer.Flip();
@@ -224,12 +227,12 @@ internal class JiggleTransformAccessTests {
         var index = 0;
 
         buffer.ClearIfNeeded(2);
-        buffer.GenerateNewAccessArrays(ref index, out var midDrain, transforms, 2);
-        buffer.GenerateNewAccessArrays(ref index, out var afterDrain, transforms, 2);
+        buffer.GenerateNewAccessArrays(ref index, out var afterFirstAdd, transforms, 2);
+        buffer.GenerateNewAccessArrays(ref index, out var afterSecondAdd, transforms, 2);
 
-        Assert.IsFalse(midDrain, "two of the four stale entries are still registered");
-        Assert.IsFalse(afterDrain);
-        Assert.AreEqual(2, index, "adding resumes once the drain completes");
+        Assert.IsFalse(afterFirstAdd, "two of the four entries are registered");
+        Assert.IsTrue(afterSecondAdd, "all four stale entries went in one drain, so two calls of two finish the refill");
+        Assert.AreEqual(4, index);
     }
 
     [Test]

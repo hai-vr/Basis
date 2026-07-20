@@ -7,11 +7,11 @@ using Object = UnityEngine.Object;
 namespace GatorDragonGames.JigglePhysics.Tests {
 
 /// <summary>
-/// Pins what TransformAccessArray.RemoveAtSwapBack actually does, because
-/// JiggleDoubleBufferTransformAccessArray.ClearIfNeeded drains its stale buffer by decrementing a
-/// count it keeps itself and removing at that index. That loop is only safe if the call removes
-/// exactly one slot per invocation — if it ever removed every occurrence of a transform, the count
-/// would run ahead of the real length and the next index would be out of range.
+/// Pins what TransformAccessArray.RemoveAtSwapBack actually does. ClearIfNeeded used to drain its
+/// stale buffer by decrementing a count it keeps itself and removing at that index; it now empties
+/// the buffer outright, but these stay because the semantics are easy to assume wrongly and any
+/// return to per-slot removal depends on them — a call that removed every occurrence of a transform
+/// rather than one slot would run the count ahead of the real length.
 ///
 /// The distinction matters here more than in most projects: the bus stores the same Transform in
 /// many slots on purpose. Every slot of a tree's root array is the same root bone, the virtual root

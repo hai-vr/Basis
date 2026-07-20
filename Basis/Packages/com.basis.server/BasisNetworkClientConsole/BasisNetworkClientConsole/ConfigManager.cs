@@ -65,6 +65,11 @@ namespace Basis.Config
         // the encoder, so VoiceBytesPerFrame is only the fallback when native Opus is unavailable.
         public static int VoiceBitrate = 32000;
         public static int VoiceBytesPerFrame = 60;
+        // Feed a real recording device into the crowd instead of the synthetic sweep, so a listener in
+        // the Unity client can judge actual voice quality under load. Route audio into a virtual cable
+        // and point VoiceMicrophoneDevice at its recording side.
+        public static bool VoiceUseSystemMicrophone = false;
+        public static string VoiceMicrophoneDevice = "CABLE Output";
 
         private static readonly object _lock = new();
         static XElement? Child(XElement parent, string name) =>
@@ -217,7 +222,11 @@ namespace Basis.Config
                                 new XComment(" Opus bitrate in bits/sec, matching the real client's encoder. Frame sizes come from the encoder itself. int. "),
                                 new XElement("VoiceBitrate", VoiceBitrate),
                                 new XComment(" Fallback payload bytes per frame, used only when native Opus is unavailable on this platform. int. "),
-                                new XElement("VoiceBytesPerFrame", VoiceBytesPerFrame)
+                                new XElement("VoiceBytesPerFrame", VoiceBytesPerFrame),
+                                new XComment(" Transmit a real system recording device instead of the synthetic sweep, so a listener can judge actual voice quality under load. One capture is shared by every voice participant; the burst clock and VoiceRangeMeters culling are unchanged, so you hear real audio from whichever clients are near you. bool. "),
+                                new XElement("VoiceUseSystemMicrophone", VoiceUseSystemMicrophone),
+                                new XComment(" Recording device to capture, matched case-insensitively as a substring (waveIn truncates names to 31 chars, so a prefix like \"CABLE Output\" is safest). Every device is listed at startup. string. "),
+                                new XElement("VoiceMicrophoneDevice", VoiceMicrophoneDevice)
                             )
                         );
 
@@ -289,6 +298,8 @@ namespace Basis.Config
                     VoiceRecipientRefreshMs = ReadInt(root, "VoiceRecipientRefreshMs", VoiceRecipientRefreshMs);
                     VoiceAudibleTimeoutMs = ReadInt(root, "VoiceAudibleTimeoutMs", VoiceAudibleTimeoutMs);
                     VoiceBytesPerFrame = ReadInt(root, "VoiceBytesPerFrame", VoiceBytesPerFrame);
+                    VoiceUseSystemMicrophone = ReadBool(root, "VoiceUseSystemMicrophone", VoiceUseSystemMicrophone);
+                    VoiceMicrophoneDevice = ReadString(root, "VoiceMicrophoneDevice", VoiceMicrophoneDevice);
                 }
                 catch (Exception ex)
                 {

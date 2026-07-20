@@ -508,8 +508,8 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
     /// exists to trade convergence latency against spike height, so this reports the worst single
     /// call in a rebuild cycle alongside how many calls the cycle took.
     ///
-    /// A cycle is measured after a Flip, which is the real steady state case: the clear pass and the
-    /// add pass both run under the same budget.
+    /// A cycle is measured after a Flip, which is the real steady state case: the stale buffer is
+    /// emptied in the first call and the add pass runs under the budget from there.
     /// </summary>
     [Test]
     public void TransformAccessBatchSize_ChurnSpike() {

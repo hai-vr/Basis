@@ -16,9 +16,11 @@ using HVR.Basis.Comms;
 using SteamAudio;
 using System;
 using System.Collections.Generic;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using static Basis.EventDriver.BasisEventDriverProfileSections;
+using Prof = Basis.EventDriver.BasisEventDriverMarkers;
 
 namespace Basis.EventDriver
 {
@@ -205,6 +207,8 @@ namespace Basis.EventDriver
 
         private void UpdateBody()
         {
+            using var updateScope = Prof.Update.Auto();
+
             DeltaTime = Time.deltaTime;
             unscaledDeltaTime = Time.unscaledDeltaTime;
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
@@ -212,44 +216,80 @@ namespace Basis.EventDriver
 
             // Join the network compute kicked off at the tail of the previous LateUpdate, before
             // the main-thread action drain and join/leave lifecycle below mutate any receiver.
-            BasisNetworkManagement.CompleteNetworkCompute(DeltaTime);
+            using (Prof.NetworkCompleteCompute.Auto())
+            {
+                BasisNetworkManagement.CompleteNetworkCompute(DeltaTime);
+            }
 
-            BasisFrameClock.Tick(unscaledDeltaTime);
+            using (Prof.FrameClockTick.Auto())
+            {
+                BasisFrameClock.Tick(unscaledDeltaTime);
+            }
 
             if (BasisLocalPlayer.PlayerReady)
             {
-                BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);
+                using (Prof.VisemeSimulate.Auto())
+                {
+                    BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);
+                }
             }
             // Drain everything that arrived from worker threads
-            while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
+            using (Prof.MainThreadActions.Auto())
             {
-                try
+                while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
                 {
-                    action.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError(
-                        $"MainThread action failed: {ex}",
-                        BasisDebug.LogTag.Event
-                    );
+                    try
+                    {
+                        action.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        BasisDebug.LogError(
+                            $"MainThread action failed: {ex}",
+                            BasisDebug.LogTag.Event
+                        );
+                    }
                 }
             }
             // Player join/leave work is budgeted separately so a mass disconnect
             // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
             // calls in a single frame and stall the renderer.
-            BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
+            using (Prof.LifecycleQueue.Auto())
+            {
+                BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
+            }
             if (!IsHeadlessClient)
             {
-                InputSystem.Update();
+                using (Prof.InputSystemUpdate.Auto())
+                {
+                    InputSystem.Update();
+                }
             }
 
-            OSCAcquisitionServer.Simulate();
-            SMModuleAvatarPerformanceLimits.Simulate();
-            SMModuleDebugOptions.Simulate();
-            Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
-            BasisHighPlayerCapPerformanceMode.Simulate();
-            InvokeEventCallbacks(OnUpdate, nameof(OnUpdate), ref _onUpdateCachedDelegate, ref _onUpdateInvocationList);
+            using (Prof.OscAcquisition.Auto())
+            {
+                OSCAcquisitionServer.Simulate();
+            }
+            using (Prof.PerformanceLimits.Auto())
+            {
+                SMModuleAvatarPerformanceLimits.Simulate();
+            }
+            using (Prof.DebugOptions.Auto())
+            {
+                SMModuleDebugOptions.Simulate();
+            }
+            using (Prof.GazeFoveationAuto.Auto())
+            {
+                Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
+            }
+            using (Prof.HighPlayerCap.Auto())
+            {
+                BasisHighPlayerCapPerformanceMode.Simulate();
+            }
+            using (Prof.OnUpdateCallbacks.Auto())
+            {
+                InvokeEventCallbacks(OnUpdate, nameof(OnUpdate), ref _onUpdateCachedDelegate, ref _onUpdateInvocationList);
+            }
             timeSinceLastUpdate += DeltaTime;
         }
 
@@ -264,11 +304,16 @@ namespace Basis.EventDriver
 
         private void FixedUpdateBody()
         {
+            using var fixedUpdateScope = Prof.FixedUpdate.Auto();
+
             fixedDeltaTime = Time.fixedDeltaTime;
             fixedTimeAsDouble = Time.fixedTimeAsDouble;
             if (BasisLocalPlayer.PlayerReady)
             {
-                BasisSceneFactory.Simulate(fixedDeltaTime);
+                using (Prof.SceneFactorySimulate.Auto())
+                {
+                    BasisSceneFactory.Simulate(fixedDeltaTime);
+                }
             }
         }
         // AfterAvatarChanges carries BOTH avatar-content hooks (e.g. HVR eye reads, which run
@@ -316,6 +361,8 @@ namespace Basis.EventDriver
 
         private void LateUpdateBody()
         {
+            using var lateUpdateScope = Prof.LateUpdate.Auto();
+
             ProfileLateUpdateInit();
 
             if (StateOfOnRenderBefore)
@@ -332,66 +379,129 @@ namespace Basis.EventDriver
             // produces no visible write this frame, so it hides behind a different job. Safe: the
             // comms batch reads only its own networked variable state, never the remote pose/bone
             // output produced by SimulateNetworkApply.
-            Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
-            HVRCommsUpdateDriver.SimulateActuators();
+            using (Prof.EyeTrackingSimulate.Auto())
+            {
+                Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
+            }
+            using (Prof.CommsActuators.Auto())
+            {
+                HVRCommsUpdateDriver.SimulateActuators();
+            }
 
-            ProfileBegin(PROF_NETWORK_APPLY);
-            ProfileBegin2();
-            BasisLocalPlayer.FireJustBeforeNetworkApply();
-            ProfileEnd2(PROF_NET_FIRE_BEFORE_APPLY);
-            ProfileBegin2();
-            Basis.Scripts.Networking.Sync.BasisSyncDriver.TransmitOwned(TimeAsDouble);
-            ProfileEnd2(PROF_NET_TRANSMIT_PICKUPS);
-            ProfileBegin2();
+            using (Prof.NetworkApply.Auto())
+            {
+                ProfileBegin(PROF_NETWORK_APPLY);
+                ProfileBegin2();
+                using (Prof.NetFireBeforeApply.Auto())
+                {
+                    BasisLocalPlayer.FireJustBeforeNetworkApply();
+                }
+                ProfileEnd2(PROF_NET_FIRE_BEFORE_APPLY);
+                ProfileBegin2();
+                using (Prof.SyncTransmitOwned.Auto())
+                {
+                    Basis.Scripts.Networking.Sync.BasisSyncDriver.TransmitOwned(TimeAsDouble);
+                }
+                ProfileEnd2(PROF_NET_TRANSMIT_PICKUPS);
+                ProfileBegin2();
 #if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
-            BasisLocalMicrophoneDriver.MicrophoneUpdate();
+                using (Prof.MicrophoneUpdate.Auto())
+                {
+                    BasisLocalMicrophoneDriver.MicrophoneUpdate();
+                }
 #endif
-            ProfileEnd2(PROF_NET_MICROPHONE);
-            Basis.Scripts.Networking.Sync.BasisSyncDriver.ScheduleRemote(DeltaTime);
-            ProfileBegin2();
-            Basis.Scripts.Networking.Sync.BasisSyncDriver.CompleteRemote();
-            ProfileEnd2(PROF_NET_COMPLETE_REMOTE_LERP);
-            BasisLocalPlayer.FireAfterRemoteSyncInterpolated();
-            ProfileBegin2();
-            BasisNetworkManagement.SimulateNetworkApply();
-            ProfileEnd2(PROF_NET_SIMULATE_APPLY);
-            ProfileEnd(PROF_NETWORK_APPLY);
+                ProfileEnd2(PROF_NET_MICROPHONE);
+                using (Prof.SyncScheduleRemote.Auto())
+                {
+                    Basis.Scripts.Networking.Sync.BasisSyncDriver.ScheduleRemote(DeltaTime);
+                }
+                ProfileBegin2();
+                using (Prof.SyncCompleteRemote.Auto())
+                {
+                    Basis.Scripts.Networking.Sync.BasisSyncDriver.CompleteRemote();
+                }
+                ProfileEnd2(PROF_NET_COMPLETE_REMOTE_LERP);
+                using (Prof.NetFireAfterRemoteSync.Auto())
+                {
+                    BasisLocalPlayer.FireAfterRemoteSyncInterpolated();
+                }
+                ProfileBegin2();
+                using (Prof.NetSimulateApply.Auto())
+                {
+                    BasisNetworkManagement.SimulateNetworkApply();
+                }
+                ProfileEnd2(PROF_NET_SIMULATE_APPLY);
+                ProfileEnd(PROF_NETWORK_APPLY);
+            }
 
             // ── Device management ──
             ProfileBegin(PROF_DEVICE_MANAGEMENT);
             if (BasisDeviceManagement.HasEvents)
             {
-                BasisDeviceManagement.Instance.Simulate();
+                using (Prof.DeviceManagement.Auto())
+                {
+                    BasisDeviceManagement.Instance.Simulate();
+                }
             }
             ProfileEnd(PROF_DEVICE_MANAGEMENT);
 
             // ── BTween ──
             ProfileBegin(PROF_BTWEEN);
-            BasisTweenManager.Simulate(realtimeSinceStartupAsDouble);
+            using (Prof.BTween.Auto())
+            {
+                BasisTweenManager.Simulate(realtimeSinceStartupAsDouble);
+            }
             ProfileEnd(PROF_BTWEEN);
 
             // ── Local player ──
             ProfileBegin(PROF_LOCAL_PLAYER);
             if (BasisLocalPlayer.PlayerReady)
             {
-                BasisLocalCameraDriver LocalCameraDriver = BasisLocalCameraDriver.Instance;
-                BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
-                localplayer.FacialBlinkDriver.Simulate(TimeAsDouble);
-                localplayer.LocalVisemeDriver.Apply();
-                localplayer.Simulate(DeltaTime);
-                // Complete the finger slerp job (TransformAccessArray write) before touching the
-                // camera transform, so Simulate never overlaps jobified transform access.
-                localplayer.LocalHandDriver.Apply();
-                LocalCameraDriver.Simulate(DeltaTime);
-                localplayer.LocalEyeDriver.Simulate(DeltaTime);
+                using (Prof.LocalPlayer.Auto())
+                {
+                    BasisLocalCameraDriver LocalCameraDriver = BasisLocalCameraDriver.Instance;
+                    BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
+                    using (Prof.FacialBlink.Auto())
+                    {
+                        localplayer.FacialBlinkDriver.Simulate(TimeAsDouble);
+                    }
+                    using (Prof.VisemeApply.Auto())
+                    {
+                        localplayer.LocalVisemeDriver.Apply();
+                    }
+                    using (Prof.LocalPlayerSimulate.Auto())
+                    {
+                        localplayer.Simulate(DeltaTime);
+                    }
+                    // Complete the finger slerp job (TransformAccessArray write) before touching the
+                    // camera transform, so Simulate never overlaps jobified transform access.
+                    using (Prof.LocalHandApply.Auto())
+                    {
+                        localplayer.LocalHandDriver.Apply();
+                    }
+                    using (Prof.LocalCameraSimulate.Auto())
+                    {
+                        LocalCameraDriver.Simulate(DeltaTime);
+                    }
+                    using (Prof.LocalEyeSimulate.Auto())
+                    {
+                        localplayer.LocalEyeDriver.Simulate(DeltaTime);
+                    }
+                }
             }
             ProfileEnd(PROF_LOCAL_PLAYER);
 
-            BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
+            using (Prof.RemoteBoneComplete.Auto())
+            {
+                BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
+            }
 
             // ── Remote audio simulate ──
             ProfileBegin(PROF_REMOTE_AUDIO_SIMULATE);
-            BasisRemoteAudioDriver.Simulate(DeltaTime);
+            using (Prof.RemoteAudioSimulate.Auto())
+            {
+                BasisRemoteAudioDriver.Simulate(DeltaTime);
+            }
             ProfileEnd(PROF_REMOTE_AUDIO_SIMULATE);
 
             // Complete the eye apply here rather than right after its schedule in LocalEyeDriver.Simulate,
@@ -399,34 +509,58 @@ namespace Basis.EventDriver
             // Still ahead of JigglePhysics.ScheduleSimulate, so the transform write has no jiggle job to stall on.
             if (BasisLocalPlayer.PlayerReady)
             {
-                BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+                using (Prof.LocalEyeApply.Auto())
+                {
+                    BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+                }
             }
 
             // ── Nameplate schedule ──
             ProfileBegin(PROF_NAMEPLATE_SCHEDULE);
-            BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);
+            using (Prof.NamePlateSchedule.Auto())
+            {
+                BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);
+            }
             ProfileEnd(PROF_NAMEPLATE_SCHEDULE);
-            BasisContentSphereBillboardDriver.ScheduleSimulate();
+            using (Prof.ContentSphereSchedule.Auto())
+            {
+                BasisContentSphereBillboardDriver.ScheduleSimulate();
+            }
 #if STEAMAUDIO_ENABLED
-            SteamAudioManager.Schedule();
+            using (Prof.SteamAudioSchedule.Auto())
+            {
+                SteamAudioManager.Schedule();
+            }
 #endif
 
             // ── Remote face simulate (job schedule) ──
             ProfileBegin(PROF_REMOTE_FACE_SIMULATE);
-            BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
+            using (Prof.RemoteFaceSimulate.Auto())
+            {
+                BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
+            }
             ProfileEnd(PROF_REMOTE_FACE_SIMULATE);
 
             // ── Remote audio apply ──
             ProfileBegin(PROF_REMOTE_AUDIO_APPLY);
-            BasisRemoteAudioDriver.Apply();
+            using (Prof.RemoteAudioApply.Auto())
+            {
+                BasisRemoteAudioDriver.Apply();
+            }
 #if STEAMAUDIO_ENABLED
-            SteamAudioManager.Apply();
+            using (Prof.SteamAudioApply.Auto())
+            {
+                SteamAudioManager.Apply();
+            }
 #endif
             ProfileEnd(PROF_REMOTE_AUDIO_APPLY);
 
             try
             {
-                HVRBasisBuiltInAddresses.Simulate();
+                using (Prof.BuiltInAddresses.Auto())
+                {
+                    HVRBasisBuiltInAddresses.Simulate();
+                }
             }
             catch (Exception ex)
             {
@@ -436,7 +570,10 @@ namespace Basis.EventDriver
             // ── BlendShape apply ──
             if (BasisSettingsDefaults.LocalHeadBlendShapes.RawValue)
             {
-                BasisAvatarDriver.ScheduleReadBlendShapes();
+                using (Prof.ReadBlendShapes.Auto())
+                {
+                    BasisAvatarDriver.ScheduleReadBlendShapes();
+                }
             }
 
             // ── Authored motion: write non-humanoid authored bones before jiggle samples them ──
@@ -445,9 +582,19 @@ namespace Basis.EventDriver
             // stalling on it. VariableNetworking is that filler: it touches none of the authored
             // transforms, produces no avatar-visible write this frame, and stays ahead of the
             // AfterAvatarChanges eye read below — so its cost hides behind the job's wall-clock.
-            var authoredMotionJob = BasisAuthoredMotionSystem.Schedule();
-            HVRCommsUpdateDriver.SimulateVariableNetworking();
-            BasisAuthoredMotionSystem.Complete(authoredMotionJob);
+            JobHandle authoredMotionJob;
+            using (Prof.AuthoredMotionSchedule.Auto())
+            {
+                authoredMotionJob = BasisAuthoredMotionSystem.Schedule();
+            }
+            using (Prof.VariableNetworking.Auto())
+            {
+                HVRCommsUpdateDriver.SimulateVariableNetworking();
+            }
+            using (Prof.AuthoredMotionComplete.Auto())
+            {
+                BasisAuthoredMotionSystem.Complete(authoredMotionJob);
+            }
 
             // ── Constraints: resolve the BasisConstraint* components ──
             // Sits after authored motion (so a constraint may source an authored bone) and ahead of
@@ -457,79 +604,141 @@ namespace Basis.EventDriver
             // That preparation is main-thread work — parameter pushes, collider and tree commits —
             // and on a steady frame it reads no bone pose at all, so the constraint solve can run
             // against those same bones while it happens instead of the main thread just waiting.
-            var constraintJob = BasisConstraintSystem.Schedule();
+            JobHandle constraintJob;
+            using (Prof.ConstraintSchedule.Auto())
+            {
+                constraintJob = BasisConstraintSystem.Schedule();
+            }
 
             // ── JigglePhysics schedule ──
             ProfileBegin(PROF_JIGGLE_SCHEDULE);
-
-            JiggleCullCameras.Clear();
-            var jiggleCullCamera = BasisLocalCameraDriver.CameraInstance;
-            if (jiggleCullCamera != null)
+            using (Prof.JiggleSchedule.Auto())
             {
-                JiggleCullCameras.Add(jiggleCullCamera);
+                using (Prof.JiggleCullCameras.Auto())
+                {
+                    JiggleCullCameras.Clear();
+                    var jiggleCullCamera = BasisLocalCameraDriver.CameraInstance;
+                    if (jiggleCullCamera != null)
+                    {
+                        JiggleCullCameras.Add(jiggleCullCamera);
+                    }
+                    BasisCullingCameraRegistry.CollectInto(JiggleCullCameras);
+                    JigglePhysics.SetCullingCameras(JiggleCullCameras);
+                }
+
+                fixedDeltaTime = Time.fixedDeltaTime;
+
+                // A pending tree rebuild measures rest lengths off live bone positions, which the solve
+                // is in the middle of writing — so on those frames the overlap is given up rather than
+                // letting the rebuild read half-solved poses. Rebuilds are rare; steady frames are not.
+                if (JigglePhysics.WillRebuildTrees)
+                {
+                    using (Prof.ConstraintComplete.Auto())
+                    {
+                        BasisConstraintSystem.Complete(constraintJob);
+                    }
+                    constraintJob = default;
+                }
+
+                bool jiggleReady;
+                using (Prof.JigglePrepare.Auto())
+                {
+                    jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
+                }
+                using (Prof.ConstraintComplete.Auto())
+                {
+                    BasisConstraintSystem.Complete(constraintJob);
+                }
+                if (jiggleReady)
+                {
+                    using (Prof.JiggleDispatch.Auto())
+                    {
+                        JigglePhysics.DispatchSimulate();
+                    }
+                }
             }
-            BasisCullingCameraRegistry.CollectInto(JiggleCullCameras);
-            JigglePhysics.SetCullingCameras(JiggleCullCameras);
-
-            fixedDeltaTime = Time.fixedDeltaTime;
-
-            // A pending tree rebuild measures rest lengths off live bone positions, which the solve
-            // is in the middle of writing — so on those frames the overlap is given up rather than
-            // letting the rebuild read half-solved poses. Rebuilds are rare; steady frames are not.
-            if (JigglePhysics.WillRebuildTrees)
-            {
-                BasisConstraintSystem.Complete(constraintJob);
-                constraintJob = default;
-            }
-
-            bool jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
-            BasisConstraintSystem.Complete(constraintJob);
-            if (jiggleReady)
-            {
-                JigglePhysics.DispatchSimulate();
-            }
-
             ProfileEnd(PROF_JIGGLE_SCHEDULE);
 
             // ── Network transmit (reads bone results via GetOutGoingMouth) ──
             ProfileBegin(PROF_NETWORK_TRANSMIT);
-            InvokeAfterAvatarChangesSafely();
+            using (Prof.AfterAvatarChanges.Auto())
+            {
+                InvokeAfterAvatarChangesSafely();
+            }
             ProfileEnd(PROF_NETWORK_TRANSMIT);
 
             // ── JigglePhysics pose ──
             ProfileBegin(PROF_JIGGLE_POSE);
-            JigglePhysics.SchedulePose(TimeAsDouble);
+            using (Prof.JiggleSchedulePose.Auto())
+            {
+                JigglePhysics.SchedulePose(TimeAsDouble);
+            }
             ProfileEnd(PROF_JIGGLE_POSE);
             // ── Nameplate complete ──
             ProfileBegin(PROF_NAMEPLATE_COMPLETE);
-            BasisRemoteNamePlateDriver.CompleteNamePlates();
+            using (Prof.NamePlateComplete.Auto())
+            {
+                BasisRemoteNamePlateDriver.CompleteNamePlates();
+            }
             ProfileEnd(PROF_NAMEPLATE_COMPLETE);
-            BasisContentSphereBillboardDriver.Complete();
+            using (Prof.ContentSphereComplete.Auto())
+            {
+                BasisContentSphereBillboardDriver.Complete();
+            }
 
-            BasisJoinLeaveNotification.Simulate(TimeAsDouble);
-            IndividualPlayerProvider.SimulateBeacon(DeltaTime);
+            using (Prof.JoinLeaveNotification.Auto())
+            {
+                BasisJoinLeaveNotification.Simulate(TimeAsDouble);
+            }
+            using (Prof.SimulateBeacon.Auto())
+            {
+                IndividualPlayerProvider.SimulateBeacon(DeltaTime);
+            }
 
             bool drawJiggle = SMModuleDebugOptions.UseGizmos && SMModuleDebugOptions.UseJiggleVisuals;
             if (drawJiggle)
             {
-                JigglePhysics.ScheduleRender();
-                JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
+                using (Prof.JiggleRender.Auto())
+                {
+                    JigglePhysics.ScheduleRender();
+                    JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh, capsuleMesh);
+                }
             }
 
             // ── Kick off pipelined network compute: runs on worker threads through the jiggle pose
             //    completion and the render gap, joined at the top of the next Update. ──
-            BasisNetworkManagement.BeginNetworkCompute(unscaledDeltaTime);
+            using (Prof.NetworkBeginCompute.Auto())
+            {
+                BasisNetworkManagement.BeginNetworkCompute(unscaledDeltaTime);
+            }
 
             // ── JigglePhysics complete pose ──
+            // Deferred to a player-loop step just ahead of the particle update when possible, so the
+            // rest of the frame overlaps the pose jobs instead of the main thread waiting on them
+            // here. Nothing between this point and there reads a jiggled bone; rendering is the
+            // consumer. Falls back to completing inline when the loop step could not be installed.
             ProfileBegin(PROF_JIGGLE_COMPLETE_POSE);
-            JigglePhysics.CompletePose();
+            if (BasisLateJiggleCompletion.Enabled)
+            {
+                BasisLateJiggleCompletion.MarkPosePending();
+            }
+            else
+            {
+                using (Prof.JiggleCompletePose.Auto())
+                {
+                    JigglePhysics.CompletePose();
+                }
+            }
             ProfileEnd(PROF_JIGGLE_COMPLETE_POSE);
 
             // ── Shadow clone blendshapes ──
             ProfileBegin(PROF_SHADOW_CLONE);
             if (BasisSettingsDefaults.LocalHeadBlendShapes.RawValue)
             {
-                BasisAvatarDriver.ApplyShadowCloneBlendShapes();
+                using (Prof.ShadowClone.Auto())
+                {
+                    BasisAvatarDriver.ApplyShadowCloneBlendShapes();
+                }
             }
             ProfileEnd(PROF_SHADOW_CLONE);
 
@@ -539,7 +748,10 @@ namespace Basis.EventDriver
                 OnBeforeRender();
             }
 
-            InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate), ref _onLateUpdateCachedDelegate, ref _onLateUpdateInvocationList);
+            using (Prof.OnLateUpdateCallbacks.Auto())
+            {
+                InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate), ref _onLateUpdateCachedDelegate, ref _onLateUpdateInvocationList);
+            }
             ProfileLateUpdateFinish();
         }
         /// <summary>
@@ -554,20 +766,22 @@ namespace Basis.EventDriver
 
         private void OnBeforeRenderBody()
         {
+            using var beforeRenderScope = Prof.BeforeRender.Auto();
+
             ProfileBeforeRenderInit();
 
             if (BasisLocalPlayer.PlayerReady)
             {
-                try { BasisLocalPlayer.Instance.SimulateOnRender(); }
+                try { using (Prof.SimulateOnRender.Auto()) BasisLocalPlayer.Instance.SimulateOnRender(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.SimulateOnRender failed: {ex}", BasisDebug.LogTag.Event); }
 
-                try { Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
+                try { using (Prof.EyeTrackingSimulate.Auto()) Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver eye-tracking simulate failed: {ex}", BasisDebug.LogTag.Event); }
 
-                try { BasisRemoteFaceManagement.Apply(); }
+                try { using (Prof.RemoteFaceApply.Auto()) BasisRemoteFaceManagement.Apply(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver remote-face apply failed: {ex}", BasisDebug.LogTag.Event); }
 #if !BASIS_DISABLE_MICROPHONE
-                try { BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); }
+                try { using (Prof.MicrophoneIcon.Auto()) BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver microphone-icon simulate failed: {ex}", BasisDebug.LogTag.Event); }
 #endif
             }

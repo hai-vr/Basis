@@ -514,7 +514,7 @@ public static class BasisRemoteNetworkDriver
             HeadFilterMinCutoffHz = HeadBoneFilterMinCutoffHz,
             FilterBeta = BoneFilterBeta,
             BoneCountPerAvatar = BoneCount
-        }.Schedule(num * BoneCount, 128, avatarJob);
+        }.Schedule(num * BoneCount, 128);
 
         oneEuroJob = JobHandle.CombineDependencies(boneInterpJob, scaledBodyJob);
     }

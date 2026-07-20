@@ -209,6 +209,7 @@ namespace Basis.Network
             private static double[] _nextSwitchMs;
             private static byte[] _seq;
             private static int[] _silentUnits;
+            private static long[] _micCursor;
             private static byte[] _frame;
             private static int _built;
 
@@ -367,6 +368,46 @@ namespace Basis.Network
                     _talking[i] = false;
                     _nextSwitchMs[i] = Random.Shared.Next(0, Math.Max(1, Basis.Config.ConfigManager.VoiceSilenceMaxMs));
                 }
+
+                _micCursor = new long[clientCount];
+                if (Basis.Config.ConfigManager.VoiceUseSystemMicrophone)
+                {
+                    bool started = MicrophoneCapture.Start(
+                        Basis.Config.ConfigManager.VoiceMicrophoneDevice,
+                        Basis.Config.ConfigManager.VoiceFrameMs,
+                        Basis.Config.ConfigManager.VoiceBitrate);
+
+                    if (started)
+                    {
+                        int participants = 0;
+                        long newest = MicrophoneCapture.NewestFrameIndex();
+                        for (int i = 0; i < clientCount; i++)
+                        {
+                            _micCursor[i] = newest;
+                            if (_participates[i]) participants++;
+                        }
+                        BNL.Log($"[Mic] One capture feeding all {participants} voice participant(s); burst clock and the {Basis.Config.ConfigManager.VoiceRangeMeters} m recipient range are unchanged.");
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Every voice participant transmits the single shared capture, so a listener hears real
+            /// audio from whichever bots are inside VoiceRangeMeters of them rather than having to find
+            /// one designated speaker. Range culling and the talk/silence burst clock are untouched, so
+            /// the crowd load profile is the same as a synthetic run.
+            /// </summary>
+            public static bool IsMicClient(int index)
+            {
+                var flags = _participates;
+                return MicrophoneCapture.Active && flags != null && index >= 0 && index < flags.Length && flags[index];
+            }
+
+            public static void SyncMicCursor(int index)
+            {
+                var cursors = _micCursor;
+                if (cursors == null || index < 0 || index >= cursors.Length) return;
+                cursors[index] = MicrophoneCapture.NewestFrameIndex();
             }
 
             /// <summary>
@@ -524,11 +565,32 @@ namespace Basis.Network
             {
                 if (_opusFrameCount == 0 || _recipients?[index] == null || _recipients[index].Length == 0) return;
 
-                byte seq = _seq[index]++;
                 // Walk the encoded second so consecutive frames differ, as real speech does, and
                 // stagger the starting point per client so the crowd isn't phase-locked.
-                byte[] frame = _opusFrames[(seq + index) % _opusFrameCount];
+                byte[] frame = _opusFrames[(_seq[index] + index) % _opusFrameCount];
+                SendEncoded(peer, index, frame);
+            }
 
+            public static int SendMicFrames(NetPeer peer, int index, int maxFrames)
+            {
+                if (_recipients?[index] == null || _recipients[index].Length == 0) return 0;
+
+                int sent = 0;
+                for (int f = 0; f < maxFrames; f++)
+                {
+                    if (!MicrophoneCapture.TryRead(ref _micCursor[index], out byte[] frame, out bool isSpeech))
+                        break;
+
+                    if (isSpeech) SendEncoded(peer, index, frame);
+                    else NoteSilence(index);
+                    sent++;
+                }
+                return sent;
+            }
+
+            private static void SendEncoded(NetPeer peer, int index, byte[] frame)
+            {
+                byte seq = _seq[index]++;
                 byte silence = (byte)_silentUnits[index];
                 _silentUnits[index] = 0;
 

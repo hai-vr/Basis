@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Basis.Scripts.BasisSdk;
 using UnityEditor;
 using UnityEngine;
@@ -54,8 +55,14 @@ public static class BasisContentPolicePreflight
                 continue;
             }
 
-            string typeName = component.GetType().FullName;
+            Type componentType = component.GetType();
+            string typeName = componentType.FullName;
             if (typeName == null)
+            {
+                continue;
+            }
+
+            if (BasisCilboxTypeCheck.IsCilboxable(componentType))
             {
                 continue;
             }
@@ -201,4 +208,72 @@ public static class BasisConstraintConversionNames
     };
 
     public static bool IsConverted(string fullTypeName) => Converted.Contains(fullTypeName);
+}
+
+/// <summary>
+/// Types marked with cilbox's [Cilboxable] are replaced by a CilboxProxy before the content is
+/// written, and that proxy is on the approved list, so the authored script never reaches the
+/// load-time pass and must not be reported against it. Resolved by name for the same reason the
+/// constraint list is: this assembly does not reference the cilbox package, which is optional.
+/// </summary>
+public static class BasisCilboxTypeCheck
+{
+    static readonly Dictionary<Type, bool> Cache = new Dictionary<Type, bool>();
+    static Type AttributeType;
+    static bool AttributeResolved;
+
+    public static bool IsCilboxable(Type type)
+    {
+        if (type == null)
+        {
+            return false;
+        }
+        if (Cache.TryGetValue(type, out bool cached))
+        {
+            return cached;
+        }
+
+        bool cilboxable = false;
+        Type attribute = ResolveAttribute();
+        if (attribute != null)
+        {
+            Type cursor = type;
+            while (cursor != null)
+            {
+                if (cursor.GetCustomAttributes(attribute, true).Length > 0)
+                {
+                    cilboxable = true;
+                    break;
+                }
+                cursor = cursor.DeclaringType;
+            }
+        }
+
+        Cache[type] = cilboxable;
+        return cilboxable;
+    }
+
+    static Type ResolveAttribute()
+    {
+        if (AttributeResolved)
+        {
+            return AttributeType;
+        }
+        AttributeResolved = true;
+
+        AttributeType = Type.GetType("CilboxableAttribute, Cilbox");
+        if (AttributeType == null)
+        {
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int Index = 0; Index < assemblies.Length; Index++)
+            {
+                AttributeType = assemblies[Index].GetType("CilboxableAttribute", false);
+                if (AttributeType != null)
+                {
+                    break;
+                }
+            }
+        }
+        return AttributeType;
+    }
 }
