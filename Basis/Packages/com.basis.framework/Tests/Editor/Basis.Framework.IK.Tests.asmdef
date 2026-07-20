@@ -5,6 +5,7 @@
         "Basis Framework",
         "BasisCommon",
         "BasisGizmos",
+        "Unity.TextMeshPro",
         "Unity.Collections",
         "Unity.Mathematics",
         "Unity.Burst",

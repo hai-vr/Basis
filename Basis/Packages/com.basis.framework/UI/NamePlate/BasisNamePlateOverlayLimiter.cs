@@ -18,8 +18,13 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>Chat bubbles rendered at once — the nearest win.</summary>
         public static int MaxVisibleChatBubbles = 24;
 
-        /// <summary>Avatar-loading texts + bars rendered at once — the nearest win.</summary>
-        public static int MaxVisibleLoadingDisplays = 16;
+        /// <summary>
+        /// Avatar-loading texts + bars rendered at once — the nearest win. Generous on
+        /// purpose: the bucket quantization already bounds the TMP rebuild cost, so this
+        /// only limits draw calls, and a mass join legitimately has dozens of players
+        /// loading at once — capping tighter reads as "the loading bar is broken".
+        /// </summary>
+        public static int MaxVisibleLoadingDisplays = 64;
 
         /// <summary>
         /// Seconds a created-but-empty chat display may idle before its TMP + bubble objects
