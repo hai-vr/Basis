@@ -4775,6 +4775,30 @@
       "value": "With foot trackers (and no knee trackers), point a foot and the knee turns to follow it instead of always aiming straight ahead. Fades out as you lie down, where the butterfly splay takes over. Default: On"
     },
     {
+      "key": "settings.bodyTracking.kneeFootPoleHold",
+      "value": "Knee Hold While Straight"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleHold.tooltip",
+      "value": "Freezes the knee's twist while the leg is near straight, where the twist angle carries no reliable information. Stops the knee rolling as you pivot over a planted foot, at the cost of the knee not following the foot until it bends. Default: Off"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning",
+      "value": "Knee Pole Conditioning"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning.tooltip",
+      "value": "Scales how hard the knee smoothing reacts by how well the leg's pose defines the knee twist. Steadier on a straight leg, slower to follow a deliberate foot turn. Turn on together with Knee Hold While Straight to fully restore the older knee behaviour. Default: Off"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFollowSmooth",
+      "value": "Extra Knee Follow Smoothing"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFollowSmooth.tooltip",
+      "value": "Doubles the smoothing on the foot-to-knee follow signal, damping knee jitter from foot tracker noise at the cost of a little lag. Default: Off"
+    },
+    {
       "key": "settings.bodyTracking.kneeFootFollow.title",
       "value": "Knee Follows Foot Amount"
     },

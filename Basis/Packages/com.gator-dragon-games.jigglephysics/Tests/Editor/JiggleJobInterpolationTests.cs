@@ -210,8 +210,8 @@ internal class JiggleJobInputInterpolationTests {
         if (output.IsCreated) output.Dispose();
     }
 
-    private JiggleJobInputInterpolation BuildJob(double previousTimeStamp, double timeStamp, double currentTime, float fixedDeltaTime = 0f) {
-        var job = new JiggleJobInputInterpolation {
+    private JiggleJobInputInterpolation BuildJob(double previousTimeStamp, double timeStamp, double currentTime) {
+        return new JiggleJobInputInterpolation {
             previousInputs = previous,
             currentInputs = current,
             outputInterpolatedPoses = output,
@@ -219,8 +219,6 @@ internal class JiggleJobInputInterpolationTests {
             timeStamp = timeStamp,
             currentTime = currentTime,
         };
-        job.SetFixedDeltaTime(fixedDeltaTime);
-        return job;
     }
 
     [Test]
@@ -243,10 +241,6 @@ internal class JiggleJobInputInterpolationTests {
         JiggleAssert.AreEqual(new float3(0f, 4f, 0f), output[0].position, JiggleTestFactory.Tolerance);
     }
 
-    /// <summary>
-    /// An unclamped t goes negative when the render frame runs ahead of the sim, extrapolating
-    /// past the previous sample and feeding frame-cadence jitter into the springs.
-    /// </summary>
     [Test]
     public void HighFrameRate_DoesNotExtrapolateBehindThePreviousSample() {
         previous[0] = JiggleTestFactory.Pose(float3.zero);
@@ -268,12 +262,26 @@ internal class JiggleJobInputInterpolationTests {
     }
 
     [Test]
-    public void TimeCorrection_ShiftsTheSampledPointBackByOneFixedStep() {
+    public void SimulationClock_IsSampledWithoutAFixedStepOffset() {
         previous[0] = JiggleTestFactory.Pose(float3.zero);
         current[0] = JiggleTestFactory.Pose(new float3(0f, 10f, 0f));
 
-        BuildJob(0.0, 1.0, 1.0, fixedDeltaTime: 0.5f).Execute(0);
+        BuildJob(0.0, 1.0, 1.0).Execute(0);
 
+        JiggleAssert.AreEqual(new float3(0f, 10f, 0f), output[0].position, JiggleTestFactory.Tolerance);
+    }
+
+    [Test]
+    public void SteadySimCadence_SamplesTheSameFractionOnConsecutiveTicks() {
+        const double render = 1.0 / 90.0;
+        const double step = 1.0 / 60.0;
+        previous[0] = JiggleTestFactory.Pose(float3.zero);
+        current[0] = JiggleTestFactory.Pose(new float3(0f, 10f, 0f));
+
+        BuildJob(2 * render, 4 * render, 2 * step).Execute(0);
+        JiggleAssert.AreEqual(new float3(0f, 5f, 0f), output[0].position, JiggleTestFactory.Tolerance);
+
+        BuildJob(4 * render, 5 * render, 3 * step).Execute(0);
         JiggleAssert.AreEqual(new float3(0f, 5f, 0f), output[0].position, JiggleTestFactory.Tolerance);
     }
 

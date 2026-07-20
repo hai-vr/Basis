@@ -257,6 +257,21 @@ public static class SettingsProviderIK
             kneeFollowsFootToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.kneeFollowsFoot"));
             kneeFollowsFootToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFollowsFoot);
             kneeFollowsFootToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFollowsFoot.tooltip"));
+
+            var kneePoleHoldToggle = PanelToggle.CreateNewEntry(trackingParent);
+            kneePoleHoldToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.kneeFootPoleHold"));
+            kneePoleHoldToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFootPoleHold);
+            kneePoleHoldToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFootPoleHold.tooltip"));
+
+            var kneePoleConditioningToggle = PanelToggle.CreateNewEntry(trackingParent);
+            kneePoleConditioningToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.kneeFootPoleConditioning"));
+            kneePoleConditioningToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFootPoleConditioning);
+            kneePoleConditioningToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFootPoleConditioning.tooltip"));
+
+            var kneeFollowSmoothToggle = PanelToggle.CreateNewEntry(trackingParent);
+            kneeFollowSmoothToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.kneeFollowSmooth"));
+            kneeFollowSmoothToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFollowSmoothOverride);
+            kneeFollowSmoothToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFollowSmooth.tooltip"));
         });
 
         // ============== Body Collision ==============
@@ -1442,6 +1457,10 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKKneeFollowsFoot.ResetToDefault();
         BasisSettingsDefaults.FBIKKneeFootFollowUpright.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFootPoleHold.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFootPoleConditioning.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFollowSmoothOverride.ResetToDefault();
+        BasisSettingsDefaults.FBIKKneeFollowSmoothRate.ResetToDefault();
         BasisSettingsDefaults.FBIKNeuralPole.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();

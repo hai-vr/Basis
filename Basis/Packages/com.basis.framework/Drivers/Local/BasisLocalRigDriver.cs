@@ -870,6 +870,9 @@ namespace Basis.Scripts.Drivers
                 float butterflySupineFloor = 1f; // merged toggle: butterfly knees works both supine and upright when enabled
                 bool kneeFollowsFoot = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowsFoot.RawValue;
                 float kneeFootCoupling = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootFollowUpright.RawValue;
+                float kneeFwdSmoothRate = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowSmoothOverride.RawValue
+                    ? Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowSmoothRate.RawValue
+                    : KneeForwardSmoothRate;
                 Vector3 hipsForwardDir = hipsRot * Vector3.forward;
                 bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
                 bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
@@ -895,7 +898,7 @@ namespace Basis.Scripts.Drivers
                     Vector3 lKneeFwdHint = default;
                     float lKneeFwdWeight = 0f;
                     bool lHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
-                        hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
+                        hipsRot, kneeFootCoupling, kneeFwdSmoothRate, playerUpDir, deltaTime,
                         basisTransformMapping.LeftUpperLeg, basisTransformMapping.LeftLowerLeg, data.targetPositionLeftLowerLeg, data.targetRotationLeftLowerLeg,
                         ref smoothedLeftKneeFwdHint, ref smoothedLeftKneeFwdWeight,
                         out lKneeFwdHint, out lKneeFwdWeight, out lBendDir);
@@ -945,7 +948,7 @@ namespace Basis.Scripts.Drivers
                     Vector3 rKneeFwdHint = default;
                     float rKneeFwdWeight = 0f;
                     bool rHaveKneeFwd = kneeFollowsFoot && TryComputeKneeForward(
-                        hipsRot, kneeFootCoupling, playerUpDir, deltaTime,
+                        hipsRot, kneeFootCoupling, kneeFwdSmoothRate, playerUpDir, deltaTime,
                         basisTransformMapping.RightUpperLeg, basisTransformMapping.RightLowerLeg, data.targetPositionRightLowerLeg, data.targetRotationRightLowerLeg,
                         ref smoothedRightKneeFwdHint, ref smoothedRightKneeFwdWeight,
                         out rKneeFwdHint, out rKneeFwdWeight, out rBendDir);
@@ -1583,6 +1586,8 @@ namespace Basis.Scripts.Drivers
             data.spineAnatomicalRom = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineAnatomicalRom.RawValue;
             data.chestIkTarget = Basis.BasisUI.BasisSettingsDefaults.FBIKChestIKTarget.RawValue;
             data.legSwivelSmoothing = Basis.BasisUI.BasisSettingsDefaults.FBIKLegSwivelSmoothing.RawValue;
+            data.kneeFootPoleHold = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleHold.RawValue;
+            data.kneeFootPoleConditioning = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleConditioning.RawValue;
             data.lordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
             data.lordosisBaseDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisBaseDeg.RawValue;
             data.lordosisNeckShare = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisNeckShare.RawValue;
@@ -1836,7 +1841,7 @@ namespace Basis.Scripts.Drivers
         /// foot-tracker yaw jitter.
         /// </summary>
         private static bool TryComputeKneeForward(
-            Quaternion hipsRot, float coupling, Vector3 playerUp, float dt,
+            Quaternion hipsRot, float coupling, float smoothRate, Vector3 playerUp, float dt,
             Transform upperLeg, Transform lowerLeg, Vector3 footPos, Quaternion footRot,
             ref Vector3 smoothedBendDir, ref float smoothedWeight,
             out Vector3 hintPos, out float weight, out Vector3 bendDir)
@@ -1864,7 +1869,7 @@ namespace Basis.Scripts.Drivers
 
             BasisKneeForwardCore.Solve(input, out BasisKneeForwardResult result);
 
-            float alpha = 1f - Mathf.Exp(-KneeForwardSmoothRate * dt);
+            float alpha = 1f - Mathf.Exp(-smoothRate * dt);
             if (smoothedBendDir.sqrMagnitude < 1e-6f)
                 smoothedBendDir = result.BendDir;
             else

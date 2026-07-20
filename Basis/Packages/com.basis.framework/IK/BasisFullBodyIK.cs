@@ -154,6 +154,7 @@ collisionsEnabled;
         public bool chestIkTarget;
         public bool hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public bool footIsTrackerLeftLeg, footIsTrackerRightLeg;
+        public bool kneeFootPoleHold, kneeFootPoleConditioning;
         public float lordosisPitchGainDeg;
         public float lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
         public float lordosisExtremeStartDeg, lordosisExtremeFullDeg;
@@ -1894,8 +1895,8 @@ collisionsEnabled;
                     bool footDerivedPole = !hintIsTrackerProp && footIsTrackerProp && !usedModelHint;
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz,
-                        conditionOnPole: !hintIsTrackerProp && !footDerivedPole,
-                        holdWhenSingular: !footDerivedPole);
+                        conditionOnPole: !hintIsTrackerProp && (!footDerivedPole || kneeFootPoleConditioning),
+                        holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
                 }
                 else
                 {

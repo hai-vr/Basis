@@ -428,10 +428,12 @@ internal unsafe class JiggleJobsTests {
         Step(3);
         var before = jobs.GetTrees(out _)[0].points[1].position;
 
-        jobs.Teleport(rig.tree, new float3(0f, 0f, 9f));
+        var delta = new float3(0f, 0f, 9f);
+        rig.bones[0].position += (Vector3)delta;
+        jobs.Teleport(rig.tree, delta);
         Step(1);
 
-        JiggleAssert.AreEqual(before + new float3(0f, 0f, 9f), jobs.GetTrees(out _)[0].points[1].position, 1e-2f);
+        JiggleAssert.AreEqual(before + delta, jobs.GetTrees(out _)[0].points[1].position, 1e-2f);
     }
 
     [Test]

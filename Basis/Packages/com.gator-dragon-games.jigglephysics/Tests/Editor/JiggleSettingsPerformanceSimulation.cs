@@ -669,7 +669,6 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
                 outputInterpolatedPoses = output,
                 timeStamp = 1.0, previousTimeStamp = 0.98, currentTime = 1.0,
             };
-            inputInterpolation.SetFixedDeltaTime(0.02f);
 
             AppendBatchRow(report, "interp", count, () => interpolation.Run(count),
                 batch => interpolation.ScheduleParallel(count, batch, default).Complete());

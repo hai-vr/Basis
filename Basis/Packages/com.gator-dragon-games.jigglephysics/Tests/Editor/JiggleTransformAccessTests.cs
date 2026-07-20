@@ -52,6 +52,64 @@ internal class JiggleTransformAccessTests {
         Assert.Fail("the rebuild never finished");
     }
 
+    /// <summary>
+    /// ClearIfNeeded drains the stale buffer with RemoveAtSwapBack, indexing it by a count it keeps
+    /// itself rather than by the array's own length. That is only correct while the two agree, so
+    /// this cycles the buffer at a batch size small enough to slice both the drain and the refill,
+    /// and shrinks the list as well as growing it. Any drift shows up as residue that resurfaces the
+    /// next time the buffer is published.
+    /// </summary>
+    [Test]
+    public void RepeatedRebuilds_AtASlicingBatchSize_PublishExactlyTheRequestedTransforms() {
+        foreach (var size in new[] { 7, 3, 11, 1, 9, 4 }) {
+            var transforms = Transforms(size);
+            BuildAll(transforms, batchSize: 3);
+            buffer.Flip();
+
+            var published = buffer.GetTransformAccessArray();
+            Assert.AreEqual(size, published.length, $"cycle of {size} published the wrong count");
+            for (int i = 0; i < size; i++) {
+                Assert.AreSame(transforms[i], published[i], $"cycle of {size}, slot {i}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The shrink is the direction residue hides in: a big stale buffer has to drain completely
+    /// before a much smaller list is published, or the leftovers ride along as extra transforms.
+    /// </summary>
+    [Test]
+    public void RebuildAfterALargeShrink_LeavesNoResidueFromTheStaleBuffer() {
+        var many = Transforms(64);
+        BuildAll(many, batchSize: 5);
+        buffer.Flip();
+        Assert.AreEqual(64, buffer.GetTransformAccessArray().length);
+
+        var few = Transforms(2);
+        BuildAll(few, batchSize: 5);
+        buffer.Flip();
+
+        var published = buffer.GetTransformAccessArray();
+        Assert.AreEqual(2, published.length, "the 64 stale entries must be fully drained first");
+        Assert.AreSame(few[0], published[0]);
+        Assert.AreSame(few[1], published[1]);
+    }
+
+    /// <summary>
+    /// A batch size of one makes every drain and every add its own slice, which is the harshest
+    /// version of the same invariant.
+    /// </summary>
+    [Test]
+    public void RepeatedRebuilds_OneEntryPerSlice_StayExact() {
+        foreach (var size in new[] { 5, 2, 6 }) {
+            var transforms = Transforms(size);
+            BuildAll(transforms, batchSize: 1);
+            buffer.Flip();
+
+            Assert.AreEqual(size, buffer.GetTransformAccessArray().length, $"cycle of {size}");
+        }
+    }
+
     [Test]
     public void NewBuffer_PublishesAnEmptyArray() {
         Assert.IsTrue(buffer.GetTransformAccessArray().isCreated);
