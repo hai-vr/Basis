@@ -11,9 +11,11 @@ using BasisNetworkServer.Security;
 using BasisPermissions;
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using static Basis.Network.Core.Serializable.SerializableBasis;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static BasisPermissions.PermissionManager;
@@ -25,6 +27,181 @@ namespace BasisServerHandle
     {
         [ThreadStatic] private static HashSet<int> _excludedSet;
 
+        /// <summary>
+        /// Coalesces "a player joined" notifications instead of fanning each one out inline.
+        ///
+        /// Announcing a join costs one send per already-connected peer, and that ran on the transport
+        /// event thread — the same thread that dispatches auth responses. Measured on a 32-core box it
+        /// is ~3us per peer, so a join into 2,500 players spent ~8ms there and a 3,000-player ramp
+        /// burned ~20s of event-thread time, which is what pushed handshakes past their window.
+        ///
+        /// Joins are gathered here and flushed from a worker thread as one ServerReadyBatchMessage per
+        /// peer, on the channel the client already uses for the initial player list. Two wins: the
+        /// event thread is free again, and K joins inside a window cost one send per peer instead of K.
+        ///
+        /// Ordering is by join sequence. A peer only receives records newer than its own join, because
+        /// everything older was already in the player list it got on arrival — that single rule covers
+        /// both "don't spawn a player to itself" and "don't spawn anyone twice".
+        /// </summary>
+        internal static class JoinBroadcast
+        {
+            private readonly struct Record
+            {
+                public readonly long Seq;
+                public readonly byte[] Payload;
+                public Record(long seq, byte[] payload) { Seq = seq; Payload = payload; }
+            }
+
+            private static readonly List<Record> _pending = new List<Record>();
+            private static readonly ConcurrentDictionary<int, long> _peerSeq = new ConcurrentDictionary<int, long>();
+            private static readonly AutoResetEvent _signal = new AutoResetEvent(false);
+            private static long _seq;
+            private static Thread _worker;
+            private static volatile bool _running;
+
+            internal const int FlushIntervalMs = 50;
+
+            public static long NextSeq() => Interlocked.Increment(ref _seq);
+
+            public static void RegisterPeer(int peerId, long seq) => _peerSeq[peerId] = seq;
+
+            public static long RegisteredSeqFor(int peerId) => _peerSeq.TryGetValue(peerId, out long s) ? s : NextSeq();
+
+            public static void UnregisterPeer(int peerId) => _peerSeq.TryRemove(peerId, out _);
+
+            public static void Start()
+            {
+                Stop();
+                _running = true;
+                _worker = new Thread(WorkerLoop) { Name = "JoinBroadcast", IsBackground = true };
+                _worker.Start();
+            }
+
+            public static void Stop()
+            {
+                _running = false;
+                _signal.Set();
+                Thread thread = _worker;
+                _worker = null;
+                if (thread != null && thread != Thread.CurrentThread)
+                {
+                    thread.Join(500);
+                }
+                lock (_pending) { _pending.Clear(); }
+                _peerSeq.Clear();
+            }
+
+            public static void Enqueue(long seq, byte[] payload)
+            {
+                lock (_pending) { _pending.Add(new Record(seq, payload)); }
+                _signal.Set();
+            }
+
+            private static void WorkerLoop()
+            {
+                while (_running)
+                {
+                    _signal.WaitOne(FlushIntervalMs);
+                    if (!_running) break;
+                    try
+                    {
+                        Flush();
+                    }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"JoinBroadcast flush failed: {ex.Message}");
+                    }
+                }
+            }
+
+            internal static void Flush()
+            {
+                Record[] batch;
+                lock (_pending)
+                {
+                    if (_pending.Count == 0) return;
+                    batch = _pending.ToArray();
+                    _pending.Clear();
+                }
+                Array.Sort(batch, static (a, b) => a.Seq.CompareTo(b.Seq));
+
+                NetPeer[] peers = NetworkServer.PeerSnapshot;
+                if (peers == null || peers.Length == 0) return;
+
+                // Peers that joined before this whole batch take the identical bytes, which is the
+                // common case; only the joiners inside the batch need a trimmed copy of their own.
+                Dictionary<int, byte[]> framedByStart = new Dictionary<int, byte[]>();
+                long sent = 0, bytes = 0;
+
+                foreach (NetPeer peer in peers)
+                {
+                    if (peer == null) continue;
+                    long peerSeq = _peerSeq.TryGetValue(peer.Id, out long s) ? s : 0;
+
+                    int start = 0;
+                    while (start < batch.Length && batch[start].Seq <= peerSeq) start++;
+                    if (start >= batch.Length) continue;
+
+                    if (!framedByStart.TryGetValue(start, out byte[] framed))
+                    {
+                        framed = Frame(batch, start);
+                        framedByStart[start] = framed;
+                    }
+
+                    try
+                    {
+                        peer.Send(framed, BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, DeliveryMethod.ReliableOrdered);
+                        sent++;
+                        bytes += framed.Length;
+                    }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"Failed to announce joins to peer {peer.Id}: {ex.Message}");
+                    }
+                }
+
+                if (sent > 0)
+                {
+                    BasisNetworkStatistics.RecordOutboundBatch(BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, sent, bytes);
+                }
+            }
+
+            private static byte[] Frame(Record[] batch, int start)
+            {
+                NetDataWriter payload = NetworkServer.RentWriter();
+                NetDataWriter framed = NetworkServer.RentWriter();
+                try
+                {
+                    ushort count = 0;
+                    for (int i = start; i < batch.Length; i++)
+                    {
+                        // Respect the batch payload ceiling; anything beyond it rides the next flush
+                        // rather than producing an oversized packet.
+                        if (count > 0 && payload.Length + batch[i].Payload.Length > ServerReadyBatchMessage.MaxPayloadBytes)
+                        {
+                            lock (_pending) { _pending.Add(batch[i]); }
+                            continue;
+                        }
+                        payload.Put(batch[i].Payload);
+                        count++;
+                    }
+
+                    ServerReadyBatchMessage message = new ServerReadyBatchMessage
+                    {
+                        Count = count,
+                        Payload = payload.CopyData(),
+                    };
+                    message.Serialize(framed);
+                    return framed.CopyData();
+                }
+                finally
+                {
+                    NetworkServer.ReturnWriter(payload);
+                    NetworkServer.ReturnWriter(framed);
+                }
+            }
+        }
+
         #region Server Events Setup
         public static void SubscribeServerEvents()
         {
@@ -33,6 +210,7 @@ namespace BasisServerHandle
             NetworkServer.Listener.NetworkReceiveEvent += BasisNetworkMessageProcessor.ProcessMessage;
             NetworkServer.Listener.NetworkErrorEvent += OnNetworkError;
             BasisServerInfoQuery.Subscribe();
+            JoinBroadcast.Start();
         }
 
         public static void UnsubscribeServerEvents()
@@ -46,6 +224,7 @@ namespace BasisServerHandle
 
         public static void StopWorker()
         {
+            JoinBroadcast.Stop();
             NetworkServer.Server?.Stop();
             BasisServerHandleEvents.UnsubscribeServerEvents();
         }
@@ -88,6 +267,7 @@ namespace BasisServerHandle
             BasisServerP2PBroker.RemovePeer(id);
             BasisNetworkMessageProcessor.ClearPeerErrors(id);
             BasisServerMessageRegistry.ClearSubscription(id);
+            JoinBroadcast.UnregisterPeer(id);
 
             return NetworkServer.AuthenticatedPeers.TryRemove(id, out _);
         }
@@ -364,6 +544,9 @@ namespace BasisServerHandle
             {
                 newPeer.Tag = NetworkServer.AuthenticatedPeerTag;
                 NetworkServer.RebuildPeerSnapshot();
+                // Claim this peer's place in the join order before anything is announced, so the
+                // "only records newer than my own join" rule below has a value to compare against.
+                JoinBroadcast.RegisterPeer(newPeer.Id, JoinBroadcast.NextSeq());
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
                 //this means that as long as they pass auth but locally have a bad UUID that only they locally are effected.
@@ -825,23 +1008,7 @@ namespace BasisServerHandle
                 {
                     return;
                 }
-                NetPeer[] peers = NetworkServer.PeerSnapshot;
-                foreach (NetPeer client in peers)
-                {
-                    if (client == authClient)
-                    {
-                        continue;
-                    }
-                    try
-                    {
-                        client.Send(Writer, BasisNetworkCommons.CreateRemotePlayerChannel, DeliveryMethod.ReliableOrdered);
-                        BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.CreateRemotePlayerChannel, Writer.Length);
-                    }
-                    catch (Exception ex)
-                    {
-                        BNL.LogError($"Failed to notify peer {client?.Id} of new player {authClient.Id}: {ex.Message}");
-                    }
-                }
+                JoinBroadcast.Enqueue(JoinBroadcast.RegisteredSeqFor(authClient.Id), Writer.CopyData());
             }
             finally
             {

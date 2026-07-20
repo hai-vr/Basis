@@ -704,10 +704,10 @@ namespace Basis.BasisUI
         /// <summary>
         /// Chooses what is rendered for tracked input devices (controllers/trackers/etc.) while
         /// tracker visuals are active (e.g. during calibration).
-        /// "Off" — nothing. "Markers" — the generic placeholder marker. "Device Models" — the real
+        /// "Off" — nothing. "Markers" — the generic placeholder marker (default). "Device Models" — the real
         /// device model loaded from the XR runtime, falling back to a marker when unavailable.
         /// </summary>
-        public static BasisSettingsBinding<string> TrackerVisuals = new("tracker_visuals", new BasisPlatformDefault<string>(TrackerVisuals_DeviceModels));
+        public static BasisSettingsBinding<string> TrackerVisuals = new("tracker_visuals_v2", new BasisPlatformDefault<string>(TrackerVisuals_Markers));
 
         public const string TrackerVisuals_Off = "Off";
         public const string TrackerVisuals_Markers = "Markers";
