@@ -337,6 +337,18 @@ public sealed class BasisNativeVideoSource : IBasisPcmSource, IDisposable
             }
         }
 
+        // Audio-only sources never tick the video frame counter and never produce a
+        // texture, so the readiness check above can't fire for them. The engine only
+        // flips to Playing with no video size once the source has announced no video
+        // track at all, so that pairing is the audio-only ready signal.
+        if (!readyFired && engineState == BasisNativeMedia.State.Playing &&
+            !(BasisNativeMedia.TryGetVideoSize(handle, out int vw, out int vh) && vw > 0 && vh > 0) &&
+            BasisNativeMedia.TryGetAudioFormat(handle, out _, out int audioChannels) && audioChannels > 0)
+        {
+            readyFired = true;
+            OnReady?.Invoke();
+        }
+
         switch (engineState)
         {
             case BasisNativeMedia.State.Error when !errorRaised:
