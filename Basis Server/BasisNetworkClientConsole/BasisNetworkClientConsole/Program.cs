@@ -59,6 +59,7 @@ namespace Basis
             };
 
             MovementSender.Initialize(clientManager.ClientCount);
+            MovementSender.VoiceSender.Initialize(clientManager.ClientCount);
 
             // Drive all clients from one worker per CPU core
             StartClientDriverLoops(clientManager.FinalClients, clientManager.FinalPeers);
@@ -135,6 +136,8 @@ namespace Basis
             var sw = Stopwatch.StartNew();
             double lastTickMs = 0;
             double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
+            double lastVoiceMs = 0;
+            bool[] sentRecipients = new bool[peers.Length];
 
             while (_running)
             {
@@ -160,6 +163,29 @@ namespace Basis
                         var peer = Volatile.Read(ref peers[i]);
                         if (peer != null && (peer.Tag as ConsoleClientIdentity)?.Authenticated == true)
                             MovementSender.ProcessSingle(peer, i);
+                    }
+                }
+
+                if (Basis.Config.ConfigManager.SimulateVoice && nowMs - lastVoiceMs >= Basis.Config.ConfigManager.VoiceFrameMs)
+                {
+                    lastVoiceMs = nowMs;
+                    for (int i = start; i < end; i++)
+                    {
+                        var peer = Volatile.Read(ref peers[i]);
+                        if (peer == null || (peer.Tag as ConsoleClientIdentity)?.Authenticated != true) continue;
+
+                        // The recipient list only needs building once — positions are fixed — but it
+                        // can't be built until the peer has its server-assigned id, so it is attempted
+                        // here and the list is published the first time it succeeds.
+                        if (MovementSender.VoiceSender.BuildRecipients(peers, i) && !sentRecipients[i])
+                        {
+                            MovementSender.VoiceSender.SendRecipients(peer, i);
+                            sentRecipients[i] = true;
+                        }
+                        if (sentRecipients[i] && MovementSender.VoiceSender.IsTalking(i, nowMs))
+                        {
+                            MovementSender.VoiceSender.SendFrame(peer, i);
+                        }
                     }
                 }
 

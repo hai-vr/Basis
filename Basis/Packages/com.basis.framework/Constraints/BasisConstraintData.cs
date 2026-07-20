@@ -113,6 +113,15 @@ namespace Basis.Scripts.Constraints
         /// so swapping the driver at runtime costs nothing and needs no rebuild.</summary>
         public int DriverIndex;
 
+        /// <summary>
+        /// The order this constraint was authored in, baked once when the content was converted and
+        /// never recomputed. Animation Rigging evaluates a rig in a fixed authored sequence, so that
+        /// sequence is the answer — recomputing an order every rebuild would be both slower and less
+        /// faithful than carrying across the one the rig already had. Lower runs first; slots with no
+        /// baked order fall back to hierarchy depth.
+        /// </summary>
+        public int AuthoredOrder;
+
         public float Weight;
         public float Roll;
 
@@ -190,6 +199,7 @@ namespace Basis.Scripts.Constraints
                 ChainStart = 0,
                 ChainCount = 0,
                 DriverIndex = 0,
+                AuthoredOrder = int.MaxValue,
                 Weight = 1f,
                 Roll = 0f,
                 PositionChannelWeight = kind == BasisConstraintKind.Blend ? 0.5f : 1f,

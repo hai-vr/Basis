@@ -203,7 +203,7 @@ namespace Basis.Tests.Constraints
         }
 
         [Test]
-        public void MultiReferentialBecomesAParentConstraintOnEveryNonDriver()
+        public void MultiReferentialBecomesOneConstraintHoldingTheWholeSet()
         {
             GameObject driver = New("Driver", Vector3.zero);
             GameObject followerA = New("FollowerA", new Vector3(1f, 0f, 0f));
@@ -221,13 +221,18 @@ namespace Basis.Tests.Constraints
 
             BasisConstraintConversion.ConvertHierarchy(rig);
 
-            Assert.IsNull(driver.GetComponent<BasisParentConstraint>(),
-                "the driver leads and is not itself constrained");
-            Assert.IsNotNull(followerA.GetComponent<BasisParentConstraint>(), "follower A follows the driver");
-            Assert.IsNotNull(followerB.GetComponent<BasisParentConstraint>(), "follower B follows the driver");
-            Assert.AreSame(driver.transform,
-                followerA.GetComponent<BasisParentConstraint>().GetSource(0).sourceTransform,
-                "and follows the driver specifically");
+            // One constraint holds the whole set rather than a follow-the-leader constraint on each
+            // non-driver, so the driver index stays live and can change at runtime.
+            BasisMultiReferential converted = driver.GetComponent<BasisMultiReferential>();
+            Assert.IsNotNull(converted, "the set is held by a single constraint");
+            Assert.AreEqual(3, converted.members.Count, "every member is carried across");
+            Assert.AreEqual(0, converted.driver, "and the authored driver index with them");
+            Assert.AreSame(driver.transform, converted.members[0], "member order is preserved, since " +
+                "the driver index addresses into it");
+            Assert.AreSame(followerA.transform, converted.members[1]);
+            Assert.AreSame(followerB.transform, converted.members[2]);
+            Assert.AreEqual(3, converted.BindPositions.Length,
+                "and the arrangement is captured for all of them, not just the followers");
         }
 
         [Test]

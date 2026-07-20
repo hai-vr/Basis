@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
@@ -186,6 +188,150 @@ namespace Basis.Network
             buffer[byteOffset + 0] = (byte)value;
             buffer[byteOffset + 1] = (byte)(value >> 8);
         }
+        /// <summary>
+        /// Voice traffic, which the harness previously left out entirely — a silent crowd is not what
+        /// a real instance costs the server. Basis culls voice on the CLIENT: each player tells the
+        /// server which peers are close enough to hear it, and the server routes only to that list.
+        /// So the simulation has to do the same — build a recipient list from the spawn positions
+        /// inside the audible radius, then transmit Opus-sized frames on the voice channel.
+        ///
+        /// Only a slice of the crowd talks at once, because everyone talking simultaneously is not a
+        /// realistic load; it is a synthetic worst case that would swamp the measurement of everything
+        /// else. Raise VoiceTalkingPercent to 100 if that worst case is what you want to see.
+        /// </summary>
+        public static class VoiceSender
+        {
+            private static ushort[][] _recipients;
+            private static bool[] _participates;
+            private static bool[] _talking;
+            private static double[] _nextSwitchMs;
+            private static byte[] _seq;
+            private static byte[] _frame;
+            private static int _built;
+
+            public static void Initialize(int clientCount)
+            {
+                _recipients = new ushort[clientCount][];
+                _participates = new bool[clientCount];
+                _talking = new bool[clientCount];
+                _nextSwitchMs = new double[clientCount];
+                _seq = new byte[clientCount];
+                _built = 0;
+
+                int frameBytes = Math.Max(1, Basis.Config.ConfigManager.VoiceBytesPerFrame);
+                _frame = new byte[frameBytes];
+                Random.Shared.NextBytes(_frame);
+
+                int percent = Math.Clamp(Basis.Config.ConfigManager.VoiceParticipantPercent, 0, 100);
+                for (int i = 0; i < clientCount; i++)
+                {
+                    _participates[i] = Random.Shared.Next(100) < percent;
+                    // Start everyone silent and stagger the first burst, so a run does not open with
+                    // the entire crowd unmuting on the same tick.
+                    _talking[i] = false;
+                    _nextSwitchMs[i] = Random.Shared.Next(0, Math.Max(1, Basis.Config.ConfigManager.VoiceSilenceMaxMs));
+                }
+            }
+
+            /// <summary>
+            /// Speech is bursty: a person says something for a few seconds, then listens. Modelling it
+            /// as a fixed always-on subset gets the average bitrate roughly right but none of the
+            /// shape — no silence gaps, no changing set of speakers, and every recipient list exercised
+            /// continuously rather than intermittently. Each participant alternates burst/silence with
+            /// randomised durations, so who is talking keeps changing and most are quiet at any moment.
+            /// </summary>
+            public static bool IsTalking(int index, double nowMs)
+            {
+                if (_participates == null || index >= _participates.Length || !_participates[index]) return false;
+
+                // Alone in the world: nobody is inside the audible radius, so there is no one to talk
+                // to and a real client transmits nothing at all. Hold the burst clock too, so an
+                // isolated player does not silently burn through its talk window and come back wrong.
+                ushort[] audience = _recipients?[index];
+                if (audience == null || audience.Length == 0)
+                {
+                    _talking[index] = false;
+                    return false;
+                }
+
+                if (nowMs >= _nextSwitchMs[index])
+                {
+                    _talking[index] = !_talking[index];
+                    int min = _talking[index] ? Basis.Config.ConfigManager.VoiceTalkBurstMinMs : Basis.Config.ConfigManager.VoiceSilenceMinMs;
+                    int max = _talking[index] ? Basis.Config.ConfigManager.VoiceTalkBurstMaxMs : Basis.Config.ConfigManager.VoiceSilenceMaxMs;
+                    if (max <= min) max = min + 1;
+                    _nextSwitchMs[index] = nowMs + Random.Shared.Next(min, max);
+                }
+                return _talking[index];
+            }
+
+            /// <summary>
+            /// Recipient lists are derived from spawn positions, which do not move in this harness,
+            /// so this is computed once per client rather than every frame. Returns false until the
+            /// peer has a server-assigned id to advertise.
+            /// </summary>
+            public static bool BuildRecipients(NetPeer[] peers, int index)
+            {
+                if (_recipients == null || index >= _recipients.Length) return false;
+                if (_recipients[index] != null) return true;
+                if (PlayersCurrentPosition == null || index >= PlayersCurrentPosition.Length) return false;
+
+                float range = Basis.Config.ConfigManager.VoiceRangeMeters;
+                float rangeSq = range * range;
+                Vector3 self = PlayersCurrentPosition[index];
+
+                List<ushort> near = new List<ushort>();
+                for (int j = 0; j < peers.Length && j < PlayersCurrentPosition.Length; j++)
+                {
+                    if (j == index) continue;
+                    NetPeer other = Volatile.Read(ref peers[j]);
+                    if (other == null) continue;
+
+                    Vector3 p = PlayersCurrentPosition[j];
+                    float dx = p.x - self.x, dy = p.y - self.y, dz = p.z - self.z;
+                    if (dx * dx + dy * dy + dz * dz <= rangeSq)
+                    {
+                        near.Add((ushort)other.RemoteId);
+                    }
+                }
+
+                _recipients[index] = near.ToArray();
+                Interlocked.Increment(ref _built);
+                return true;
+            }
+
+            public static void SendRecipients(NetPeer peer, int index)
+            {
+                ushort[] list = _recipients?[index];
+                if (list == null) return;
+
+                // The count is byte-width on the small channel, so anything past 255 recipients has
+                // to go out on the large one or the server reads a truncated list.
+                bool large = list.Length > byte.MaxValue;
+                NetDataWriter writer = new NetDataWriter();
+                if (large) writer.Put((ushort)list.Length);
+                else writer.Put((byte)list.Length);
+                for (int i = 0; i < list.Length; i++) writer.Put(list[i]);
+
+                peer.Send(writer,
+                    large ? BasisNetworkCommons.AudioRecipientsLargeChannel : BasisNetworkCommons.AudioRecipientsChannel,
+                    DeliveryMethod.ReliableOrdered);
+            }
+
+            public static void SendFrame(NetPeer peer, int index)
+            {
+                if (_frame == null || _recipients?[index] == null || _recipients[index].Length == 0) return;
+
+                NetDataWriter writer = new NetDataWriter();
+                writer.Put(_seq[index]++);
+                writer.Put((byte)0);
+                writer.Put(_frame);
+                peer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
+            }
+
+            public static int BuiltCount => Volatile.Read(ref _built);
+        }
+
         public static void ProcessSingle(NetPeer peer, int index)
         {
             if (peer == null) return;

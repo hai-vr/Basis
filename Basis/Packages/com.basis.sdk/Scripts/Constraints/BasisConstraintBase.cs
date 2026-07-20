@@ -53,6 +53,12 @@ namespace Basis.Scripts.BasisSdk.Constraints
                  "the transform in the editor to author offsets.")]
         public bool locked = true;
 
+        /// <summary>
+        /// Where this sits in the sequence the content was authored in. Baked at conversion and left
+        /// alone afterwards; int.MaxValue means unset, and ordering falls back to hierarchy depth.
+        /// </summary>
+        [HideInInspector] public int authoredOrder = int.MaxValue;
+
         [SerializeField]
         [Tooltip("Transforms driving this constraint. Weights are relative, not normalized.")]
         private List<BasisConstraintSourceEntry> sources = new List<BasisConstraintSourceEntry>();

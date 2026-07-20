@@ -147,9 +147,11 @@ namespace Basis.Scripts.Constraints
 
             int target = slot.TargetIndex;
             int row = TargetRow[slotIndex];
-            // An override on explicit values is the one kind with nothing to source from; every
-            // other kind is a no-op without at least one source.
-            bool sourceless = slot.Kind == BasisConstraintKind.Override && slot.UseOverrideSource == 0;
+            // Two kinds drive from something other than a source list: an override on explicit
+            // values, and a referential holding its members in the chain. Every other kind is a
+            // no-op without at least one source.
+            bool sourceless = slot.Kind == BasisConstraintKind.Referential
+                || (slot.Kind == BasisConstraintKind.Override && slot.UseOverrideSource == 0);
             if (slot.Active == 0 || target < 0 || (slot.SourceCount <= 0 && !sourceless))
             {
                 return;

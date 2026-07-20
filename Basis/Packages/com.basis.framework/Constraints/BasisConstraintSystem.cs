@@ -630,11 +630,24 @@ namespace Basis.Scripts.Constraints
         }
 
         /// <summary>
-        /// Heap order: shallowest first, ties broken by the lower slot index so sibling order stays
-        /// stable and matches authoring order.
+        /// Heap order: the sequence the content was authored in, then hierarchy depth for anything
+        /// without one, then slot index so siblings stay stable.
+        ///
+        /// The authored order is the point. Animation Rigging evaluates a rig in a fixed sequence the
+        /// author arranged, and a converted rig carries that sequence across rather than having an
+        /// order derived for it — two constraints on one transform then resolve the way the author
+        /// laid them out instead of by whichever happens to sit shallower. The dependency pass still
+        /// runs on top, so a constraint driven by another still waits for it regardless.
         /// </summary>
         private static bool ReadyPrecedes(int left, int right)
         {
+            int leftOrder = sSlots[left].AuthoredOrder;
+            int rightOrder = sSlots[right].AuthoredOrder;
+            if (leftOrder != rightOrder)
+            {
+                return leftOrder < rightOrder;
+            }
+
             int leftDepth = sDepthScratch[left];
             int rightDepth = sDepthScratch[right];
             return leftDepth != rightDepth ? leftDepth < rightDepth : left < right;
@@ -783,6 +796,7 @@ namespace Basis.Scripts.Constraints
         private static void FillScalarState(BasisConstraintBase component, ref BasisConstraintSlot slot)
         {
             slot.Weight = Mathf.Clamp01(component.weight);
+            slot.AuthoredOrder = component.authoredOrder;
             slot.Active = (byte)(component.constraintActive ? 1 : 0);
             slot.Locked = (byte)(component.locked ? 1 : 0);
 
