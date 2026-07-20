@@ -268,6 +268,16 @@ header reports no duration and shows no seek bar.
 client resolves the URL independently (per-client CDN/bitrate differences are fine, state
 divergence is not).
 
+**Networked audio-only** — the same two-client setup with an audio-only URL (`.wav`, `.mp3`,
+`.m4a`, `.opus`). These carry no video track, so anything that waits on a video frame or an
+output texture never fires for them, and a readiness regression here is invisible on the
+owner's own client — it plays locally either way. Load one while the peers are mid-playback of
+something else: they must switch to it, not carry on and then resume the old source when it
+ends. Check the peer starts near the beginning rather than at the outgoing video's playhead,
+and that a late joiner receives it too. Worth a pass on a peer with
+`AutoPlayOnSourceAssigned` unticked, which is the case that relies on the owner's advertised
+state rather than local autoplay.
+
 **Panel UI** ("Media Players" panel, `Runtime/UI/BasisMediaPlayerPanelProvider.cs`) — URL
 load, transport buttons, seek slider (VOD only), volume, bitrate dropdown (HLS multi-variant),
 audio-track dropdown (multi-audio content), captions toggle + opacity sliders, subtitles
