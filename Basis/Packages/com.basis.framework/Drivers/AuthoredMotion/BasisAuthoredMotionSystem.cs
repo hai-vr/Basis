@@ -399,6 +399,13 @@ public static class BasisAuthoredMotionSystem
     public static void Complete(JobHandle handle)
     {
         handle.Complete();
+        // The driver hands back the handle Schedule returned, which is sPending itself —
+        // routing through CompletePending would complete it a second time.
+        if (handle.Equals(sPending))
+        {
+            sPending = default;
+            return;
+        }
         CompletePending();
     }
 

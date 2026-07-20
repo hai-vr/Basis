@@ -422,6 +422,75 @@ namespace Basis.Tests.Constraints
         }
 
         [Test]
+        public void ConstraintsThatDriveEachOtherSolveInOneGroup()
+        {
+            // The same A drives B drives C, read as a grouping question: the solve runs groups at
+            // once, so anything that has to observe another's result cannot be split away from it.
+            Transform a = NewTransform("A", new Vector3(7f, 0f, 0f), Quaternion.identity);
+            Transform b = NewTransform("B", Vector3.zero, Quaternion.identity);
+            Transform c = NewTransform("C", Vector3.zero, Quaternion.identity);
+            Constrain<BasisPositionConstraint>(c, b);
+            Constrain<BasisPositionConstraint>(b, a);
+
+            Solve();
+
+            Assert.AreEqual(1, BasisConstraintSystem.SolveGroupCount,
+                "a dependent chain stays in one group however its objects are arranged");
+        }
+
+        [Test]
+        public void UnrelatedConstraintsSolveAsSeparateGroups()
+        {
+            Transform firstSource = NewTransform("S1", new Vector3(3f, 0f, 0f), Quaternion.identity);
+            Transform secondSource = NewTransform("S2", new Vector3(0f, 4f, 0f), Quaternion.identity);
+            Constrain<BasisPositionConstraint>(
+                NewTransform("T1", Vector3.zero, Quaternion.identity), firstSource);
+            Constrain<BasisPositionConstraint>(
+                NewTransform("T2", Vector3.zero, Quaternion.identity), secondSource);
+
+            Solve();
+
+            Assert.AreEqual(2, BasisConstraintSystem.SolveGroupCount,
+                "two constraints sharing nothing solve independently");
+        }
+
+        [Test]
+        public void ASourceNobodyDrivesDoesNotMergeTheGroupsReadingIt()
+        {
+            // A shared anchor everything aims at — a world marker, a held prop — is read by many and
+            // written by none. Treating a read as a dependency would fold every reader into one group
+            // and put the whole solve back on a single worker, which is the case this pins down.
+            Transform anchor = NewTransform("Anchor", new Vector3(0f, 0f, 9f), Quaternion.identity);
+            Transform first = NewTransform("T1", Vector3.zero, Quaternion.identity);
+            Transform second = NewTransform("T2", Vector3.zero, Quaternion.identity);
+            Constrain<BasisPositionConstraint>(first, anchor);
+            Constrain<BasisPositionConstraint>(second, anchor);
+
+            Solve();
+
+            Assert.AreEqual(2, BasisConstraintSystem.SolveGroupCount,
+                "reading a transform nothing drives is not a dependency");
+            AssertVector(new Vector3(0f, 0f, 9f), first.position, "first reader still lands");
+            AssertVector(new Vector3(0f, 0f, 9f), second.position, "second reader still lands");
+        }
+
+        [Test]
+        public void StackedConstraintsOnOneObjectShareItsGroup()
+        {
+            // Two slots writing one results row cannot be split: they merge per channel into a single
+            // write, and a merge is not something two workers can each do half of.
+            Transform source = NewTransform("Source", new Vector3(2f, 0f, 0f), Quaternion.Euler(0f, 30f, 0f));
+            Transform target = NewTransform("Target", Vector3.zero, Quaternion.identity);
+            Constrain<BasisPositionConstraint>(target, source);
+            Constrain<BasisRotationConstraint>(target, source);
+
+            Solve();
+
+            Assert.AreEqual(1, BasisConstraintSystem.SolveGroupCount,
+                "slots sharing a target share a group");
+        }
+
+        [Test]
         public void BlendConstraintLandsMidwayBetweenItsTwoSources()
         {
             Transform a = NewTransform("A", Vector3.zero, Quaternion.identity);

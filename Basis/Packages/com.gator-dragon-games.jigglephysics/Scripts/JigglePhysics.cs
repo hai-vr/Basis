@@ -389,12 +389,14 @@ public static class JigglePhysics {
     
     private static JiggleJobs GetJiggleJobs(double fixedTime, float fixedDeltaTime) {
         if (!_globalDirty) {
+            jobs?.SetTreeBacklog(false);
             return jobs;
         }
         jobs ??= new JiggleJobs(fixedTime, fixedDeltaTime);
         jobs.SetFixedDeltaTime(fixedDeltaTime);
         bool backlogRemains = GetJiggleTrees();
         _globalDirty = backlogRemains;
+        jobs.SetTreeBacklog(backlogRemains);
         return jobs;
     }
 

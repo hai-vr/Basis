@@ -639,9 +639,14 @@ namespace Basis.EventDriver
                 {
                     jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
                 }
-                using (Prof.ConstraintComplete.Auto())
+                // On rebuild frames the constraint solve was already completed above and the
+                // handle zeroed — skip the empty second fence instead of logging a no-op marker.
+                if (!constraintJob.Equals(default(JobHandle)))
                 {
-                    BasisConstraintSystem.Complete(constraintJob);
+                    using (Prof.ConstraintComplete.Auto())
+                    {
+                        BasisConstraintSystem.Complete(constraintJob);
+                    }
                 }
                 if (jiggleReady)
                 {
@@ -770,6 +775,13 @@ namespace Basis.EventDriver
                 SteamAudioManager.Apply();
             }
 #endif
+
+            // Publish the nameplate vertex transforms scheduled back in CompleteNamePlates —
+            // by now the jobs have had the tail of LateUpdate and the whole post-late phase.
+            using (Prof.NamePlateFinish.Auto())
+            {
+                BasisGlobalNamePlateRenderer.FinishFrame();
+            }
 
             if (BasisLocalPlayer.PlayerReady)
             {

@@ -128,12 +128,17 @@ namespace Basis.Tests.Constraints
 
             Debug.Log(
                 $"[constraint benchmark] {total} constraints across {Avatars} avatars, {Frames} frames\n" +
+                $"  solve groups              : {BasisConstraintSystem.SolveGroupCount}\n" +
                 $"  every avatar at full rate : {unbanded:F3} ms/frame\n" +
                 $"  distance banded           : {banded:F3} ms/frame\n" +
                 $"  saved                     : {unbanded - banded:F3} ms/frame " +
                 $"({(unbanded > 0 ? (1f - banded / unbanded) * 100f : 0f):F1}%)");
 
             Assert.Greater(unbanded, 0d, "the benchmark measured something");
+            // Avatars here share nothing, so each has to come out as its own group. One group would
+            // mean the split collapsed and the solve is back on a single worker.
+            Assert.AreEqual(Avatars, BasisConstraintSystem.SolveGroupCount,
+                "each avatar solves independently of the others");
         }
 
         /// <summary>

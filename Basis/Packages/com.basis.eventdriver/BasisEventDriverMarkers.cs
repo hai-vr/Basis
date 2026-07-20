@@ -56,6 +56,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker RemoteAudioApply = new ProfilerMarker("BasisDriver.RemoteAudio.Apply");
         public static readonly ProfilerMarker NamePlateSchedule = new ProfilerMarker("BasisDriver.NamePlate.Schedule");
         public static readonly ProfilerMarker NamePlateComplete = new ProfilerMarker("BasisDriver.NamePlate.Complete");
+        public static readonly ProfilerMarker NamePlateFinish = new ProfilerMarker("BasisDriver.NamePlate.Finish");
         public static readonly ProfilerMarker ContentSphereSchedule = new ProfilerMarker("BasisDriver.ContentSphere.Schedule");
         public static readonly ProfilerMarker ContentSphereComplete = new ProfilerMarker("BasisDriver.ContentSphere.Complete");
         public static readonly ProfilerMarker SteamAudioSchedule = new ProfilerMarker("BasisDriver.SteamAudio.Schedule");

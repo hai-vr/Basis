@@ -162,6 +162,15 @@ namespace Basis.Scripts.Constraints
         private static readonly List<bool> sEmitted = new List<bool>();
         /// <summary>Binary min-heap of slots whose dependencies are all met, ordered by depth.</summary>
         private static readonly List<int> sReadyHeap = new List<int>();
+
+        /// <summary>Union-find over slots, merging any two that cannot be solved independently.</summary>
+        private static readonly List<int> sGroupParent = new List<int>();
+        /// <summary>Transform row → the first slot that writes it, or -1 for a row nothing writes.</summary>
+        private static readonly List<int> sRowWriter = new List<int>();
+        /// <summary>Slots bucketed per group. Kept across rebuilds so the grouping does not allocate.</summary>
+        private static readonly List<List<int>> sGroupBuckets = new List<List<int>>();
+        /// <summary>Union-find representative → its index in <see cref="sGroupBuckets"/>.</summary>
+        private static readonly Dictionary<int, int> sGroupIndexOf = new Dictionary<int, int>();
         private static readonly List<BasisConstraintSourceEntry> sSourceScratch =
             new List<BasisConstraintSourceEntry>();
 
@@ -171,6 +180,8 @@ namespace Basis.Scripts.Constraints
         private static NativeList<BasisConstraintTransform> sLocal;
         private static NativeList<BasisConstraintResult> sResults;
         private static NativeList<int> sOrder;
+        /// <summary>(start, count) into sOrder, one entry per group the solve can run on its own.</summary>
+        private static NativeList<int2> sSolveGroups;
         private static NativeList<int> sTargetRow;
         private static NativeList<BasisConstraintDampState> sDampState;
         /// <summary>(sampled transform row, results row) per bone, for the chain-driving kinds.</summary>
@@ -184,12 +195,21 @@ namespace Basis.Scripts.Constraints
         private static TransformAccessArray sTargets;
 
         private static JobHandle sPending;
+        /// <summary>Chain-scratch entries reserved per solve group; the longest chain in the table.</summary>
+        private static int sChainStride = 1;
         private static bool sInitialized;
         private static bool sDirty;
         private static bool sSubscribed;
 
         /// <summary>Number of constraints currently solved each frame.</summary>
         public static int SlotCount => sInitialized ? sSlots.Length : 0;
+
+        /// <summary>
+        /// How many independent groups the solve is split across, which is the most workers it can
+        /// use. One means everything in the session depends on everything else and the solve is back
+        /// to a single thread — worth looking at if the cost stops scaling.
+        /// </summary>
+        public static int SolveGroupCount => sInitialized ? sSolveGroups.Length : 0;
 
         /// <summary>Distinct transforms sampled each frame (targets, sources, up objects, parents).</summary>
         public static int TrackedTransformCount => sInitialized ? sTracked.length : 0;
@@ -230,6 +250,7 @@ namespace Basis.Scripts.Constraints
             sLocal = new NativeList<BasisConstraintTransform>(initialCapacity, Allocator.Persistent);
             sResults = new NativeList<BasisConstraintResult>(initialCapacity, Allocator.Persistent);
             sOrder = new NativeList<int>(initialCapacity, Allocator.Persistent);
+            sSolveGroups = new NativeList<int2>(initialCapacity, Allocator.Persistent);
             sTargetRow = new NativeList<int>(initialCapacity, Allocator.Persistent);
             sDampState = new NativeList<BasisConstraintDampState>(initialCapacity, Allocator.Persistent);
             sChain = new NativeList<int2>(initialCapacity, Allocator.Persistent);
@@ -256,6 +277,7 @@ namespace Basis.Scripts.Constraints
             if (sLocal.IsCreated) sLocal.Dispose();
             if (sResults.IsCreated) sResults.Dispose();
             if (sOrder.IsCreated) sOrder.Dispose();
+            if (sSolveGroups.IsCreated) sSolveGroups.Dispose();
             if (sTargetRow.IsCreated) sTargetRow.Dispose();
             if (sDampState.IsCreated) sDampState.Dispose();
             if (sChain.IsCreated) sChain.Dispose();
@@ -279,6 +301,11 @@ namespace Basis.Scripts.Constraints
             sSourceScratch.Clear();
             sProducers.Clear();
             sConsumers.Clear();
+            sGroupParent.Clear();
+            sRowWriter.Clear();
+            sGroupBuckets.Clear();
+            sGroupIndexOf.Clear();
+            sChainStride = 1;
             sDirty = false;
 
             sInitialized = false;
@@ -337,6 +364,30 @@ namespace Basis.Scripts.Constraints
         }
 
         /// <summary>
+        /// Results rows blanked per worker slice. Large enough that a table too small to be worth
+        /// splitting lands on one worker instead of paying to be handed around.
+        /// </summary>
+        private const int ClearBatch = 256;
+
+        /// <summary>
+        /// How many batches to aim for per worker. Groups cost wildly different amounts — a full
+        /// avatar rig against a prop with one constraint — so the batches are deliberately smaller
+        /// than one per worker, leaving spare ones for whoever finishes first to pick up.
+        /// </summary>
+        private const int SolveBatchesPerWorker = 4;
+
+        /// <summary>
+        /// Groups handed to a worker at a time. One each is the best balance and what a lobby-sized
+        /// population gets; it only grows once there are enough groups that a batch apiece would cost
+        /// more in dispatch than it saves — a scene of hundreds of separately constrained props.
+        /// </summary>
+        private static int SolveBatch(int groupCount)
+        {
+            int workers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+            return math.max(1, groupCount / (workers * SolveBatchesPerWorker));
+        }
+
+        /// <summary>
         /// Samples, solves and writes every constraint. Call once per frame after the pose the
         /// constraints should read is final — after IK and authored motion, before jiggle samples
         /// the bones — and pair it with <see cref="Complete"/> in the same frame: the returned
@@ -374,12 +425,22 @@ namespace Basis.Scripts.Constraints
                 Local = sLocal.AsArray(),
             }.Schedule(sTracked);
 
+            // Blanking the results reads nothing the sample writes, so it goes out beside it rather
+            // than behind it and costs the solve nothing.
+            JobHandle clear = new BasisConstraintClearJob
+            {
+                Results = sResults.AsArray(),
+            }.Schedule(sResults.Length, ClearBatch);
+
+            // One iteration per group, in small batches so the work is handed out as workers come
+            // free rather than carved up in advance between groups of very different cost.
             JobHandle solve = new BasisConstraintSolveJob
             {
                 Slots = sSlots.AsArray(),
                 Sources = sSources.AsArray(),
                 Local = sLocal.AsArray(),
                 Order = sOrder.AsArray(),
+                Groups = sSolveGroups.AsArray(),
                 TargetRow = sTargetRow.AsArray(),
                 World = sWorld.AsArray(),
                 Results = sResults.AsArray(),
@@ -388,8 +449,12 @@ namespace Basis.Scripts.Constraints
                 ChainBind = sChainBind.AsArray(),
                 ChainPositions = sChainPositions.AsArray(),
                 ChainLengths = sChainLengths.AsArray(),
+                ChainStride = sChainStride,
                 DeltaTime = Time.unscaledDeltaTime,
-            }.Schedule(read);
+            }.Schedule(
+                sSolveGroups.Length,
+                SolveBatch(sSolveGroups.Length),
+                JobHandle.CombineDependencies(read, clear));
 
             sPending = new BasisConstraintWriteJob
             {
@@ -605,18 +670,19 @@ namespace Basis.Scripts.Constraints
             }
 
             BuildSolveOrder();
-            for (int Index = 0; Index < sOrderScratch.Count; Index++)
-            {
-                sOrder.Add(sOrderScratch[Index]);
-            }
+            BuildSolveGroups();
 
             int longestChain = 0;
             for (int Index = 0; Index < sSlots.Length; Index++)
             {
                 longestChain = math.max(longestChain, sSlots[Index].ChainCount);
             }
-            sChainPositions.Resize(math.max(1, longestChain), NativeArrayOptions.ClearMemory);
-            sChainLengths.Resize(math.max(1, longestChain), NativeArrayOptions.ClearMemory);
+            // A window per group rather than one for the whole solve: groups reach concurrently, and
+            // sharing one buffer between two of them would have them overwrite each other's reach.
+            sChainStride = math.max(1, longestChain);
+            int chainScratch = sChainStride * math.max(1, sSolveGroups.Length);
+            sChainPositions.Resize(chainScratch, NativeArrayOptions.ClearMemory);
+            sChainLengths.Resize(chainScratch, NativeArrayOptions.ClearMemory);
 
             sResults.Resize(sTargetScratch.Count, NativeArrayOptions.ClearMemory);
             // SetTransforms needs an exact-length array, so these cannot be spans — but they can be
@@ -853,6 +919,179 @@ namespace Basis.Scripts.Constraints
                 }
             }
             return chosen;
+        }
+
+        /// <summary>
+        /// Splits the ordered slots into groups that cannot observe one another, so the solve can run
+        /// them at the same time instead of walking the whole table on one thread. Two slots belong
+        /// together when one writes a transform row the other touches; anything else is independent
+        /// by construction, and a lobby of avatars is mostly independent.
+        ///
+        /// Only a slot's own target and the bones of a chain kind are ever written — every other row
+        /// it looks at is read-only and links nothing. That distinction carries the whole result: a
+        /// shared anchor that half the room aims at is read by everyone and written by no one, and
+        /// treating it as a dependency would fold the room back into one group and hand the work
+        /// straight back to a single thread.
+        ///
+        /// Grouping by avatar root would be simpler and is not enough — a constraint may drive a
+        /// transform in another hierarchy, a held prop or a shared rig, and two roots writing one row
+        /// is exactly the race this exists to rule out.
+        ///
+        /// Order within a group is what <see cref="BuildSolveOrder"/> produced, untouched, so what
+        /// each slot reads is unchanged and the result is identical to solving the table in one pass.
+        /// </summary>
+        private static void BuildSolveGroups()
+        {
+            sOrder.Clear();
+            sSolveGroups.Clear();
+
+            int count = sSlots.Length;
+            sGroupParent.Clear();
+            for (int Index = 0; Index < count; Index++)
+            {
+                sGroupParent.Add(Index);
+            }
+
+            sRowWriter.Clear();
+            for (int Index = 0; Index < sTrackedScratch.Count; Index++)
+            {
+                sRowWriter.Add(-1);
+            }
+
+            // Pass one: claim the written rows, merging any two slots that write the same one.
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisConstraintSlot slot = sSlots[Index];
+                ClaimWrite(Index, slot.TargetIndex);
+                for (int Bone = 0; Bone < slot.ChainCount; Bone++)
+                {
+                    ClaimWrite(Index, sChain[slot.ChainStart + Bone].x);
+                }
+            }
+
+            // Pass two: reading a written row means sharing that row's group. It has to be a second
+            // pass — a slot reading a row claimed by a later slot would otherwise see it unclaimed
+            // and split off on its own.
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisConstraintSlot slot = sSlots[Index];
+                LinkRead(Index, slot.WorldUpIndex);
+                LinkRead(Index, ParentRowOf(slot.TargetIndex));
+                for (int Source = 0; Source < slot.SourceCount; Source++)
+                {
+                    LinkRead(Index, sSources[slot.SourceStart + Source].TransformIndex);
+                }
+                for (int Bone = 0; Bone < slot.ChainCount; Bone++)
+                {
+                    int boneRow = sChain[slot.ChainStart + Bone].x;
+                    LinkRead(Index, boneRow);
+                    LinkRead(Index, ParentRowOf(boneRow));
+                }
+            }
+
+            // Bucket in solve order, so every group comes out holding the sequence it was given.
+            sGroupIndexOf.Clear();
+            int used = 0;
+            for (int Index = 0; Index < sOrderScratch.Count; Index++)
+            {
+                int slotIndex = sOrderScratch[Index];
+                int root = FindGroup(slotIndex);
+                if (!sGroupIndexOf.TryGetValue(root, out int group))
+                {
+                    group = used++;
+                    sGroupIndexOf[root] = group;
+                    if (sGroupBuckets.Count < used)
+                    {
+                        sGroupBuckets.Add(new List<int>());
+                    }
+                    // Buckets outlive the rebuild that filled them, so this one starts over rather
+                    // than appending to whatever the last population left in it.
+                    sGroupBuckets[group].Clear();
+                }
+                sGroupBuckets[group].Add(slotIndex);
+            }
+
+            for (int Group = 0; Group < used; Group++)
+            {
+                List<int> bucket = sGroupBuckets[Group];
+                sSolveGroups.Add(new int2(sOrder.Length, bucket.Count));
+                for (int Index = 0; Index < bucket.Count; Index++)
+                {
+                    sOrder.Add(bucket[Index]);
+                }
+            }
+        }
+
+        private static int ParentRowOf(int row) => row >= 0 ? sLocal[row].ParentIndex : -1;
+
+        /// <summary>
+        /// Records that a slot can write a transform row, merging it with whoever claimed the row
+        /// first. Claimed off the structure alone: whether a slot actually writes turns on its weight
+        /// and its active flag, and both of those move every frame without a rebuild, so the grouping
+        /// has to hold for every value they could take.
+        /// </summary>
+        private static void ClaimWrite(int slotIndex, int row)
+        {
+            if (row < 0)
+            {
+                return;
+            }
+            int writer = sRowWriter[row];
+            if (writer < 0)
+            {
+                sRowWriter[row] = slotIndex;
+                return;
+            }
+            UnionGroup(slotIndex, writer);
+        }
+
+        /// <summary>
+        /// Joins a slot to the group of a row it reads. A row nothing writes reads the same for
+        /// everyone all frame, so it links nothing.
+        /// </summary>
+        private static void LinkRead(int slotIndex, int row)
+        {
+            if (row < 0)
+            {
+                return;
+            }
+            int writer = sRowWriter[row];
+            if (writer >= 0)
+            {
+                UnionGroup(slotIndex, writer);
+            }
+        }
+
+        private static int FindGroup(int slotIndex)
+        {
+            while (sGroupParent[slotIndex] != slotIndex)
+            {
+                // Path halving: point at the grandparent on the way up, so a chain walked twice
+                // flattens itself without a second pass over it.
+                int grandparent = sGroupParent[sGroupParent[slotIndex]];
+                sGroupParent[slotIndex] = grandparent;
+                slotIndex = grandparent;
+            }
+            return slotIndex;
+        }
+
+        /// <summary>Merges two groups, keeping the lower slot index as the representative.</summary>
+        private static void UnionGroup(int left, int right)
+        {
+            int leftRoot = FindGroup(left);
+            int rightRoot = FindGroup(right);
+            if (leftRoot == rightRoot)
+            {
+                return;
+            }
+            if (leftRoot < rightRoot)
+            {
+                sGroupParent[rightRoot] = leftRoot;
+            }
+            else
+            {
+                sGroupParent[leftRoot] = rightRoot;
+            }
         }
 
         /// <summary>

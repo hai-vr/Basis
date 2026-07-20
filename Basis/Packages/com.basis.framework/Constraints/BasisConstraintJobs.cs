@@ -73,7 +73,27 @@ namespace Basis.Scripts.Constraints
     }
 
     /// <summary>
-    /// Solves every constraint in one pass, walking <see cref="Order"/> — a topological order over
+    /// Blanks the results table ahead of a solve. Rows accumulate across every slot that shares a
+    /// target, so they have to start from nothing.
+    ///
+    /// Its own job rather than a preamble inside the solve: it depends on nothing the sample
+    /// produces, so it runs alongside that instead of behind it, and a solve split across groups
+    /// could not do it anyway — a group blanking the whole table would wipe rows another group had
+    /// already solved.
+    /// </summary>
+    [BurstCompile]
+    public struct BasisConstraintClearJob : IJobParallelFor
+    {
+        [WriteOnly] public NativeArray<BasisConstraintResult> Results;
+
+        public void Execute(int index)
+        {
+            Results[index] = default;
+        }
+    }
+
+    /// <summary>
+    /// Solves every constraint, walking <see cref="Order"/> — a topological order over
     /// the source→target dependency graph, so a constraint driven by another constraint's target
     /// always sees the already-solved pose regardless of where either sits in the hierarchy. After
     /// each slot resolves, the target's entry in <see cref="World"/> is recomposed from its parent,
@@ -84,16 +104,27 @@ namespace Basis.Scripts.Constraints
     /// pre-solve world pose for the frame. And a dependency cycle has no valid order at all — it is
     /// broken at the shallowest member, which lags one frame.
     ///
-    /// Single-threaded by design. The work per slot is a handful of quaternion blends, and a
-    /// parallel job would have to give up the sequential dependency the depth ordering buys.
+    /// One iteration per <see cref="Groups"/> entry, each a contiguous run of <see cref="Order"/>.
+    /// A group is a connected component of that same dependency graph, so no two groups share a
+    /// transform row either of them writes and neither can observe the other — which is what lets
+    /// them run at once without giving up the ordering the solve depends on. The sequence inside a
+    /// group is exactly what it was, so a room full of avatars simply stops being solved one avatar
+    /// at a time. Every write lands through that ordering rather than through the iteration index,
+    /// which is what the disabled range checks below are for.
     /// </summary>
     [BurstCompile]
-    public struct BasisConstraintSolveJob : IJob
+    public struct BasisConstraintSolveJob : IJobParallelFor
     {
         [ReadOnly] public NativeArray<BasisConstraintSlot> Slots;
         [ReadOnly] public NativeArray<BasisConstraintSource> Sources;
         [ReadOnly] public NativeArray<BasisConstraintTransform> Local;
         [ReadOnly] public NativeArray<int> Order;
+
+        /// <summary>
+        /// (start, count) into <see cref="Order"/>, one entry per independently solvable group.
+        /// Every slot appears in exactly one, so the groups together are the whole table.
+        /// </summary>
+        [ReadOnly] public NativeArray<int2> Groups;
 
         /// <summary>
         /// Slot index → row in <see cref="Results"/>. Rows are per *target transform*, not per slot,
@@ -102,11 +133,11 @@ namespace Basis.Scripts.Constraints
         /// </summary>
         [ReadOnly] public NativeArray<int> TargetRow;
 
-        public NativeArray<BasisConstraintWorld> World;
-        public NativeArray<BasisConstraintResult> Results;
+        [NativeDisableParallelForRestriction] public NativeArray<BasisConstraintWorld> World;
+        [NativeDisableParallelForRestriction] public NativeArray<BasisConstraintResult> Results;
 
         /// <summary>Per-slot lag memory for the damped kind; untouched by every other kind.</summary>
-        public NativeArray<BasisConstraintDampState> DampState;
+        [NativeDisableParallelForRestriction] public NativeArray<BasisConstraintDampState> DampState;
 
         /// <summary>(sampled row, results row) per bone, for the kinds that pose a whole chain.</summary>
         [ReadOnly] public NativeArray<int2> Chain;
@@ -115,31 +146,30 @@ namespace Basis.Scripts.Constraints
         [ReadOnly] public NativeArray<BasisConstraintWorld> ChainBind;
 
         /// <summary>
-        /// Scratch for the chain IK reach, sized to the longest chain in the table. Held on the job
-        /// rather than allocated per solve: this runs every frame, and the solve is single-threaded
-        /// so one buffer is enough for all of them.
+        /// Scratch for the chain IK reach, <see cref="ChainStride"/> entries per group so two groups
+        /// reaching at the same time cannot land in one buffer. Held on the job rather than allocated
+        /// per solve: this runs every frame.
         /// </summary>
-        public NativeArray<float3> ChainPositions;
-        public NativeArray<float> ChainLengths;
+        [NativeDisableParallelForRestriction] public NativeArray<float3> ChainPositions;
+        [NativeDisableParallelForRestriction] public NativeArray<float> ChainLengths;
+
+        /// <summary>Chain scratch entries reserved per group — the longest chain in the table.</summary>
+        public int ChainStride;
 
         /// <summary>Unscaled frame delta, for the damped kind's fixed-step integration.</summary>
         public float DeltaTime;
 
-        public void Execute()
+        public void Execute(int groupIndex)
         {
-            // Results accumulate across slots sharing a target, so start from a clean slate.
-            for (int Index = 0; Index < Results.Length; Index++)
+            int2 group = Groups[groupIndex];
+            int chainBase = groupIndex * ChainStride;
+            for (int Index = 0; Index < group.y; Index++)
             {
-                Results[Index] = default;
-            }
-
-            for (int Index = 0; Index < Order.Length; Index++)
-            {
-                Solve(Order[Index]);
+                Solve(Order[group.x + Index], chainBase);
             }
         }
 
-        private void Solve(int slotIndex)
+        private void Solve(int slotIndex, int chainBase)
         {
             BasisConstraintSlot slot = Slots[slotIndex];
             BasisConstraintResult result = default;
@@ -197,7 +227,7 @@ namespace Basis.Scripts.Constraints
                     SolveTwoBoneIK(in slot, weight, ref result);
                     break;
                 case BasisConstraintKind.ChainIK:
-                    SolveChainIK(in slot, weight, ref result);
+                    SolveChainIK(in slot, weight, chainBase, ref result);
                     break;
                 case BasisConstraintKind.TwistChain:
                     SolveTwistChain(in slot, in local, in parent, weight, ref result);
@@ -541,6 +571,7 @@ namespace Basis.Scripts.Constraints
         private void SolveChainIK(
             in BasisConstraintSlot slot,
             float weight,
+            int chainBase,
             ref BasisConstraintResult result)
         {
             int count = slot.ChainCount;
@@ -562,22 +593,27 @@ namespace Basis.Scripts.Constraints
 
             BasisConstraintWorld targetWorld = World[targetSource.TransformIndex];
 
+            // This group's own window onto the shared scratch, so the reach below can index from zero
+            // the way it reads regardless of which group is running it.
+            NativeArray<float3> chainPositions = ChainPositions.GetSubArray(chainBase, ChainStride);
+            NativeArray<float> chainLengths = ChainLengths.GetSubArray(chainBase, ChainStride);
+
             float maxReach = 0f;
             for (int Index = 0; Index < count; Index++)
             {
                 float3 position = World[Chain[slot.ChainStart + Index].x].Position;
-                ChainPositions[Index] = position;
+                chainPositions[Index] = position;
                 if (Index > 0)
                 {
-                    float length = math.distance(position, ChainPositions[Index - 1]);
-                    ChainLengths[Index - 1] = length;
+                    float length = math.distance(position, chainPositions[Index - 1]);
+                    chainLengths[Index - 1] = length;
                     maxReach += length;
                 }
             }
 
-            float3 rootPosition = ChainPositions[0];
+            float3 rootPosition = chainPositions[0];
             int tip = count - 1;
-            float3 goal = math.lerp(ChainPositions[tip], targetWorld.Position, reachWeight);
+            float3 goal = math.lerp(chainPositions[tip], targetWorld.Position, reachWeight);
 
             if (math.distancesq(goal, rootPosition) > maxReach * maxReach)
             {
@@ -585,7 +621,7 @@ namespace Basis.Scripts.Constraints
                 float3 direction = math.normalizesafe(goal - rootPosition, new float3(0f, 0f, 1f));
                 for (int Index = 1; Index < count; Index++)
                 {
-                    ChainPositions[Index] = ChainPositions[Index - 1] + direction * ChainLengths[Index - 1];
+                    chainPositions[Index] = chainPositions[Index - 1] + direction * chainLengths[Index - 1];
                 }
             }
             else
@@ -593,27 +629,27 @@ namespace Basis.Scripts.Constraints
                 float toleranceSq = slot.Tolerance * slot.Tolerance;
                 for (int Iteration = 0; Iteration < slot.MaxIterations; Iteration++)
                 {
-                    if (math.distancesq(ChainPositions[tip], goal) <= toleranceSq)
+                    if (math.distancesq(chainPositions[tip], goal) <= toleranceSq)
                     {
                         break;
                     }
 
                     // Forward: tip onto the goal, everything else trailing behind it.
-                    ChainPositions[tip] = goal;
+                    chainPositions[tip] = goal;
                     for (int Index = tip - 1; Index >= 0; Index--)
                     {
                         float3 toward = math.normalizesafe(
-                            ChainPositions[Index] - ChainPositions[Index + 1], new float3(0f, 0f, 1f));
-                        ChainPositions[Index] = ChainPositions[Index + 1] + toward * ChainLengths[Index];
+                            chainPositions[Index] - chainPositions[Index + 1], new float3(0f, 0f, 1f));
+                        chainPositions[Index] = chainPositions[Index + 1] + toward * chainLengths[Index];
                     }
 
                     // Backward: root pinned, correction travelling back out to the tip.
-                    ChainPositions[0] = rootPosition;
+                    chainPositions[0] = rootPosition;
                     for (int Index = 1; Index < count; Index++)
                     {
                         float3 toward = math.normalizesafe(
-                            ChainPositions[Index] - ChainPositions[Index - 1], new float3(0f, 0f, 1f));
-                        ChainPositions[Index] = ChainPositions[Index - 1] + toward * ChainLengths[Index - 1];
+                            chainPositions[Index] - chainPositions[Index - 1], new float3(0f, 0f, 1f));
+                        chainPositions[Index] = chainPositions[Index - 1] + toward * chainLengths[Index - 1];
                     }
                 }
             }
@@ -623,7 +659,7 @@ namespace Basis.Scripts.Constraints
             {
                 int2 entry = Chain[slot.ChainStart + Index];
                 float3 was = World[Chain[slot.ChainStart + Index + 1].x].Position - World[entry.x].Position;
-                float3 wants = ChainPositions[Index + 1] - ChainPositions[Index];
+                float3 wants = chainPositions[Index + 1] - chainPositions[Index];
                 quaternion turn = FromToRotation(was, wants);
                 if (!turn.Equals(quaternion.identity))
                 {

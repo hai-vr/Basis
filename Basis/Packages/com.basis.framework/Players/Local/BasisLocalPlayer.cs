@@ -11,6 +11,7 @@ using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections;
 using System.Threading.Tasks;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
@@ -509,34 +510,59 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }
+        static readonly ProfilerMarker sMarkerMovement = new ProfilerMarker("BasisDriver.LocalPlayer.Movement");
+        static readonly ProfilerMarker sMarkerPlayspaceMover = new ProfilerMarker("BasisDriver.LocalPlayer.PlayspaceMover");
+        static readonly ProfilerMarker sMarkerVirtualData = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualData");
+        static readonly ProfilerMarker sMarkerLateSimulateBones = new ProfilerMarker("BasisDriver.LocalPlayer.LateSimulateBones");
+        static readonly ProfilerMarker sMarkerBoneDriver = new ProfilerMarker("BasisDriver.LocalPlayer.BoneDriver");
+        static readonly ProfilerMarker sMarkerIKDestinations = new ProfilerMarker("BasisDriver.LocalPlayer.IKDestinations");
+        static readonly ProfilerMarker sMarkerAnimator = new ProfilerMarker("BasisDriver.LocalPlayer.Animator");
+        static readonly ProfilerMarker sMarkerHandDriver = new ProfilerMarker("BasisDriver.LocalPlayer.HandDriver");
+        static readonly ProfilerMarker sMarkerAfterSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.AfterSimulateOnLate");
+
         public void Simulate(float DeltaTime)
         {
             // now lets move the local player position.
-            LocalCharacterDriver.SimulateMovement(DeltaTime);
-
-            // VR play space grab/drag override (no-op unless enabled and a controller input is held).
-            BasisLocalPlayspaceMover.Simulate(this, DeltaTime);
-
-            // Apply virtual data (e.g. seat driver) before polling input devices so that
-            // localToWorldMatrix reflects the seat-adjusted player position. This ensures
-            // bone world positions and raycast origins are correct while seated (#514).
-            ApplyVirtualData(this);
-            if (LocalSeatDriver.IsSeated)
+            using (sMarkerMovement.Auto())
             {
-                transform.GetPositionAndRotation(out Vector3 seatPos, out Quaternion seatRot);
-                localToWorldMatrix = Matrix4x4.TRS(seatPos, seatRot, transform.lossyScale);
+                LocalCharacterDriver.SimulateMovement(DeltaTime);
             }
 
-            // Apply the play-space flip (OVRAS-style) to the avatar's local->world matrix so the body
-            // tips/inverts with the view. The view, controllers, and trackers get the same flip in
-            // BasisInput.ApplyFinalMovement. No-op unless a flip is active; the capsule is never rotated.
-            localToWorldMatrix = BasisLocalPlayspaceMover.ApplyFlipToMatrix(localToWorldMatrix);
+            // VR play space grab/drag override (no-op unless enabled and a controller input is held).
+            using (sMarkerPlayspaceMover.Auto())
+            {
+                BasisLocalPlayspaceMover.Simulate(this, DeltaTime);
+            }
 
-            OnLateSimulateBones(this);
+            using (sMarkerVirtualData.Auto())
+            {
+                // Apply virtual data (e.g. seat driver) before polling input devices so that
+                // localToWorldMatrix reflects the seat-adjusted player position. This ensures
+                // bone world positions and raycast origins are correct while seated (#514).
+                ApplyVirtualData(this);
+                if (LocalSeatDriver.IsSeated)
+                {
+                    transform.GetPositionAndRotation(out Vector3 seatPos, out Quaternion seatRot);
+                    localToWorldMatrix = Matrix4x4.TRS(seatPos, seatRot, transform.lossyScale);
+                }
+
+                // Apply the play-space flip (OVRAS-style) to the avatar's local->world matrix so the body
+                // tips/inverts with the view. The view, controllers, and trackers get the same flip in
+                // BasisInput.ApplyFinalMovement. No-op unless a flip is active; the capsule is never rotated.
+                localToWorldMatrix = BasisLocalPlayspaceMover.ApplyFlipToMatrix(localToWorldMatrix);
+            }
+
+            using (sMarkerLateSimulateBones.Auto())
+            {
+                OnLateSimulateBones(this);
+            }
 
             // moves all bones to where they belong
             // This also drives head and camera movement.
-            LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
+            using (sMarkerBoneDriver.Auto())
+            {
+                LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
+            }
 
             // moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)
@@ -546,15 +572,27 @@ namespace Basis.Scripts.BasisSdk.Players
             }
 
             // Simulate Final Destination of IK then process Animator and IK processes.
-            LocalRigDriver.SimulateIKDestinations(DeltaTime);
+            using (sMarkerIKDestinations.Auto())
+            {
+                LocalRigDriver.SimulateIKDestinations(DeltaTime);
+            }
 
             // Apply Animator Weights using most current data and outside movement effectors.
-            LocalAnimatorDriver.SimulateAnimator(DeltaTime);
+            using (sMarkerAnimator.Auto())
+            {
+                LocalAnimatorDriver.SimulateAnimator(DeltaTime);
+            }
 
             // schedule finger slerp job (completed by Apply in BasisEventDriver)
-            LocalHandDriver.Simulate(DeltaTime);
+            using (sMarkerHandDriver.Auto())
+            {
+                LocalHandDriver.Simulate(DeltaTime);
+            }
 
-            AfterSimulateOnLate?.Invoke();
+            using (sMarkerAfterSimulate.Auto())
+            {
+                AfterSimulateOnLate?.Invoke();
+            }
         }
         public static void FireJustBeforeNetworkApply()
         {

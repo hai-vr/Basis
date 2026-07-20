@@ -198,7 +198,9 @@ public static class BasisNetworkPIPCameraDriver
     /// <summary>
     /// Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.
     /// Smooths toward the latest network targets and writes the camera + nameplate
-    /// transforms via parallel jobs, completing them before the frame renders.
+    /// transforms via parallel jobs. The jobs are reaped at the top of the next
+    /// Simulate (or by whichever mutation entry point fires first) — microseconds of
+    /// work kicked here is long done before rendering samples the transforms.
     /// </summary>
     private static void Simulate()
     {
@@ -248,7 +250,11 @@ public static class BasisNetworkPIPCameraDriver
         }.Schedule(namePlateTransforms, smoothHandle);
 
         pipHandle = JobHandle.CombineDependencies(cameraHandle, namePlateHandle);
-        pipHandle.Complete();
+        // No same-frame fence: the top of the next Simulate (and every mutation entry
+        // point) completes pipHandle before touching the lists, so the smooth + apply
+        // jobs get the rest of the frame instead of stalling this thread here. The
+        // kick makes workers start now rather than at the next fence.
+        JobHandle.ScheduleBatchedJobs();
     }
 
     /// <summary>

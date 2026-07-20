@@ -92,7 +92,9 @@ namespace Basis.Scripts.Drivers
         public bool[] DebugHasViseme => _hasViseme;
         public int[] DebugVisemeToBlendShape => _visemeToBlendShape;
         public float[] DebugVisemeWeights => _cachedVisemeWeights;
-        public float[] DebugLastApplied => _lastApplied;
+        // Not only debug: the HVR comms viseme bridge reads this every frame. The array is
+        // allocated once and only ever mutated in place, so callers may cache the reference.
+        public float[] LastApplied => _lastApplied;
         public bool DebugTaskRunning => _batchTask != null && !_batchTask.IsCompleted;
         public static int DebugPendingCount => _pendingInference.Count;
         public static bool DebugBatchRunning => _batchTask != null && !_batchTask.IsCompleted;

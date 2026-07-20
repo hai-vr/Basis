@@ -258,6 +258,39 @@ namespace Basis.Scripts.UI.NamePlate
             initialized = true;
         }
 
+        // In-flight CPU vertex-transform chain, completed and published by FinishFrame at
+        // before-render — or joined early by CompletePendingVertexJobs when something needs
+        // to mutate the buffers first.
+        private static JobHandle pendingVertexJobs;
+        private static bool vertexJobsPending;
+
+        /// <summary>
+        /// Joins the in-flight vertex jobs without publishing their output. Must run before
+        /// anything writes or frees the buffers the jobs touch — the top of Rebuild, and Dispose.
+        /// </summary>
+        private static void CompletePendingVertexJobs()
+        {
+            if (!vertexJobsPending) return;
+            vertexJobsPending = false;
+            pendingVertexJobs.Complete();
+            pendingVertexJobs = default;
+        }
+
+        /// <summary>
+        /// Completes the frame's scheduled vertex transforms and publishes the meshes. Called
+        /// from before-render, so the jobs overlap the tail of LateUpdate and Unity's internal
+        /// post-late work instead of being fenced the moment they were scheduled. No-op when
+        /// the frame ran the inline path (below the parallel threshold) or nothing scheduled.
+        /// </summary>
+        public static void FinishFrame()
+        {
+            if (!vertexJobsPending) return;
+            vertexJobsPending = false;
+            pendingVertexJobs.Complete();
+            pendingVertexJobs = default;
+            FinalizeLayers();
+        }
+
         /// <summary>
         /// Rebuilds topology if the plate set changed, then transforms positions for the frame.
         /// Call once per frame after the plate transforms and colors are final.
@@ -265,6 +298,10 @@ namespace Basis.Scripts.UI.NamePlate
         public static void Rebuild(BasisRemoteNamePlate[] plates, int count)
         {
             if (!initialized || panelMaterial == null) return;
+
+            // Normally a no-op (FinishFrame ran at before-render); catches a frame where
+            // before-render never fired before the gather below rewrites the matrices.
+            CompletePendingVertexJobs();
 
             if (panelKeywordApplied != GpuBillboardPanel)
             {
@@ -626,15 +663,24 @@ namespace Basis.Scripts.UI.NamePlate
                 if (!panel.Gpu) deps = ScheduleLayer(panel, true, mtx, deps);
                 for (int i = 0; i < textLayerList.Count; i++)
                     if (!textLayerList[i].Gpu) deps = ScheduleLayer(textLayerList[i], false, mtx, deps);
-                deps.Complete();
-            }
-            else
-            {
-                if (!panel.Gpu) RunLayer(panel, true, mtx);
-                for (int i = 0; i < textLayerList.Count; i++)
-                    if (!textLayerList[i].Gpu) RunLayer(textLayerList[i], false, mtx);
+                // Published by FinishFrame at before-render instead of fenced right here —
+                // nothing reads the transformed vertices before rendering does. The kick
+                // starts workers now rather than at the eventual fence.
+                pendingVertexJobs = deps;
+                vertexJobsPending = true;
+                JobHandle.ScheduleBatchedJobs();
+                return;
             }
 
+            if (!panel.Gpu) RunLayer(panel, true, mtx);
+            for (int i = 0; i < textLayerList.Count; i++)
+                if (!textLayerList[i].Gpu) RunLayer(textLayerList[i], false, mtx);
+
+            FinalizeLayers();
+        }
+
+        private static void FinalizeLayers()
+        {
             FinalizeLayer(panel, true);
             for (int i = 0; i < textLayerList.Count; i++) FinalizeLayer(textLayerList[i], false);
         }
@@ -990,6 +1036,9 @@ namespace Basis.Scripts.UI.NamePlate
         public static void Dispose()
         {
             if (!initialized) return;
+
+            // The buffers below are freed while a deferred vertex chain may still read them.
+            CompletePendingVertexJobs();
 
             if (panel != null)
             {

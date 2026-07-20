@@ -26,6 +26,7 @@ using UnityEngine.Jobs;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Burst;
+using Unity.Profiling;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -133,7 +134,18 @@ namespace SteamAudio
 
         float mSimulationUpdateTimeElapsed = 0.0f;
         bool mSceneCommitRequired = false;
+        // Simulator membership (source/probe add-remove) or scene identity changed
+        // since the last iplSimulatorCommit. Starts true so the first Apply commits.
+        bool mSimulatorCommitRequired = true;
         Camera mMainCamera;
+
+        static readonly ProfilerMarker sMarkerSkipBusy = new ProfilerMarker("SteamAudio.Apply.SkipWorkerBusy");
+        static readonly ProfilerMarker sMarkerReap = new ProfilerMarker("SteamAudio.Apply.Reap");
+        static readonly ProfilerMarker sMarkerApplyOutputs = new ProfilerMarker("SteamAudio.Apply.ApplyOutputs");
+        static readonly ProfilerMarker sMarkerCommit = new ProfilerMarker("SteamAudio.Apply.Commit");
+        static readonly ProfilerMarker sMarkerGatherComplete = new ProfilerMarker("SteamAudio.Apply.GatherComplete");
+        static readonly ProfilerMarker sMarkerSnapshot = new ProfilerMarker("SteamAudio.Apply.BuildSnapshot");
+        static readonly ProfilerMarker sMarkerReflections = new ProfilerMarker("SteamAudio.Apply.Reflections");
 
         public static SteamAudioManager Singleton = null;
 
@@ -591,6 +603,17 @@ namespace SteamAudio
         {
             Singleton.mSceneCommitRequired = true;
         }
+
+        // Call when simulator membership changes (source or probe batch added/removed),
+        // so the next Apply runs iplSimulatorCommit. Source.AddToSimulator and friends
+        // call this themselves; scene-content changes go through ScheduleCommitScene.
+        public static void NotifySimulatorDirty()
+        {
+            if (Singleton != null)
+            {
+                Singleton.mSimulatorCommitRequired = true;
+            }
+        }
 #if BASIS_FRAMEWORK_EXISTS
         public static void Schedule()
         {
@@ -656,7 +679,12 @@ namespace SteamAudio
         private void ApplyInstance()
         {
             if (mAudioEngineState == null)
+            {
+                // Schedule() ran regardless of engine state — never leave its
+                // gather job in flight across the frame boundary.
+                combined.Complete();
                 return;
+            }
 
             SteamAudioSettings settings = SteamAudioSettings.Singleton;
             SteamAudioListener steamAudioListener = SteamAudioManager.GetSteamAudioListener();
@@ -667,16 +695,45 @@ namespace SteamAudio
             mAudioEngineState.SetHRTF(CurrentHRTF.Get());
 
             if (mCurrentScene == null || mSimulator == null)
+            {
+                combined.Complete();
                 return;
+            }
+
+            // Keep the reflections cadence clock ticking even on frames that skip
+            // the direct cycle below, so the interval cannot stretch under load.
+            mSimulationUpdateTimeElapsed += Time.deltaTime;
 
             // Reap the direct simulation the worker ran against last frame's
-            // inputs. Blocking here instead of right after RunDirect lets the
-            // ~11ms of occlusion ray casting overlap the rest of the main-thread
+            // inputs. Deferring the reap to here instead of right after RunDirect
+            // lets the occlusion ray casting overlap the rest of the main-thread
             // frame; one-frame-stale occlusion/attenuation is inaudible.
+            //
+            // Never block on it: with enough sources the worker's cycle outlasts a
+            // frame, and a plain WaitOne turns that whole overrun into main-thread
+            // stall. If it is still running, skip this frame's direct cycle — the
+            // worker still owns the snapshot buffers and any deferred source
+            // handles, so nothing below is safe to touch. Outputs land a frame
+            // later and the sim self-paces to what the worker can sustain.
             bool reapNow = mDirectInFlight;
             if (mDirectInFlight)
             {
-                mDirectDoneHandle.WaitOne();
+                bool workerDone;
+                using (sMarkerReap.Auto())
+                {
+                    workerDone = mDirectDoneHandle.WaitOne(0);
+                }
+                if (!workerDone)
+                {
+                    using (sMarkerSkipBusy.Auto())
+                    {
+                        // The pose gather must still be joined — left in flight it
+                        // would stall the next main-thread Transform access on its
+                        // safety handle instead.
+                        combined.Complete();
+                    }
+                    return;
+                }
                 mDirectInFlight = false;
             }
 
@@ -686,44 +743,55 @@ namespace SteamAudio
 
             if (reapNow)
             {
-                if (UseThreadedDirectPipeline)
+                using (sMarkerApplyOutputs.Auto())
                 {
-                    long frame = mDirectFrameCounter;
-                    int interval = DirectParamPushInterval < 1 ? 1 : DirectParamPushInterval;
-                    for (int i = 0; i < mSnapCount; i++)
+                    if (UseThreadedDirectPipeline)
                     {
-                        SteamAudioSource src = mSnapSources[i];
-                        if (src == null) continue;
+                        long frame = mDirectFrameCounter;
+                        int interval = DirectParamPushInterval < 1 ? 1 : DirectParamPushInterval;
+                        for (int i = 0; i < mSnapCount; i++)
+                        {
+                            SteamAudioSource src = mSnapSources[i];
+                            if (src == null) continue;
 
-                        bool pushNow = (interval == 1) || (((frame + i) % interval) == 0);
-                        src.ApplyDirectOutputs(in mDirectOutBuf[i], pushNow);
+                            bool pushNow = (interval == 1) || (((frame + i) % interval) == 0);
+                            src.ApplyDirectOutputs(in mDirectOutBuf[i], pushNow);
+                        }
                     }
-                }
-                else
-                {
-                    for (int i = 0; i < CurrentArraySource; i++)
+                    else
                     {
-                        SteamAudioSource src = mSources[i];
-                        if (src == null) continue;
+                        for (int i = 0; i < CurrentArraySource; i++)
+                        {
+                            SteamAudioSource src = mSources[i];
+                            if (src == null) continue;
 
-                        src.ReapDirect();
+                            src.ReapDirect();
+                        }
                     }
                 }
             }
 
-            // Commit only when no run is in flight: the direct worker is idle
-            // (reaped above) and the reflections thread is asleep. Steam Audio
-            // forbids Commit overlapping RunDirect/RunReflections.
-            if (mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
+            // Commit only when something changed — simulator membership (sources,
+            // probe batches) or scene identity/content — and only when no run is
+            // in flight: the direct worker is idle (reaped above) and the
+            // reflections thread is asleep. Steam Audio forbids Commit overlapping
+            // RunDirect/RunReflections. An unconditional per-frame Commit re-walks
+            // simulator state natively for nothing on the vast majority of frames.
+            if ((mSceneCommitRequired || mSimulatorCommitRequired) &&
+                mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
-                if (mSceneCommitRequired)
+                using (sMarkerCommit.Auto())
                 {
-                    mCurrentScene.Commit();
-                    mSceneCommitRequired = false;
-                }
+                    if (mSceneCommitRequired)
+                    {
+                        mCurrentScene.Commit();
+                        mSceneCommitRequired = false;
+                    }
 
-                mSimulator.SetScene(mCurrentScene);
-                mSimulator.Commit();
+                    mSimulator.SetScene(mCurrentScene);
+                    mSimulator.Commit();
+                    mSimulatorCommitRequired = false;
+                }
             }
 
             // Complete the in-flight GatherPoseJob BEFORE touching mListener's
@@ -732,7 +800,10 @@ namespace SteamAudio
             // on the TAA's safety handle until the job finishes. Reading
             // position/forward/up/right ahead of Complete() was the source of
             // the per-frame Transform.get_position spike.
-            combined.Complete();
+            using (sMarkerGatherComplete.Auto())
+            {
+                combined.Complete();
+            }
 
             var sharedInputs = new SimulationSharedInputs { };
 
@@ -759,6 +830,7 @@ namespace SteamAudio
             mSimulator.SetSharedInputs(SimulationFlags.Direct, sharedInputs);
 
             // --- Direct inputs from cached pose arrays ---
+            sMarkerSnapshot.Begin();
             unsafe
             {
                 if (UseThreadedDirectPipeline)
@@ -821,20 +893,24 @@ namespace SteamAudio
                 }
             }
 
+            sMarkerSnapshot.End();
+
             // RunDirect for these inputs is deferred to the worker (signaled at
             // the end of this method) and reaped at the top of next frame. The
             // direct UpdateOutputs/ForceUpdate that used to follow RunDirect now
             // lives in that reap.
 
             // --- Reflections/Pathing timing logic ---
+            // The cadence clock accumulates at the top of ApplyInstance (before the
+            // worker-busy skip) so skipped frames still count toward the interval.
             bool runReflectionsThisFrame = false;
-            mSimulationUpdateTimeElapsed += Time.deltaTime;
             bool reflectionsCadenceReady = mSimulationUpdateTimeElapsed >= settings.simulationUpdateInterval;
             if (reflectionsCadenceReady)
                 mSimulationUpdateTimeElapsed = 0.0f;
 
             if (reflectionsCadenceReady && mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
+                using var reflectionsScope = sMarkerReflections.Auto();
                 if (mSimulationCompleted)
                 {
                     mSimulationCompleted = false;
@@ -1912,6 +1988,8 @@ namespace SteamAudio
             if (!additive)
             {
                 Singleton.mCurrentScene = CreateScene(context);
+                // New scene identity — the next Apply must SetScene + Commit.
+                Singleton.mSimulatorCommitRequired = true;
             }
         }
 
@@ -2267,6 +2345,7 @@ namespace SteamAudio
             {
                 Singleton.mCurrentScene.Release();
                 Singleton.mCurrentScene = null;
+                Singleton.mSimulatorCommitRequired = true;
             }
         }
 

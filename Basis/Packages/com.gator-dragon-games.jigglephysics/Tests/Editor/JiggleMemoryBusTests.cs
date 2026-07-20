@@ -766,6 +766,44 @@ internal unsafe class JiggleMemoryBusTests {
         JiggleAssert.AreEqual(new float3(1f, 0f, 0f), bus.inputPosesPrevious[0].position, Tolerance);
     }
 
+    /// <summary>
+    /// Tree regeneration is capped per flush, so a large dirty set arrives as several small batches.
+    /// A commit rebuilds the whole transform list, so committing each batch would turn one
+    /// structural change into as many full rebuilds as there were batches. The commit waits for the
+    /// backlog instead, and everything lands in one.
+    /// </summary>
+    [Test]
+    public void CommitTrees_WhileTheRegenerationBacklogRemains_HoldsTheCommit() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        bus.SetTreeBacklog(true);
+
+        PumpTrees(4);
+
+        Assert.AreEqual(0, bus.treeCount, "the commit should wait while more dirty trees are still coming");
+
+        bus.SetTreeBacklog(false);
+        PumpTrees(8);
+
+        Assert.AreEqual(1, bus.treeCount, "and land once the backlog has drained");
+    }
+
+    /// <summary>
+    /// The safety valve. Deferring is keyed off a backlog flag the caller owns, so anything that
+    /// re-dirties every flush would otherwise hold the commit forever and jiggle would silently
+    /// never come online.
+    /// </summary>
+    [Test]
+    public void CommitTrees_WithABacklogThatNeverDrains_CommitsAnyway() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        bus.SetTreeBacklog(true);
+
+        PumpTrees(32);
+
+        Assert.AreEqual(1, bus.treeCount, "the deferral cap must bound how long a stuck backlog can stall the commit");
+    }
+
     [Test]
     public void CommitTrees_WithNothingQueued_IsANoOp() {
         Assert.DoesNotThrow(() => PumpTrees(4));

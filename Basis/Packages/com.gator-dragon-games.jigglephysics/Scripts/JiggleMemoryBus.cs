@@ -160,6 +160,15 @@ public class JiggleMemoryBus {
     private static int transformAccessBatchSize = 512;
     public static void SetTransformAccessBatchSize(int value) => transformAccessBatchSize = Mathf.Max(1, value);
 
+    // Tree regeneration is capped per flush, but a commit rebuilds the whole transform list — so
+    // committing each partial batch turns M dirty trees into M/budget full rebuilds. Holding the
+    // commit while the backlog drains coalesces them into one; the cap keeps a source that
+    // re-dirties forever from stalling the commit indefinitely.
+    private bool treeBacklogRemains;
+    private int deferredTreeCommits;
+    private const int MaxDeferredTreeCommits = 8;
+    public void SetTreeBacklog(bool backlogRemains) => treeBacklogRemains = backlogRemains;
+
     private static List<Transform> dummyTransforms;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -691,8 +700,15 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
             var commandCount = pendingCommands.Count;
             if (commandCount == 0) {
+                deferredTreeCommits = 0;
                 return;
             }
+
+            if (treeBacklogRemains && deferredTreeCommits < MaxDeferredTreeCommits) {
+                deferredTreeCommits++;
+                return;
+            }
+            deferredTreeCommits = 0;
 
             int newTransforms = 0;
             int newTrees = 0;

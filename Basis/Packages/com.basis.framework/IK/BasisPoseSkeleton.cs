@@ -25,27 +25,14 @@ namespace Basis.IK
         }
     }
 
-    [BurstCompile]
-    public struct BasisPoseScatterJob : IJobParallelForTransform
-    {
-        [ReadOnly] public NativeArray<float3> LocalPosition;
-        [ReadOnly] public NativeArray<quaternion> LocalRotation;
-        [ReadOnly] public NativeArray<int> WriteIndices;
-
-        public void Execute(int index, TransformAccess transform)
-        {
-            int bone = WriteIndices[index];
-            transform.SetLocalPositionAndRotation(LocalPosition[bone], LocalRotation[bone]);
-        }
-    }
-
     public sealed class BasisPoseSkeleton : IDisposable
     {
         public BasisPoseStream Stream;
 
         TransformAccessArray _access;
-        TransformAccessArray _writeAccess;
         NativeArray<int> _writeIndices;
+        // The writable bones, parallel to _writeIndices, for ScatterNow's inline write loop.
+        Transform[] _writableTransforms = Array.Empty<Transform>();
         NativeArray<float3> _authoredLocalPosition;
         NativeArray<float> _fitScale;
         Transform _anchor;
@@ -151,7 +138,7 @@ namespace Basis.IK
                     writableIndex.Add(index);
                 }
             }
-            _writeAccess = new TransformAccessArray(writable.ToArray());
+            _writableTransforms = writable.ToArray();
             _writeIndices = new NativeArray<int>(writableIndex.ToArray(), Allocator.Persistent);
 
             _allocated = true;
@@ -276,33 +263,50 @@ namespace Basis.IK
             Stream.AnchorScale = _anchor.lossyScale;
         }
 
-        public JobHandle ScheduleGather(JobHandle dependency = default)
+        /// <summary>
+        /// Gathers the skeleton's local pose into the stream on the calling thread. The gather's
+        /// only consumer runs the IK job inline immediately after, so a parallel dispatch here
+        /// bought nothing — its fence was paid on the very next line.
+        /// </summary>
+        public void GatherNow()
         {
             if (!_allocated)
             {
-                return dependency;
+                return;
             }
             SyncAnchor();
-            return new BasisPoseGatherJob
+            new BasisPoseGatherJob
             {
                 LocalPosition = Stream.LocalPosition,
                 LocalRotation = Stream.LocalRotation,
                 LocalScale = Stream.LocalScale,
-            }.ScheduleReadOnly(_access, 16, dependency);
+            }.RunReadOnly(_access);
         }
 
-        public JobHandle ScheduleScatter(JobHandle dependency = default)
+        /// <summary>
+        /// Writes the solved local pose back to the writable bones on the calling thread. Same
+        /// zero-window story as <see cref="GatherNow"/> — and transform writes have no inline job
+        /// path at all, so this is a plain loop: a dozen SetLocalPositionAndRotation calls cost
+        /// less than the write job's dispatch and fence did. Indexing directly also survives a
+        /// destroyed bone, where the TransformAccessArray silently compacted and shifted every
+        /// later write onto the wrong transform.
+        /// </summary>
+        public void ScatterNow()
         {
             if (!_allocated)
             {
-                return dependency;
+                return;
             }
-            return new BasisPoseScatterJob
+            for (int i = 0; i < _writableTransforms.Length; i++)
             {
-                LocalPosition = Stream.LocalPosition,
-                LocalRotation = Stream.LocalRotation,
-                WriteIndices = _writeIndices,
-            }.Schedule(_writeAccess, dependency);
+                Transform bone = _writableTransforms[i];
+                if (bone == null)
+                {
+                    continue;
+                }
+                int index = _writeIndices[i];
+                bone.SetLocalPositionAndRotation(Stream.LocalPosition[index], Stream.LocalRotation[index]);
+            }
         }
 
         public Transform[] DebugNodes => _ordered;
@@ -332,10 +336,6 @@ namespace Basis.IK
             if (_access.isCreated)
             {
                 _access.Dispose();
-            }
-            if (_writeAccess.isCreated)
-            {
-                _writeAccess.Dispose();
             }
             if (_writeIndices.IsCreated)
             {

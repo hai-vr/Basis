@@ -368,6 +368,10 @@ public class JiggleJobs {
         _memoryBus.ScheduleTeleport(tree, deltaPosition);
     }
 
+    public void SetTreeBacklog(bool backlogRemains) {
+        _memoryBus.SetTreeBacklog(backlogRemains);
+    }
+
     public void ScheduleAdd(JiggleTree tree) {
         _memoryBus.ScheduleAdd(tree);
     }

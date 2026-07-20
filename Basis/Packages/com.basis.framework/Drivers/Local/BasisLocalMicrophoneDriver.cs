@@ -4,8 +4,6 @@ using System;
 using System.Linq;
 using Basis.Scripts.Device_Management;
 using System.Threading;
-using Unity.Collections;
-using Unity.Jobs;
 
 public static class BasisLocalMicrophoneDriver
 {
@@ -27,9 +25,6 @@ public static class BasisLocalMicrophoneDriver
     private static AutoResetEvent processingEvent = new AutoResetEvent(false);
     private static readonly object processingLock = new object();
     private static readonly object ringLock = new object();
-
-    private static BasisVolumeAdjustmentJob VAJ = new BasisVolumeAdjustmentJob();
-    private static JobHandle handle;
 
     public const string MicrophoneState = "MicrophoneState";
     public const string SettingStartOff = "Muted";
@@ -195,9 +190,6 @@ public static class BasisLocalMicrophoneDriver
         UnregisterEvents();
         StopSelectedMicrophone();
 
-        if (!handle.IsCompleted) handle.Complete();
-        if (VAJ.processBufferArray.IsCreated) VAJ.processBufferArray.Dispose();
-
         Denoiser?.Dispose();
         Denoiser = null;
 
@@ -249,15 +241,13 @@ public static class BasisLocalMicrophoneDriver
     /// </summary>
     private static void ApplyMicSettings(SMDMicrophone.MicSettings s)
     {
-        // 1) Update Volume mapping (affects VAJ.Volume too)
+        // 1) Update Volume mapping
         ChangeMicrophoneVolume(s.Volume01);
 
-        // 2) Update job params that are consumed during AdjustVolume()
+        // 2) AdjustVolume reads the limiter values straight off the settings snapshot it
+        //    is handed each frame, so only the AGC state needs touching here.
         lock (processingLock)
         {
-            VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
-            VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
-
             // AGC internal state reset when disabled
             if (!s.UseAGC) agcGainDb = 0f;
         }
@@ -369,7 +359,7 @@ public static class BasisLocalMicrophoneDriver
 
             CreateOrResizeArray(ProcessFrameLength, ref _denoiseDry);
 
-            HandleBasisVolumeAdjustmentJob();
+            PrimeVolumeRamp();
 
             LocalOpusSettings.CreateOrResizeArray(LocalOpusSettings.rmsWindowSize, ref rmsValues);
             Array.Clear(rmsValues, 0, rmsValues.Length);
@@ -469,32 +459,10 @@ public static class BasisLocalMicrophoneDriver
         }
     }
 
-    public static void HandleBasisVolumeAdjustmentJob()
+    /// <summary>Primes the gain ramp so the first frame after (re)init doesn't ramp.</summary>
+    public static void PrimeVolumeRamp()
     {
-        if (!handle.IsCompleted) handle.Complete();
-
-        if (VAJ.processBufferArray.IsCreated)
-        {
-            if (VAJ.processBufferArray.Length != processBufferArray.Length)
-            {
-                VAJ.processBufferArray.Dispose();
-                VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
-            }
-        }
-        else
-        {
-            VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
-        }
-
-        VAJ.Volume = Volume;
-        VAJ.VolumePrev = Volume; // prime so the first frame after (re)init doesn't ramp
-        VAJ.FrameLength = processBufferArray.Length;
         _prevVolume = Volume;
-
-        // Pull limiter settings from snapshot (authoritative)
-        var s = SMDMicrophone.Current;
-        VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
-        VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
     }
 
     private static void PollDeviceChanges()
@@ -825,21 +793,44 @@ public static class BasisLocalMicrophoneDriver
 
     public static void AdjustVolume(SMDMicrophone.MicSettings s)
     {
+        float[] buffer = processBufferArray;
+        int frameLength = buffer.Length;
+
         // Linearly ramp gain across the frame from the previous frame's end-of-frame
         // value to the current Volume, so a UI slider change does not step between
         // 20 ms frames (= click at the boundary).
-        VAJ.VolumePrev = _prevVolume;
-        VAJ.Volume = Volume;
-        VAJ.FrameLength = processBufferArray.Length;
-        _prevVolume = Volume;
+        float volumeStart = _prevVolume;
+        float volumeEnd = Volume;
+        _prevVolume = volumeEnd;
 
-        VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
-        VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
+        float limitT = Mathf.Clamp01(s.LimitThreshold);
+        float limitK = Mathf.Max(1e-6f, Mathf.Clamp01(s.LimitKnee));
+        float capped = limitT + limitK;
 
-        VAJ.processBufferArray.CopyFrom(processBufferArray);
-        handle = VAJ.Schedule(processBufferArray.Length, 64);
-        handle.Complete();
-        VAJ.processBufferArray.CopyTo(processBufferArray);
+        // Inline on this (microphone) thread. The former Burst job cost a full copy into
+        // a NativeArray, a cross-thread dispatch, a blocking fence and a copy back out,
+        // every 20 ms audio frame — for one multiply and a clamp per sample.
+        float rampStep = frameLength > 1 ? 1f / (frameLength - 1) : 0f;
+        for (int index = 0; index < frameLength; index++)
+        {
+            float gain = frameLength > 1 ? Mathf.Lerp(volumeStart, volumeEnd, index * rampStep) : volumeEnd;
+            float x = buffer[index] * gain;
+
+            // Soft limiter: passthrough below the threshold, smooth cubic knee within
+            // [threshold, threshold + knee], hard cap above.
+            float ax = Mathf.Abs(x);
+            if (ax >= capped)
+            {
+                x = Mathf.Sign(x) * capped;
+            }
+            else if (ax > limitT)
+            {
+                float t = (ax - limitT) / limitK;
+                x = Mathf.Sign(x) * (limitT + limitK * (1f - Mathf.Pow(1f - t, 3f)));
+            }
+
+            buffer[index] = x;
+        }
     }
 
     public static float GetRMS()
@@ -867,7 +858,6 @@ public static class BasisLocalMicrophoneDriver
         float db = Mathf.Lerp(minDb, maxDb, ui);
 
         Volume = DbToAmp(db);
-        VAJ.Volume = Volume;
 
         BasisDebug.Log($"Set Microphone Gain To {db:F1} dB (amp {Volume:F3})", BasisDebug.LogTag.Voice);
     }

@@ -696,10 +696,14 @@ namespace Basis.Scripts.Drivers
                 outputs = _rotOutputs,
                 dt = safeDt,
             };
-            JobHandle posHandle = posJob.Schedule(SlotCount, 4);
-            JobHandle rotHandle = rotJob.Schedule(SlotCount, 4);
+            // Run inline: 15 slots of Burst filter math is microseconds, below the cost of
+            // dispatching two parallel-for jobs (batch 4 → up to eight slices) and fencing
+            // on them a few lines later. The foot sim keeps its worker-side window — it was
+            // scheduled earlier and still completes below.
+            posJob.Run(SlotCount);
+            rotJob.Run(SlotCount);
 
-            // ── 6. Main-thread bookkeeping runs parallel with filter + foot jobs ──
+            // ── 6. Main-thread bookkeeping runs parallel with the foot job ──
             float leftBlendTarget = leftWantIK ? 1f : 0f;
             float rightBlendTarget = rightWantIK ? 1f : 0f;
             if (leftHasTracker) footIKBlendWeightLeft = 0f;
@@ -722,8 +726,7 @@ namespace Basis.Scripts.Drivers
             bool hipsHaveTracker = fbtEnabled && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
             bool trackerBendNormal = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackerBendNormal.RawValue;
 
-            // ── 7. Wait for jobs ──
-            JobHandle.CombineDependencies(posHandle, rotHandle).Complete();
+            // ── 7. Wait for the foot job ──
             if (footSimScheduled) footDriver.CompleteSimulate();
 
             // NotifyReEngaging reads live bone control data (not foot sim output), but kept after
@@ -1164,11 +1167,13 @@ namespace Basis.Scripts.Drivers
 
             if (_ikPublishControls.Length > 0)
             {
+                // Read-only inline run: Schedule().Complete() on one line paid a dispatch
+                // and a fence for ~17 transforms with zero overlap.
                 new BasisReadBoneWorldPoseJob
                 {
                     Positions = _ikPublishPositions,
                     Rotations = _ikPublishRotations,
-                }.Schedule(_ikPublishTransforms).Complete();
+                }.RunReadOnly(_ikPublishTransforms);
 
                 for (int i = 0; i < _ikPublishControls.Length; i++)
                 {
@@ -1913,7 +1918,7 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
-            PoseSkeleton.ScheduleGather().Complete();
+            PoseSkeleton.GatherNow();
 
             PoseSkeleton.ApplyFit();
 
@@ -1934,7 +1939,7 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
-            PoseSkeleton.ScheduleScatter().Complete();
+            PoseSkeleton.ScatterNow();
         }
 
         // How far a leg's bend plane has drifted from the body frame. BendNormal rides the lower-leg TRACKER
