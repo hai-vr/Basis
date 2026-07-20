@@ -75,6 +75,15 @@ namespace Basis.Scripts.Constraints
             public BasisParentConstraint Parent;
 
             /// <summary>
+            /// The two kinds that can carry a world-up reference, resolved at rebuild. Only these
+            /// need their reference diffed each frame; asking every other constraint meant two type
+            /// checks per constraint per frame to compare null against null.
+            /// </summary>
+            public BasisAimConstraint Aim;
+            public BasisLookAtConstraint LookAt;
+            public bool WatchesWorldUpObject;
+
+            /// <summary>
             /// True when the flattened sources line up one-to-one with the authored ones, which is
             /// every constraint that has no null source. Lets the refresh index straight in.
             /// </summary>
@@ -575,6 +584,9 @@ namespace Basis.Scripts.Constraints
                     : -1;
                 BuildChain(component, ref slot);
                 registration.Parent = component as BasisParentConstraint;
+                registration.Aim = component as BasisAimConstraint;
+                registration.LookAt = component as BasisLookAtConstraint;
+                registration.WatchesWorldUpObject = registration.Aim != null || registration.LookAt != null;
                 registration.AvatarId = InternAvatar(component.transform, Index);
                 slot.AvatarId = registration.AvatarId;
                 FillScalarState(component, registration, ref slot);
@@ -869,6 +881,16 @@ namespace Basis.Scripts.Constraints
             return index;
         }
 
+        /// <summary>The live world-up reference, off the already-resolved component. No cast.</summary>
+        private static Transform CurrentWorldUpObject(Registration registration)
+        {
+            if (registration.Aim != null)
+            {
+                return registration.Aim.worldUpObject;
+            }
+            return registration.LookAt != null ? registration.LookAt.worldUpObject : null;
+        }
+
         private static Transform GetWorldUpObject(BasisConstraintBase component)
         {
             return component switch
@@ -948,8 +970,10 @@ namespace Basis.Scripts.Constraints
                 }
 
                 // Swapping or assigning worldUpObject only takes effect through a rebuild, and
-                // nothing on the components marks it dirty, so diff it here.
-                if (GetWorldUpObject(component) != registration.WorldUpObject)
+                // nothing on the components marks it dirty, so diff it here — but only for the two
+                // kinds that can have one. Everything else skips it entirely.
+                if (registration.WatchesWorldUpObject
+                    && CurrentWorldUpObject(registration) != registration.WorldUpObject)
                 {
                     sDirty = true;
                 }

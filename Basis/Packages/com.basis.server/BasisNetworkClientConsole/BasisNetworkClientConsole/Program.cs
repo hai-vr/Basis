@@ -177,9 +177,12 @@ namespace Basis
                         // Republished on a cadence rather than built once, so players who join or move
                         // into range — including real ones — start being sent voice.
                         bool ready = MovementSender.VoiceSender.RefreshRecipients(peer, peers, i, nowMs);
-                        if (ready && MovementSender.VoiceSender.IsTalking(i, nowMs))
+                        if (ready)
                         {
-                            MovementSender.VoiceSender.SendFrame(peer, i);
+                            if (MovementSender.VoiceSender.IsTalking(i, nowMs))
+                                MovementSender.VoiceSender.SendFrame(peer, i);
+                            else
+                                MovementSender.VoiceSender.NoteSilence(i);
                         }
                     }
                 }
