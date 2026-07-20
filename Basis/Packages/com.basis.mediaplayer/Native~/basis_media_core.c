@@ -193,7 +193,8 @@ struct basis_media_engine {
      * each demux leg takes a posted request once (its own taken counter — a
      * split source's two legs both reposition). HLS repositions at the segment
      * source instead: active_hls is set while run_hls owns a context. */
-    long seek_seq;
+    volatile long seek_seq;   /* volatile like its seek_taken siblings; aligned cross-thread
+                               * access, benign in practice on the shipped 64-bit targets */
     int64_t seek_target_us;
     volatile long seek_taken_main;
     volatile long seek_taken_audio;
@@ -366,7 +367,33 @@ static void sink_audio_format(void* user, basis_codec_t codec, int rate, int ch,
 static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t pts) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     if (!e->running) return;
-    pace_gate(e, pts);              /* paced mode: hold until ~real time; no-op otherwise */
+    /* Drop audio a demuxer emits after a seek is posted but before this leg takes
+     * it. A byte-source demuxer checks take_seek at read-buffer granularity, so it
+     * can still flush the tail of the pre-seek buffer (~up to a bufferful, at the
+     * pre-seek PTS) before it repositions. Those stale frames must not reach the
+     * decoder: they survive the post-seek ring flush and would surface their pre-seek
+     * PTS as the audio-only position (the seek-bar bounce) and briefly play. Once the
+     * leg takes the seek, seek_taken advances to seek_seq and audio flows again. Safe
+     * because every byte source that reports a duration advances seek_taken by
+     * repositioning, so this never latches. The counter is the audio leg's for a split
+     * source, the main leg's otherwise. HLS is excluded: it repositions asynchronously
+     * through its own segment producer and drops its own pre-seek data at the
+     * BASIS_READ_REPOSITION boundary, so seek_taken is not the right signal for it. */
+    long taken = e->url_audio[0] ? e->seek_taken_audio : e->seek_taken_main;
+    if (!e->active_hls && e->seek_seq != taken) return;
+    /* A muxed source's audio rides the same demux thread as its video, which is
+     * already delivery-paced (sink_video_au), and banks into the PTS-gated PCM
+     * ring whose serve is clocked to presentation. Pacing audio delivery here too
+     * is redundant for timing and actively harmful when the container interleaves
+     * audio well ahead of the video keyframe: against the video-set anchor that
+     * audio reads as far-future, so the gate parks the whole demux thread for the
+     * skew — after a seek that shows up as video re-anchoring promptly while audio
+     * recovers seconds late. Let muxed audio flow into the ring and let the serve
+     * gate do the A/V timing. Split-stream audio (its own demux thread) still needs
+     * the gate for flood control, and an audio-only source has no video clock to
+     * serve against, so both keep pacing their own delivery. */
+    if (e->url_audio[0] || !e->video_format_seen)
+        pace_gate(e, pts);          /* paced mode: hold until ~real time; no-op otherwise */
     if (!e->running) return;
     e->audio_frame_count++;
     mutex_lock(&e->submit_lock);
@@ -943,7 +970,7 @@ static void run_http_like(demux_ctx_t* c) {
     else if (is_webm)
         basis_webm_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else if (is_wav)
-        basis_wav_run(c->sink, demux_read, demux_ctx);
+        basis_wav_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx);
     else if (is_ogg)
         basis_ogg_run(c->sink, demux_read, demux_ctx, reseek, reseek_ctx, stream_size);
     else if (is_mp3)
@@ -1366,6 +1393,11 @@ BASIS_API int BASIS_CALL basis_media_seek_us(basis_media_engine_t* e, int64_t ta
     if (e->decoder) basis_decoder_seek(e->decoder, target_us);
     void* hls = e->active_hls;
     int rc = hls ? basis_hls_request_seek(hls, target_us / 1000) : 0;
+    /* HLS is not acknowledged here: its reposition is asynchronous (the producer
+     * signals a later BASIS_READ_REPOSITION boundary), so marking seek_taken now would
+     * let in-flight pre-seek audio through and ack a failed request. HLS instead drops
+     * its own pre-seek data at that boundary, and sink_audio_frame excludes it from the
+     * byte-source pre-seek drop. */
     mutex_unlock(&e->lock);
     return rc;
 }

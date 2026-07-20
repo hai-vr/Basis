@@ -442,7 +442,8 @@ int main(int argc, char** argv) {
     else if (!strcmp(demux, "ts"))
         rc = basis_ts_run(&sink, h_read, &h);
     else if (!strcmp(demux, "wav"))
-        rc = basis_wav_run(&sink, h_read, &h);
+        rc = basis_wav_run(&sink, h_read, &h, h.allow_reseek ? h_reseek : NULL,
+                           h.allow_reseek ? &h : NULL);
     else if (!strcmp(demux, "ogg")) {
         fseek(f, 0, SEEK_END);
         long long ogg_size = ftell(f);

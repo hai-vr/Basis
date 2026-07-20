@@ -150,8 +150,10 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
     }
 
     while (sink->is_running(sink->user) && !(eof && len < 4)) {
-        /* Absolute-seek handshake: map the target to a byte offset and reposition
-         * the source. Only reseekable sources (HTTP VOD) provide a hook. */
+        /* Absolute-seek handshake: map the target to a byte offset and reposition the
+         * source. Only reseekable sources (HTTP VOD) provide a hook and, in turn, report
+         * a duration — so take_seek is polled only when reseek exists, and a non-reseekable
+         * MP3 exposes no seek to take. */
         int64_t target_us;
         if (announced && reseek && sink->take_seek && sink->take_seek(sink->user, &target_us)) {
             if (target_us < 0) target_us = 0;
@@ -224,7 +226,9 @@ int basis_mp3_run(basis_media_sink_t* sink, basis_read_fn read, void* ctx,
                 cbr_bps = f.samples > 0 ? f.frame_len * f.sr / f.samples : 0;
                 if (vbr.have && vbr.frames > 0)
                     duration_us = vbr.frames * (int64_t)f.samples * 1000000LL / f.sr;
-                if (duration_us > 0 && sink->on_duration)
+                /* Report duration only when reseekable — a duration implies a working seek
+                 * bar (matching MP4/WebM/Ogg). duration_us stays set for the VBR seek math. */
+                if (duration_us > 0 && reseek && sink->on_duration)
                     sink->on_duration(sink->user, duration_us);
             }
             int64_t pts_us = (samples * 1000000LL + f.sr / 2) / f.sr; /* round-to-nearest */
