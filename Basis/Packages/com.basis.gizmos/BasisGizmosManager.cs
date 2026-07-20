@@ -40,6 +40,15 @@ public static class BasisGizmoManager
     /// </summary>
     public static int MaxVisibleLabels = 32;
 
+    /// <summary>
+    /// Material for solid-style sphere gizmos (see <see cref="CreateSolidSphereGizmo"/>) —
+    /// a shared asset assigned by the feature that owns the look (the tracker marker balls
+    /// point it at the FallbackSphere material). Drawn lit/depth-tested with shadows, unlike
+    /// the additive overlay spheres; per-slot color is ignored. Solid slots are skipped while
+    /// this is null. Never destroyed by <see cref="DestroyAll"/>.
+    /// </summary>
+    public static Material SolidSphereMaterial;
+
     private static int _nextID = 0; // Counter for unique IDs.
 
     private static int CreateNewID()
@@ -73,6 +82,7 @@ public static class BasisGizmoManager
         public Vector3 Scale;
         public Vector4 Color;
         public bool HasRotation;
+        public bool Solid;
         public bool Active;
         public bool Used;
     }
@@ -125,6 +135,30 @@ public static class BasisGizmoManager
         s.Scale = Vector3.one * size;
         s.Color = color;
         s.HasRotation = false;
+        s.Active = true;
+        s.Used = true;
+        _sphereByID[linkedID] = slot;
+        return true;
+    }
+
+    /// <summary>
+    /// Creates a solid-style sphere gizmo: lit, depth-tested, shadowed, drawn with the
+    /// shared <see cref="SolidSphereMaterial"/> (which also supplies the color — there is
+    /// no per-slot tint). Used for player-facing visuals like the tracker marker balls
+    /// that must sit in the world rather than glow through it. Update/destroy through the
+    /// same sphere APIs as overlay spheres.
+    /// </summary>
+    public static bool CreateSolidSphereGizmo(string GizmoName, out int linkedID, Vector3 position, float size)
+    {
+        linkedID = CreateNewID();
+        int slot = AllocSphereSlot();
+        ref SphereSlot s = ref _spheres[slot];
+        s.Position = position;
+        s.Rotation = Quaternion.identity;
+        s.Scale = Vector3.one * size;
+        s.Color = UnityEngine.Color.white;
+        s.HasRotation = false;
+        s.Solid = true;
         s.Active = true;
         s.Used = true;
         _sphereByID[linkedID] = slot;
@@ -660,6 +694,7 @@ public static class BasisGizmoManager
     private static Material _sphereMaterial;
     private static Matrix4x4[] _sphereChunkMatrices;
     private static Vector4[] _sphereChunkColors;
+    private static Matrix4x4[] _solidChunkMatrices;
     private static readonly List<MaterialPropertyBlock> _sphereChunkBlocks = new List<MaterialPropertyBlock>();
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
@@ -667,7 +702,7 @@ public static class BasisGizmoManager
     // (Position, then Color, then TexCoords) — SetVertexBufferParams rejects
     // declarations out of that canonical order.
     [StructLayout(LayoutKind.Sequential)]
-    private struct LineVertex
+    internal struct LineVertex
     {
         public Vector3 Position;
         public Color32 Color;
@@ -675,13 +710,46 @@ public static class BasisGizmoManager
         public Vector2 SideWidth;
     }
 
-    private static readonly VertexAttributeDescriptor[] LineVertexLayout =
+    internal static readonly VertexAttributeDescriptor[] LineVertexLayout =
     {
         new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
         new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, 4),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 3),
         new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 2),
     };
+
+    /// <summary>
+    /// Appends one segment as a camera-facing ribbon quad: two verts anchored at each end,
+    /// each carrying the opposite endpoint. Because the shader's offset direction flips with
+    /// the segment direction, the far end's side signs are mirrored — that exact pairing is
+    /// what keeps the quad untwisted, and it is pinned by tests.
+    /// </summary>
+    internal static void AppendSegmentVertices(LineVertex[] vertices, ref int vertexCursor, Vector3 a, Vector3 b, Color32 colorA, Color32 colorB, float halfWidth)
+    {
+        vertices[vertexCursor++] = new LineVertex { Position = a, Color = colorA, OtherEnd = b, SideWidth = new Vector2(-1f, halfWidth) };
+        vertices[vertexCursor++] = new LineVertex { Position = a, Color = colorA, OtherEnd = b, SideWidth = new Vector2(1f, halfWidth) };
+        vertices[vertexCursor++] = new LineVertex { Position = b, Color = colorB, OtherEnd = a, SideWidth = new Vector2(1f, halfWidth) };
+        vertices[vertexCursor++] = new LineVertex { Position = b, Color = colorB, OtherEnd = a, SideWidth = new Vector2(-1f, halfWidth) };
+    }
+
+    /// <summary>
+    /// Fills the static per-quad index pattern: triangles (0,1,2) and (2,1,3) off each
+    /// group of four ribbon verts, sharing the 1–2 diagonal so the quad cannot bowtie.
+    /// </summary>
+    internal static void FillQuadIndices(uint[] indices, int quadCount)
+    {
+        for (int q = 0; q < quadCount; q++)
+        {
+            int i = q * 6;
+            uint baseVertex = (uint)(q * 4);
+            indices[i] = baseVertex;
+            indices[i + 1] = baseVertex + 1;
+            indices[i + 2] = baseVertex + 2;
+            indices[i + 3] = baseVertex + 2;
+            indices[i + 4] = baseVertex + 1;
+            indices[i + 5] = baseVertex + 3;
+        }
+    }
 
     private const MeshUpdateFlags LineMeshFlags = MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontNotifyMeshUsers;
 
@@ -727,12 +795,18 @@ public static class BasisGizmoManager
             return;
         }
 
+        bool drawSolid = SolidSphereMaterial != null;
         int n = 0;
         int chunk = 0;
+        int solidCount = 0;
         for (int i = 0; i < _sphereHighWater; i++)
         {
             ref SphereSlot s = ref _spheres[i];
             if (!s.Used || !s.Active)
+            {
+                continue;
+            }
+            if (s.Solid && !drawSolid)
             {
                 continue;
             }
@@ -741,13 +815,14 @@ public static class BasisGizmoManager
                 continue;
             }
 
+            Matrix4x4 m;
             if (s.HasRotation)
             {
-                _sphereChunkMatrices[n] = Matrix4x4.TRS(s.Position, s.Rotation, s.Scale);
+                m = Matrix4x4.TRS(s.Position, s.Rotation, s.Scale);
             }
             else
             {
-                Matrix4x4 m = default;
+                m = default;
                 m.m00 = s.Scale.x;
                 m.m11 = s.Scale.y;
                 m.m22 = s.Scale.z;
@@ -755,8 +830,21 @@ public static class BasisGizmoManager
                 m.m03 = s.Position.x;
                 m.m13 = s.Position.y;
                 m.m23 = s.Position.z;
-                _sphereChunkMatrices[n] = m;
             }
+
+            if (s.Solid)
+            {
+                _solidChunkMatrices[solidCount] = m;
+                solidCount++;
+                if (solidCount == SphereChunkSize)
+                {
+                    FlushSolidSphereChunk(solidCount);
+                    solidCount = 0;
+                }
+                continue;
+            }
+
+            _sphereChunkMatrices[n] = m;
             _sphereChunkColors[n] = s.Color;
             n++;
             if (n == SphereChunkSize)
@@ -769,6 +857,21 @@ public static class BasisGizmoManager
         {
             FlushSphereChunk(chunk, n);
         }
+        if (solidCount > 0)
+        {
+            FlushSolidSphereChunk(solidCount);
+        }
+    }
+
+    private static void FlushSolidSphereChunk(int count)
+    {
+        Material material = SolidSphereMaterial;
+        if (!material.enableInstancing)
+        {
+            material.enableInstancing = true;
+        }
+        Graphics.DrawMeshInstanced(_sphereMesh, 0, material, _solidChunkMatrices, count, null,
+            ShadowCastingMode.On, true, RenderLayer, null, LightProbeUsage.Off);
     }
 
     private static void FlushSphereChunk(int chunkIndex, int count)
@@ -841,10 +944,7 @@ public static class BasisGizmoManager
                 Color32 colorA = slot.PointColors != null ? slot.PointColors[ia] : slot.UniformColor;
                 Color32 colorB = slot.PointColors != null ? slot.PointColors[ib] : slot.UniformColor;
 
-                _lineVerts[v++] = new LineVertex { Position = a, OtherEnd = b, SideWidth = new Vector2(-1f, halfWidth), Color = colorA };
-                _lineVerts[v++] = new LineVertex { Position = a, OtherEnd = b, SideWidth = new Vector2(1f, halfWidth), Color = colorA };
-                _lineVerts[v++] = new LineVertex { Position = b, OtherEnd = a, SideWidth = new Vector2(1f, halfWidth), Color = colorB };
-                _lineVerts[v++] = new LineVertex { Position = b, OtherEnd = a, SideWidth = new Vector2(-1f, halfWidth), Color = colorB };
+                AppendSegmentVertices(_lineVerts, ref v, a, b, colorA, colorB, halfWidth);
 
                 min = Vector3.Min(min, Vector3.Min(a, b));
                 max = Vector3.Max(max, Vector3.Max(a, b));
@@ -930,6 +1030,7 @@ public static class BasisGizmoManager
         {
             _sphereChunkMatrices = new Matrix4x4[SphereChunkSize];
             _sphereChunkColors = new Vector4[SphereChunkSize];
+            _solidChunkMatrices = new Matrix4x4[SphereChunkSize];
         }
         return true;
     }
@@ -969,17 +1070,7 @@ public static class BasisGizmoManager
             int quadCount = capacity / 4;
             int indexCapacity = quadCount * 6;
             uint[] indices = new uint[indexCapacity];
-            for (int q = 0; q < quadCount; q++)
-            {
-                int i = q * 6;
-                uint baseVertex = (uint)(q * 4);
-                indices[i] = baseVertex;
-                indices[i + 1] = baseVertex + 1;
-                indices[i + 2] = baseVertex + 2;
-                indices[i + 3] = baseVertex + 2;
-                indices[i + 4] = baseVertex + 1;
-                indices[i + 5] = baseVertex + 3;
-            }
+            FillQuadIndices(indices, quadCount);
             _lineMesh.SetIndexBufferParams(indexCapacity, IndexFormat.UInt32);
             _lineMesh.SetIndexBufferData(indices, 0, 0, indexCapacity, LineMeshFlags);
             _lineMesh.subMeshCount = 1;
@@ -999,9 +1090,10 @@ public static class BasisGizmoManager
 
     /// <summary>
     /// Icosphere with the same Ø1 sizing as the built-in sphere the old prefab used,
-    /// at roughly a third of the vertex count.
+    /// at roughly a third of the vertex count. <paramref name="markNoLongerReadable"/>
+    /// stays true at runtime; tests pass false so they can read the buffers back.
     /// </summary>
-    private static Mesh BuildSphereMesh()
+    internal static Mesh BuildSphereMesh(bool markNoLongerReadable = true)
     {
         float t = (1f + Mathf.Sqrt(5f)) * 0.5f;
         List<Vector3> vertices = new List<Vector3>
@@ -1037,18 +1129,26 @@ public static class BasisGizmoManager
             }
             faces = subdivided;
         }
-        for (int i = 0; i < vertices.Count; i++)
+        int vertexCount = vertices.Count;
+        Vector3[] normals = new Vector3[vertexCount];
+        Vector2[] uvs = new Vector2[vertexCount];
+        for (int i = 0; i < vertexCount; i++)
         {
-            vertices[i] = vertices[i].normalized * 0.5f;
+            Vector3 direction = vertices[i].normalized;
+            vertices[i] = direction * 0.5f;
+            normals[i] = direction;
+            uvs[i] = new Vector2(0.5f, 0.5f);
         }
         Mesh mesh = new Mesh
         {
             name = "BasisGizmoSphere",
         };
         mesh.SetVertices(vertices);
+        mesh.SetNormals(normals);
+        mesh.SetUVs(0, uvs);
         mesh.SetTriangles(faces, 0, false);
         mesh.bounds = new Bounds(Vector3.zero, Vector3.one);
-        mesh.UploadMeshData(true);
+        mesh.UploadMeshData(markNoLongerReadable);
         return mesh;
     }
 

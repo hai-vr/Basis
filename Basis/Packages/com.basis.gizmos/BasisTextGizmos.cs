@@ -67,17 +67,27 @@ public class BasisTextGizmos : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// The "unchanged" tolerance for label colors: within ~1.5% per channel counts as the
+    /// same color, so a continuously-lerped health tint doesn't dirty the TMP mesh every
+    /// frame. Internal so tests can pin the threshold semantics.
+    /// </summary>
+    internal static bool ColorsApproximatelyEqual(Color a, Color b)
+    {
+        const float threshold = 1f / 64f;
+        return Mathf.Abs(a.r - b.r) < threshold &&
+               Mathf.Abs(a.g - b.g) < threshold &&
+               Mathf.Abs(a.b - b.b) < threshold &&
+               Mathf.Abs(a.a - b.a) < threshold;
+    }
+
     public void SetColor(Color color)
     {
         if (Text == null)
         {
             return;
         }
-        const float threshold = 1f / 64f;
-        if (Mathf.Abs(color.r - _lastColor.r) < threshold &&
-            Mathf.Abs(color.g - _lastColor.g) < threshold &&
-            Mathf.Abs(color.b - _lastColor.b) < threshold &&
-            Mathf.Abs(color.a - _lastColor.a) < threshold)
+        if (ColorsApproximatelyEqual(color, _lastColor))
         {
             return;
         }

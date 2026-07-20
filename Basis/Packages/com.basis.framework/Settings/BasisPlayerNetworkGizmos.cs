@@ -177,23 +177,12 @@ public static class BasisPlayerNetworkGizmos
     }
 
     // Cheap change-key so the label string only rebuilds when something visible moves.
-    // Deliberately coarse: interp-t in 10% steps, rate in 5% steps, bandwidth in 128 B/s
-    // buckets — the interp fraction cycles 0→1 every keyframe, so a 1% key would dirty
-    // every label every frame and TMP re-tessellation dominates the whole gizmo cost.
+    // Bucketing lives in BasisNetworkGizmoLabelCore (with its unit tests) — deliberately
+    // coarse because the interp fraction cycles 0→1 every keyframe, so a fine key would
+    // dirty every label every frame and TMP re-tessellation dominates the gizmo cost.
     private static int LabelKey(BasisNetworkReceiver r, bool showState, bool showBw)
     {
-        int k = r.playerId * 397;
-        if (showState)
-        {
-            int t = Mathf.RoundToInt(Mathf.Clamp01((float)r.InterpolationTimeDebug) * 10f);
-            int rate = Mathf.RoundToInt(r.LastPlaybackRate * 20f);
-            k = (k * 31) ^ t ^ (r.StagedCount << 8) ^ (rate << 14);
-        }
-        if (showBw)
-        {
-            k = (k * 31) ^ Mathf.RoundToInt(r.BytesPerSecond * (1f / 128f)) ^ (Mathf.RoundToInt(r.PacketsPerSecond) << 16);
-        }
-        return (k * 4) ^ (showState ? 2 : 0) ^ (showBw ? 1 : 0);
+        return BasisNetworkGizmoLabelCore.PlayerLabelKey(r.playerId, (float)r.InterpolationTimeDebug, r.LastPlaybackRate, r.StagedCount, r.BytesPerSecond, r.PacketsPerSecond, showState, showBw);
     }
 
     private static string BuildLabel(BasisNetworkReceiver r, bool showState, bool showBw)

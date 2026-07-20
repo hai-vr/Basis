@@ -779,7 +779,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (namePlate.ChatBubbleRenderer.sharedMaterial == null)
             {
-                namePlate.ChatBubbleRenderer.material = SelectedNamePlateMaterial;
+                namePlate.ChatBubbleRenderer.sharedMaterial = SelectedNamePlateMaterial;
             }
 
             float chatScale = NamePlateSize > 0.0001f ? (ChatSize / NamePlateSize) : ChatSize;
@@ -993,6 +993,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 pulseComputed = false;
 
+                BasisNamePlateOverlayLimiter.BeginFrame();
                 var arr = plates;
                 for (int i = 0; i < count; i++)
                 {
@@ -1010,7 +1011,9 @@ namespace Basis.Scripts.UI.NamePlate
 
                     p.UpdateChatTimeout();
                     p.RefreshTypingIndicatorAnimation();
+                    BasisNamePlateOverlayLimiter.Consider(p);
                 }
+                BasisNamePlateOverlayLimiter.Apply(Basis.Scripts.Drivers.BasisLocalCameraDriver.Position);
             }
 
             // Merge every visible plate into the shared meshes. Runs after the pulse colors and

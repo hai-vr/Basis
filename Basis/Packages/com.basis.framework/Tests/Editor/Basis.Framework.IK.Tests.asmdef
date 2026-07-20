@@ -4,6 +4,7 @@
     "references": [
         "Basis Framework",
         "BasisCommon",
+        "BasisGizmos",
         "Unity.Collections",
         "Unity.Mathematics",
         "Unity.Burst",

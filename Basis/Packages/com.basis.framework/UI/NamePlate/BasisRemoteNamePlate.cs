@@ -90,6 +90,59 @@ namespace Basis.Scripts.UI.NamePlate
         private string typingIndicatorText = "...";
         private string visibleChatText;
 
+        // ---- Overlay limiter state (see BasisNamePlateOverlayLimiter) ----
+        // Culled overlays keep their message/progress state but deactivate their objects and
+        // skip every text/mesh write until the nearest-K ranking readmits them.
+        private bool chatOverlayCulled;
+        private bool loadingOverlayCulled;
+        private double chatDisplayLastActiveTime;
+        private int loadingTextBucket = int.MinValue;
+
+        /// <summary>True while a chat message or typing indicator wants to display.</summary>
+        internal bool HasActiveChatOverlay => ChatText != null && HasBubbleText();
+
+        /// <summary>True while the avatar-loading text + bar want to display.</summary>
+        internal bool HasActiveLoadingOverlay => HasProgressBarVisible;
+
+        internal void SetChatOverlayCulled(bool culled)
+        {
+            if (chatOverlayCulled == culled)
+            {
+                return;
+            }
+            chatOverlayCulled = culled;
+            RefreshChatLayout();
+        }
+
+        internal void SetLoadingOverlayCulled(bool culled)
+        {
+            if (loadingOverlayCulled == culled)
+            {
+                return;
+            }
+            loadingOverlayCulled = culled;
+            if (!culled)
+            {
+                // Force the next progress report to rewrite the label — its text went stale
+                // while writes were skipped.
+                loadingTextBucket = int.MinValue;
+            }
+            ApplyLoadingOverlayActive();
+        }
+
+        private void ApplyLoadingOverlayActive()
+        {
+            bool show = HasProgressBarVisible && !loadingOverlayCulled;
+            if (LoadingText != null && LoadingText.gameObject.activeSelf != show)
+            {
+                LoadingText.gameObject.SetActive(show);
+            }
+            if (LoadingBar != null && LoadingBar.gameObject.activeSelf != show)
+            {
+                LoadingBar.gameObject.SetActive(show);
+            }
+        }
+
         private static readonly string[] TypingIndicatorFrames =
         {
             ".",
@@ -281,7 +334,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (BasisRemoteNamePlateDriver.SelectedNamePlateMaterial != null)
             {
-                ChatBubbleRenderer.material = BasisRemoteNamePlateDriver.SelectedNamePlateMaterial;
+                ChatBubbleRenderer.sharedMaterial = BasisRemoteNamePlateDriver.SelectedNamePlateMaterial;
                 ChatBubbleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 ChatBubbleRenderer.receiveShadows = false;
                 ChatBubbleRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
@@ -318,7 +371,19 @@ namespace Basis.Scripts.UI.NamePlate
                 chatRect.sizeDelta = new Vector2(58, 10);
             }
 
+            // Overlay text — never part of shadows, probes or per-object motion vectors.
+            if (chatTextObj.TryGetComponent(out MeshRenderer chatTextRenderer))
+            {
+                chatTextRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                chatTextRenderer.receiveShadows = false;
+                chatTextRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+                chatTextRenderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+                chatTextRenderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+            }
+
             chatTextObj.SetActive(false);
+            chatDisplayLastActiveTime = Time.timeAsDouble;
+            chatOverlayCulled = false;
         }
 
         public void DeInitialize()
@@ -546,6 +611,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             currentChatMessage = message;
             chatMessageSetTime = Time.timeAsDouble;
+            chatDisplayLastActiveTime = chatMessageSetTime;
             hasChatMessage = true;
             RefreshCachedChatTypingText();
             UpdateChatTextVisual();
@@ -553,16 +619,38 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
-        /// Called each frame to check if chat message should auto-clear.
+        /// Called each frame to auto-clear an expired chat message, and to give an idle
+        /// display's TMP + bubble objects back once nothing has shown for a while (they
+        /// lazily re-create on the next message).
         /// </summary>
         public void UpdateChatTimeout()
         {
-            if (!hasChatMessage) return;
-
-            if (Time.timeAsDouble - chatMessageSetTime >= BasisNetworkHandleChat.MessageDisplayDuration)
+            double now = Time.timeAsDouble;
+            if (hasChatMessage && now - chatMessageSetTime >= BasisNetworkHandleChat.MessageDisplayDuration)
             {
                 SetChatText(null);
             }
+
+            if (BasisNamePlateOverlayCore.ShouldReleaseChatDisplay(ChatText != null, HasBubbleText(), now, chatDisplayLastActiveTime, BasisNamePlateOverlayLimiter.ChatDisplayIdleReleaseSeconds))
+            {
+                ReleaseChatDisplay();
+            }
+        }
+
+        /// <summary>
+        /// Destroys the lazily-created chat objects (mesh, TMP, bubble). Safe to call any
+        /// time — the next message re-creates them through EnsureChatDisplayCreated.
+        /// </summary>
+        private void ReleaseChatDisplay()
+        {
+            if (ChatBubbleFilter != null && ChatBubbleFilter.sharedMesh != null) Destroy(ChatBubbleFilter.sharedMesh);
+            if (ChatText != null) Destroy(ChatText.gameObject);
+            if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
+            ChatText = null;
+            ChatBubbleFilter = null;
+            ChatBubbleRenderer = null;
+            visibleChatText = null;
+            chatOverlayCulled = false;
         }
 
         public void SetTypingIndicatorVisible(bool visible)
@@ -570,6 +658,10 @@ namespace Basis.Scripts.UI.NamePlate
             if (visible)
             {
                 EnsureChatDisplayCreated();
+            }
+            if (ChatText != null)
+            {
+                chatDisplayLastActiveTime = Time.timeAsDouble;
             }
 
             wantsTypingIndicator = visible;
@@ -630,6 +722,15 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (ChatText == null)
             {
+                return;
+            }
+
+            if (chatOverlayCulled)
+            {
+                // Beyond the nearest-K cap: hide and skip the text write. The cache resets so
+                // readmission rewrites the label from current state.
+                visibleChatText = null;
+                ChatText.gameObject.SetActive(false);
                 return;
             }
 
@@ -697,7 +798,7 @@ namespace Basis.Scripts.UI.NamePlate
                 return;
             }
 
-            if (!HasBubbleText())
+            if (!HasBubbleText() || chatOverlayCulled)
             {
                 ChatBubbleFilter.gameObject.SetActive(false);
                 return;
@@ -726,24 +827,37 @@ namespace Basis.Scripts.UI.NamePlate
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 if (this == null || !isActiveAndEnabled) return;
-                if (progress == 100)
+                if (BasisNamePlateOverlayCore.IsLoadingComplete(progress))
                 {
-                    LoadingText.gameObject.SetActive(false);
-                    LoadingBar.gameObject.SetActive(false);
                     HasProgressBarVisible = false;
+                    loadingTextBucket = int.MinValue;
+                    ApplyLoadingOverlayActive();
                 }
                 else
                 {
                     if (HasProgressBarVisible == false)
                     {
-                        LoadingBar.gameObject.SetActive(true);
-                        LoadingText.gameObject.SetActive(true);
                         HasProgressBarVisible = true;
+                        ApplyLoadingOverlayActive();
                     }
 
-                    if (LoadingText.text != info)
+                    // Culled by the nearest-K cap: state is tracked but every text/bar write is
+                    // skipped — TMP re-tessellation for far-away loading labels is the whole cost.
+                    if (loadingOverlayCulled)
                     {
-                        LoadingText.text = info;
+                        return;
+                    }
+
+                    // The label only rewrites when progress crosses a quantization bucket; the
+                    // bar (a cheap sprite resize) still tracks every report.
+                    int bucket = BasisNamePlateOverlayCore.ProgressBucket(progress, BasisNamePlateOverlayLimiter.LoadingTextStepPercent);
+                    if (bucket != loadingTextBucket)
+                    {
+                        loadingTextBucket = bucket;
+                        if (LoadingText.text != info)
+                        {
+                            LoadingText.text = info;
+                        }
                     }
 
                     Vector2 scale = LoadingBar.size;

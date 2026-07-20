@@ -767,9 +767,12 @@ namespace Basis.EventDriver
             // Batched debug-gizmo submission (instanced spheres, the shared line mesh, and the
             // nearest-K label ranking). Sits at the very end of LateUpdate so every producer this
             // frame — the Update-tick consumers, IK/bone drivers, OnLateUpdate subscribers — is
-            // captured before the draw; early-outs to nothing while no gizmos exist.
+            // captured before the draw; early-outs to nothing while no gizmos exist. The tracker
+            // marker balls tick immediately ahead of the submission so they carry this frame's
+            // latched device poses.
             using (Prof.GizmoRender.Auto())
             {
+                BasisTrackerMarkerGizmos.Tick();
                 BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
             ProfileLateUpdateFinish();

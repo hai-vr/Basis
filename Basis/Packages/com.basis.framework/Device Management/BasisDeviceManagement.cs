@@ -866,7 +866,7 @@ namespace Basis.Scripts.Device_Management
             {
                 BasisInput input = AllInputDevices[i];
                 if (input == null) continue;
-                if (input.BasisVisualTracker != null)
+                if (input.BasisVisualTracker != null || BasisTrackerMarkerGizmos.IsShowing(input))
                 {
                     input.HideTrackedVisual();
                     anyVisible = true;
