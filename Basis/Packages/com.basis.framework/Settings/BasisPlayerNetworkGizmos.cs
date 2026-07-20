@@ -24,6 +24,7 @@ public static class BasisPlayerNetworkGizmos
     public static bool Show;
     public static bool ShowLabels;
     public static bool ShowBandwidth;
+    public static bool ShowAdditionalInfo;
 
     private const float PathBaseWidth = 0.01f;
     private const float SphereBaseSize = 0.09f;
@@ -182,7 +183,8 @@ public static class BasisPlayerNetworkGizmos
     // dirty every label every frame and TMP re-tessellation dominates the gizmo cost.
     private static int LabelKey(BasisNetworkReceiver r, bool showState, bool showBw)
     {
-        return BasisNetworkGizmoLabelCore.PlayerLabelKey(r.playerId, (float)r.InterpolationTimeDebug, r.LastPlaybackRate, r.StagedCount, r.BytesPerSecond, r.PacketsPerSecond, showState, showBw);
+        return BasisNetworkGizmoLabelCore.PlayerLabelKey(r.playerId, (float)r.InterpolationTimeDebug, r.LastPlaybackRate, r.StagedCount, r.BytesPerSecond, r.PacketsPerSecond, showState, showBw,
+            r.VoiceBytesPerSecond, r.VoicePacketsPerSecond, ShowAdditionalInfo);
     }
 
     private static string BuildLabel(BasisNetworkReceiver r, bool showState, bool showBw)
@@ -200,6 +202,10 @@ public static class BasisPlayerNetworkGizmos
         if (showBw)
         {
             _text.Append('\n').Append(FormatRate(r.BytesPerSecond)).Append("  ").Append(Mathf.RoundToInt(r.PacketsPerSecond)).Append(" pkt/s");
+        }
+        if (ShowAdditionalInfo)
+        {
+            _text.Append("\nvoice ").Append(FormatRate(r.VoiceBytesPerSecond)).Append("  ").Append(Mathf.RoundToInt(r.VoicePacketsPerSecond)).Append(" pkt/s");
         }
         return _text.ToString();
     }

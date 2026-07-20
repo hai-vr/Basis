@@ -146,5 +146,73 @@ namespace Basis.Tests.IK
             Assert.AreEqual(SyncKey(), SyncKey());
             Assert.AreEqual(PlayerKey(), PlayerKey());
         }
+
+        // ── Voice (additional-info) section ─────────────────────────────────
+
+        private static int VoiceKey(float vbps, float vpps = 20f, bool voice = true)
+        {
+            return BasisNetworkGizmoLabelCore.PlayerLabelKey(7, 0.3f, 1f, 2, 1000f, 20f, true, true, vbps, vpps, voice);
+        }
+
+        [Test]
+        public void PlayerKey_VoiceWithinBucket_SameKey()
+        {
+            Assert.AreEqual(VoiceKey(2000f), VoiceKey(2020f));
+        }
+
+        [Test]
+        public void PlayerKey_VoiceCrossingBucket_ChangesKey()
+        {
+            Assert.AreNotEqual(VoiceKey(2000f), VoiceKey(2200f));
+        }
+
+        [Test]
+        public void PlayerKey_VoiceDisabled_IgnoresVoiceInputs()
+        {
+            Assert.AreEqual(VoiceKey(100f, 5f, voice: false), VoiceKey(90000f, 50f, voice: false));
+        }
+
+        [Test]
+        public void PlayerKey_VoiceFlag_ChangesKey()
+        {
+            Assert.AreNotEqual(VoiceKey(2000f, voice: true), VoiceKey(2000f, voice: false));
+        }
+
+        // ── Channel-totals overview key ─────────────────────────────────────
+
+        private static int Overview(int avatars = 10, float aBps = 20000f, float aPps = 200f, float vBps = 8000f, float vPps = 150f, int scene = 4, float sBps = 900f, float sPps = 30f)
+        {
+            return BasisNetworkGizmoLabelCore.OverviewKey(avatars, aBps, aPps, vBps, vPps, scene, sBps, sPps);
+        }
+
+        [Test]
+        public void OverviewKey_WithinBuckets_SameKey()
+        {
+            // Values chosen inside one 128 B/s bucket — 8000 exactly straddles a rounding
+            // boundary (62.5) and is deliberately avoided.
+            Assert.AreEqual(Overview(aBps: 20000f, vBps: 8100f, sBps: 900f), Overview(aBps: 20030f, vBps: 8120f, sBps: 930f));
+        }
+
+        [Test]
+        public void OverviewKey_EachChannelCrossingABucket_ChangesKey()
+        {
+            int baseline = Overview();
+            Assert.AreNotEqual(baseline, Overview(aBps: 21000f));
+            Assert.AreNotEqual(baseline, Overview(vBps: 9000f));
+            Assert.AreNotEqual(baseline, Overview(sBps: 2000f));
+        }
+
+        [Test]
+        public void OverviewKey_CountChanges_ChangeKey()
+        {
+            Assert.AreNotEqual(Overview(avatars: 10), Overview(avatars: 11));
+            Assert.AreNotEqual(Overview(scene: 4), Overview(scene: 5));
+        }
+
+        [Test]
+        public void OverviewKey_IsDeterministic()
+        {
+            Assert.AreEqual(Overview(), Overview());
+        }
     }
 }

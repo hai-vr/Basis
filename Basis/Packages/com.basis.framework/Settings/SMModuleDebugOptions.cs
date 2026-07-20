@@ -56,6 +56,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_NETWORK_SYNC_BW => BasisSettingsDefaults.GizmoNetworkSyncBandwidth.BindingKey; // "gizmonetworksyncbandwidth"
     private static string K_GIZMO_NETWORK_PLAYERS => BasisSettingsDefaults.GizmoNetworkPlayers.BindingKey;        // "gizmonetworkplayers"
     private static string K_GIZMO_NETWORK_PLAYERS_BW => BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.BindingKey; // "gizmonetworkplayersbandwidth"
+    private static string K_GIZMO_NETWORK_ADDITIONAL => BasisSettingsDefaults.GizmoNetworkAdditionalInfo.BindingKey;    // "gizmonetworkadditionalinfo"
     private static string K_GIZMO_POINTER_RAY => BasisSettingsDefaults.GizmoPointerRay.BindingKey;
     private static string K_GIZMO_HINT_OFFSETS => BasisSettingsDefaults.GizmoHintOffsets.BindingKey;
     private static string K_GIZMO_FOOT_PLACEMENT => BasisSettingsDefaults.GizmoFootPlacement.BindingKey;
@@ -114,6 +115,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisAudioGizmos.Shutdown();
         BasisSyncGizmos.Shutdown();
         BasisPlayerNetworkGizmos.Shutdown();
+        BasisNetworkOverviewGizmos.Shutdown();
         BasisPointerRayGizmos.Shutdown();
         BasisHintOffsetGizmos.Shutdown();
         base.OnDestroy();
@@ -311,6 +313,21 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_NETWORK_ADDITIONAL)
+        {
+            if (bool.TryParse(optionValue, out bool additional))
+            {
+                BasisPlayerNetworkGizmos.ShowAdditionalInfo = additional;
+                BasisNetworkOverviewGizmos.Show = additional;
+                if (!additional)
+                {
+                    BasisNetworkOverviewGizmos.Shutdown();
+                }
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_LABELS)
         {
             if (bool.TryParse(optionValue, out UseGizmoLabels))
@@ -352,7 +369,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
             BasisSyncGizmos.Show ||
             BasisSyncGizmos.ShowBandwidth ||
             BasisPlayerNetworkGizmos.Show ||
-            BasisPlayerNetworkGizmos.ShowBandwidth;
+            BasisPlayerNetworkGizmos.ShowBandwidth ||
+            BasisNetworkOverviewGizmos.Show;
 
         SetUseGizmos(anyOn);
     }
@@ -511,6 +529,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisAudioGizmos.Tick(scale);
         BasisSyncGizmos.Tick(scale);
         BasisPlayerNetworkGizmos.Tick(scale);
+        BasisNetworkOverviewGizmos.Tick(scale);
     }
 
     /// <summary>

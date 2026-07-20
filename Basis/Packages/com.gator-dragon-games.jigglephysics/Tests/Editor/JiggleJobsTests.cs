@@ -441,6 +441,50 @@ internal unsafe class JiggleJobsTests {
         Assert.DoesNotThrow(() => jobs.Teleport(null, new float3(1f, 1f, 1f)));
     }
 
+    [Test]
+    public void TeleportRigid_RotatesACommittedRigAboutThePivotOnTheNextStep() {
+        var rig = AddChain();
+        Step(3);
+        var before = jobs.GetTrees(out _)[0].points[1].position;
+
+        var rotation = quaternion.RotateY(math.radians(90f));
+        var delta = new float3(0f, 0f, 9f);
+        var root = rig.bones[0];
+        root.GetPositionAndRotation(out var rootPos, out var rootRot);
+        var pivot = (float3)rootPos;
+        root.SetPositionAndRotation(pivot + delta, math.mul(rotation, rootRot));
+        jobs.Teleport(rig.tree, rotation, pivot, delta);
+        Step(1);
+
+        var expected = pivot + math.mul(rotation, before - pivot) + delta;
+        JiggleAssert.AreEqual(expected, jobs.GetTrees(out _)[0].points[1].position, 1e-2f);
+    }
+
+    [Test]
+    public void TeleportRigid_ComposesWithAQueuedTranslationOnTheSameStep() {
+        var rig = AddChain();
+        Step(3);
+        var before = jobs.GetTrees(out _)[0].points[1].position;
+
+        var rotation = quaternion.RotateY(math.radians(90f));
+        var delta = new float3(0f, 0f, 9f);
+        var root = rig.bones[0];
+        root.GetPositionAndRotation(out var rootPos, out var rootRot);
+        var pivot = (float3)rootPos;
+        root.SetPositionAndRotation(pivot + delta, math.mul(rotation, rootRot));
+        jobs.Teleport(rig.tree, delta);
+        jobs.Teleport(rig.tree, rotation, pivot + delta, float3.zero);
+        Step(1);
+
+        var expected = pivot + delta + math.mul(rotation, before - pivot);
+        JiggleAssert.AreEqual(expected, jobs.GetTrees(out _)[0].points[1].position, 1e-2f);
+    }
+
+    [Test]
+    public void TeleportRigid_OfANullTree_IsIgnored() {
+        Assert.DoesNotThrow(() => jobs.Teleport(null, quaternion.RotateY(1f), float3.zero, new float3(1f, 1f, 1f)));
+    }
+
     // -------------------------------------------------------- deferred frees
 
     [Test]

@@ -82,6 +82,20 @@ public class JiggleTree {
         }
     }
 
+    public void TransformRigid(quaternion deltaRotation, float3 deltaTranslation) {
+        var pointCount = points.Length;
+        for (int i = 0; i < pointCount; i++) {
+            points[i].lastPosition = math.mul(deltaRotation, points[i].lastPosition) + deltaTranslation;
+            points[i].position = math.mul(deltaRotation, points[i].position) + deltaTranslation;
+            points[i].workingPosition = math.mul(deltaRotation, points[i].workingPosition) + deltaTranslation;
+            points[i].pose = math.mul(deltaRotation, points[i].pose) + deltaTranslation;
+            points[i].parentPose = math.mul(deltaRotation, points[i].parentPose) + deltaTranslation;
+        }
+        if (hasJiggleTreeStruct) {
+            jiggleTreeJobData.TransformRigid(deltaRotation, deltaTranslation);
+        }
+    }
+
     public void SetColliderIndexOffset(int offset) {
         if (!hasJiggleTreeStruct) {
             GetStruct();

@@ -140,6 +140,19 @@ public unsafe struct JiggleTreeJobData {
         }
     }
 
+    public void TransformRigid(quaternion deltaRotation, float3 deltaTranslation) {
+        if (points == null) return;
+        for (int i = 0; i < pointCount; i++) {
+            var p = points[i];
+            p.lastPosition = math.mul(deltaRotation, p.lastPosition) + deltaTranslation;
+            p.position = math.mul(deltaRotation, p.position) + deltaTranslation;
+            p.workingPosition = math.mul(deltaRotation, p.workingPosition) + deltaTranslation;
+            p.pose = math.mul(deltaRotation, p.pose) + deltaTranslation;
+            p.parentPose = math.mul(deltaRotation, p.parentPose) + deltaTranslation;
+            points[i] = p;
+        }
+    }
+
     public bool GetIsValid(out string failReason) {
         if (pointCount == 0 || pointCount > MAX_POINTS) {
             failReason = $"Invalid point count {pointCount}";

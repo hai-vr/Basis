@@ -82,6 +82,10 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
     public void Teleport(Vector3 deltaPosition) {
         segment?.Teleport(deltaPosition);
     }
+
+    public void Teleport(Quaternion deltaRotation, Vector3 pivot, Vector3 deltaPosition) {
+        segment?.Teleport(deltaRotation, pivot, deltaPosition);
+    }
     
     /// <summary>
     /// Sends updated parameters to the jiggle tree on the jobs side.

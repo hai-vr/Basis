@@ -7,11 +7,15 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using System;
+using Unity.Mathematics;
 using UnityEngine;
 public class BasisSeatSync : BasisNetworkBehaviour
 {
     private BasisNetworkReceiver _currentRemoteRec;
     private ushort _currentUserId = ushort.MaxValue;
+    private Vector3 _lastPinPosition;
+    private Quaternion _lastPinRotation = Quaternion.identity;
+    private bool _hasLastPinPosition;
 
     [Header("Seat")]
     public BasisSeat Seat;
@@ -152,12 +156,52 @@ public class BasisSeatSync : BasisNetworkBehaviour
         Seat.CalculateSeatPositionRotation(rec.RemotePlayer, out Quaternion seatQuat, out Vector3 hips);
         rec.OverriddenDestinationOfRoot(true);
         rec.ProvidedDestinationOfRoot(hips, seatQuat);
+
+        if (_hasLastPinPosition)
+        {
+            Vector3 pinDelta = hips - _lastPinPosition;
+            bool rotated = Mathf.Abs(Quaternion.Dot(seatQuat, _lastPinRotation)) < 0.9999999f;
+            if (pinDelta.sqrMagnitude > 0f || rotated)
+            {
+                Quaternion rotationDelta = seatQuat * Quaternion.Inverse(_lastPinRotation);
+                TeleportOccupantJiggleRigs(rec, rotationDelta, _lastPinPosition, pinDelta);
+            }
+        }
+        _lastPinPosition = hips;
+        _lastPinRotation = seatQuat;
+        _hasLastPinPosition = true;
+    }
+
+    private static void TeleportOccupantJiggleRigs(BasisNetworkReceiver rec, Quaternion rotationDelta, Vector3 pivot, Vector3 positionDelta)
+    {
+        var jiggleRigs = rec.RemotePlayer?.RemoteAvatarDriver?.JiggleRigs;
+        if (jiggleRigs == null)
+        {
+            return;
+        }
+        for (int Index = 0; Index < jiggleRigs.Length; Index++)
+        {
+            var rig = jiggleRigs[Index];
+            if (rig != null)
+            {
+                rig.Teleport(rotationDelta, pivot, positionDelta);
+            }
+        }
     }
 
     private void ClearCurrentRemote()
     {
         if (_currentRemoteRec != null)
         {
+            if (_hasLastPinPosition)
+            {
+                _currentRemoteRec.GetLatestNetworkPose(out float3 networkHips, out _, out _);
+                Vector3 exitDelta = (Vector3)networkHips - _lastPinPosition;
+                if (exitDelta.sqrMagnitude > 0f)
+                {
+                    TeleportOccupantJiggleRigs(_currentRemoteRec, Quaternion.identity, Vector3.zero, exitDelta);
+                }
+            }
             // Assuming false turns off the override.
             _currentRemoteRec.OverriddenDestinationOfRoot(false);
             if (_currentRemoteRec.Player != null)
@@ -168,6 +212,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
         }
 
         _currentUserId = ushort.MaxValue;
+        _hasLastPinPosition = false;
     }
 
     public override void OnDestroy()

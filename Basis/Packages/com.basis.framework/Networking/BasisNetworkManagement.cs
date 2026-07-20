@@ -396,7 +396,7 @@ namespace Basis.Scripts.Networking
 #endif
 
                 // LOD-based frame skipping: distant players update pose less often
-                if (poseLodEnabled && remote.PoseSkipCounter > 0)
+                if (poseLodEnabled && remote.PoseSkipCounter > 0 && !receiver.HasOverriddenDestination)
                 {
                     remote.PoseSkipCounter--;
                     if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 1;

@@ -47,6 +47,9 @@ namespace Basis.Scripts.Drivers
         private Vector3 previousRelativePosition = Vector3.zero;
         private float previousHeadPitchGlobal = 0.0f;
         private float previousHeadYawVsSeat = 0.0f;
+        private Vector3 lastSeatRootPosition = Vector3.zero;
+        private Quaternion lastSeatRootRotation = Quaternion.identity;
+        private bool hasLastSeatRootPosition = false;
 
         public bool UseDefaultMasking = true;
         public LayerMask GroundMask;
@@ -107,6 +110,9 @@ namespace Basis.Scripts.Drivers
                 Stand();
 
             _seat = seat;
+
+            LocalPlayer.transform.GetPositionAndRotation(out lastSeatRootPosition, out lastSeatRootRotation);
+            hasLastSeatRootPosition = true;
 
             previousRelativePosition = _seat.transform.InverseTransformPoint(LocalPlayer.transform.position);
 
@@ -180,6 +186,7 @@ namespace Basis.Scripts.Drivers
 
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = false;
             LocalPlayer.OnVirtualData -= OnSimulate;
+            hasLastSeatRootPosition = false;
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
@@ -614,6 +621,25 @@ namespace Basis.Scripts.Drivers
 
             LocalPlayer.transform.SetPositionAndRotation(playerPos, playerRot);
             LocalPlayer.LocalAnimatorDriver.HandleTeleport();
+
+            if (hasLastSeatRootPosition)
+            {
+                Vector3 rootDelta = playerPos - lastSeatRootPosition;
+                bool rotated = Mathf.Abs(Quaternion.Dot(playerRot, lastSeatRootRotation)) < 0.9999999f;
+                if (rootDelta.sqrMagnitude > 0f || rotated)
+                {
+                    Quaternion rotationDelta = playerRot * Quaternion.Inverse(lastSeatRootRotation);
+                    var jiggleRigs = BasisLocalAvatarDriver.JiggleRigs;
+                    for (int Index = 0; Index < jiggleRigs.Length; Index++)
+                    {
+                        jiggleRigs[Index].Teleport(rotationDelta, lastSeatRootPosition, rootDelta);
+                    }
+                    LocalPlayer.BasisLocalFootDriver?.Teleport(rootDelta);
+                }
+            }
+            lastSeatRootPosition = playerPos;
+            lastSeatRootRotation = playerRot;
+            hasLastSeatRootPosition = true;
 
             // Local->world helper for T-pose points (after root placement)
             Vector3 ToWorld(Vector3 tposeLocalPos) => playerPos + playerRot * tposeLocalPos;

@@ -31,6 +31,44 @@ public struct PoseData {
     }
 }
 
+public struct JiggleRigidTeleport {
+    public quaternion rotation;
+    public float3 translation;
+
+    public static JiggleRigidTeleport FromTranslation(float3 deltaPosition) {
+        return new JiggleRigidTeleport {
+            rotation = quaternion.identity,
+            translation = deltaPosition
+        };
+    }
+
+    public static JiggleRigidTeleport FromRigid(quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        return new JiggleRigidTeleport {
+            rotation = deltaRotation,
+            translation = pivot - math.mul(deltaRotation, pivot) + deltaPosition
+        };
+    }
+
+    public JiggleRigidTeleport Then(JiggleRigidTeleport next) {
+        return new JiggleRigidTeleport {
+            rotation = math.normalize(math.mul(next.rotation, rotation)),
+            translation = math.mul(next.rotation, translation) + next.translation
+        };
+    }
+
+    public float3 Apply(float3 point) {
+        return math.mul(rotation, point) + translation;
+    }
+
+    public quaternion Apply(quaternion rot) {
+        return math.mul(rotation, rot);
+    }
+
+    public float3 ApplyDirection(float3 direction) {
+        return math.mul(rotation, direction);
+    }
+}
+
 public class JiggleMemoryBus {
     // : IContainer<JiggleTreeStruct> {
     public int treeCapacity { get; private set; }
@@ -93,7 +131,7 @@ public class JiggleMemoryBus {
     private List<AddRemoveCommand> pendingCommands;
     private List<JiggleTree> pendingRemoveTrees;
     private List<JiggleTree> pendingAddTrees;
-    private Dictionary<int, float3> pendingTeleports;
+    private Dictionary<int, JiggleRigidTeleport> pendingTeleports;
     // rootID -> index into jiggleTreeStructs[0..treeCount]. Makes tree lookups
     // (PreRemoveTree/RemoveTree/ApplyTeleport) O(1) instead of a linear scan, and lets
     // RemoveTree swap-with-last instead of Array.Copy-compacting. Safe because tree array
@@ -976,18 +1014,26 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
     }
 
     public void ScheduleTeleport(JiggleTree tree, float3 deltaPosition) {
+        ScheduleTeleport(tree, JiggleRigidTeleport.FromTranslation(deltaPosition));
+    }
+
+    public void ScheduleTeleport(JiggleTree tree, quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        ScheduleTeleport(tree, JiggleRigidTeleport.FromRigid(deltaRotation, pivot, deltaPosition));
+    }
+
+    private void ScheduleTeleport(JiggleTree tree, JiggleRigidTeleport teleport) {
         if (tree == null) {
             return;
         }
         var rootID = tree.rootID;
         if (!rootIDToTreeIndex.ContainsKey(rootID)) {
-            tree.Translate(deltaPosition);
+            tree.TransformRigid(teleport.rotation, teleport.translation);
             return;
         }
         if (pendingTeleports.TryGetValue(rootID, out var existing)) {
-            pendingTeleports[rootID] = existing + deltaPosition;
+            pendingTeleports[rootID] = existing.Then(teleport);
         } else {
-            pendingTeleports[rootID] = deltaPosition;
+            pendingTeleports[rootID] = teleport;
         }
     }
 
@@ -999,7 +1045,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingTeleports.Clear();
     }
 
-    private void ApplyTeleport(int rootID, float3 deltaPosition) {
+    private void ApplyTeleport(int rootID, JiggleRigidTeleport teleport) {
         if (transformCount == 0) return;
         if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
 
@@ -1010,41 +1056,50 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
         for (int i = start; i < end; i++) {
             var inputPrev = inputPosesPrevious[i];
-            inputPrev.position += deltaPosition;
+            inputPrev.position = teleport.Apply(inputPrev.position);
+            inputPrev.rotation = teleport.Apply(inputPrev.rotation);
             inputPosesPrevious[i] = inputPrev;
 
             var inputCurr = inputPosesCurrent[i];
-            inputCurr.position += deltaPosition;
+            inputCurr.position = teleport.Apply(inputCurr.position);
+            inputCurr.rotation = teleport.Apply(inputCurr.rotation);
             inputPosesCurrent[i] = inputCurr;
 
             var simInput = simulateInputPoses[i];
-            simInput.position += deltaPosition;
+            simInput.position = teleport.Apply(simInput.position);
+            simInput.rotation = teleport.Apply(simInput.rotation);
             simulateInputPoses[i] = simInput;
 
             var interpOut = interpolationOutputPoses[i];
-            interpOut.position += deltaPosition;
+            interpOut.position = teleport.Apply(interpOut.position);
+            interpOut.rotation = teleport.Apply(interpOut.rotation);
             interpolationOutputPoses[i] = interpOut;
 
-            var rootOut = rootOutputPositions[i] + deltaPosition;
-            rootOutputPositions[i] = rootOut;
+            rootOutputPositions[i] = teleport.Apply(rootOutputPositions[i]);
 
             var simPose = simulationOutputPoseData[i];
-            simPose.pose.position += deltaPosition;
-            simPose.rootPosition += deltaPosition;
+            simPose.pose.position = teleport.Apply(simPose.pose.position);
+            simPose.pose.rotation = teleport.Apply(simPose.pose.rotation);
+            simPose.rootPosition = teleport.Apply(simPose.rootPosition);
+            simPose.rootOffset = teleport.ApplyDirection(simPose.rootOffset);
             simulationOutputPoseData[i] = simPose;
 
             var interpCurr = interpolationCurrentPoseData[i];
-            interpCurr.pose.position += deltaPosition;
-            interpCurr.rootPosition += deltaPosition;
+            interpCurr.pose.position = teleport.Apply(interpCurr.pose.position);
+            interpCurr.pose.rotation = teleport.Apply(interpCurr.pose.rotation);
+            interpCurr.rootPosition = teleport.Apply(interpCurr.rootPosition);
+            interpCurr.rootOffset = teleport.ApplyDirection(interpCurr.rootOffset);
             interpolationCurrentPoseData[i] = interpCurr;
 
             var interpPrev = interpolationPreviousPoseData[i];
-            interpPrev.pose.position += deltaPosition;
-            interpPrev.rootPosition += deltaPosition;
+            interpPrev.pose.position = teleport.Apply(interpPrev.pose.position);
+            interpPrev.pose.rotation = teleport.Apply(interpPrev.pose.rotation);
+            interpPrev.rootPosition = teleport.Apply(interpPrev.rootPosition);
+            interpPrev.rootOffset = teleport.ApplyDirection(interpPrev.rootOffset);
             interpolationPreviousPoseData[i] = interpPrev;
         }
 
-        tree.Translate(deltaPosition);
+        tree.TransformRigid(teleport.rotation, teleport.translation);
     }
 
     public void ScheduleAdd(JiggleTree jiggleTree) {

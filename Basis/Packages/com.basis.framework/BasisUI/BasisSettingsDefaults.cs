@@ -339,6 +339,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> GizmoNetworkPlayers = new("gizmonetworkplayers", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> GizmoNetworkPlayersBandwidth = new("gizmonetworkplayersbandwidth", new BasisPlatformDefault<bool>(false));
 
+        // Additional network information (see BasisNetworkOverviewGizmos): per-player voice
+        // bandwidth appended to the network labels, and a floating overall readout of the
+        // avatar / voice / scene channel totals.
+        public static BasisSettingsBinding<bool> GizmoNetworkAdditionalInfo = new("gizmonetworkadditionalinfo", new BasisPlatformDefault<bool>(false));
+
         // Yellow line gizmo drawn between the two physical trackers of every
         // active linked pair. Off by default; toggled separately from
         // TrackerGizmos so a user debugging the pairing system can see only
@@ -1787,6 +1792,7 @@ namespace Basis.BasisUI
             GizmoNetworkSyncBandwidth.LoadBindingValue();
             GizmoNetworkPlayers.LoadBindingValue();
             GizmoNetworkPlayersBandwidth.LoadBindingValue();
+            GizmoNetworkAdditionalInfo.LoadBindingValue();
             GizmoLabels.LoadBindingValue();
             EnableStatistics.LoadBindingValue();
             ShowVoiceRange.LoadBindingValue();

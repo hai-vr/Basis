@@ -283,7 +283,11 @@ namespace Basis.Network.Vehicles
         public void ToggleItems(bool state)
         {
             BasisDebug.Log($"Toggle Vehicle To {state}");
-            if (Rigidbody != null) Rigidbody.isKinematic = !state;
+            if (Rigidbody != null)
+            {
+                Rigidbody.isKinematic = !state;
+                Rigidbody.interpolation = state ? RigidbodyInterpolation.Interpolate : RigidbodyInterpolation.None;
+            }
             if (Colliders != null)
             {
                 for (int Index = 0; Index < Colliders.Length; Index++)

@@ -423,6 +423,10 @@
       "value": "Show each remote player's received traffic — bytes on the wire per second and packet rate — above their gizmo."
     },
     {
+      "key": "settings.developer.networkAdditionalInfo.tooltip",
+      "value": "Adds voice traffic to each player's network label, and floats an overall readout in front of you totalling the received avatar, voice and scene channels."
+    },
+    {
       "key": "settings.developer.gizmoLabels.tooltip",
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
     },
@@ -6557,6 +6561,10 @@
     {
       "key": "settings.developer.networkPlayersBandwidth",
       "value": "Player Bandwidth"
+    },
+    {
+      "key": "settings.developer.networkAdditionalInfo",
+      "value": "Network Additional Info"
     },
     {
       "key": "settings.developer.audioLevels.description",

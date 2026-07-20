@@ -93,6 +93,11 @@ public class JiggleTreeSegment {
         JigglePhysics.Teleport(jiggleTree, deltaPosition);
     }
 
+    public void Teleport(quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        if (jiggleTree == null) return;
+        JigglePhysics.Teleport(jiggleTree, deltaRotation, pivot, deltaPosition);
+    }
+
 }
 
 }

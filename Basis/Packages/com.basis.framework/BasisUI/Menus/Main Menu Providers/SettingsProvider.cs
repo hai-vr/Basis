@@ -2336,6 +2336,11 @@ namespace Basis.BasisUI
             toggleNetworkPlayersBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayersBandwidth.tooltip"));
             toggleNetworkPlayersBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayersBandwidth);
 
+            PanelToggle toggleNetworkAdditionalInfo = PanelToggle.CreateNewEntry(container);
+            toggleNetworkAdditionalInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkAdditionalInfo"));
+            toggleNetworkAdditionalInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkAdditionalInfo.tooltip"));
+            toggleNetworkAdditionalInfo.AssignBinding(BasisSettingsDefaults.GizmoNetworkAdditionalInfo);
+
             PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(container);
             toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
             toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
@@ -2931,6 +2936,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoNetworkSyncBandwidth.ResetToDefault();
             BasisSettingsDefaults.GizmoNetworkPlayers.ResetToDefault();
             BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();

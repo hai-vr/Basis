@@ -691,6 +691,10 @@ public static class JigglePhysics {
         jobs?.Teleport(tree, deltaPosition);
     }
 
+    public static void Teleport(JiggleTree tree, quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        jobs?.Teleport(tree, deltaRotation, pivot, deltaPosition);
+    }
+
     public static void RemoveJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {
         if (rootJiggleTreeSegments.Contains(jiggleTreeSegment)) {
             rootJiggleTreeSegments.Remove(jiggleTreeSegment);

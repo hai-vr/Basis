@@ -61,6 +61,11 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public bool InBoneDriver = false;
 
+        /// <summary>
+        /// Jiggle rigs on the current avatar (filled during calibration).
+        /// </summary>
+        public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
+
         // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). The wearer's networked spine
         //      scale re-spaced this remote avatar's spine bones. Superseded on the wire by the body fit
         //      below, which carries arm/leg/torso segment scales instead of one torso number. ====
@@ -265,7 +270,7 @@ namespace Basis.Scripts.Drivers
             SetupAvatarJiggleColliders();
             ResetAvatarAnimator();
 
-            var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+            JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
             int jiggleRigCount = JiggleRigs.Length;
             var jiggleRootsBeforeSnap = new Vector3[jiggleRigCount];
             for (int Index = 0; Index < jiggleRigCount; Index++)

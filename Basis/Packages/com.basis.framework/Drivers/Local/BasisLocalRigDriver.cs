@@ -22,7 +22,8 @@ namespace Basis.Scripts.Drivers
 {
     /// <summary>
     /// Local rig driver that wires up Unity Animation Rigging constraints for a player avatar,
-    /// filters tracker noise (One Euro Filter), and manually evaluates the rig graph each frame.
+    /// filters tracker noise (One Euro Filter), and runs the IK solve against the animated pose
+    /// (evaluated by the engine's animation stage, or manually when the legacy switch is off).
     /// Sets up spine, head, hands, feet, and toes, and toggles layers based on available rigs.
     /// </summary>
     [Serializable]
@@ -161,6 +162,22 @@ namespace Basis.Scripts.Drivers
         // CS0429 (unreachable expression code) under warnings-as-errors. The JIT folds this away just the same.
         private static readonly bool FootRotationFromDriver = true;
 
+        // ── ANIMATOR EVALUATION STAGE ──
+        // true  => the animator's playable graph stays in GameTime mode and the ENGINE evaluates it in the
+        //          PreLateUpdate animation stage, where clip sampling / humanoid retarget / transform writes
+        //          (Animators.ProcessAnimationsJob, WriteJob, IKAndTwistBoneJob) run on job-system workers.
+        //          A manual PlayableGraph.Evaluate() runs that same pipeline synchronously on the main
+        //          thread — profiled at ~0.10 ms of the 0.126 ms IKDestinations block.
+        // false => legacy path: Manual time mode + PlayableGraph.Evaluate(deltaTime) in SimulateIKDestinations.
+        // Equivalent either way: manual evaluation was only load-bearing while the FBIK lived INSIDE the
+        // graph (Animation Rigging, since removed); animator parameters are consumed one evaluate late in
+        // BOTH modes (SimulateAnimator runs after the old evaluate point), local bone writes commute with
+        // the root moves LateUpdate performs, and the first pose reader (GatherNow) runs after the stage
+        // either way. PreLateUpdate sits after all Updates and before all LateUpdates, so no other script
+        // phase sees a different pose than before.
+        // static readonly, NOT const: same CS0162/CS0429 reasoning as FootRotationFromDriver above.
+        private static readonly bool EngineDrivenAnimatorEvaluate = true;
+
         // Batched filter job state — one slot per S_* index (shoulder slot in position arrays is unused).
         private NativeArray<float3> _posInputs;
         private NativeArray<float3> _posOutputs;
@@ -197,7 +214,7 @@ namespace Basis.Scripts.Drivers
 
             Animator animator = localPlayer.BasisAvatar.Animator;
             PlayableGraph = animator.playableGraph;
-            PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+            PlayableGraph.SetTimeUpdateMode(EngineDrivenAnimatorEvaluate ? DirectorUpdateMode.GameTime : DirectorUpdateMode.Manual);
 
             PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
@@ -1112,7 +1129,10 @@ namespace Basis.Scripts.Drivers
             // the IK job. Without this the job runs on the boot-time snapshot from Spine().
             ApplyTuningSettings(ref data);
 
-            PlayableGraph.Evaluate(deltaTime);
+            if (!EngineDrivenAnimatorEvaluate)
+            {
+                PlayableGraph.Evaluate(deltaTime);
+            }
             RunIKSolve(deltaTime);
 
             // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
