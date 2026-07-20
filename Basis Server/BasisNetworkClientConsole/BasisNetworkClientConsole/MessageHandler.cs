@@ -98,6 +98,7 @@ namespace Basis.Network
                 case BasisNetworkCommons.PlayerAvatarMediumLargeChannel:
                 case BasisNetworkCommons.PlayerAvatarHighLargeChannel:
                     Interlocked.Increment(ref PoseOnlyKeyframes);
+                    NoteVoiceRange(clientIndex, reader, channel);
                     break;
                 case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
                 case BasisNetworkCommons.PlayerAvatarLowAdditionalChannel:
@@ -381,5 +382,34 @@ namespace Basis.Network
             }
             reader.Recycle();
         }
+        /// <summary>
+        /// Voice range, derived from the server's own distance tiering instead of decoding positions.
+        /// High and Medium avatar quality are only sent to peers inside MediumQualityDistance, which is
+        /// the voice radius, so receiving that tier is proof the sender is close enough to hear. Lower
+        /// tiers are ignored: those players are either far away or being quality-shed, and in both
+        /// cases they should not be added as voice recipients.
+        /// The player id is read straight out of the buffer so the reader stays untouched for the
+        /// sniffing paths that run after this.
+        /// </summary>
+        private static void NoteVoiceRange(int clientIndex, NetPacketReader reader, byte channel)
+        {
+            if (!Basis.Config.ConfigManager.SimulateVoice) return;
+
+            bool nearTier =
+                channel == BasisNetworkCommons.PlayerAvatarHighChannel ||
+                channel == BasisNetworkCommons.PlayerAvatarMediumChannel ||
+                channel == BasisNetworkCommons.PlayerAvatarHighLargeChannel ||
+                channel == BasisNetworkCommons.PlayerAvatarMediumLargeChannel;
+            if (!nearTier) return;
+
+            bool large = BasisNetworkCommons.IsLargePlayerIdChannel(channel);
+            int pos = reader.Position;
+            byte[] raw = reader.RawData;
+            if (raw == null || pos + (large ? 2 : 1) > raw.Length) return;
+
+            ushort playerId = large ? (ushort)(raw[pos] | (raw[pos + 1] << 8)) : raw[pos];
+            Basis.Network.MovementSender.VoiceSender.NoteAudible(clientIndex, playerId);
+        }
+
     }
 }

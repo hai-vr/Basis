@@ -137,7 +137,7 @@ namespace Basis
             double lastTickMs = 0;
             double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
             double lastVoiceMs = 0;
-            bool[] sentRecipients = new bool[peers.Length];
+
 
             while (_running)
             {
@@ -174,15 +174,10 @@ namespace Basis
                         var peer = Volatile.Read(ref peers[i]);
                         if (peer == null || (peer.Tag as ConsoleClientIdentity)?.Authenticated != true) continue;
 
-                        // The recipient list only needs building once — positions are fixed — but it
-                        // can't be built until the peer has its server-assigned id, so it is attempted
-                        // here and the list is published the first time it succeeds.
-                        if (MovementSender.VoiceSender.BuildRecipients(peers, i) && !sentRecipients[i])
-                        {
-                            MovementSender.VoiceSender.SendRecipients(peer, i);
-                            sentRecipients[i] = true;
-                        }
-                        if (sentRecipients[i] && MovementSender.VoiceSender.IsTalking(i, nowMs))
+                        // Republished on a cadence rather than built once, so players who join or move
+                        // into range — including real ones — start being sent voice.
+                        bool ready = MovementSender.VoiceSender.RefreshRecipients(peer, peers, i, nowMs);
+                        if (ready && MovementSender.VoiceSender.IsTalking(i, nowMs))
                         {
                             MovementSender.VoiceSender.SendFrame(peer, i);
                         }

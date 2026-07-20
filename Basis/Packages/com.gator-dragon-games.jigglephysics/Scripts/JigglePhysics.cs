@@ -44,18 +44,92 @@ public static class JigglePhysics {
     private static float collisionCullDistance = 20f;
     private static readonly Plane[] cullingFrustumScratch = new Plane[6];
 
+    /// <summary>
+    /// True while a tree rebuild is pending. The rebuild measures rest lengths off live bone
+    /// positions, so a caller that poses bones with its own jobs has to let them land before
+    /// preparing — on every other frame the prepare touches no transform at all.
+    /// </summary>
+    public static bool WillRebuildTrees => _globalDirty;
+
+    private static double pendingRealTime;
+    private static bool preparedThisFrame;
+
+    /// <summary>
+    /// The main-thread half of <see cref="ScheduleSimulate"/> — substep accounting, parameter
+    /// pushes, and any pending tree or collider commit — stopping short of actually scheduling.
+    /// Returns true when there is work to dispatch.
+    ///
+    /// Split out so a caller can slot other work between the preparation and the schedule. Nothing
+    /// here reads a bone pose unless <see cref="WillRebuildTrees"/> is set, so on a steady frame
+    /// another system's jobs can still be in flight over those same bones while this runs.
+    /// </summary>
+    public static bool PrepareSimulate(double realTime, float fixedDeltaTime) {
+        preparedThisFrame = false;
+        if (hasRunThisFrame) {
+            return false;
+        }
+
+        if (!(realTime - lastFixedCurrentTime > fixedDeltaTime)) return false;
+
+        while (realTime - lastFixedCurrentTime > fixedDeltaTime) {
+            lastFixedCurrentTime += fixedDeltaTime;
+            skips = Mathf.Min(skips + 1, JiggleSettings.MaxSubsteps);
+        }
+
+        var segmentsCount = rootJiggleTreeSegments.Count;
+
+        bool mutates = _globalDirty;
+        if (!mutates) {
+            for (int i = 0; i < segmentsCount; i++) {
+                if (rootJiggleTreeSegments[i].GetHasAnimatedParameters()) {
+                    mutates = true;
+                    break;
+                }
+            }
+        }
+        if (mutates) {
+            jobs?.CompleteSimulate();
+        }
+
+        for (int i = 0; i < segmentsCount; i++) {
+            rootJiggleTreeSegments[i].UpdateParametersIfNeeded();
+        }
+
+        jobs = GetJiggleJobs(lastFixedCurrentTime, fixedDeltaTime);
+        jobs.SetCollisionCulling(collisionFrustumCull, collisionDistanceCull, collisionCullDistance, cullingCameraBuffer, cullingCameraCount);
+
+        pendingRealTime = realTime;
+        preparedThisFrame = true;
+        return true;
+    }
+
+    /// <summary>
+    /// The scheduling half. Only does anything after a <see cref="PrepareSimulate"/> that returned
+    /// true, so calling it unconditionally is safe.
+    /// </summary>
+    public static void DispatchSimulate() {
+        if (!preparedThisFrame) {
+            return;
+        }
+        preparedThisFrame = false;
+
+        jobs.Simulate(lastFixedCurrentTime, pendingRealTime, skips);
+        skips = 0;
+        hasRunThisFrame = true;
+    }
+
     public static void ScheduleSimulate(double realTime, float fixedDeltaTime) {
         if (hasRunThisFrame) {
             return;
         }
 
         if (!(realTime - lastFixedCurrentTime > fixedDeltaTime)) return;
-        
+
         while (realTime - lastFixedCurrentTime > fixedDeltaTime) {
             lastFixedCurrentTime += fixedDeltaTime;
             skips = Mathf.Min(skips + 1, JiggleSettings.MaxSubsteps);
         }
-            
+
         var rootJiggleTreeSegmentsCount = rootJiggleTreeSegments.Count;
 
         // Tree regeneration (JiggleTree.Set) and parameter pushes MemCpy into buffers the

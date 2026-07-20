@@ -1,4 +1,4 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 
 namespace Basis.Config
 {
@@ -46,7 +46,24 @@ namespace Basis.Config
         public static int VoiceTalkBurstMaxMs = 4000;
         public static int VoiceSilenceMinMs = 4000;
         public static int VoiceSilenceMaxMs = 40000;
+        // Crowds are correlated: everyone sings happy birthday, cheers, or laughs at once. Independent
+        // bursts alone never produce that spike, and the spike is the load worth surviving. A chorus
+        // overrides the per-person burst clock for its duration.
+        public static bool VoiceChorusEnabled = true;
+        public static int VoiceChorusPercent = 85;
+        public static int VoiceChorusDurationMinMs = 8000;
+        public static int VoiceChorusDurationMaxMs = 25000;
+        public static int VoiceChorusIntervalMinMs = 45000;
+        public static int VoiceChorusIntervalMaxMs = 180000;
+        // How often each client re-derives who can hear it and republishes the list. Real players
+        // join and move, so a list built once at connect goes stale; this is the reaction time.
+        public static int VoiceRecipientRefreshMs = 2000;
+        // Drop a player from the audible set after this long without nearby avatar traffic from them.
+        public static int VoiceAudibleTimeoutMs = 6000;
         public static int VoiceFrameMs = 20;
+        // Matches the real client's encoder (BasisAudioClipPlayer sets 32000). Frame sizes come from
+        // the encoder, so VoiceBytesPerFrame is only the fallback when native Opus is unavailable.
+        public static int VoiceBitrate = 32000;
         public static int VoiceBytesPerFrame = 60;
 
         private static readonly object _lock = new();
@@ -181,9 +198,25 @@ namespace Basis.Config
                                 new XComment(" Silence length range in ms between bursts. With the defaults roughly 6% of the crowd is audible at any moment. int. "),
                                 new XElement("VoiceSilenceMinMs", VoiceSilenceMinMs),
                                 new XElement("VoiceSilenceMaxMs", VoiceSilenceMaxMs),
+                                new XComment(" Crowd chorus events: everyone singing happy birthday or cheering at once. Independent per-person bursts never produce that spike, and the spike is the peak the server has to survive. A chorus overrides the personal burst clock while it runs. bool. "),
+                                new XElement("VoiceChorusEnabled", VoiceChorusEnabled),
+                                new XComment(" Percentage of voice participants that join a chorus. int, 0-100. "),
+                                new XElement("VoiceChorusPercent", VoiceChorusPercent),
+                                new XComment(" How long a chorus lasts, in ms. Happy birthday is about 20 s. int. "),
+                                new XElement("VoiceChorusDurationMinMs", VoiceChorusDurationMinMs),
+                                new XElement("VoiceChorusDurationMaxMs", VoiceChorusDurationMaxMs),
+                                new XComment(" Gap between chorus events, in ms. int. "),
+                                new XElement("VoiceChorusIntervalMinMs", VoiceChorusIntervalMinMs),
+                                new XElement("VoiceChorusIntervalMaxMs", VoiceChorusIntervalMaxMs),
                                 new XComment(" Milliseconds between voice frames per talking client. 20 ms matches a standard Opus frame (50 packets/sec). int. "),
                                 new XElement("VoiceFrameMs", VoiceFrameMs),
-                                new XComment(" Payload bytes per voice frame. 60 is about a 24 kbps Opus frame at 20 ms. int. "),
+                                new XComment(" How often a client re-derives who can hear it and republishes the recipient list, in ms. Real players join and move, so this is the reaction time. int. "),
+                                new XElement("VoiceRecipientRefreshMs", VoiceRecipientRefreshMs),
+                                new XComment(" Drop a player from the audible set after this long with no nearby avatar traffic from them, in ms. int. "),
+                                new XElement("VoiceAudibleTimeoutMs", VoiceAudibleTimeoutMs),
+                                new XComment(" Opus bitrate in bits/sec, matching the real client's encoder. Frame sizes come from the encoder itself. int. "),
+                                new XElement("VoiceBitrate", VoiceBitrate),
+                                new XComment(" Fallback payload bytes per frame, used only when native Opus is unavailable on this platform. int. "),
                                 new XElement("VoiceBytesPerFrame", VoiceBytesPerFrame)
                             )
                         );
@@ -245,7 +278,16 @@ namespace Basis.Config
                     VoiceTalkBurstMaxMs = ReadInt(root, "VoiceTalkBurstMaxMs", VoiceTalkBurstMaxMs);
                     VoiceSilenceMinMs = ReadInt(root, "VoiceSilenceMinMs", VoiceSilenceMinMs);
                     VoiceSilenceMaxMs = ReadInt(root, "VoiceSilenceMaxMs", VoiceSilenceMaxMs);
+                    VoiceChorusEnabled = ReadBool(root, "VoiceChorusEnabled", VoiceChorusEnabled);
+                    VoiceChorusPercent = ReadInt(root, "VoiceChorusPercent", VoiceChorusPercent);
+                    VoiceChorusDurationMinMs = ReadInt(root, "VoiceChorusDurationMinMs", VoiceChorusDurationMinMs);
+                    VoiceChorusDurationMaxMs = ReadInt(root, "VoiceChorusDurationMaxMs", VoiceChorusDurationMaxMs);
+                    VoiceChorusIntervalMinMs = ReadInt(root, "VoiceChorusIntervalMinMs", VoiceChorusIntervalMinMs);
+                    VoiceChorusIntervalMaxMs = ReadInt(root, "VoiceChorusIntervalMaxMs", VoiceChorusIntervalMaxMs);
                     VoiceFrameMs = ReadInt(root, "VoiceFrameMs", VoiceFrameMs);
+                    VoiceBitrate = ReadInt(root, "VoiceBitrate", VoiceBitrate);
+                    VoiceRecipientRefreshMs = ReadInt(root, "VoiceRecipientRefreshMs", VoiceRecipientRefreshMs);
+                    VoiceAudibleTimeoutMs = ReadInt(root, "VoiceAudibleTimeoutMs", VoiceAudibleTimeoutMs);
                     VoiceBytesPerFrame = ReadInt(root, "VoiceBytesPerFrame", VoiceBytesPerFrame);
                 }
                 catch (Exception ex)

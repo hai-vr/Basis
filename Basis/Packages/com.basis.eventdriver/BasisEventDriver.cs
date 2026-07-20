@@ -452,9 +452,12 @@ namespace Basis.EventDriver
             // ── Constraints: resolve the BasisConstraint* components ──
             // Sits after authored motion (so a constraint may source an authored bone) and ahead of
             // the jiggle schedule below (so jiggle samples the constrained pose, not the stale one).
-            // Scheduled and completed back to back: the solve owns every constrained transform for
-            // the duration, and everything after this point reads bones on the main thread.
-            BasisConstraintSystem.Complete(BasisConstraintSystem.Schedule());
+            //
+            // Scheduled here but completed further down, on the far side of jiggle's preparation.
+            // That preparation is main-thread work — parameter pushes, collider and tree commits —
+            // and on a steady frame it reads no bone pose at all, so the constraint solve can run
+            // against those same bones while it happens instead of the main thread just waiting.
+            var constraintJob = BasisConstraintSystem.Schedule();
 
             // ── JigglePhysics schedule ──
             ProfileBegin(PROF_JIGGLE_SCHEDULE);
@@ -469,7 +472,22 @@ namespace Basis.EventDriver
             JigglePhysics.SetCullingCameras(JiggleCullCameras);
 
             fixedDeltaTime = Time.fixedDeltaTime;
-            JigglePhysics.ScheduleSimulate(TimeAsDouble, fixedDeltaTime);
+
+            // A pending tree rebuild measures rest lengths off live bone positions, which the solve
+            // is in the middle of writing — so on those frames the overlap is given up rather than
+            // letting the rebuild read half-solved poses. Rebuilds are rare; steady frames are not.
+            if (JigglePhysics.WillRebuildTrees)
+            {
+                BasisConstraintSystem.Complete(constraintJob);
+                constraintJob = default;
+            }
+
+            bool jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
+            BasisConstraintSystem.Complete(constraintJob);
+            if (jiggleReady)
+            {
+                JigglePhysics.DispatchSimulate();
+            }
 
             ProfileEnd(PROF_JIGGLE_SCHEDULE);
 

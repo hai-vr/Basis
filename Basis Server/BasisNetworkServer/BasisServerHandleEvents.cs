@@ -48,11 +48,13 @@ namespace BasisServerHandle
             private readonly struct Record
             {
                 public readonly long Seq;
+                public readonly int PeerId;
                 public readonly byte[] Payload;
-                public Record(long seq, byte[] payload) { Seq = seq; Payload = payload; }
+                public Record(long seq, int peerId, byte[] payload) { Seq = seq; PeerId = peerId; Payload = payload; }
             }
 
             private static readonly List<Record> _pending = new List<Record>();
+            private static readonly List<ushort> _pendingLeaves = new List<ushort>();
             private static readonly ConcurrentDictionary<int, long> _peerSeq = new ConcurrentDictionary<int, long>();
             private static readonly AutoResetEvent _signal = new AutoResetEvent(false);
             private static long _seq;
@@ -91,9 +93,34 @@ namespace BasisServerHandle
                 _peerSeq.Clear();
             }
 
-            public static void Enqueue(long seq, byte[] payload)
+            public static void Enqueue(long seq, int peerId, byte[] payload)
             {
-                lock (_pending) { _pending.Add(new Record(seq, payload)); }
+                lock (_pending) { _pending.Add(new Record(seq, peerId, payload)); }
+                _signal.Set();
+            }
+
+            /// <summary>
+            /// Departures are announced the same way joins are: one send per peer per flush instead of
+            /// one per peer per departure. Same O(N) per event, and on a mass exit — shutdown, world
+            /// change, cascade — that was the same O(N^2) stall the join path had.
+            ///
+            /// If the leaver's join is still sitting in this batch, both are dropped: nobody was ever
+            /// told the player existed, so there is nothing to undo. That also removes the only
+            /// ordering hazard batching introduces, where a "left" could otherwise overtake the
+            /// matching "joined" on a different channel and strand a player who never despawns.
+            /// </summary>
+            public static void EnqueueLeave(int peerId)
+            {
+                lock (_pending)
+                {
+                    int pendingJoin = _pending.FindIndex(r => r.PeerId == peerId);
+                    if (pendingJoin >= 0)
+                    {
+                        _pending.RemoveAt(pendingJoin);
+                        return;
+                    }
+                }
+                lock (_pendingLeaves) { _pendingLeaves.Add((ushort)peerId); }
                 _signal.Set();
             }
 
@@ -119,10 +146,16 @@ namespace BasisServerHandle
                 Record[] batch;
                 lock (_pending)
                 {
-                    if (_pending.Count == 0) return;
-                    batch = _pending.ToArray();
+                    batch = _pending.Count == 0 ? Array.Empty<Record>() : _pending.ToArray();
                     _pending.Clear();
                 }
+                ushort[] leaves;
+                lock (_pendingLeaves)
+                {
+                    leaves = _pendingLeaves.Count == 0 ? Array.Empty<ushort>() : _pendingLeaves.ToArray();
+                    _pendingLeaves.Clear();
+                }
+                if (batch.Length == 0 && leaves.Length == 0) return;
                 Array.Sort(batch, static (a, b) => a.Seq.CompareTo(b.Seq));
 
                 NetPeer[] peers = NetworkServer.PeerSnapshot;
@@ -163,6 +196,53 @@ namespace BasisServerHandle
                 if (sent > 0)
                 {
                     BasisNetworkStatistics.RecordOutboundBatch(BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, sent, bytes);
+                }
+
+                // Departures after arrivals, so a spawn always precedes any despawn in the same flush.
+                FlushLeaves(peers, leaves);
+            }
+
+            private static void FlushLeaves(NetPeer[] peers, ushort[] leaves)
+            {
+                if (leaves.Length == 0) return;
+
+                // The client reads departure ids until the buffer runs out, so a batch is just the
+                // ids concatenated — no framing and no client change needed.
+                NetDataWriter writer = NetworkServer.RentWriter();
+                long sent = 0, bytes = 0;
+                try
+                {
+                    for (int i = 0; i < leaves.Length; i++) writer.Put(leaves[i]);
+                    if (!NetworkServer.CheckValidated(writer)) return;
+
+                    foreach (NetPeer peer in peers)
+                    {
+                        if (peer == null) continue;
+                        // A peer in this batch is already gone; skip rather than announce its own exit.
+                        bool isLeaver = false;
+                        for (int i = 0; i < leaves.Length; i++) { if (peer.Id == leaves[i]) { isLeaver = true; break; } }
+                        if (isLeaver) continue;
+
+                        try
+                        {
+                            peer.Send(writer, BasisNetworkCommons.DisconnectionChannel, DeliveryMethod.ReliableOrdered);
+                            sent++;
+                            bytes += writer.Length;
+                        }
+                        catch (Exception ex)
+                        {
+                            BNL.LogError($"Failed to announce departures to peer {peer.Id}: {ex.Message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    NetworkServer.ReturnWriter(writer);
+                }
+
+                if (sent > 0)
+                {
+                    BasisNetworkStatistics.RecordOutboundBatch(BasisNetworkCommons.DisconnectionChannel, sent, bytes);
                 }
             }
 
@@ -300,21 +380,7 @@ namespace BasisServerHandle
                     BasisNetworkContentShare.Reset();
                 }
 
-                NetDataWriter writer = NetworkServer.RentWriter();
-                writer.Put((ushort)id);
-                if (NetworkServer.CheckValidated(writer))
-                {
-                    NetPeer[] Peers = NetworkServer.PeerSnapshot;
-                    foreach (var client in Peers)
-                    {
-                        if (client.Id != id)
-                        {
-                            BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.DisconnectionChannel, writer.Length);
-                            client.Send(writer, BasisNetworkCommons.DisconnectionChannel, DeliveryMethod.ReliableOrdered);
-                        }
-                    }
-                }
-                NetworkServer.ReturnWriter(writer);
+                JoinBroadcast.EnqueueLeave(id);
             }
             catch (Exception e)
             {
@@ -1008,7 +1074,7 @@ namespace BasisServerHandle
                 {
                     return;
                 }
-                JoinBroadcast.Enqueue(JoinBroadcast.RegisteredSeqFor(authClient.Id), Writer.CopyData());
+                JoinBroadcast.Enqueue(JoinBroadcast.RegisteredSeqFor(authClient.Id), authClient.Id, Writer.CopyData());
             }
             finally
             {

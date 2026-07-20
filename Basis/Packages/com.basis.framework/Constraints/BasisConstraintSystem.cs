@@ -60,7 +60,29 @@ namespace Basis.Scripts.Constraints
             /// every rebuild, so the native row cannot survive one; the registration can.
             /// </summary>
             public BasisConstraintDampState DampState;
+
+            /// <summary>
+            /// Euler degrees convert to a quaternion on every refresh, for values that almost never
+            /// change — the conversion is the single most-called thing in the frame. Remembering the
+            /// last input lets an unchanged one skip it entirely.
+            /// </summary>
+            public Vector3 LastAtRestEuler = NeverMatched;
+            public quaternion LastAtRestQuaternion;
+            public Vector3 LastOffsetEuler = NeverMatched;
+            public quaternion LastOffsetQuaternion;
+
+            /// <summary>Resolved once at rebuild, so the refresh does not re-cast every frame.</summary>
+            public BasisParentConstraint Parent;
+
+            /// <summary>
+            /// True when the flattened sources line up one-to-one with the authored ones, which is
+            /// every constraint that has no null source. Lets the refresh index straight in.
+            /// </summary>
+            public bool SourceMapIsIdentity;
         }
+
+        /// <summary>A euler no author will type, so the first refresh always converts.</summary>
+        private static readonly Vector3 NeverMatched = new Vector3(float.NaN, float.NaN, float.NaN);
 
         private static readonly List<Registration> sRegistrations = new List<Registration>();
         private static readonly Dictionary<BasisConstraintBase, Registration> sLookup =
@@ -335,14 +357,39 @@ namespace Basis.Scripts.Constraints
         /// Cheap per-frame sweep for components destroyed behind the system's back. The Unity
         /// fake-null check is the whole cost, over a list that is tens of entries in practice.
         /// </summary>
+        /// <summary>
+        /// How many registrations the destroyed-scan walks per frame. A component destroyed without
+        /// an OnDisable — scene teardown, DestroyImmediate — is only noticed by looking, and looking
+        /// means a Unity fake-null check per registration, which is a native call. Checking every one
+        /// every frame cost more than the whole solve at a few hundred constraints, so the sweep is
+        /// spread instead: a destroyed registration is caught within a few frames rather than the
+        /// next one, and the pose it leaves behind in the meantime is the one it already had.
+        /// </summary>
+        private const int DestroyedScanPerFrame = 64;
+        private static int sDestroyedScanCursor;
+
         private static bool HasDestroyedRegistration()
         {
-            for (int Index = 0; Index < sRegistrations.Count; Index++)
+            int count = sRegistrations.Count;
+            if (count == 0)
             {
-                if (sRegistrations[Index].Component == null)
+                sDestroyedScanCursor = 0;
+                return false;
+            }
+
+            int steps = math.min(DestroyedScanPerFrame, count);
+            for (int Step = 0; Step < steps; Step++)
+            {
+                if (sDestroyedScanCursor >= count)
                 {
+                    sDestroyedScanCursor = 0;
+                }
+                if (sRegistrations[sDestroyedScanCursor].Component == null)
+                {
+                    sDestroyedScanCursor = 0;
                     return true;
                 }
+                sDestroyedScanCursor++;
             }
             return false;
         }
@@ -449,6 +496,18 @@ namespace Basis.Scripts.Constraints
                 registration.SourceCount = sSourceMapScratch.Count;
                 registration.SourceMap = sSourceMapScratch.ToArray();
 
+                // The map only diverges when a null source was dropped during the flatten. Noting
+                // that here lets the per-frame refresh skip the indirection on everything else.
+                registration.SourceMapIsIdentity = true;
+                for (int MapIndex = 0; MapIndex < registration.SourceMap.Length; MapIndex++)
+                {
+                    if (registration.SourceMap[MapIndex] != MapIndex)
+                    {
+                        registration.SourceMapIsIdentity = false;
+                        break;
+                    }
+                }
+
                 BasisConstraintSlot slot = BasisConstraintDefaults.Identity(ToKind(component.constraintType));
                 slot.TargetIndex = targetIndex;
                 slot.SourceStart = registration.SourceStart;
@@ -459,7 +518,8 @@ namespace Basis.Scripts.Constraints
                     ? InternTransform(registration.WorldUpObject)
                     : -1;
                 BuildChain(component, ref slot);
-                FillScalarState(component, ref slot);
+                registration.Parent = component as BasisParentConstraint;
+                FillScalarState(component, registration, ref slot);
                 sSlots.Add(slot);
                 // Kept index-parallel with the slots, restoring whatever this registration was
                 // carrying so a damped transform resumes its lag instead of snapping.
@@ -783,7 +843,7 @@ namespace Basis.Scripts.Constraints
                 }
 
                 BasisConstraintSlot slot = sSlots[registration.SlotIndex];
-                FillScalarState(component, ref slot);
+                FillScalarState(component, registration, ref slot);
                 sSlots[registration.SlotIndex] = slot;
                 FillSourceState(component, registration);
             }
@@ -793,7 +853,8 @@ namespace Basis.Scripts.Constraints
         /// Copies every non-structural field off the component into its slot. Shared by the rebuild
         /// and the per-frame refresh so the two can never drift apart.
         /// </summary>
-        private static void FillScalarState(BasisConstraintBase component, ref BasisConstraintSlot slot)
+        private static void FillScalarState(
+            BasisConstraintBase component, Registration registration, ref BasisConstraintSlot slot)
         {
             slot.Weight = Mathf.Clamp01(component.weight);
             slot.AuthoredOrder = component.authoredOrder;
@@ -809,8 +870,10 @@ namespace Basis.Scripts.Constraints
                     break;
 
                 case BasisRotationConstraint rotation:
-                    slot.RotationAtRest = ToQuaternion(rotation.rotationAtRest);
-                    slot.RotationOffset = ToQuaternion(rotation.rotationOffset);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        rotation.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
+                    slot.RotationOffset = ToQuaternionCached(
+                        rotation.rotationOffset, ref registration.LastOffsetEuler, ref registration.LastOffsetQuaternion);
                     slot.RotationMask = (byte)rotation.rotationAxis;
                     break;
 
@@ -822,7 +885,8 @@ namespace Basis.Scripts.Constraints
 
                 case BasisParentConstraint parent:
                     slot.TranslationAtRest = parent.translationAtRest;
-                    slot.RotationAtRest = ToQuaternion(parent.rotationAtRest);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        parent.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.TranslationOffset = float3.zero;
                     slot.RotationOffset = quaternion.identity;
                     slot.TranslationMask = (byte)parent.translationAxis;
@@ -830,8 +894,10 @@ namespace Basis.Scripts.Constraints
                     break;
 
                 case BasisAimConstraint aim:
-                    slot.RotationAtRest = ToQuaternion(aim.rotationAtRest);
-                    slot.RotationOffset = ToQuaternion(aim.rotationOffset);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        aim.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
+                    slot.RotationOffset = ToQuaternionCached(
+                        aim.rotationOffset, ref registration.LastOffsetEuler, ref registration.LastOffsetQuaternion);
                     slot.RotationMask = (byte)aim.rotationAxis;
                     slot.AimVector = aim.aimVector;
                     slot.UpVector = aim.upVector;
@@ -843,7 +909,8 @@ namespace Basis.Scripts.Constraints
 
                 case BasisBlendConstraint blend:
                     slot.TranslationAtRest = blend.translationAtRest;
-                    slot.RotationAtRest = ToQuaternion(blend.rotationAtRest);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        blend.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.TranslationOffset = float3.zero;
                     slot.RotationOffset = quaternion.identity;
                     // Unity's blendPosition / blendRotation toggles ride the axis masks, so turning a
@@ -882,7 +949,8 @@ namespace Basis.Scripts.Constraints
                 case BasisTwistChain twistChain:
                     slot.PositionChannelWeight = Mathf.Clamp01(twistChain.blend);
                     slot.BindRotation = twistChain.BindOffset;
-                    slot.RotationAtRest = ToQuaternion(twistChain.rotationAtRest);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        twistChain.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.RotationMask = (byte)BasisConstraintAxis.All;
                     break;
 
@@ -910,7 +978,8 @@ namespace Basis.Scripts.Constraints
                     slot.PositionChannelWeight = Mathf.Clamp01(over.positionWeight);
                     slot.RotationChannelWeight = Mathf.Clamp01(over.rotationWeight);
                     slot.OverridePosition = over.position;
-                    slot.OverrideRotation = ToQuaternion(over.rotation);
+                    slot.OverrideRotation = ToQuaternionCached(
+                        over.rotation, ref registration.LastOffsetEuler, ref registration.LastOffsetQuaternion);
                     slot.OverrideSpace = (BasisOverrideSpace)over.space;
                     slot.UseOverrideSource = (byte)(over.useSource ? 1 : 0);
                     slot.BindPosition = over.SourceInvBindPosition;
@@ -919,8 +988,10 @@ namespace Basis.Scripts.Constraints
                     break;
 
                 case BasisLookAtConstraint lookAt:
-                    slot.RotationAtRest = ToQuaternion(lookAt.rotationAtRest);
-                    slot.RotationOffset = ToQuaternion(lookAt.rotationOffset);
+                    slot.RotationAtRest = ToQuaternionCached(
+                        lookAt.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
+                    slot.RotationOffset = ToQuaternionCached(
+                        lookAt.rotationOffset, ref registration.LastOffsetEuler, ref registration.LastOffsetQuaternion);
                     slot.RotationMask = (byte)BasisConstraintAxis.All;
                     // Look-at is an aim constraint pinned to Unity's convention: +Z at the target,
                     // +Y rolled up, with roll layered on top of the resolved basis.
@@ -947,11 +1018,15 @@ namespace Basis.Scripts.Constraints
                 return;
             }
 
-            BasisParentConstraint parent = component as BasisParentConstraint;
+            BasisParentConstraint parent = registration.Parent;
+            bool identityMap = registration.SourceMapIsIdentity;
             for (int Index = 0; Index < registration.SourceCount; Index++)
             {
                 int flattened = registration.SourceStart + Index;
-                int authored = registration.SourceMap[Index];
+                // The map only differs from the identity when a null source was dropped during the
+                // flatten, which is the rare case; skipping the extra indirection matters here
+                // because this runs for every source of every constraint every frame.
+                int authored = identityMap ? Index : registration.SourceMap[Index];
 
                 BasisConstraintSource source = sSources[flattened];
                 source.Weight = math.max(0f, component.GetSource(authored).weight);
@@ -1133,5 +1208,21 @@ namespace Basis.Scripts.Constraints
         }
 
         private static quaternion ToQuaternion(Vector3 eulerDegrees) => Quaternion.Euler(eulerDegrees);
+
+        /// <summary>
+        /// Converts only when the euler actually moved. Comparing three floats is far cheaper than
+        /// building a quaternion, and these values are authored constants on almost every frame —
+        /// this was the most-called method in the refresh before it started remembering.
+        /// </summary>
+        private static quaternion ToQuaternionCached(
+            Vector3 eulerDegrees, ref Vector3 lastEuler, ref quaternion lastResult)
+        {
+            if (eulerDegrees != lastEuler)
+            {
+                lastEuler = eulerDegrees;
+                lastResult = Quaternion.Euler(eulerDegrees);
+            }
+            return lastResult;
+        }
     }
 }

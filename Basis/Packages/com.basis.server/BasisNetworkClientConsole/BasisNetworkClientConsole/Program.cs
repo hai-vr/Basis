@@ -19,6 +19,35 @@ namespace Basis
             ConfigManager.LoadOrCreateConfigXml("Config.xml");
             NetDebug.Logger = new BasisClientLogger();
 
+            // Face-data test mode: BASIS_EMIT_FACE=1 attaches a synthetic AdditionalAvatarData to
+            // every avatar send and logs when other clients' additional data arrives — an
+            // end-to-end probe of the face-tracking transport over real UDP. Companions:
+            //   BASIS_FACE_SPACING=<m>  pin client i at (i*m,1,0), no random walk (distance tiers)
+            //   BASIS_UPLINK_DELTAS=0   legacy all-keyframe uploads (no v42 uplink deltas)
+            //   BASIS_PACKET_LOSS=<pct> simulate inbound/outbound UDP loss on every client
+            if (Environment.GetEnvironmentVariable("BASIS_EMIT_FACE") == "1")
+            {
+                MovementSender.EmitFaceData = true;
+                BNL.Log("[FaceObserver] EmitFaceData enabled — every avatar send carries additional data.");
+            }
+            if (float.TryParse(Environment.GetEnvironmentVariable("BASIS_FACE_SPACING"), out float spacing) && spacing > 0f)
+            {
+                MovementSender.PinSpacingMeters = spacing;
+                BNL.Log($"[FaceObserver] Positions pinned at {spacing}m spacing.");
+            }
+            if (Environment.GetEnvironmentVariable("BASIS_UPLINK_DELTAS") == "0")
+            {
+                MovementSender.UseUplinkDeltas = false;
+                BNL.Log("[FaceObserver] Uplink deltas disabled — legacy all-keyframe uploads.");
+            }
+            // Spectator mode: join a live server (e.g. during a Unity-client repro) and report
+            // whether OTHER senders' additional data reaches the wire, without emitting any.
+            if (Environment.GetEnvironmentVariable("BASIS_FACE_OBSERVE_ONLY") == "1")
+            {
+                MessageHandler.ObserveOnly = true;
+                BNL.Log("[FaceObserver] Observe-only: reporting additional data from other clients.");
+            }
+
             var clientManager = new ClientManager();
             clientManager.Prepare();
 
@@ -30,11 +59,37 @@ namespace Basis
             };
 
             MovementSender.Initialize(clientManager.ClientCount);
+            MovementSender.VoiceSender.Initialize(clientManager.ClientCount);
 
             // Drive all clients from one worker per CPU core
             StartClientDriverLoops(clientManager.FinalClients, clientManager.FinalPeers);
 
+            // Simulated UDP loss (BASIS_PACKET_LOSS=<1-100>): set on the LiteNetLib transport
+            // config BEFORE clients construct their managers, so uplink and downlink frames both
+            // drop — exercises the keyframe-NACK/re-key recovery paths under realistic conditions.
+            if (int.TryParse(Environment.GetEnvironmentVariable("BASIS_PACKET_LOSS"), out int lossPct) && lossPct > 0)
+            {
+                var lnl = Basis.Network.Core.BasisTransportConfigStore.Get<Basis.Network.Core.LNLTransportConfig>(
+                    Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId);
+                lnl.SimulatePacketLoss = true;
+                lnl.SimulationPacketLossChance = Math.Min(lossPct, 100);
+                BNL.Log($"[FaceObserver] Simulating {lossPct}% packet loss on every client.");
+            }
+
             await clientManager.StartClientsAsync();
+
+            // Periodic observer summary so a timed run ends with machine-readable totals.
+            if (MovementSender.EmitFaceData || MessageHandler.ObserveOnly)
+            {
+                _ = Task.Run(async () =>
+                {
+                    while (_running)
+                    {
+                        await Task.Delay(5000);
+                        BNL.Log(MessageHandler.Summary());
+                    }
+                });
+            }
 
             // Start random reconnects
             _ = StartRandomReconnectLoop(clientManager);
@@ -81,6 +136,8 @@ namespace Basis
             var sw = Stopwatch.StartNew();
             double lastTickMs = 0;
             double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
+            double lastVoiceMs = 0;
+
 
             while (_running)
             {
@@ -106,6 +163,24 @@ namespace Basis
                         var peer = Volatile.Read(ref peers[i]);
                         if (peer != null && (peer.Tag as ConsoleClientIdentity)?.Authenticated == true)
                             MovementSender.ProcessSingle(peer, i);
+                    }
+                }
+
+                if (Basis.Config.ConfigManager.SimulateVoice && nowMs - lastVoiceMs >= Basis.Config.ConfigManager.VoiceFrameMs)
+                {
+                    lastVoiceMs = nowMs;
+                    for (int i = start; i < end; i++)
+                    {
+                        var peer = Volatile.Read(ref peers[i]);
+                        if (peer == null || (peer.Tag as ConsoleClientIdentity)?.Authenticated != true) continue;
+
+                        // Republished on a cadence rather than built once, so players who join or move
+                        // into range — including real ones — start being sent voice.
+                        bool ready = MovementSender.VoiceSender.RefreshRecipients(peer, peers, i, nowMs);
+                        if (ready && MovementSender.VoiceSender.IsTalking(i, nowMs))
+                        {
+                            MovementSender.VoiceSender.SendFrame(peer, i);
+                        }
                     }
                 }
 

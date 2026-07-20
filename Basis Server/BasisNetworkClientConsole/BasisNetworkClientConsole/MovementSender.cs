@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -204,10 +205,139 @@ namespace Basis.Network
             private static ushort[][] _recipients;
             private static bool[] _participates;
             private static bool[] _talking;
+            private static bool[] _joinsChorus;
             private static double[] _nextSwitchMs;
             private static byte[] _seq;
             private static byte[] _frame;
             private static int _built;
+
+            // Shared clock: chorus events are global, and the driver threads each have their own
+            // stopwatch origin, so their elapsed values cannot be compared against one another.
+            private static readonly Stopwatch VoiceClock = Stopwatch.StartNew();
+            private static readonly object ChorusLock = new object();
+            private static double _chorusUntilMs;
+            private static double _nextChorusMs = -1;
+
+            /// <summary>
+            /// Independent per-person bursts produce a smooth, low concurrency that never spikes — but
+            /// crowds are correlated. Everyone sings happy birthday, cheers, or laughs at the same
+            /// moment, and that simultaneous peak is the load the server actually has to survive; a
+            /// model that only ever produces the quiet average never tests it. Baseline conversation
+            /// is punctuated by chorus events where most of the crowd talks at once.
+            /// </summary>
+            private static bool ChorusActive(double nowMs)
+            {
+                if (!Basis.Config.ConfigManager.VoiceChorusEnabled) return false;
+                if (nowMs < Volatile.Read(ref _chorusUntilMs)) return true;
+                if (nowMs < Volatile.Read(ref _nextChorusMs)) return false;
+
+                lock (ChorusLock)
+                {
+                    if (nowMs < _chorusUntilMs) return true;
+                    if (_nextChorusMs < 0)
+                    {
+                        // First scheduling pass: don't open the run mid-song.
+                        _nextChorusMs = nowMs + Random.Shared.Next(
+                            Basis.Config.ConfigManager.VoiceChorusIntervalMinMs,
+                            Math.Max(Basis.Config.ConfigManager.VoiceChorusIntervalMinMs + 1,
+                                     Basis.Config.ConfigManager.VoiceChorusIntervalMaxMs));
+                        return false;
+                    }
+                    if (nowMs < _nextChorusMs) return false;
+
+                    int min = Basis.Config.ConfigManager.VoiceChorusDurationMinMs;
+                    int max = Math.Max(min + 1, Basis.Config.ConfigManager.VoiceChorusDurationMaxMs);
+                    _chorusUntilMs = nowMs + Random.Shared.Next(min, max);
+
+                    int gapMin = Basis.Config.ConfigManager.VoiceChorusIntervalMinMs;
+                    int gapMax = Math.Max(gapMin + 1, Basis.Config.ConfigManager.VoiceChorusIntervalMaxMs);
+                    _nextChorusMs = _chorusUntilMs + Random.Shared.Next(gapMin, gapMax);
+                    return true;
+                }
+            }
+
+            public static bool InChorus => Volatile.Read(ref _chorusUntilMs) > VoiceClock.Elapsed.TotalMilliseconds;
+
+            // 48 kHz mono, 20 ms frames, matching the real client's encoder settings.
+            private const int SampleRate = 48000;
+            private const int Channels = 1;
+            private const int FrameSamples = SampleRate / 1000 * 20;
+            private static byte[][] _opusFrames;
+            private static int _opusFrameCount;
+            public static int OpusAverageFrameBytes { get; private set; }
+
+            /// <summary>
+            /// Real Opus rather than random bytes. Random payloads are the wrong size distribution
+            /// (Opus is VBR) and, more importantly, are undecodable — a real player joining the load
+            /// test would get decoder errors instead of audio. A sine sweep encoded once at startup
+            /// gives frames that decode to an audible tone and vary in size the way speech does; the
+            /// frames are shared by every simulated client because the encoder is the expensive part
+            /// and the bytes on the wire are what the server is being measured on.
+            /// </summary>
+            private static void BuildOpusFrames()
+            {
+                // A full second of audio, so replaying it does not repeat a single frame forever.
+                const int frames = 50;
+                var encoded = new List<byte[]>(frames);
+                try
+                {
+                    var encoder = new OpusSharp.Core.Dynamic.OpusEncoder(
+                        SampleRate, Channels, OpusSharp.Core.OpusPredefinedValues.OPUS_APPLICATION_AUDIO);
+                    encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, Basis.Config.ConfigManager.VoiceBitrate);
+                    encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_COMPLEXITY, 5);
+                    encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_INBAND_FEC, 1);
+
+                    float[] pcm = new float[FrameSamples];
+                    byte[] scratch = new byte[FrameSamples * 4];
+                    double phase = 0;
+                    long total = 0;
+
+                    for (int f = 0; f < frames; f++)
+                    {
+                        // Sweep 180-260 Hz across the second: a fixed tone encodes to an
+                        // unrealistically small and perfectly constant frame.
+                        double hz = 180.0 + 80.0 * f / frames;
+                        double step = 2.0 * Math.PI * hz / SampleRate;
+                        for (int i = 0; i < FrameSamples; i++)
+                        {
+                            pcm[i] = (float)(Math.Sin(phase) * 0.25);
+                            phase += step;
+                            if (phase > 2.0 * Math.PI) phase -= 2.0 * Math.PI;
+                        }
+
+                        int len = encoder.Encode(pcm, FrameSamples, scratch, scratch.Length);
+                        if (len <= 0) continue;
+                        byte[] frame = new byte[len];
+                        Buffer.BlockCopy(scratch, 0, frame, 0, len);
+                        encoded.Add(frame);
+                        total += len;
+                    }
+
+                    if (encoded.Count > 0)
+                    {
+                        OpusAverageFrameBytes = (int)(total / encoded.Count);
+                        BNL.Log($"Opus voice ready: {encoded.Count} frames, avg {OpusAverageFrameBytes} bytes @ {Basis.Config.ConfigManager.VoiceBitrate} bps.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // No native opus for this platform: fall back rather than killing the run, but say
+                    // so, because the traffic shape is then only approximately right.
+                    BNL.LogError($"Opus encoder unavailable ({ex.Message}); falling back to fixed-size synthetic frames.");
+                    encoded.Clear();
+                }
+
+                if (encoded.Count == 0)
+                {
+                    byte[] fallback = new byte[Math.Max(1, Basis.Config.ConfigManager.VoiceBytesPerFrame)];
+                    Random.Shared.NextBytes(fallback);
+                    encoded.Add(fallback);
+                    OpusAverageFrameBytes = fallback.Length;
+                }
+
+                _opusFrames = encoded.ToArray();
+                _opusFrameCount = _opusFrames.Length;
+            }
 
             public static void Initialize(int clientCount)
             {
@@ -216,16 +346,20 @@ namespace Basis.Network
                 _talking = new bool[clientCount];
                 _nextSwitchMs = new double[clientCount];
                 _seq = new byte[clientCount];
+                _audible = new ConcurrentDictionary<ushort, long>[clientCount];
+                _nextRebuildMs = new double[clientCount];
+                for (int i = 0; i < clientCount; i++) _audible[i] = new ConcurrentDictionary<ushort, long>();
                 _built = 0;
 
-                int frameBytes = Math.Max(1, Basis.Config.ConfigManager.VoiceBytesPerFrame);
-                _frame = new byte[frameBytes];
-                Random.Shared.NextBytes(_frame);
+                BuildOpusFrames();
 
                 int percent = Math.Clamp(Basis.Config.ConfigManager.VoiceParticipantPercent, 0, 100);
+                int chorusPercent = Math.Clamp(Basis.Config.ConfigManager.VoiceChorusPercent, 0, 100);
+                _joinsChorus = new bool[clientCount];
                 for (int i = 0; i < clientCount; i++)
                 {
                     _participates[i] = Random.Shared.Next(100) < percent;
+                    _joinsChorus[i] = Random.Shared.Next(100) < chorusPercent;
                     // Start everyone silent and stagger the first burst, so a run does not open with
                     // the entire crowd unmuting on the same tick.
                     _talking[i] = false;
@@ -254,6 +388,12 @@ namespace Basis.Network
                     return false;
                 }
 
+                // A chorus overrides the personal burst clock — that is the point of it.
+                if (_joinsChorus[index] && ChorusActive(VoiceClock.Elapsed.TotalMilliseconds))
+                {
+                    return true;
+                }
+
                 if (nowMs >= _nextSwitchMs[index])
                 {
                     _talking[index] = !_talking[index];
@@ -265,38 +405,92 @@ namespace Basis.Network
                 return _talking[index];
             }
 
+            // Who each simulated client can currently hear, and when they were last seen. Keyed by the
+            // server-assigned player id, so real players land in here exactly like simulated ones.
+            private static ConcurrentDictionary<ushort, long>[] _audible;
+            private static double[] _nextRebuildMs;
+
             /// <summary>
-            /// Recipient lists are derived from spawn positions, which do not move in this harness,
-            /// so this is computed once per client rather than every frame. Returns false until the
-            /// peer has a server-assigned id to advertise.
+            /// Called when avatar traffic arrives about <paramref name="playerId"/> at a quality tier
+            /// the server only sends to nearby peers.
+            ///
+            /// This is how a real player joining gets heard. Rather than decoding positions, it reuses
+            /// the distance work the SERVER already did: High/Medium avatar quality is only sent inside
+            /// MediumQualityDistance, which is the voice radius, so simply receiving that tier proves
+            /// the sender is in range. It also tracks people moving, and needs no special case for
+            /// real players — they announce themselves by being audible.
             /// </summary>
-            public static bool BuildRecipients(NetPeer[] peers, int index)
+            public static void NoteAudible(int clientIndex, ushort playerId)
+            {
+                var map = _audible;
+                if (map == null || clientIndex < 0 || clientIndex >= map.Length) return;
+                map[clientIndex][playerId] = VoiceClock.ElapsedMilliseconds;
+            }
+
+            /// <summary>
+            /// Rebuilds the recipient list from who is currently audible and republishes it when it
+            /// changes. Returns true once the client has a list to transmit against.
+            /// </summary>
+            public static bool RefreshRecipients(NetPeer peer, NetPeer[] peers, int index, double nowMs)
             {
                 if (_recipients == null || index >= _recipients.Length) return false;
-                if (_recipients[index] != null) return true;
-                if (PlayersCurrentPosition == null || index >= PlayersCurrentPosition.Length) return false;
 
-                float range = Basis.Config.ConfigManager.VoiceRangeMeters;
-                float rangeSq = range * range;
-                Vector3 self = PlayersCurrentPosition[index];
+                bool first = _recipients[index] == null;
+                if (!first && nowMs < _nextRebuildMs[index]) return true;
+                _nextRebuildMs[index] = nowMs + Basis.Config.ConfigManager.VoiceRecipientRefreshMs;
 
-                List<ushort> near = new List<ushort>();
-                for (int j = 0; j < peers.Length && j < PlayersCurrentPosition.Length; j++)
+                // Seed from the simulated crowd's fixed spawn positions. Those clients are the bulk of
+                // the population and their avatar traffic may be tiered below Medium even when they are
+                // in range, since quality also drops under server load shedding.
+                float rangeSq = Basis.Config.ConfigManager.VoiceRangeMeters * Basis.Config.ConfigManager.VoiceRangeMeters;
+                HashSet<ushort> near = new HashSet<ushort>();
+                if (PlayersCurrentPosition != null && index < PlayersCurrentPosition.Length)
                 {
-                    if (j == index) continue;
-                    NetPeer other = Volatile.Read(ref peers[j]);
-                    if (other == null) continue;
-
-                    Vector3 p = PlayersCurrentPosition[j];
-                    float dx = p.x - self.x, dy = p.y - self.y, dz = p.z - self.z;
-                    if (dx * dx + dy * dy + dz * dz <= rangeSq)
+                    Vector3 self = PlayersCurrentPosition[index];
+                    for (int j = 0; j < peers.Length && j < PlayersCurrentPosition.Length; j++)
                     {
-                        near.Add((ushort)other.RemoteId);
+                        if (j == index) continue;
+                        NetPeer other = Volatile.Read(ref peers[j]);
+                        if (other == null) continue;
+                        Vector3 p = PlayersCurrentPosition[j];
+                        float dx = p.x - self.x, dy = p.y - self.y, dz = p.z - self.z;
+                        if (dx * dx + dy * dy + dz * dz <= rangeSq) near.Add((ushort)other.RemoteId);
                     }
                 }
 
-                _recipients[index] = near.ToArray();
-                Interlocked.Increment(ref _built);
+                // Add anyone we can currently hear who is not part of the simulated crowd — a real
+                // player, or one that moved into range. Stale entries drop out so someone who walked
+                // away stops receiving our voice.
+                var map = _audible?[index];
+                if (map != null)
+                {
+                    long now = VoiceClock.ElapsedMilliseconds;
+                    long stale = Basis.Config.ConfigManager.VoiceAudibleTimeoutMs;
+                    foreach (var kv in map)
+                    {
+                        if (now - kv.Value > stale) { map.TryRemove(kv.Key, out _); continue; }
+                        near.Add(kv.Key);
+                    }
+                }
+
+                ushort self_id = (ushort)peer.RemoteId;
+                near.Remove(self_id);
+
+                ushort[] updated = new ushort[near.Count];
+                near.CopyTo(updated);
+                Array.Sort(updated);
+
+                ushort[] previous = _recipients[index];
+                if (previous != null && previous.Length == updated.Length)
+                {
+                    bool same = true;
+                    for (int i = 0; i < updated.Length; i++) { if (previous[i] != updated[i]) { same = false; break; } }
+                    if (same) return true;
+                }
+
+                _recipients[index] = updated;
+                if (first) Interlocked.Increment(ref _built);
+                SendRecipients(peer, index);
                 return true;
             }
 
@@ -320,12 +514,17 @@ namespace Basis.Network
 
             public static void SendFrame(NetPeer peer, int index)
             {
-                if (_frame == null || _recipients?[index] == null || _recipients[index].Length == 0) return;
+                if (_opusFrameCount == 0 || _recipients?[index] == null || _recipients[index].Length == 0) return;
+
+                byte seq = _seq[index]++;
+                // Walk the encoded second so consecutive frames differ, as real speech does, and
+                // stagger the starting point per client so the crowd isn't phase-locked.
+                byte[] frame = _opusFrames[(seq + index) % _opusFrameCount];
 
                 NetDataWriter writer = new NetDataWriter();
-                writer.Put(_seq[index]++);
+                writer.Put(seq);
                 writer.Put((byte)0);
-                writer.Put(_frame);
+                writer.Put(frame);
                 peer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
             }
 

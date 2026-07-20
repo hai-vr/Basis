@@ -123,6 +123,33 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         const string Prefix = "Basis.Scripts.BasisSdk.Constraints.";
 
+        /// <summary>Components created by the conversion currently in flight, awaiting their order stamp.</summary>
+        static readonly List<BasisConstraintBase> PendingOrderScratch = new List<BasisConstraintBase>();
+        static int sAuthoredSequence;
+
+        /// <summary>
+        /// Hands every component the conversion just produced its place in the authored sequence.
+        /// One source constraint can produce several (a twist chain becomes one per bone), and they
+        /// all belong at the same point in the order, so they share the number.
+        /// </summary>
+        static void StampAuthoredOrder()
+        {
+            int order = sAuthoredSequence++;
+            for (int Index = 0; Index < PendingOrderScratch.Count; Index++)
+            {
+                PendingOrderScratch[Index].authoredOrder = order;
+            }
+            PendingOrderScratch.Clear();
+        }
+
+        /// <summary>Every constraint the conversion adds goes through here so none miss the stamp.</summary>
+        static T Add<T>(GameObject host) where T : BasisConstraintBase
+        {
+            T created = host.AddComponent<T>();
+            PendingOrderScratch.Add(created);
+            return created;
+        }
+
         const BindingFlags SerializedFields =
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
@@ -213,6 +240,10 @@ namespace Basis.Scripts.BasisSdk.Constraints
         /// </summary>
         static bool Finish(bool converted, ref Report report)
         {
+            // Bake the sequence as we meet it. The police walk visits components in the same
+            // depth-first order Animation Rigging builds a rig in, so counting them off here carries
+            // the authored evaluation order across — computed once, then never derived again.
+            StampAuthoredOrder();
             if (converted)
             {
                 report.Converted++;
@@ -255,7 +286,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertParent(ParentConstraint source)
         {
-            BasisParentConstraint target = source.gameObject.AddComponent<BasisParentConstraint>();
+            BasisParentConstraint target = Add<BasisParentConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.translationAtRest = source.translationAtRest;
             target.rotationAtRest = source.rotationAtRest;
@@ -273,7 +304,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertPosition(PositionConstraint source)
         {
-            BasisPositionConstraint target = source.gameObject.AddComponent<BasisPositionConstraint>();
+            BasisPositionConstraint target = Add<BasisPositionConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.translationAtRest = source.translationAtRest;
             target.translationOffset = source.translationOffset;
@@ -284,7 +315,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertRotation(RotationConstraint source)
         {
-            BasisRotationConstraint target = source.gameObject.AddComponent<BasisRotationConstraint>();
+            BasisRotationConstraint target = Add<BasisRotationConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.rotationAtRest = source.rotationAtRest;
             target.rotationOffset = source.rotationOffset;
@@ -295,7 +326,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertScale(ScaleConstraint source)
         {
-            BasisScaleConstraint target = source.gameObject.AddComponent<BasisScaleConstraint>();
+            BasisScaleConstraint target = Add<BasisScaleConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.scaleAtRest = source.scaleAtRest;
             target.scaleOffset = source.scaleOffset;
@@ -306,7 +337,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertAim(AimConstraint source)
         {
-            BasisAimConstraint target = source.gameObject.AddComponent<BasisAimConstraint>();
+            BasisAimConstraint target = Add<BasisAimConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.rotationAtRest = source.rotationAtRest;
             target.rotationOffset = source.rotationOffset;
@@ -322,7 +353,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
 
         static bool ConvertLookAt(LookAtConstraint source)
         {
-            BasisLookAtConstraint target = source.gameObject.AddComponent<BasisLookAtConstraint>();
+            BasisLookAtConstraint target = Add<BasisLookAtConstraint>(source.gameObject);
             CopyCommon(source, target);
             target.rotationAtRest = source.rotationAtRest;
             target.roll = source.roll;
@@ -341,7 +372,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisParentConstraint target = constrained.gameObject.AddComponent<BasisParentConstraint>();
+            BasisParentConstraint target = Add<BasisParentConstraint>(constrained.gameObject);
             target.weight = source.weight;
             target.translationAxis = ToAxes(source.data.constrainedPositionXAxis,
                 source.data.constrainedPositionYAxis, source.data.constrainedPositionZAxis);
@@ -363,7 +394,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisPositionConstraint target = constrained.gameObject.AddComponent<BasisPositionConstraint>();
+            BasisPositionConstraint target = Add<BasisPositionConstraint>(constrained.gameObject);
             target.weight = source.weight;
             target.translationOffset = source.data.offset;
             target.translationAxis = ToAxes(source.data.constrainedXAxis,
@@ -380,7 +411,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisRotationConstraint target = constrained.gameObject.AddComponent<BasisRotationConstraint>();
+            BasisRotationConstraint target = Add<BasisRotationConstraint>(constrained.gameObject);
             target.weight = source.weight;
             target.rotationOffset = source.data.offset;
             target.rotationAxis = ToAxes(source.data.constrainedXAxis,
@@ -397,7 +428,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisAimConstraint target = constrained.gameObject.AddComponent<BasisAimConstraint>();
+            BasisAimConstraint target = Add<BasisAimConstraint>(constrained.gameObject);
             target.weight = source.weight;
             // Axes are an enum on the concrete data and vectors only through the interface.
             IMultiAimConstraintData axes = source.data;
@@ -438,7 +469,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             // each non-driver: the driver index stays a live value that can change at runtime, the
             // way Animation Rigging allows, instead of being baked in at conversion.
             Transform host = sources[0];
-            BasisMultiReferential target = host.gameObject.AddComponent<BasisMultiReferential>();
+            BasisMultiReferential target = Add<BasisMultiReferential>(host.gameObject);
             target.weight = source.weight;
             target.members = new List<Transform>(sources);
             target.driver = Mathf.Clamp(source.data.driver, 0, sources.Count - 1);
@@ -453,7 +484,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisTwoBoneIK target = tip.gameObject.AddComponent<BasisTwoBoneIK>();
+            BasisTwoBoneIK target = Add<BasisTwoBoneIK>(tip.gameObject);
             target.weight = source.weight;
             target.mid = source.data.mid;
             target.root = source.data.root;
@@ -482,7 +513,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisChainIK target = tip.gameObject.AddComponent<BasisChainIK>();
+            BasisChainIK target = Add<BasisChainIK>(tip.gameObject);
             target.weight = source.weight;
             target.root = source.data.root;
             target.chainRotationWeight = source.data.chainRotationWeight;
@@ -500,7 +531,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisDampedTransform target = constrained.gameObject.AddComponent<BasisDampedTransform>();
+            BasisDampedTransform target = Add<BasisDampedTransform>(constrained.gameObject);
             target.weight = source.weight;
             target.dampPosition = source.data.dampPosition;
             target.dampRotation = source.data.dampRotation;
@@ -539,7 +570,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
                 {
                     continue;
                 }
-                BasisTwistCorrection target = node.transform.gameObject.AddComponent<BasisTwistCorrection>();
+                BasisTwistCorrection target = Add<BasisTwistCorrection>(node.transform.gameObject);
                 target.weight = source.weight;
                 target.twistAxis = axis;
                 target.twistWeight = node.weight;
@@ -559,7 +590,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisBlendConstraint target = constrained.gameObject.AddComponent<BasisBlendConstraint>();
+            BasisBlendConstraint target = Add<BasisBlendConstraint>(constrained.gameObject);
             target.weight = source.weight;
             target.blendPosition = source.data.blendPosition;
             target.blendRotation = source.data.blendRotation;
@@ -578,7 +609,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
             {
                 return false;
             }
-            BasisOverrideTransform target = constrained.gameObject.AddComponent<BasisOverrideTransform>();
+            BasisOverrideTransform target = Add<BasisOverrideTransform>(constrained.gameObject);
             target.weight = source.weight;
             target.position = source.data.position;
             target.rotation = source.data.rotation;
@@ -650,7 +681,7 @@ namespace Basis.Scripts.BasisSdk.Constraints
                 }
                 float step = total > 0f ? travelled / total : 0f;
 
-                BasisTwistChain target = ChainScratch[Index].gameObject.AddComponent<BasisTwistChain>();
+                BasisTwistChain target = Add<BasisTwistChain>(ChainScratch[Index].gameObject);
                 target.weight = source.weight;
                 // The ends are pinned to their own targets; only the bones between them read the curve.
                 target.blend = Index == 0 ? 0f
