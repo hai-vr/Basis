@@ -214,6 +214,17 @@ namespace Basis.EventDriver
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
             TimeAsDouble = Time.timeAsDouble;
 
+#if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
+            // Capture pump first thing in the frame: the Unity mic-read APIs are
+            // main-thread-only, but everything after them (downmix, filtering, Opus
+            // encode, network send) runs on the mic processing thread — kicking it here
+            // gives that thread the whole frame instead of waking it mid-LateUpdate.
+            using (Prof.MicrophoneUpdate.Auto())
+            {
+                BasisLocalMicrophoneDriver.PumpCapture();
+            }
+#endif
+
             // Join the network compute kicked off at the tail of the previous LateUpdate, before
             // the main-thread action drain and join/leave lifecycle below mutate any receiver.
             using (Prof.NetworkCompleteCompute.Auto())
@@ -379,6 +390,19 @@ namespace Basis.EventDriver
             // produces no visible write this frame, so it hides behind a different job. Safe: the
             // comms batch reads only its own networked variable state, never the remote pose/bone
             // output produced by SimulateNetworkApply.
+            // ── Sync interpolation schedule ──
+            // Scheduled here, at the top of LateUpdate: every Update-phase network dispatch is
+            // done, so the interp targets are as fresh as they will get this frame. The complete
+            // stays down in the NetworkApply block, so vehicles (main-thread custom apply) land
+            // at exactly the same point relative to the seat/override chain — the jobs simply
+            // overlap the eye/comms/transmit work above instead of a zero window. Mid-window
+            // register/unregister only touches managed lists (layout rebuilds inside the next
+            // schedule), and Destroy is end-of-frame deferred, so in-flight jobs stay safe.
+            using (Prof.SyncScheduleRemote.Auto())
+            {
+                Basis.Scripts.Networking.Sync.BasisSyncDriver.ScheduleRemote(DeltaTime);
+            }
+
             using (Prof.EyeTrackingSimulate.Auto())
             {
                 Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
@@ -403,18 +427,6 @@ namespace Basis.EventDriver
                     Basis.Scripts.Networking.Sync.BasisSyncDriver.TransmitOwned(TimeAsDouble);
                 }
                 ProfileEnd2(PROF_NET_TRANSMIT_PICKUPS);
-                ProfileBegin2();
-#if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
-                using (Prof.MicrophoneUpdate.Auto())
-                {
-                    BasisLocalMicrophoneDriver.MicrophoneUpdate();
-                }
-#endif
-                ProfileEnd2(PROF_NET_MICROPHONE);
-                using (Prof.SyncScheduleRemote.Auto())
-                {
-                    Basis.Scripts.Networking.Sync.BasisSyncDriver.ScheduleRemote(DeltaTime);
-                }
                 ProfileBegin2();
                 using (Prof.SyncCompleteRemote.Auto())
                 {
@@ -750,6 +762,15 @@ namespace Basis.EventDriver
             using (Prof.OnLateUpdateCallbacks.Auto())
             {
                 InvokeEventCallbacks(OnLateUpdate, nameof(OnLateUpdate), ref _onLateUpdateCachedDelegate, ref _onLateUpdateInvocationList);
+            }
+
+            // Batched debug-gizmo submission (instanced spheres, the shared line mesh, and the
+            // nearest-K label ranking). Sits at the very end of LateUpdate so every producer this
+            // frame — the Update-tick consumers, IK/bone drivers, OnLateUpdate subscribers — is
+            // captured before the draw; early-outs to nothing while no gizmos exist.
+            using (Prof.GizmoRender.Auto())
+            {
+                BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
             ProfileLateUpdateFinish();
         }

@@ -103,9 +103,29 @@ public static class BasisLocalMicrophoneDriver
     private static string _pendingDeviceWhenPaused = null;
     private static int channels = 1;
     // Small interleaved scratch sized to ProcessFrameSize * channels. Holds one chunk
-    // pulled from the AudioClip ring per iteration, then downmixed into the mono ring.
+    // pulled from the AudioClip ring per iteration, then staged raw for the worker.
     // Replaces a previous full-clip snapshot that copied ~192 KB every Unity tick.
     private static float[] _micDelta;
+
+    // Raw interleaved capture staging. PumpCapture (main thread, top of the frame — the
+    // Unity Microphone/AudioClip APIs are main-thread-only) enqueues whole 20 ms chunks
+    // straight off the clip; the processing thread downmixes them into the mono ring and
+    // carries everything from there (AGC, limiter, denoise, gate, Opus encode, network
+    // send). This keeps the capture read as the ONLY main-thread stage of the pipeline.
+    private static readonly object stagingLock = new object();
+    private static float[] stagingBuffer;
+    private static int stagingChunkStride; // ProcessFrameSize * channels at alloc time
+    private static int stagingChannels = 1;
+    private static int stagingReadChunk;
+    private static int stagingWriteChunk;
+    private static int stagingCount;
+    private const int StagingChunkCapacity = 16; // 320 ms of worker-stall tolerance
+    // Worker-only scratch a staged chunk is copied into, so the downmix runs outside stagingLock.
+    private static float[] _stagingScratch;
+    // Mono-ring write head, advanced by the worker as staged chunks are downmixed in.
+    // `captured` stays the clip-read cursor and total-in-flight tail: the free-space
+    // check against it naturally accounts for staged-but-not-yet-downmixed chunks.
+    private static int written;
     private static bool IsPaused
     {
         get => isPaused;
@@ -370,6 +390,7 @@ public static class BasisLocalMicrophoneDriver
             {
                 head = 0;
                 captured = 0;
+                written = 0;
 
                 bufferLength = LocalOpusSettings.RecordingFullLength * LocalOpusSettings.MicrophoneSampleRate;
                 if (clip.samples > 0 && clip.samples < bufferLength)
@@ -388,6 +409,14 @@ public static class BasisLocalMicrophoneDriver
 
                 if (_micDelta != null) Array.Clear(_micDelta, 0, _micDelta.Length);
                 if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
+            }
+
+            // A restart without a full stop-clear must not carry raw chunks from the old config.
+            lock (stagingLock)
+            {
+                stagingReadChunk = 0;
+                stagingWriteChunk = 0;
+                stagingCount = 0;
             }
 
             if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
@@ -428,11 +457,20 @@ public static class BasisLocalMicrophoneDriver
         {
             head = 0;
             captured = 0;
+            written = 0;
             inWarmup = false;
             warmupSamples = 0;
 
             if (_micDelta != null) Array.Clear(_micDelta, 0, _micDelta.Length);
             if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
+        }
+
+        // Drop any raw chunks captured for the old device/config.
+        lock (stagingLock)
+        {
+            stagingReadChunk = 0;
+            stagingWriteChunk = 0;
+            stagingCount = 0;
         }
 
         _noiseGateGain = 0f;
@@ -533,7 +571,14 @@ public static class BasisLocalMicrophoneDriver
         return true;
     }
 
-    public static void MicrophoneUpdate()
+    /// <summary>
+    /// Main-thread capture pump. Call at the top of the frame: reads every complete 20 ms
+    /// chunk the clip has captured (Microphone.GetPosition / AudioClip.GetData are
+    /// main-thread-only APIs) into the raw staging ring and wakes the processing thread,
+    /// which then owns downmix, filtering, encode and the network send for the rest of
+    /// the frame. Nothing joins back to the main thread except the mic-icon flags below.
+    /// </summary>
+    public static void PumpCapture()
     {
         PollDeviceChanges();
 
@@ -554,48 +599,59 @@ public static class BasisLocalMicrophoneDriver
             return;
         }
 
-        int ch = clip.channels;
-        if (ch < 1)
-        {
-            ch = 1;
-        }
-
-        channels = ch;
-
+        // channels is latched from the clip at StartLocalMicrophone and cannot change
+        // without a restart — re-reading clip.channels here was a native call per frame.
+        int ch = channels;
         int chunkInterleaved = ProcessFrameSize * ch;
         if (_micDelta == null || _micDelta.Length != chunkInterleaved)
         {
             _micDelta = new float[chunkInterleaved];
         }
 
-        bool copiedAny = false;
-        lock (ringLock)
+        if (microphoneBufferArray == null || bufferLength <= 0)
         {
-            if (microphoneBufferArray == null || bufferLength <= 0)
+            return;
+        }
+
+        // `head` advances monotonically on the worker; a stale read only under-estimates
+        // free space, so no lock is needed for a conservative trim.
+        int headSnapshot = Volatile.Read(ref head);
+
+        int newFrames = GetDataLength(bufferLength, captured, currentPosition);
+        int backlog = GetDataLength(bufferLength, headSnapshot, captured);
+        int freeFrames = bufferLength - backlog - ProcessFrameSize;
+        if (newFrames > freeFrames)
+        {
+            newFrames = freeFrames > 0 ? freeFrames - (freeFrames % ProcessFrameSize) : 0;
+        }
+
+        bool queuedAny = false;
+        lock (stagingLock)
+        {
+            if (stagingBuffer == null || stagingChunkStride != chunkInterleaved)
             {
-                return;
+                stagingBuffer = new float[StagingChunkCapacity * chunkInterleaved];
+                stagingChunkStride = chunkInterleaved;
+                stagingReadChunk = 0;
+                stagingWriteChunk = 0;
+                stagingCount = 0;
             }
+            stagingChannels = ch;
 
-            int newFrames = GetDataLength(bufferLength, captured, currentPosition);
-
-            int backlog = GetDataLength(bufferLength, head, captured);
-            int freeFrames = bufferLength - backlog - ProcessFrameSize;
-            if (newFrames > freeFrames)
-            {
-                newFrames = freeFrames > 0 ? freeFrames - (freeFrames % ProcessFrameSize) : 0;
-            }
-
-            while (newFrames >= ProcessFrameSize)
+            while (newFrames >= ProcessFrameSize && stagingCount < StagingChunkCapacity)
             {
                 clip.GetData(_micDelta, captured);
-                DownmixDeltaIntoRingMono(captured, ProcessFrameSize, bufferLength, ch, _micDelta, microphoneBufferArray);
+                Array.Copy(_micDelta, 0, stagingBuffer, stagingWriteChunk * chunkInterleaved, chunkInterleaved);
+                stagingWriteChunk = (stagingWriteChunk + 1) % StagingChunkCapacity;
+                stagingCount++;
+
                 captured = (captured + ProcessFrameSize) % bufferLength;
                 newFrames -= ProcessFrameSize;
-                copiedAny = true;
+                queuedAny = true;
             }
         }
 
-        if (copiedAny)
+        if (queuedAny)
         {
             processingEvent.Set();
         }
@@ -692,12 +748,52 @@ public static class BasisLocalMicrophoneDriver
         {
             lock (processingLock)
             {
+                DrainStagingIntoRing();
+
                 if (!TryDequeueCapturedFrame())
                 {
                     return;
                 }
 
                 ProcessCurrentFrame();
+            }
+        }
+    }
+
+    // Downmixes every staged raw chunk into the mono ring, advancing `written`. Runs on
+    // the processing thread; each chunk is copied out to worker scratch first so the
+    // per-sample downmix never holds stagingLock against the main-thread pump.
+    private static void DrainStagingIntoRing()
+    {
+        while (true)
+        {
+            int chunkStride;
+            int ch;
+            lock (stagingLock)
+            {
+                if (stagingCount == 0 || stagingBuffer == null)
+                {
+                    return;
+                }
+                chunkStride = stagingChunkStride;
+                ch = stagingChannels;
+                if (_stagingScratch == null || _stagingScratch.Length != chunkStride)
+                {
+                    _stagingScratch = new float[chunkStride];
+                }
+                Array.Copy(stagingBuffer, stagingReadChunk * chunkStride, _stagingScratch, 0, chunkStride);
+                stagingReadChunk = (stagingReadChunk + 1) % StagingChunkCapacity;
+                stagingCount--;
+            }
+
+            lock (ringLock)
+            {
+                if (microphoneBufferArray == null || bufferLength <= 0)
+                {
+                    return;
+                }
+                DownmixDeltaIntoRingMono(written, ProcessFrameSize, bufferLength, ch, _stagingScratch, microphoneBufferArray);
+                written = (written + ProcessFrameSize) % bufferLength;
             }
         }
     }
@@ -711,9 +807,11 @@ public static class BasisLocalMicrophoneDriver
                 return false;
             }
 
+            // Gate on `written` (data actually downmixed into the ring), not `captured`
+            // (the clip cursor, which is ahead by whatever is still in raw staging).
             if (inWarmup)
             {
-                if (GetDataLength(bufferLength, head, captured) < warmupSamples)
+                if (GetDataLength(bufferLength, head, written) < warmupSamples)
                 {
                     return false;
                 }
@@ -721,7 +819,7 @@ public static class BasisLocalMicrophoneDriver
                 inWarmup = false;
             }
 
-            if (GetDataLength(bufferLength, head, captured) < ProcessFrameSize)
+            if (GetDataLength(bufferLength, head, written) < ProcessFrameSize)
             {
                 return false;
             }

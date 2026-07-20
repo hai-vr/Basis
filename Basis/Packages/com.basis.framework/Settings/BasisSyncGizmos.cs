@@ -140,11 +140,14 @@ public static class BasisSyncGizmos
             bool showState = Show && ShowLabels;
             if (showState || ShowBandwidth)
             {
-                int key = LabelKey(s, showState, ShowBandwidth);
-                if (g.Label <= 0 || key != g.LabelKey || g.LabelText == null)
+                if (g.Label <= 0 || BasisGizmoManager.IsTextVisible(g.Label))
                 {
-                    g.LabelKey = key;
-                    g.LabelText = BuildLabel(s, showState, ShowBandwidth);
+                    int key = LabelKey(s, showState, ShowBandwidth);
+                    if (g.Label <= 0 || key != g.LabelKey || g.LabelText == null)
+                    {
+                        g.LabelKey = key;
+                        g.LabelText = BuildLabel(s, showState, ShowBandwidth);
+                    }
                 }
                 Vector3 labelPos = (spatial ? s.ToWorld : s.AnchorWorld) + Vector3.up * (LabelBaseHeight * scale);
                 Quaternion rot = BasisGizmoManager.BillboardRotation(labelPos, _camPos);
@@ -183,17 +186,20 @@ public static class BasisSyncGizmos
     }
 
     // Cheap change-key so the label string only rebuilds when something visible moves.
+    // Deliberately coarse (interp-t in 10% steps, bandwidth in 128 B/s buckets): the
+    // interp fraction cycles 0→1 every keyframe, so a finer key would dirty every label
+    // every frame and TMP re-tessellation dominates the whole gizmo cost.
     private static int LabelKey(in BasisSyncGizmoSample s, bool showState, bool showBw)
     {
         int k = s.NetworkID * 397;
         if (showState)
         {
-            int t = Mathf.RoundToInt(Mathf.Clamp(s.InterpT, 0f, 9.99f) * 100f);
+            int t = Mathf.RoundToInt(Mathf.Clamp(s.InterpT, 0f, 9.99f) * 10f);
             k = (k * 31) ^ t ^ (s.BufferDepth << 8) ^ (s.Extrapolating ? 1 : 0);
         }
         if (showBw)
         {
-            k = (k * 31) ^ Mathf.RoundToInt(s.BytesPerSecond) ^ (Mathf.RoundToInt(s.PacketsPerSecond) << 16);
+            k = (k * 31) ^ Mathf.RoundToInt(s.BytesPerSecond * (1f / 128f)) ^ (Mathf.RoundToInt(s.PacketsPerSecond) << 16);
         }
         return (k * 4) ^ (showState ? 2 : 0) ^ (showBw ? 1 : 0);
     }

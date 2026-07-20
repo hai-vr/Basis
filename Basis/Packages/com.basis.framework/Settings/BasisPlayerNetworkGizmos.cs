@@ -132,11 +132,14 @@ public static class BasisPlayerNetworkGizmos
             bool showState = Show && ShowLabels;
             if (showState || ShowBandwidth)
             {
-                int key = LabelKey(receiver, showState, ShowBandwidth);
-                if (g.Label <= 0 || key != g.LabelKey || g.LabelText == null)
+                if (g.Label <= 0 || BasisGizmoManager.IsTextVisible(g.Label))
                 {
-                    g.LabelKey = key;
-                    g.LabelText = BuildLabel(receiver, showState, ShowBandwidth);
+                    int key = LabelKey(receiver, showState, ShowBandwidth);
+                    if (g.Label <= 0 || key != g.LabelKey || g.LabelText == null)
+                    {
+                        g.LabelKey = key;
+                        g.LabelText = BuildLabel(receiver, showState, ShowBandwidth);
+                    }
                 }
                 Vector3 labelPos = to + Vector3.up * (LabelBaseHeight * scale);
                 Quaternion rot = BasisGizmoManager.BillboardRotation(labelPos, _camPos);
@@ -174,18 +177,21 @@ public static class BasisPlayerNetworkGizmos
     }
 
     // Cheap change-key so the label string only rebuilds when something visible moves.
+    // Deliberately coarse: interp-t in 10% steps, rate in 5% steps, bandwidth in 128 B/s
+    // buckets — the interp fraction cycles 0→1 every keyframe, so a 1% key would dirty
+    // every label every frame and TMP re-tessellation dominates the whole gizmo cost.
     private static int LabelKey(BasisNetworkReceiver r, bool showState, bool showBw)
     {
         int k = r.playerId * 397;
         if (showState)
         {
-            int t = Mathf.RoundToInt(Mathf.Clamp01((float)r.InterpolationTimeDebug) * 100f);
-            int rate = Mathf.RoundToInt(r.LastPlaybackRate * 100f);
+            int t = Mathf.RoundToInt(Mathf.Clamp01((float)r.InterpolationTimeDebug) * 10f);
+            int rate = Mathf.RoundToInt(r.LastPlaybackRate * 20f);
             k = (k * 31) ^ t ^ (r.StagedCount << 8) ^ (rate << 14);
         }
         if (showBw)
         {
-            k = (k * 31) ^ Mathf.RoundToInt(r.BytesPerSecond) ^ (Mathf.RoundToInt(r.PacketsPerSecond) << 16);
+            k = (k * 31) ^ Mathf.RoundToInt(r.BytesPerSecond * (1f / 128f)) ^ (Mathf.RoundToInt(r.PacketsPerSecond) << 16);
         }
         return (k * 4) ^ (showState ? 2 : 0) ^ (showBw ? 1 : 0);
     }

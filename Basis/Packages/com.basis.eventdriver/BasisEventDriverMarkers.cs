@@ -84,6 +84,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker SimulateBeacon = new ProfilerMarker("BasisDriver.Player.SimulateBeacon");
         public static readonly ProfilerMarker NetworkBeginCompute = new ProfilerMarker("BasisDriver.Network.BeginCompute");
         public static readonly ProfilerMarker OnLateUpdateCallbacks = new ProfilerMarker("BasisDriver.OnLateUpdateCallbacks");
+        public static readonly ProfilerMarker GizmoRender = new ProfilerMarker("BasisDriver.Gizmo.Render");
 
         public static readonly ProfilerMarker SimulateOnRender = new ProfilerMarker("BasisDriver.LocalPlayer.SimulateOnRender");
         public static readonly ProfilerMarker MicrophoneIcon = new ProfilerMarker("BasisDriver.Microphone.IconSimulate");

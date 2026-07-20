@@ -374,35 +374,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
 
         if (!UseGizmos)
         {
-            BasisGizmoManager.DestroyParent();
-
-            foreach (BasisGizmos gizmo in BasisGizmoManager.Gizmos.Values)
-            {
-                if (gizmo != null)
-                {
-                    GameObject.Destroy(gizmo.gameObject);
-                }
-            }
-
-            foreach (BasisLineGizmos lineGizmo in BasisGizmoManager.GizmosLine.Values)
-            {
-                if (lineGizmo != null)
-                {
-                    GameObject.Destroy(lineGizmo.gameObject);
-                }
-            }
-
-            foreach (BasisTextGizmos textGizmo in BasisGizmoManager.GizmosText.Values)
-            {
-                if (textGizmo != null)
-                {
-                    GameObject.Destroy(textGizmo.gameObject);
-                }
-            }
-
-            BasisGizmoManager.Gizmos.Clear();
-            BasisGizmoManager.GizmosLine.Clear();
-            BasisGizmoManager.GizmosText.Clear();
+            BasisGizmoManager.DestroyAll();
         }
     }
 

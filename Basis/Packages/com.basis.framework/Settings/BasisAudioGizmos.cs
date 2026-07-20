@@ -432,11 +432,14 @@ public static class BasisAudioGizmos
 
         if (ShowLabels)
         {
-            int netPct = Mathf.RoundToInt(net * 100f);
-            if (g.LevelLabel <= 0 || netPct != g.LastNetPct || g.LevelText == null)
+            if (g.LevelLabel <= 0 || BasisGizmoManager.IsTextVisible(g.LevelLabel))
             {
-                g.LastNetPct = netPct;
-                g.LevelText = BuildLevelText(receiver.displayName, source, net, slider, dist, dir, occ, cone, main);
+                int netPct = Mathf.RoundToInt(net * 100f);
+                if (g.LevelLabel <= 0 || netPct != g.LastNetPct || g.LevelText == null)
+                {
+                    g.LastNetPct = netPct;
+                    g.LevelText = BuildLevelText(receiver.displayName, source, net, slider, dist, dir, occ, cone, main);
+                }
             }
             // Anchor at the bar's fixed full-scale top, not the live sourceTop, so the
             // label doesn't bounce with the meter as the speaker's level changes.

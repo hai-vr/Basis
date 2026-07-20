@@ -103,7 +103,6 @@
       "depth": 0,
       "source": "embedded",
       "dependencies": {
-        "com.unity.addressables": "2.9.1",
         "com.unity.ugui": "2.0.0"
       }
     },
