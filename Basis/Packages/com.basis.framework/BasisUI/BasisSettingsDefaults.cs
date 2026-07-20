@@ -103,6 +103,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseMaxVisibleAvatars = new("usemaxvisibleavatars", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
+        /// When enabled, joining or being in an instance with a very high player count offers
+        /// to turn on High Player Cap Performance Mode. Disable to never see those prompts.
+        /// </summary>
+        public static BasisSettingsBinding<bool> HighPlayerCapSuggestions = new("highplayercapsuggestions", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
         /// Maximum number of remote players allowed to have active audio sources at once.
         /// 0 = unlimited (all in-range players get audio).
         /// Players beyond this limit lose their audio source.
@@ -1402,6 +1408,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineProportionMaxScale = new("fbikspineproportionmaxscale", new BasisPlatformDefault<float>(0.12f));
 
         public static BasisSettingsBinding<bool> FBIKBodyFit = new("fbikbodyfit", new BasisPlatformDefault<bool>(true));
+
+        // Job-driven locomotion: step the stock locomotion controller as data and blend its baked clips
+        // in a Burst job overlapping Simulate, instead of evaluating the Animator on the main thread.
+        // Only engages on avatars wearing the stock controller; custom animators keep the Animator path.
+        public static BasisSettingsBinding<bool> FBIKJobLocomotion = new("fbikjoblocomotion", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKBodyFitMaxDeviation = new("fbikbodyfitmaxdeviation", new BasisPlatformDefault<float>(Basis.IK.BasisBodyFitCore.DefaultMaxDeviation));
 
         // Cervical lordosis pitch coupling: when AnatCervicalLordosis is on, the base 5° forward
@@ -1718,6 +1729,7 @@ namespace Basis.BasisUI
             AvatarRange.LoadBindingValue();
             UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
+            HighPlayerCapSuggestions.LoadBindingValue();
             UseMaxAudioSources.LoadBindingValue();
             MaxAudioSources.LoadBindingValue();
             UseOpenLipSyncLimit.LoadBindingValue();
@@ -2153,6 +2165,7 @@ namespace Basis.BasisUI
             FBIKSpineProportionMatch.LoadBindingValue();
             FBIKSpineProportionMaxScale.LoadBindingValue();
             FBIKBodyFit.LoadBindingValue();
+            FBIKJobLocomotion.LoadBindingValue();
             FBIKBodyFitMaxDeviation.LoadBindingValue();
             FBIKSpineBendPitch.LoadBindingValue();
             FBIKSpineBendYaw.LoadBindingValue();

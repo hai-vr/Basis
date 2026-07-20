@@ -52,6 +52,7 @@ namespace Basis.Scripts.Drivers
 
         [System.NonSerialized] public PlayableGraph PlayableGraph;
         [System.NonSerialized] public readonly BasisPoseSkeleton PoseSkeleton = new BasisPoseSkeleton();
+        [System.NonSerialized] public readonly BasisLocomotionPoseSystem LocomotionPose = new BasisLocomotionPoseSystem();
         [System.NonSerialized] public BasisFullIKConstraintJob IKJob;
         [System.NonSerialized] public bool IKJobCreated;
         public bool RigLayerActive = true;
@@ -223,6 +224,7 @@ namespace Basis.Scripts.Drivers
 
             ResetSmoothingState();
             RefreshBodyFit();
+            LocomotionPose.OnRigBuilt();
         }
 
         public void RefreshBodyFit()
@@ -231,6 +233,10 @@ namespace Basis.Scripts.Drivers
             {
                 return;
             }
+
+            // The locomotion pose job writes the stream on a worker; join it before the fit paths below
+            // touch Stream.LocalPosition from the main thread.
+            LocomotionPose.CompleteIfPending();
 
             if (!Basis.BasisUI.BasisSettingsDefaults.FBIKBodyFit.RawValue)
             {
@@ -316,6 +322,7 @@ namespace Basis.Scripts.Drivers
         public void CleanupBeforeContinue()
         {
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChangedNextFrame;
+            LocomotionPose.Dispose();
             DisposeFilterArrays();
             DisposeIKPublishArrays();
 
@@ -543,6 +550,17 @@ namespace Basis.Scripts.Drivers
             footIKBlendWeightLeft = footIKBlendWeightRight = footIKBlendWeight = 0f;
             stationaryTimer = 0f;
         }
+        /// <summary>
+        /// Called at the top of BasisLocalPlayer.Simulate so the locomotion pose job (when active)
+        /// overlaps movement, bone sim, and the IK input prep on worker threads.
+        /// </summary>
+        public void ScheduleLocomotionPose(BasisLocalPlayer player, float deltaTime)
+        {
+            Animator animator = player?.BasisAvatar != null ? player.BasisAvatar.Animator : null;
+            BasisLocoParams frameParams = player.LocalAnimatorDriver.GetLocoParams();
+            LocomotionPose.Schedule(this, animator, in frameParams, deltaTime);
+        }
+
         public void SimulateIKDestinations(float deltaTime)
         {
             if (!IKDataReady || !IKJobCreated)
@@ -1129,11 +1147,12 @@ namespace Basis.Scripts.Drivers
             // the IK job. Without this the job runs on the boot-time snapshot from Spine().
             ApplyTuningSettings(ref data);
 
-            if (!EngineDrivenAnimatorEvaluate)
+            if (!EngineDrivenAnimatorEvaluate && !LocomotionPose.EngineAnimatorSuppressed)
             {
                 PlayableGraph.Evaluate(deltaTime);
             }
-            RunIKSolve(deltaTime);
+            bool streamPrefilled = LocomotionPose.TryComplete(PoseSkeleton);
+            RunIKSolve(deltaTime, streamPrefilled);
 
             // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
             // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
@@ -1931,14 +1950,17 @@ namespace Basis.Scripts.Drivers
             d.leftToe, d.rightToe,
         };
 
-        void RunIKSolve(float deltaTime)
+        void RunIKSolve(float deltaTime, bool streamPrefilled = false)
         {
             if (!RigLayerActive || !IKJobCreated || !PoseSkeleton.IsCreated)
             {
                 return;
             }
 
-            PoseSkeleton.GatherNow();
+            if (!streamPrefilled)
+            {
+                PoseSkeleton.GatherNow();
+            }
 
             PoseSkeleton.ApplyFit();
 

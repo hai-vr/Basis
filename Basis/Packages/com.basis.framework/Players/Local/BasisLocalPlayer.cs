@@ -522,6 +522,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public void Simulate(float DeltaTime)
         {
+            // Kick the locomotion pose job first: when active it fills the IK stream on a worker
+            // while everything below runs, and is joined inside SimulateIKDestinations.
+            LocalRigDriver.ScheduleLocomotionPose(this, DeltaTime);
+
             // now lets move the local player position.
             using (sMarkerMovement.Auto())
             {

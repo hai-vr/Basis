@@ -4755,6 +4755,14 @@
       "value": "Disable Animations in FBT"
     },
     {
+      "key": "settings.bodyTracking.jobLocomotion",
+      "value": "Job-Driven Locomotion"
+    },
+    {
+      "key": "settings.bodyTracking.jobLocomotion.tooltip",
+      "value": "Blend the walking animations on a background thread instead of the Unity Animator. Only applies to avatars using the standard locomotion controller; turn off if locomotion animations look wrong. Default: On"
+    },
+    {
       "key": "settings.bodyTracking.butterflyKnees",
       "value": "Butterfly Knees"
     },
@@ -6625,6 +6633,38 @@
     {
       "key": "settings.highPlayerCap.prompt.no",
       "value": "Not Now"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.bodyPreConnect",
+      "value": "This server reports over {0} people online. Turn on High Player Cap Performance Mode before joining to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.enableConnect",
+      "value": "Enable & Connect"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.connectWithout",
+      "value": "Connect Without It"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.dontAskAgain",
+      "value": "Don't Ask Again"
+    },
+    {
+      "key": "settings.highPlayerCap.disabled.title",
+      "value": "Performance Suggestions Off"
+    },
+    {
+      "key": "settings.highPlayerCap.disabled.body",
+      "value": "High player count performance suggestions won't be shown anymore. You can turn them back on anytime in Settings → Graphics → High Player Count Suggestions."
+    },
+    {
+      "key": "settings.graphics.highPlayerCapSuggestions",
+      "value": "High Player Count Suggestions"
+    },
+    {
+      "key": "settings.graphics.highPlayerCapSuggestions.tooltip",
+      "value": "Offer to turn on High Player Cap Performance Mode when connecting to or being in an instance with over 250 people. The offer's Don't Ask Again button turns this off."
     },
     {
       "key": "settings.developer.gizmoLabels.description",

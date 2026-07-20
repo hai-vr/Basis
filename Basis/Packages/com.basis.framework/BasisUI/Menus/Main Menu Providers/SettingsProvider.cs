@@ -1482,6 +1482,11 @@ namespace Basis.BasisUI
                 qualityGroup.ForceRebuild();
             };
 
+            PanelToggle togglePerfSuggestions = PanelToggle.CreateNewEntry(qualityGroup);
+            togglePerfSuggestions.AssignBinding(BasisSettingsDefaults.HighPlayerCapSuggestions);
+            togglePerfSuggestions.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions"));
+            togglePerfSuggestions.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions.tooltip"));
+
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
             dropdownQualityLevel.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.qualityLevel.tooltip"));
@@ -1857,6 +1862,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
+            BasisSettingsDefaults.HighPlayerCapSuggestions.ResetToDefault();
 
             BasisSettingsDefaults.QualityLevel.ResetToDefault();
             BasisSettingsDefaults.ShadowQuality.ResetToDefault();

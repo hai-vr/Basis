@@ -239,6 +239,40 @@ namespace Basis.IK
 
         public float FitScaleOf(int index) => _fitScale.IsCreated && index >= 0 && index < _fitScale.Length ? _fitScale[index] : 1f;
 
+        /// <summary>
+        /// Fills target with the fitted rest local positions (authored × fit scale) for every node —
+        /// what GatherNow would read for bones whose translation is never animated.
+        /// </summary>
+        public void CopyRestPositionsInto(NativeArray<float3> target)
+        {
+            if (!_allocated)
+            {
+                return;
+            }
+            for (int i = 0; i < _authoredLocalPosition.Length; i++)
+            {
+                target[i] = _authoredLocalPosition[i] * _fitScale[i];
+            }
+        }
+
+        /// <summary>
+        /// Re-reads the root node's live local pose into the stream. The root (the animator transform)
+        /// is moved and scaled by systems outside the pose data — when the stream is filled from baked
+        /// samples instead of GatherNow, this keeps that one node current.
+        /// </summary>
+        public void RefreshRootFromTransform()
+        {
+            if (!_allocated || _ordered.Length == 0 || _ordered[0] == null)
+            {
+                return;
+            }
+            Transform root = _ordered[0];
+            root.GetLocalPositionAndRotation(out Vector3 position, out Quaternion rotation);
+            Stream.LocalPosition[0] = position;
+            Stream.LocalRotation[0] = rotation;
+            Stream.LocalScale[0] = root.localScale;
+        }
+
         public BasisBoneHandle Bind(Transform bone)
         {
             if (bone != null && _lookup.TryGetValue(bone, out int index))

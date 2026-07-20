@@ -149,6 +149,7 @@ namespace Basis.Scripts.Drivers
                 UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<RuntimeAnimatorController> op = Addressables.LoadAssetAsync<RuntimeAnimatorController>(Locomotion);
                 RuntimeAnimatorController RAC = op.WaitForCompletion();
                 player.BasisAvatar.Animator.runtimeAnimatorController = RAC;
+                BasisLocomotionPoseSystem.NotifyStockControllerAssigned(RAC);
             }
             player.BasisAvatar.Animator.applyRootMotion = false;
             player.BasisAvatar.HumanScale = player.BasisAvatar.Animator.humanScale;

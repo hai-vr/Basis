@@ -248,6 +248,11 @@ public static class SettingsProviderIK
             disableAnimInFBTToggle.AssignBinding(BasisSettingsDefaults.DisableAnimationsInFBT);
             disableAnimInFBTToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt.tooltip"));
 
+            var jobLocomotionToggle = PanelToggle.CreateNewEntry(trackingParent);
+            jobLocomotionToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.jobLocomotion"));
+            jobLocomotionToggle.AssignBinding(BasisSettingsDefaults.FBIKJobLocomotion);
+            jobLocomotionToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.jobLocomotion.tooltip"));
+
             var butterflyKneesToggle = PanelToggle.CreateNewEntry(trackingParent);
             butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
             butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
@@ -1439,6 +1444,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
+        BasisSettingsDefaults.FBIKJobLocomotion.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKCollideTrackedElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowDrag.ResetToDefault();
