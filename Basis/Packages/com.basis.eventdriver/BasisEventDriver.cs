@@ -547,12 +547,6 @@ namespace Basis.EventDriver
             {
                 BasisRemoteAudioDriver.Apply();
             }
-#if STEAMAUDIO_ENABLED
-            using (Prof.SteamAudioApply.Auto())
-            {
-                SteamAudioManager.Apply();
-            }
-#endif
             ProfileEnd(PROF_REMOTE_AUDIO_APPLY);
 
             try
@@ -770,10 +764,18 @@ namespace Basis.EventDriver
 
             ProfileBeforeRenderInit();
 
+#if STEAMAUDIO_ENABLED
+            using (Prof.SteamAudioApply.Auto())
+            {
+                SteamAudioManager.Apply();
+            }
+#endif
+
             if (BasisLocalPlayer.PlayerReady)
             {
                 try { using (Prof.SimulateOnRender.Auto()) BasisLocalPlayer.Instance.SimulateOnRender(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.SimulateOnRender failed: {ex}", BasisDebug.LogTag.Event); }
+
 
                 try { using (Prof.EyeTrackingSimulate.Auto()) Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver eye-tracking simulate failed: {ex}", BasisDebug.LogTag.Event); }
