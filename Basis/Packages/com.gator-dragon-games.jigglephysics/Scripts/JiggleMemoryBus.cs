@@ -368,10 +368,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         personalColliderTransformAccessList = new List<Transform>();
         sceneColliderTransformAccessList = new List<Transform>();
         sceneColliderTransformToIndex = new Dictionary<Transform, int>();
-        doubleBufferTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferTransformRootAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferPersonalColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferSceneColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
+        doubleBufferTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "Transforms");
+        doubleBufferTransformRootAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "Roots");
+        doubleBufferPersonalColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "PersonalColliders");
+        doubleBufferSceneColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "SceneColliders");
 
         transformCount = 0;
         treeCount = 0;
