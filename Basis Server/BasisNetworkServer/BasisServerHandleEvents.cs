@@ -90,6 +90,9 @@ namespace BasisServerHandle
                     thread.Join(500);
                 }
                 lock (_pending) { _pending.Clear(); }
+                // Departures must be dropped too: a restarted server announcing the previous
+                // session's leavers would tell clients to despawn players that never existed.
+                lock (_pendingLeaves) { _pendingLeaves.Clear(); }
                 _peerSeq.Clear();
             }
 

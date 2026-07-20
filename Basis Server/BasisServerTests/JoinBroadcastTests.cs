@@ -82,8 +82,8 @@ public class JoinBroadcastTests
         NetworkServer.RebuildPeerSnapshot();
 
         // middle and late are the two joins being announced in this flush.
-        BasisServerHandleEvents.JoinBroadcast.Enqueue(middleSeq, RecordFor(9102));
-        BasisServerHandleEvents.JoinBroadcast.Enqueue(lateSeq, RecordFor(9103));
+        BasisServerHandleEvents.JoinBroadcast.Enqueue(middleSeq, middle.Id, RecordFor(9102));
+        BasisServerHandleEvents.JoinBroadcast.Enqueue(lateSeq, late.Id, RecordFor(9103));
 
         BasisServerHandleEvents.JoinBroadcast.Flush();
 
@@ -117,7 +117,7 @@ public class JoinBroadcastTests
         const int joins = 25;
         for (int i = 0; i < joins; i++)
         {
-            BasisServerHandleEvents.JoinBroadcast.Enqueue(BasisServerHandleEvents.JoinBroadcast.NextSeq(), RecordFor((ushort)(9300 + i)));
+            BasisServerHandleEvents.JoinBroadcast.Enqueue(BasisServerHandleEvents.JoinBroadcast.NextSeq(), 9300 + i, RecordFor((ushort)(9300 + i)));
         }
 
         BasisServerHandleEvents.JoinBroadcast.Flush();
@@ -127,6 +127,63 @@ public class JoinBroadcastTests
         Assert.Equal(joins, CountIn(framed));
 
         BasisServerHandleEvents.JoinBroadcast.UnregisterPeer(observer.Id);
+    }
+
+    private static List<ushort> DepartureIdsIn(FakeNetPeer peer)
+    {
+        var sends = peer.Sent.Where(s => s.Channel == BasisNetworkCommons.DisconnectionChannel).ToList();
+        Assert.Single(sends);
+        NetDataReader reader = new NetDataReader(sends[0].Data);
+        List<ushort> ids = new List<ushort>();
+        while (reader.AvailableBytes >= sizeof(ushort)) ids.Add(reader.GetUShort());
+        return ids;
+    }
+
+    [Fact]
+    public void Flush_CoalescesDeparturesIntoOneSendPerPeer()
+    {
+        using var scope = new ServerStaticsScope();
+        BasisServerHandleEvents.JoinBroadcast.Stop();
+
+        FakeNetPeer watcher = new FakeNetPeer(9500, "127.0.0.1");
+        BasisServerHandleEvents.JoinBroadcast.RegisterPeer(watcher.Id, BasisServerHandleEvents.JoinBroadcast.NextSeq());
+        NetworkServer.AuthenticatedPeers[(ushort)watcher.Id] = watcher;
+        NetworkServer.RebuildPeerSnapshot();
+
+        BasisServerHandleEvents.JoinBroadcast.EnqueueLeave(9601);
+        BasisServerHandleEvents.JoinBroadcast.EnqueueLeave(9602);
+        BasisServerHandleEvents.JoinBroadcast.EnqueueLeave(9603);
+
+        BasisServerHandleEvents.JoinBroadcast.Flush();
+
+        // Three departures, one packet — the client reads ids until the buffer runs out.
+        Assert.Equal(new List<ushort> { 9601, 9602, 9603 }, DepartureIdsIn(watcher));
+
+        BasisServerHandleEvents.JoinBroadcast.UnregisterPeer(watcher.Id);
+    }
+
+    [Fact]
+    public void Flush_DropsBothWhenAPlayerLeavesBeforeItsJoinWasAnnounced()
+    {
+        using var scope = new ServerStaticsScope();
+        BasisServerHandleEvents.JoinBroadcast.Stop();
+
+        FakeNetPeer watcher = new FakeNetPeer(9700, "127.0.0.1");
+        BasisServerHandleEvents.JoinBroadcast.RegisterPeer(watcher.Id, BasisServerHandleEvents.JoinBroadcast.NextSeq());
+        NetworkServer.AuthenticatedPeers[(ushort)watcher.Id] = watcher;
+        NetworkServer.RebuildPeerSnapshot();
+
+        // Joins and leaves ride different channels, so a departure could otherwise overtake the
+        // matching arrival and leave a player spawned forever. Cancelling the pair removes the race.
+        const int flapper = 9701;
+        BasisServerHandleEvents.JoinBroadcast.Enqueue(BasisServerHandleEvents.JoinBroadcast.NextSeq(), flapper, RecordFor((ushort)flapper));
+        BasisServerHandleEvents.JoinBroadcast.EnqueueLeave(flapper);
+
+        BasisServerHandleEvents.JoinBroadcast.Flush();
+
+        Assert.Empty(watcher.Sent);
+
+        BasisServerHandleEvents.JoinBroadcast.UnregisterPeer(watcher.Id);
     }
 
     [Fact]

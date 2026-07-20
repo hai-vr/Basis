@@ -202,6 +202,59 @@ namespace Basis.Tests.Constraints
         }
 
         [Test]
+        public void SwappingTheLocalAvatarRegroupsAndKeepsDriving()
+        {
+            // The real sequence when someone changes avatar: the old hierarchy is destroyed out from
+            // under the solver while it still has that root grouped, and a new one is announced.
+            Transform oldRoot = NewTransform("AvatarOld", Vector3.zero, Quaternion.identity);
+            Transform oldSource = NewTransform("OldSource", new Vector3(3f, 0f, 0f), Quaternion.identity, oldRoot);
+            Transform oldTarget = NewTransform("OldTarget", Vector3.zero, Quaternion.identity, oldRoot);
+            BasisPositionConstraint oldConstraint = Constrain<BasisPositionConstraint>(oldTarget, oldSource);
+            BasisConstraintSystem.SetPriorityRoot(oldRoot);
+
+            Solve();
+            AssertVector(new Vector3(3f, 0f, 0f), oldTarget.position, "the first avatar drives");
+
+            // Tear the old one down the way an avatar swap does.
+            BasisConstraintSystem.Unregister(oldConstraint);
+            registered.Remove(oldConstraint);
+            Object.DestroyImmediate(oldRoot.gameObject);
+
+            Transform newRoot = NewTransform("AvatarNew", new Vector3(50f, 0f, 0f), Quaternion.identity);
+            Transform newSource = NewTransform("NewSource", new Vector3(57f, 0f, 0f), Quaternion.identity, newRoot);
+            Transform newTarget = NewTransform("NewTarget", new Vector3(50f, 0f, 0f), Quaternion.identity, newRoot);
+            Constrain<BasisPositionConstraint>(newTarget, newSource);
+            BasisConstraintSystem.SetPriorityRoot(newRoot);
+
+            Solve();
+
+            AssertVector(new Vector3(57f, 0f, 0f), newTarget.position,
+                "the replacement avatar drives at full rate straight away, not on a distant cadence");
+        }
+
+        [Test]
+        public void APriorityRootDestroyedWithoutBeingReplacedDoesNotWedge()
+        {
+            // Announced, then destroyed with nothing announced after it — a disconnect mid-swap.
+            // Everything left should keep solving rather than stalling behind a dead reference.
+            Transform goneRoot = NewTransform("Gone", Vector3.zero, Quaternion.identity);
+            Transform survivor = NewTransform("Survivor", Vector3.zero, Quaternion.identity);
+            Transform source = NewTransform("Source", new Vector3(6f, 0f, 0f), Quaternion.identity, survivor);
+            Transform target = NewTransform("Target", Vector3.zero, Quaternion.identity, survivor);
+            Constrain<BasisPositionConstraint>(target, source);
+
+            BasisConstraintSystem.SetPriorityRoot(goneRoot);
+            Solve();
+            Object.DestroyImmediate(goneRoot.gameObject);
+
+            Solve();
+            Solve();
+
+            AssertVector(new Vector3(6f, 0f, 0f), target.position,
+                "a dead priority root falls back to treating everything as near, not to nothing");
+        }
+
+        [Test]
         public void DisablingAConstraintStopsItDrivingAndReEnablingResumes()
         {
             // Toggling `enabled` is a different path from constraintActive: it runs OnDisable, which

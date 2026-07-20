@@ -79,6 +79,9 @@ namespace Basis.Scripts.Constraints
             /// every constraint that has no null source. Lets the refresh index straight in.
             /// </summary>
             public bool SourceMapIsIdentity;
+
+            /// <summary>Which avatar or piece of content this belongs to; the refresh groups by it.</summary>
+            public int AvatarId;
         }
 
         /// <summary>A euler no author will type, so the first refresh always converts.</summary>
@@ -93,6 +96,51 @@ namespace Basis.Scripts.Constraints
         private static readonly List<Transform> sTrackedScratch = new List<Transform>();
         private static readonly List<Transform> sTargetScratch = new List<Transform>();
         private static readonly List<Transform> sChainScratch = new List<Transform>();
+
+        /// <summary>Registration indices grouped by avatar, so a refresh can walk one avatar's worth.</summary>
+        private static readonly List<List<int>> sAvatarGroups = new List<List<int>>();
+        private static readonly Dictionary<Transform, int> sAvatarLookup = new Dictionary<Transform, int>();
+        private static readonly List<Transform> sAvatarRoots = new List<Transform>();
+
+        /// <summary>
+        /// The one avatar refreshed in full every frame — the local player. Everything else is a
+        /// remote, and a remote's constraint weights are not frame-critical: nobody notices a
+        /// blend weight landing two frames late on someone across the room, whereas paying for
+        /// every remote's every source every frame is what the profile was showing.
+        /// </summary>
+        private static Transform sPriorityRoot;
+
+        /// <summary>
+        /// Marks a hierarchy as the one that must stay exact. Call it with the local player's avatar
+        /// root; everything else falls to the round-robin. Passing null puts every avatar on the
+        /// rotation, which is the right thing on a server or in a scene with no local player.
+        /// </summary>
+        public static void SetPriorityRoot(Transform root)
+        {
+            sPriorityRoot = root;
+            sDirty = true;
+        }
+
+        /// <summary>
+        /// Distance bands for how often a remote's constraint state is re-read, in metres from the
+        /// local player. Close enough to read someone's face, their constraints keep up frame for
+        /// frame; across the room they can lag a few frames without anyone being able to tell.
+        ///
+        /// Distance rather than a flat rotation because the cost should track what is actually
+        /// visible, not how many people happen to be in the instance — a busy room full of distant
+        /// avatars is exactly the case a rotation handles worst and this handles best.
+        /// </summary>
+        private const float NearMetres = 8f;
+        private const float MidMetres = 20f;
+        private const int NearInterval = 1;
+        private const int MidInterval = 4;
+        private const int FarInterval = 16;
+
+        private static int sRefreshFrame;
+
+        /// <summary>Reused between rebuilds so the transform tables do not allocate every join.</summary>
+        private static Transform[] sTrackedArray = Array.Empty<Transform>();
+        private static Transform[] sTargetArray = Array.Empty<Transform>();
         /// <summary>Target transform to its row in the results/write arrays; deduplicates stacked constraints.</summary>
         private static readonly Dictionary<Transform, int> sTargetRowLookup = new Dictionary<Transform, int>();
         private static readonly List<int> sOrderScratch = new List<int>();
@@ -437,6 +485,10 @@ namespace Basis.Scripts.Constraints
             sDampState.Clear();
             sChain.Clear();
             sChainBind.Clear();
+            sAvatarGroups.Clear();
+            sAvatarLookup.Clear();
+            sAvatarRoots.Clear();
+            sRefreshFrame = 0;
             sSources.Clear();
             sWorld.Clear();
             sLocal.Clear();
@@ -494,19 +546,23 @@ namespace Basis.Scripts.Constraints
                     sSourceMapScratch.Add(SourceIndex);
                 }
                 registration.SourceCount = sSourceMapScratch.Count;
-                registration.SourceMap = sSourceMapScratch.ToArray();
 
-                // The map only diverges when a null source was dropped during the flatten. Noting
-                // that here lets the per-frame refresh skip the indirection on everything else.
+                // The map only diverges from the identity when a null source was dropped during the
+                // flatten. Check before allocating rather than after: an identity map says nothing
+                // the index does not already say, so the common case keeps no array at all. This runs
+                // once per registration per rebuild, and a rebuild walks every registration there is.
                 registration.SourceMapIsIdentity = true;
-                for (int MapIndex = 0; MapIndex < registration.SourceMap.Length; MapIndex++)
+                for (int MapIndex = 0; MapIndex < sSourceMapScratch.Count; MapIndex++)
                 {
-                    if (registration.SourceMap[MapIndex] != MapIndex)
+                    if (sSourceMapScratch[MapIndex] != MapIndex)
                     {
                         registration.SourceMapIsIdentity = false;
                         break;
                     }
                 }
+                registration.SourceMap = registration.SourceMapIsIdentity
+                    ? Array.Empty<int>()
+                    : sSourceMapScratch.ToArray();
 
                 BasisConstraintSlot slot = BasisConstraintDefaults.Identity(ToKind(component.constraintType));
                 slot.TargetIndex = targetIndex;
@@ -519,6 +575,8 @@ namespace Basis.Scripts.Constraints
                     : -1;
                 BuildChain(component, ref slot);
                 registration.Parent = component as BasisParentConstraint;
+                registration.AvatarId = InternAvatar(component.transform, Index);
+                slot.AvatarId = registration.AvatarId;
                 FillScalarState(component, registration, ref slot);
                 sSlots.Add(slot);
                 // Kept index-parallel with the slots, restoring whatever this registration was
@@ -549,8 +607,11 @@ namespace Basis.Scripts.Constraints
             sChainLengths.Resize(math.max(1, longestChain), NativeArrayOptions.ClearMemory);
 
             sResults.Resize(sTargetScratch.Count, NativeArrayOptions.ClearMemory);
-            sTracked.SetTransforms(sTrackedScratch.ToArray());
-            sTargets.SetTransforms(sTargetScratch.ToArray());
+            // SetTransforms needs an exact-length array, so these cannot be spans — but they can be
+            // kept and reused. A rebuild triggered by anything other than a population change hands
+            // back the same lengths, and this runs on every join.
+            sTracked.SetTransforms(FillArray(sTrackedScratch, ref sTrackedArray));
+            sTargets.SetTransforms(FillArray(sTargetScratch, ref sTargetArray));
 
             sDirty = false;
         }
@@ -823,10 +884,61 @@ namespace Basis.Scripts.Constraints
         /// — straight off the components, so inspector and script edits take effect the same frame
         /// without a rebuild.
         /// </summary>
+        /// <summary>
+        /// Re-reads the per-frame values off the components. Every field here is one an author or a
+        /// script can change at any moment, so there is no way to know it moved without looking —
+        /// and looking at every source of every constraint every frame is the cost. So the local
+        /// player is looked at in full, and the remotes take turns.
+        /// </summary>
         private static void RefreshDynamicState()
         {
-            for (int Index = 0; Index < sRegistrations.Count; Index++)
+            int groupCount = sAvatarGroups.Count;
+            if (groupCount == 0)
             {
+                return;
+            }
+
+            sRefreshFrame++;
+
+            bool hasReference = sPriorityRoot != null;
+            float3 reference = hasReference ? (float3)sPriorityRoot.position : float3.zero;
+
+            for (int Group = 0; Group < groupCount; Group++)
+            {
+                Transform root = sAvatarRoots[Group];
+                if (root == null)
+                {
+                    sDirty = true;
+                    continue;
+                }
+
+                // With no local player to measure from — a server, or before the avatar loads —
+                // everything is treated as near. Slower, but never wrong, and it means a missing
+                // SetPriorityRoot call degrades performance rather than behaviour.
+                int interval = NearInterval;
+                if (hasReference && root != sPriorityRoot)
+                {
+                    float distanceSq = math.distancesq(reference, (float3)root.position);
+                    interval = distanceSq <= NearMetres * NearMetres ? NearInterval
+                        : distanceSq <= MidMetres * MidMetres ? MidInterval
+                        : FarInterval;
+                }
+
+                // Offsetting the phase by the group keeps the far avatars from all landing on the
+                // same frame, which would put the cost back as a spike instead of a flat line.
+                if (interval > 1 && (sRefreshFrame + Group) % interval != 0)
+                {
+                    continue;
+                }
+                RefreshGroup(sAvatarGroups[Group]);
+            }
+        }
+
+        private static void RefreshGroup(List<int> members)
+        {
+            for (int Member = 0; Member < members.Count; Member++)
+            {
+                int Index = members[Member];
                 Registration registration = sRegistrations[Index];
                 BasisConstraintBase component = registration.Component;
                 if (component == null)
@@ -1176,6 +1288,36 @@ namespace Basis.Scripts.Constraints
             // Kept index-parallel with sChain for every kind, so the solve can index one from the
             // other without a second range on the slot.
             sChainBind.Add(default);
+        }
+
+        /// <summary>
+        /// Buckets a registration under the hierarchy root it belongs to. The root stands in for
+        /// "which avatar" without the solver needing to know what an avatar is — content that is not
+        /// an avatar simply becomes its own group and takes its turn like the rest.
+        /// </summary>
+        private static int InternAvatar(Transform member, int registrationIndex)
+        {
+            Transform root = member.root;
+            if (!sAvatarLookup.TryGetValue(root, out int avatarId))
+            {
+                avatarId = sAvatarRoots.Count;
+                sAvatarLookup[root] = avatarId;
+                sAvatarRoots.Add(root);
+                sAvatarGroups.Add(new List<int>());
+            }
+            sAvatarGroups[avatarId].Add(registrationIndex);
+            return avatarId;
+        }
+
+        /// <summary>Copies into a cached array, growing it only when the count actually changed.</summary>
+        private static Transform[] FillArray(List<Transform> source, ref Transform[] cache)
+        {
+            if (cache.Length != source.Count)
+            {
+                cache = new Transform[source.Count];
+            }
+            source.CopyTo(cache);
+            return cache;
         }
 
         /// <summary>Row this transform is written through, claiming a new one the first time.</summary>

@@ -3,6 +3,7 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Common;
+using Basis.Scripts.Constraints;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
@@ -409,6 +410,14 @@ namespace Basis.Scripts.BasisSdk.Players
             CurrentAvatarUniqueID = BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
             await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle, this.transform.position, Quaternion.identity);
             OnLocalAvatarChanged?.Invoke();
+
+            // Tell the constraint solver which hierarchy is ours. It bands how often it re-reads a
+            // constraint's state by distance from here, and exempts this one entirely — our own
+            // constraints have to keep up frame for frame, a remote across the room does not.
+            // Told nothing, it treats every avatar as near and refreshes everything at full rate:
+            // correct, just without the saving.
+            BasisConstraintSystem.SetPriorityRoot(
+                BasisAvatar != null ? BasisAvatar.transform.root : null);
             BasisDataStore.SaveAvatar(CurrentAvatarUniqueID, LoadMode, LoadFileNameAndExtension);
         }
 

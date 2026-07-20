@@ -208,6 +208,7 @@ namespace Basis.Network
             private static bool[] _joinsChorus;
             private static double[] _nextSwitchMs;
             private static byte[] _seq;
+            private static int[] _silentUnits;
             private static byte[] _frame;
             private static int _built;
 
@@ -346,6 +347,7 @@ namespace Basis.Network
                 _talking = new bool[clientCount];
                 _nextSwitchMs = new double[clientCount];
                 _seq = new byte[clientCount];
+                _silentUnits = new int[clientCount];
                 _audible = new ConcurrentDictionary<ushort, long>[clientCount];
                 _nextRebuildMs = new double[clientCount];
                 for (int i = 0; i < clientCount; i++) _audible[i] = new ConcurrentDictionary<ushort, long>();
@@ -512,6 +514,12 @@ namespace Basis.Network
                     DeliveryMethod.ReliableOrdered);
             }
 
+            public static void NoteSilence(int index)
+            {
+                if (_silentUnits == null || index < 0 || index >= _silentUnits.Length) return;
+                if (_silentUnits[index] < byte.MaxValue) _silentUnits[index]++;
+            }
+
             public static void SendFrame(NetPeer peer, int index)
             {
                 if (_opusFrameCount == 0 || _recipients?[index] == null || _recipients[index].Length == 0) return;
@@ -521,9 +529,12 @@ namespace Basis.Network
                 // stagger the starting point per client so the crowd isn't phase-locked.
                 byte[] frame = _opusFrames[(seq + index) % _opusFrameCount];
 
+                byte silence = (byte)_silentUnits[index];
+                _silentUnits[index] = 0;
+
                 NetDataWriter writer = new NetDataWriter();
                 writer.Put(seq);
-                writer.Put((byte)0);
+                writer.Put(silence);
                 writer.Put(frame);
                 peer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
             }
