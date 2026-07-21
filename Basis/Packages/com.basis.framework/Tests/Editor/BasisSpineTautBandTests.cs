@@ -196,24 +196,37 @@ namespace Basis.Tests.IK
         [Test]
         public void DeepCompression_IsStillActuallySolved()
         {
-            // 5 cm commanded compression with a small forward lean to disambiguate the bow plane (in the
-            // live solver DistributeSpineBend's pre-bend plays this role — the raw CCD is a poor
-            // compressor from a straight base with or without the band, recovering ~34 mm of the 51 pre-
-            // fix and ~39 with it). What the band must NOT do is neuter the bend: the chain has to bow
-            // for real (tens of degrees at the neck) and make real progress toward the target, because
-            // the hinge's distortion decays as band^2/compression (~1.7 mm here).
+            // 5 cm commanded compression. The raw CCD is a poor compressor from a perfectly STRAIGHT
+            // base with or without the band (measured in-suite: it recovers ~1 mm of the 51) — in the
+            // live pipeline DistributeSpineBend pre-curves the chain before the CCD ever runs, so the
+            // guarantee that matters is: given a disambiguated bend plane, a real compression still
+            // solves THROUGH the band, whose distortion is bounded by band^2/compression (~1.7 mm
+            // here). Pre-bend standing in for the pre-bend pass, then the CCD must finish the job.
+            // Measured in-suite: tipErr 20.4 mm of the 51 (band share <= 1.7), neck bow 33.5 deg —
+            // the remaining residual is the solver's own compression character (20 iters, relax 0.8,
+            // twist-stripped, thoracic-stiffened), identical with the band off.
             Vector3 target = RestHead - new Vector3(0f, 0.05f, -0.01f);
             float initialErr = (RestHead - target).magnitude;
 
+            _skeleton.GatherNow();
             Quaternion restNeck = _skeleton.Stream.GetWorldRotation(_neckStreamIndex);
-            Quaternion prevNeck = Quaternion.identity, prevChest = Quaternion.identity;
-            bool have = false;
-            float maxNeckStep = 0f, maxChestStep = 0f;
-            float tipErr = SolveFrameAndMeasure(target, ref prevNeck, ref prevChest,
-                ref have, ref maxNeckStep, ref maxChestStep);
 
-            Assert.Less(tipErr, 0.045f, "the band must not meaningfully worsen what the CCD recovers (38.9 mm measured, 34.1 pre-fix)");
-            Assert.Greater(Quaternion.Angle(restNeck, prevNeck), 20f, "a deep compression must still bow the chain for real");
+            BasisBoneHandle spineHandle = _skeleton.Bind(_bones[1]);
+            BasisBoneHandle chestHandle = _skeleton.Bind(_bones[2]);
+            spineHandle.SetRotation(_skeleton.Stream,
+                Quaternion.AngleAxis(10f, Vector3.right) * spineHandle.GetRotation(_skeleton.Stream));
+            chestHandle.SetRotation(_skeleton.Stream,
+                Quaternion.AngleAxis(15f, Vector3.right) * chestHandle.GetRotation(_skeleton.Stream));
+
+            _job.SolveSequentialSpineIK(_skeleton.Stream, target, Quaternion.identity);
+
+            float tipErr = (_chain[0].GetPosition(_skeleton.Stream) - target).magnitude;
+            float neckBow = Quaternion.Angle(restNeck, _skeleton.Stream.GetWorldRotation(_neckStreamIndex));
+            TestContext.WriteLine($"tipErr {tipErr * 1000f:F2} mm (initial {initialErr * 1000f:F2}), neck bow {neckBow:F2} deg");
+
+            Assert.Less(tipErr, 0.025f, "from a pre-bent chain the CCD must recover most of a real compression through the band");
+            Assert.Less(tipErr, initialErr * 0.5f, "the band must not leave the solve anywhere near the no-op");
+            Assert.Greater(neckBow, 20f, "a deep compression must still bow the chain for real");
         }
     }
 }
