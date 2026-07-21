@@ -441,12 +441,20 @@ static int take_seek_common(basis_media_engine_t* e, volatile long* taken, int64
     mutex_lock(&e->lock);
     long seq = e->seek_seq;
     int64_t us = e->seek_target_us;
-    /* Re-anchor delivery pacing: only post-seek samples flow on this leg from
-     * here, and against the old anchor they'd read as far-future (a forward
-     * seek stalls the demux thread for the jump distance) or as late (a
-     * backward seek floods through unpaced and fast-forwards back). The next
-     * paced sample re-establishes base/wall from its own timestamp. */
-    if (*taken != seq) e->pace_started = 0;
+    /* Re-anchor delivery pacing at the seek TARGET, not at whatever sample
+     * arrives next. A container seek repositions to the sync point at or
+     * before the target — with a sparse-keyframe file that can be tens of
+     * seconds of run-up — and anchoring on the first delivered sample would
+     * pace that whole preroll at 1x (a silent, position-pinned crawl to the
+     * target). Against a target anchor the preroll reads as late and flows at
+     * decode speed while everything from the target onwards paces at 1x. The
+     * decoders drop decoded video frames short of the target (they exist only
+     * as references), so the preroll is never shown. */
+    if (*taken != seq) {
+        e->pace_wall0_us = now_us();
+        e->pace_base_pts = us;
+        e->pace_started = 1;
+    }
     mutex_unlock(&e->lock);
     if (*taken == seq) return 0;
     *taken = seq;

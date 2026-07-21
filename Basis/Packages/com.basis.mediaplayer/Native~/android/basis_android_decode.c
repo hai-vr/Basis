@@ -288,6 +288,11 @@ struct basis_decoder {
                                * codec + released pre-seek frames; the render leg holds
                                * until it matches so it neither anchors to nor deletes a
                                * post-seek frame the producer has already enqueued */
+    int64_t vPrerollCutUs;    /* video-submit thread only: after a seek, decoded frames
+                               * short of this are the keyframe run-up to the target —
+                               * reference-only, released unrendered. Set from
+                               * seekTargetUs at the seek flush, cleared by the first
+                               * frame at or past it. */
 
     /* debug counters */
     long dbg_render, dbg_nodue, dbg_acqfail, dbg_drop, dbg_lagms;
@@ -426,8 +431,17 @@ static void drain_video_output(basis_decoder_t* d) {
         ssize_t oi = AMediaCodec_dequeueOutputBuffer(d->vcodec, &info, 0);
         if (oi >= 0) {
             d->lastPtsUs = info.presentationTimeUs;
-            /* render=true pushes the frame onto the AImageReader Surface */
-            AMediaCodec_releaseOutputBuffer(d->vcodec, oi, info.size != 0);
+            /* render=true pushes the frame onto the AImageReader Surface. Post-seek
+             * preroll (keyframe run-up short of the target) is decoded so later
+             * frames have their references but released unrendered; output is
+             * display-order, so the first frame at or past the target ends the
+             * run-up for good. */
+            int render = info.size != 0;
+            if (d->vPrerollCutUs != INT64_MIN) {
+                if (info.presentationTimeUs < d->vPrerollCutUs) render = 0;
+                else d->vPrerollCutUs = INT64_MIN;
+            }
+            AMediaCodec_releaseOutputBuffer(d->vcodec, oi, render);
         } else if (oi == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
             AMediaFormat* f = AMediaCodec_getOutputFormat(d->vcodec);
             int32_t w = 0, h = 0;
@@ -608,6 +622,7 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     pthread_mutex_init(&d->vm, NULL);
     d->lastPresentedPts = INT64_MIN;
     d->presentedPosUs = -1;
+    d->vPrerollCutUs = INT64_MIN;
     d->prevWritePts = INT64_MIN;
     d->audClockOffsetUs = INT64_MIN;
     d->bufferUs = 120000;
@@ -898,6 +913,7 @@ int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int le
     if (svg != d->videoSeekGen) {
         d->videoSeekGen = svg;
         AMediaCodec_flush(d->vcodec);
+        d->vPrerollCutUs = __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE);
         pthread_mutex_lock(&d->vm);
         for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
         pthread_mutex_unlock(&d->vm);
