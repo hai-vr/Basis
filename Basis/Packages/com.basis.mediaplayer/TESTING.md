@@ -267,7 +267,10 @@ header reports no duration and shows no seek bar.
 **Networking** — two clients minimum: owner loads URL → both play; non-owner requests control
 → ownership transfers; owner pause/stop propagates; late joiner receives current state; each
 client resolves the URL independently (per-client CDN/bitrate differences are fine, state
-divergence is not).
+divergence is not). End-of-stream is per-client: a late joiner runs behind the owner by its
+join latency and must play through to its own end of the content — the owner finishing first
+must not cut it off. Clients therefore finish at slightly different wall-clock times; a peer
+stopping short of the end is the failure, synchronised finishes are not expected.
 
 **Networked audio-only** — the same two-client setup with an audio-only URL (`.wav`, `.mp3`,
 `.m4a`, `.opus`). These carry no video track, so anything that waits on a video frame or an

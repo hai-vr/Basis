@@ -804,8 +804,11 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         mediaPlayer.OnReady += HandleLocalReady;
         mediaPlayer.OnStarted += HandleLocalStarted;
         mediaPlayer.OnPaused += HandleLocalPaused;
-        mediaPlayer.OnEnded += HandleLocalEnded;
         mediaPlayer.OnSeekCompleted += HandleLocalSeekCompleted;
+        // OnEnded is deliberately not hooked: end-of-stream is per-client. Every peer plays
+        // the same source and reaches its own end; broadcasting a stop on the owner's EOS
+        // would cut off any client still behind its playhead (a late joiner, by its join
+        // latency). Deliberate stops broadcast from Stop() directly.
         eventsHooked = true;
     }
 
@@ -819,7 +822,6 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         mediaPlayer.OnReady -= HandleLocalReady;
         mediaPlayer.OnStarted -= HandleLocalStarted;
         mediaPlayer.OnPaused -= HandleLocalPaused;
-        mediaPlayer.OnEnded -= HandleLocalEnded;
         mediaPlayer.OnSeekCompleted -= HandleLocalSeekCompleted;
         eventsHooked = false;
     }
@@ -891,21 +893,6 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         }
 
         SendOwnerSimple(MessageId.Pause);
-    }
-
-    private void HandleLocalEnded()
-    {
-        if (applyingRemoteCommand)
-        {
-            return;
-        }
-
-        if (!IsOwnedLocallyOnClient)
-        {
-            return;
-        }
-
-        SendOwnerSimple(MessageId.Stop);
     }
 
     private void HandleLocalSeekCompleted(TimeSpan position)
