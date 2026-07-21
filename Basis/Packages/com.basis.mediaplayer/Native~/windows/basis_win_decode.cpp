@@ -2125,6 +2125,15 @@ extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
      * safe from this (caller) thread; the codec-state reset stays on the submit
      * thread where the MFT/Opus decoder is owned. */
     d->pcm.flush();
+    /* Invalidate the audio serve clock: it re-derives from presents, and until the
+     * first post-seek frame presents it still describes the pre-seek timeline. On a
+     * backward seek that stale (higher) clock reads freshly banked post-target audio
+     * as long-stale and the serve trims it away — eating the first second of audio
+     * after video resumes. INT64_MIN is the serve's hold state (a stream with video
+     * holds audio until the clock exists), so post-seek audio banks through the
+     * settle and releases in sync with the first presented frame. Audio-only stays
+     * ungated: its offset never leaves INT64_MIN in the first place. */
+    InterlockedExchange64(&d->audClockOffsetUs, INT64_MIN);
     /* Latch target before bumping the generation so any leg that observes the new
      * generation reads the matching target. */
     InterlockedExchange64(&d->seekTargetUs, target_us);
