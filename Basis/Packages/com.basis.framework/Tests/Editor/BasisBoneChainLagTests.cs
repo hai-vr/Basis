@@ -258,7 +258,7 @@ namespace Basis.Tests.IK
                 float dt = 1f / fps;
 
                 float legacy = Mathf.Clamp01(BasisLocalBoneControl.PositionLerpAmount * dt);
-                float now = BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(BasisLocalBoneControl.PositionLerpAmount, dt);
+                float now = BasisSmoothingProfiles.FramerateIndependentAlpha(BasisLocalBoneControl.PositionLerpAmount, dt);
 
                 Assert.AreEqual(1f, legacy, 1e-6f, $"sanity: the old form should have been snapping at {fps} fps");
                 Assert.Less(now, 0.995f,
@@ -284,7 +284,7 @@ namespace Basis.Tests.IK
                      })
             {
                 float legacy = Mathf.Clamp01(rate * refDt);
-                float now = BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(rate, refDt);
+                float now = BasisSmoothingProfiles.FramerateIndependentAlpha(rate, refDt);
                 Assert.AreEqual(legacy, now, 1e-4f,
                     $"at the reference 90 Hz the fix must reproduce the old behaviour exactly, but rate={rate} "
                     + $"gives {now:F5} where the old code gave {legacy:F5}");

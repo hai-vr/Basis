@@ -1,3 +1,4 @@
+using Basis.IK;
 using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Collections;
@@ -49,7 +50,7 @@ namespace Basis.Tests.IK
         static float3[] RunSpine(float dt, int frames, System.Func<int, float3> headAt, bool bothFeetTracked)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
-            var solve = new NativeArray<BasisLocalVirtualSpineDriver.SpineSolveState>(1, Allocator.Temp);
+            var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
             try
             {
                 for (int i = 0; i < BoneCount; i++)
@@ -62,7 +63,7 @@ namespace Basis.Tests.IK
                     float3 head = headAt(i);
                     var p = MakeParams(dt, head, bothFeetTracked);
 
-                    new BasisLocalVirtualSpineDriver.BasisVirtualSpineSolveJob
+                    new BasisVirtualSpineCore.BasisVirtualSpineSolveJob
                     {
                         States = states,
                         State = solve,
@@ -85,9 +86,9 @@ namespace Basis.Tests.IK
             }
         }
 
-        static BasisLocalVirtualSpineDriver.SpineSolveParams MakeParams(float dt, float3 head, bool bothFeetTracked)
+        static BasisVirtualSpineCore.SpineSolveParams MakeParams(float dt, float3 head, bool bothFeetTracked)
         {
-            return new BasisLocalVirtualSpineDriver.SpineSolveParams
+            return new BasisVirtualSpineCore.SpineSolveParams
             {
                 Dt = dt,
                 Scale = 1f,

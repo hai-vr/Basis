@@ -7,7 +7,6 @@ using UnityEngine.InputSystem;
 public class BasisOpenXRHeadInput : BasisInput
 {
     public BasisOpenXRInputEye BasisOpenXRInputEye;
-    public BasisLocalVirtualSpineDriver BasisVirtualSpine = new BasisLocalVirtualSpineDriver();
     public InputActionProperty Position;
     public InputActionProperty Rotation;
 
@@ -30,7 +29,6 @@ public class BasisOpenXRHeadInput : BasisInput
 
         BasisOpenXRInputEye = gameObject.AddComponent<BasisOpenXRInputEye>();
         BasisOpenXRInputEye.Initialize();
-        BasisVirtualSpine.Initialize();
     }
 
     private void DisableInputActions()
@@ -42,7 +40,6 @@ public class BasisOpenXRHeadInput : BasisInput
     public new void OnDestroy()
     {
         DisableInputActions();
-        BasisVirtualSpine.DeInitialize();
         BasisOpenXRInputEye?.Shutdown();
         base.OnDestroy();
     }

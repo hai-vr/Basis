@@ -7,7 +7,7 @@ using Basis.IK;
 
 namespace Basis.IK.Debugging
 {
-    // End-to-end sweep for the virtual-spine HIPS COMPRESSION fix (BasisLocalVirtualSpineDriver.ComputeHipsPosition)
+    // End-to-end sweep for the virtual-spine HIPS COMPRESSION fix (BasisVirtualSpineCore.ComputeHipsPosition)
     // composed with the leg solve (BasisLegSolveCore). The rigid model drops the pelvis the full head drop, so a
     // deep forward lean (touch toes) or a sit buckles the knees and buries the seated hips. Compression saturates
     // the pelvis' downward travel so the spine shortens instead. This drives a head height ramp from standing down
@@ -104,9 +104,9 @@ namespace Basis.IK.Debugging
                         // usePostureModel:false -- this sweep exists to characterise the LEGACY saturation law,
                         // so it keeps calling it. The posture model that now ships by default is covered by
                         // BasisPelvisPostureModelTests, against real humans rather than against a synthetic sweep.
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
+                        BasisVirtualSpineCore.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
                             false, tposeHips, standingHipsY, 0f, 0f, false, cfg.CompressionStrength, cfg.MaxDropM, out float3 hipsOn);
-                        BasisLocalVirtualSpineDriver.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
+                        BasisVirtualSpineCore.ComputeHipsPosition(neck, neck, float3.zero, up, lenTotal, yaw, 0f, float3.zero,
                             false, tposeHips, standingHipsY, 0f, 0f, false, 0f, 0f, out float3 hipsOff);
 
                         if (IsNan(hipsOn.y) || IsNan(hipsOff.y)) s.NanCount++;

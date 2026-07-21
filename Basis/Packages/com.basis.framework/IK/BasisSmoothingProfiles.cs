@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Unity.Mathematics;
 
 namespace Basis.Scripts.Drivers
 {
@@ -35,6 +36,43 @@ namespace Basis.Scripts.Drivers
     public static class BasisSmoothingProfiles
     {
         public const int GroupCount = 7;
+
+        /// <summary>
+        /// The framerate at which the *RotationSpeed settings were tuned, and the rate whose behaviour
+        /// FramerateIndependentAlpha reproduces exactly. Changing this re-tunes every user's spine.
+        /// </summary>
+        private const float SmoothingReferenceFps = 90f;
+
+        /// <summary>
+        /// Converts a legacy "speed" (which the old code used as a per-frame lerp fraction: alpha = dt*speed)
+        /// into a framerate-independent alpha with the same time constant at ANY dt.
+        ///
+        /// The old form was `alpha = saturate(dt * speed)`, and its time constant was a function of the
+        /// user's GPU. Smaller dt gives a smaller alpha gives a SLOWER filter, so the fingerprint was
+        /// perverse: a 144 Hz headset got ~60% MORE neck lag than a 72 Hz one (18 ms vs 11 ms at 1 Hz) from
+        /// the very same setting. And `saturate` clamps once dt*speed >= 1, so at the default
+        /// NeckRotationSpeed of 40 the smoothing VANISHED below 40 fps -- the neck snapped every frame,
+        /// exactly when the framerate was bad enough to need smoothing most (standalone under load, desktop).
+        ///
+        /// The speeds are user-facing sliders with persisted values, so the number's MEANING is preserved
+        /// rather than redefined: it is still read as "the per-frame fraction at the reference rate", then
+        /// converted to the true exponential rate that reproduces it. This is therefore a bit-for-bit no-op
+        /// at SmoothingReferenceFps and a correction at every other framerate -- nobody's tuning changes, it
+        /// just stops depending on their hardware. Same discipline as the foot-IK scale fix: exactly a no-op
+        /// at the reference, proportional everywhere else.
+        ///
+        /// Gated by BasisBlendSpeedTests.
+        /// </summary>
+        public static float FramerateIndependentAlpha(float speed, float dt)
+        {
+            float alphaAtRef = math.saturate(math.max(0f, speed) / SmoothingReferenceFps);
+            // The legacy form snapped outright at and above the reference rate; preserve that endpoint
+            // rather than dividing by zero on the way to it.
+            if (alphaAtRef >= 0.999f) return 1f;
+            if (alphaAtRef <= 0f) return 0f;
+            float rate = -SmoothingReferenceFps * math.log(1f - alphaAtRef);
+            return 1f - math.exp(-rate * math.max(0f, dt));
+        }
 
         public const string PresetOff = "Off";
         public const string PresetLight = "Light";

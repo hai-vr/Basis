@@ -1,3 +1,4 @@
+using Basis.IK;
 using Basis.Scripts.Animator_Driver;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisCharacterController;
@@ -155,6 +156,13 @@ namespace Basis.Scripts.BasisSdk.Players
         [Header("Foot Driver")]
         [SerializeField]
         public BasisLocalFootDriver BasisLocalFootDriver = new BasisLocalFootDriver();
+
+        /// <summary>
+        /// Synthesizes chest/spine/hips motion from head cues when no torso trackers are present.
+        /// </summary>
+        [Header("Virtual Spine Driver")]
+        [SerializeField]
+        public BasisLocalVirtualSpineDriver LocalVirtualSpineDriver = new BasisLocalVirtualSpineDriver();
         /// <summary>
         /// Character controller for movement, collisions, and physics.
         /// </summary>
@@ -225,6 +233,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
             LocalBoneDriver.CreateInitialArrays(true);
             LocalBoneDriver.Initialize();
+            LocalVirtualSpineDriver.Initialize();
             LocalHandDriver.Initialize();
             LocalSeatDriver.Initialize(this);
 
@@ -531,6 +540,7 @@ namespace Basis.Scripts.BasisSdk.Players
 #endif
             LocalAnimatorDriver.OnDestroy();
             LocalBoneDriver.DeInitializeGizmos();
+            LocalVirtualSpineDriver.DeInitialize();
             LocalBoneDriver.Dispose();
             BasisLocalFootDriver.Dispose();
             LocalRigDriver.CleanupBeforeContinue();

@@ -122,7 +122,7 @@ namespace Basis.Tests.IK
         {
             List<BasisMotionClip> clips = BasisPostureCorpusTests.LoadPostureCorpus();
 
-            // The shipped law, verbatim (BasisLocalVirtualSpineDriver + BasisSettingsDefaults).
+            // The shipped law, verbatim (BasisVirtualSpineCore + BasisSettingsDefaults).
             const float k_MaxDropM = 0.30f, k_Strength = 0.85f;
 
             double modelErr = 0, rigErr = 0;

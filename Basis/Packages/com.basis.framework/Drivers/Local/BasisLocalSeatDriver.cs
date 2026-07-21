@@ -145,7 +145,7 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
-            BasisLocalVirtualSpineDriver.HipsFreezeToTpose = true;
+            LocalPlayer.LocalVirtualSpineDriver.HipsFreezeToTpose = true;
             LocalPlayer.LocalCharacterDriver.IsEnabled = false;
             LocalPlayer.LocalCharacterDriver.MovementLock.Add(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Add(nameof(BasisLocalSeatDriver));
@@ -174,8 +174,6 @@ namespace Basis.Scripts.Drivers
 
         public void Stand()
         {
-            BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
-
             if (hasEvent)
             {
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= GrabLatestTposeLocalScaleData;
@@ -185,6 +183,7 @@ namespace Basis.Scripts.Drivers
             if (LocalPlayer == null)
                 return;
 
+            LocalPlayer.LocalVirtualSpineDriver.HipsFreezeToTpose = false;
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = false;
             LocalPlayer.OnVirtualData -= OnSimulate;
             hasLastSeatRootPosition = false;

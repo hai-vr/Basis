@@ -39,7 +39,7 @@ namespace Basis.Tests.IK
     /// The second one matters most, because the shipped answer is a CONSTANT, it is applied with NO regard to
     /// what the body is doing, and I want to know its sign from a human rather than from an argument:
     ///
-    ///     BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZBurst
+    ///     BasisVirtualSpineCore.ComputeRealisticHipsXZBurst
     ///         hipsXZ = lerp(feetMidXZ, headXZ, FootPendulumLeanFrac = 0.20)   // feet tracked
     ///         hipsXZ = lerp(headBaselineXZ, headXZ, CounterbalanceFollowFrac = 0.25)
     ///
@@ -256,7 +256,7 @@ namespace Basis.Tests.IK
         {
             List<BasisMotionClip> clips = LoadBendOverClips();
 
-            // The shipped law: BasisLocalVirtualSpineDriver.ComputeHipsPosition, with the shipped defaults.
+            // The shipped law: BasisVirtualSpineCore.ComputeHipsPosition, with the shipped defaults.
             const float k_MaxDrop = 0.30f;        // VSpineHipsMaxDropMeters
             const float k_Strength = 0.85f;       // VSpineHipsCompressionStrength
 

@@ -1,4 +1,5 @@
 using Basis.IK.Motion;
+using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Collections;
 using Unity.Mathematics;
@@ -23,7 +24,7 @@ namespace Basis.Tests.IK
     /// TWO REAL BUGS ARE PINNED HERE. Both were live in this repo, and both are fixed in the same commit
     /// as this file:
     ///
-    ///   1. BasisLocalVirtualSpineDriver.SmoothSlerpBurst  -- neck, chest, spine and hips all used
+    ///   1. BasisVirtualSpineCore.SmoothSlerpBurst  -- neck, chest, spine and hips all used
     ///      saturate(dt*speed). Perverse fingerprint: because a smaller dt gives a smaller alpha gives a
     ///      SLOWER filter, a 144 Hz headset got ~60% MORE neck lag than a 72 Hz one from the same
     ///      setting. And `saturate` clamps at dt*speed >= 1, so with the default NeckRotationSpeed of 40
@@ -65,7 +66,7 @@ namespace Basis.Tests.IK
                         {
                             // The REAL shipping function, not a mirror of it. A mirrored formula drifts the
                             // moment someone retunes the original, and then the gate guards nothing.
-                            x += BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(s, dt) * (1f - x);
+                            x += BasisSmoothingProfiles.FramerateIndependentAlpha(s, dt) * (1f - x);
                             y[i] = x;
                         }
                         return y;
@@ -104,7 +105,7 @@ namespace Basis.Tests.IK
                 BasisInvarianceResult legacy = BasisMotionResponse.Invariance(
                     (dt, frames) => Chase(dt, frames, BasisMotionResponse.LegacySaturateAlpha(s, dt)), 0.8f, name);
                 BasisInvarianceResult fixedForm = BasisMotionResponse.Invariance(
-                    (dt, frames) => Chase(dt, frames, BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(s, dt)),
+                    (dt, frames) => Chase(dt, frames, BasisSmoothingProfiles.FramerateIndependentAlpha(s, dt)),
                     0.8f, name);
 
                 Assert.Greater(legacy.WorstDeviation, 10f * Mathf.Max(fixedForm.WorstDeviation, 1e-4f),
@@ -152,7 +153,7 @@ namespace Basis.Tests.IK
             for (float speed = 0f; speed <= 100f; speed += 0.5f)
             {
                 float legacy = BasisMotionResponse.LegacySaturateAlpha(speed, refDt);
-                float fixedAlpha = BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(speed, refDt);
+                float fixedAlpha = BasisSmoothingProfiles.FramerateIndependentAlpha(speed, refDt);
                 Assert.AreEqual(legacy, fixedAlpha, 1e-4f,
                     $"at the reference 90 Hz the fix must reproduce the old behaviour exactly, but speed={speed} " +
                     $"gives {fixedAlpha:F5} where the old code gave {legacy:F5} -- every persisted user setting " +
@@ -174,7 +175,7 @@ namespace Basis.Tests.IK
                 float dt = 1f / fps;
 
                 float legacy = BasisMotionResponse.LegacySaturateAlpha(40f, dt);
-                float now = BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(40f, dt);
+                float now = BasisSmoothingProfiles.FramerateIndependentAlpha(40f, dt);
 
                 if (fps <= 40)
                     Assert.AreEqual(1f, legacy, 1e-6f, $"sanity: the old form should have been snapping at {fps} fps");
@@ -225,8 +226,8 @@ namespace Basis.Tests.IK
 
             const float samplingFloorMs = (1f / 72f - 1f / 144f) * 0.5f * 1000f;   // 3.47 ms, irreducible
 
-            float now72 = Lag(72, BasisLocalVirtualSpineDriver.FramerateIndependentAlpha);
-            float now144 = Lag(144, BasisLocalVirtualSpineDriver.FramerateIndependentAlpha);
+            float now72 = Lag(72, BasisSmoothingProfiles.FramerateIndependentAlpha);
+            float now144 = Lag(144, BasisSmoothingProfiles.FramerateIndependentAlpha);
             float nowDiff = Mathf.Abs(now144 - now72);
 
             float old72 = Lag(72, BasisMotionResponse.LegacySaturateAlpha);

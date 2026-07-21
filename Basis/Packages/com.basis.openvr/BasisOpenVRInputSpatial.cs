@@ -22,7 +22,6 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
         public BasisBoneTrackedRole InitialRole;
 
         public BasisOpenVRInputEye BasisOpenVRInputEye;
-        public BasisLocalVirtualSpineDriver BasisVirtualSpine = new BasisLocalVirtualSpineDriver();
 
         /// <summary>
         /// SteamVR/OpenVR init. Mirrors your controller-style init.
@@ -45,14 +44,11 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             {
                 BasisOpenVRInputEye = gameObject.AddComponent<BasisOpenVRInputEye>();
                 BasisOpenVRInputEye.Initialize();
-                BasisVirtualSpine.Initialize();
             }
         }
 
         public new void OnDestroy()
         {
-            BasisVirtualSpine.DeInitialize();
-
             if (BasisOpenVRInputEye != null)
                 BasisOpenVRInputEye.Shutdown();
 
