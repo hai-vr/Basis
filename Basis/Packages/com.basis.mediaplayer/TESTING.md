@@ -213,6 +213,7 @@ covered bit-for-bit by the CI conformance gate; these rows are the real decode +
 | Windows D3D12 | Launch with `-force-d3d12`; shared-handle texture path is separate code — video must appear, no `dxgi-fmt` errors in the log |
 | Android/Quest | Vulkan path, `AMediaCodec`; https for TS/HLS lanes; check `adb logcat` for codec errors; AAC 5.1 arrives in WAVE order. 5.1 AAC in a progressive MP4 decodes discretely (see the codec row); the coded-height pad is cropped off the present (grey bottom strip) |
 | Desktop ↔ VR swap | Toggle mode mid-playback — the external texture must survive the graphics-device swap |
+| Linux via Proton/Wine | The Windows build under a compatibility layer. No lane here can stand in for it: the plugin runs against Wine's reimplementations of WinHTTP, Media Foundation and D3D11, so behaviour can differ from native Windows even though the binary is identical. Loading the plugin at all is gated behind a one-off prompt (Media Foundation may be absent). Verify a VOD plays at 1x rather than racing through the content — delivery pacing depends on the seekability probe reading Content-Length, and a probe failure shows up as synchronised fast-forward at roughly the download-speed-over-bitrate ratio. Confirm the seek slider works and that a late joiner syncing to a mid-VOD playhead lands at the right position, since both need the same probe. Testing this needs a real Proton user; there is no rig for it here |
 
 ### Behaviour checklists
 
