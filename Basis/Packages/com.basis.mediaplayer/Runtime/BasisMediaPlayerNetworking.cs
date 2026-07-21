@@ -83,6 +83,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
     /// <summary>The URL shared with peers for the current source — the input/page URL, not the per-client resolved stream.</summary>
     public string SyncedUrl => currentSyncedUrl;
     private bool sendOnNetworkReady;
+    private bool sendOnNetworkReadyFreshLoad;
     private bool applyingRemoteCommand;
     private bool eventsHooked;
     private ushort loadNonce;
@@ -185,7 +186,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         if (sendOnNetworkReady)
         {
             sendOnNetworkReady = false;
-            BroadcastFullState();
+            bool freshLoad = sendOnNetworkReadyFreshLoad;
+            sendOnNetworkReadyFreshLoad = false;
+            BroadcastFullState(freshLoad);
         }
     }
 
@@ -264,17 +267,14 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         loadNonce++;
         syncedUrlFromSetUrl = true;
 
-        // A page URL costs each client seconds of yt-dlp resolution. Broadcasting it up front
-        // lets peers resolve in parallel with us instead of starting only after our OnReady,
-        // which is what otherwise leaves them seconds behind. Peers auto-play their resolved
-        // source (AutoPlayOnSourceAssigned), the later OnReady broadcast settles state, and the
-        // position heartbeat keeps everyone converged. Directly-playable URLs keep the
-        // OnReady-gated path: no resolution latency to hide, and it avoids announcing a load we
-        // haven't confirmed we can open.
-        if (!BasisMediaUrlRouter.IsDirectlyPlayable(url))
-        {
-            BroadcastFullState();
-        }
+        // FullState is the only message carrying a URL, so it goes out up front rather than
+        // waiting on OnReady — peers that never see a broadcast never learn what to load. It
+        // also hides resolution latency: a page URL costs each client seconds of yt-dlp work,
+        // and announcing immediately lets peers resolve in parallel with us instead of starting
+        // only after our OnReady. Peers auto-play their resolved source
+        // (AutoPlayOnSourceAssigned), the later OnReady broadcast settles state, and the
+        // position heartbeat keeps everyone converged.
+        BroadcastFullState(freshLoad: true);
 
         mediaPlayer.LoadUrl(url);
         // OnReady fires BroadcastFullState once the source resolves, settling state/position.
@@ -726,9 +726,20 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
                 return;
             }
 
-            if (pendingRemoteState == SyncedPlaybackState.Paused && !mediaPlayer.IsPaused)
+            // The owner's advertised state is authoritative here. Don't rely on the resolved
+            // source having auto-started: AutoPlayOnSourceAssigned is the peer's own setting
+            // and may be off, which would strand it stopped while the owner plays. The
+            // direct-URL path forces the same thing around LoadSource. IsPlaying and IsPaused
+            // are independent, so a paused source needs resuming rather than starting.
+            if (pendingRemoteState == SyncedPlaybackState.Playing)
             {
-                mediaPlayer.Pause();
+                if (mediaPlayer.IsPlaying && mediaPlayer.IsPaused) mediaPlayer.Resume();
+                else if (!mediaPlayer.IsPlaying) mediaPlayer.Play();
+            }
+            else if (pendingRemoteState == SyncedPlaybackState.Paused)
+            {
+                if (!mediaPlayer.IsPlaying) mediaPlayer.Play();
+                if (!mediaPlayer.IsPaused) mediaPlayer.Pause();
             }
 
             if (pendingRemotePositionTicks > 0)
@@ -845,6 +856,10 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         }
         syncedUrlFromSetUrl = false;
 
+        // The queued load has arrived, so a fresh-load broadcast still waiting on a network
+        // ID is superseded: from here the player's own state and position are the truth, and
+        // later local commands must not be re-serialised as a pending load at position zero.
+        sendOnNetworkReadyFreshLoad = false;
         BroadcastFullState();
     }
 
@@ -934,15 +949,18 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         SendCustomNetworkEvent(payload, DeliveryMethod.ReliableOrdered);
     }
 
-    private void BroadcastFullState()
+    private void BroadcastFullState(bool freshLoad = false)
     {
         if (!HasNetworkID)
         {
             sendOnNetworkReady = true;
+            // A queued fresh load outranks a queued ordinary broadcast: the deferred send
+            // still has to describe the pending load, not the source being replaced.
+            sendOnNetworkReadyFreshLoad |= freshLoad;
             return;
         }
 
-        SendCustomNetworkEvent(SerializeFullState(), DeliveryMethod.ReliableOrdered);
+        SendCustomNetworkEvent(SerializeFullState(freshLoad), DeliveryMethod.ReliableOrdered);
     }
 
     private void SendFullStateTo(ushort[] recipients)
@@ -980,7 +998,11 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         return media != null && !string.IsNullOrEmpty(media.Uri) ? media.Uri : string.Empty;
     }
 
-    private byte[] SerializeFullState()
+    // freshLoad describes the load we are about to start rather than the source still
+    // loaded: the player has not swapped over yet, so its state and position still belong
+    // to the outgoing media and would otherwise be applied as the new source's start
+    // position on peers.
+    private byte[] SerializeFullState(bool freshLoad = false)
     {
         string url = GetActiveUrl();
         bool urlChanged = !string.Equals(cachedUrlBytesSource, url, StringComparison.Ordinal);
@@ -1011,8 +1033,10 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             Buffer.BlockCopy(urlBytes, 0, fullStateScratch, FullStateHeaderSize, urlBytes.Length);
         }
 
-        fullStateScratch[1] = (byte)GetLocalState();
-        long positionTicks = mediaPlayer.Duration > TimeSpan.Zero ? mediaPlayer.Position.Ticks : 0L;
+        fullStateScratch[1] = (byte)(freshLoad
+            ? (mediaPlayer.AutoPlayOnSourceAssigned ? SyncedPlaybackState.Playing : SyncedPlaybackState.Stopped)
+            : GetLocalState());
+        long positionTicks = !freshLoad && mediaPlayer.Duration > TimeSpan.Zero ? mediaPlayer.Position.Ticks : 0L;
         WriteLong(fullStateScratch, 2, positionTicks);
         WriteUShort(fullStateScratch, FullStateNonceOffset, loadNonce);
         WriteSettingsBlock(fullStateScratch, FullStateSettingsOffset);
