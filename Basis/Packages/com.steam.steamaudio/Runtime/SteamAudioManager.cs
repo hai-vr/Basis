@@ -122,10 +122,13 @@ namespace SteamAudio
         // (1 = every frame; 2 ≈ 45 Hz at 90 fps). Sim-defined occlusion/attenuation
         // are smoothed in the DSP, so a few-frame push cadence is inaudible.
         public static int DirectParamPushInterval = 2;
+        public static int DirectParamPushIntervalFar = 6;
+        public static float DirectParamPushFarDistance = 15.0f;
 
         IntPtr[] mSnapHandles = null;
         SimulationInputs[] mSnapInputs = null;
         SteamAudioSource[] mSnapSources = null;
+        bool[] mSnapFar = null;
         DirectEffectParams[] mDirectOutBuf = null;
         int mSnapCount = 0;
         long mDirectFrameCounter = 0;
@@ -648,6 +651,11 @@ namespace SteamAudio
             // Drain deferred SteamAudioSource inits (frame-budgeted).
             SteamAudioSource.ProcessPendingInits();
 
+            // Camera matrices are read here, before any transform-writing job is dispatched.
+            // At Apply's call site the jiggle pose jobs are in flight, and a main-thread
+            // camera/Transform read there would stall on their safety handles.
+            mCachedPerspectiveCorrection = GetPerspectiveCorrection();
+
             // --- Gather transforms via jobs ---
             EnsureTransformArraysCreated();
             EnsureSourceCapacity(CurrentArraySource);
@@ -672,10 +680,17 @@ namespace SteamAudio
                     PoseData = mListenerGathers,
                 };
                 listenersHandle = job.ScheduleReadOnly(mListenerTransforms, 4);
+                mListenerGatherCount = CurrentArrayListener;
+            }
+            else
+            {
+                mListenerGatherCount = 0;
             }
             combined = JobHandle.CombineDependencies(sourcesHandle, listenersHandle);
         }
         public JobHandle combined;
+        PerspectiveCorrection mCachedPerspectiveCorrection;
+        int mListenerGatherCount;
         private void ApplyInstance()
         {
             if (mAudioEngineState == null)
@@ -690,7 +705,7 @@ namespace SteamAudio
             SteamAudioListener steamAudioListener = SteamAudioManager.GetSteamAudioListener();
 
             mAudioEngineState.SetHRTFDisabled(settings.hrtfDisabled);
-            var perspectiveCorrection = GetPerspectiveCorrection();
+            var perspectiveCorrection = mCachedPerspectiveCorrection;
             mAudioEngineState.SetPerspectiveCorrection(perspectiveCorrection);
             mAudioEngineState.SetHRTF(CurrentHRTF.Get());
 
@@ -749,13 +764,16 @@ namespace SteamAudio
                     {
                         long frame = mDirectFrameCounter;
                         int interval = DirectParamPushInterval < 1 ? 1 : DirectParamPushInterval;
+                        int farInterval = DirectParamPushIntervalFar < interval ? interval : DirectParamPushIntervalFar;
                         for (int i = 0; i < mSnapCount; i++)
                         {
+                            int srcInterval = mSnapFar[i] ? farInterval : interval;
+                            if (srcInterval > 1 && ((frame + i) % srcInterval) != 0) continue;
+
                             SteamAudioSource src = mSnapSources[i];
                             if (src == null) continue;
 
-                            bool pushNow = (interval == 1) || (((frame + i) % interval) == 0);
-                            src.ApplyDirectOutputs(in mDirectOutBuf[i], pushNow);
+                            src.ApplyDirectOutputs(in mDirectOutBuf[i]);
                         }
                     }
                     else
@@ -807,7 +825,29 @@ namespace SteamAudio
 
             var sharedInputs = new SimulationSharedInputs { };
 
-            if (mListener != null)
+            // The listener pose comes from the gather job (completed above) instead of a
+            // managed Transform read: at this point in LateUpdate the jiggle pose jobs are
+            // writing avatar hierarchies, and touching a Transform they cover would stall
+            // the main thread on their safety handles. Values are identical — nothing moves
+            // the camera between the gather and here.
+            bool listenerFromGather = false;
+            if (mListenerComponent != null && mListenerGathers.IsCreated)
+            {
+                for (int i = 0; i < mListenerGatherCount; i++)
+                {
+                    if (ReferenceEquals(mListeners[i], mListenerComponent))
+                    {
+                        GatheredData g = mListenerGathers[i];
+                        sharedInputs.listener.origin = g.origin;
+                        sharedInputs.listener.ahead = g.ahead;
+                        sharedInputs.listener.up = g.up;
+                        sharedInputs.listener.right = g.right;
+                        listenerFromGather = true;
+                        break;
+                    }
+                }
+            }
+            if (!listenerFromGather && mListener != null)
             {
                 // One native interop call instead of four (position + 3 basis
                 // vectors). Each property accessor goes through a P/Invoke;
@@ -844,6 +884,8 @@ namespace SteamAudio
                     int snap = 0;
                     if (mSourceGathers.IsCreated && srcCount > 0)
                     {
+                        Vector3 listenerOrigin = sharedInputs.listener.origin;
+                        float farDistSq = DirectParamPushFarDistance * DirectParamPushFarDistance;
                         GatheredData* pSrcGathers = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
                         for (int i = 0; i < srcCount; i++)
                         {
@@ -854,12 +896,15 @@ namespace SteamAudio
                             if (h == IntPtr.Zero) continue;
 
                             GatheredData pos = pSrcGathers[i];
-                            if (!src.TryBuildInputs(SimulationFlags.Direct, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener, out SimulationInputs inputs))
+                            if (!src.TryBuildInputsInto(SimulationFlags.Direct, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener, ref mSnapInputs[snap]))
                                 continue;
 
+                            float dx = pos.origin.x - listenerOrigin.x;
+                            float dy = pos.origin.y - listenerOrigin.y;
+                            float dz = pos.origin.z - listenerOrigin.z;
                             mSnapSources[snap] = src;
                             mSnapHandles[snap] = h;
-                            mSnapInputs[snap] = inputs;
+                            mSnapFar[snap] = (dx * dx + dy * dy + dz * dz) > farDistSq;
                             snap++;
                         }
                     }
@@ -1384,6 +1429,7 @@ namespace SteamAudio
             mSnapHandles = new IntPtr[newCap];
             mSnapInputs = new SimulationInputs[newCap];
             mSnapSources = new SteamAudioSource[newCap];
+            mSnapFar = new bool[newCap];
             mDirectOutBuf = new DirectEffectParams[newCap];
             mSnapCount = 0;
         }

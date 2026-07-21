@@ -16,6 +16,23 @@ public class JiggleDoubleBufferTransformAccessArray {
 
     public TransformAccessArray GetTransformAccessArray() => transformAccessArray;
 
+    /// <summary>Live length of the front array — the authority for whether an in-place slot
+    /// update can mirror the access list (a destroyed transform Unity auto-dropped shrinks
+    /// this below the list count, which must force a full rebuild instead).</summary>
+    public int FrontLength => transformAccessArray.isCreated ? transformAccessArray.length : 0;
+
+    /// <summary>In-place slot write on the front array. Only legal while no job holds the
+    /// array — the memory bus commits run after the simulate chain is completed.</summary>
+    public void SetFront(int index, Transform transform) {
+        transformAccessArray[index] = transform;
+    }
+
+    /// <summary>Appends to the front array in place (same job-free requirement as SetFront).</summary>
+    public void AddToFront(Transform transform) {
+        transformAccessArray.Add(transform);
+        transformCount = transformAccessArray.length;
+    }
+
     private bool shouldClear = false;
 
     // Named per instance so a profile says which of the four buffers is rebuilding.

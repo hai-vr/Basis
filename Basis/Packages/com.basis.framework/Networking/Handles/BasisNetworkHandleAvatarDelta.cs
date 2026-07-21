@@ -148,7 +148,8 @@ public static class BasisNetworkHandleAvatarDelta
         ssm.sequence = sequence;
         ssm.avatarSerialization.array = recon;
         ssm.avatarSerialization.DataQualityLevel = quality;
-        ssm.avatarSerialization.AdditionalAvatarDatas = null;
+        // Size 0 is what gates dispatch; keeping the entries array lets DeserializeAdditionalData
+        // reuse it (and each entry's retained payload buffer) on frames that do carry data.
         ssm.avatarSerialization.AdditionalAvatarDataSize = 0;
         if (hasAdditional)
             ssm.avatarSerialization.DeserializeAdditionalData(reader);

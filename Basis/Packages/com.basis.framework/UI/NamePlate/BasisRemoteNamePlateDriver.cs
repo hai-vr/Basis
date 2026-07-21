@@ -604,6 +604,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// fallbacks) stay correct. Each text mesh is a transform-applied copy of the TMP atlas
         /// submesh, preserving every SDF vertex channel verbatim.
         /// </summary>
+        /// <summary>Bake scratch — bakes run through a per-frame budgeted queue on the main thread.</summary>
+        private static readonly List<Mesh> sBakeMeshScratch = new List<Mesh>();
+        private static readonly List<Material> sBakeMaterialScratch = new List<Material>();
+        private static readonly CombineInstance[] sBakeSingleScratch = new CombineInstance[1];
+
         public static bool BakeNameMeshGlobal(string displayName, BasisRemoteNamePlate plate)
         {
             if (Text == null || plate == null) return false;
@@ -618,22 +623,25 @@ namespace Basis.Scripts.UI.NamePlate
                 subMeshLimit = math.min(textInfo.materialCount, textInfo.meshInfo.Length);
             }
 
-            var textMeshes = new List<Mesh>(subMeshLimit);
-            var textMaterials = new List<Material>(subMeshLimit);
-            var single = new CombineInstance[1];
+            List<Mesh> textMeshes = sBakeMeshScratch;
+            List<Material> textMaterials = sBakeMaterialScratch;
+            textMeshes.Clear();
+            textMaterials.Clear();
             for (int i = 0; i < subMeshLimit; i++)
             {
                 var info = textInfo.meshInfo[i];
                 if (info.vertexCount == 0 || info.mesh == null) continue;
 
-                single[0] = new CombineInstance { mesh = info.mesh, transform = textTransform };
+                sBakeSingleScratch[0] = new CombineInstance { mesh = info.mesh, transform = textTransform };
                 var textMesh = new Mesh { name = "NamePlate Text (global)" };
-                textMesh.CombineMeshes(single, true, true);
+                textMesh.CombineMeshes(sBakeSingleScratch, true, true);
                 textMeshes.Add(textMesh);
                 textMaterials.Add(info.material);
             }
 
             plate.SetGlobalParts(panel, textMeshes.ToArray(), textMaterials.ToArray());
+            textMeshes.Clear();
+            textMaterials.Clear();
             BasisGlobalNamePlateRenderer.MarkDirty();
             Text.gameObject.SetActive(false);
             return true;
@@ -927,7 +935,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>
         /// Call in LateUpdate (or end-of-frame). This is where we sync once.
         /// </summary>
-        public static void CompleteNamePlates()
+        public static void CompleteNamePlates(double now)
         {
             // Detect menu open/close transitions for menu-only mode
             if (NamePlateMenuOnly && NamePlateEnabled)
@@ -1000,8 +1008,8 @@ namespace Basis.Scripts.UI.NamePlate
                         }
                     }
 
-                    p.UpdateChatTimeout();
-                    p.RefreshTypingIndicatorAnimation();
+                    p.UpdateChatTimeout(now);
+                    p.RefreshTypingIndicatorAnimation(now);
                     BasisNamePlateOverlayLimiter.Consider(p);
                 }
                 BasisNamePlateOverlayLimiter.Apply(Basis.Scripts.Drivers.BasisLocalCameraDriver.Position);

@@ -271,6 +271,8 @@ namespace Basis.BasisUI
         private string _cachedDecimalFormat;
         private int _cachedDecimalPlaces = -1;
         private string _lastCurrentValueText;
+        private float _lastFormattedValue;
+        private bool _hasLastFormattedValue;
 
         protected virtual void ApplySliderSettings()
         {
@@ -305,6 +307,7 @@ namespace Basis.BasisUI
                 _cachedDecimalFormat = "0." + new string('#', Mathf.Max(0, Settings.DecimalPlaces));
             }
             _lastCurrentValueText = null;
+            _hasLastFormattedValue = false;
         }
 
         public override void SetValueWithoutNotify(float value)
@@ -349,6 +352,12 @@ namespace Basis.BasisUI
             }
 
             if (CurrentValueLabel == null) return;
+
+            // The label is a pure function of Value, so an unchanged value skips the string
+            // build entirely — the dedup below only saved the SetText, not the allocation.
+            if (_hasLastFormattedValue && Value == _lastFormattedValue) return;
+            _hasLastFormattedValue = true;
+            _lastFormattedValue = Value;
 
             string next;
             switch (Settings.DisplayMode)

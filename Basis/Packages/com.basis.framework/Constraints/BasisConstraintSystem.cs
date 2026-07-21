@@ -471,6 +471,7 @@ namespace Basis.Scripts.Constraints
                 Results = sResults.AsArray(),
             }.Schedule(sTargets, solve);
 
+            JobHandle.ScheduleBatchedJobs();
             return sPending;
         }
 

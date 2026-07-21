@@ -649,7 +649,7 @@ namespace Basis.Scripts.UI
         }
 
         // NEW: priority helper so OverlayUI canvases always win
-        private int GetCanvasPriority(Canvas canvas)
+        private static int GetCanvasPriority(Canvas canvas)
         {
             if (canvas == null)
                 return 0;
@@ -666,22 +666,28 @@ namespace Basis.Scripts.UI
         // SortedRaycastGraphics' Clear. Not readonly: SortedRaycastGraphics takes it by ref.
         private List<BasisRaycastUIHitData> CanvasScratchGraphics = new List<BasisRaycastUIHitData>();
 
-        public bool RaycastToUI()
+        /// <summary>
+        /// Sort order: OverlayUI always first, then sortingOrder (higher first). A shared
+        /// IComparer because this sort runs every frame the ray is over UI — a capturing
+        /// lambda here cost a delegate plus Sort's comparer wrapper per call.
+        /// </summary>
+        private sealed class CanvasPriorityComparer : IComparer<Canvas>
         {
-            // Sort canvases so OverlayUI always comes first,
-            // then fall back to sortingOrder (higher first).
-            Results.Sort((c1, c2) =>
+            public static readonly CanvasPriorityComparer Instance = new CanvasPriorityComparer();
+            public int Compare(Canvas c1, Canvas c2)
             {
-                int p1 = GetCanvasPriority(c1);
-                int p2 = GetCanvasPriority(c2);
-
-                int priorityCompare = p2.CompareTo(p1);
+                int priorityCompare = GetCanvasPriority(c2).CompareTo(GetCanvasPriority(c1));
                 if (priorityCompare != 0)
                     return priorityCompare;
 
                 // Same priority class: use sortingOrder like before
                 return c2.sortingOrder.CompareTo(c1.sortingOrder);
-            });
+            }
+        }
+
+        public bool RaycastToUI()
+        {
+            Results.Sort(CanvasPriorityComparer.Instance);
 
             // Accumulate hits across EVERY candidate canvas instead of returning at the
             // first canvas that has any. Graphics register to the nearest Canvas up their

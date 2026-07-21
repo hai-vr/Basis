@@ -467,6 +467,10 @@
       "value": "Only show logs at or above the chosen severity level."
     },
     {
+      "key": "settings.developer.contentPoliceLogging.tooltip",
+      "value": "Log what Content Police changed while loading avatars, props, and worlds (converted constraints, stripped events, collider fixes)."
+    },
+    {
       "key": "settings.developer.shaderPrewarm.tooltip",
       "value": "Compile shaders ahead of time to reduce in-world stutter."
     },
@@ -6913,6 +6917,10 @@
     {
       "key": "settings.developer.logLevelFilter.description",
       "value": "Lowest severity that is allowed through BasisDebug. All emits logs, warnings, and errors. Warnings & Errors hides plain logs. Errors Only hides logs and warnings."
+    },
+    {
+      "key": "settings.developer.contentPoliceLogging",
+      "value": "Content Police Logging"
     },
     {
       "key": "settings.developer.options.title",

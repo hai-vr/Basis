@@ -49,6 +49,7 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
         jiggleRigData.RegenerateCacheLookup();
 
         segment ??= new JiggleTreeSegment(this);
+        segment.SetAnimatedParameters(animatedParameters);
         segment.SetDirty();
         if (!addedToJiggleTreeSegments) {
             JigglePhysics.AddJiggleTreeSegment(segment);
@@ -99,7 +100,10 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
 
     public bool HasAnimatedParameters {
         get => animatedParameters;
-        set => animatedParameters = value;
+        set {
+            animatedParameters = value;
+            segment?.SetAnimatedParameters(value);
+        }
     }
 
     private void OnValidate() {
@@ -108,6 +112,9 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
         }
         jiggleRigData.OnValidate();
         if (Application.isPlaying) {
+            // Inspector edits write the serialized field directly, bypassing the property setter —
+            // resync the segment mirror or a play-mode toggle never reaches the animated registry.
+            segment?.SetAnimatedParameters(animatedParameters);
             UpdateParameters();
         }
     }

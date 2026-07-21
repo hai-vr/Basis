@@ -631,10 +631,13 @@ namespace Basis.EventDriver
             // Sits after authored motion (so a constraint may source an authored bone) and ahead of
             // the jiggle schedule below (so jiggle samples the constrained pose, not the stale one).
             //
-            // Scheduled here but completed further down, on the far side of jiggle's preparation.
-            // That preparation is main-thread work — parameter pushes, collider and tree commits —
-            // and on a steady frame it reads no bone pose at all, so the constraint solve can run
-            // against those same bones while it happens instead of the main thread just waiting.
+            // Scheduled here but completed further down, on the far side of jiggle's preparation
+            // AND dispatch. The preparation is main-thread work — parameter pushes, collider and
+            // tree commits — that reads no bone pose on a steady frame, and the dispatch hands
+            // this handle to the jiggle chain as a job dependency (its transform reads wait on the
+            // constraint write in-graph), so the solve runs through both stages instead of the
+            // main thread waiting ahead of them. The fence stays ahead of AfterAvatarChanges,
+            // whose transmit reads local bone rotations inline on the main thread.
             JobHandle constraintJob;
             using (Prof.ConstraintSchedule.Auto())
             {
@@ -676,6 +679,13 @@ namespace Basis.EventDriver
                 {
                     jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
                 }
+                if (jiggleReady)
+                {
+                    using (Prof.JiggleDispatch.Auto())
+                    {
+                        JigglePhysics.DispatchSimulate(constraintJob);
+                    }
+                }
                 // On rebuild frames the constraint solve was already completed above and the
                 // handle zeroed — skip the empty second fence instead of logging a no-op marker.
                 if (!constraintJob.Equals(default(JobHandle)))
@@ -683,13 +693,6 @@ namespace Basis.EventDriver
                     using (Prof.ConstraintComplete.Auto())
                     {
                         BasisConstraintSystem.Complete(constraintJob);
-                    }
-                }
-                if (jiggleReady)
-                {
-                    using (Prof.JiggleDispatch.Auto())
-                    {
-                        JigglePhysics.DispatchSimulate();
                     }
                 }
             }
@@ -714,9 +717,22 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_NAMEPLATE_COMPLETE);
             using (Prof.NamePlateComplete.Auto())
             {
-                BasisRemoteNamePlateDriver.CompleteNamePlates();
+                BasisRemoteNamePlateDriver.CompleteNamePlates(TimeAsDouble);
             }
             ProfileEnd(PROF_NAMEPLATE_COMPLETE);
+
+#if STEAMAUDIO_ENABLED
+            // ── SteamAudio apply ──
+            // After the jiggle pose schedule, not in OnBeforeRender: its reap/push/snapshot
+            // main-thread cost overlaps the in-flight pose jobs. Nothing it reads is fresher
+            // by render time — the gather ran at SteamAudioSchedule, and the listener has
+            // always been read ahead of SimulateOnRender's render-time pose work.
+            using (Prof.SteamAudioApply.Auto())
+            {
+                SteamAudioManager.Apply();
+            }
+#endif
+
             using (Prof.ContentSphereComplete.Auto())
             {
                 BasisContentSphereBillboardDriver.Complete();
@@ -818,15 +834,10 @@ namespace Basis.EventDriver
 
             ProfileBeforeRenderInit();
 
-#if STEAMAUDIO_ENABLED
-            using (Prof.SteamAudioApply.Auto())
-            {
-                SteamAudioManager.Apply();
-            }
-#endif
-
-            // Publish the nameplate vertex transforms scheduled back in CompleteNamePlates —
-            // by now the jobs have had the tail of LateUpdate and the whole post-late phase.
+            // Publish the nameplate work scheduled back in CompleteNamePlates — the plate
+            // matrix build (and any CPU vertex transforms) completed on workers through the
+            // tail of LateUpdate, and the per-plate GPU buffer uploads land here, off the
+            // NamePlate.Complete marker.
             using (Prof.NamePlateFinish.Auto())
             {
                 BasisGlobalNamePlateRenderer.FinishFrame();

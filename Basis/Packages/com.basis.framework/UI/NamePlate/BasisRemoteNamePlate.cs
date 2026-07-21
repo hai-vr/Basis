@@ -641,11 +641,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>
         /// Called each frame to auto-clear an expired chat message, and to give an idle
         /// display's TMP + bubble objects back once nothing has shown for a while (they
-        /// lazily re-create on the next message).
+        /// lazily re-create on the next message). Takes the frame time so the driver's
+        /// per-plate loop reads Time.timeAsDouble once, not once per plate.
         /// </summary>
-        public void UpdateChatTimeout()
+        public void UpdateChatTimeout(double now)
         {
-            double now = Time.timeAsDouble;
             if (hasChatMessage && now - chatMessageSetTime >= BasisNetworkHandleChat.MessageDisplayDuration)
             {
                 SetChatText(null);
@@ -697,14 +697,16 @@ namespace Basis.Scripts.UI.NamePlate
             UpdateBubbleVisual();
         }
 
-        public bool UpdateTypingIndicatorAnimation()
+        public bool UpdateTypingIndicatorAnimation() => UpdateTypingIndicatorAnimation(Time.timeAsDouble);
+
+        public bool UpdateTypingIndicatorAnimation(double now)
         {
             if (!wantsTypingIndicator)
             {
                 return false;
             }
 
-            int frame = (int)((Time.timeAsDouble - typingAnimationStartTime) / 0.4d) % TypingIndicatorFrames.Length;
+            int frame = (int)((now - typingAnimationStartTime) / 0.4d) % TypingIndicatorFrames.Length;
             if (frame == typingAnimationFrame)
             {
                 return false;
@@ -715,9 +717,9 @@ namespace Basis.Scripts.UI.NamePlate
             return true;
         }
 
-        public void RefreshTypingIndicatorAnimation()
+        public void RefreshTypingIndicatorAnimation(double now)
         {
-            if (UpdateTypingIndicatorAnimation())
+            if (UpdateTypingIndicatorAnimation(now))
             {
                 UpdateChatTextVisual();
             }

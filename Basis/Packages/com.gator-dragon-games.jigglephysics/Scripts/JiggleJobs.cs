@@ -237,7 +237,7 @@ public class JiggleJobs {
         freePointers.Clear();
     }
 
-    public void Simulate(double simulateTime, double realTime, int substeps) {
+    public void Simulate(double simulateTime, double realTime, int substeps, JobHandle externalDependency = default) {
         if (_memoryBus.transformCount == 0) {
             _memoryBus.CommitTrees();
             _memoryBus.CommitColliders();
@@ -266,7 +266,9 @@ public class JiggleJobs {
             OnFinishSimulate?.Invoke(this, simulateTime);
         }
 
+        Profiler.BeginSample("JiggleJobs.Simulate.Teleports");
         _memoryBus.ApplyPendingTeleports();
+        Profiler.EndSample();
 
         _memoryBus.RotateBuffers();
         jobInterpolation.previousTimeStamp = jobInterpolation.timeStamp;
@@ -309,12 +311,14 @@ public class JiggleJobs {
         jobColliderCull.frustumMargin = JiggleSettings.CullFrustumMargin;
         CaptureStartupSettings();
 
+        Profiler.BeginSample("JiggleJobs.Simulate.Schedule");
         if (hasHandleSimulate) {
-            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128, handleSimulate);
-            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128, handleSimulate);
+            var colliderReadDependency = JobHandle.CombineDependencies(handleSimulate, externalDependency);
+            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128, colliderReadDependency);
+            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128, colliderReadDependency);
         } else {
-            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128);
-            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128);
+            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128, externalDependency);
+            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128, externalDependency);
         }
 
         hasHandlePersonalColliderRead = true;
@@ -361,6 +365,7 @@ public class JiggleJobs {
         hasHandleSimulate = true;
 
         JobHandle.ScheduleBatchedJobs();
+        Profiler.EndSample();
     }
 
     public void Teleport(JiggleTree tree, float3 deltaPosition) {

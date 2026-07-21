@@ -666,7 +666,16 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             if (sceneColliderCount + pendingAddSceneColliderCount >= sceneColliderCapacity) {
                 ResizeSceneColliderCapacity(Mathf.NextPowerOfTwo(sceneColliderCount+pendingAddSceneColliderCount+1));
             }
-            
+
+            // In-place fast path: slots are index-stable (removes dummy-swap, adds refill holes or
+            // append), so as long as the front access array still mirrors the list — no out-of-band
+            // transform death shrank it — every pending change can be written straight into the
+            // front array and the full sliced rebuild (the whole ProcessingTransformAccess pass)
+            // skipped. Legal because commits run after Simulate joined the previous chain, so no
+            // job holds the array. The collider-LOD tier trickle lands here every time; only a
+            // desync (destroyed transform Unity auto-dropped) takes the rebuild path below.
+            bool inPlace = doubleBufferSceneColliderTransformAccessArray.FrontLength == sceneColliderTransformAccessList.Count;
+
             for (int i = 0; i < pendingRemoveSceneColliderCount; i++) {
                 var collider = pendingSceneColliderRemove[i];
                 if (sceneColliderTransformToIndex.TryGetValue(collider.transform, out var id)) {
@@ -674,7 +683,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                     var sceneCollider = sceneColliderArray[id];
                     sceneCollider.enabled = false;
                     sceneColliderArray[id] = sceneCollider;
-                    sceneColliderTransformAccessList[id] = GetDummyTransform(id);
+                    var dummy = GetDummyTransform(id);
+                    sceneColliderTransformAccessList[id] = dummy;
+                    if (inPlace) {
+                        doubleBufferSceneColliderTransformAccessArray.SetFront(id, dummy);
+                    }
                     sceneColliderTransformToIndex.Remove(collider.transform);
                 }
             }
@@ -700,8 +713,14 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
                 while (sceneColliderTransformAccessList.Count < index+1) {
                     sceneColliderTransformAccessList.Add(collider.transform);
+                    if (inPlace) {
+                        doubleBufferSceneColliderTransformAccessArray.AddToFront(collider.transform);
+                    }
                 }
                 sceneColliderTransformAccessList[index] = collider.transform;
+                if (inPlace) {
+                    doubleBufferSceneColliderTransformAccessArray.SetFront(index, collider.transform);
+                }
                 sceneColliderTransformToIndex[collider.transform] = index;
                 sceneColliderArray[index] = collider.collider;
                 sceneColliderCount = math.max(index+1, sceneColliderCount);
@@ -709,24 +728,36 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
             pendingSceneColliderAdd.Clear();
             pendingSceneColliderAddSet.Clear();
+
+            if (inPlace) {
+                RetireDeadSceneColliderSlots();
+                NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
+                return;
+            }
+
             currentSceneColliderTransformAccessIndex = 0;
             commitSceneColliderState = CommitState.ProcessingTransformAccess;
         } else if (commitSceneColliderState == CommitState.ProcessingTransformAccess) {
             doubleBufferSceneColliderTransformAccessArray.GenerateNewAccessArrays(ref currentSceneColliderTransformAccessIndex, out var hasFinishedSceneColliders, sceneColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedSceneColliders) return;
-            // The managed mirror is the writer for scene colliders, so it has to retire slots whose
-            // transform died without a matching remove — otherwise this copy resurrects them, undoing
-            // the read job's isValid self-heal, and the collider keeps colliding from wherever it was.
-            for (int i = 0; i < sceneColliderCount; i++) {
-                if (!sceneColliderArray[i].enabled) continue;
-                if (i < sceneColliderTransformAccessList.Count && sceneColliderTransformAccessList[i]) continue;
-                var deadCollider = sceneColliderArray[i];
-                deadCollider.enabled = false;
-                sceneColliderArray[i] = deadCollider;
-            }
+            RetireDeadSceneColliderSlots();
             NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
             doubleBufferSceneColliderTransformAccessArray.Flip();
             commitSceneColliderState = CommitState.Idle;
+        }
+    }
+
+    // The managed mirror is the writer for scene colliders, so it has to retire slots whose
+    // transform died without a matching remove — otherwise the copy back to the native array
+    // resurrects them, undoing the read job's isValid self-heal, and the collider keeps
+    // colliding from wherever it was.
+    private void RetireDeadSceneColliderSlots() {
+        for (int i = 0; i < sceneColliderCount; i++) {
+            if (!sceneColliderArray[i].enabled) continue;
+            if (i < sceneColliderTransformAccessList.Count && sceneColliderTransformAccessList[i]) continue;
+            var deadCollider = sceneColliderArray[i];
+            deadCollider.enabled = false;
+            sceneColliderArray[i] = deadCollider;
         }
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -76,23 +77,19 @@ public static class JigglePhysics {
             skips = Mathf.Min(skips + 1, JiggleSettings.MaxSubsteps);
         }
 
-        var segmentsCount = rootJiggleTreeSegments.Count;
+        // Only the animated registry is walked — the old two full-root loops paid an interface
+        // call per root per frame (the dominant prepare cost at scale) to find the usually-empty
+        // animated set. UpdateParametersIfNeeded still self-guards on the live provider flag.
+        RebuildAnimatedRootsIfNeeded();
+        int animatedCount = animatedRootSegments.Count;
 
-        bool mutates = _globalDirty;
-        if (!mutates) {
-            for (int i = 0; i < segmentsCount; i++) {
-                if (rootJiggleTreeSegments[i].GetHasAnimatedParameters()) {
-                    mutates = true;
-                    break;
-                }
-            }
-        }
+        bool mutates = _globalDirty || animatedCount > 0;
         if (mutates) {
             jobs?.CompleteSimulate();
         }
 
-        for (int i = 0; i < segmentsCount; i++) {
-            rootJiggleTreeSegments[i].UpdateParametersIfNeeded();
+        for (int i = 0; i < animatedCount; i++) {
+            animatedRootSegments[i].UpdateParametersIfNeeded();
         }
 
         jobs = GetJiggleJobs(lastFixedCurrentTime, fixedDeltaTime);
@@ -107,13 +104,13 @@ public static class JigglePhysics {
     /// The scheduling half. Only does anything after a <see cref="PrepareSimulate"/> that returned
     /// true, so calling it unconditionally is safe.
     /// </summary>
-    public static void DispatchSimulate() {
+    public static void DispatchSimulate(JobHandle externalDependency = default) {
         if (!preparedThisFrame) {
             return;
         }
         preparedThisFrame = false;
 
-        jobs.Simulate(lastFixedCurrentTime, pendingRealTime, skips);
+        jobs.Simulate(lastFixedCurrentTime, pendingRealTime, skips, externalDependency);
         skips = 0;
         hasRunThisFrame = true;
     }
@@ -130,27 +127,19 @@ public static class JigglePhysics {
             skips = Mathf.Min(skips + 1, JiggleSettings.MaxSubsteps);
         }
 
-        var rootJiggleTreeSegmentsCount = rootJiggleTreeSegments.Count;
+        RebuildAnimatedRootsIfNeeded();
+        int animatedCount = animatedRootSegments.Count;
 
         // Tree regeneration (JiggleTree.Set) and parameter pushes MemCpy into buffers the
         // in-flight simulate job is still reading/writing — Simulate() completes it too late,
         // after the mutation. Sync first whenever this frame will mutate.
-        bool mutatesSimData = _globalDirty;
-        if (!mutatesSimData) {
-            for (int i = 0; i < rootJiggleTreeSegmentsCount; i++) {
-                if (rootJiggleTreeSegments[i].GetHasAnimatedParameters()) {
-                    mutatesSimData = true;
-                    break;
-                }
-            }
-        }
+        bool mutatesSimData = _globalDirty || animatedCount > 0;
         if (mutatesSimData) {
             jobs?.CompleteSimulate();
         }
 
-        for (int i = 0; i < rootJiggleTreeSegmentsCount; i++) {
-            var segment = rootJiggleTreeSegments[i];
-            segment.UpdateParametersIfNeeded();
+        for (int i = 0; i < animatedCount; i++) {
+            animatedRootSegments[i].UpdateParametersIfNeeded();
         }
 
         jobs = GetJiggleJobs(lastFixedCurrentTime, fixedDeltaTime);
@@ -191,6 +180,8 @@ public static class JigglePhysics {
         parametersCache = new();
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
+        animatedRootSegments.Clear();
+        animatedRootsDirty = true;
         initializedRendering = false;
         _globalDirty = true;
         jobs?.Dispose();
@@ -202,6 +193,8 @@ public static class JigglePhysics {
         JiggleRenderer.Dispose();
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
+        animatedRootSegments.Clear();
+        animatedRootsDirty = true;
         _globalDirty = true;
         jobs = null;
         JiggleSettings.ResetBootLatch();
@@ -238,7 +231,30 @@ public static class JigglePhysics {
         JiggleRenderer.FinishRender(proceduralMaterial, sphere, capsule);
     }
     
-    public static void SetGlobalDirty() => _globalDirty = true;
+    public static void SetGlobalDirty() {
+        _globalDirty = true;
+        animatedRootsDirty = true;
+    }
+
+    // Roots whose provider animates parameters, rebuilt lazily from rootJiggleTreeSegments so the
+    // per-frame parameter push iterates only them instead of interface-calling every root. Every
+    // structural change funnels through SetGlobalDirty (or the prune below); runtime flag flips
+    // arrive via the segment mirror's MarkAnimatedRootsDirty.
+    private static readonly List<JiggleTreeSegment> animatedRootSegments = new List<JiggleTreeSegment>();
+    private static bool animatedRootsDirty = true;
+
+    public static void MarkAnimatedRootsDirty() => animatedRootsDirty = true;
+
+    private static void RebuildAnimatedRootsIfNeeded() {
+        if (!animatedRootsDirty) return;
+        animatedRootsDirty = false;
+        animatedRootSegments.Clear();
+        int count = rootJiggleTreeSegments.Count;
+        for (int i = 0; i < count; i++) {
+            var seg = rootJiggleTreeSegments[i];
+            if (seg.animatedParameters) animatedRootSegments.Add(seg);
+        }
+    }
 
     public static void SetCollisionCulling(bool frustumCull, bool distanceCull, float maxDistance) {
         collisionFrustumCull = frustumCull;
@@ -340,7 +356,7 @@ public static class JigglePhysics {
         }
         RemoveAddChildren(jiggleTreeSegment.transform);
         TryAddRootJiggleTreeSegment(jiggleTreeSegment);
-        _globalDirty = true;
+        SetGlobalDirty();
     }
     
     private static bool GetParentJiggleTreeSegment(Transform t, out JiggleTreeSegment parentJiggleTreeSegment) {
@@ -456,6 +472,7 @@ public static class JigglePhysics {
                 if (seg.jiggleTree != null) ScheduleRemoveJiggleTree(seg.jiggleTree);
                 jiggleRootLookup.Remove(seg.transform);
                 rootJiggleTreeSegments.RemoveAt(i);
+                animatedRootsDirty = true;
                 continue;
             }
             if (!needsRegen) {

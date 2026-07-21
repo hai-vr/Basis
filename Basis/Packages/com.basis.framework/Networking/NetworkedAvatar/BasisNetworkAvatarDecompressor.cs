@@ -221,14 +221,21 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
                 else
                 {
-                    // The message's AdditionalAvatarDatas array is pool-reused and its struct
-                    // entries are overwritten by the next deserialize on this thread; the per-entry
-                    // payload byte[]s are freshly allocated each deserialize, so a shallow copy of
-                    // the entries is a stable snapshot to hand across threads.
+                    // The message's AdditionalAvatarDatas array AND each entry's payload byte[]
+                    // are pool-reused and overwritten by the next deserialize on this thread, so
+                    // the snapshot has to own its payload bytes to stay stable across the hand-off.
                     System.Threading.Interlocked.Increment(ref BasisAdditionalDataDiagnostics.ReceiverMarshaledToMainThread);
                     int size = message.AdditionalAvatarDataSize;
                     var snapshot = new AdditionalAvatarData[size];
-                    Array.Copy(message.AdditionalAvatarDatas, snapshot, size);
+                    for (int Index = 0; Index < size; Index++)
+                    {
+                        AdditionalAvatarData entry = message.AdditionalAvatarDatas[Index];
+                        if (entry.array != null)
+                        {
+                            entry.array = (byte[])entry.array.Clone();
+                        }
+                        snapshot[Index] = entry;
+                    }
                     byte linkedIndex = message.LinkedAvatarIndex;
                     Basis.Scripts.Device_Management.BasisDeviceManagement.EnqueueOnMainThread(() =>
                     {

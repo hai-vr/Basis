@@ -15,6 +15,7 @@ public static class ContentPoliceControl
     // Independent of MaterialCorrection: swaps materials matching the user's
     // shader-name/keyword blocklist (BasisShaderFallback.SetBlocklist) to the fallback.
     public static bool ShaderBlocklistEnabled = false;
+    public static bool VerboseLogging = false;
 
     // Reused renderer buffer for the no-content-removal path when no harvest is
     // supplied. Main-thread only; consumed synchronously by prewarm/correction.
@@ -71,7 +72,10 @@ public static class ContentPoliceControl
             SearchAndDestroy = GameObject.Instantiate(SearchAndDestroy, Position, Rotation, DisabledGameobject.transform);
             if (ModifyScale)
             {
-                BasisDebug.Log($"Overriding Default scale is now {Scale} for GameObject {SearchAndDestroy.name}");
+                if (VerboseLogging)
+                {
+                    BasisDebug.Log($"Overriding Default scale is now {Scale} for GameObject {SearchAndDestroy.name}");
+                }
                 SearchAndDestroy.transform.localScale = Scale;
             }
             state.Clone = SearchAndDestroy;
@@ -223,7 +227,10 @@ public static class ContentPoliceControl
 
                             if (ChecksRequired.RemoveColliders)
                             {
-                                BasisDebug.Log("Remove Collider ", BasisDebug.LogTag.Avatar);
+                                if (VerboseLogging)
+                                {
+                                    BasisDebug.Log("Remove Collider ", BasisDebug.LogTag.Avatar);
+                                }
                                 GameObject.Destroy(collider);
                                 kinds[Index] = BasisComponentKind.Removed;
                             }
@@ -231,7 +238,10 @@ public static class ContentPoliceControl
                             {
                                 if (ChecksRequired.ChangeCollidersToCorrectLayer)
                                 {
-                                    BasisDebug.Log("Changing Collider To Correct Layer", BasisDebug.LogTag.Avatar);
+                                    if (VerboseLogging)
+                                    {
+                                        BasisDebug.Log("Changing Collider To Correct Layer", BasisDebug.LogTag.Avatar);
+                                    }
                                     collider.gameObject.layer = colliderlayer;
                                 }
                             }
@@ -303,7 +313,7 @@ public static class ContentPoliceControl
                 bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
                 // One line per load, never per component: a busy instance converts hundreds of these
                 // at once and the notifier fans logging out to disk and the network.
-                if (constraintReport.DidAnything)
+                if (VerboseLogging && constraintReport.DidAnything)
                 {
                     BasisDebug.Log($"Content Police converted constraints: {constraintReport}");
                 }
@@ -485,7 +495,7 @@ public static class ContentPoliceControl
         bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
         // One line per load, never per component: a busy instance converts hundreds of these
         // at once and the notifier fans logging out to disk and the network.
-        if (constraintReport.DidAnything)
+        if (VerboseLogging && constraintReport.DidAnything)
         {
             BasisDebug.Log($"Content Police converted constraints: {constraintReport}");
         }
@@ -878,7 +888,10 @@ public static class ContentPoliceControl
             string methodName = evt.GetPersistentMethodName(i);
             if (IsDangerousListener(target, methodName, approved))
             {
-                BasisDebug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
+                if (VerboseLogging)
+                {
+                    BasisDebug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
+                }
                 evt.SetPersistentListenerState(i, UnityEventCallState.Off);
             }
         }
@@ -977,7 +990,10 @@ public static class ContentPoliceControl
         if (clip == null) return;
         AnimationEvent[] existing = clip.events;
         if (existing == null || existing.Length == 0) return;
-        BasisDebug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        if (VerboseLogging)
+        {
+            BasisDebug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        }
         clip.events = EmptyAnimationEvents;
     }
 

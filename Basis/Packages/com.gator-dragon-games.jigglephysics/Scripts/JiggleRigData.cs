@@ -92,14 +92,24 @@ public struct JiggleRigData {
 
     public void RegenerateCacheLookup() {
         var count = transformCachedData.Length;
-        transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>(count);
+        // Clear-and-reuse: this runs on every rig init, twice per avatar load on remotes, so a
+        // fresh dictionary per call was steady allocation churn at lobby scale.
+        if (transformToCachedDataMap == null) {
+            transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>(count);
+        } else {
+            transformToCachedDataMap.Clear();
+        }
         for (int i = 0; i < count; i++) {
             var cachedData = transformCachedData[i];
             transformToCachedDataMap[cachedData.bone] = cachedData;
         }
         if (excludedTransforms != null && excludedTransforms.Length > 0) {
             var excludedCount = excludedTransforms.Length;
-            excludedSet = new HashSet<Transform>(excludedCount);
+            if (excludedSet == null) {
+                excludedSet = new HashSet<Transform>(excludedCount);
+            } else {
+                excludedSet.Clear();
+            }
             for (int i = 0; i < excludedCount; i++) {
                 excludedSet.Add(excludedTransforms[i]);
             }

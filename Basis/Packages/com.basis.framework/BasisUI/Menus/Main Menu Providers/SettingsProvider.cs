@@ -2575,6 +2575,11 @@ namespace Basis.BasisUI
                 new List<string> { "settings.developer.logLevel.all", "settings.developer.logLevel.warningsErrors", "settings.developer.logLevel.errorsOnly" });
             dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
 
+            PanelToggle toggleContentPoliceLogging = PanelToggle.CreateNewEntry(container);
+            toggleContentPoliceLogging.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.contentPoliceLogging"));
+            toggleContentPoliceLogging.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.contentPoliceLogging.tooltip"));
+            toggleContentPoliceLogging.AssignBinding(BasisSettingsDefaults.ContentPoliceLogging);
+
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(debugToggle, container, debugStart, false, visible =>
             {
                 if (visible)
@@ -2977,6 +2982,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
             BasisSettingsDefaults.StreamingMetaPort.ResetToDefault();
             BasisSettingsDefaults.DisableLogging.ResetToDefault();
+            BasisSettingsDefaults.ContentPoliceLogging.ResetToDefault();
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
             BasisSettingsDefaults.DevAlwaysShowCalibration.ResetToDefault();

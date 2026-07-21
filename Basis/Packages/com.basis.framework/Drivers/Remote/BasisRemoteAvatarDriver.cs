@@ -5,6 +5,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Player;
 using GatorDragonGames.JigglePhysics;
 using System;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -65,6 +66,9 @@ namespace Basis.Scripts.Drivers
         /// Jiggle rigs on the current avatar (filled during calibration).
         /// </summary>
         public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
+        /// <summary>Calibration scratch — a recalibration at an unchanged rig count allocates nothing.</summary>
+        private static readonly List<JiggleRig> sJiggleRigScratch = new List<JiggleRig>();
+        private static Vector3[] sJiggleRootsBeforeSnap = Array.Empty<Vector3>();
 
         // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). The wearer's networked spine
         //      scale re-spaced this remote avatar's spine bones. Superseded on the wire by the body fit
@@ -270,9 +274,19 @@ namespace Basis.Scripts.Drivers
             SetupAvatarJiggleColliders();
             ResetAvatarAnimator();
 
-            JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
-            int jiggleRigCount = JiggleRigs.Length;
-            var jiggleRootsBeforeSnap = new Vector3[jiggleRigCount];
+            RemotePlayer.BasisAvatar.GetComponentsInChildren(sJiggleRigScratch);
+            int jiggleRigCount = sJiggleRigScratch.Count;
+            if (JiggleRigs.Length != jiggleRigCount)
+            {
+                JiggleRigs = new JiggleRig[jiggleRigCount];
+            }
+            sJiggleRigScratch.CopyTo(JiggleRigs);
+            sJiggleRigScratch.Clear();
+            if (sJiggleRootsBeforeSnap.Length < jiggleRigCount)
+            {
+                sJiggleRootsBeforeSnap = new Vector3[jiggleRigCount];
+            }
+            Vector3[] jiggleRootsBeforeSnap = sJiggleRootsBeforeSnap;
             for (int Index = 0; Index < jiggleRigCount; Index++)
             {
                 var jiggleRoot = JiggleRigs[Index].GetJiggleRigData().rootBone;

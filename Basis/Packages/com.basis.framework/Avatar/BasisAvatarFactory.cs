@@ -410,6 +410,9 @@ namespace Basis.Scripts.Avatar
             }
         }
 
+        /// <summary>Scratch for the old-avatar rig sweep; an avatar swap allocates no scan array.</summary>
+        private static readonly List<JiggleRig> sOldJiggleRigScratch = new List<JiggleRig>();
+
         /// <summary>
         /// Configures a player with a specific avatar.
         /// Handles both local and remote player cases.
@@ -421,11 +424,13 @@ namespace Basis.Scripts.Avatar
             // new avatar's JiggleRig registration below. Doing it here keeps tree state consistent.
             if (Player.BasisAvatar != null)
             {
-                var oldRigs = Player.BasisAvatar.GetComponentsInChildren<JiggleRig>(true);
-                for (int i = 0; i < oldRigs.Length; i++)
+                Player.BasisAvatar.GetComponentsInChildren(true, sOldJiggleRigScratch);
+                int oldRigCount = sOldJiggleRigScratch.Count;
+                for (int i = 0; i < oldRigCount; i++)
                 {
-                    oldRigs[i].OnRemove();
+                    sOldJiggleRigScratch[i].OnRemove();
                 }
+                sOldJiggleRigScratch.Clear();
             }
             DeleteLastAvatar(Player);
             Player.IsConsideredFallBackAvatar = isFallback;

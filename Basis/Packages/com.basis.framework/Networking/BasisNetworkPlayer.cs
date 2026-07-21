@@ -241,6 +241,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BasisDebug.LogError("Missing Transmitter or Network Management", BasisDebug.LogTag.Networking);
             }
         }
+        /// <summary>
+        /// Reused behaviour-send writer, mirroring the sync transmitter's AvatarSendWriter. Sends
+        /// are main-thread and sequential, and Peer.Send copies the bytes out — a fresh writer per
+        /// message paid its backing buffer every send.
+        /// </summary>
+        private static readonly NetDataWriter sAvatarSendWriter = new NetDataWriter();
+
         public void OnAvatarNetworkMessageSend(byte MessageIndex, byte[] buffer = null, DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced, ushort[] Recipients = null)
         {
             System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.SenderAvatarChannelSent);
@@ -255,7 +262,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 AvatarLinkIndex = LastLinkedAvatarIndex,
                 recipientsSize = 0,
             };
-            NetDataWriter netDataWriter = new NetDataWriter();
+            NetDataWriter netDataWriter = sAvatarSendWriter;
+            netDataWriter.Reset();
             AvatarDataMessage.Serialize(netDataWriter);
             BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.AvatarChannel, DeliveryMethod);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
@@ -267,7 +275,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             if (directIds != null && directIds.Count > 0)
             {
-                NetDataWriter p2pWriter = new NetDataWriter();
+                NetDataWriter p2pWriter = sAvatarSendWriter;
+                p2pWriter.Reset();
                 p2pWriter.Put(MessageIndex);
                 p2pWriter.Put(LastLinkedAvatarIndex);
                 if (buffer != null)
@@ -291,7 +300,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     AvatarLinkIndex = LastLinkedAvatarIndex,
                     recipientsSize = 0,
                 };
-                NetDataWriter netDataWriter = new NetDataWriter();
+                NetDataWriter netDataWriter = sAvatarSendWriter;
+                netDataWriter.Reset();
                 AvatarDataMessage.Serialize(netDataWriter);
                 BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.DirectAvatarServerChannel, DeliveryMethod);
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
