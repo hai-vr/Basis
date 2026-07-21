@@ -28,6 +28,10 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = 0.01f;
             VolumetricFogenableAPVContribution = true;
             VolumetricFogenableMainLightContribution = true;
+
+            videoOutputWidth = 1920;
+            videoOutputHeight = 1080;
+            videoOutputFrameRate = 30f;
         }
 
         public int resolutionIndex = 0;
@@ -60,5 +64,9 @@ public partial class BasisHandHeldCameraUI
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;
+
+        public int videoOutputWidth;
+        public int videoOutputHeight;
+        public float videoOutputFrameRate;
     }
 }

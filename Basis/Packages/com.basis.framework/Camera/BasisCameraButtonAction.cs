@@ -11,5 +11,6 @@ public enum BasisCameraButtonAction
     ToggleAutoLevel,
     ToggleVRHandheldSmoothing,
     DepthModeAuto,
-    DepthModeManual
+    DepthModeManual,
+    ToggleFollowPlayer
 }

@@ -522,6 +522,7 @@ public static class BasisRemoteNetworkDriver
         }.Schedule(num * BoneCount, 128);
 
         oneEuroJob = JobHandle.CombineDependencies(boneInterpJob, scaledBodyJob);
+        JobHandle.ScheduleBatchedJobs();
     }
 
     /// <summary>Complete scheduled jobs for the current frame.</summary>

@@ -32,6 +32,10 @@ namespace Basis.Scripts.UI.NamePlate
         /// <summary>Raw int for job gather — avoids bool→ushort conversion.</summary>
         internal int IsVisibleRaw => Volatile.Read(ref _isVisible);
 
+        /// <summary>Slot in BasisRemoteNamePlateDriver's plates/jobStates arrays; -1 until registered.
+        /// Maintained by ApplyPendingStructuralChanges, including swap-back moves.</summary>
+        internal int RegistryIndex = -1;
+
         /// <summary>Cached gameObject-active state for the global merge gather, so it never calls the
         /// (managed→native) isActiveAndEnabled per plate per frame. Maintained by
         /// <see cref="Initialize"/> and <see cref="RefreshActiveState"/>.</summary>
@@ -311,6 +315,7 @@ namespace Basis.Scripts.UI.NamePlate
                 Color normal = BasisRemoteNamePlateDriver.GetModeRestingColor(BasisRemotePlayer != null ? BasisRemotePlayer.TalkMode : BasisTalkMode.Normal);
                 SetPlateColor(normal);
             }
+            BasisRemoteNamePlateDriver.SyncPlateJobState(this);
         }
         private void EnsureChatDisplayCreated()
         {
@@ -426,6 +431,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Stop any active pulse
             isPulsingTalk = false;
+            BasisRemoteNamePlateDriver.SyncPlateJobState(this);
         }
 
         public void RebuildRenderCheck()
@@ -462,6 +468,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 isPulsingTalk = false;
             }
+            BasisRemoteNamePlateDriver.SyncPlateJobState(this);
         }
 
         /// <summary>
@@ -536,15 +543,27 @@ namespace Basis.Scripts.UI.NamePlate
 
                 // Stage 1: snap to talk color
                 SetPlateColor(talkColorCached);
+                BasisRemoteNamePlateDriver.SyncPlateJobState(this);
             });
         }
         internal bool GetIsPulsingForJob() => isPulsingTalk;
-        internal double GetTalkStartTimeForJob() => talkStartTime;
-        internal float4 GetTalkColorFloat4ForJob() => talkColorFloat4;
         internal float4 GetRestingColorFloat4ForJob() => restingColorFloat4;
         internal void StopPulseFromJob()
         {
             isPulsingTalk = false;
+            BasisRemoteNamePlateDriver.SyncPlateJobState(this);
+        }
+
+        internal BasisRemoteNamePlateDriver.PlateJobState BuildJobState()
+        {
+            return new BasisRemoteNamePlateDriver.PlateJobState
+            {
+                talkStartTime = talkStartTime,
+                talkColor = talkColorFloat4,
+                restingColor = restingColorFloat4,
+                isPulsing = isPulsingTalk ? (byte)1 : (byte)0,
+                isVisible = (byte)IsVisibleRaw,
+            };
         }
 
         private void HandleTalkModeChanged()
@@ -574,6 +593,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 SetPlateColor(resting);
             }
+            BasisRemoteNamePlateDriver.SyncPlateJobState(this);
         }
 
         internal void ApplyColorFromJob(Color c)

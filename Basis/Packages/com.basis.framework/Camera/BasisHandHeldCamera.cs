@@ -211,6 +211,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
 
+        StopVideoOutput();
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
@@ -618,6 +619,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
 
         UpdatePreviewScreenTexture();
+        TickVideoOutput();
 
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -785,8 +787,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             captureCamera.enabled = true;
             return;
         }
+        float targetHz = BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue;
+        if (IsVideoOutputActive && VideoOutputSettings.FrameRate > targetHz)
+        {
+            targetHz = VideoOutputSettings.FrameRate;
+        }
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(
-            Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue,
+            Time.unscaledDeltaTime, targetHz,
             BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue);
     }
 
@@ -812,7 +819,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (BasisLocalPlayer.Instance == null)
             return;
 
-        bool shouldRender = isVisible || IsOverridingDesktopView;
+        bool shouldRender = isVisible || IsOverridingDesktopView || IsVideoOutputActive;
         if (shouldRender == LastVisibilityState)
             return;
 

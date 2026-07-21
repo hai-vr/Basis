@@ -67,6 +67,15 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     [Range(0.1f, 0.9f)]
     public float cinematicDamping = 0.8f;
 
+    [Header("Follow Player Settings")]
+    public float followPositionSmoothing = 4f;
+
+    public float followRotationSmoothing = 6f;
+
+    public bool followLookAtPlayer = true;
+
+    public float followTeleportSnapDistance = 10f;
+
     [Header("VR Handheld Stabilization")]
     public bool useVRHandheldSmoothing = false;
     public bool onlySmoothWhenStreamingToDesktop = true;
@@ -129,6 +138,9 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     private Quaternion vrControllerRotation = Quaternion.identity;
 
     private bool selfieRotationEnabled = false;
+
+    private Vector3 followOffset = Vector3.zero;
+    private Quaternion followOffsetRotation = Quaternion.identity;
     /// <summary>Where to pin the camera transform.</summary>
     public enum CameraPinSpace
     {
@@ -138,6 +150,8 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         PlaySpace,
         /// <summary>Free in world space with no parent.</summary>
         WorldSpace,
+        /// <summary>Smoothly follows the local player, keeping the offset it had when enabled.</summary>
+        FollowPlayer,
     }
 
     /// <summary>
@@ -294,6 +308,20 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         selfieRotationEnabled = enabled;
         handheldSmoothingInitialized = false;
     }
+
+    public bool IsFollowingPlayer => PinSpace == CameraPinSpace.FollowPlayer;
+
+    public void SetFollowPlayerEnabled(bool enabled)
+    {
+        if (enabled)
+        {
+            PinSpace = CameraPinSpace.FollowPlayer;
+        }
+        else if (PinSpace == CameraPinSpace.FollowPlayer)
+        {
+            PinSpace = CameraPinSpace.HandHeld;
+        }
+    }
     /// <summary>Detects landscape vs portrait by camera roll and triggers UI orientation updates.</summary>
     private void CheckCameraOrientation()
     {
@@ -416,6 +444,51 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                     cameraPinConstraint.SetOffsetPositionAndRotation(0, camPos, camRot);
                 }
                 break;
+
+            case CameraPinSpace.FollowPlayer:
+                BasisLocalPlayer.Instance.AvatarTransform.GetPositionAndRotation(out Vector3 followPlayerPos, out Quaternion followPlayerRot);
+                Quaternion followYaw = Quaternion.Euler(0f, followPlayerRot.eulerAngles.y, 0f);
+
+                if (previousPinState != CameraPinSpace.FollowPlayer)
+                {
+                    cameraPinConstraint.Enabled = false;
+                    HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 followCamPos, out Quaternion followCamRot);
+                    followOffset = Quaternion.Inverse(followYaw) * (followCamPos - followPlayerPos);
+                    followOffsetRotation = Quaternion.Inverse(followYaw) * followCamRot;
+                    smoothedPosition = followCamPos;
+                    smoothedRotation = followCamRot;
+                }
+
+                float followDelta = Time.deltaTime;
+                Vector3 followTargetPos = followPlayerPos + followYaw * followOffset;
+
+                if ((followTargetPos - smoothedPosition).sqrMagnitude > followTeleportSnapDistance * followTeleportSnapDistance)
+                {
+                    smoothedPosition = followTargetPos;
+                }
+                else
+                {
+                    smoothedPosition = Vector3.Lerp(smoothedPosition, followTargetPos, followPositionSmoothing * followDelta);
+                }
+
+                Quaternion followTargetRot;
+                if (followLookAtPlayer)
+                {
+                    Vector3 followLookTarget = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.HeadPosition : followPlayerPos;
+                    Vector3 followToPlayer = followLookTarget - smoothedPosition;
+                    followTargetRot = followToPlayer.sqrMagnitude > 0.0001f
+                        ? Quaternion.LookRotation(followToPlayer.normalized, Vector3.up)
+                        : smoothedRotation;
+                }
+                else
+                {
+                    followTargetRot = followYaw * followOffsetRotation;
+                }
+                smoothedRotation = Quaternion.Slerp(smoothedRotation, followTargetRot, followRotationSmoothing * followDelta);
+
+                HHC.captureCamera.transform.SetPositionAndRotation(smoothedPosition, smoothedRotation);
+                previousPinState = PinSpace;
+                return;
         }
 
         if (cameraPinConstraint.Evaluate(out Vector3 pinPos, out Quaternion pinRot))

@@ -88,6 +88,27 @@ public static class BasisNetworkPIPCameraDriver
     private static bool lastPipMenuOpenState;
     private static float nextDisplayNameRefreshTime;
 
+    /// <summary>When true, remote players' camera pucks and their owner tags are hidden locally
+    /// (Settings > General > Interactions). Transforms stay synced so re-showing snaps into place.</summary>
+    public static bool HideRemoteCameraPucks;
+
+    /// <summary>Applies the hide-remote-cameras setting to current and future pucks. Safe to call before Create().</summary>
+    public static void SetHideRemoteCameraPucks(bool hide)
+    {
+        HideRemoteCameraPucks = hide;
+        if (!initialized) return;
+
+        pipHandle.Complete();
+        foreach (var kvp in pipInstances)
+        {
+            if (kvp.Value != null && kvp.Value.activeSelf == hide)
+            {
+                kvp.Value.SetActive(!hide);
+            }
+        }
+        RefreshPipNamePlateVisibility();
+    }
+
     /// <summary>
     /// Initialize native containers and subscribe to the simulation loop.
     /// Called from BasisNetworkLifeCycle.Initialize().
@@ -465,6 +486,10 @@ public static class BasisNetworkPIPCameraDriver
 
         GameObject instance = UnityEngine.Object.Instantiate(loadedPrefab, pos, rot);
         UnityEngine.Object.DontDestroyOnLoad(instance);
+        if (HideRemoteCameraPucks)
+        {
+            instance.SetActive(false);
+        }
 
         if (instance.TryGetComponent<BasisCameraRemotePip>(out BasisCameraRemotePip pipMeta))
         {
@@ -736,6 +761,11 @@ public static class BasisNetworkPIPCameraDriver
 
     private static bool ShouldPipNamePlateBeActive(ushort playerId)
     {
+        if (HideRemoteCameraPucks)
+        {
+            return false;
+        }
+
         if (!BasisRemoteNamePlateDriver.NamePlateEnabled)
         {
             return false;

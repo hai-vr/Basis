@@ -426,6 +426,7 @@ namespace Basis.EventDriver
 
             using (Prof.NetworkApply.Auto())
             {
+                RemoteBoneJobSystem.ScheduleGathers();
                 ProfileBegin(PROF_NETWORK_APPLY);
                 ProfileBegin2();
                 using (Prof.NetFireBeforeApply.Auto())
@@ -520,26 +521,11 @@ namespace Basis.EventDriver
                 BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
             }
 
-            // ── Remote audio simulate ──
-            ProfileBegin(PROF_REMOTE_AUDIO_SIMULATE);
-            using (Prof.RemoteAudioSimulate.Auto())
-            {
-                BasisRemoteAudioDriver.Simulate(DeltaTime);
-            }
-            ProfileEnd(PROF_REMOTE_AUDIO_SIMULATE);
-
-            // Complete the eye apply here rather than right after its schedule in LocalEyeDriver.Simulate,
-            // so the eye compute/apply jobs overlap the remote bone complete + remote audio simulate above.
-            // Still ahead of JigglePhysics.ScheduleSimulate, so the transform write has no jiggle job to stall on.
-            if (BasisLocalPlayer.PlayerReady)
-            {
-                using (Prof.LocalEyeApply.Auto())
-                {
-                    BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
-                }
-            }
-
-            // ── Nameplate schedule ──
+            // ── Schedule cluster: nameplate pulse, billboard, remote face ──
+            // Grouped directly after the remote bone complete (the face eye-write TAA touches
+            // remote hierarchies, so the remote bone jobs must be joined first) and kicked as
+            // one batch, so the jobs run through the remote audio / local eye / steam audio
+            // stages below instead of waiting for the first implicit flush.
             ProfileBegin(PROF_NAMEPLATE_SCHEDULE);
             using (Prof.NamePlateSchedule.Auto())
             {
@@ -550,12 +536,6 @@ namespace Basis.EventDriver
             {
                 BasisContentSphereBillboardDriver.ScheduleSimulate();
             }
-#if STEAMAUDIO_ENABLED
-            using (Prof.SteamAudioSchedule.Auto())
-            {
-                SteamAudioManager.Schedule();
-            }
-#endif
 
             // ── Remote face simulate (job schedule) ──
             ProfileBegin(PROF_REMOTE_FACE_SIMULATE);
@@ -564,6 +544,39 @@ namespace Basis.EventDriver
                 BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
             }
             ProfileEnd(PROF_REMOTE_FACE_SIMULATE);
+
+            JobHandle.ScheduleBatchedJobs();
+
+            // ── Remote audio simulate ──
+            ProfileBegin(PROF_REMOTE_AUDIO_SIMULATE);
+            using (Prof.RemoteAudioSimulate.Auto())
+            {
+                BasisRemoteAudioDriver.Simulate(DeltaTime);
+            }
+            ProfileEnd(PROF_REMOTE_AUDIO_SIMULATE);
+
+            // Complete the eye apply here rather than right after its schedule in LocalEyeDriver.Simulate,
+            // so the eye compute/apply jobs overlap the remote bone complete, the schedule cluster, and
+            // the remote audio simulate above.
+            // Still ahead of JigglePhysics.ScheduleSimulate, so the transform write has no jiggle job to stall on.
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                using (Prof.LocalEyeApply.Auto())
+                {
+                    BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+                }
+            }
+
+#if STEAMAUDIO_ENABLED
+            // Stays after the local eye apply: the listener/source gather TAA can share the local
+            // player hierarchy with the eye-write job, and the two have never been in flight
+            // together — the gather also wants the final camera-side poses for this frame.
+            using (Prof.SteamAudioSchedule.Auto())
+            {
+                SteamAudioManager.Schedule();
+            }
+            JobHandle.ScheduleBatchedJobs();
+#endif
 
             // ── Remote audio apply ──
             ProfileBegin(PROF_REMOTE_AUDIO_APPLY);

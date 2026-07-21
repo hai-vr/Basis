@@ -91,6 +91,18 @@ namespace Basis.Scripts.Networking.Sync
         private ushort _lastKnownOwnerId;
         private bool _haveKnownOwner;
 
+        // Transmit-side wire metering — the owner's mirror of the receiver's rx counters,
+        // windowed over the same 0.5 s so the debug gizmos read comparably on both ends.
+        private const double TxRateWindow = 0.5;
+        private int _txBytes;
+        private int _txPackets;
+        private double _txWindowStart;
+
+        /// <summary>Serialized bytes handed to the transport per second while this client owns the object.</summary>
+        public float TxBytesPerSecond { get; private set; }
+        /// <summary>Packets handed to the transport per second while this client owns the object.</summary>
+        public float TxPacketsPerSecond { get; private set; }
+
         internal BasisSyncSchema Schema => _schema;
         internal BasisSyncReceiver Receiver => _receiver;
         internal int SyncSlot;
@@ -175,6 +187,23 @@ namespace Basis.Scripts.Networking.Sync
             sample.HasSpatial = TryGetSyncGizmoSpatial(r.CurrentValues, r.NextValues, out Vector3 fromWorld, out Vector3 toWorld);
             sample.FromWorld = fromWorld;
             sample.ToWorld = toWorld;
+            sample.AnchorWorld = TryGetSyncWorldPosition(out Vector3 worldPos) ? worldPos : transform.position;
+            return true;
+        }
+
+        /// <summary>
+        /// Snapshot for the debug gizmos while this client owns the object. The owner has no
+        /// receive pipeline to visualise, so this carries only the anchor position and the
+        /// transmit rates; interpolation fields stay zero.
+        /// </summary>
+        public bool TryGetOwnedSyncGizmoSample(out BasisSyncGizmoSample sample)
+        {
+            sample = default;
+            if (!IsOwnedLocallyOnClient || !HasNetworkID) return false;
+
+            sample.NetworkID = NetworkID;
+            sample.BytesPerSecond = TxBytesPerSecond;
+            sample.PacketsPerSecond = TxPacketsPerSecond;
             sample.AnchorWorld = TryGetSyncWorldPosition(out Vector3 worldPos) ? worldPos : transform.position;
             return true;
         }
@@ -570,6 +599,22 @@ namespace Basis.Scripts.Networking.Sync
             EnsureBuffers();
             OnBeforeTransmit();
 
+            // Runs before the send-gating below so an idle stretch still closes the window
+            // and the published rates decay to zero instead of freezing at the last burst.
+            if (_txWindowStart <= 0.0)
+            {
+                _txWindowStart = time;
+            }
+            else if (time - _txWindowStart >= TxRateWindow)
+            {
+                float inv = (float)(1.0 / (time - _txWindowStart));
+                TxBytesPerSecond = _txBytes * inv;
+                TxPacketsPerSecond = _txPackets * inv;
+                _txBytes = 0;
+                _txPackets = 0;
+                _txWindowStart = time;
+            }
+
             float baseInterval = SendIntervalSeconds;
             float keyframeInterval = KeyframeIntervalSeconds;
             if (UseDirectP2P && OverrideP2PRate && BasisP2PManager.HasAnyConnectedSession())
@@ -637,6 +682,8 @@ namespace Basis.Scripts.Networking.Sync
             unchecked { _seq++; }
 
             int len = BasisSyncCodec.Serialize(_schema, _local, keyframe, _dirtyMask, _seq, intervalMs, _scratch, UseChecksum);
+            _txBytes += len;
+            _txPackets++;
 
             DeliveryMethod dm = keyframe ? KeyframeDelivery : Delivery;
             if (!BasisSyncBatchCollector.TryEnqueue(NetworkID, _scratch, len, dm, recipients, UseDirectP2P))
@@ -731,6 +778,11 @@ namespace Basis.Scripts.Networking.Sync
                 _idleKeyframeBackoff = 0;
                 _idleKeyframesAtCap = 0;
                 _lastSendWasIdle = false;
+                _txBytes = 0;
+                _txPackets = 0;
+                _txWindowStart = 0.0;
+                TxBytesPerSecond = 0f;
+                TxPacketsPerSecond = 0f;
             }
             else
             {

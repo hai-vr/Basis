@@ -499,6 +499,11 @@ namespace Basis.BasisUI
                 toggleUIHaptics.AssignBinding(BasisSettingsDefaults.UIHaptics);
                 toggleUIHaptics.Descriptor.SetTitle(BasisLocalization.Get("settings.general.uiHaptics"));
                 toggleUIHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.uiHaptics.tooltip"));
+
+                PanelToggle toggleHideRemoteCameras = PanelToggle.CreateNewEntry(container);
+                toggleHideRemoteCameras.AssignBinding(BasisSettingsDefaults.HideRemoteCameraPucks);
+                toggleHideRemoteCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.general.hideRemoteCameras"));
+                toggleHideRemoteCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.hideRemoteCameras.tooltip"));
             }, false, _ => descriptor.ForceRebuild());
 
             // HUD overlays — heads-up display elements rendered over the scene.
@@ -760,6 +765,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
+            BasisSettingsDefaults.HideRemoteCameraPucks.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();

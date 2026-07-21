@@ -24,6 +24,7 @@ public partial class BasisHandHeldCameraUI
     public Button Selfie;
     public Button AutoLevelButton;
     public Button VRStabilizationButton;
+    public Button FollowPlayerButton;
 
     [Space(10)]
     public GameObject focusCursor;
@@ -172,6 +173,7 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "Selfie", Selfie, BasisCameraButtonAction.ToggleSelfie);
         AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
         AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
+        AddIf(list, "FollowPlayer", FollowPlayerButton, BasisCameraButtonAction.ToggleFollowPlayer);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -263,6 +265,10 @@ public partial class BasisHandHeldCameraUI
 
             case BasisCameraButtonAction.ToggleVRHandheldSmoothing:
                 button.onClick.AddListener(ToggleVRHandheldSmoothing);
+                break;
+
+            case BasisCameraButtonAction.ToggleFollowPlayer:
+                button.onClick.AddListener(ToggleFollowPlayer);
                 break;
 
             case BasisCameraButtonAction.DepthModeAuto:
@@ -473,6 +479,15 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[VRStabilization] VR handheld smoothing is now {(HHC.useVRHandheldSmoothing ? "ON" : "OFF")}");
     }
 
+    private void ToggleFollowPlayer()
+    {
+        if (HHC == null)
+            return;
+
+        HHC.SetFollowPlayerEnabled(!HHC.IsFollowingPlayer);
+        BasisDebug.Log($"[FollowPlayer] Follow player is now {(HHC.IsFollowingPlayer ? "ON" : "OFF")}");
+    }
+
     public void SetCapture360State(bool enabled)
     {
         if (HHC != null)
@@ -621,6 +636,9 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = volumetricDensitySlider != null ? volumetricDensitySlider.value : 0.01f,
             VolumetricFogenableAPVContribution = true,
             VolumetricFogenableMainLightContribution = true,
+            videoOutputWidth = HHC != null ? HHC.VideoOutputSettings.Width : 1920,
+            videoOutputHeight = HHC != null ? HHC.VideoOutputSettings.Height : 1080,
+            videoOutputFrameRate = HHC != null ? HHC.VideoOutputSettings.FrameRate : 30f,
         };
     }
 
@@ -708,6 +726,11 @@ public partial class BasisHandHeldCameraUI
 
             if (Format != null)
                 Format.SetIsOnWithoutNotify(settings.formatIndex == FORMAT_EXR);
+
+            // Video output (older settings files deserialize these as 0 — keep defaults then)
+            HHC.VideoOutputSettings.Width = settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920;
+            HHC.VideoOutputSettings.Height = settings.videoOutputHeight > 0 ? settings.videoOutputHeight : 1080;
+            HHC.VideoOutputSettings.FrameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
 
             // Apply camera intrinsics
             if (HHC.captureCamera != null)

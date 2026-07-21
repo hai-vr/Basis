@@ -3695,6 +3695,14 @@
       "value": "Vibrate the controller when the pointer hovers over and clicks menu elements."
     },
     {
+      "key": "settings.general.hideRemoteCameras",
+      "value": "Hide Remote Cameras"
+    },
+    {
+      "key": "settings.general.hideRemoteCameras.tooltip",
+      "value": "Hide the camera pucks (and their name tags) other players are using. Only affects what you see; their cameras keep working."
+    },
+    {
       "key": "settings.general.disableVRFingerTouch",
       "value": "Disable VR Finger Touch"
     },

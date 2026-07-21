@@ -662,7 +662,7 @@ namespace SteamAudio
                 {
                     PoseData = mSourceGathers,
                 };
-                sourcesHandle = job.Schedule(mSourceTransforms);
+                sourcesHandle = job.ScheduleReadOnly(mSourceTransforms, 16);
             }
 
             if (CurrentArrayListener > 0 && mListenerTransforms.isCreated)
@@ -671,7 +671,7 @@ namespace SteamAudio
                 {
                     PoseData = mListenerGathers,
                 };
-                listenersHandle = job.Schedule(mListenerTransforms);
+                listenersHandle = job.ScheduleReadOnly(mListenerTransforms, 4);
             }
             combined = JobHandle.CombineDependencies(sourcesHandle, listenersHandle);
         }

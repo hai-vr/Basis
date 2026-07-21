@@ -157,6 +157,10 @@ namespace Basis.Scripts.Constraints
         private static readonly List<int> sSourceMapScratch = new List<int>();
         /// <summary>Transform row → the slots that drive it, for the dependency sort.</summary>
         private static readonly Dictionary<int, List<int>> sProducers = new Dictionary<int, List<int>>();
+        /// <summary>Producer lists, kept across rebuilds and handed out in turn so the sort does not allocate.</summary>
+        private static readonly List<List<int>> sProducerPool = new List<List<int>>();
+        private static int sProducerPoolUsed;
+        /// <summary>Per-slot consumer lists, kept across rebuilds so the sort does not allocate.</summary>
         private static readonly List<List<int>> sConsumers = new List<List<int>>();
         private static readonly List<int> sInDegree = new List<int>();
         private static readonly List<bool> sEmitted = new List<bool>();
@@ -305,6 +309,11 @@ namespace Basis.Scripts.Constraints
             sRowWriter.Clear();
             sGroupBuckets.Clear();
             sGroupIndexOf.Clear();
+            sProducerPool.Clear();
+            sProducerPoolUsed = 0;
+            sAvatarGroups.Clear();
+            sAvatarLookup.Clear();
+            sAvatarRoots.Clear();
             sChainStride = 1;
             sDirty = false;
 
@@ -419,11 +428,12 @@ namespace Basis.Scripts.Constraints
 
             RefreshDynamicState();
 
+            int readWorkers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
             JobHandle read = new BasisConstraintReadJob
             {
                 World = sWorld.AsArray(),
                 Local = sLocal.AsArray(),
-            }.Schedule(sTracked);
+            }.ScheduleReadOnly(sTracked, math.max(1, (sTracked.length + readWorkers - 1) / readWorkers));
 
             // Blanking the results reads nothing the sample writes, so it goes out beside it rather
             // than behind it and costs the solve nothing.
@@ -559,7 +569,6 @@ namespace Basis.Scripts.Constraints
             sDampState.Clear();
             sChain.Clear();
             sChainBind.Clear();
-            sAvatarGroups.Clear();
             sAvatarLookup.Clear();
             sAvatarRoots.Clear();
             sRefreshFrame = 0;
@@ -634,9 +643,18 @@ namespace Basis.Scripts.Constraints
                         break;
                     }
                 }
-                registration.SourceMap = registration.SourceMapIsIdentity
-                    ? Array.Empty<int>()
-                    : sSourceMapScratch.ToArray();
+                if (registration.SourceMapIsIdentity)
+                {
+                    registration.SourceMap = Array.Empty<int>();
+                }
+                else
+                {
+                    if (registration.SourceMap.Length != sSourceMapScratch.Count)
+                    {
+                        registration.SourceMap = new int[sSourceMapScratch.Count];
+                    }
+                    sSourceMapScratch.CopyTo(registration.SourceMap);
+                }
 
                 BasisConstraintSlot slot = BasisConstraintDefaults.Identity(ToKind(component.constraintType));
                 slot.TargetIndex = targetIndex;
@@ -710,6 +728,7 @@ namespace Basis.Scripts.Constraints
 
             // Which slots drive each transform row. Several may drive one row (stacked constraints).
             sProducers.Clear();
+            sProducerPoolUsed = 0;
             for (int Index = 0; Index < count; Index++)
             {
                 int targetIndex = sSlots[Index].TargetIndex;
@@ -719,18 +738,27 @@ namespace Basis.Scripts.Constraints
                 }
                 if (!sProducers.TryGetValue(targetIndex, out List<int> producers))
                 {
-                    producers = new List<int>();
+                    if (sProducerPool.Count <= sProducerPoolUsed)
+                    {
+                        sProducerPool.Add(new List<int>());
+                    }
+                    producers = sProducerPool[sProducerPoolUsed];
+                    sProducerPoolUsed++;
+                    producers.Clear();
                     sProducers[targetIndex] = producers;
                 }
                 producers.Add(Index);
             }
 
-            sConsumers.Clear();
+            while (sConsumers.Count < count)
+            {
+                sConsumers.Add(new List<int>());
+            }
             sInDegree.Clear();
             sEmitted.Clear();
             for (int Index = 0; Index < count; Index++)
             {
-                sConsumers.Add(new List<int>());
+                sConsumers[Index].Clear();
                 sInDegree.Add(0);
                 sEmitted.Add(false);
             }
@@ -1153,7 +1181,8 @@ namespace Basis.Scripts.Constraints
         /// </summary>
         private static void RefreshDynamicState()
         {
-            int groupCount = sAvatarGroups.Count;
+            // The roots list is the live count; sAvatarGroups may keep spare lists past it for reuse.
+            int groupCount = sAvatarRoots.Count;
             if (groupCount == 0)
             {
                 return;
@@ -1566,7 +1595,16 @@ namespace Basis.Scripts.Constraints
                 avatarId = sAvatarRoots.Count;
                 sAvatarLookup[root] = avatarId;
                 sAvatarRoots.Add(root);
-                sAvatarGroups.Add(new List<int>());
+                if (sAvatarGroups.Count <= avatarId)
+                {
+                    sAvatarGroups.Add(new List<int>());
+                }
+                else
+                {
+                    // Groups outlive the rebuild that filled them; this one starts over rather than
+                    // appending to whatever the last population left in it.
+                    sAvatarGroups[avatarId].Clear();
+                }
             }
             sAvatarGroups[avatarId].Add(registrationIndex);
             return avatarId;

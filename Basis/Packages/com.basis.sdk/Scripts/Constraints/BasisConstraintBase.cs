@@ -146,8 +146,34 @@ namespace Basis.Scripts.BasisSdk.Constraints
             results.AddRange(sources);
         }
 
+        /// <summary>
+        /// Replace the source list. Handing back the same transforms is a weight edit, not a
+        /// structural one — it rides the per-frame refresh like <see cref="SetSource"/>, so a script
+        /// calling this every frame in the Unity style does not force a global rebuild each time.
+        /// </summary>
         public void SetSources(List<BasisConstraintSourceEntry> newSources)
         {
+            if (newSources != null && newSources.Count == sources.Count)
+            {
+                bool sameTransforms = true;
+                for (int Index = 0; Index < sources.Count; Index++)
+                {
+                    if (sources[Index].sourceTransform != newSources[Index].sourceTransform)
+                    {
+                        sameTransforms = false;
+                        break;
+                    }
+                }
+                if (sameTransforms)
+                {
+                    for (int Index = 0; Index < sources.Count; Index++)
+                    {
+                        sources[Index] = newSources[Index];
+                    }
+                    return;
+                }
+            }
+
             sources.Clear();
             if (newSources != null)
             {

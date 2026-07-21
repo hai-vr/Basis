@@ -23,6 +23,9 @@ public partial class BasisHandHeldCameraUI
             case BasisCameraButtonAction.ToggleVRHandheldSmoothing:
                 isOn = HHC.useVRHandheldSmoothing;
                 return true;
+            case BasisCameraButtonAction.ToggleFollowPlayer:
+                isOn = HHC.IsFollowingPlayer;
+                return true;
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
                 return true;

@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Sync;
 using Basis.Scripts.Vehicles.Main;
 using Basis.Scripts.Vehicles.Parts;
@@ -132,6 +133,15 @@ namespace Basis.Network.Vehicles
             else
             {
                 ApplyRemoteExtrasToParts(0f, 0f);
+            }
+        }
+
+        public override void OnOwnershipTransfer(BasisNetworkPlayer NetIdNewOwner)
+        {
+            base.OnOwnershipTransfer(NetIdNewOwner);
+            if (SeatSync != null && SeatSync.IsLocallyEntered() && !IsOwnedLocallyOnServer)
+            {
+                TakeOwnership();
             }
         }
 

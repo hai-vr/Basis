@@ -726,6 +726,9 @@ namespace Basis.BasisUI
 
         // ---------------- INTERACTIONS ----------------
         public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
+
+        // Hide remote players' handheld camera pucks (and their owner tags) locally.
+        public static BasisSettingsBinding<bool> HideRemoteCameraPucks = new("hideremotecamerapucks", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> UIHaptics = new("uihaptics", new BasisPlatformDefault<bool>(false));
@@ -1981,6 +1984,9 @@ namespace Basis.BasisUI
             LimitThreshold.LoadBindingValue();
             LimitKnee.LoadBindingValue();
             DisableSeats.LoadBindingValue();
+            HideRemoteCameraPucks.LoadBindingValue();
+            BasisNetworkPIPCameraDriver.SetHideRemoteCameraPucks(HideRemoteCameraPucks.RawValue);
+            HideRemoteCameraPucks.OnChanged += BasisNetworkPIPCameraDriver.SetHideRemoteCameraPucks;
             DisablePropPickup.LoadBindingValue();
             DisableVRAutoHold.LoadBindingValue();
             UIHaptics.LoadBindingValue();

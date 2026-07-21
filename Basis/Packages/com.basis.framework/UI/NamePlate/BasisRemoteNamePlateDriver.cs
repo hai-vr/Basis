@@ -4,6 +4,9 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using System.Collections.Generic;
 using TMPro;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -811,8 +814,14 @@ namespace Basis.Scripts.UI.NamePlate
         private static readonly List<BasisRemoteNamePlate> pendingAdd = new(64);
         private static readonly List<BasisRemoteNamePlate> pendingRemove = new(64);
 
-        // Pulse results computed in ScheduleSimulate, applied in CompleteNamePlates.
-        private static PlateOutput[] results = new PlateOutput[256];
+        // Job-visible mirror of each plate's pulse state, kept in lockstep with `plates`
+        // (same indices, swap-back moves included). Written on state transitions via
+        // SyncPlateJobState — never gathered per frame — so ScheduleSimulate is only a
+        // Schedule call. Results computed by PlatePulseJob, applied in CompleteNamePlates.
+        private static NativeArray<PlateJobState> jobStates;
+        private static NativeArray<PlateOutput> results;
+        private static JobHandle pulseHandle;
+        private static bool pulseScheduled;
 
         public static int count;
         private static bool pulseComputed;
@@ -832,13 +841,21 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static void Dispose()
         {
+            CompletePulseInFlight();
             pulseComputed = false;
 
+            for (int i = 0; i < count; i++)
+            {
+                if (plates[i] != null) plates[i].RegistryIndex = -1;
+            }
             System.Array.Clear(plates, 0, count);
             indexOf.Clear();
             pendingAdd.Clear();
             pendingRemove.Clear();
             bakeQueue.Clear();
+
+            if (jobStates.IsCreated) jobStates.Dispose();
+            if (results.IsCreated) results.Dispose();
 
             BasisGlobalNamePlateRenderer.Dispose();
             if (PanelVertexColorMaterial != null)
@@ -889,72 +906,22 @@ namespace Basis.Scripts.UI.NamePlate
                 ApplyPendingStructuralChanges();
             }
 
-            if (count == 0)
+            if (count == 0 || !jobStates.IsCreated)
             {
                 pulseComputed = false;
                 return;
             }
 
-            if (results.Length < count)
+            pulseHandle = new PlatePulseJob
             {
-                results = new PlateOutput[math.ceilpow2(count)];
-            }
-
-            // `plates` is a plain T[] (not List<T>) so indexing skips the List indexer overhead.
-            var arr = plates;
-            for (int i = 0; i < count; i++)
-            {
-                results[i] = ComputePulse(arr[i], now, hold, fade);
-            }
-
+                now = now,
+                hold = hold,
+                fade = fade,
+                states = jobStates,
+                results = results,
+            }.Schedule(count, 128);
+            pulseScheduled = true;
             pulseComputed = true;
-        }
-
-        private static PlateOutput ComputePulse(BasisRemoteNamePlate p, double now, float hold, float fade)
-        {
-            PlateOutput o = default;
-
-            if (!p.GetIsPulsingForJob())
-            {
-                return o;
-            }
-
-            // Mid-pulse audibility recheck: if the player became inaudible (mute, block,
-            // out-of-range, audio source unloaded, etc.) while a pulse was in flight, snap
-            // the plate back to normal now instead of letting the hold+fade finish.
-            if (!p.CanCurrentlyBeHeard())
-            {
-                float4 rc = p.GetRestingColorFloat4ForJob();
-                p.ApplyColorFromJob(new Color(rc.x, rc.y, rc.z, rc.w));
-                p.StopPulseFromJob();
-                return o;
-            }
-
-            if (p.IsVisibleRaw == 0)
-            {
-                o.stopPulsing = 1;
-                return o;
-            }
-
-            double elapsed = now - p.GetTalkStartTimeForJob();
-            if (elapsed < hold)
-            {
-                return o;
-            }
-
-            float t = (float)((elapsed - hold) / fade);
-            if (t >= 1f)
-            {
-                o.color = p.GetRestingColorFloat4ForJob();
-                o.hasChange = 1;
-                o.stopPulsing = 1;
-                return o;
-            }
-
-            t = math.saturate(t);
-            o.color = math.lerp(p.GetTalkColorFloat4ForJob(), p.GetRestingColorFloat4ForJob(), t);
-            o.hasChange = 1;
-            return o;
         }
 
         /// <summary>
@@ -989,6 +956,16 @@ namespace Basis.Scripts.UI.NamePlate
                 }
             }
 
+            if (pulseScheduled)
+            {
+#if UNITY_EDITOR
+                if (BasisEventDriverProfilerData.Enabled)
+                    BasisEventDriverProfilerData.NamePlateJobWasIncomplete = !pulseHandle.IsCompleted;
+#endif
+                pulseHandle.Complete();
+                pulseScheduled = false;
+            }
+
             if (pulseComputed && count != 0)
             {
                 pulseComputed = false;
@@ -998,15 +975,29 @@ namespace Basis.Scripts.UI.NamePlate
                 for (int i = 0; i < count; i++)
                 {
                     var p = arr[i];
-                    PlateOutput o = results[i];
 
-                    if (o.stopPulsing != 0)
-                        p.StopPulseFromJob();
-
-                    if (o.hasChange != 0)
+                    // Mid-pulse audibility recheck lives here, not in the job — it touches Unity
+                    // audio components. If the player became inaudible (mute, block, out-of-range,
+                    // audio source unloaded, etc.) while a pulse was in flight, snap the plate back
+                    // to normal now instead of letting the hold+fade finish; overrides job output.
+                    if (p.GetIsPulsingForJob() && !p.CanCurrentlyBeHeard())
                     {
-                        float4 c = o.color;
-                        p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
+                        float4 rc = p.GetRestingColorFloat4ForJob();
+                        p.ApplyColorFromJob(new Color(rc.x, rc.y, rc.z, rc.w));
+                        p.StopPulseFromJob();
+                    }
+                    else
+                    {
+                        PlateOutput o = results[i];
+
+                        if (o.stopPulsing != 0)
+                            p.StopPulseFromJob();
+
+                        if (o.hasChange != 0)
+                        {
+                            float4 c = o.color;
+                            p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
+                        }
                     }
 
                     p.UpdateChatTimeout();
@@ -1031,6 +1022,7 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         private static void FlushPendingStructuralChanges()
         {
+            CompletePulseInFlight();
             pulseComputed = false;
 
             if (pendingAdd.Count > 0 || pendingRemove.Count > 0)
@@ -1041,6 +1033,8 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static void ApplyPendingStructuralChanges()
         {
+            CompletePulseInFlight();
+
             // Remove first (swap-back)
             for (int r = 0; r < pendingRemove.Count; r++)
             {
@@ -1053,11 +1047,19 @@ namespace Basis.Scripts.UI.NamePlate
 
                 plates[idx] = lastPlate;
                 plates[last] = null; // null out the now-unused tail slot so we don't pin a ref
+                if (jobStates.IsCreated)
+                {
+                    jobStates[idx] = jobStates[last];
+                }
                 count = last;
 
                 if (!ReferenceEquals(lastPlate, p))
+                {
                     indexOf[lastPlate] = idx;
+                    lastPlate.RegistryIndex = idx;
+                }
                 indexOf.Remove(p);
+                p.RegistryIndex = -1;
             }
             pendingRemove.Clear();
 
@@ -1073,6 +1075,7 @@ namespace Basis.Scripts.UI.NamePlate
                     System.Array.Copy(plates, grown, count);
                     plates = grown;
                 }
+                EnsureNativeCapacity(plates.Length);
 
                 for (int a = 0; a < adds; a++)
                 {
@@ -1082,10 +1085,56 @@ namespace Basis.Scripts.UI.NamePlate
 
                     plates[count] = p;
                     indexOf[p] = count;
+                    p.RegistryIndex = count;
+                    jobStates[count] = p.BuildJobState();
                     count++;
                 }
             }
             pendingAdd.Clear();
+        }
+
+        /// <summary>
+        /// Pushes the plate's current pulse fields into the job-visible mirror. Call after any
+        /// change to pulse timing, colors, or visibility; no-op until the plate is registered
+        /// (registration seeds the slot). Joins an in-flight pulse job first — the job reads
+        /// the mirror, so no slot may be rewritten mid-run. The computed results stay valid:
+        /// they were produced from the pre-change state, exactly as the synchronous loop did.
+        /// </summary>
+        internal static void SyncPlateJobState(BasisRemoteNamePlate p)
+        {
+            int i = p.RegistryIndex;
+            if (i < 0 || !jobStates.IsCreated) return;
+
+            if (pulseScheduled)
+            {
+                pulseHandle.Complete();
+                pulseScheduled = false;
+            }
+            jobStates[i] = p.BuildJobState();
+        }
+
+        private static void CompletePulseInFlight()
+        {
+            if (!pulseScheduled) return;
+            pulseHandle.Complete();
+            pulseScheduled = false;
+            pulseComputed = false;
+        }
+
+        private static void EnsureNativeCapacity(int cap)
+        {
+            if (jobStates.IsCreated && jobStates.Length >= cap) return;
+
+            var grownStates = new NativeArray<PlateJobState>(cap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+            var grownResults = new NativeArray<PlateOutput>(cap, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+            if (jobStates.IsCreated)
+            {
+                NativeArray<PlateJobState>.Copy(jobStates, grownStates, count);
+                jobStates.Dispose();
+                results.Dispose();
+            }
+            jobStates = grownStates;
+            results = grownResults;
         }
 
         public struct PlateOutput
@@ -1093,6 +1142,65 @@ namespace Basis.Scripts.UI.NamePlate
             public float4 color;
             public ushort hasChange;   // 0/1
             public ushort stopPulsing; // 0/1
+        }
+
+        public struct PlateJobState
+        {
+            public double talkStartTime;
+            public float4 talkColor;
+            public float4 restingColor;
+            public byte isPulsing;  // 0/1
+            public byte isVisible;  // 0/1
+        }
+
+        [BurstCompile]
+        private struct PlatePulseJob : IJobParallelFor
+        {
+            public double now;
+            public float hold;
+            public float fade;
+            [ReadOnly] public NativeArray<PlateJobState> states;
+            [WriteOnly] public NativeArray<PlateOutput> results;
+
+            public void Execute(int Index)
+            {
+                PlateOutput o = default;
+                PlateJobState s = states[Index];
+
+                if (s.isPulsing == 0)
+                {
+                    results[Index] = o;
+                    return;
+                }
+
+                if (s.isVisible == 0)
+                {
+                    o.stopPulsing = 1;
+                    results[Index] = o;
+                    return;
+                }
+
+                double elapsed = now - s.talkStartTime;
+                if (elapsed < hold)
+                {
+                    results[Index] = o;
+                    return;
+                }
+
+                float t = (float)((elapsed - hold) / fade);
+                if (t >= 1f)
+                {
+                    o.color = s.restingColor;
+                    o.hasChange = 1;
+                    o.stopPulsing = 1;
+                }
+                else
+                {
+                    o.color = math.lerp(s.talkColor, s.restingColor, math.saturate(t));
+                    o.hasChange = 1;
+                }
+                results[Index] = o;
+            }
         }
     }
 }

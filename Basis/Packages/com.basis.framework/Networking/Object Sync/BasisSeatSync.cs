@@ -16,6 +16,8 @@ public class BasisSeatSync : BasisNetworkBehaviour
     private Vector3 _lastPinPosition;
     private Quaternion _lastPinRotation = Quaternion.identity;
     private bool _hasLastPinPosition;
+    private uint _seatGen;
+    private bool _applyingNetworkState;
 
     [Header("Seat")]
     public BasisSeat Seat;
@@ -238,6 +240,10 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void OnInteractStartEvent(BasisInput input)
     {
+        if (_applyingNetworkState)
+        {
+            return;
+        }
         if (Seat.LocallyInSeat)//guards against the oninteract from exit click
         {
             if (!GetLocalPlayerIdSafe(out ushort id))
@@ -246,17 +252,27 @@ public class BasisSeatSync : BasisNetworkBehaviour
                 return;
             }
 
-            // If someone else is already in the seat, do nothing.
+            // If someone else is already in the seat, undo the speculative local sit.
             if (HasUser(out ushort current) && current != id)
             {
+                _applyingNetworkState = true;
+                try
+                {
+                    StandIfPhysicallySeated();
+                }
+                finally
+                {
+                    _applyingNetworkState = false;
+                }
                 return;
             }
 
-            // If we're already the occupant, do nothing.
+            // If we're already the recorded occupant, keep the fresh sit and re-assert the claim.
             if (IsLocallyEntered())
             {
-                BasisDebug.Log("We are already the Recipient Standing and then sitting again.");
-                Stand();
+                _seatGen++;
+                SendCustomNetworkEvent(CreateSeatPacket(true), DeliveryMethod.ReliableOrdered);
+                return;
             }
 
             SetSeatState(true, id);
@@ -268,6 +284,10 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void OnInteractEndEvent(BasisInput input)
     {
+        if (_applyingNetworkState)
+        {
+            return;
+        }
         if (GetLocalPlayerIdSafe(out ushort id))
         {
             if (IsLocallyEntered())
@@ -298,6 +318,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
             return;
         }
 
+        _seatGen++;
         SetSeatStateLocal(state, id);
 
         // Broadcast new state including occupant ID.
@@ -307,46 +328,112 @@ public class BasisSeatSync : BasisNetworkBehaviour
 
     /// <summary>
     /// Apply state received from the network. Packet occupantId is the senderid, this is to lock it into coming from the right person.
+    /// Claims are arbitrated by generation, then lowest player id, so simultaneous sits converge on the same winner everywhere;
+    /// the loser is stood back up. Releases only apply when they come from the recorded occupant.
     /// </summary>
     public override void OnNetworkMessage(ushort occupantId, byte[] buffer, DeliveryMethod deliveryMethod)
     {
-        if (!DeserializeSeatPacket(buffer, out bool occupied))
+        if (!DeserializeSeatPacket(buffer, out bool occupied, out uint gen, out bool hasGen))
         {
             return;
         }
+        if (GetLocalPlayerIdSafe(out ushort localId) && occupantId == localId)
+        {
+            return;
+        }
+        if (!hasGen)
+        {
+            gen = _seatGen + 1;
+        }
 
-        // If remote says "occupied by X", and we think we're seated but X != local, stand locally.
         if (occupied)
         {
-            if (IsLocallyEntered() && GetLocalPlayerIdSafe(out ushort localId) && occupantId != localId)
+            bool accept;
+            if (gen > _seatGen)
             {
-                Stand();
+                accept = true;
+            }
+            else if (gen == _seatGen)
+            {
+                if (!HasUser(out ushort current) || current == occupantId)
+                {
+                    accept = true;
+                }
+                else
+                {
+                    accept = occupantId < current;
+                }
+            }
+            else
+            {
+                accept = false;
+            }
+            if (!accept)
+            {
+                return;
+            }
+
+            _applyingNetworkState = true;
+            try
+            {
+                _seatGen = gen;
+                StandIfPhysicallySeated();
+                SetSeatStateLocal(true, occupantId);
+            }
+            finally
+            {
+                _applyingNetworkState = false;
             }
         }
         else
         {
-            // Remote says "unoccupied"; if we think we're seated, stand.
-            if (IsLocallyEntered())
+            if (gen <= _seatGen)
             {
-                Stand();
+                return;
+            }
+            if (!HasUser(out ushort current) || current != occupantId)
+            {
+                return;
+            }
+
+            _applyingNetworkState = true;
+            try
+            {
+                _seatGen = gen;
+                StandIfPhysicallySeated();
+                SetSeatStateLocal(false, occupantId);
+            }
+            finally
+            {
+                _applyingNetworkState = false;
             }
         }
-
-        // Apply without rebroadcasting.
-        SetSeatStateLocal(occupied, occupantId);
     }
     private void Stand()
     {
         BasisLocalPlayer.Instance?.LocalSeatDriver?.Stand();
     }
 
+    private void StandIfPhysicallySeated()
+    {
+        if (Seat != null && Seat.LocallyInSeat)
+        {
+            BasisLocalPlayer.Instance?.LocalSeatDriver?.Stand();
+        }
+    }
+
     /// <summary>
-    /// Create a seat packet: [occupied(byte)].
+    /// Create a seat packet: [occupied(byte)][generation(uint32 LE)].
     /// </summary>
     public byte[] CreateSeatPacket(bool isInSeat)
     {
-        byte[] data = new byte[1];
+        byte[] data = new byte[5];
         data[0] = isInSeat ? (byte)1 : (byte)0;
+        uint gen = _seatGen;
+        data[1] = (byte)gen;
+        data[2] = (byte)(gen >> 8);
+        data[3] = (byte)(gen >> 16);
+        data[4] = (byte)(gen >> 24);
         return data;
     }
 
@@ -382,14 +469,21 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// <summary>
     /// Parse a seat packet. Returns false on malformed data.
     /// </summary>
-    private static bool DeserializeSeatPacket(byte[] buffer, out bool occupied)
+    private static bool DeserializeSeatPacket(byte[] buffer, out bool occupied, out uint gen, out bool hasGen)
     {
         occupied = false;
+        gen = 0;
+        hasGen = false;
         if (buffer == null || buffer.Length < 1)
         {
             return false;
         }
         occupied = buffer[0] != 0;
+        if (buffer.Length >= 5)
+        {
+            gen = (uint)(buffer[1] | (buffer[2] << 8) | (buffer[3] << 16) | (buffer[4] << 24));
+            hasGen = true;
+        }
         return true;
     }
 }

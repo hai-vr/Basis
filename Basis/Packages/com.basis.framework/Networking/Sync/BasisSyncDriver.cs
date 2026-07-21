@@ -96,6 +96,9 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Live list of remote (interpolated) synced objects, for debug visualisation. Do not mutate.</summary>
         public static IReadOnlyList<BasisSyncedObject> RemoteObjects => _remote;
 
+        /// <summary>Live set of locally-owned (transmitting) synced objects, for debug visualisation. Do not mutate.</summary>
+        public static HashSet<BasisSyncedObject> OwnedObjects => _owned;
+
         public static void RegisterOwned(BasisSyncedObject obj)
         {
             if (obj != null) _owned.Add(obj);
@@ -194,6 +197,11 @@ namespace Basis.Scripts.Networking.Sync
 
             _jobHandle = h;
             _scheduled = true;
+
+            // Kick the batch now: the complete sits far away in the LateUpdate network-apply
+            // block, and without a flush the interp chain idles in the queue through the
+            // eye/comms/transmit stages it is supposed to overlap.
+            JobHandle.ScheduleBatchedJobs();
         }
 
         public static void CompleteRemote()

@@ -766,6 +766,22 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "jp.keijiro.klak.spout": {
+      "version": "file:jp.keijiro.klak.spout",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.modules.screencapture": "1.0.0"
+      }
+    },
+    "jp.keijiro.klak.syphon": {
+      "version": "file:jp.keijiro.klak.syphon",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.modules.screencapture": "1.0.0"
+      }
+    },
     "nuget.meamod.dns": {
       "version": "file:nuget.meamod.dns",
       "depth": 0,
