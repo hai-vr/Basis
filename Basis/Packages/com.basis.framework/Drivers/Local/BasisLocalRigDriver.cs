@@ -11,6 +11,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using Basis.IK;
 using UnityEngine.Jobs;
@@ -561,6 +562,20 @@ namespace Basis.Scripts.Drivers
             LocomotionPose.Schedule(this, animator, in frameParams, deltaTime);
         }
 
+        static readonly ProfilerMarker sMarkerIKDestPrep = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.Prep");
+        static readonly ProfilerMarker sMarkerIKDestFootSchedule = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.FootSchedule");
+        static readonly ProfilerMarker sMarkerIKDestGatherTargets = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.GatherTargets");
+        static readonly ProfilerMarker sMarkerIKDestFilters = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.Filters");
+        static readonly ProfilerMarker sMarkerIKDestFootJoin = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.FootJoin");
+        static readonly ProfilerMarker sMarkerIKDestBuildTargets = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.BuildIKTargets");
+        static readonly ProfilerMarker sMarkerIKDestAnimatorEval = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.AnimatorEvaluate");
+        static readonly ProfilerMarker sMarkerIKDestLocoJoin = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.LocoPoseJoin");
+        static readonly ProfilerMarker sMarkerIKDestPoseGather = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PoseGather");
+        static readonly ProfilerMarker sMarkerIKDestApplyFit = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.ApplyFit");
+        static readonly ProfilerMarker sMarkerIKDestSolve = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.Solve");
+        static readonly ProfilerMarker sMarkerIKDestPoseScatter = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PoseScatter");
+        static readonly ProfilerMarker sMarkerIKDestPublish = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PublishWorldData");
+
         public void SimulateIKDestinations(float deltaTime)
         {
             if (!IKDataReady || !IKJobCreated)
@@ -575,16 +590,19 @@ namespace Basis.Scripts.Drivers
 
             timeAccumulator += Mathf.Max(deltaTime, 1e-6f);
 
+            sMarkerIKDestPrep.Begin();
             EnsureFilterArrays();
 
             // Filter tuning is per smoothing group; resolve the 7 groups once, then scatter to the 15 slots.
             ResolveSmoothingGroups(deltaTime);
+            sMarkerIKDestPrep.End();
             float safeDt = Mathf.Max(deltaTime, 1e-6f);
 
             // ── 1. Schedule foot sim FIRST ──
             // It is one long single-threaded Burst job, and everything from the bone gather through the filter
             // scheduling below reads none of its state, so it all overlaps. Scheduled after the filter jobs it
             // had ~20 lines to finish in and CompleteSimulate was mostly a stall.
+            sMarkerIKDestFootSchedule.Begin();
             bool fbtEnabled = Basis.BasisUI.BasisSettingsDefaults.EnableFBT.RawValue;
             bool leftHasTracker = fbtEnabled && (BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker
                 || BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
@@ -610,8 +628,10 @@ namespace Basis.Scripts.Drivers
                 footDriver.ScheduleSimulate(deltaTime);
                 footSimScheduled = true;
             }
+            sMarkerIKDestFootSchedule.End();
 
             // ── 2. Gather raw inputs from bone controls (main thread only) ──
+            sMarkerIKDestGatherTargets.Begin();
             var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
             var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
             var leftFootData = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
@@ -709,8 +729,10 @@ namespace Basis.Scripts.Drivers
                 _fallbackPosStates.CopyFrom(_posInputs);
                 _fallbackRotStates.CopyFrom(_rotInputs);
             }
+            sMarkerIKDestGatherTargets.End();
 
             // ── 5. Schedule batched filter jobs ──
+            sMarkerIKDestFilters.Begin();
             var posJob = new BasisBatchPositionFilterJob
             {
                 mode = _posModeNative,
@@ -737,6 +759,7 @@ namespace Basis.Scripts.Drivers
             // scheduled earlier and still completes below.
             posJob.Run(SlotCount);
             rotJob.Run(SlotCount);
+            sMarkerIKDestFilters.End();
 
             // ── 6. Main-thread bookkeeping runs parallel with the foot job ──
             float leftBlendTarget = leftWantIK ? 1f : 0f;
@@ -762,6 +785,7 @@ namespace Basis.Scripts.Drivers
             bool trackerBendNormal = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackerBendNormal.RawValue;
 
             // ── 7. Wait for the foot job ──
+            sMarkerIKDestFootJoin.Begin();
             if (footSimScheduled) footDriver.CompleteSimulate();
 
             // NotifyReEngaging reads live bone control data (not foot sim output), but kept after
@@ -772,8 +796,10 @@ namespace Basis.Scripts.Drivers
             // next frame's ScheduleSimulate, so the rays run on a worker across the frame boundary and cost
             // the main thread nothing. Must stay after NotifyReEngaging, which rewrites currentPos.
             if (footSimScheduled) footDriver.ScheduleSurfaceProbes();
+            sMarkerIKDestFootJoin.End();
 
             // ── 8. Scatter filter outputs into BasisFullIKConstraintJob ──
+            sMarkerIKDestBuildTargets.Begin();
             ref BasisFullIKConstraintJob data = ref IKJob;
 
             // Pull out pointers once; avoids per-slot safety-handle checks on each indexer read.
@@ -1146,18 +1172,25 @@ namespace Basis.Scripts.Drivers
             // Pull the latest tunable settings into data every frame so slider changes flow into
             // the IK job. Without this the job runs on the boot-time snapshot from Spine().
             ApplyTuningSettings(ref data);
+            sMarkerIKDestBuildTargets.End();
 
             if (!EngineDrivenAnimatorEvaluate && !LocomotionPose.EngineAnimatorSuppressed)
             {
+                sMarkerIKDestAnimatorEval.Begin();
                 PlayableGraph.Evaluate(deltaTime);
+                sMarkerIKDestAnimatorEval.End();
             }
+            sMarkerIKDestLocoJoin.Begin();
             bool streamPrefilled = LocomotionPose.TryComplete(PoseSkeleton);
+            sMarkerIKDestLocoJoin.End();
             RunIKSolve(deltaTime, streamPrefilled);
 
             // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
             // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
             // OutgoingWorldData.
+            sMarkerIKDestPublish.Begin();
             PublishIKWorldData();
+            sMarkerIKDestPublish.End();
 
             // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
             // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
@@ -1959,14 +1992,20 @@ namespace Basis.Scripts.Drivers
 
             if (!streamPrefilled)
             {
+                sMarkerIKDestPoseGather.Begin();
                 PoseSkeleton.GatherNow();
+                sMarkerIKDestPoseGather.End();
             }
 
+            sMarkerIKDestApplyFit.Begin();
             PoseSkeleton.ApplyFit();
+            sMarkerIKDestApplyFit.End();
 
+            sMarkerIKDestSolve.Begin();
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;
             IKJob.Run();
+            sMarkerIKDestSolve.End();
 
             // Leg diagnostics are written INSIDE the job, so read them here and not before Run().
             if (BasisLegSwivelDebug.Enabled)
@@ -1981,7 +2020,9 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
+            sMarkerIKDestPoseScatter.Begin();
             PoseSkeleton.ScatterNow();
+            sMarkerIKDestPoseScatter.End();
         }
 
         // How far a leg's bend plane has drifted from the body frame. BendNormal rides the lower-leg TRACKER
