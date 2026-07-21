@@ -24,6 +24,17 @@ public struct BasisFootNativeState
     /// 0 = no floor = the pre-existing behaviour, which is what the sweep/mocap mirrors leave it at.</summary>
     public float stepArcScale;
     public float plantedTime;       // seconds since this foot landed; gates the double-support window
+    /// <summary>How committed THIS step is, 0 = deliberate .. 1 = full speed. Published by the sim job at the
+    /// instant the step is requested and consumed by BasisLocalFootDriver.FinalizeStep, which used to re-derive
+    /// urgency from sim state -- one fewer mirror to drift. Carries the drift term the job's global urgencyT
+    /// cannot see: how far past its trigger this particular foot is.</summary>
+    public float stepUrgency;
+    /// <summary>Foot rotation frozen at TOUCHDOWN — the dorsiflexed heel-strike pose the foot-flat roll-down
+    /// blends FROM, mirroring what stepStartRot does for the swing. Deliberately NOT round-tripped through
+    /// BasisFootState: a rebuild (re-engage/teleport) seeds plantedTime to SettledPlantedTime, which is past
+    /// the roll-down window, so the exponential branch runs and landRot is never read. Contrast plantedTime,
+    /// which DID have to survive the round-trip.</summary>
+    public quaternion landRot;
 
     public float3 idealPos, filteredNormal;
     public float3 currentPos;
@@ -54,6 +65,11 @@ public struct BasisFootSimState
     public float3 smoothedBodyRight;
     public float3 prevBodyFwd;          // last frame's body forward, for yaw-rate
     public float smoothedYawRateDeg;    // body turn rate (deg/s), paces stepping during turns/spins
+    /// <summary>Smoothed |d(smoothedVelocity)/dt|, m/s². Drives the acceleration term of step urgency: it is
+    /// non-zero at the instant a move STARTS (when speed is still ~0) and at the instant it STOPS (when speed
+    /// is falling), which is exactly where a speed-only urgency reads backwards. Scale-invariant — see
+    /// k_AccelUrgencyRef.</summary>
+    public float smoothedAccelMag;
     public float3 prevRootFwd;          // last frame's PLAYER-ROOT forward; lets the body-fwd filter ride the root
     public bool wasAirborne;            // last frame's airborne flag, so touchdown can be detected as an EDGE
 }

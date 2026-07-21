@@ -64,7 +64,7 @@ public partial class BasisHandHeldCameraUI
         descriptor.statusIndicator.color = isOn ? StatusOnColor : StatusOffColor;
     }
 
-    private void RefreshAllToggleIndicators()
+    public void RefreshAllToggleIndicators()
     {
         if (ScriptableButtons == null)
             return;

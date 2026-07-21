@@ -38,6 +38,13 @@ namespace Basis.IK
         /// when the head is at rest. Spine compression measures the head drop relative to this.</summary>
         private float _standingHipsLocalY;
         private float _standingHeadLocalY;
+        /// <summary>The avatar's authored eye→hips horizontal arm at T-pose (its standing spine curve),
+        /// re-applied over the leashed eye baseline so the standing pelvis matches the avatar's own
+        /// skeleton at every facing (the eye is the only point that does not orbit under view yaw).</summary>
+        private float3 _hipsFromEyeTposeXZ;
+        /// <summary>The avatar's authored eye→head horizontal arm at T-pose, for the posture model's
+        /// head-rest reference over the support base.</summary>
+        private float3 _headFromEyeTposeXZ;
 
         /// <summary>Set whenever cached lengths need to be recomputed (scale or TPose changed).</summary>
         private bool _lengthsDirty = true;
@@ -129,7 +136,7 @@ namespace Basis.IK
 
             if (_lengthsDirty)
             {
-                RecomputeSegmentLengths(head, neck, chest, spine, hips);
+                RecomputeSegmentLengths(eye, head, neck, chest, spine, hips);
                 _lengthsDirty = false;
             }
 
@@ -204,6 +211,9 @@ namespace Basis.IK
 
                 StandingHipsLocalY = _standingHipsLocalY,
                 StandingHeadLocalY = _standingHeadLocalY,
+                EyePos = eye.OutGoingData.position,
+                HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
+                HeadRestFromEyeLocal = _headFromEyeTposeXZ,
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
                 HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
                 HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,
@@ -239,7 +249,7 @@ namespace Basis.IK
             return c.TargetIndex >= 0 ? c.Owner.Controls[c.TargetIndex] : c;
         }
 
-        private void RecomputeSegmentLengths(BasisLocalBoneControl head, BasisLocalBoneControl neck, BasisLocalBoneControl chest, BasisLocalBoneControl spine, BasisLocalBoneControl hips)
+        private void RecomputeSegmentLengths(BasisLocalBoneControl eye, BasisLocalBoneControl head, BasisLocalBoneControl neck, BasisLocalBoneControl chest, BasisLocalBoneControl spine, BasisLocalBoneControl hips)
         {
             float3 pHead = head.TposeLocalScaled.position;
             float3 pNeck = neck.TposeLocalScaled.position;
@@ -258,6 +268,13 @@ namespace Basis.IK
             // The posture model normalises by the user's own standing HEAD height, which is what makes it
             // scale-free. Guarded: a rig that puts the head at the origin would otherwise divide by zero.
             _standingHeadLocalY = math.max(pHead.y, 1e-3f);
+            // The avatar's own authored horizontal arms from the EYE (its standing spine curve, measured
+            // from the one point that cannot orbit under view yaw). Reproduced over the leashed eye
+            // baseline, the standing pelvis lands exactly where THIS avatar's skeleton stands. The T-pose
+            // capture zeroes x for spine bones, so these are sagittal scalars in practice.
+            float3 pEye = eye.TposeLocalScaled.position;
+            _hipsFromEyeTposeXZ = new float3(pHips.x - pEye.x, 0f, pHips.z - pEye.z);
+            _headFromEyeTposeXZ = new float3(pHead.x - pEye.x, 0f, pHead.z - pEye.z);
         }
     }
 }

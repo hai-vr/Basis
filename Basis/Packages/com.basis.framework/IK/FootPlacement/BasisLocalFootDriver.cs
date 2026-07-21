@@ -1017,13 +1017,13 @@ public partial class BasisLocalFootDriver
         float3 velFlat = (float3)ProjectHorizontal(sim.smoothedVelocity);
         float speed = math.length(velFlat);
         float fastYawRef = Mathf.Max(1f, 0.5f * maxPlantedYawDegrees / Mathf.Max(0.01f, stepDurFast));
-        // MUST mirror BasisFootSimulateJob's urgencyT/yawUrgency -- the job derives the same values to pace the
-        // trigger, and this commits the step. Yaw contributes on the URGENCY reference (k_YawUrgencyRefMul = 5),
-        // not the pacing one, so an ordinary turn no longer forces a minimum-duration flick of a step.
         float absYawRate = Mathf.Abs(sim.smoothedYawRateDeg);
         float yawPacing = Mathf.Clamp01(absYawRate / fastYawRef);
-        float yawUrgency = Mathf.Clamp01(absYawRate / (fastYawRef * BasisFootSimulateJob.YawUrgencyRefMul));
-        float urgencyT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), yawUrgency);
+        // urgencyT is no longer re-derived here. The job publishes f.stepUrgency at the instant it requests the
+        // step, and only the job can see the per-foot drift term -- how far past its own trigger THIS foot is --
+        // which is what makes a big recovery commit and a small adjustment stay gentle. Re-deriving it from sim
+        // state would silently drop that and re-create the mirror this used to be.
+        float urgencyT = Mathf.Clamp01(f.stepUrgency);
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;

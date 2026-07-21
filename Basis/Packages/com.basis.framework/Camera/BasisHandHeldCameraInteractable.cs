@@ -76,6 +76,12 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
     public float followTeleportSnapDistance = 10f;
 
+    /// <summary>Capsule radius around the player the follow camera can never enter (metres at default avatar scale).</summary>
+    public float followBoundaryRadius = 0.4f;
+
+    /// <summary>How far the no-go capsule extends above the player's head (metres at default avatar scale).</summary>
+    public float followBoundaryHeadroom = 0.25f;
+
     [Header("VR Handheld Stabilization")]
     public bool useVRHandheldSmoothing = false;
     public bool onlySmoothWhenStreamingToDesktop = true;
@@ -398,6 +404,13 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     {
         if (HHC.captureCamera == null) return;
 
+        // Follow mode can be exited silently (entering fly mode sets WorldSpace) — the
+        // button indicators only refresh on clicks, so refresh them on the transition.
+        if (previousPinState == CameraPinSpace.FollowPlayer && PinSpace != CameraPinSpace.FollowPlayer)
+        {
+            cameraUI?.RefreshAllToggleIndicators();
+        }
+
         switch (PinSpace)
         {
             case CameraPinSpace.HandHeld:
@@ -471,11 +484,27 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                     smoothedPosition = Vector3.Lerp(smoothedPosition, followTargetPos, followPositionSmoothing * followDelta);
                 }
 
+                // Keep the camera outside a feet-to-head capsule so it can never clip into the avatar.
+                Vector3 followHeadPos = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.HeadPosition : followPlayerPos;
+                float followRadius = BasisPlayerInteract.AvatarScaledRange(followBoundaryRadius);
+                Vector3 capsuleBottom = followPlayerPos + Vector3.up * followRadius;
+                Vector3 capsuleTop = followHeadPos + Vector3.up * BasisPlayerInteract.AvatarScaledRange(followBoundaryHeadroom);
+                if (capsuleTop.y < capsuleBottom.y) capsuleTop = capsuleBottom;
+                Vector3 capsuleAxis = capsuleTop - capsuleBottom;
+                float capsuleAxisSq = capsuleAxis.sqrMagnitude;
+                float capsuleT = capsuleAxisSq > 1e-8f ? Mathf.Clamp01(Vector3.Dot(smoothedPosition - capsuleBottom, capsuleAxis) / capsuleAxisSq) : 0f;
+                Vector3 capsuleClosest = capsuleBottom + capsuleAxis * capsuleT;
+                Vector3 fromAxis = smoothedPosition - capsuleClosest;
+                if (fromAxis.sqrMagnitude < followRadius * followRadius)
+                {
+                    Vector3 pushDirection = fromAxis.sqrMagnitude > 1e-8f ? fromAxis.normalized : followYaw * Vector3.back;
+                    smoothedPosition = capsuleClosest + pushDirection * followRadius;
+                }
+
                 Quaternion followTargetRot;
                 if (followLookAtPlayer)
                 {
-                    Vector3 followLookTarget = BasisLocalCameraDriver.HasInstance ? BasisLocalCameraDriver.HeadPosition : followPlayerPos;
-                    Vector3 followToPlayer = followLookTarget - smoothedPosition;
+                    Vector3 followToPlayer = followHeadPos - smoothedPosition;
                     followTargetRot = followToPlayer.sqrMagnitude > 0.0001f
                         ? Quaternion.LookRotation(followToPlayer.normalized, Vector3.up)
                         : smoothedRotation;

@@ -22,6 +22,17 @@ namespace Basis.IK
         /// beyond it the user must have stepped, so the base follows.</summary>
         private const float StanceRadiusFrac = 0.12f;
 
+        /// <summary>Extra stance radius per metre the head has DESCENDED, so a crouch is not mistaken for a step.
+        /// "A lean cannot reach past a stance radius" holds for a standing lean but NOT for a squat: a real one
+        /// leans the trunk ~35 deg and carries the head ~0.16 of standing height forward with the feet planted,
+        /// well past the 0.12 radius. The base then concluded "stepped", followed the head at HeadBaselinePullRate,
+        /// and left the hips forward of the player once they stood back up -- permanently, since nothing pulls the
+        /// baseline back. Measured squat kinematics (Kasahara 2024 joint angles through sagittal FK) put the head's
+        /// forward travel at 0.55-0.70x its vertical drop across the whole depth range, so allowing the larger of
+        /// those covers a legitimate crouch at any depth. Zero at standing height, so ordinary stepping is
+        /// completely unaffected.</summary>
+        private const float CrouchLeanAllowanceFrac = 0.70f;
+
         /// <summary>Rate (s⁻¹) the support base follows the head once the head is a full stance radius outside
         /// it. Stiff on purpose: a soft pull lags the head through a step and then creeps into the leftover
         /// error after it stops, which is the drift this replaces.</summary>
@@ -113,6 +124,15 @@ namespace Basis.IK
 
             public float StandingHipsLocalY;
             public float StandingHeadLocalY;
+            /// <summary>The eye device position (playspace-local) — the one point that does NOT orbit when
+            /// the view yaws. The stance leash tracks this; every body-relative arm is added after it.</summary>
+            public float3 EyePos;
+            /// <summary>The avatar's authored eye→hips horizontal arm at T-pose, applied to the leashed eye
+            /// baseline in the torso's yaw frame. Reproduces the avatar's own standing spine curve.</summary>
+            public float3 HipsAnchorOffsetLocal;
+            /// <summary>The avatar's authored eye→head horizontal arm at T-pose. Locates where the head
+            /// RESTS over the support base so the posture model's lean measures travel, not authoring.</summary>
+            public float3 HeadRestFromEyeLocal;
             // 1 = the fitted pelvis posture model (BasisPelvisPostureModel), 0 = the legacy exponential
             // saturation. A toggle and not a slider: these are two different laws, not two ends of one.
             public byte PostureModel;
@@ -194,7 +214,41 @@ namespace Basis.IK
                 float biasScale = P.HipsForwardBias * P.Scale;
 
                 float3 headPosWorld = head.OutgoingPosition;
-                float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, headPosWorld, dt, P.StandingHeadLocalY, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
+                // The hips anchor decomposes into a TRANSLATION-ONLY reference and a BODY-RELATIVE arm, and
+                // the split is load-bearing:
+                //   * The stance leash tracks the EYE DEVICE -- the only yaw-invariant point. Every derived
+                //     bone (head = eye - R*eyeOffset, neck, any "anchor" built from them) ORBITS the eye
+                //     when the view yaws (desktop pins the eye on the capsule axis, so turning swings the
+                //     head/neck through circles of their authored eye-arm radii). Leashing an orbiting
+                //     point made the hips wander with facing and settle differently per direction -- "the
+                //     offset is changing as we rotate" -- and a 180-deg turn could exceed the stance radius
+                //     outright, permanently re-seating the standing spot.
+                //   * THE AVATAR'S OWN authored eye->hips horizontal arm is added AFTER the leash, rotated
+                //     by the torso yaw. Turning in place rotates the arm smoothly and the leash never sees
+                //     it; the standing chain lands in the avatar's authored rest shape (head/neck/hips in
+                //     their authored relationships -- this rig authors its hips 1.7 cm ahead of its neck,
+                //     its lumbar curve), so the FBIK solves it with no synthetic bend: a human spine,
+                //     correct to the avatar used. Anchoring under the raw head bone (pelvis-leading
+                //     recline) and plumb under the neck (forward bow on lordotic rigs) both leaned, because
+                //     each ignored the avatar.
+                float3 eyePosDevice = P.EyePos;
+                // Crouch depth for the stance radius, measured off the HEAD (vertical drop is a head
+                // quantity) and lifted into the tracked frame exactly as ComputeHipsPosition does --
+                // otherwise a play-space lift reads as a permanent phantom crouch.
+                float stanceHeadDrop = math.max(0f, (P.StandingHeadLocalY + P.TrackingLiftY) - headPosWorld.y);
+                float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, eyePosDevice, dt, P.StandingHeadLocalY, stanceHeadDrop, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
+                float3 hipsArm = math.mul(torsoYawTarget, P.HipsAnchorOffsetLocal);
+                desiredHipsXZ += new float3(hipsArm.x, 0f, hipsArm.z);
+                // The posture model's lean must measure the head's TRAVEL, not the avatar's authoring or the
+                // view yaw: offset the support base to where the head RESTS over it (the authored eye->head
+                // arm in the torso frame). Without this the lean carried a facing-dependent phantom of up to
+                // the head's eye-arm radius. Feet-tracked support (the pendulum branch) is left as-is -- a
+                // measured feet midpoint matches the corpus convention the model was fitted in.
+                if (!(P.LeftFootTracked != 0 && P.RightFootTracked != 0))
+                {
+                    float3 headRestArm = math.mul(torsoYawTarget, P.HeadRestFromEyeLocal);
+                    supportXZ += new float3(headRestArm.x, 0f, headRestArm.z);
+                }
 
                 ComputeHipsPosition(
                     in neckPosWorld,
@@ -374,7 +428,7 @@ namespace Basis.IK
         // the pelvis is lerped away from), so it is handed back rather than recomputed: the posture model measures
         // the head's forward LEAN against it, and two copies of that definition is exactly the kind of quiet
         // disagreement that has bitten this codebase before.
-        private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, in quaternion torsoYaw, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
+        private static float3 ComputeRealisticHipsXZBurst(ref SpineSolveState s, float3 headPosWorld, float dt, float standingHeadY, float headDrop, in quaternion torsoYaw, float3 leftFootPos, float3 rightFootPos, bool leftFootTracked, bool rightFootTracked, out float3 supportXZ)
         {
             float3 headXZ = new float3(headPosWorld.x, 0f, headPosWorld.z);
 
@@ -390,7 +444,9 @@ namespace Basis.IK
                 // and leave it there), but a lean cannot reach past a stance radius. The pull scales with the
                 // SQUARED exceedance so tracker jitter across the boundary cannot ratchet the base outward.
                 float safeDt = math.max(dt, 1e-6f);
-                float radius = math.max(StanceRadiusFrac * standingHeadY, 1e-3f);
+                // The BASE radius stays un-lifted on purpose (see TrackingLiftY: the lift moves the body, it
+                // does not resize it); only the crouch allowance uses the lifted drop, computed by the caller.
+                float radius = math.max(StanceRadiusFrac * standingHeadY + CrouchLeanAllowanceFrac * headDrop, 1e-3f);
 
                 float3 offset = headXZ - s.HeadBaselineXZ;
                 float over = math.max(0f, math.length(offset) - radius) / radius;
