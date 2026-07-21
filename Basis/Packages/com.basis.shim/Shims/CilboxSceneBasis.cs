@@ -34,7 +34,6 @@ namespace Cilbox
 			"Basis.BasisStringDownloader",
 			"Basis.IBasisStringDownload",
 			"Basis.BasisUrl",
-			"BasisNetworkCommon+EventTiming",
 			"BasisSDKMirror",
 			"BasisSDKMirror+MirrorClearFlags",
 			"HVR.Basis.Comms.OSC.OscData",
