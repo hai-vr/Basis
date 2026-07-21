@@ -406,6 +406,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             2 => "dropping VeryLow+Low",
             _ => "High only (nearest)",
         };
+
+        public static bool WriteLoadLog = true;
+
+        public static double TickMsEma => Volatile.Read(ref _tickMsEma);
+        public static double TickOverrunRatio => Volatile.Read(ref _tickOverrunRatio);
+        public static int LoadShedTier => Volatile.Read(ref _loadShedTier);
+        public static int SliceCount => Volatile.Read(ref _sliceCount);
+        public static string LoadShedTierLabel => LoadShedTierName(Volatile.Read(ref _loadShedTier));
         public static int DistanceUpdateIntervalTicks = 125;
 
         // Cached muscle+tail byte counts for the position-only fast path (skip repack).
@@ -862,7 +870,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             // Rate-limited: this is a health signal, not a per-change trace.
-            if (_sliceCount != previousSliceCount || _loadShedTier != previousShedTier || intervalMs != previousInterval)
+            if (WriteLoadLog && (_sliceCount != previousSliceCount || _loadShedTier != previousShedTier || intervalMs != previousInterval))
             {
                 long nowLog = Stopwatch.GetTimestamp();
                 if (nowLog - _lastSliceLogTick > Stopwatch.Frequency * 5)

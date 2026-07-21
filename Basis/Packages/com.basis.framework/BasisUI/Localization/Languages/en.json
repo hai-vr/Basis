@@ -5516,7 +5516,7 @@
     },
     {
       "key": "settings.bodyTracking.moveBodyBackWhenCrouching.description",
-      "value": "Shifts the hips back as the head drops, so a squat or forward bow sits over the feet instead of folding straight down. Multiplies the head's drop distance; 0 disables. Default: 1"
+      "value": "Sits the hips back and leans the trunk as you crouch, following measured human squat motion, instead of folding straight down onto the knees. 1 matches the human average, 0 disables. Default: 1"
     },
     {
       "key": "settings.bodyTracking.trunkCounterbalance.title",

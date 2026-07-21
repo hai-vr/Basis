@@ -722,9 +722,9 @@ namespace Basis.IK.Debugging
         }
 
         // --- crouch body offset (sit-back when squatting) ---
-        // ApplyCrouchBodyOffset must move the hips back by exactly crouch*Factor, purely horizontally along
-        // hips-back, monotonically with crouch depth, and never while standing or disabled. A vertical leak
-        // or a standing-pose move is a regression.
+        // ApplyCrouchBodyOffset must move the hips back by exactly the corpus curve (EvaluateSetback), land
+        // them on the rest-length sphere once engaged, leak nothing laterally, grow monotonically with depth,
+        // and never move while standing, below the deadzone, or disabled.
         public static (bool pass, string reason) GateCrouchOffset(in BasisCrouchOffsetSweepSummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -733,15 +733,15 @@ namespace Basis.IK.Debugging
             if (s.NaNCount > 0) return (false, $"{s.NaNCount} non-finite results");
             if (s.StandingMoves > 0)
                 return (false, $"{s.StandingMoves} cases moved the hips while standing/disabled (must no-op)");
-            if (s.MaxMagErrM > 1e-5f)
-                return (false, $"offset magnitude off crouch*factor by {s.MaxMagErrM:F6} m");
-            if (s.MaxUpComponentM > 1e-5f)
-                return (false, $"offset has a {s.MaxUpComponentM:F6} m vertical component (must be purely horizontal)");
-            if (s.MaxDirErrDeg > 0.1f)
-                return (false, $"offset direction off hips-back by {s.MaxDirErrDeg:F2} deg");
+            if (s.MaxMagErrM > 1e-4f)
+                return (false, $"backward slide off the corpus curve by {s.MaxMagErrM:F6} m");
+            if (s.MaxSphereErrM > 1e-4f)
+                return (false, $"hips leave the rest-length sphere by {s.MaxSphereErrM:F6} m (spine would stretch/compress)");
+            if (s.MaxLateralLeakM > 1e-4f)
+                return (false, $"slide leaks {s.MaxLateralLeakM:F6} m sideways off hips-back");
             if (s.MonotonicViolations > 0)
-                return (false, $"{s.MonotonicViolations} cases where the offset shrank as crouch grew (non-monotonic)");
-            return (true, $"applied={s.AppliedCases} magErr={s.MaxMagErrM:F6}m up={s.MaxUpComponentM:F6}m dir={s.MaxDirErrDeg:F2}° cases={s.Cases}");
+                return (false, $"{s.MonotonicViolations} cases where the setback shrank as depth grew (non-monotonic)");
+            return (true, $"applied={s.AppliedCases} magErr={s.MaxMagErrM:F6}m sphere={s.MaxSphereErrM:F6}m lat={s.MaxLateralLeakM:F6}m cases={s.Cases}");
         }
 
         // Virtual-spine hips compression: a deep head drop (touch toes / sit) must NOT sink the pelvis the full

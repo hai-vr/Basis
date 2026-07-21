@@ -801,7 +801,9 @@ namespace Basis.Scripts.Drivers
             Quaternion chestRot;
             Vector3 llaPos, rlaPos;
             Quaternion llaRot, rlaRot;
-            Vector3 playerUpDir = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up).normalized;
+            Vector3 playerUpScaled = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up);
+            float playerUpScale = playerUpScaled.magnitude;
+            Vector3 playerUpDir = playerUpScale > 1e-6f ? playerUpScaled / playerUpScale : Vector3.up;
             unsafe
             {
                 float3* pOut = (float3*)_posOutputs.GetUnsafeReadOnlyPtr();
@@ -819,6 +821,23 @@ namespace Basis.Scripts.Drivers
 
                 data.targetPositionHead = pOut[S_Head];
                 data.targetRotationHead = rOut[S_Head];
+
+                // True crouch depth for the sit-back (BasisCrouchOffsetCore): rest head height minus the
+                // head target's height, in playspace-local space so walking, teleports and slopes cancel.
+                // It cannot be derived inside the job -- the lock-mode stage restores the head-hips
+                // separation to rest length before the crouch stage reads it. Seats force it to zero: a
+                // chair-sitter's head is low with the hips forward onto the seat, the opposite of a squat.
+                float restHeadLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
+                data.standingHeadHeight = Mathf.Max(0f, restHeadLocalY * playerUpScale);
+                if (localPlayer.LocalSeatDriver.IsSeated || playerUpScale <= 1e-6f)
+                {
+                    data.crouchDepth = 0f;
+                }
+                else
+                {
+                    float headLocalY = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4((Vector3)pOut[S_Head]).y;
+                    data.crouchDepth = Mathf.Max(0f, (restHeadLocalY - headLocalY) * playerUpScale);
+                }
 
                 // ── LEFT FOOT ──
                 data.footIsTrackerLeftLeg = leftHasTracker;

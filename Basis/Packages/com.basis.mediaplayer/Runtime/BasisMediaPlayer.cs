@@ -555,8 +555,9 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl called with empty URL.", BasisDebug.LogTag.Video);
             return;
         }
-        // Default a missing scheme to https so a bare "www.example.com/…" routes and loads
-        // as an absolute URL instead of being mis-read as a direct/transport source.
+        // Default a missing scheme (https, or http for a local/IP host) so a bare
+        // "www.example.com/…" routes and loads as an absolute URL instead of being
+        // mis-read as a direct/transport source.
         url = BasisMediaUrlRouter.NormalizeUrl(url);
         LastErrorMessage = null;
         LoadGeneration++;

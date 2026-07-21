@@ -235,6 +235,12 @@ public partial class BasisLocalFootDriver
     private bool _paramsDirty = true;
 
     public static float SplayWhenCrouchedPercentage = 1f;
+
+    /// <summary>plantedTime for a foot that is standing rather than freshly landed, so the
+    /// double-support gate is already satisfied. Any value past the largest reachable
+    /// doubleSupportSec (stepDurSlow * k_DoubleSupportSlow, ~0.75 s on a giant) works.</summary>
+    internal const float SettledPlantedTime = 10f;
+
     public bool IsInitialized { get; private set; }
 
     /// <summary>
@@ -254,6 +260,12 @@ public partial class BasisLocalFootDriver
         var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
         right.currentPos = right.plantedPos = rf.position;
         right.phase = BasisFootPhase.Planted;
+
+        // These feet were picked up from the animation, which had them STANDING -- they did not
+        // just land, so they are already settled and must not owe a double-support window. Seeding
+        // 0 (which is what the missing round-trip field silently did) froze BOTH feet for a full
+        // doubleSupportSec -- 561 ms on an adult -- every single time foot IK re-engaged.
+        left.plantedTime = right.plantedTime = SettledPlantedTime;
 
         // Seed the rotation from the actual FOOT BONE, not from the bone CONTROL.
         //
@@ -501,6 +513,7 @@ public partial class BasisLocalFootDriver
             stepStartRot = f.stepStartRot,
             stepTimer = f.stepTimer,
             stepDur = f.stepDur,
+            plantedTime = f.plantedTime,
             idealPos = f.idealPos,
             filteredNormal = f.filteredNormal,
             currentPos = f.currentPos,
@@ -519,6 +532,7 @@ public partial class BasisLocalFootDriver
         f.stepStartRot = n.stepStartRot;
         f.stepTimer = n.stepTimer;
         f.stepDur = n.stepDur;
+        f.plantedTime = n.plantedTime;
         f.idealPos = n.idealPos;
         f.filteredNormal = n.filteredNormal;
         f.currentPos = n.currentPos;

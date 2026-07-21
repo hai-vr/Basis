@@ -29,6 +29,34 @@ public struct BasisFootSimulateJob : IJob
     const float k_DoubleSupportFast = 0.05f;   // ...at the walk->run transition
     const float k_WalkTopSpeedFrac = 0.45f;    // v-hat (v/sqrt(gL)) at which the fade reaches k_DoubleSupportFast
 
+    // ...and the SLOW end has to stop somewhere, because k_DoubleSupportSlow is a WALK number and below a
+    // certain speed there is no walk to have a duty cycle of. Standing, shifting your weight and turning on
+    // the spot are not slow gait -- they are isolated adjustment steps, and a human makes those promptly.
+    //
+    // Left unbounded the lerp ran to its 2.00 endpoint at speed 0: a 561 ms both-feet lockout between
+    // adjustment steps on an adult, which is 67% of the cycle spent in double support against this codebase's
+    // own "too much = a shuffle" gate (BasisMocapFootQuality.MaxDoubleSupport = 0.45). Nothing measured it,
+    // because BasisFootWalkInvarianceTests only walks (v-hat 0.20/0.30/0.42, where the fade is already
+    // saturated and these two constants are exactly inert) and the one standing test asserts FEWER steps is
+    // better -- so a lockout reads as a pass. And per project_basis_foot_ik_rework the stick gate means
+    // standing and turning are the ONLY regimes this stepper is ever visible in.
+    // Set by CADENCE, not by duty cycle. Self-paced stepping in place measures 98-106 steps/min across three
+    // independent samples (Rohling 2022 IJERPH 19:16989 n=121, 98.3 +/- 16.1; Grostern 2021 Physiother Can
+    // 73:322 n=16, 100.2 +/- 12.6; Dalton 2016 Aging Clin Exp Res 28:909 n=29, 104-106). One cycle here is
+    // 2*(stepDur + doubleSupportSec) and holds 2 steps, so a settle of one whole stepDur caps the standing
+    // regime at ~107 steps/min -- the top of that band. The rule is "never out-step the fastest self-paced
+    // human stepping on the spot", which is exactly the behaviour this regime is.
+    //   ⚠ 0.25 was tried first and is WRONG: it permits 171 steps/min, ~1.6x human.
+    //   ⚠ No measured double-support fraction for stepping in place exists in the accessible literature
+    //     (the one study that measured it publishes only p-values). So this is anchored on cadence, which IS
+    //     measured, rather than on a duty fraction, which is not.
+    //   ⚠ This lands DS at ~50% of cycle, above BasisMocapFootQuality.MaxDoubleSupport (0.45). Not a conflict
+    //     in practice -- that gate only ever runs on WALK scenarios -- but the two cannot both be satisfied
+    //     here, because stepDurSlow (281 ms) is ~55% shorter than a real in-place swing (~430-450 ms). Raising
+    //     the stepDurSlow clamp for the standing regime is the real fix and is a separate change.
+    const float k_DoubleSupportStanding = 1.0f;    // both-feet fraction between isolated adjustment steps
+    const float k_WalkOnsetFrac = 0.10f;           // v-hat below which the gait duty cycle no longer applies
+
     // Reach-ahead floor: minimum forward distance of a step target as a fraction of leg, so a WALK plants the
     // foot in front deliberately (see ComputeStepPrediction). Speed-gated there so a spin is untouched.
     const float k_ReachAheadFrac = 0.25f;
@@ -343,11 +371,17 @@ public struct BasisFootSimulateJob : IJob
         float stepDur = math.lerp(p.stepDurSlow, p.stepDurFast, urgencyT);
 
         // DOUBLE SUPPORT -- both feet on the ground together, which is what makes a walk read as WEIGHTED, and
-        // what a slow deliberate walk is MOSTLY made of. Faded across the WALK range (see the const block): high
-        // at a slow crawl, low at a brisk walk, and zeroed during a spin (yawFrac) so the anti-cross fix holds.
+        // what a slow deliberate walk is MOSTLY made of. A hump, not a ramp (see the const block): it PEAKS at a
+        // slow walk, falls to k_DoubleSupportFast at a brisk one, and falls away again below k_WalkOnsetFrac,
+        // where there is no gait cycle left to have a duty fraction of. Zeroed during a spin (yawUrgency) so the
+        // anti-cross fix holds. walkOnset only bites below v-hat 0.10, where the walk term is always > 1.57, so
+        // it can only ever REDUCE the dwell -- the walk range is untouched to the bit.
         float dsSpeedRef = math.sqrt(9.81f * avgLegT);
         float dsWalkT = math.saturate(speed / math.max(1e-3f, k_WalkTopSpeedFrac * dsSpeedRef));
-        float doubleSupportSec = stepDur * math.lerp(k_DoubleSupportSlow, k_DoubleSupportFast, dsWalkT) * (1f - yawUrgency);
+        float walkOnset = math.saturate(speed / math.max(1e-3f, k_WalkOnsetFrac * dsSpeedRef));
+        float dsFraction = math.lerp(k_DoubleSupportStanding,
+            math.lerp(k_DoubleSupportSlow, k_DoubleSupportFast, dsWalkT), walkOnset);
+        float doubleSupportSec = stepDur * dsFraction * (1f - yawUrgency);
 
         // ...but NEVER hold the feet longer than the turn can afford. Double support blocks stepping outright, so
         // decaying it on the softer urgency scale risks re-creating the stranding bug it was zeroed to avoid: at

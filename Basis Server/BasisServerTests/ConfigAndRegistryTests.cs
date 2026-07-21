@@ -87,6 +87,7 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal("localhost", cfg.HealthCheckHost);
         Assert.Equal(10666, cfg.HealthCheckPort);
         Assert.Equal("/health", cfg.HealthPath);
+        Assert.False(cfg.HealthIncludeBSRProfiling);
         Assert.False(cfg.OverrideAutoDiscoveryOfIpv);
         Assert.Equal("0.0.0.0", cfg.IPv4Address);
         Assert.Equal("::", cfg.IPv6Address);

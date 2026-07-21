@@ -136,7 +136,9 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeIntervalMs = Configuration.AvatarDeltaKeyframeIntervalMs;
         BasisServerReductionSystemEvents.AvatarDeltaKeyframeMaxIntervalMs = Configuration.AvatarDeltaKeyframeMaxIntervalMs;
         BasisServerReductionSystemEvents.StripAdditionalDataAtLowQuality = Configuration.StripAdditionalDataAtLowQuality;
-        BSRProfiler.Enabled = Configuration.EnableBSRProfiling;
+        BSRProfiler.Enabled = Configuration.EnableBSRProfiling || Configuration.HealthIncludeBSRProfiling;
+        BSRProfiler.WriteToLog = Configuration.EnableBSRProfiling && !Configuration.HealthIncludeBSRProfiling;
+        BasisServerReductionSystemEvents.WriteLoadLog = !Configuration.HealthIncludeBSRProfiling;
         // Re-broadcast when a (re)applied config changes the live value so already-connected
         // clients stay consistent with what new joiners are told (this also runs from the
         // admin reduction-settings reload, not just boot).

@@ -1379,7 +1379,11 @@ namespace Basis.BasisUI
         // On/off for the swing continuity above (off forces the rate to 0). Lets the elbow swing free.
         public static BasisSettingsBinding<bool> FBIKElbowSwingEnabled = new("fbikelbowswingenabled", new BasisPlatformDefault<bool>(true));
         // Spine relax: CCD solve smoothing + neck overbend cone limit
-        public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax", new BasisPlatformDefault<float>(0.8f));
+        // _v2: default retuned 0.8 -> 1.0 against the mocap corpus. Full relax measured strictly better on
+        // every axis: spine-vs-human error 2.02 -> 1.86 cm mean / 9.29 -> 8.56 p95 (10 CMU clips), AND a
+        // quieter standing noise floor (worst-case neck step p95 0.224 -> 0.190 deg at 0.5 mm tracker
+        // noise) — the damping was buying nothing measurable. Key bumped so existing installs pick it up.
+        public static BasisSettingsBinding<float> FBIKSpineCCDRelax = new("fbikspineccdrelax_v2", new BasisPlatformDefault<float>(1.0f));
         public static BasisSettingsBinding<float> FBIKNeckMaxConeDeg = new("fbikneckmaxconedeg", new BasisPlatformDefault<float>(45f));
         // Spine CCD axial-twist allowance, graded lumbar (lower) -> cervical (neck). Lower lumbar = a sideways
         // head reach bends instead of corkscrewing. Key bumped to _v2 to re-default the grading on existing installs.

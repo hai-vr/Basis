@@ -143,6 +143,13 @@ collisionsEnabled;
         public float spineGazeFollow;
         public float neckGazeFollow;
         public float moveBodyBackWhenCrouching;
+        // True crouch depth (how far the head target sits below the avatar's standing head height) and the
+        // standing head height itself, both world metres, packed per frame by BasisLocalRigDriver. The
+        // sit-back cannot be derived from the head-hips separation inside the job: the lock-mode stage
+        // restores that separation to rest length before this job's crouch stage would read it, which is
+        // exactly how the old separation-driven signal died to a permanent zero.
+        public float crouchDepth;
+        public float standingHeadHeight;
         // Postural counterbalance gain: the fraction of the neck's forward travel the pelvis answers with as
         // the trunk folds. 0 disables it. See BasisTrunkCounterbalanceCore.
         public float trunkCounterbalance;
@@ -1034,8 +1041,11 @@ collisionsEnabled;
             input.HipsRot = hipsRot;
             input.Bind = offsetRotationHips;
             input.PlayerUp = playerUpDir;
-            input.Factor = moveBodyBackWhenCrouching * Mathf.Clamp01(fade);
+            input.Factor = moveBodyBackWhenCrouching;
             input.RestDist = MinHeadSpineHeight;
+            input.CrouchDepth = crouchDepth;
+            input.StandingHeadHeight = standingHeadHeight;
+            input.Fade = fade;
             BasisCrouchOffsetCore.Solve(input, out BasisCrouchOffsetResult result);
             return result.HipsPos;
         }
@@ -1043,7 +1053,7 @@ collisionsEnabled;
         // and by how far down you look). Modest: the head is re-pinned so this only arcs the neck, but too
         // much cocks the head relative to the neck. The user dials the setting; this is the ceiling.
         const float k_NeckGazeFollowMaxDeg = 18f;
-        void ApplyCervicalLordosis(BasisPoseStream stream)
+        public void ApplyCervicalLordosis(BasisPoseStream stream)
         {
             if (!HandleNeck.IsValid(stream))
             {
@@ -2474,6 +2484,8 @@ collisionsEnabled;
             spineGazeFollow = 0.25f;
             neckGazeFollow = 0.3f;
             moveBodyBackWhenCrouching = 1f;
+            crouchDepth = 0f;
+            standingHeadHeight = 0f; // 0 = sit-back inert until the rig driver packs the real height
             trunkCounterbalance = BasisTrunkCounterbalanceCore.DerivedGain;
             swingSmoothRateDeg = 720f;
             chestArmSwingFactor = 0.3f;
@@ -2502,7 +2514,9 @@ collisionsEnabled;
             lordosisExtremeChestDownMax = 0.025f;
             lordosisExtremeHipsDownLookUp = 0.0005f;
             lordosisExtremeChestDownLookUp = 0.001f;
-            spineCCDRelax = 0.8f;
+            // 1.0 (was 0.8), retuned against the mocap corpus: full relax is strictly better measured —
+            // closer to the human spine AND a quieter standing noise floor. See FBIKSpineCCDRelax.
+            spineCCDRelax = 1.0f;
             neckMaxConeDeg = 45f;
             spineTwistKeep = 0.25f;
             spineNeckTwistKeep = 0.9f;

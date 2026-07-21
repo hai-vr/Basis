@@ -130,6 +130,36 @@ namespace Basis.IK
         public const float LegTrustHi = 0.70f;
 
         /// <summary>
+        /// Reach (|tipLocal|, foot distance / leg length) below which the swivel model is outside its fit
+        /// domain and its OWN confidence stops protecting anyone. Measured on the deep-crouch descent
+        /// (foot under the hip, leg folding toward the heels): as reach falls through ~0.45 the predicted
+        /// swivel walks from +85 (knee forward, right) to -48 (knee inward-backward, garbage) while the
+        /// confidence dips to 0.28 and then RECOVERS to 0.86 inside the garbage zone -- confidently wrong,
+        /// so the |(s,c)| trust gate re-trusts it, the anterior half-space guard then catches the posterior
+        /// pole and pins BOTH knees dead-lateral at ~88 deg: the "legs go 180 out to the sides" crouch bug,
+        /// with 30-38 mm/frame clicks on the way in. CMU simply has no frames with the foot under the hip
+        /// at fractional reach (a human squat keeps the heels forward of the pelvis), so out there the
+        /// polynomial is an RNG with a good poker face.
+        ///
+        /// Below LegDomainReachLo the model's opinion is discarded outright: trust goes to zero and the
+        /// pole eases onto the solver's anatomical BendNormal pole (sagittal, knees over the toes) through
+        /// the existing HintDistrust path -- which is exactly right for every real pose down there
+        /// (deep squat on the heels, kneeling, sitting on heels: the knee points FORWARD). At or above
+        /// LegDomainReachHi this is exactly 1, so every fitted pose is bit-for-bit unchanged (a full-depth
+        /// crouch with the sit-back engaged solves at reach ~0.66).
+        /// </summary>
+        public const float LegDomainReachLo = 0.45f;
+        public const float LegDomainReachHi = 0.60f;
+
+        /// <summary>Smoothstep of reach across [LegDomainReachLo, LegDomainReachHi]; multiplies the leg
+        /// model's confidence so the domain guard flows through the one existing trust gate.</summary>
+        public static float LegDomainTrust(float reach)
+        {
+            float t = Mathf.Clamp01((reach - LegDomainReachLo) / (LegDomainReachHi - LegDomainReachLo));
+            return t * t * (3f - 2f * t);
+        }
+
+        /// <summary>
         /// How far to trust <see cref="BasisLegSwivelModel"/>, read off its own |(s,c)|.
         ///
         /// The magnitude is the model's opinion STRENGTH, and the domain clamp in SwivelRad bounds the
@@ -328,6 +358,12 @@ namespace Basis.IK
             float swivel = useNeural
                 ? BasisLegSwivelNeuralModel.SwivelRad(tipLocal, out confidence)
                 : BasisLegSwivelModel.SwivelRad(tipLocal, out confidence);
+
+            // Domain guard: under the hip at fractional reach the model's own confidence recovers inside
+            // its garbage zone (see LegDomainReachLo). Applied to BOTH models -- the neural one shares the
+            // corpus and the hole in it.
+            confidence *= LegDomainTrust(math.length(tipLocal));
+
             if (isLeft)
             {
                 swivel = -swivel;
