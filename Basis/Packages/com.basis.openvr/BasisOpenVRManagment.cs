@@ -604,18 +604,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         private readonly System.Threading.ManualResetEventSlim inputDone = new System.Threading.ManualResetEventSlim(true);
         private volatile bool inputThreadRun;
         private bool inputKicked;
-        // Threading only pays when the kick->join window (comms actuators + network apply) is at
-        // least as long as the worker's run; solo/offline that window is ~0 and the join blocks
-        // for the full update, costing more than running inline (measured +0.03ms). Track the
-        // time actually saved per frame (worker duration minus join wait) and drop to inline when
-        // it stops paying; while inline, re-probe one frame every ReprobeIntervalFrames so a
-        // filling lobby re-engages the thread.
-        private const float MinSavedMsToStayThreaded = 0.02f;
-        private const int ReprobeIntervalFrames = 120;
-        private bool autoInline;
-        private int framesSinceProbe;
-        private float savedMsEma = float.NaN;
-        private volatile float lastWorkerMs;
         static readonly Unity.Profiling.ProfilerMarker sMarkerJoinInput = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.JoinInput");
         static readonly Unity.Profiling.ProfilerMarker sMarkerHMDPresence = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.HMDPresence");
 
@@ -625,11 +613,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 return;
             }
-            if (autoInline && ++framesSinceProbe < ReprobeIntervalFrames)
-            {
-                return;
-            }
-            framesSinceProbe = 0;
             SteamVR_Input.CaptureMainThreadState();
             EnsureInputThread();
             inputDone.Wait();
@@ -672,9 +655,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
                 try
                 {
-                    long start = System.Diagnostics.Stopwatch.GetTimestamp();
                     Valve.VR.SteamVR_Render.SimulateInput();
-                    lastWorkerMs = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000f / System.Diagnostics.Stopwatch.Frequency;
                 }
                 catch (Exception e)
                 {
@@ -704,10 +685,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             inputThread = null;
             inputKicked = false;
             inputDone.Set();
-            autoInline = false;
-            framesSinceProbe = 0;
-            savedMsEma = float.NaN;
-            lastWorkerMs = 0f;
         }
 
         private void OnDestroy()
@@ -722,50 +699,26 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 if (inputKicked)
                 {
-                    float waitMs = 0f;
+                    // The main-thread half is independent of action state, so it fills the
+                    // remaining wait instead of running after the join.
+                    SteamVR_Render.SimulatePosesAndEvents();
                     using (sMarkerJoinInput.Auto())
                     {
-                        if (!inputDone.IsSet)
-                        {
-                            long start = System.Diagnostics.Stopwatch.GetTimestamp();
-                            inputDone.Wait();
-                            waitMs = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000f / System.Diagnostics.Stopwatch.Frequency;
-                        }
+                        inputDone.Wait();
                     }
                     inputKicked = false;
-                    UpdateThreadingPolicy(waitMs);
                 }
                 else
                 {
                     SteamVR_Input.CaptureMainThreadState();
                     Valve.VR.SteamVR_Render.SimulateInput();
+                    SteamVR_Render.SimulatePosesAndEvents();
                 }
-                SteamVR_Render.SimulatePosesAndEvents();
             }
             using (sMarkerHMDPresence.Auto())
             {
                 PollHMDPresence();
             }
-        }
-
-        private void UpdateThreadingPolicy(float waitMs)
-        {
-            float workerMs = lastWorkerMs;
-            if (workerMs <= 0f)
-            {
-                return;
-            }
-            float savedMs = workerMs - waitMs;
-            if (autoInline)
-            {
-                // This was a probe frame: decide directly from it so a filled lobby re-engages
-                // within one probe instead of waiting for the EMA to climb.
-                autoInline = savedMs < MinSavedMsToStayThreaded;
-                savedMsEma = savedMs;
-                return;
-            }
-            savedMsEma = float.IsNaN(savedMsEma) ? savedMs : Mathf.Lerp(savedMsEma, savedMs, 0.1f);
-            autoInline = savedMsEma < MinSavedMsToStayThreaded;
         }
 
         /// <summary>
