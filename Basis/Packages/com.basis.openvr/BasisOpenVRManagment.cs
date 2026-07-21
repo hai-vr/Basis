@@ -39,6 +39,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// </summary>
         public bool IsSuspended = false;
         public static string SteamVRBehaviour = "SteamVR_Behaviour";
+        /// <summary>
+        /// Off pending verification: first VR run with the subsystem cut active broke rendering
+        /// (movement fine — Basis polls poses from the compositor itself), suggesting the Valve XR
+        /// display provider is not independent of the input subsystem as assumed. Saves only the
+        /// idle XR mirror updates (~0.04ms) when proven safe.
+        /// </summary>
+        public static bool CutUnityXRInputSubsystems = false;
         private void OnDeviceConnected(uint deviceIndex, bool deviceConnected)
         {
             StartCoroutine(DelayedOnDeviceConnectedCoroutine(deviceIndex, deviceConnected));
@@ -421,6 +428,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         public override void StopSDK()
         {
+            // The worker must be idle before the runtime is disposed under it.
+            ShutdownInputThread();
             IsSuspended = false;
             // Reset the persistent eye-texture multiplier so a subsequent OpenXR/Desktop
             // session doesn't inherit OpenVR's headset-native scaling.
@@ -477,6 +486,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 BasisDebug.Log("SteamVR SDK started successfully.");
                 ApplyRecommendedRenderResolution();
+                if (CutUnityXRInputSubsystems)
+                {
+                    StopUnityXRInputSubsystems();
+                }
                 BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENVR");
             }
             else
@@ -506,6 +519,29 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             float scale = recommendedMax / baseMax;
             XRSettings.eyeTextureResolutionScale = scale;
             BasisDebug.Log($"OpenVR resolution: eye texture scaled {scale:F3}× to {SteamVR.sceneWidth}x{SteamVR.sceneHeight} (unity-base {baseMax})", BasisDebug.LogTag.Device);
+        }
+        /// <summary>
+        /// OpenVR mode reads every pose and button straight from the OpenVR API (compositor poses,
+        /// SteamVR actions), so the Unity XR input subsystem the loader started has no consumers.
+        /// Left running it mirrors the HMD, controllers, trackers and base stations into the Unity
+        /// Input System as TrackedDevices, which bills every InputSystem.Update and keeps the
+        /// before-render input update alive. Stopping it removes those devices; the display
+        /// subsystem is untouched.
+        /// </summary>
+        private static void StopUnityXRInputSubsystems()
+        {
+            List<XRInputSubsystem> inputSubsystems = new List<XRInputSubsystem>();
+            SubsystemManager.GetSubsystems(inputSubsystems);
+            int count = inputSubsystems.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                XRInputSubsystem inputSubsystem = inputSubsystems[Index];
+                if (inputSubsystem != null && inputSubsystem.running)
+                {
+                    inputSubsystem.Stop();
+                    BasisDebug.Log("OpenVR: Stopped Unity XR input subsystem, SteamVR input is polled via OpenVR directly", BasisDebug.LogTag.Device);
+                }
+            }
         }
         public async Task<bool> WaitingUntilReady()
         {
@@ -553,14 +589,183 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
             return false;
         }
+        /// <summary>
+        /// When true the SteamVR action-state update (UpdateActionState + button/axis/skeleton
+        /// reads — the bulk of the per-frame input cost) runs on a worker thread, kicked from
+        /// <see cref="SimulateKick"/> and joined in <see cref="Simulate"/> so it overlaps the
+        /// comms/network-apply work between the two. OpenVR interfaces are thread-safe, the
+        /// update path reads main-thread state only via SteamVR_Input.CaptureMainThreadState,
+        /// and no Basis code touches action state between kick and join (readers are the eye
+        /// driver before the kick, and device polls after the join).
+        /// </summary>
+        public static bool ThreadedInputUpdate = true;
+        private System.Threading.Thread inputThread;
+        private readonly System.Threading.SemaphoreSlim inputKick = new System.Threading.SemaphoreSlim(0);
+        private readonly System.Threading.ManualResetEventSlim inputDone = new System.Threading.ManualResetEventSlim(true);
+        private volatile bool inputThreadRun;
+        private bool inputKicked;
+        // Threading only pays when the kick->join window (comms actuators + network apply) is at
+        // least as long as the worker's run; solo/offline that window is ~0 and the join blocks
+        // for the full update, costing more than running inline (measured +0.03ms). Track the
+        // time actually saved per frame (worker duration minus join wait) and drop to inline when
+        // it stops paying; while inline, re-probe one frame every ReprobeIntervalFrames so a
+        // filling lobby re-engages the thread.
+        private const float MinSavedMsToStayThreaded = 0.02f;
+        private const int ReprobeIntervalFrames = 120;
+        private bool autoInline;
+        private int framesSinceProbe;
+        private float savedMsEma = float.NaN;
+        private volatile float lastWorkerMs;
+        static readonly Unity.Profiling.ProfilerMarker sMarkerJoinInput = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.JoinInput");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerHMDPresence = new Unity.Profiling.ProfilerMarker("BasisDriver.DeviceManagement.HMDPresence");
+
+        public override void SimulateKick()
+        {
+            if (!IsDeviceBooted || SteamVR_Render == null || !ThreadedInputUpdate)
+            {
+                return;
+            }
+            if (autoInline && ++framesSinceProbe < ReprobeIntervalFrames)
+            {
+                return;
+            }
+            framesSinceProbe = 0;
+            SteamVR_Input.CaptureMainThreadState();
+            EnsureInputThread();
+            inputDone.Wait();
+            inputDone.Reset();
+            inputKicked = true;
+            inputKick.Release();
+        }
+
+        private void EnsureInputThread()
+        {
+            if (inputThread != null && inputThread.IsAlive)
+            {
+                return;
+            }
+            // Drain any kick left over from a previous thread's shutdown (its wake-up Release may
+            // outlive it across a VR -> desktop -> VR round trip) so the new thread only runs when
+            // kicked this session.
+            while (inputKick.Wait(0))
+            {
+            }
+            inputDone.Set();
+            inputThreadRun = true;
+            inputThread = new System.Threading.Thread(InputThreadLoop)
+            {
+                Name = "BasisSteamVRInput",
+                IsBackground = true,
+            };
+            inputThread.Start();
+        }
+
+        private void InputThreadLoop()
+        {
+            UnityEngine.Profiling.Profiler.BeginThreadProfiling("Basis", "SteamVR Input");
+            while (inputThreadRun)
+            {
+                inputKick.Wait();
+                if (!inputThreadRun)
+                {
+                    break;
+                }
+                try
+                {
+                    long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                    Valve.VR.SteamVR_Render.SimulateInput();
+                    lastWorkerMs = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000f / System.Diagnostics.Stopwatch.Frequency;
+                }
+                catch (Exception e)
+                {
+                    BasisDebug.LogError($"SteamVR input thread: {e}", BasisDebug.LogTag.Device);
+                }
+                finally
+                {
+                    inputDone.Set();
+                }
+            }
+            inputDone.Set();
+            UnityEngine.Profiling.Profiler.EndThreadProfiling();
+        }
+
+        private void ShutdownInputThread()
+        {
+            if (inputThread == null)
+            {
+                return;
+            }
+            inputThreadRun = false;
+            inputKick.Release();
+            if (!inputThread.Join(1000))
+            {
+                BasisDebug.LogError("SteamVR input thread did not stop in time", BasisDebug.LogTag.Device);
+            }
+            inputThread = null;
+            inputKicked = false;
+            inputDone.Set();
+            autoInline = false;
+            framesSinceProbe = 0;
+            savedMsEma = float.NaN;
+            lastWorkerMs = 0f;
+        }
+
+        private void OnDestroy()
+        {
+            ShutdownInputThread();
+        }
+
         public override void Simulate()
         {
             if (!IsDeviceBooted) return;
             if (SteamVR_Render != null)
             {
-                SteamVR_Render.Simulate();
+                if (inputKicked)
+                {
+                    float waitMs = 0f;
+                    using (sMarkerJoinInput.Auto())
+                    {
+                        if (!inputDone.IsSet)
+                        {
+                            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                            inputDone.Wait();
+                            waitMs = (System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000f / System.Diagnostics.Stopwatch.Frequency;
+                        }
+                    }
+                    inputKicked = false;
+                    UpdateThreadingPolicy(waitMs);
+                }
+                else
+                {
+                    SteamVR_Input.CaptureMainThreadState();
+                    Valve.VR.SteamVR_Render.SimulateInput();
+                }
+                SteamVR_Render.SimulatePosesAndEvents();
             }
-            PollHMDPresence();
+            using (sMarkerHMDPresence.Auto())
+            {
+                PollHMDPresence();
+            }
+        }
+
+        private void UpdateThreadingPolicy(float waitMs)
+        {
+            float workerMs = lastWorkerMs;
+            if (workerMs <= 0f)
+            {
+                return;
+            }
+            float savedMs = workerMs - waitMs;
+            if (autoInline)
+            {
+                // This was a probe frame: decide directly from it so a filled lobby re-engages
+                // within one probe instead of waiting for the EMA to climb.
+                autoInline = savedMs < MinSavedMsToStayThreaded;
+                savedMsEma = savedMs;
+                return;
+            }
+            savedMsEma = float.IsNaN(savedMsEma) ? savedMs : Mathf.Lerp(savedMsEma, savedMs, 0.1f);
+            autoInline = savedMsEma < MinSavedMsToStayThreaded;
         }
 
         /// <summary>

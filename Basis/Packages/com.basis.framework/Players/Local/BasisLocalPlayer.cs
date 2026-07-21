@@ -250,7 +250,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             else
             {
-                await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
+                await LoadFallbackAvatar();
             }
 
 #if !BASIS_DISABLE_MICROPHONE
@@ -275,40 +275,59 @@ namespace Basis.Scripts.BasisSdk.Players
         }
 
         /// <summary>
-        /// Loads the last-used avatar if present on disk and key is available; otherwise falls back to the loading avatar.
+        /// Loads the last-used avatar, re-downloading it if the disc cache was lost; otherwise shows the loading avatar without overwriting the persisted selection.
         /// </summary>
         /// <param name="LastUsedAvatar">Metadata pointing to the last persisted avatar selection.</param>
         public async Task LoadInitialAvatar(BasisDataStore.BasisSavedAvatar LastUsedAvatar)
         {
-            var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(LastUsedAvatar.UniqueID);
-            if (onDisc)
+            if (LastUsedAvatar.loadmode == (byte)BasisLoadMode.ByGameobjectReference)
             {
-                await BasisDataStoreItemKeys.LoadKeys();
-                ItemKey[] activeKeys = BasisDataStoreItemKeys.DisplayKeys();
-                foreach (ItemKey Key in activeKeys)
+                BasisDebug.Log("failed to load last used : in-scene avatars cannot be restored", BasisDebug.LogTag.Avatar);
+                await LoadFallbackAvatar();
+                return;
+            }
+
+            await BasisDataStoreItemKeys.LoadKeys();
+            ItemKey matchingKey = null;
+            ItemKey[] activeKeys = BasisDataStoreItemKeys.DisplayKeys();
+            foreach (ItemKey Key in activeKeys)
+            {
+                if (Key.Mode == BundledContentHolder.Mode.Avatar && Key.Url == LastUsedAvatar.UniqueID)
                 {
-                    if (Key.Mode == BundledContentHolder.Mode.Avatar && Key.Url == LastUsedAvatar.UniqueID)
-                    {
-                        BasisLoadableBundle bundle = new BasisLoadableBundle
-                        {
-                            BasisRemoteBundleEncrypted = info.StoredRemote,
-                            BasisBundleConnector = new BasisBundleConnector("1", new BasisBundleDescription("Loading Avatar", "Loading Avatar"), new BasisBundleGenerated[] { new BasisBundleGenerated() }, null, new BasisBounds(Vector3.zero, Vector3.one), new BasisBundleConnector.BasisMetaData()),
-                            BasisLocalEncryptedBundle = info.StoredLocal,
-                            UnlockPassword = Key.Pass
-                        };
-                        BasisDebug.Log("loading previously loaded avatar", BasisDebug.LogTag.Avatar);
-                        await CreateAvatar(LastUsedAvatar.loadmode, bundle);
-                        return;
-                    }
+                    matchingKey = Key;
+                    break;
                 }
-                BasisDebug.Log("failed to load last used : no key found to load but was found on disc", BasisDebug.LogTag.Avatar);
-                await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
             }
-            else
+
+            string unlockPassword = !string.IsNullOrEmpty(LastUsedAvatar.Pass) ? LastUsedAvatar.Pass : matchingKey?.Pass;
+            if (unlockPassword == null)
             {
-                BasisDebug.Log("failed to load last used : url was not found on disc", BasisDebug.LogTag.Avatar);
-                await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
+                BasisDebug.Log("failed to load last used : no stored password and no key found", BasisDebug.LogTag.Avatar);
+                await LoadFallbackAvatar();
+                return;
             }
+
+            var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(LastUsedAvatar.UniqueID);
+            BasisLoadableBundle bundle = new BasisLoadableBundle
+            {
+                BasisRemoteBundleEncrypted = onDisc ? info.StoredRemote : new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = LastUsedAvatar.UniqueID },
+                BasisBundleConnector = new BasisBundleConnector("1", new BasisBundleDescription("Loading Avatar", "Loading Avatar"), new BasisBundleGenerated[] { new BasisBundleGenerated() }, null, new BasisBounds(Vector3.zero, Vector3.one), new BasisBundleConnector.BasisMetaData()),
+                BasisLocalEncryptedBundle = onDisc ? info.StoredLocal : new BasisStoredEncryptedBundle(),
+                UnlockPassword = unlockPassword
+            };
+            BasisDebug.Log(onDisc ? "loading previously loaded avatar" : "last used avatar missing from disc cache, re-downloading", BasisDebug.LogTag.Avatar);
+            await CreateAvatar(LastUsedAvatar.loadmode, bundle);
+        }
+
+        /// <summary>
+        /// Loads the fallback loading avatar without persisting it as the last-used selection.
+        /// </summary>
+        public async Task LoadFallbackAvatar()
+        {
+            CurrentAvatarUniqueID = BasisAvatarFactory.LoadingAvatar.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+            await BasisAvatarFactory.LoadAvatarLocal(this, LoadModeLocal, BasisAvatarFactory.LoadingAvatar, this.transform.position, Quaternion.identity);
+            OnLocalAvatarChanged?.Invoke();
+            BasisConstraintSystem.SetPriorityRoot(BasisAvatar != null ? BasisAvatar.transform.root : null);
         }
 
         /// <summary>
@@ -403,6 +422,7 @@ namespace Basis.Scripts.BasisSdk.Players
         }
         /// <summary>
         /// Creates or replaces the local avatar using the specified load mode and bundle, then persists the selection.
+        /// In-scene avatars (<see cref="BasisLoadMode.ByGameobjectReference"/>) are session-only and are not persisted.
         /// </summary>
         /// <param name="LoadMode">Avatar load mode (e.g., <see cref="LoadModeLocal"/> for local).</param>
         /// <param name="BasisLoadableBundle">Bundle describing the avatar to load.</param>
@@ -419,7 +439,19 @@ namespace Basis.Scripts.BasisSdk.Players
             // correct, just without the saving.
             BasisConstraintSystem.SetPriorityRoot(
                 BasisAvatar != null ? BasisAvatar.transform.root : null);
-            BasisDataStore.SaveAvatar(CurrentAvatarUniqueID, LoadMode, LoadFileNameAndExtension);
+            if (LoadMode != (byte)BasisLoadMode.ByGameobjectReference)
+            {
+                BasisDataStore.SaveAvatar(CurrentAvatarUniqueID, LoadMode, LoadFileNameAndExtension, BasisLoadableBundle.UnlockPassword);
+                if (LoadMode == (byte)BasisLoadMode.Download && !string.IsNullOrEmpty(CurrentAvatarUniqueID) && !BasisAvatarFactory.IsLoadingAvatar(BasisLoadableBundle))
+                {
+                    await BasisDataStoreItemKeys.AddNewKey(new ItemKey
+                    {
+                        Mode = BundledContentHolder.Mode.Avatar,
+                        Url = CurrentAvatarUniqueID,
+                        Pass = BasisLoadableBundle.UnlockPassword
+                    });
+                }
+            }
         }
 
         /// <summary>

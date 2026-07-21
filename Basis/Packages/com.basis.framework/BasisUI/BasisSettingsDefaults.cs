@@ -754,6 +754,16 @@ namespace Basis.BasisUI
         public const string FingerTouchHands_Both = "Both";
         public const string FingerTouchHands_Left = "Left";
         public const string FingerTouchHands_Right = "Right";
+
+        /// <summary>
+        /// How keyboard/mouse/gamepad input is pumped while in OpenVR mode; Desktop and OpenXR
+        /// always pump every frame. Values map to <see cref="Basis.Scripts.Device_Management.BasisInputPumpMode"/>.
+        /// </summary>
+        public static BasisSettingsBinding<string> DesktopInputInVR = new("desktopinputinvr", new BasisPlatformDefault<string>(DesktopInputInVR_Adaptive));
+
+        public const string DesktopInputInVR_Adaptive = "Adaptive";
+        public const string DesktopInputInVR_AlwaysOn = "Always On";
+        public const string DesktopInputInVR_Off = "Off";
         public static BasisSettingsBinding<bool> ForceGridSnap = new("forcegridsnap", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> GridSnapSize = new("gridsnapsize", new BasisPlatformDefault<float>(0.25f));
         public static BasisSettingsBinding<bool> ForceRotationSnap = new("forcerotationsnap", new BasisPlatformDefault<bool>(false));
@@ -1720,6 +1730,7 @@ namespace Basis.BasisUI
             usesnapturn.LoadBindingValue();
             SmoothTurnSpeed.LoadBindingValue();
             ScrollSpeed.LoadBindingValue();
+            DesktopInputInVR.LoadBindingValue();
 
             // Avatar / IK / Body
             SelectedHeight.LoadBindingValue();

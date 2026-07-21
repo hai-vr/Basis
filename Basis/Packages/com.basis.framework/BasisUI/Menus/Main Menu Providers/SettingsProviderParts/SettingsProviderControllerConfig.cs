@@ -28,6 +28,24 @@ public static class SettingsProviderControllerConfig
             dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left });
             dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
 
+            PanelDropdown dropdownDesktopInputInVR = PanelDropdown.CreateNewEntry(group);
+            dropdownDesktopInputInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.desktopInputInVR"));
+            dropdownDesktopInputInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.desktopInputInVR.tooltip"));
+            dropdownDesktopInputInVR.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.DesktopInputInVR_Adaptive,
+                    BasisSettingsDefaults.DesktopInputInVR_AlwaysOn,
+                    BasisSettingsDefaults.DesktopInputInVR_Off,
+                },
+                new List<string>
+                {
+                    "settings.controls.desktopInputInVR.adaptive",
+                    "settings.controls.desktopInputInVR.alwaysOn",
+                    "settings.controls.desktopInputInVR.off",
+                });
+            dropdownDesktopInputInVR.AssignBinding(BasisSettingsDefaults.DesktopInputInVR);
+
             PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(group);
             toggleInvertMouse.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.invertMouse"));
             toggleInvertMouse.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.invertMouse.tooltip"));
@@ -287,6 +305,7 @@ public static class SettingsProviderControllerConfig
     private static void ResetControlsDefaults()
     {
         BasisSettingsDefaults.DominantHand.ResetToDefault();
+        BasisSettingsDefaults.DesktopInputInVR.ResetToDefault();
         BasisSettingsDefaults.InvertMouse.ResetToDefault();
         BasisSettingsDefaults.mousesensitivty.ResetToDefault();
         BasisSettingsDefaults.usesnapturn.ResetToDefault();

@@ -76,6 +76,8 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+            BasisRuntimeSpawnRegistry.OnPendingLoadsChanged -= OnPendingLoadsChanged;
+            BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
             BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;
         }
 
@@ -517,6 +519,8 @@ namespace Basis.BasisUI
                 if (_currentPage == Page.Instantiated)
                 {
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+                    BasisRuntimeSpawnRegistry.OnPendingLoadsChanged -= OnPendingLoadsChanged;
+                    BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
                 }
             }
 
@@ -646,6 +650,12 @@ namespace Basis.BasisUI
 
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                     BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
+
+                    BasisRuntimeSpawnRegistry.OnPendingLoadsChanged -= OnPendingLoadsChanged;
+                    BasisRuntimeSpawnRegistry.OnPendingLoadsChanged += OnPendingLoadsChanged;
+
+                    BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
+                    BasisRuntimeSpawnRegistry.OnPendingLoadProgress += OnPendingLoadProgress;
 
                     BasisShareableRegistry.OnChanged -= OnShareablesRegistryChanged;
                     BasisShareableRegistry.OnChanged += OnShareablesRegistryChanged;
@@ -1931,6 +1941,8 @@ namespace Basis.BasisUI
             // clear the page
             ClearTabContent(page.Descriptor.ContentParent);
 
+            BuildPendingLoadsList(page);
+
             // rebuild the page items
             BuildItemsListForInstantiatedObjects(collections, page);
 
@@ -1995,6 +2007,154 @@ namespace Basis.BasisUI
         }
 
         private static void OnShareablesRegistryChanged() => UpdateInstantiatedTab();
+
+        private static readonly Dictionary<string, PanelElementDescriptor> _pendingLoadRowInfo = new();
+
+        private static void OnPendingLoadsChanged() => UpdateInstantiatedTab();
+
+        private static void OnPendingLoadProgress(BasisRuntimeSpawnRegistry.PendingLoad pending)
+        {
+            if (panel == null || panel.IsReleased) return;
+            if (_pendingLoadRowInfo.TryGetValue(pending.PendingId, out PanelElementDescriptor info) && info != null)
+            {
+                info.SetDescription(PendingLoadStatusText(pending));
+            }
+        }
+
+        private static string PendingLoadStatusText(BasisRuntimeSpawnRegistry.PendingLoad pending)
+        {
+            if (string.IsNullOrEmpty(pending.Stage))
+            {
+                return BasisLocalization.Get("library.loading");
+            }
+            return BasisLocalization.Get("library.dialog.loading.progress", Mathf.RoundToInt(pending.Progress), pending.Stage);
+        }
+
+        private static string PendingLoadTitle(BasisRuntimeSpawnRegistry.PendingLoad pending)
+        {
+            if (CachedMetaData.TryGetMeta(pending.Url, out var meta) && !string.IsNullOrEmpty(meta.Name))
+            {
+                return LibraryProviderStrUtil.TitleToCase(meta.Name);
+            }
+            return pending.Url;
+        }
+
+        private static bool PendingLoadPassesFilters(BasisRuntimeSpawnRegistry.PendingLoad pending, string title)
+        {
+            if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
+            {
+                if (string.IsNullOrEmpty(title) || title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) < 0)
+                {
+                    return false;
+                }
+            }
+
+            switch (_currentItemTypeFilter)
+            {
+                case LibraryItemTypeFilter.Embedded:
+                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                case LibraryItemTypeFilter.Local:
+                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Local || pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                case LibraryItemTypeFilter.Networked:
+                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network;
+                case LibraryItemTypeFilter.Avatar:
+                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Avatar;
+                case LibraryItemTypeFilter.GameObject:
+                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject;
+                case LibraryItemTypeFilter.Scene:
+                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
+                case LibraryItemTypeFilter.AdminOnly:
+                    return pending.isProtected;
+                case LibraryItemTypeFilter.PersistentOnly:
+                    return pending.Persistent;
+                case LibraryItemTypeFilter.NotPersistent:
+                    return !pending.Persistent;
+                case LibraryItemTypeFilter.PlacedByMe:
+                    return pending.UUIDOfCreator == BasisLocalPlayer.Instance.UUID;
+                case LibraryItemTypeFilter.NotPlacedByMe:
+                    return pending.UUIDOfCreator != BasisLocalPlayer.Instance.UUID;
+                default:
+                    return true;
+            }
+        }
+
+        private static void BuildPendingLoadsList(PanelTabPage tab)
+        {
+            _pendingLoadRowInfo.Clear();
+            RectTransform container = tab.Descriptor.ContentParent;
+
+            foreach (BasisRuntimeSpawnRegistry.PendingLoad pending in BasisRuntimeSpawnRegistry.GetPendingLoads().OrderBy(p => p.StartedUtc))
+            {
+                string title = PendingLoadTitle(pending);
+                if (!PendingLoadPassesFilters(pending, title)) continue;
+                CreatePendingListEntry(pending, title, container);
+            }
+        }
+
+        private static void CreatePendingListEntry(BasisRuntimeSpawnRegistry.PendingLoad pending, string title, RectTransform parentTabGroup)
+        {
+            PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
+
+            if (itemListPanel.TabButtonParent.gameObject.TryGetComponent<UiStyleImage>(out UiStyleImage imageStyle))
+            {
+                imageStyle.SetStyle("Menu Element");
+            }
+
+            itemListPanel.Descriptor.SetWidth(1400);
+            itemListPanel.Descriptor.SetHeight(95);
+
+            PanelImage spawnModePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnModePanelImage.SetSize(new Vector2(80, 80));
+
+            switch (pending.SpawnMode)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Avatars);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.avatar.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Items);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.gameObject.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.World);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.scene.tooltip"));
+                    break;
+            }
+
+            PanelImage spawnMethodPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnMethodPanelImage.SetSize(new Vector2(80, 80));
+
+            switch (pending.SpawnMethod)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.embedded.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.local.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.network.tooltip"));
+                    break;
+            }
+
+            PanelImage loadingPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            loadingPanelImage.SetSize(new Vector2(80, 80));
+            loadingPanelImage.SetIcon(AddressableAssets.Sprites.HourGlass);
+            loadingPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.loading"));
+
+            PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
+            itemTextInfo._inputField.gameObject.SetActive(false);
+            itemTextInfo.Descriptor.SetTitle(title);
+            itemTextInfo.Descriptor.SetDescription(PendingLoadStatusText(pending));
+            itemTextInfo.Descriptor.SetHeight(50);
+            itemTextInfo.Descriptor.SetWidth(400);
+
+            _pendingLoadRowInfo[pending.PendingId] = itemTextInfo.Descriptor;
+        }
 
         private static void BuildShareablesList(PanelTabPage tab)
         {

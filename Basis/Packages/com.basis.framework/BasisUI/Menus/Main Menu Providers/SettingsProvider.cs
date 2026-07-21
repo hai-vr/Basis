@@ -111,6 +111,25 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
             BasisJiggleColliderLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleColliderLOD.ApplyFromSettings;
+            ApplyDesktopInputInVR();
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyDesktopInputInVR;
+        }
+
+        private static void ApplyDesktopInputInVR()
+        {
+            string mode = BasisSettingsDefaults.DesktopInputInVR.RawValue;
+            if (string.Equals(mode, BasisSettingsDefaults.DesktopInputInVR_AlwaysOn, StringComparison.Ordinal))
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.AllInputs;
+            }
+            else if (string.Equals(mode, BasisSettingsDefaults.DesktopInputInVR_Off, StringComparison.Ordinal))
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.VRDesktopInputOff;
+            }
+            else
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.Adaptive;
+            }
         }
 
         private static void ApplyOpenLipSyncMaxSlots()

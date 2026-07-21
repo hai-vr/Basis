@@ -41,6 +41,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker SyncCompleteRemote = new ProfilerMarker("BasisDriver.Sync.CompleteRemote");
         public static readonly ProfilerMarker NetFireAfterRemoteSync = new ProfilerMarker("BasisDriver.Network.FireAfterRemoteSync");
         public static readonly ProfilerMarker NetSimulateApply = new ProfilerMarker("BasisDriver.Network.SimulateApply");
+        public static readonly ProfilerMarker DeviceManagementKick = new ProfilerMarker("BasisDriver.DeviceManagement.Kick");
         public static readonly ProfilerMarker DeviceManagement = new ProfilerMarker("BasisDriver.DeviceManagement.Simulate");
         public static readonly ProfilerMarker BTween = new ProfilerMarker("BasisDriver.BTween.Simulate");
         public static readonly ProfilerMarker LocalPlayer = new ProfilerMarker("BasisDriver.LocalPlayer");

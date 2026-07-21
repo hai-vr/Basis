@@ -18,7 +18,6 @@ using System;
 using System.Collections.Generic;
 using Unity.Jobs;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using static Basis.EventDriver.BasisEventDriverProfileSections;
 using Prof = Basis.EventDriver.BasisEventDriverMarkers;
 
@@ -273,7 +272,7 @@ namespace Basis.EventDriver
             {
                 using (Prof.InputSystemUpdate.Auto())
                 {
-                    InputSystem.Update();
+                    BasisInputSystemPump.Pump(realtimeSinceStartupAsDouble);
                 }
             }
 
@@ -407,6 +406,19 @@ namespace Basis.EventDriver
             {
                 Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate();
             }
+
+            // Kick the SteamVR input update onto its worker thread. Placed after the eye block
+            // (the last main-thread reader of action state) so it overlaps the comms/network-apply
+            // work below; the DeviceManagement.Simulate block joins it before the local player
+            // polls input.
+            if (BasisDeviceManagement.HasEvents)
+            {
+                using (Prof.DeviceManagementKick.Auto())
+                {
+                    BasisDeviceManagement.Instance.SimulateKick();
+                }
+            }
+
             using (Prof.CommsActuators.Auto())
             {
                 HVRCommsUpdateDriver.SimulateActuators();

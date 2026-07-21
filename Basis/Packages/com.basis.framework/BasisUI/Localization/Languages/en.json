@@ -1391,6 +1391,26 @@
       "value": "Choose which hand is treated as your main interaction hand."
     },
     {
+      "key": "settings.controls.desktopInputInVR",
+      "value": "Desktop Input in VR"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.tooltip",
+      "value": "How keyboard, mouse and gamepad input is processed while in SteamVR. Adaptive runs at full speed while you type or click and winds down when idle. Always On processes input every frame. Off leaves desktop devices dormant while in VR. Desktop and OpenXR always run at full speed."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.adaptive",
+      "value": "Adaptive"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.alwaysOn",
+      "value": "Always On"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.off",
+      "value": "Off"
+    },
+    {
       "key": "settings.controls.invertMouse.tooltip",
       "value": "Flip vertical mouse look so moving up looks down."
     },
