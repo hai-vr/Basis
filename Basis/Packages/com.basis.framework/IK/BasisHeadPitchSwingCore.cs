@@ -66,7 +66,8 @@ namespace Basis.IK
             // haul the camera ~19 cm straight back). Scale that side down on its own.
             if (forward < 0f) forward *= i.BackwardScale;
 
-            if (!(forward > -1f && forward < 1f)) return;   // NaN / absurd: emit nothing rather than a bad head
+            if (!(forward > -4f && forward < 4f)) return;   // NaN / absurd: emit nothing rather than a bad head
+            forward = Mathf.Clamp(forward, -1f, 1f);
 
             // The carry is along the direction the player is FACING, not along playspace +Z. Note this is only
             // the pitch-induced swing: the eye's static forward offset stays pinned by the caller, so turning on

@@ -343,15 +343,15 @@ collisionsEnabled;
                         float spineLen = headToHips.magnitude;
                         if (spineLen < restDist)
                         {
-                            Vector3 spineDir = spineLen > k_Epsilon ? headToHips / spineLen : hipDesired * Vector3.down;
+                            Vector3 spineDir = spineLen > k_Epsilon ? headToHips / spineLen : hipsTargetRot * Vector3.down;
                             hipsTargetPos = headTargetPos + spineDir * restDist;
                         }
                     }
                     break;
 
                 default: // LockBoth (2) - original behavior: clamp hips relative to head
-                    hipsTargetPos = AntiContortionist(headTargetPos, headTargetRot, hipsTargetPos, hipDesired, restDist);
-                    hipsTargetPos = MitigateSpineBuckling(headTargetPos, hipDesired, hipsTargetPos, restDist, up);
+                    hipsTargetPos = AntiContortionist(headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot, restDist);
+                    hipsTargetPos = MitigateSpineBuckling(headTargetPos, hipsTargetRot, hipsTargetPos, restDist, up);
                     float MaxBendDeg = maxBendDeg;
                     hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg, up);
                     hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor, up);
@@ -454,6 +454,53 @@ collisionsEnabled;
             int maxIters = Mathf.Max(1, spineMaxIterations);
             float tolerance = Mathf.Max(0f, spineTolerance);
             float tolSqr = tolerance * tolerance;
+
+            // ==========================================================================================
+            // THE TAUT BAND. Standing upright, the virtual spine places the hips a full chain length
+            // below the head, so the CCD runs AT the chain's full-extension singularity — and the
+            // mm-scale distance between target and full extension flickers across zero with tracker
+            // noise. BOTH sides of that point stall the loop for all 20 iterations, chasing a point the
+            // chain cannot land on, and every futile sweep re-aims into the frame's noise:
+            //   • target INSIDE reach: a straight chain cannot shorten by aiming; only a bow can, the
+            //     required bow angle goes as sqrt(compression), and nothing constrains its plane — the
+            //     noise picks it, a different plane every frame.
+            //   • target BEYOND reach: the chain pulls straight and the tolerance can never be met, so
+            //     the sweeps churn on, tilting the whole chain into the noise azimuth of the frame.
+            // Measured: a sustained 0.25-0.39 deg/frame neck/chest buzz on either side of the band,
+            // 0.000-0.003 outside it with identical noise — the "head jitters when I stand looking
+            // almost straight ahead" report. Regularize the commanded DISTANCE, keep the direction:
+            // compression is softened through a C1 hinge, so noise-scale compressions leave the chain
+            // taut (where the shipped solve already stalled — measured tip error unchanged to 0.1 mm)
+            // while real compressions pass through with an error that decays as band^2/compression; a
+            // beyond-reach target is brought onto the reach sphere, which is exactly the pose the stall
+            // was already converging to (tip error unchanged), minus the churn. The band scales with
+            // the avatar's own chain. Gated by BasisSpineTautBandTests.
+            // ==========================================================================================
+            {
+                Vector3 rootPos = ChainHeadToSpine[chainLen - 1].GetPosition(stream);
+                float chainReach = 0f;
+                for (int i = 0; i < chainLen - 1; i++)
+                {
+                    chainReach += (ChainHeadToSpine[i].GetPosition(stream) - ChainHeadToSpine[i + 1].GetPosition(stream)).magnitude;
+                }
+                Vector3 rootToTarget = headTargetPos - rootPos;
+                float targetDist = rootToTarget.magnitude;
+                if (targetDist > k_Epsilon && chainReach > k_Epsilon)
+                {
+                    float compression = chainReach - targetDist;
+                    float commandedDist;
+                    if (compression > 0f)
+                    {
+                        float band = k_SpineTautBandFrac * chainReach;
+                        commandedDist = chainReach - compression * compression * compression / (compression * compression + band * band);
+                    }
+                    else
+                    {
+                        commandedDist = chainReach;
+                    }
+                    headTargetPos = rootPos + rootToTarget * (commandedDist / targetDist);
+                }
+            }
 
             float ccdRelax = spineCCDRelax;
             float lumbarTwistKeep = spineTwistKeep;
@@ -702,6 +749,11 @@ collisionsEnabled;
         // (ends unaffected) so a lean curves at the flexible lumbar + cervical and stays firm through the
         // ribcage, distributing the bend instead of kinking at one joint. 0 = uniform (off).
         const float k_ThoracicBendStiffen = 0.3f;
+        // Width of the spine CCD's taut band as a fraction of the hips->head chain length (~11 mm on a
+        // 1.7 m avatar). Must comfortably exceed the compressions an upright head commands through the
+        // neck-pivot lever (quadratic in pitch: ~1.4 mm at 8 deg, ~5.6 mm at 20 deg) — those are the
+        // noise-scale demands that sat the solver on its full-extension singularity. See SolveSequentialSpineIK.
+        const float k_SpineTautBandFrac = 0.015f;
         // Lateral bend -> a little same-side axial rotation in the pre-bend, so a sustained lean reads as an
         // organic spinal coupling rather than a pure hinge. Small; clamped by the lateral limit downstream.
         const float k_BendTwistCoupling = 0.15f;
@@ -1001,7 +1053,10 @@ collisionsEnabled;
             Vector3 referenceUp;
             if (HandleChest.IsValid(stream))
             {
-                referenceUp = HandleChest.GetRotation(stream) * Vector3.up;
+                Vector3 chestToNeck = HandleNeck.GetPosition(stream) - HandleChest.GetPosition(stream);
+                referenceUp = chestToNeck.sqrMagnitude > k_SqrEpsilon
+                    ? chestToNeck.normalized
+                    : HandleChest.GetRotation(stream) * Vector3.up;
             }
             else
             {
@@ -1031,19 +1086,42 @@ collisionsEnabled;
             BasisCervicalSolveCore.Solve(input, out BasisCervicalResult result);
             if (result.EarlyOut)
             {
+                // The head pin must not depend on WHICH side of the early-out threshold this frame
+                // landed on. lordosisDeg crosses the 0.01 cutoff constantly at level gaze when BaseDeg
+                // is ~0, and gating the pin on the pitch clamp meant the head POSITION toggled between
+                // "pinned to the target" and "CCD FK" with it -- a sub-mm head pop exactly at the most
+                // common head pose. Pin unconditionally: on a no-op frame HeadRotClamped IS the raw gaze
+                // (same value the spine solve pinned), so the rotation write changes nothing.
+                if (HandleHead.IsValid(stream))
+                {
+                    HandleHead.SetPosition(stream, targetPositionHead);
+                    HandleHead.SetRotation(stream, result.HeadRotClamped * targetOffsetHead);
+                }
                 return;
+            }
+
+            Vector3 shoulderRight = (HandleLeftUpperArm.IsValid(stream) && HandleRightUpperArm.IsValid(stream))
+                ? HandleRightUpperArm.GetPosition(stream) - HandleLeftUpperArm.GetPosition(stream)
+                : Vector3.zero;
+            bool hasShoulderRight = shoulderRight.sqrMagnitude > k_SqrEpsilon;
+            if (hasShoulderRight)
+            {
+                shoulderRight.Normalize();
             }
 
             BasisBoneHandle bendHandle = input.HasUpperChest ? HandleUpperChest : HandleChest;
             if (bendHandle.IsValid(stream) && result.BhDeg != 0f)
             {
                 Quaternion bhRot = bendHandle.GetRotation(stream);
-                bendHandle.SetRotation(stream, Quaternion.AngleAxis(result.BhDeg, bhRot * Vector3.right) * bhRot);
+                Vector3 bhAxis = hasShoulderRight ? shoulderRight : bhRot * Vector3.right;
+                bendHandle.SetRotation(stream, Quaternion.AngleAxis(result.BhDeg, bhAxis) * bhRot);
             }
 
             if (result.HasExtreme)
             {
-                Quaternion refRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
+                Quaternion refRot = HandleHips.IsValid(stream)
+                    ? HandleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips)
+                    : (HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity);
                 Vector3 refForward = refRot * Vector3.forward;
                 Vector3 refDown = -(refRot * Vector3.up);
 
@@ -1069,7 +1147,8 @@ collisionsEnabled;
             if (totalNeckDeg != 0f)
             {
                 Quaternion neckRotCurrent = HandleNeck.GetRotation(stream);
-                HandleNeck.SetRotation(stream, Quaternion.AngleAxis(totalNeckDeg, neckRotCurrent * Vector3.right) * neckRotCurrent);
+                Vector3 neckAxis = hasShoulderRight ? shoulderRight : neckRotCurrent * Vector3.right;
+                HandleNeck.SetRotation(stream, Quaternion.AngleAxis(totalNeckDeg, neckAxis) * neckRotCurrent);
             }
 
             if (HandleHead.IsValid(stream))

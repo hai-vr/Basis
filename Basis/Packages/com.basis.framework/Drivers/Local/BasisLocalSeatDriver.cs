@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
+using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 namespace Basis.Scripts.Drivers
 {
@@ -632,7 +633,11 @@ namespace Basis.Scripts.Drivers
                     var jiggleRigs = BasisLocalAvatarDriver.JiggleRigs;
                     for (int Index = 0; Index < jiggleRigs.Length; Index++)
                     {
-                        jiggleRigs[Index].Teleport(rotationDelta, lastSeatRootPosition, rootDelta);
+                        JiggleRig rig = jiggleRigs[Index];
+                        if (rig != null)
+                        {
+                            rig.Teleport(rotationDelta, lastSeatRootPosition, rootDelta);
+                        }
                     }
                     LocalPlayer.BasisLocalFootDriver?.Teleport(rootDelta);
                 }

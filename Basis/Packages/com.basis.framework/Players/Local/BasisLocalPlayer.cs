@@ -8,6 +8,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.UI.UI_Panels;
+using GatorDragonGames.JigglePhysics;
 using System;
 using System.Collections;
 using System.Threading.Tasks;
@@ -371,7 +372,11 @@ namespace Basis.Scripts.BasisSdk.Players
             var jiggleRigs = BasisLocalAvatarDriver.JiggleRigs;
             for (int i = 0; i < jiggleRigs.Length; i++)
             {
-                jiggleRigs[i].Teleport(deltaPosition);
+                JiggleRig rig = jiggleRigs[i];
+                if (rig != null)
+                {
+                    rig.Teleport(deltaPosition);
+                }
             }
             BasisLocalFootDriver?.Teleport(deltaPosition);
             OnTeleportEvent?.Invoke();

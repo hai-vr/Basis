@@ -434,10 +434,11 @@ public partial class BasisLocalFootDriver
         _probeNextFoot = 0;
         _probeElapsedLeft = _probeElapsedRight = 0f;
 
+        prevHeadYaw = HeadYaw();
         _nativeSimState[0] = new BasisFootSimState
         {
             prevHeadPos = headPos,
-            prevHeadYaw = HeadYaw(),
+            prevHeadYaw = prevHeadYaw,
             smoothedVelocity = float3.zero,
             smoothedBodyFwd = bodyFwd,
             smoothedBodyRight = bodyRight,
@@ -991,7 +992,6 @@ public partial class BasisLocalFootDriver
 
         ref readonly BasisFootSimState simOut = ref UnsafeUtility.AsRef<BasisFootSimState>(_nativeSimState.GetUnsafeReadOnlyPtr());
         smoothedVelocity = simOut.smoothedVelocity;
-        prevHeadYaw = simOut.prevHeadYaw;
     }
 
     /// <summary>Returns true if CompleteSimulate has yet to be called for the currently scheduled job.</summary>

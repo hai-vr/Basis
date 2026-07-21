@@ -65,14 +65,10 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Jiggle rigs on the current avatar (filled during calibration).
         /// </summary>
+        /// <summary>Filtered out of the content-harvest snapshot by BasisAvatarFactory at load;
+        /// include-inactive, entries can be destroyed later — null-and-activity gate on use.</summary>
         public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
-        /// <summary>Calibration scratch — a recalibration at an unchanged rig count allocates nothing.</summary>
-        private static readonly List<JiggleRig> sJiggleRigScratch = new List<JiggleRig>();
         private static Vector3[] sJiggleRootsBeforeSnap = Array.Empty<Vector3>();
-
-        // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). The wearer's networked spine
-        //      scale re-spaced this remote avatar's spine bones. Superseded on the wire by the body fit
-        //      below, which carries arm/leg/torso segment scales instead of one torso number. ====
 
         /// <summary>
         /// The wearer's networked body fit (see Basis.IK.BasisBodyFitCore). They stretch/collapse their
@@ -274,14 +270,10 @@ namespace Basis.Scripts.Drivers
             SetupAvatarJiggleColliders();
             ResetAvatarAnimator();
 
-            RemotePlayer.BasisAvatar.GetComponentsInChildren(sJiggleRigScratch);
-            int jiggleRigCount = sJiggleRigScratch.Count;
-            if (JiggleRigs.Length != jiggleRigCount)
-            {
-                JiggleRigs = new JiggleRig[jiggleRigCount];
-            }
-            sJiggleRigScratch.CopyTo(JiggleRigs);
-            sJiggleRigScratch.Clear();
+            // JiggleRigs is filtered out of the content-harvest snapshot by BasisAvatarFactory at
+            // load — no walk here, and recalibrations reuse the same stored set. The set is
+            // include-inactive, so the loops gate on activity the way the old active-only scan did.
+            int jiggleRigCount = JiggleRigs.Length;
             if (sJiggleRootsBeforeSnap.Length < jiggleRigCount)
             {
                 sJiggleRootsBeforeSnap = new Vector3[jiggleRigCount];
@@ -289,7 +281,12 @@ namespace Basis.Scripts.Drivers
             Vector3[] jiggleRootsBeforeSnap = sJiggleRootsBeforeSnap;
             for (int Index = 0; Index < jiggleRigCount; Index++)
             {
-                var jiggleRoot = JiggleRigs[Index].GetJiggleRigData().rootBone;
+                JiggleRig snapRig = JiggleRigs[Index];
+                if (snapRig == null || !snapRig.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                var jiggleRoot = snapRig.GetJiggleRigData().rootBone;
                 if (jiggleRoot != null)
                 {
                     jiggleRootsBeforeSnap[Index] = jiggleRoot.position;
@@ -330,6 +327,10 @@ namespace Basis.Scripts.Drivers
             for (int Index = 0; Index < jiggleRigCount; Index++)
             {
                 JiggleRig Rig = JiggleRigs[Index];
+                if (Rig == null || !Rig.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
                 Rig.HasAnimatedParameters = false;
                 Rig.OnInitialize();
                 var jiggleRoot = Rig.GetJiggleRigData().rootBone;

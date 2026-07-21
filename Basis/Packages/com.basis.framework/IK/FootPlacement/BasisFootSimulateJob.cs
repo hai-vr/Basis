@@ -152,13 +152,6 @@ public struct BasisFootSimulateJob : IJob
         float vAlpha = 1f - math.exp(-(decelerating ? p.velocitySmoothDecel : p.velocitySmoothAccel) * dt);
         sim.smoothedVelocity = math.lerp(sim.smoothedVelocity, rawVel, vAlpha);
 
-        // HeadYaw
-        float3 headFwdFull = math.mul(inp.headRot, new float3(0, 0, 1));
-        float3 headFwdFlat = headFwdFull - up * math.dot(headFwdFull, up);
-        sim.prevHeadYaw = math.lengthsq(headFwdFlat) < 0.001f
-            ? sim.prevHeadYaw
-            : math.atan2(headFwdFlat.x, headFwdFlat.z) * math.TODEGREES;
-
         float speed = math.length(sim.smoothedVelocity);
 
         // ── Body forward ──

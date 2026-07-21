@@ -5147,30 +5147,6 @@
       "value": "How evenly the upper arm twist bone spreads the elbow's roll along the bone. 1 = even gradient; 0 = off. Default: 1.0"
     },
     {
-      "key": "settings.bodyTracking.section.spineProportion.title",
-      "value": "Spine Proportion Match"
-    },
-    {
-      "key": "settings.bodyTracking.section.spineProportion.description",
-      "value": "With a head and hips tracker, gently scales the avatar's spine so its torso length matches yours. Stops a mismatched avatar spine from crumpling (avatar torso too long) or over-stretching (too short). Measured once at calibration; only you see the change."
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.enabled.title",
-      "value": "Match Spine To My Torso"
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.enabled.description",
-      "value": "Uniformly stretches or shrinks the avatar's spine a small amount so it spans your real head-to-hips distance. Does nothing without a hips tracker, or when the avatar already matches you."
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.maxScale.title",
-      "value": "Max Spine Scaling"
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.maxScale.tooltip",
-      "value": "The largest length change allowed, as a fraction (0.12 = up to 12% longer or shorter). Bigger corrects larger mismatches but can visibly change your torso length. Default: 0.12"
-    },
-    {
       "key": "settings.bodyTracking.section.anatomy.title",
       "value": "Anatomy"
     },

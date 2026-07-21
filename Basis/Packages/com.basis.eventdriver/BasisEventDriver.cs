@@ -645,6 +645,7 @@ namespace Basis.EventDriver
             }
 
             // ── JigglePhysics schedule ──
+            bool jiggleReady = false;
             ProfileBegin(PROF_JIGGLE_SCHEDULE);
             using (Prof.JiggleSchedule.Auto())
             {
@@ -674,17 +675,9 @@ namespace Basis.EventDriver
                     constraintJob = default;
                 }
 
-                bool jiggleReady;
                 using (Prof.JigglePrepare.Auto())
                 {
                     jiggleReady = JigglePhysics.PrepareSimulate(TimeAsDouble, fixedDeltaTime);
-                }
-                if (jiggleReady)
-                {
-                    using (Prof.JiggleDispatch.Auto())
-                    {
-                        JigglePhysics.DispatchSimulate(constraintJob);
-                    }
                 }
                 // On rebuild frames the constraint solve was already completed above and the
                 // handle zeroed — skip the empty second fence instead of logging a no-op marker.
@@ -699,12 +692,24 @@ namespace Basis.EventDriver
             ProfileEnd(PROF_JIGGLE_SCHEDULE);
 
             // ── Network transmit (reads bone results via GetOutGoingMouth) ──
+            // Ahead of the jiggle dispatch: the transmit reads local bones inline on the main
+            // thread, which would force a sync on freshly-dispatched jiggle transform jobs over
+            // the same avatar hierarchies. Constraints are fenced above, so this window is
+            // job-free for those bones.
             ProfileBegin(PROF_NETWORK_TRANSMIT);
             using (Prof.AfterAvatarChanges.Auto())
             {
                 InvokeAfterAvatarChangesSafely();
             }
             ProfileEnd(PROF_NETWORK_TRANSMIT);
+
+            if (jiggleReady)
+            {
+                using (Prof.JiggleDispatch.Auto())
+                {
+                    JigglePhysics.DispatchSimulate(constraintJob);
+                }
+            }
 
             // ── JigglePhysics pose ──
             ProfileBegin(PROF_JIGGLE_POSE);

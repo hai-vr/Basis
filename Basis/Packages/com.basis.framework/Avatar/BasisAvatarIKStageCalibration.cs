@@ -286,10 +286,6 @@ namespace Basis.Scripts.Avatar
 
                 BasisContinuousCalibration.CaptureBaseline();
 
-                // ==== SPINE PROPORTION DEFORMATION DISABLED 2026-07-18 (revisit later). Uncomment to arm the
-                //      post-calibration spine proportion capture (BasisLocalRigDriver.CaptureSpineProportion). ====
-                // BasisLocalRigDriver.HasSpineProportionCapturePending = true;
-
                 // Re-measure now that classification has assigned the hips role. On the very first
                 // calibration there was no assigned hips tracker to measure earlier, so this is what
                 // activates the leg/spine half -- and it settles here, because the pass above will have

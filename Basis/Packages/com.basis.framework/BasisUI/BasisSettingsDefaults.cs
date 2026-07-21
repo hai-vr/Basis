@@ -1415,11 +1415,6 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
-        // Spine proportion match: with a head+hips tracker, uniformly scales the avatar's spine a little so
-        // its torso length matches the wearer's, captured at calibration. Stops a mismatched avatar spine
-        // from crumpling (too long) or over-stretching (too short). MaxScale is the cap on that scaling.
-        public static BasisSettingsBinding<bool> FBIKSpineProportionMatch = new("fbikspineproportionmatch", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> FBIKSpineProportionMaxScale = new("fbikspineproportionmaxscale", new BasisPlatformDefault<float>(0.12f));
 
         public static BasisSettingsBinding<bool> FBIKBodyFit = new("fbikbodyfit", new BasisPlatformDefault<bool>(true));
 
@@ -2183,8 +2178,6 @@ namespace Basis.BasisUI
             FBIKNeuralPole.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
-            FBIKSpineProportionMatch.LoadBindingValue();
-            FBIKSpineProportionMaxScale.LoadBindingValue();
             FBIKBodyFit.LoadBindingValue();
             FBIKJobLocomotion.LoadBindingValue();
             FBIKBodyFitMaxDeviation.LoadBindingValue();

@@ -426,8 +426,6 @@ namespace Basis.Scripts.Constraints
                 return default;
             }
 
-            RefreshDynamicState();
-
             int readWorkers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
             JobHandle read = new BasisConstraintReadJob
             {
@@ -441,6 +439,14 @@ namespace Basis.Scripts.Constraints
             {
                 Results = sResults.AsArray(),
             }.Schedule(sResults.Length, ClearBatch);
+
+            // Kick now: the sample and clear run while the refresh walk below reads component
+            // state and the solve/write schedules pay their main-thread cost. The refresh writes
+            // only solve inputs (sSlots/sSources) and reads transforms the read-only sample can
+            // share, so nothing here races the in-flight jobs.
+            JobHandle.ScheduleBatchedJobs();
+
+            RefreshDynamicState();
 
             // One iteration per group, in small batches so the work is handed out as workers come
             // free rather than carved up in advance between groups of very different cost.

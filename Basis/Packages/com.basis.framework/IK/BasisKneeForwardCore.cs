@@ -89,6 +89,9 @@ namespace Basis.IK
         public const float LegUprightFadeStartDot = 0.25f;
         public const float LegUprightFadeFullDot = 0.55f;
 
+        public const float RefCondSinFadeStart = 0.15f;
+        public const float RefCondSinFadeFull = 0.35f;
+
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-10f;
 
@@ -110,22 +113,33 @@ namespace Basis.IK
                 return;
             }
             Vector3 axis = hipToFoot / Mathf.Sqrt(axisSqr);
+            Vector3 up = i.PlayerUp.sqrMagnitude > k_SqrEpsilon ? i.PlayerUp.normalized : Vector3.up;
 
             Vector3 bodyPerp = Vector3.ProjectOnPlane(i.BodyForwardDir, axis);
             if (bodyPerp.sqrMagnitude < k_SqrEpsilon)
             {
                 // Body-forward runs along the leg (rare): no sagittal reference to steer from.
-                r.BendDir = Vector3.ProjectOnPlane(Vector3.forward, axis);
-                r.BendDir = r.BendDir.sqrMagnitude > k_SqrEpsilon ? r.BendDir.normalized : axis;
+                Vector3 fallback = Vector3.ProjectOnPlane(up, axis);
+                if (fallback.sqrMagnitude < k_SqrEpsilon)
+                {
+                    fallback = Vector3.Cross(axis, Vector3.right);
+                }
+                if (fallback.sqrMagnitude < k_SqrEpsilon)
+                {
+                    fallback = Vector3.Cross(axis, Vector3.up);
+                }
+                r.BendDir = fallback.normalized;
                 r.KneeHint = mid + r.BendDir * radius;
                 r.HintWeight = 0f;
                 return;
             }
             Vector3 bodyPerpN = bodyPerp.normalized;
+            float fwdMag = i.BodyForwardDir.magnitude;
+            float refConditioning = Smoothstep(RefCondSinFadeStart, RefCondSinFadeFull,
+                fwdMag > k_Epsilon ? Mathf.Sqrt(bodyPerp.sqrMagnitude) / fwdMag : 0f);
 
             // Leg-posture gate: 1 while the leg is upright (standing), fading to 0 as it goes horizontal (lying), so a
             // supine foot -- which points up/out, PERPENDICULAR to the flat leg -- can no longer drive the azimuth.
-            Vector3 up = i.PlayerUp.sqrMagnitude > k_SqrEpsilon ? i.PlayerUp.normalized : Vector3.up;
             float legVertical01 = Smoothstep(LegUprightFadeStartDot, LegUprightFadeFullDot, Mathf.Abs(Vector3.Dot(axis, up)));
             r.Upright01 = legVertical01;
 
@@ -155,7 +169,7 @@ namespace Basis.IK
                 float signedDeg = Vector3.SignedAngle(bodyPerpN, footPerpN, axis);
                 float rawAngle = signedDeg < 0f ? -signedDeg : signedDeg;
 
-                followDeg = Mathf.Min(Saturate(i.Coupling) * legVertical01 * rawAngle, MaxFollowDeg);
+                followDeg = Mathf.Min(Saturate(i.Coupling) * legVertical01 * refConditioning * rawAngle, MaxFollowDeg);
 
                 // ⭐ CLOSE THE CIRCLE. Naming the axis fixes WHICH WAY the rotation goes but not the cap: clamping
                 // to MaxFollowDeg holds the follow at full magnitude right up to the posterior ray, so it flips
@@ -183,7 +197,7 @@ namespace Basis.IK
             r.BendDir = bendDir;
             r.FollowDeg = followDeg;
             r.KneeHint = mid + bendDir * radius;
-            r.HintWeight = strength;
+            r.HintWeight = strength * refConditioning;
         }
 
         static float Saturate(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);

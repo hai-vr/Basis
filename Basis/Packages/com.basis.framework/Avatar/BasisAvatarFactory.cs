@@ -410,8 +410,70 @@ namespace Basis.Scripts.Avatar
             }
         }
 
-        /// <summary>Scratch for the old-avatar rig sweep; an avatar swap allocates no scan array.</summary>
-        private static readonly List<JiggleRig> sOldJiggleRigScratch = new List<JiggleRig>();
+        /// <summary>Scratch for the harvest → JiggleRig filter; an avatar swap allocates no scan array.</summary>
+        private static readonly List<JiggleRig> sJiggleRigScratch = new List<JiggleRig>();
+
+        private static JiggleRig[] StoredJiggleRigsFor(IBasisPlayer Player)
+        {
+            switch (Player)
+            {
+                case BasisLocalPlayer:
+                    return BasisLocalAvatarDriver.JiggleRigs;
+                case BasisRemotePlayer remotePlayer when remotePlayer.RemoteAvatarDriver != null:
+                    return remotePlayer.RemoteAvatarDriver.JiggleRigs;
+                default:
+                    return Array.Empty<JiggleRig>();
+            }
+        }
+
+        /// <summary>
+        /// Filters the harvest snapshot for JiggleRigs instead of running another
+        /// GetComponentsInChildren walk — the content walk already visited every component once.
+        /// The stored set is include-inactive, so consumers gate on activity where the old
+        /// active-only scans did. Perf-limit trim runs DestroyImmediate before this, so trimmed
+        /// rigs are already gone here, exactly as a fresh walk would have seen.
+        /// </summary>
+        private static void StoreJiggleRigs(IBasisPlayer Player, BasisContentHarvest harvest, BasisAvatar avatar)
+        {
+            sJiggleRigScratch.Clear();
+            List<Component> components = harvest.Components;
+            if (components != null)
+            {
+                int count = components.Count;
+                for (int Index = 0; Index < count; Index++)
+                {
+                    if (components[Index] is JiggleRig rig && rig != null)
+                    {
+                        sJiggleRigScratch.Add(rig);
+                    }
+                }
+            }
+            else
+            {
+                avatar.GetComponentsInChildren(true, sJiggleRigScratch);
+            }
+
+            int rigCount = sJiggleRigScratch.Count;
+            switch (Player)
+            {
+                case BasisLocalPlayer:
+                    if (BasisLocalAvatarDriver.JiggleRigs.Length != rigCount)
+                    {
+                        BasisLocalAvatarDriver.JiggleRigs = new JiggleRig[rigCount];
+                    }
+                    sJiggleRigScratch.CopyTo(BasisLocalAvatarDriver.JiggleRigs);
+                    break;
+                case BasisRemotePlayer remotePlayer when remotePlayer.RemoteAvatarDriver != null:
+                    BasisRemoteAvatarDriver remoteDriver = remotePlayer.RemoteAvatarDriver;
+                    if (remoteDriver.JiggleRigs.Length != rigCount)
+                    {
+                        remoteDriver.JiggleRigs = new JiggleRig[rigCount];
+                    }
+                    sJiggleRigScratch.CopyTo(remoteDriver.JiggleRigs);
+                    break;
+            }
+            sJiggleRigScratch.Clear();
+        }
 
         /// <summary>
         /// Configures a player with a specific avatar.
@@ -422,15 +484,18 @@ namespace Basis.Scripts.Avatar
             // Explicitly unregister old JiggleRigs synchronously. DeleteLastAvatar is async void
             // and GameObject.Destroy only fires OnDisable at end-of-frame, which races with the
             // new avatar's JiggleRig registration below. Doing it here keeps tree state consistent.
+            // The set was captured off the old avatar's harvest at its own load — no walk needed.
             if (Player.BasisAvatar != null)
             {
-                Player.BasisAvatar.GetComponentsInChildren(true, sOldJiggleRigScratch);
-                int oldRigCount = sOldJiggleRigScratch.Count;
-                for (int i = 0; i < oldRigCount; i++)
+                JiggleRig[] oldRigs = StoredJiggleRigsFor(Player);
+                for (int i = 0; i < oldRigs.Length; i++)
                 {
-                    sOldJiggleRigScratch[i].OnRemove();
+                    JiggleRig oldRig = oldRigs[i];
+                    if (oldRig != null)
+                    {
+                        oldRig.OnRemove();
+                    }
                 }
-                sOldJiggleRigScratch.Clear();
             }
             DeleteLastAvatar(Player);
             Player.IsConsideredFallBackAvatar = isFallback;
@@ -445,6 +510,7 @@ namespace Basis.Scripts.Avatar
             Player.BasisAvatar.AuthoredMotions = loadHarvest.AuthoredMotions != null
                 ? loadHarvest.AuthoredMotions.ToArray()
                 : avatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
+            StoreJiggleRigs(Player, loadHarvest, avatar);
             avatar.Harvest = null;
             loadHarvest.ReturnToPool();
             Player.BasisAvatar.IsOwnedLocally = Player.IsLocal;

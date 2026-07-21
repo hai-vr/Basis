@@ -142,6 +142,26 @@ namespace SteamAudio
         bool mSimulatorCommitRequired = true;
         Camera mMainCamera;
 
+        // Sliced reflections cadence: outputs of the previous run drain a slice per
+        // frame (-1 = drained), then reflections inputs stage a slice per frame; the
+        // thread is kicked only when a cadence tick is pending AND a full pass is
+        // staged. See the reflections block in ApplyInstance.
+        int mReflOutputCursor = -1;
+        int mReflInputCursor = 0;
+        bool mReflInputsStaged = false;
+        bool mReflKickPending = false;
+
+        static int ReflectionsSliceBudget(int count, float interval)
+        {
+            if (count <= 0) return 1;
+            float dt = Time.deltaTime;
+            if (dt <= 0f) return count;
+            int frames = (int)(interval / dt);
+            if (frames < 1) frames = 1;
+            int slice = (count + frames - 1) / frames;
+            return slice < 4 ? 4 : slice;
+        }
+
         static readonly ProfilerMarker sMarkerSkipBusy = new ProfilerMarker("SteamAudio.Apply.SkipWorkerBusy");
         static readonly ProfilerMarker sMarkerReap = new ProfilerMarker("SteamAudio.Apply.Reap");
         static readonly ProfilerMarker sMarkerApplyOutputs = new ProfilerMarker("SteamAudio.Apply.ApplyOutputs");
@@ -948,19 +968,40 @@ namespace SteamAudio
             // --- Reflections/Pathing timing logic ---
             // The cadence clock accumulates at the top of ApplyInstance (before the
             // worker-busy skip) so skipped frames still count toward the interval.
+            //
+            // The per-source output drain (UpdateOutputs + ForceUpdate) and reflections
+            // SetInputs staging are SLICED across the frames between cadence ticks instead
+            // of walking every source on the tick frame — with hundreds of sources both
+            // walks on one frame were a multi-millisecond main-thread spike at the cadence
+            // rate. The thread is only kicked once a full input pass is staged (and the
+            // previous run's outputs fully drained), so a run never reads a half-staged
+            // input set; under heavy source counts the effective reflections rate degrades
+            // gracefully instead of spiking.
             bool runReflectionsThisFrame = false;
-            bool reflectionsCadenceReady = mSimulationUpdateTimeElapsed >= settings.simulationUpdateInterval;
-            if (reflectionsCadenceReady)
+            if (mSimulationUpdateTimeElapsed >= settings.simulationUpdateInterval)
+            {
                 mSimulationUpdateTimeElapsed = 0.0f;
+                mReflKickPending = true;
+            }
 
-            if (reflectionsCadenceReady && mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
+            if (mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
                 using var reflectionsScope = sMarkerReflections.Auto();
                 if (mSimulationCompleted)
                 {
                     mSimulationCompleted = false;
+                    mReflOutputCursor = 0;
+                    mReflInputCursor = 0;
+                    mReflInputsStaged = false;
+                }
 
-                    for (int i = 0; i < CurrentArraySource; i++)
+                int srcTotal = CurrentArraySource;
+                int slice = ReflectionsSliceBudget(srcTotal, settings.simulationUpdateInterval);
+
+                if (mReflOutputCursor >= 0)
+                {
+                    int end = Mathf.Min(mReflOutputCursor + slice, srcTotal);
+                    for (int i = mReflOutputCursor; i < end; i++)
                     {
                         SteamAudioSource src = mSources[i];
                         if (src == null) continue;
@@ -968,42 +1009,61 @@ namespace SteamAudio
                         src.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
                         src.ForceUpdate();
                     }
+                    mReflOutputCursor = end >= srcTotal ? -1 : end;
                 }
-
-                mSimulator.SetSharedInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, sharedInputs);
-
-                // Reuse the same cached poses we already gathered this frame.
-                // If you want “freshest possible” poses right before reflections, reschedule jobs here.
-                unsafe
+                else if (!mReflInputsStaged)
                 {
-                    if (mSourceGathers.IsCreated && CurrentArraySource > 0)
+                    // Reuse the same cached poses we already gathered this frame.
+                    // If you want “freshest possible” poses right before reflections, reschedule jobs here.
+                    unsafe
                     {
-                        GatheredData* pSrcGathers2 = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
-                        for (int i = 0; i < CurrentArraySource; i++)
+                        if (mSourceGathers.IsCreated && srcTotal > 0)
                         {
-                            SteamAudioSource src = mSources[i];
-                            if (src == null) continue;
+                            GatheredData* pSrcGathers2 = (GatheredData*)mSourceGathers.GetUnsafeReadOnlyPtr();
+                            int end = Mathf.Min(mReflInputCursor + slice, srcTotal);
+                            for (int i = mReflInputCursor; i < end; i++)
+                            {
+                                SteamAudioSource src = mSources[i];
+                                if (src == null) continue;
 
-                            GatheredData pos = pSrcGathers2[i];
-                            src.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener);
+                                GatheredData pos = pSrcGathers2[i];
+                                src.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener);
+                            }
+                            mReflInputCursor = end;
+                            if (mReflInputCursor >= srcTotal) mReflInputsStaged = true;
                         }
-                    }
-
-                    if (mListenerGathers.IsCreated && CurrentArrayListener > 0)
-                    {
-                        GatheredData* pLisGathers2 = (GatheredData*)mListenerGathers.GetUnsafeReadOnlyPtr();
-                        for (int i = 0; i < CurrentArrayListener; i++)
+                        else
                         {
-                            SteamAudioListener lis = mListeners[i];
-                            if (lis == null) continue;
-
-                            GatheredData pos = pLisGathers2[i];
-                            lis.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, pos.origin, pos.ahead, pos.up, pos.right);
+                            mReflInputsStaged = true;
                         }
                     }
                 }
 
-                runReflectionsThisFrame = true;
+                if (mReflKickPending && mReflInputsStaged && mReflOutputCursor < 0)
+                {
+                    mSimulator.SetSharedInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, sharedInputs);
+
+                    unsafe
+                    {
+                        if (mListenerGathers.IsCreated && CurrentArrayListener > 0)
+                        {
+                            GatheredData* pLisGathers2 = (GatheredData*)mListenerGathers.GetUnsafeReadOnlyPtr();
+                            for (int i = 0; i < CurrentArrayListener; i++)
+                            {
+                                SteamAudioListener lis = mListeners[i];
+                                if (lis == null) continue;
+
+                                GatheredData pos = pLisGathers2[i];
+                                lis.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, pos.origin, pos.ahead, pos.up, pos.right);
+                            }
+                        }
+                    }
+
+                    mReflKickPending = false;
+                    mReflInputsStaged = false;
+                    mReflInputCursor = 0;
+                    runReflectionsThisFrame = true;
+                }
             }
 
             // Kick the workers only after every SetInputs above is written, so a
