@@ -129,59 +129,104 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        [Test]
-        public void AWellCalibratedElbowTracker_KeepsFullGirdleAuthority()
+        static float ExpectedReach(Vector3 dir, float clavicleLength = 0.13f)
         {
-            Vector3 dir = new Vector3(0.3f, -0.5f, 0.8f).normalized;
-            Vector3 elbow = dir * k_Upper;
-            Vector3 hand = dir * 0.34f;
+            float c = Mathf.Clamp(clavicleLength, 0f, k_Upper * 0.45f);
+            float seg = Mathf.Max(k_Upper - c, 1e-5f);
+            float cr = Vector3.Dot(Vector3.right, dir);
+            float root = c * c * (cr * cr - 1f) + seg * seg;
+            return c * cr + Mathf.Sqrt(root > 0f ? root : 0f);
+        }
 
-            BasisShoulderSolveCore.Solve(ShoulderInput(elbow, hand, k_Upper), out BasisShoulderSolveResult r);
+        static readonly Vector3[] k_Directions =
+        {
+            new Vector3(1f, 0f, 0f),
+            new Vector3(0.05f, -0.95f, 0.1f),
+            new Vector3(0.3f, -0.5f, 0.8f),
+            new Vector3(0.2f, -0.3f, -0.9f),
+            new Vector3(0.5f, 0.7f, 0.2f),
+        };
 
-            Assert.IsTrue(r.Apply);
-            Assert.IsTrue(r.DriverIsElbow);
-            Assert.Greater(r.AppliedAngleDeg, 0f,
-                "a consistent tracker must still drive the girdle exactly as before");
+        [Test]
+        public void ACorrectlyPlacedElbow_IsUntouchedAtEveryDirection()
+        {
+            foreach (Vector3 raw in k_Directions)
+            {
+                Vector3 dir = raw.normalized;
+                float expected = ExpectedReach(dir);
+                Vector3 hand = dir * 0.34f;
+
+                BasisShoulderSolveCore.Solve(ShoulderInput(dir * expected, hand, k_Upper),
+                    out BasisShoulderSolveResult atExpected);
+                BasisShoulderSolveCore.Solve(ShoulderInput(dir * (expected * 0.7f), hand, k_Upper),
+                    out BasisShoulderSolveResult closer);
+
+                Assert.AreEqual(closer.AppliedAngleDeg, atExpected.AppliedAngleDeg, 1e-3f,
+                    $"dir {dir}: the gate must not fire on a reachable elbow. The straight-arm reach is " +
+                    "pose-dependent, so comparing against the flat T-pose length reads a phantom overshoot.");
+            }
         }
 
         [Test]
-        public void AnImplausibleElbowTracker_FallsBackTowardTheReachGate()
+        public void AnElbowBeyondAnyReachablePosition_LosesGirdleAuthority()
         {
             Vector3 dir = new Vector3(0.3f, -0.5f, 0.8f).normalized;
             Vector3 hand = dir * 0.34f;
+            float expected = ExpectedReach(dir);
 
-            BasisShoulderSolveCore.Solve(ShoulderInput(dir * k_Upper, hand, k_Upper),
-                out BasisShoulderSolveResult trusted);
-            BasisShoulderSolveCore.Solve(ShoulderInput(dir * (k_Upper * 2f), hand, k_Upper),
-                out BasisShoulderSolveResult implausible);
+            BasisShoulderSolveCore.Solve(ShoulderInput(dir * expected, hand, k_Upper),
+                out BasisShoulderSolveResult good);
+            BasisShoulderSolveCore.Solve(ShoulderInput(dir * (expected * 2f), hand, k_Upper),
+                out BasisShoulderSolveResult bogus);
 
-            Assert.Less(implausible.AppliedAngleDeg, trusted.AppliedAngleDeg,
-                "a tracker asserting a 2x upper arm must lose girdle authority, not keep it");
+            Assert.Greater(good.AppliedAngleDeg, 0f, "the reachable case must still drive the girdle");
+            Assert.Less(bogus.AppliedAngleDeg, good.AppliedAngleDeg,
+                "an elbow twice as far as any pose allows must lose authority, not keep it");
         }
 
         [Test]
-        public void TheElbowTrustFallback_IsContinuousInTheMismatch()
+        public void TheOvershootGate_HandsOverSmoothlyAndMonotonically()
         {
             Vector3 dir = new Vector3(0.3f, -0.5f, 0.8f).normalized;
             Vector3 hand = dir * 0.34f;
+            float expected = ExpectedReach(dir);
 
             float prev = float.NaN;
             float worstStep = 0f;
 
-            for (float scale = 1f; scale <= 2.5f; scale += 0.01f)
+            for (float f = 0.5f; f <= 3f; f += 0.01f)
             {
-                BasisShoulderSolveCore.Solve(ShoulderInput(dir * (k_Upper * scale), hand, k_Upper),
+                BasisShoulderSolveCore.Solve(ShoulderInput(dir * (expected * f), hand, k_Upper),
                     out BasisShoulderSolveResult r);
 
                 if (!float.IsNaN(prev))
                 {
                     worstStep = Mathf.Max(worstStep, Mathf.Abs(r.AppliedAngleDeg - prev));
+                    Assert.LessOrEqual(r.AppliedAngleDeg, prev + 1e-4f,
+                        "authority must never increase as the elbow moves further out of reach");
                 }
                 prev = r.AppliedAngleDeg;
             }
 
-            Assert.Less(worstStep, 1.0f,
-                "authority must hand over smoothly as the tracker becomes implausible, never in a step");
+            Assert.Less(worstStep, 1.0f, "handover must be smooth, never a step");
+        }
+
+        [Test]
+        public void TheNearSide_IsNeverGated_SoTheShrugSurvives()
+        {
+            Vector3 dir = new Vector3(0.05f, -0.95f, 0.1f).normalized;
+            float expected = ExpectedReach(dir, 0.020f);
+            float maxShrug = 0f;
+
+            for (float f = 0.30f; f <= 1f; f += 0.02f)
+            {
+                BasisShoulderSolveCore.Solve(ShoulderInput(dir * (expected * f), dir * 0.30f, k_Upper, 0.020f),
+                    out BasisShoulderSolveResult r);
+                maxShrug = Mathf.Max(maxShrug, r.ShrugDeg);
+            }
+
+            Assert.Greater(maxShrug, 0f,
+                "a shrug can only bring the elbow CLOSER, so the near side must stay ungated");
         }
     }
 }
