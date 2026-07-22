@@ -238,7 +238,12 @@ the intervening segments back to the pre-seek position. The segment producer rep
 segment granularity but the landing is **target-exact**: the run-up from the segment boundary
 to the target is decoded and discarded, so playback must resume at the requested position, not
 the start of the containing segment. A mis-anchored pace clock (stall forward / flood backward)
-is the failure to watch for. Shared clock, so check both the Editor (Windows) and Quest.
+is the failure to watch for. Also seek **from the tail**: once the fetcher has downloaded every
+remaining segment (the last buffer's worth of the stream, so roughly the final ten seconds of a
+short VOD) it parks rather than exits, and a backward seek from there must still reposition —
+a bar that flashes the target and snaps forward means the parked-fetcher revival broke. Playing
+through to the end must still raise ENDED. Shared clock, so check both the Editor (Windows)
+and Quest.
 
 **Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
 top-level `sidx`) served from a range/`206` host. Produce one from a CC clip:

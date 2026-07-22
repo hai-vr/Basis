@@ -144,7 +144,16 @@ typedef struct basis_hls {
     hls_thread_t thread;
     int          thread_started;
     volatile int stop;
-    volatile int producer_done;
+    volatile int producer_done; /* the producer thread has actually exited (stop,
+                                 * policy block, reload exhaustion) — the only
+                                 * state that rejects a seek */
+    volatile int vod_idle;      /* VOD fully fetched and the producer is parked,
+                                 * alive, waiting for a seek to revive it; with a
+                                 * drained ring and no seek in flight the reader
+                                 * reports end-of-stream. Set in the endlist
+                                 * branch and cleared in the seek flush, both
+                                 * under `lock`, so the reader can never see an
+                                 * idle mark alongside a fresh flush generation */
 
     /* Delivery is paced by the engine (pace_gate, by AU timestamp), not here. */
 } basis_hls_t;
@@ -595,8 +604,11 @@ static void hls_producer(basis_hls_t* h) {
             /* Publish the flush for the snapshot generation under the same lock
              * as the ring clear, so a consumer that acquires it sees an emptied
              * ring and the matched generation together; its next serve is
-             * guaranteed post-seek. */
+             * guaranteed post-seek. Leaving idle in the same critical section
+             * keeps the reader from ever pairing an emptied ring with a stale
+             * end-of-stream verdict while the target segment is still fetching. */
             h->flush_gen = seek_g;
+            h->vod_idle = 0;
             hls_mutex_unlock(&h->lock);
         }
         if (!h->seg_ctx) {
@@ -624,16 +636,21 @@ static void hls_producer(basis_hls_t* h) {
                     }
                     h->empty_reloads = 0;
                 } else if (h->endlist_seen) {
-                    /* VOD exhausted. Arbitrate against a late seek under the lock:
-                     * either honour a pending request (loop back) or mark the
-                     * producer done so basis_hls_request_seek rejects further
-                     * seeks. The two can't interleave, so no request is lost and
-                     * the reader never withholds on a flush that never comes. */
+                    /* Unseekable VOD (fMP4: no TS segment list, request_seek
+                     * rejects it) has nothing to park for — exit normally. */
+                    if (h->vod_count == 0) break;
+                    /* VOD exhausted — park, don't exit. A backward seek into the
+                     * tail must still work for as long as the source is open, so
+                     * the thread idles here and the top-of-loop seek take revives
+                     * it. Arbitrate against a pending request under the lock so
+                     * the two can't interleave: either loop back to honour it, or
+                     * publish idle for the reader's end-of-stream verdict. */
                     hls_mutex_lock(&h->lock);
                     if (h->seek_pending) { hls_mutex_unlock(&h->lock); continue; }
-                    h->producer_done = 1;
+                    h->vod_idle = 1;
                     hls_mutex_unlock(&h->lock);
-                    break; /* VOD / stream finished */
+                    hls_sleep_ms(10);
+                    continue;
                 } else {
                     int r = reload_and_enqueue(h);
                     if (r > 0) { h->empty_reloads = 0; }
@@ -822,8 +839,9 @@ int basis_hls_read(void* ctx, uint8_t* buf, int len) {
         /* Seek in flight: the ring still holds pre-seek bytes until the producer
          * flushes and requeues at the target. Withhold them, since handing them
          * to the demuxer would let a stale AU re-anchor pacing to the old timeline.
-         * If the producer has already exited (VOD genuinely ended) without
-         * honouring the seek, stop waiting for a flush that will never come. */
+         * producer_done here means the thread actually exited (stop / policy
+         * block / reload exhaustion) — a parked VOD producer still honours the
+         * request — so only then stop waiting for a flush that will never come. */
         if (h->seek_gen != h->flush_gen) {
             int done = h->producer_done;
             hls_mutex_unlock(&h->lock);
@@ -850,9 +868,13 @@ int basis_hls_read(void* ctx, uint8_t* buf, int len) {
             hls_mutex_unlock(&h->lock);
             return take;
         }
-        int done = h->producer_done;
+        /* End of stream: the ring is drained and either the producer exited or a
+         * fully-fetched VOD is parked with no seek in flight (this branch is only
+         * reachable with the generations settled, so a pending seek can't race
+         * the verdict — request_seek bumps the generation under this lock). */
+        int done = h->producer_done || h->vod_idle;
         hls_mutex_unlock(&h->lock);
-        if (done) return 0;  /* producer finished and ring drained -> end of stream */
+        if (done) return 0;
 
         hls_sleep_ms(2); /* ring empty: wait for the producer to buffer more */
     }
@@ -876,12 +898,13 @@ int basis_hls_can_seek(void* ctx) {
 int basis_hls_request_seek(void* ctx, long long target_ms) {
     basis_hls_t* h = (basis_hls_t*)ctx;
     if (!h || h->vod_count <= 0 || target_ms < 0) return -1;   /* vod_count is fixed at open */
-    /* Accept the seek atomically with the producer_done check so a request can't
-     * be lost against the producer exiting on end-of-stream: the endlist path
-     * sets producer_done under this same lock while verifying no seek is pending,
-     * so exactly one of the two wins. Publish {target, generation, pending}
-     * together; the generation runs ahead of flush_gen until the producer
-     * finishes flushing, during which the consumer withholds the pre-seek ring. */
+    /* Reject only when the producer thread has actually exited — a fully-fetched
+     * VOD parks its producer instead, precisely so a seek into the tail (or after
+     * playout drained the ring) still repositions. Accept atomically with that
+     * check so a request can't be lost against a concurrent exit; publish
+     * {target, generation, pending} together, and the generation runs ahead of
+     * flush_gen until the producer finishes flushing, during which the consumer
+     * withholds the pre-seek ring. */
     hls_mutex_lock(&h->lock);
     if (h->producer_done) { hls_mutex_unlock(&h->lock); return -1; }
     h->seek_target_ms = (long)target_ms;
