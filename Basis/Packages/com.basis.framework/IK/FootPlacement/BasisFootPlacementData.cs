@@ -70,6 +70,11 @@ public struct BasisFootSimState
     /// is falling), which is exactly where a speed-only urgency reads backwards. Scale-invariant — see
     /// k_AccelUrgencyRef.</summary>
     public float smoothedAccelMag;
+    /// <summary>Smoothed d(smoothedVelocity)/dt as a VECTOR, m/s². smoothedAccelMag above is its magnitude and
+    /// answers "how urgently"; this answers "which way", which is what a step TARGET needs. Used by
+    /// ComputeStepPrediction to place the foot where the body will be at touchdown rather than where it is at
+    /// commit — see k_CaptureLeadFrac.</summary>
+    public float3 smoothedAccelVec;
     public float3 prevRootFwd;          // last frame's PLAYER-ROOT forward; lets the body-fwd filter ride the root
     public bool wasAirborne;            // last frame's airborne flag, so touchdown can be detected as an EDGE
 }

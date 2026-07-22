@@ -142,6 +142,29 @@ namespace Basis.Scripts.Drivers
         private static float stationaryTimer = 0f;
         private const float StationaryDelaySeconds = 0.15f;
 
+        // ── LOCOMOTION FOOT IK (experimental, default OFF -- see the measured caveats below) ──
+        // false = shipping behaviour. footIKReady additionally requires isStationaryEnough, so ANY stick
+        // deflection off dead-centre (MovementVector.sqrMagnitude > 0.001) drops the blend to 0 and holds it
+        // there until 150 ms after the stick returns to rest. SolveLegs then early-returns on enabled*LowerLeg
+        // == 0 and the legs are pure FK from the locomotion clip -- no ground contact, no surface adaptation,
+        // no heel-strike, and (because they are gated on the same blend weight) no hip bob, no lateral sway
+        // and no pelvic axial rotation either. The whole gait model is therefore only ever VISIBLE while
+        // standing, turning in place, or walking room-scale.
+        //
+        // true = the stepper also drives the feet during stick locomotion, which is what FinalIK's VRIK calls
+        // Locomotion.Procedural and what it was built for (Lang, "Character Animation in Dead and Buried").
+        //
+        // ⚠ NOT headset-verified. What IS measured, on the 41-scenario sweep at 0.5x/1x/2x (this is exactly the
+        // regime the flag exposes, and the sweep has never modelled the gate, so it has always reported it):
+        //   - STEADY-state locomotion is inside the gate at every speed: walk-normal 1.05, walk-fast 1.05,
+        //     sprint 1.15 against a 1.18 limit, with a clean alternating cycle and duty factor 0.53.
+        //   - TRANSIENTS still exceed it. A hard start from rest peaks ~1.3-1.6x standing reach for ~0.3 s
+        //     before settling, worst on small avatars; jumping while running and hard direction reversals are
+        //     the other two. Those are the honest reason this defaults off, not the sustained gait.
+        // Flip it, walk and sprint around, and watch specifically for the leg visibly stretching in the first
+        // moment of a hard start and when jumping mid-run.
+        private static readonly bool LocomotionFootIK = false;
+
         // ── FOOT ROTATION KILL SWITCH ──
         // false => hand SolveLegs the zero-quaternion sentinel, which makes it keep the ANIMATION's foot rotation.
         // That is the long-standing, known-good behaviour: no heel-strike / toe-off / slope adaptation, and a
@@ -618,7 +641,7 @@ namespace Basis.Scripts.Drivers
             bool footDriverReady = footDriver.IsInitialized;
             bool isStationaryEnough = stationaryTimer >= StationaryDelaySeconds;
             bool footIKSetting = Basis.BasisUI.BasisSettingsDefaults.FootIKEnabled.RawValue;
-            bool footIKReady = footDriverReady && isStationaryEnough && footIKSetting;
+            bool footIKReady = footDriverReady && (LocomotionFootIK || isStationaryEnough) && footIKSetting;
             bool leftWantIK = footIKReady && !leftHasTracker;
             bool rightWantIK = footIKReady && !rightHasTracker;
             bool leftOrRightDrive = !leftHasTracker || !rightHasTracker;
@@ -1731,6 +1754,17 @@ namespace Basis.Scripts.Drivers
             return false;
         }
 
+        public bool TryGetArmDiagnostics(int slot, out Basis.IK.BasisArmDiagnostics diagnostics)
+        {
+            if (IKJobCreated && IKJob.armDiagnostics.IsCreated && (uint)slot < (uint)IKJob.armDiagnostics.Length)
+            {
+                diagnostics = IKJob.armDiagnostics[slot];
+                return true;
+            }
+            diagnostics = default;
+            return false;
+        }
+
         public void RestoreAllTrackers()
         {
             if (IKDataReady)
@@ -1965,7 +1999,21 @@ namespace Basis.Scripts.Drivers
             sMarkerIKDestSolve.Begin();
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;
+            IKJob.armDiagnosticsEnabled = BasisArmSolveRecorder.Active;
             IKJob.Run();
+
+            if (BasisArmSolveRecorder.Active)
+            {
+                if (TryGetArmDiagnostics(0, out Basis.IK.BasisArmDiagnostics dal))
+                {
+                    BasisArmSolveRecorder.Record(BasisArmSolveRecorder.ArmLeft, Time.time, in dal);
+                }
+                if (TryGetArmDiagnostics(1, out Basis.IK.BasisArmDiagnostics dar))
+                {
+                    BasisArmSolveRecorder.Record(BasisArmSolveRecorder.ArmRight, Time.time, in dar);
+                }
+                BasisArmSolveRecorder.EndFrame();
+            }
             sMarkerIKDestSolve.End();
 
             // Leg diagnostics are written INSIDE the job, so read them here and not before Run().

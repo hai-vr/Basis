@@ -106,6 +106,38 @@ public struct BasisFootSimulateJob : IJob
     //   Only genuine OVER-extension is urgent.
     const float k_ExtUrgencyBand = 0.10f;          // over-extension beyond standing reach for full urgency
 
+    // FORCED STEP -- the escape valve the gate did not have. k_ExtUrgencyBand above feeds over-extension into
+    // step DURATION, but nothing let it shorten the WAIT: doubleSupportSec still had to elapse before the foot
+    // was allowed to move at all. So a leg being torn straight sat and kept stretching until the dwell expired.
+    // Measured on the sweep's `reversal@0.5x`: the right foot held its plant from t=3.17 to t=3.41 while the body
+    // accelerated away through a direction reversal, ext climbing 1.14 -> 1.46, purely because the left foot was
+    // still mid-swing and the dwell had not run out.
+    //
+    // Past this ratio the leg's reach is the binding constraint and gait aesthetics are not: let it go NOW. Hof's
+    // stability condition says the same thing in balance terms -- once the extrapolated CoM leaves the base of
+    // support no ankle/CoP strategy can recover it and a step is MANDATORY, not optional (Hof, Gazendam & Sinke
+    // 2005, J Biomech 38:1-8). FinalIK's VRIK carries the same valve as `thighDistance >= legLength *
+    // maxLegStretch` with maxLegStretch constrained to [0.9, 1.0].
+    //
+    // ⚠⚠ IT IS A DWELL WAIVER, NOT A TRIGGER, AND THAT DISTINCTION IS LOAD-BEARING. It may only let a foot that
+    // ALREADY wants to step (past its distance or yaw trigger) go before the double-support window elapses. It
+    // must never appear in the trigger itself.
+    //   My first version did put it in the trigger, so it CREATED steps, and it broke both
+    //   BasisFootWalkInvarianceTests -- WalkGait_IsScaleInvariant and WalkGait_IsFramerateIndependent, i.e.
+    //   precisely the two bug classes this system has shipped before. A hard threshold that CREATES a discrete
+    //   event will be crossed at slightly different instants by a chibi and a giant, or at 30 fps and 144 fps,
+    //   and one extra or missing step moves cadence past the tolerance. Bisected: disabling this alone took the
+    //   suite from 2 failures back to 0, with everything else in this change still active.
+    //
+    // ⚠ Also bypasses ONLY the double-support TIMER, never `other.phase == 0`. Single support stays strictly
+    // enforced, so BothSteppingTicks (a hard-zero gate in GateFoot) cannot regress.
+    //
+    // The value must sit ABOVE the walking band it is not meant to police. Measured walk peaks are ~1.13
+    // (walk-slow and walk-normal alike, which is also the band RunWalk exercises at v-hat 0.20/0.30/0.42), so
+    // 1.15 clears them while staying under the 1.18 gate and far under the emergencies this exists for
+    // (reversal 1.47, sprint transient 1.60).
+    const float k_ForcedStepExtRatio = 1.15f;
+
     // YAW REVERSAL (mouse-look snap-back). smoothedYawRateDeg is SIGNED and filtered at bodyFwdRateMoving
     // (tau ~167 ms), which is fine while a turn holds one direction and actively WRONG the instant it reverses:
     // for ~15 frames the filter still reports the OLD direction. Everything that only wants magnitude (pacing,
@@ -135,6 +167,33 @@ public struct BasisFootSimulateJob : IJob
     // Reach-ahead floor: minimum forward distance of a step target as a fraction of leg, so a WALK plants the
     // foot in front deliberately (see ComputeStepPrediction). Speed-gated there so a spin is untouched.
     const float k_ReachAheadFrac = 0.25f;
+
+    // ACCELERATION LEAD -- the step target's missing term, and the cause of the sweep's worst transients.
+    //
+    // predAmount is `speed * stepDur * predictionFactor`: it leads by the velocity the body has AT COMMIT. Two
+    // things go wrong the moment the body is accelerating. The obvious one is that the body is faster at
+    // touchdown than at commit, so the foot lands short and is stranded again immediately. The subtle one is
+    // worse and is backwards: urgency SHORTENS stepDur (281 ms -> 168 ms), and stepDur is a FACTOR of the lead,
+    // so the harder the body accelerates the LESS far ahead the foot is placed -- the correction shrinks exactly
+    // when it is most needed. Measured: every fast scenario in the sweep peaks in its first ~0.3 s and then
+    // settles inside the gate (sprint 1.53 -> 1.15, walk-fast 1.36 -> 1.05), i.e. the failure is the transient,
+    // not the steady state.
+    //
+    // The fix is Hof's compensation rule, which is exact rather than a fudge: a disturbance that changes CoM
+    // velocity by dv is compensated by displacing foot placement by dv/w0 in the same direction (Hof 2008,
+    // Hum Mov Sci 27:112-125; the underlying stability condition is Hof, Gazendam & Sinke 2005, J Biomech
+    // 38:1-8). Over one swing the body gains dv = accel * stepDur, so the extra placement is accel*stepDur/w0.
+    //
+    //   w0 = sqrt(g / l), and l is the EQUIVALENT PENDULUM LENGTH, not the leg. Hof gives l = 1.20 * trochanteric
+    //   height in the sagittal plane with the trunk held vertical (1.34 * in the frontal plane). Using raw leg
+    //   length instead understates 1/w0 by ~13% -- the error would be in the wrong direction here, under-leading
+    //   the foot in exactly the case this term exists to fix.
+    //
+    // ⭐ SCALE-INVARIANT: 1/w0 goes as sqrt(L/g), the same pendulum time every other duration in this file uses,
+    // so a chibi gets ~0.25 s and a giant ~0.50 s with no extra tuning. It stays inside maxPredictionFraction,
+    // so it can lengthen a step but never fling the foot past what the hip can reach. Set to 0 to disable.
+    const float k_CaptureLeadFrac = 1.0f;          // multiplier on the dv/w0 displacement (1.0 = exactly Hof)
+    const float k_PendulumLengthMul = 1.20f;       // equivalent pendulum length / trochanteric height, sagittal
 
     // Step width at top speed, as a fraction of the walking stance. Walkers plant ~0.13 leg-lengths apart
     // laterally; runners land nearly on one line as the COM spends less time shifted over each stance leg.
@@ -274,8 +333,12 @@ public struct BasisFootSimulateJob : IJob
 
         // Magnitude, not signed: a hard STOP is as much a reason to commit a step as a hard start. Smoothed on
         // the accel rate so a single noisy tracker frame cannot spike a step.
-        float accelMag = math.length(sim.smoothedVelocity - prevSmoothedVel) / dt;
-        sim.smoothedAccelMag = math.lerp(sim.smoothedAccelMag, accelMag, 1f - math.exp(-p.velocitySmoothAccel * dt));
+        float3 accelVec = (sim.smoothedVelocity - prevSmoothedVel) / dt;
+        float accelMag = math.length(accelVec);
+        float aAlpha = 1f - math.exp(-p.velocitySmoothAccel * dt);
+        sim.smoothedAccelMag = math.lerp(sim.smoothedAccelMag, accelMag, aAlpha);
+        // Same signal, same filter, kept as a vector -- the magnitude says how hard, the vector says which way.
+        sim.smoothedAccelVec = math.lerp(sim.smoothedAccelVec, accelVec, aAlpha);
         float accelUrgency = math.saturate(sim.smoothedAccelMag / k_AccelUrgencyRef);
 
         // ── Body forward ──
@@ -525,11 +588,41 @@ public struct BasisFootSimulateJob : IJob
             float airUpComp = groundUpComponent;
             if (left.phase == 0) { SetUpComponent(ref left.currentPos, airUpComp, up); SetUpComponent(ref left.plantedPos, airUpComp, up); }
             if (right.phase == 0) { SetUpComponent(ref right.currentPos, airUpComp, up); SetUpComponent(ref right.plantedPos, airUpComp, up); }
+
+            // A SWINGING foot needs this too, and used to be skipped entirely.
+            //
+            // stepStartPos/stepTargetPos are frozen at commit, and FinalizeStep resolves the target by casting
+            // down to the FLOOR. Commit a step in the instant before or during a jump and the foot spends the
+            // whole swing flying to a floor the body is leaving: the sweep's `jump-forward@0.5x` lands the left
+            // foot at l_y 0.008 on the exact tick the hips reach their 0.760 apex, tearing the leg to 1.69x --
+            // the single worst extension in the whole 41-scenario sweep, and it is pure vertical, with zero
+            // horizontal drift. Carrying only planted feet fixed the WELDED-foot half of the jump bug (see the
+            // airborne derivation above) and left the in-flight half untouched.
+            //
+            // Carry both endpoints, not currentPos: the swing interpolates between them every tick and would
+            // otherwise drag them straight back down. The horizontal path and the step arc are untouched, so a
+            // step committed before the jump still lands where it was aimed -- just at the body's height rather
+            // than the departed floor's. Exactly a no-op while grounded, since this whole branch is airborne-only.
+            if (left.phase != 0) { SetUpComponent(ref left.stepStartPos, airUpComp, up); SetUpComponent(ref left.stepTargetPos, airUpComp, up); }
+            if (right.phase != 0) { SetUpComponent(ref right.stepStartPos, airUpComp, up); SetUpComponent(ref right.stepTargetPos, airUpComp, up); }
         }
         else if (touchedDown)
         {
             if (left.phase == 0) { SetUpComponent(ref left.currentPos, groundUpComponent, up); SetUpComponent(ref left.plantedPos, groundUpComponent, up); }
             if (right.phase == 0) { SetUpComponent(ref right.currentPos, groundUpComponent, up); SetUpComponent(ref right.plantedPos, groundUpComponent, up); }
+
+            // ⚠ The SWING carry above is only half a mechanism, and shipping the half is worse than shipping
+            // neither. Raising a swing foot's endpoints to the hips-relative level while airborne, with nothing
+            // to lower them again, means a foot that is still mid-flight when the body lands finishes its swing
+            // at the AIRBORNE height and plants there -- hovering by exactly the airborne margin. That is the
+            // 138 mm regression the touchdown edge was originally added to kill, re-created one branch over:
+            // measured on the sweep as WorstPlantedHoverMm 2.7 -> 138.2 the moment the carry went in alone.
+            //
+            // The landing is the event that ends the carry, so undo it here, symmetrically. A foot that lands
+            // AFTER this tick is handled by the normal FinalizeStep path, which resolves its target against the
+            // real floor again once grounded.
+            if (left.phase != 0) { SetUpComponent(ref left.stepStartPos, groundUpComponent, up); SetUpComponent(ref left.stepTargetPos, groundUpComponent, up); }
+            if (right.phase != 0) { SetUpComponent(ref right.stepStartPos, groundUpComponent, up); SetUpComponent(ref right.stepTargetPos, groundUpComponent, up); }
         }
         else
         {
@@ -574,8 +667,8 @@ public struct BasisFootSimulateJob : IJob
         if (left.phase == 0) left.plantedTime += dt;
         if (right.phase == 0) right.plantedTime += dt;
 
-        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, inp.hipsPos, sim.smoothedYawRateDeg, doubleSupportSec, urgencyT);
-        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, inp.hipsPos, sim.smoothedYawRateDeg, doubleSupportSec, urgencyT);
+        UpdateFoot(ref left, ref right, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, inp.hipsPos, sim.smoothedYawRateDeg, doubleSupportSec, urgencyT, sim.smoothedAccelVec);
+        UpdateFoot(ref right, ref left, rawFwd, sim.smoothedVelocity, speed, threshold, stepDur, dt, up, hipsGround, inp.hipsPos, sim.smoothedYawRateDeg, doubleSupportSec, urgencyT, sim.smoothedAccelVec);
 
         // One foot stays grounded: if both planted feet want to step the same tick, keep the
         // more-urgent (farther-drifted) request and defer the other. Without this both can lift at
@@ -656,8 +749,30 @@ public struct BasisFootSimulateJob : IJob
         {
             float3 sepAxis = sepLen > 1e-4f ? sepV / sepLen : -rawRight;   // degenerate: left to the -right side
             float push = 0.5f * (minSep - sepLen);
-            left.currentPos += sepAxis * push;
-            right.currentPos -= sepAxis * push;
+            float3 leftPush = sepAxis * push;
+            left.currentPos += leftPush;
+            right.currentPos -= leftPush;
+
+            // ⚠ CARRY THE PLANT, not just the pose -- otherwise this backstop fights itself and the fight IS
+            // visible skating.
+            //
+            // The push moves currentPos only. But a PLANTED foot's currentPos is lerped back toward plantedPos
+            // every tick (`plantedLerpSpeed`), and plantedPos was never corrected -- so the foot is shoved out,
+            // springs back, and is shoved again next tick. That oscillation is what the slide metric measures.
+            // The medial swing deliberately brings the swing foot close to the stance leg at mid-swing (see the
+            // hard bound on k_MedialSwingFrac), so the backstop fires exactly there, and it fires for a RUN of
+            // ticks rather than once: the sweep's strafe-left@2x showed a planted foot ramping smoothly to
+            // 105 mm/tick over ~10 ticks, 16.5% of the run past the 15 mm gate. Resonite reports the same
+            // artifact from the same cause -- an avoidance term that displaces the plant "shifts the landing
+            // point back and forth and disrupts the rhythm of the gait".
+            //
+            // Moving plantedPos with it makes the correction a one-time RELOCATION: the foot is genuinely
+            // re-seated where the backstop put it and then stays there, instead of being dragged back into the
+            // violation it was just corrected out of. The separation guarantee is untouched (same symmetric
+            // push, which measured better than giving the whole deficit to the free foot -- that distorted the
+            // swing path enough to push slide to 129 mm and crossovers to 394).
+            if (left.phase == 0) left.plantedPos += leftPush;
+            if (right.phase == 0) right.plantedPos -= leftPush;
         }
 
         // ── Hip bob + lateral sway + pelvis rotation ──
@@ -676,7 +791,8 @@ public struct BasisFootSimulateJob : IJob
 
     private void UpdateFoot(ref BasisFootNativeState f, ref BasisFootNativeState other,
         float3 rawFwd, float3 smoothedVelocity, float speed, float threshold, float stepDur, float dt, float3 up,
-        float3 hipsGround, float3 hipsPos, float yawRateDeg, float doubleSupportSec, float urgencyT)
+        float3 hipsGround, float3 hipsPos, float yawRateDeg, float doubleSupportSec, float urgencyT,
+        float3 smoothedAccelVec)
     {
         float3 bodyFlat = rawFwd - up * math.dot(rawFwd, up);
         bool bodyFlatValid = math.lengthsq(bodyFlat) > 1e-6f;
@@ -763,8 +879,20 @@ public struct BasisFootSimulateJob : IJob
             // the same tick and the existing same-tick resolver hands the step to whichever foot has drifted
             // further -- i.e. exactly the starved one.
             float doubleSupportSoFar = math.min(f.plantedTime, other.plantedTime);
-            bool otherSettled = other.phase == 0 && doubleSupportSoFar >= doubleSupportSec;
 
+            // How close this leg is to being torn straight. hipToFoot IS the standing straight-leg distance, so
+            // ratio 1.0 is "standing" and only the excess counts. Hoisted above the gate because it now feeds
+            // the gate itself, not just the urgency inside it -- see k_ForcedStepExtRatio.
+            float extRatio = math.length(hipsPos - f.plantedPos) / math.max(1e-4f, p.hipToFoot);
+            bool overExtended = extRatio > k_ForcedStepExtRatio;
+
+            // Single support (`other.phase == 0`) is NEVER waived -- only the dwell timer is, and only for a leg
+            // that is already past its reach. Waiving the dwell cannot lift both feet; waiving the phase test
+            // could, and that is a hard-zero gate.
+            bool otherSettled = other.phase == 0 && (doubleSupportSoFar >= doubleSupportSec || overExtended);
+
+            // NOTE: overExtended is deliberately absent from this trigger -- see k_ForcedStepExtRatio. It waives
+            // the dwell inside otherSettled above; it must not create a step on its own.
             if ((dist > threshold || yawTrigger) && otherSettled)
             {
                 f.wantsStep = true;
@@ -772,12 +900,9 @@ public struct BasisFootSimulateJob : IJob
                 // urgency. A foot barely over the line still takes a deliberate step; one that has been left
                 // well behind commits. See k_DriftUrgencyRefMul.
                 float driftOver = math.saturate((dist - threshold) / math.max(1e-4f, threshold * k_DriftUrgencyRefMul));
-                // ...and how close this leg is to being torn straight. hipToFoot IS the standing straight-leg
-                // distance, so ratio 1.0 is "standing" and only the excess counts -- see k_ExtUrgencyBand.
-                float extRatio = math.length(hipsPos - f.plantedPos) / math.max(1e-4f, p.hipToFoot);
                 float extOver = math.saturate((extRatio - 1f) / k_ExtUrgencyBand);
                 f.stepUrgency = math.max(urgencyT, math.max(driftOver, extOver));
-                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up, hipsGround, yawRateDeg);
+                f.predictedTargetXZ = ComputeStepPrediction(ref f, rawFwd, smoothedVelocity, speed, stepDur, up, hipsGround, yawRateDeg, smoothedAccelVec);
             }
             else
             {
@@ -948,7 +1073,7 @@ public struct BasisFootSimulateJob : IJob
     }
 
     private float3 ComputeStepPrediction(ref BasisFootNativeState f, float3 bodyFwd, float3 smoothedVelocity, float speed, float stepDur, float3 up,
-        float3 hipsGround, float yawRateDeg)
+        float3 hipsGround, float yawRateDeg, float3 smoothedAccelVec)
     {
         // Uses the caller's live sim state — simState[0] still holds last frame's values here
         // (Execute writes back only at its end).
@@ -970,6 +1095,26 @@ public struct BasisFootSimulateJob : IJob
         float reachFloor = k_ReachAheadFrac * avgLeg * reachGate;
         predAmount = math.min(math.max(predAmount, reachFloor), avgLeg * p.maxPredictionFraction);
 
+        // ── Acceleration lead (Hof): displace placement by dv/w0, dv = accel over one swing. See k_CaptureLeadFrac.
+        // EXACTLY ZERO in steady locomotion (accel ~ 0), so the tuned walk is untouched by construction; it only
+        // spends authority on starts, stops and reversals, which is where every measured transient lives.
+        float3 accelFlat = smoothedAccelVec - up * math.dot(smoothedAccelVec, up);
+        float3 captureLead = float3.zero;
+        if (k_CaptureLeadFrac > 0f && math.lengthsq(accelFlat) > 1e-8f)
+        {
+            // Trochanteric height IS hipToFoot + ankleHeight here -- that is how both are measured off the T-pose.
+            float pendulumLen = math.max(1e-3f, k_PendulumLengthMul * (p.hipToFoot + p.ankleHeight));
+            float invOmega = math.sqrt(pendulumLen / 9.81f);      // 1/w0, seconds; scales as sqrt(L/g)
+            captureLead = accelFlat * (stepDur * invOmega * k_CaptureLeadFrac);
+        }
+
+        // Combined lead is clamped as ONE vector, not per-term: the cap exists because the hip cannot reach past
+        // it, and that limit does not care which term asked for the distance.
+        float3 lead = moveDir * predAmount + captureLead;
+        float maxLead = avgLeg * p.maxPredictionFraction;
+        float leadLen = math.length(lead);
+        if (leadLen > maxLead) lead *= maxLead / math.max(leadLen, 1e-6f);
+
         // ANGULAR prediction. The old code predicted TRANSLATION only, so a pure turn (speed ~0 => predAmount ~0)
         // aimed the foot at where the body is pointing NOW -- but the foot lands stepDur LATER, by which time the
         // body has turned further. The foot was therefore born already behind and could never catch up: at 90 deg/s
@@ -986,7 +1131,7 @@ public struct BasisFootSimulateJob : IJob
         float3 fromCenter = f.idealPos - hipsGround;
         float3 predictedIdeal = hipsGround + math.mul(yawPredict, fromCenter);
 
-        return predictedIdeal + moveDir * predAmount;
+        return predictedIdeal + lead;
     }
 
     // Vertical pelvis motion over the gait cycle. The PHASE here was inverted, which is why the walk read wrong

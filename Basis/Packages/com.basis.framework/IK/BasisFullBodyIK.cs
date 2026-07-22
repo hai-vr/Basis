@@ -232,6 +232,11 @@ collisionsEnabled;
         public NativeArray<Vector3> legSwivelSmooth;
         public NativeArray<int> legSwivelInit;
         public NativeArray<BasisLegDiagnostics> legDiagnostics;
+        /// <summary>Per-arm solved angular state, captured from the STREAM composition rather than the result
+        /// struct. The solver publishes five twist diagnostics and recorded none of them, which is why three
+        /// separate investigations this week aimed at the wrong joint before a test caught it.</summary>
+        public NativeArray<BasisArmDiagnostics> armDiagnostics;
+        public bool armDiagnosticsEnabled;
         public float ikLockMode;
         public bool shoulderSolveEnabled;
         public bool shoulderShrugEnabled;
@@ -252,6 +257,7 @@ collisionsEnabled;
         /// forearm-vs-humerus relationship, so the forearm's axial roll stops being inherited 1:1 from
         /// whichever idle clip happens to be playing. See BasisArmSolveCore's forearm-roll note.</summary>
         public Quaternion TposeLeftLowerArmRot, TposeRightLowerArmRot;
+        public Quaternion TposeLeftHandRot, TposeRightHandRot;
         public Vector3 TposeLeftHumerusDir, TposeRightHumerusDir;
         public Vector3 TposeLeftHumerusRefAxis, TposeRightHumerusRefAxis;
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
@@ -330,12 +336,12 @@ collisionsEnabled;
             float swingDt = stream.deltaTime;
             if (enabledLeftHand > 0f)
             {
-                ApplySwingContinuity(stream, k_SwingLeftElbow, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, swingRate, swingDt);
+                ApplySwingContinuity(stream, k_SwingLeftElbow, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, swingRate, swingDt, bodyRight);
             }
 
             if (enabledRightHand > 0f)
             {
-                ApplySwingContinuity(stream, k_SwingRightElbow, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, swingRate, swingDt);
+                ApplySwingContinuity(stream, k_SwingRightElbow, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, swingRate, swingDt, bodyRight);
             }
 
             // 4b) Arm twist distribution: spread wrist/elbow roll along the optional twist bones
@@ -1809,6 +1815,7 @@ collisionsEnabled;
                 input.ElbowLateralOut = twistIsLeft ? -bodyRight : bodyRight;
                 if (swingGuardSide.IsCreated) input.PrevGuardSide = swingGuardSide[swingSlot];
                 input.BindLowerArmRotation = twistIsLeft ? TposeLeftLowerArmRot : TposeRightLowerArmRot;
+                input.BindHandRotation = twistIsLeft ? TposeLeftHandRot : TposeRightHandRot;
                 BasisBoneHandle clavicle = twistIsLeft ? HandleLeftShoulder : HandleRightShoulder;
                 if (clavicle.IsValid(stream))
                 {
@@ -1848,6 +1855,15 @@ collisionsEnabled;
             else if ((uint)swingSlot < (uint)k_SwingCount && swingPoleAnchorInit.IsCreated)
             {
                 swingPoleAnchorInit[swingSlot] = 0;
+            }
+
+            if (armDiagnosticsEnabled && armDiagnostics.IsCreated
+                && (swingSlot == k_SwingLeftElbow || swingSlot == k_SwingRightElbow))
+            {
+                BasisArmDiagnosticsCore.Capture(input, result,
+                    swingSlot == k_SwingLeftElbow ? -1f : 1f,
+                    out BasisArmDiagnostics diag);
+                armDiagnostics[swingSlot] = diag;
             }
 
             mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
@@ -1995,7 +2011,14 @@ collisionsEnabled;
         // exact 0f inside the envelope and this early-outs. It is a swivel about shoulder->hand, and the
         // hand LIES on that axis, so it cannot move the hand the protect just preserved.
         // ==============================================================================================
-        void ReGuardElbowAnatomy(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip)
+        // ⚠️ THIS MUST THREAD THE SAME HYSTERESIS STATE AS THE MAIN SOLVE. It is a SECOND call into the
+        // anatomy guard, after the elbow protect has moved the elbow, so it decides the branch again --
+        // and on the declining 5-arg overload it decides it from `sign(s)`, which at the top of the elbow's
+        // circle is NOISE. That is the buzz: measured 92-110 re-decisions per 200 frames, dragging the
+        // elbow through 4-38 METRES of path for an input standing still, and a full 180 deg flip when it
+        // crosses. Sharing swingGuardSide with the main solve means both calls agree on a side and neither
+        // re-decides on noise.
+        void ReGuardElbowAnatomy(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int swingSlot, Vector3 bodyRight)
         {
             if (!root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
             {
@@ -2013,7 +2036,15 @@ collisionsEnabled;
 
             BasisSwivelFrame torsoFrame = BuildArmFrame(stream);
             Vector3 guardUp = torsoFrame.Valid ? torsoFrame.Up : playerUp;
-            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(a, b, c, guardUp, totalLen);
+            bool sideSlot = (uint)swingSlot < (uint)k_SwingCount && swingGuardSide.IsCreated;
+            Vector3 lateralOut = swingSlot == k_SwingLeftElbow ? -bodyRight : bodyRight;
+            int prevSide = sideSlot ? swingGuardSide[swingSlot] : 0;
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(a, b, c, guardUp, totalLen,
+                lateralOut, prevSide, out int sideUsed);
+            if (sideSlot && sideUsed != 0)
+            {
+                swingGuardSide[swingSlot] = sideUsed;
+            }
             if (guardSwivel == 0f)
             {
                 return;
@@ -2064,7 +2095,7 @@ collisionsEnabled;
         // and pole flips are accepted instantly. Carries the stored swing with root→tip motion and
         // re-seeds when the tip target teleports. Keys off persistent state + the target — never the
         // bone it overwrites, which would oscillate.
-        void ApplySwingContinuity(BasisPoseStream stream, int slot, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPos, float rateDegPerSec, float dt)
+        void ApplySwingContinuity(BasisPoseStream stream, int slot, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPos, float rateDegPerSec, float dt, Vector3 bodyRight)
         {
             if (!swingContinuityInit.IsCreated || !root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
             {
@@ -2095,6 +2126,13 @@ collisionsEnabled;
                 SwingElbowAroundAC(stream, root, mid, tip, a + r.NewDir);
                 tip.SetPosition(stream, c);
                 tip.SetRotation(stream, preservedHandRot);
+                // ⚠️ THE SWING LIMITER RUNS LAST -- AFTER the elbow protect AND after its re-guard -- and it
+                // had NO anatomy term. Vector3.Slerp takes the SHORTEST arc on the elbow's circle, but the
+                // legal set is the complement of a forbidden arc around the top, so it is NOT geodesically
+                // convex: two perfectly LEGAL endpoints on opposite sides interpolate straight THROUGH THE
+                // SKY. At the shipped 720 deg/s that is ~0.25 s -- 18-22 frames -- with the elbow above the
+                // anatomical ceiling, which is what "the elbow caves in and rotates 180 like crazy" is.
+                ReGuardElbowAnatomy(stream, root, mid, tip, slot, bodyRight);
             }
 
             swingLastDir[slot] = r.State.LastDir;
@@ -2759,7 +2797,7 @@ collisionsEnabled;
                     SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
                     tip.SetPosition(stream, preservedHandPos);
                     tip.SetRotation(stream, preservedHandRot);
-                    ReGuardElbowAnatomy(stream, root, mid, tip);
+                    ReGuardElbowAnatomy(stream, root, mid, tip, swingSlot, bodyRight);
                 }
                 collisionState = epr.CollisionState;
                 elbowSwivelDeg = epr.Engaged ? epr.ChosenSwivelDeg : float.NaN;
@@ -3003,6 +3041,14 @@ collisionsEnabled;
                 out TposeLeftUpperArmRot, out TposeLeftHumerusDir, out TposeLeftHumerusRefAxis);
             BakeHumerusTwistBind(Mapping.RightUpperArm, Mapping.RightLowerArm,
                 out TposeRightUpperArmRot, out TposeRightHumerusDir, out TposeRightHumerusRefAxis);
+            // ⚠️ The wrist axial bound centres on the bind hand-vs-forearm relationship. Without these it
+            // centres on "bind hand is axially aligned with bind forearm", and any rig with a real bind
+            // offset gets its hand roll clipped in ONE direction on EVERY frame, permanently.
+            // ⚠️ `default` (the ZERO quaternion), NOT identity. Identity passes the bound's `> 0.5f` liveness
+            // test, so it would DEFEAT the decline path and hand the wrist a reference off by the whole bind
+            // forearm rotation -- a permanent one-sided clip. Zero means decline, matching BakeHumerusTwistBind.
+            TposeLeftHandRot = Mapping.leftHand != null ? Mapping.leftHand.rotation : default;
+            TposeRightHandRot = Mapping.rightHand != null ? Mapping.rightHand.rotation : default;
             TposeLeftLowerArmRot = Mapping.leftLowerArm != null ? Mapping.leftLowerArm.rotation : Quaternion.identity;
             TposeRightLowerArmRot = Mapping.RightLowerArm != null ? Mapping.RightLowerArm.rotation : Quaternion.identity;
 
@@ -3090,6 +3136,7 @@ collisionsEnabled;
             legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
             legDiagnostics = new NativeArray<BasisLegDiagnostics>(2, Allocator.Persistent);
+            armDiagnostics = new NativeArray<BasisArmDiagnostics>(2, Allocator.Persistent);
         }
 
         // Bakes each vertebra's anatomical rest frame + ROM, PARALLEL TO THE CHAIN, so the guard can be
@@ -3275,6 +3322,7 @@ collisionsEnabled;
             if (swingPoleAnchorRot.IsCreated) swingPoleAnchorRot.Dispose();
             if (swingPoleAnchorInit.IsCreated) swingPoleAnchorInit.Dispose();
             if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
+            if (armDiagnostics.IsCreated) armDiagnostics.Dispose();
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
             if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();
             if (legSwivelInit.IsCreated) legSwivelInit.Dispose();

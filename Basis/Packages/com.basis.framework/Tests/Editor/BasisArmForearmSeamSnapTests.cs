@@ -235,7 +235,9 @@ namespace Basis.Tests.IK
             // ⚠️ NOT `E + W`. Twists about a common axis only add when the intervening rotations are pure
             // twists, and the forearm sits 10 deg off the humerus at a 170 deg elbow -- measured, that
             // approximation carries 0.46 deg of error, which is enough to blur the identity gate below.
-            j.Demand = TwistDeg(j.HandW * Quaternion.Inverse(neutralFore), foreAxis);
+            // Same cause as the roll-envelope yardstick: demand is the RAW controller. j.HandW correctly
+            // reads the BOUNDED hand and is left alone; only the demand reference moves.
+            j.Demand = TwistDeg((p.In.TargetRotation * p.In.TargetOffset) * Quaternion.Inverse(neutralFore), foreAxis);
             return j;
         }
 

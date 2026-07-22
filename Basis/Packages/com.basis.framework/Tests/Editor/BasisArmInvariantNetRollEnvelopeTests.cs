@@ -163,7 +163,11 @@ namespace Basis.Tests.IK
                 // against the SAME bind neutral, clamped to the comfort band. If the measured pronation is
                 // not this, the stage is not landing on its own target.
                 Quaternion neutralFore = root * (Quaternion.Inverse(rig.BindHumerusRot) * rig.BindLowerArmRot);
-                row.Demand = BasisArmNet.TwistDeg(r.TipRotation * Quaternion.Inverse(neutralFore), foreAxis);
+                // ⚠️ The DEMAND is the RAW CONTROLLER, not r.TipRotation. Since the wrist axial bound landed,
+                // TipRotation is the BOUNDED hand -- so measuring demand from it compares the forearm against a
+                // yardstick that already moved, reporting an apparent 38.5 deg forearm excess where the true
+                // figure against the raw controller is 0.0. The yardstick moved, not the forearm.
+                row.Demand = BasisArmNet.TwistDeg((i.TargetRotation * i.TargetOffset) * Quaternion.Inverse(neutralFore), foreAxis);
                 row.Want = Mathf.Clamp(row.Demand, -BasisArmSolveCore.WristRollComfortDeg, BasisArmSolveCore.WristRollComfortDeg);
                 row.HandRoll = hr; row.TrackerRoll = tracker ? aux : float.NaN; row.HintAz = aux;
                 row.Reach = reach; row.El = el; row.Tracker = tracker;

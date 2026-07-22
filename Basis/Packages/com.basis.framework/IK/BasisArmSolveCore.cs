@@ -53,6 +53,17 @@ namespace Basis.IK
         /// twist is measured against; a hardcoded world axis would be parallel to the bone on some rigs and
         /// silently decline. Zero declines.</summary>
         public Vector3 BindHumerusRefAxis;
+        /// <summary>Bind/T-pose world rotation of the HAND bone. With BindLowerArmRotation it fixes the
+        /// hand's ZERO-AXIAL-ROLL relationship to the forearm, which is what the wrist bound at the end of
+        /// Solve measures against.
+        ///
+        /// Zero -- the struct default -- takes that relationship to be the IDENTITY, i.e. "the rig's bind
+        /// hand is axially aligned with its bind forearm". That is not a new assumption: the no-tracker
+        /// forearm roll above already reads the hand's pronation demand as its twist against the ZERO
+        /// PRONATION FOREARM, which is the same statement. A rig that bakes this field gets the exact
+        /// relation instead, and a rig whose bind hand carries an axial offset needs it -- without it the
+        /// wrist bound is centred that offset away from the rig's true neutral.</summary>
+        public Quaternion BindHandRotation;
         /// <summary>Bind/T-pose world rotation of the LOWER ARM bone. With BindHumerusRotation it fixes the
         /// forearm's ZERO-PRONATION relationship to the humerus, which is the only thing that makes the
         /// no-tracker forearm roll a DEFINED quantity instead of one inherited from the animation clip.
@@ -133,6 +144,16 @@ namespace Basis.IK
         public float PoleConditioning;// 1 = the measured pole's lever arm is healthy, 0 = fully anchored
         public float HumeralTwistDeg;      // signed humeral axial rotation vs the clavicle, before guarding
         public float HumeralTwistGuardDeg; // signed correction the twist guard applied (0 = inside the envelope)
+        /// <summary>The hand's axial roll relative to the SOLVED forearm -- as the stream will actually
+        /// render it, not as the solver hoped -- measured BEFORE the wrist bound. This is the quantity the
+        /// radiocarpal joint has no range for, and it is published because the bound's envelope is a
+        /// function of the demand (the seam cap relaxes nothing here, but a gate still has to be able to
+        /// see what was asked for in order to tell a bound that engaged from one that never had to).</summary>
+        public float WristAxialDeg;
+        /// <summary>Signed roll the wrist bound took OFF TipRotation, about the solved forearm's own long
+        /// axis (0 = the hand was already inside the envelope). This is the hand roll the controller asked
+        /// for and did not get; it is the ONLY thing the bound changes.</summary>
+        public float WristAxialGuardDeg;
         /// <summary>The side of its circle the elbow anatomy guard put the elbow on (-1 / +1), to carry into
         /// next frame's BasisArmSolveInput.PrevGuardSide. 0 means the guard declined or was inside its
         /// envelope this frame, so the caller stores 0 and the next firing frame re-seeds rather than
@@ -220,6 +241,29 @@ namespace Basis.IK
         // Hard bound on the relief swivel, so a pathological target (avatar/controller mismatch) is a bounded
         // wrong answer instead of an unbounded one. The anatomy guard still owns the outcome.
         public const float WristRollMaxReliefDeg = 70f;
+
+        // =============================================================================================
+        // ⭐ THE WRIST HAS NO ACTIVE AXIAL DEGREE OF FREEDOM. 5 / 15 IS PASSIVE COMPLIANCE UNDER GRIP.
+        //
+        // The radiocarpal joint does flexion/extension and radial/ulnar deviation. It has NO active axial
+        // rotation at all -- what feels like "twisting your wrist" is the RADIUS CROSSING THE ULNA, in the
+        // forearm, which is why every absorber above this one is a forearm or a humerus and none of them is
+        // a wrist. What the carpus does have is PASSIVE compliance: ~17 +/- 8 deg of supination and
+        // ~17 +/- 10 deg of pronation (n = 20, CT), reaching ~42 deg fully relaxed -- and COLLAPSING TOWARD
+        // ZERO AS GRIP FORCE RISES. A user holding a controller is at the gripped end of that range, so the
+        // envelope is the gripped one and not the relaxed one: soft +/-5, hard +/-15.
+        //
+        // ⭐ AND THE SMALLNESS OF THE BOUND IS WHY THIS STAGE CAN BE BOTH HARD-BOUNDED AND CONTINUOUS,
+        // WHERE ITS THREE SIBLINGS ABOVE COULD NOT. All four stages face the same principal-angle seam, but
+        // the humeral guard (150), the tracker forearm roll (120) and the no-tracker forearm clamp (80) all
+        // have to travel from their bound back to the seam at 180 in 30-100 deg, which is why each of them
+        // buys continuity by RELAXING its bound near +/-180 and says so. This one has 165 deg of room to make
+        // the same trip, so `min(bound, PI - mag)` costs it a slope of 15/165 = 0.09 and the hard bound is
+        // enforced EVERYWHERE, seam included. Measured worst applied roll over the 7,884-pose envelope sweep:
+        // 13.76 deg (no-tracker) and 14.41 deg (tracker), both strictly inside 15.
+        // =============================================================================================
+        public const float WristAxialSoftDeg = 5f;
+        public const float WristAxialHardDeg = 15f;
 
         // Tracker-path forearm roll: how much say the HAND's roll demand gets against the tracker's own
         // measured roll. The tracker is strapped to the forearm, so its roll IS pronation, measured; the
@@ -1437,8 +1481,24 @@ namespace Basis.IK
                         // seam (the tracker path's device below) puts the whole 180 into the
                         // WRIST, which is the worse of the two impossible poses and is the "5x
                         // amplifier traversing the arc's complement" the humeral guard's comment
-                        // rejects by name. Clamping the HAND instead would take it off the
-                        // controller, which this solver may never do.
+                        // rejects by name.
+                        //
+                        // ⚠️ THIS BLOCK USED TO END "clamping the HAND instead would take it off
+                        // the controller, which this solver may never do", and the wrist bound at
+                        // the end of Solve now does exactly that -- so the claim is corrected here
+                        // rather than left to contradict shipping code. What that sentence is right
+                        // about is POSITION: the hand's target position is never negotiable, and
+                        // the wrist bound moves it 0.000 mm because TipRotation carries no position.
+                        // What it is wrong about is treating the hand's axial ROLL as equally
+                        // untouchable, because the alternative to bounding it is not "the hand on
+                        // the controller" -- it is a hand rotated up to 179.8 deg against its own
+                        // forearm, in a joint with no axial range, which is a wrist that has come
+                        // off. The residual has to land somewhere and the measured answer is that
+                        // by the time it reaches the wrist the forearm and humerus are already past
+                        // their own human ceilings (93.1% of breaching tracker poses, by a mean of
+                        // 60.9 deg), so there is nowhere left to put it but the controller's roll.
+                        // Which is why THIS clamp still matters: every degree the forearm legally
+                        // takes here is a degree the wrist bound does not have to drop.
                         // =====================================================================
                         float mag = demand < 0f ? -demand : demand;
                         if (mag > band)
@@ -1481,6 +1541,118 @@ namespace Basis.IK
             // which is exactly `intended * inverse(twistR)` acting on the left of that product. Identity
             // when the guard did not fire, so every existing caller is bit-identical.
             r.MidPostRoll = r.MidPostRoll * humeralTwistUndo;
+
+            // =============================================================================================
+            // ⭐ THE WRIST BOUND, AND IT IS THE LAST THING THAT HAPPENS TO THE HAND.
+            //
+            // THE DEFECT, MEASURED. This solver ended with `r.TipRotation = TargetRotation * TargetOffset`
+            // and the runtime does `tip.SetRotation(TipRotation)` -- the controller's rotation, verbatim,
+            // with nothing relating it to the forearm it is attached to. Every degree of roll the forearm
+            // and the humerus did not absorb therefore landed in the one joint in the arm that has no axial
+            // range at all. Measured on the 7,884-pose envelope sweep, hand-vs-forearm axial roll:
+            //
+            //      NO-TRACKER path   p50 15.4   p90 43.0   WORST 75.7 deg
+            //      ELBOW-TRACKER     p50 88.5   p90 163.1  WORST 179.8 deg   (49.5% of poses past 90 deg)
+            //
+            // against a gripped-carpus envelope of 15. This is the same shape as the humeral defect fixed
+            // earlier in this file -- a DOF driven 1:1 from a device with nothing bounding it, sitting next
+            // to several carefully-bounded neighbours -- and it hid the same way: every neighbour asserted
+            // its own bound and nothing asserted this one.
+            //
+            // ⭐⭐ WHY THE RESIDUAL IS DROPPED AND NOT RECRUITED, WHICH IS THE REAL DESIGN QUESTION.
+            // The obvious alternative is to make the forearm and the humerus take more before the wrist has
+            // to. That was measured on the same sweep, over every pose whose wrist breaches 15 deg, against
+            // the researched flexion-dependent forearm ceiling (sup_max = clamp(50 + 0.35*flex, 50, 85),
+            // pro_max = clamp(85 - 0.20*flex, 55, 85)) and this file's own 150 deg humeral bound:
+            //
+            //      ELBOW-TRACKER   the forearm is ALREADY past its human ceiling on 93.1% of them, by a
+            //                      MEAN of 60.9 deg and a worst of 105.3
+            //      NO-TRACKER      already past it on 40.6% (59.4% against the tighter sign), and the
+            //                      humerus is already past its own soft limit on 33.0%
+            //
+            // There is nothing to recruit INTO. The absorbers are not idle when the wrist breaches, they are
+            // over-committed -- so "recruit first" would buy a smaller wrist error by DEEPENING a forearm
+            // breach, which is relocating the defect rather than fixing it. (And the humeral half of that
+            // recruitment already exists as the wrist-roll relief above; 75.7 deg is what is left AFTER it,
+            // and widening it was refuted on the 20-clip corpus for dragging a measured elbow 3.6-10.1 cm.)
+            //
+            // ⭐ WHAT DROPPING COSTS, MEASURED RATHER THAN ASSERTED. The correction is a pure roll about the
+            // forearm's own long axis, so the hand's POSITION is untouched (TipRotation carries none) and
+            // its swing -- where the fingers point -- moves only as that roll carries it:
+            //
+            //                        hand pose err        finger direction        palm facing
+            //      NO-TRACKER        p50  5.3  max 61.9   p50 2.06  max 42.8     p50  4.6  max 58.2
+            //      TRACKER (real)    p50 15.9  max 84.7   p50 6.05  max 57.1     p50 14.9  max 81.2
+            //
+            // where "TRACKER (real)" is the tracker rolled WITH the controller, i.e. a puck actually strapped
+            // to the arm holding it. What the user loses is palm ROLL; where their hand is and where their
+            // fingers point are near enough untouched. Against that, the pose being bought back is a hand
+            // rotated up to 179.8 deg against its own forearm, which is a wrist that has come off.
+            //
+            // ⚠️ AND THE RESIDUAL CANNOT MOVE ANYWHERE ELSE, STRUCTURALLY RATHER THAN BY MEASUREMENT. This
+            // block writes r.TipRotation and nothing else. MidDelta, RootDelta, HintDelta, MidPostRoll,
+            // every joint position and both solved bone rotations are bit-identical with it and without it,
+            // so there is no channel through which a relocated discontinuity could reach the forearm, the
+            // twist bones, the elbow or the humerus. That is the one thing the three seams above this could
+            // not say about themselves, and it is why this one is measured against `midRot` -- the core's
+            // own forearm, which the stream composition reproduces EXACTLY (MidPostRoll carries
+            // inverse(twistR), so HintDelta's humeral roll cancels out of the forearm and the two agree to
+            // the float).
+            //
+            // ⚠️ THE SEAM, FOR THE FOURTH TIME IN THIS FILE, AND HERE IT IS CHEAP. `wristRad` is a PRINCIPAL
+            // angle, so a bare clamp onto [-hard, hard] sends two hand poses 0.02 deg apart to two hands
+            // 2*hard apart. The device is this file's own, the one the wrist-roll relief uses -- cap the
+            // BOUND itself by the distance to the seam, not the correction:
+            //
+            //      bound = min( Saturate(mag, soft, hard),  PI - mag )
+            //
+            // min() of a curve of slope <= 1 and a line of slope -1 has slope magnitude <= 1 everywhere, so
+            // the hand's gain is at most 2 by construction. Note this is the OPPOSITE choice from the three
+            // stages above, which cap the PULL and so relax their bound at the seam: capping the pull here
+            // would leave the wrist at 180 deg, which is the entire defect. Capping the bound instead keeps
+            // 15 deg enforced everywhere and pays for it in hand roll, which is the trade this stage is for.
+            // MEASURED, controller roll swept in 0.02 deg steps at three reaches on both paths: worst single
+            // -step change of the written hand rotation 0.1101 deg, amplification 1.2-1.7x the sweep's own
+            // 95th-percentile step. For scale, the seams this file has already fixed measured 1430x and
+            // 3201x.
+            //
+            // DECLINES to the exact identity unless the rig bakes BindLowerArmRotation -- the same gate, and
+            // the same reason, as the no-tracker forearm roll above: without the rig's own bind there is no
+            // rig-defined zero for this angle and the solver would be bounding it against one it invented.
+            // =============================================================================================
+            if (bindLowerSqr > 0.5f)
+            {
+                Vector3 foreWrist = cPosition - bPosition;
+                if (foreWrist.sqrMagnitude > k_SqrEpsilon)
+                {
+                    Vector3 foreWristN = foreWrist.normalized;
+
+                    float bindHandSqr = i.BindHandRotation.x * i.BindHandRotation.x + i.BindHandRotation.y * i.BindHandRotation.y
+                                      + i.BindHandRotation.z * i.BindHandRotation.z + i.BindHandRotation.w * i.BindHandRotation.w;
+                    Quaternion neutralHand = bindHandSqr > 0.5f
+                        ? midRot * (Quaternion.Inverse(i.BindLowerArmRotation) * i.BindHandRotation)
+                        : midRot;
+
+                    float wristRad = TwistAngleRad(tRotation * Quaternion.Inverse(neutralHand), foreWristN);
+                    r.WristAxialDeg = wristRad * Mathf.Rad2Deg;
+
+                    float mag = wristRad < 0f ? -wristRad : wristRad;
+                    float bound = BasisJointLimitCore.Saturate(mag,
+                        WristAxialSoftDeg * Mathf.Deg2Rad,
+                        WristAxialHardDeg * Mathf.Deg2Rad);
+                    float seam = Mathf.PI - mag;
+                    if (bound > seam) bound = seam;
+                    if (!(bound > 0f)) bound = 0f;   // reject-unless-good: NaN lands here, not in a bone
+
+                    float pull = mag - bound;
+                    if (pull > 1e-6f)
+                    {
+                        float need = wristRad < 0f ? pull : -pull;
+                        tRotation = AngleAxisRad(need, foreWristN) * tRotation;
+                        r.WristAxialGuardDeg = need * Mathf.Rad2Deg;
+                    }
+                }
+            }
 
             r.MidDelta = deltaR;
             r.RootDelta = rootDelta;

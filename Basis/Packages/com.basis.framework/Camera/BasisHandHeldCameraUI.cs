@@ -75,7 +75,7 @@ public partial class BasisHandHeldCameraUI
     [Space(10)]
     public Slider volumetricDensitySlider;
 
-    private static readonly float[] ExposureStops =
+    public static readonly float[] ExposureStops =
     {
         -3f, -2.5f, -2f, -1.5f, -1f, -0.5f, 0f, 0.5f, 1f, 1.5f, 2f, 2.5f, 3f
     };
@@ -109,7 +109,7 @@ public partial class BasisHandHeldCameraUI
     public Slider VideoFrameRateSlider;
     public TextMeshProUGUI VideoFrameRateOutput;
 
-    private static readonly (int width, int height)[] VideoResolutionPresets =
+    public static readonly (int width, int height)[] VideoResolutionPresets =
     {
         (1280, 720), (1920, 1080), (2560, 1440), (3840, 2160)
     };
@@ -487,7 +487,7 @@ public partial class BasisHandHeldCameraUI
 
     // ---------- UI Actions ----------
 
-    private void SelfieToggle()
+    public void SelfieToggle()
     {
         selfieBool = !selfieBool;
 
@@ -502,7 +502,7 @@ public partial class BasisHandHeldCameraUI
         }
     }
     
-    private void ToggleAutoLevel()
+    public void ToggleAutoLevel()
     {
         if (HHC == null)
             return;
@@ -510,7 +510,7 @@ public partial class BasisHandHeldCameraUI
         HHC.useAutoLeveling = !HHC.useAutoLeveling;
         BasisDebug.Log($"[AutoLevel] Auto leveling is now {(HHC.useAutoLeveling ? "ON" : "OFF")}");
     }
-    private void ToggleVRHandheldSmoothing()
+    public void ToggleVRHandheldSmoothing()
     {
         if (HHC == null)
             return;
@@ -519,7 +519,7 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[VRStabilization] VR handheld smoothing is now {(HHC.useVRHandheldSmoothing ? "ON" : "OFF")}");
     }
 
-    private void ToggleFollowPlayer()
+    public void ToggleFollowPlayer()
     {
         if (HHC == null)
             return;
@@ -528,7 +528,7 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[FollowPlayer] Follow player is now {(HHC.IsFollowingPlayer ? "ON" : "OFF")}");
     }
 
-    private void ToggleVideoOutput()
+    public void ToggleVideoOutput()
     {
         if (HHC == null)
             return;
@@ -560,7 +560,7 @@ public partial class BasisHandHeldCameraUI
         if (FollowHorizontalOutput != null) FollowHorizontalOutput.text = value.ToString("F2");
     }
 
-    private void ToggleFlyMode()
+    public void ToggleFlyMode()
     {
         if (HHC == null)
             return;
@@ -680,7 +680,7 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.colorAdjustments.postExposure.value = ExposureStops[i];
     }
 
-    private void OnFormatToggleChanged(bool state)
+    public void OnFormatToggleChanged(bool state)
     {
         BasisDebug.Log($"[Format] Changed to {(state ? "EXR" : "PNG")}");
 
@@ -691,7 +691,7 @@ public partial class BasisHandHeldCameraUI
         if (ExrSprite != null) ExrSprite.SetActive(state);
     }
 
-    private void CycleResolutionPreset()
+    public void CycleResolutionPreset()
     {
         currentResolutionIndex = (currentResolutionIndex + 1) % 4;
 
@@ -771,7 +771,7 @@ public partial class BasisHandHeldCameraUI
         }
     }
 
-    private CameraSettings CreateCurrentCameraSettings()
+    public CameraSettings CreateCurrentCameraSettings()
     {
         return new CameraSettings
         {
