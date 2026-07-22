@@ -49,6 +49,8 @@
     <assembly fullname="HVR.Basis.Comms.HVRUtility" preserve="all" />
     <assembly fullname="HVR.LicenseReview" preserve="all" />
     <assembly fullname="K4os.Compression.LZ4" preserve="all" />
+    <assembly fullname="Klak.Spout.Runtime" preserve="all" />
+    <assembly fullname="Klak.Syphon.Runtime" preserve="all" />
     <assembly fullname="LiteNetLib" preserve="all" />
     <assembly fullname="MeaMod.DNS" preserve="all" />
     <assembly fullname="Mediapipe.Runtime" preserve="all" />

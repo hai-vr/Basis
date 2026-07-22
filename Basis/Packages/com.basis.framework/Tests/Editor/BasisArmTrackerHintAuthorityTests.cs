@@ -499,21 +499,21 @@ namespace Basis.Tests.IK
             Assert.Less(worst, k_SnapGate,
                 $"THE ELBOW SNAPS. It travelled {worst:F0}x the hand's distance in a single step at " +
                 $"{worstAt:P2} extension" + (sawFlip ? $", where HintApplied flipped (reach {flipAt:P2})" : "") +
-                ".\n" +
-                "⚠️⚠️ BEFORE CHASING THIS: THE 30x GATE IS MEASURING GEOMETRY, AND THE ~12x PREMISE ABOVE IS " +
-                "WRONG FOR THIS SWEEP. Control, same sweep, stand-off raised to 50 mm so |ahProj| = elbowR + " +
-                "50 mm and the pole PROVABLY cannot collapse: the ratio is 91x, i.e. HIGHER than the 87.8x this " +
-                "sweep reports at stand-off 0. The elbow's own radius collapses into the MaxElbowAngleDeg cap " +
-                "as the arm straightens, so it travels far per unit of hand travel with a perfectly steady pole. " +
-                "The swivel itself drifts 0.04-0.06 deg across all 400 steps in EVERY configuration.\n" +
-                "⚠️ AND THIS SWEEP IS NOISELESS, so it structurally cannot see the defect it was written for: a " +
-                "collapsing pole still has an EXACT direction until noise is added. The real law is " +
-                "d(swivel) = d(pole)/|ahProj| -- a GAIN, not the boolean gate the original message blamed " +
-                "(`ahProj.sqrMagnitude > totalLen*totalLen*0.001` is long gone; it is a 1e-8 singularity check " +
-                "now, and the failure regime sits above it anyway at ~1.25 mm). Add 1 mm of puck noise and the " +
-                "humerus rolls 179 deg on 72 of 400 frames; BasisArmPoleAnchorTests gates that.\n" +
-                "⇒ RE-BASE THIS GATE ON SWIVEL DRIFT, NOT ON ELBOW/HAND TRAVEL. The travel ratio has no stable " +
-                "geometric floor here.");
+                ".\nGeometry alone gets to ~12x near extension; hundreds means the swivel is being read off a " +
+                "vector that no longer has a direction.\n" +
+                "⚠️ IT IS A GAIN, NOT A GATE. The original message blamed " +
+                "`ahProj.sqrMagnitude > totalLen*totalLen*0.001`; that boolean is long gone -- it is a 1e-8 " +
+                "singularity check now, and the failure regime sits ABOVE it anyway at ~1.25 mm, so nothing " +
+                "switches off. The real law is d(swivel) = d(pole)/|ahProj|: as a MEASURED pole collapses onto " +
+                "the shoulder->hand axis the gain diverges on its own. A MODEL pole is perpendicular by " +
+                "construction and cannot do this, which is why only tracker users see it.\n" +
+                "⚠️ FIRST THING TO CHECK: this sweep threads PrevPoleDir/PrevHintRotation across steps, because " +
+                "the live rig carries that anchor per arm in BasisFullBodyIK.swingPoleAnchor. Solving each step " +
+                "from the default struct measures a configuration that does not ship, and this test sat red for " +
+                "exactly that reason before the threading was added.\n" +
+                "⚠️ This sweep is also NOISELESS, so it is not the tightest instrument for the defect -- a " +
+                "collapsing pole still has an exact direction until noise is added. BasisArmPoleAnchorTests " +
+                "adds 1 mm of puck noise and gates the 179 deg humerus roll directly.");
         }
 
         // ════════════════════════════════════════════════════════════════════════════════════════════

@@ -167,7 +167,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c81b5ac837e647448a68cbd24e410b42, type: 3}
   m_Name: ValveOpenXRFoveatedRenderingFeature Android
   m_EditorClassIdentifier: Valve.OpenXR.Utils::Valve.OpenXR.Utils.ValveOpenXRFoveatedRenderingFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: 'Valve Utils: Settings for Unity''s Foveated Rendering'
   version: 0.1.0
   featureIdInternal: com.valvesoftware.openxr.utils.foveated_rendering
@@ -334,7 +334,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b4a56c6d5c174b54adc1aa638f8a793c, type: 3}
   m_Name: ValveRenderModelFeature Android
   m_EditorClassIdentifier: BasisOpenXR::ValveRenderModelFeature
-  m_enabled: 0
+  m_enabled: 1
   nameUi: 'Valve Utils: Render Model Sample'
   version: 0.1.0
   featureIdInternal: com.valve.openxr.feature.render_models
@@ -1266,12 +1266,12 @@ MonoBehaviour:
     m_List: 00000000
   m_depthSubmissionMode: 1
   m_spacewarpMotionVectorTextureFormat: 0
-  m_optimizeBufferDiscards: 0
+  m_optimizeBufferDiscards: 1
   m_symmetricProjection: 0
   m_optimizeMultiviewRenderRegions: 0
   m_multiviewRenderRegionsOptimizationMode: 0
   m_hasMigratedMultiviewRenderRegionSetting: 1
-  m_foveatedRenderingApi: 0
+  m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 1
 --- !u!114 &-8419463971566137
 MonoBehaviour:
@@ -2022,7 +2022,7 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
-  optimizeBufferDiscards: 0
+  optimizeBufferDiscards: 1
   lateLatchingMode: 0
   lateLatchingDebug: 0
 --- !u!114 &4488616393402168616
