@@ -15,6 +15,6 @@ namespace Basis.Network.Core
         //     kind-discriminated fit-only update. Join fill batched + Deflate'd per batch instead of
         //     one packet per player (the redundancy is across players, not inside one record).
         //     playerUUID and playerPlatform compactly encoded (BasisCompactId / BasisPlatformCodec).
-        public static ushort ServerVersion = 44;
+        public static ushort ServerVersion = 45;
     }
 }
