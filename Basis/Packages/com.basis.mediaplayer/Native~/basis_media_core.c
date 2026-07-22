@@ -338,6 +338,18 @@ static void sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed
 static void sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int64_t dts, int key) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     if (!e->running) return;
+    /* Drop video a demuxer emits after a seek is posted but before the main leg
+     * takes it (the same read-buffer-granularity window the audio drop gate
+     * covers). These tail AUs are mid-GOP leftovers that post-date the decoder's
+     * seek flush: they can't decode correctly without their references, some
+     * hardware decoders emit them anyway against stale reference memory (a
+     * flash of the pre-seek picture), and — because their PTS can sit past the
+     * seek target — the first of them would end the decoder's preroll run-up
+     * early and let the whole run-up render. Video always rides the main leg
+     * (a split source's audio leg never submits video). HLS is excluded for
+     * the same reason as audio: it repositions at the BASIS_READ_REPOSITION
+     * boundary and seek_taken is not its signal. */
+    if (!e->active_hls && e->seek_seq != e->seek_taken_main) return;
     /* Pace on the decode timestamp: gating on pts would sleep out a composition
      * offset the decoder still needs the AU inside of, and starve the other
      * track's earlier samples queued behind this one on the demux thread. */
