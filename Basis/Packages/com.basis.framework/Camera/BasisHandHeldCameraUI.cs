@@ -6,6 +6,7 @@ using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 /// <summary>
@@ -26,6 +27,7 @@ public partial class BasisHandHeldCameraUI
     public Button VRStabilizationButton;
     public Button FollowPlayerButton;
     public Button VideoOutputButton;
+    public Button FlyModeButton;
 
     [Space(10)]
     public GameObject focusCursor;
@@ -100,6 +102,8 @@ public partial class BasisHandHeldCameraUI
     [Space(10)]
     public Slider FollowHeightSlider;
     public TextMeshProUGUI FollowHeightOutput;
+    public Slider FollowHorizontalSlider;
+    public TextMeshProUGUI FollowHorizontalOutput;
     public Slider VideoResolutionSlider;
     public TextMeshProUGUI VideoResolutionOutput;
     public Slider VideoFrameRateSlider;
@@ -190,6 +194,7 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
         AddIf(list, "FollowPlayer", FollowPlayerButton, BasisCameraButtonAction.ToggleFollowPlayer);
         AddIf(list, "VideoOutput", VideoOutputButton, BasisCameraButtonAction.ToggleVideoOutput);
+        AddIf(list, "FlyMode", FlyModeButton, BasisCameraButtonAction.ToggleFlyMode);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -291,6 +296,10 @@ public partial class BasisHandHeldCameraUI
                 button.onClick.AddListener(ToggleVideoOutput);
                 break;
 
+            case BasisCameraButtonAction.ToggleFlyMode:
+                button.onClick.AddListener(ToggleFlyMode);
+                break;
+
             case BasisCameraButtonAction.DepthModeAuto:
                 button.onClick.AddListener(() => SetDepthMode(DepthMode.Auto));
                 break;
@@ -330,6 +339,7 @@ public partial class BasisHandHeldCameraUI
         HookSlider(SaturationSlider, ChangeSaturation);
         HookSlider(volumetricDensitySlider, ChangeVolumetricDensity);
         HookSlider(FollowHeightSlider, ChangeFollowHeight);
+        HookSlider(FollowHorizontalSlider, ChangeFollowHorizontal);
         HookSlider(VideoResolutionSlider, ChangeVideoResolution);
         HookSlider(VideoFrameRateSlider, ChangeVideoFrameRate);
     }
@@ -353,6 +363,10 @@ public partial class BasisHandHeldCameraUI
         if (ContrastSlider != null) { ContrastSlider.minValue = -100f; ContrastSlider.maxValue = 100f; }
         if (SaturationSlider != null) { SaturationSlider.minValue = -100f; SaturationSlider.maxValue = 100f; }
         if (FollowHeightSlider != null) { FollowHeightSlider.minValue = -1f; FollowHeightSlider.maxValue = 2f; FollowHeightSlider.wholeNumbers = false; }
+        if (FollowHorizontalSlider != null) { FollowHorizontalSlider.minValue = -2f; FollowHorizontalSlider.maxValue = 2f; FollowHorizontalSlider.wholeNumbers = false; }
+        // The fog override's own range is 0..1; a 0..0.1 slider cannot even reach a world
+        // rendering the component's 0.2 default, which reads as the slider being out of sync.
+        if (volumetricDensitySlider != null) { volumetricDensitySlider.minValue = 0f; volumetricDensitySlider.maxValue = 1f; volumetricDensitySlider.wholeNumbers = false; }
         if (VideoResolutionSlider != null) { VideoResolutionSlider.minValue = 0f; VideoResolutionSlider.maxValue = VideoResolutionPresets.Length - 1; VideoResolutionSlider.wholeNumbers = true; }
         if (VideoFrameRateSlider != null) { VideoFrameRateSlider.minValue = 15f; VideoFrameRateSlider.maxValue = 120f; VideoFrameRateSlider.wholeNumbers = true; }
 
@@ -539,6 +553,41 @@ public partial class BasisHandHeldCameraUI
         if (FollowHeightOutput != null) FollowHeightOutput.text = value.ToString("F2");
     }
 
+    public void ChangeFollowHorizontal(float value)
+    {
+        if (HHC != null)
+            HHC.followHorizontalOffset = value;
+        if (FollowHorizontalOutput != null) FollowHorizontalOutput.text = value.ToString("F2");
+    }
+
+    private void ToggleFlyMode()
+    {
+        if (HHC == null)
+            return;
+
+        HHC.SetFlyModeEnabled(!HHC.IsFlying);
+        BasisDebug.Log($"[FlyMode] Fly mode is now {(HHC.IsFlying ? "ON" : "OFF")}");
+    }
+
+#if Basis_VOLUMETRIC_SUPPORTED
+    /// <summary>
+    /// Seeds the fog slider from the fog the world is actually rendering, so the camera opens
+    /// showing the same haze the player sees instead of whatever density was stored last
+    /// session — which is what made the slider look wrong until it was nudged.
+    /// </summary>
+    public void SyncVolumetricDensityToWorld()
+    {
+        if (HHC == null || HHC.MetaData.VolumetricFogVolume == null) return;
+
+        VolumetricFogVolumeComponent worldFog = VolumeManager.instance.stack?.GetComponent<VolumetricFogVolumeComponent>();
+        float density = worldFog != null ? worldFog.density.value : HHC.MetaData.VolumetricFogVolume.density.value;
+
+        HHC.MetaData.VolumetricFogVolume.density.value = density;
+        SetSliderValue(volumetricDensitySlider, density);
+        if (VolFogOutput != null) VolFogOutput.text = density.ToString("F2");
+    }
+#endif
+
     public void ChangeVideoResolution(float value)
     {
         int index = Mathf.Clamp((int)value, 0, VideoResolutionPresets.Length - 1);
@@ -568,6 +617,9 @@ public partial class BasisHandHeldCameraUI
     {
         SetSliderValue(FollowHeightSlider, settings.followHeightOffset);
         if (FollowHeightOutput != null) FollowHeightOutput.text = settings.followHeightOffset.ToString("F2");
+
+        SetSliderValue(FollowHorizontalSlider, settings.followHorizontalOffset);
+        if (FollowHorizontalOutput != null) FollowHorizontalOutput.text = settings.followHorizontalOffset.ToString("F2");
 
         int resolutionIndex = VideoResolutionIndexFor(settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920);
         (int width, int height) = VideoResolutionPresets[resolutionIndex];
@@ -740,7 +792,34 @@ public partial class BasisHandHeldCameraUI
             videoOutputHeight = HHC != null ? HHC.VideoOutputSettings.Height : 1080,
             videoOutputFrameRate = HHC != null ? HHC.VideoOutputSettings.FrameRate : 30f,
             followHeightOffset = HHC != null ? HHC.followHeightOffset : 0f,
+            followHorizontalOffset = HHC != null ? HHC.followHorizontalOffset : 0f,
+            // Anything omitted here silently reverts to the constructor default on the next
+            // load, which is what made the camera come back blank after a world change.
+            depthIsActive = HHC != null && HHC.MetaData.depthOfField != null && HHC.MetaData.depthOfField.active,
+            useManualFocus = currentDepthMode == DepthMode.Manual,
+            focusDistance = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.focalLength : 10f,
+            sensorSizeX = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.sensorSize.x : 36f,
+            sensorSizeY = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.sensorSize.y : 24f,
+            hueShift = HHC != null && HHC.MetaData.colorAdjustments != null ? HHC.MetaData.colorAdjustments.hueShift.value : 0f,
         };
+    }
+
+    /// <summary>
+    /// Writes the settings on the calling thread. Used when the camera is being destroyed —
+    /// a world change tears the scene down before an awaited write resumes, so the async path
+    /// loses everything the player changed during the session.
+    /// </summary>
+    public void SaveSettingsImmediate()
+    {
+        try
+        {
+            string json = JsonUtility.ToJson(CreateCurrentCameraSettings(), true);
+            File.WriteAllText(Path.Combine(Application.persistentDataPath, CameraSettingsJson), json);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"[SaveSettingsImmediate] Failed: {ex.Message}");
+        }
     }
 
     private async Task SaveDefaultSettings()
@@ -763,7 +842,16 @@ public partial class BasisHandHeldCameraUI
     {
         try
         {
+            // A camera that flew off or is orbiting in follow mode has to come back as well,
+            // otherwise a "reset" leaves it parked somewhere the player can't reach it.
+            if (HHC != null)
+            {
+                HHC.SetFlyModeEnabled(false);
+                HHC.SetFollowPlayerEnabled(false);
+            }
+
             ApplySettings(new CameraSettings());
+            RefreshAllToggleIndicators();
             BasisDebug.Log("Settings have been reset to default values.");
         }
         catch (Exception ex)
@@ -833,14 +921,17 @@ public partial class BasisHandHeldCameraUI
             HHC.VideoOutputSettings.Height = settings.videoOutputHeight > 0 ? settings.videoOutputHeight : 1080;
             HHC.VideoOutputSettings.FrameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
             HHC.followHeightOffset = settings.followHeightOffset;
+            HHC.followHorizontalOffset = settings.followHorizontalOffset;
             SeedVideoAndFollowControls(settings);
 
-            // Apply camera intrinsics
+            // Apply camera intrinsics. Sensor/gate fit first: on a physical camera the focal
+            // length and field of view are the same value viewed two ways, so FOV must be
+            // written last or the sensor change silently reframes the shot.
             if (HHC.captureCamera != null)
             {
-                HHC.captureCamera.fieldOfView = settings.fov;
-                HHC.captureCamera.focalLength = settings.focusDistance;
                 HHC.captureCamera.sensorSize = new Vector2(settings.sensorSizeX, settings.sensorSizeY);
+                HHC.captureCamera.gateFit = Camera.GateFitMode.Vertical;
+                HHC.captureCamera.fieldOfView = settings.fov;
 
                 // Aperture
                 if (settings.apertureIndex >= 0 && settings.apertureIndex < HHC.MetaData.apertures.Length)
@@ -1023,10 +1114,13 @@ public partial class BasisHandHeldCameraUI
             FOVOutput.text = value.ToString();
     }
 
+    /// <summary>
+    /// Focus distance in metres. Writes the depth of field override, never
+    /// <see cref="Camera.focalLength"/> — that is millimetres of lens and drives the FOV.
+    /// </summary>
     public void ChangeFocusDistance(float value)
     {
-        if (HHC.captureCamera != null)
-            HHC.captureCamera.focalLength = value;
+        DepthChangeFocusDistance(value);
     }
 
     public void ChangeAperture(int index)

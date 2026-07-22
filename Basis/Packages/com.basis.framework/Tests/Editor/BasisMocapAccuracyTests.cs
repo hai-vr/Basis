@@ -26,6 +26,19 @@ namespace Basis.Tests.IK
     /// The gap between Lookup and TruthJoint is the addressable error -- what an elbow tracker would win you,
     /// and what a lookup table refit from this same data could close for free.
     ///
+    /// ── AND THE THREE THAT PUT A DEVICE IN FRONT OF THE JOINT ────────────────────────────────────────
+    ///   TrackerGood / TrackerTypical / TrackerPoor -- the SAME tracker case as TruthJoint, driven through
+    ///   BasisSyntheticTracker: a puck that stands off the bone, is strapped on at whatever angular station
+    ///   the user managed, slips over a session, jitters, glitches, drops out and arrives late.
+    ///
+    /// TruthJoint is not a tracker, it is the JOINT, and that fiction has already cost this project a shipped
+    /// bug: the row sat at 1.06% and was quoted as the achievable ceiling until it emerged the solver was
+    /// silently DISCARDING the tracker through two fades and a boolean pole gate. Fixed, it went to 0.00%.
+    /// The lesson on record -- WHEN A "KNOWN CEILING" SURVIVES EVERY IMPROVEMENT, SUSPECT IT IS A BUG, NOT A
+    /// LIMIT -- is unenforceable from a single row, because a discarded tracker is not visibly wrong on its
+    /// own; it just quietly reads like the no-tracker fallback. It is only visible ACROSS rows, which is what
+    /// TheTrackerLadder_DegradesMonotonically below exists to say out loud.
+    ///
     /// Corpus: CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), BVH conversion by Bruce Hahne.
     /// CMU places no restrictions on use. Files live in Tests/MocapCorpus~/ -- the trailing '~' keeps Unity from
     /// importing them as assets (no .meta churn). Drop more .bvh in there and they are picked up automatically.
@@ -104,16 +117,22 @@ namespace Basis.Tests.IK
         /// The headline measurement: how far is the avatar's elbow from a real human's, on real motion, using the
         /// elbow the product actually ships (the bend lookup)? Reported, not asserted, on first run -- there is no
         /// honest threshold until the number exists. Once it has settled, gate it here and it becomes a ratchet.
+        ///
+        /// The three synthetic-device rows ride along here so every row's number is printed in ONE table and can
+        /// be read against its neighbours. Their VERDICT (BasisMocapAccuracy.Gate) is printed per row and the
+        /// failures are listed under the table, but it is deliberately NOT asserted -- see the footer note below.
+        /// The assertion that actually guards these rows is TheTrackerLadder_DegradesMonotonically.
         /// </summary>
         [Test]
         public void ShippedElbow_MeasuredAgainstRealHumans()
         {
             var log = new StringBuilder("\nIK accuracy vs real human motion (CMU mocap, joint error in cm)\n");
-            log.AppendLine("  clip          hint         elbow mean   p95     max    (% of arm)   knee mean   pops(e/k)");
+            log.AppendLine("  clip          hint              elbow mean   p95     max    (% of arm)   knee mean   pops(e/k)   gate");
 
             var lookupElbow = new List<float>();
             var truthElbow = new List<float>();
             var effectorMisses = new List<string>();
+            var gateFailures = new List<string>();
             float footSlip = 0f;
 
             foreach (BasisMotionClip clip in RequireCorpus())
@@ -121,14 +140,20 @@ namespace Basis.Tests.IK
                 foreach (BasisMocapHintSource hint in new[]
                 {
                     BasisMocapHintSource.None, BasisMocapHintSource.Lookup, BasisMocapHintSource.TruthJoint,
+                    // The device rows. Appended rather than interleaved so the legacy rows keep the order every
+                    // recorded baseline was read in.
+                    BasisMocapHintSource.TrackerGood, BasisMocapHintSource.TrackerTypical, BasisMocapHintSource.TrackerPoor,
                 })
                 {
                     string csv = Path.Combine(Application.persistentDataPath, "MocapAccuracy", $"{clip.Name}_{hint}.csv");
                     BasisMocapAccuracySummary s = BasisMocapAccuracy.Run(clip, hint, csv);
                     Assert.That(s.Ok, Is.True, $"{clip.Name} [{hint}]: {s.Error}");
 
-                    log.AppendLine($"  {clip.Name,-12}  {hint,-10}  {s.ElbowMeanM * 100f,8:F1}  {s.ElbowP95M * 100f,6:F1}  {s.ElbowMaxM * 100f,6:F1}   " +
-                                   $"{s.ElbowMeanFracArm * 100f,7:F1}%   {s.KneeMeanM * 100f,8:F1}     {s.ElbowPops}/{s.KneePops}");
+                    (bool pass, string reason) = BasisMocapAccuracy.Gate(s);
+                    if (!pass) gateFailures.Add($"{clip.Name} [{hint}]: {reason}");
+
+                    log.AppendLine($"  {clip.Name,-12}  {hint,-15}  {s.ElbowMeanM * 100f,8:F1}  {s.ElbowP95M * 100f,6:F1}  {s.ElbowMaxM * 100f,6:F1}   " +
+                                   $"{s.ElbowMeanFracArm * 100f,7:F1}%   {s.KneeMeanM * 100f,8:F1}     {s.ElbowPops}/{s.KneePops}   {(pass ? "ok" : "FAIL")}");
 
                     if (hint == BasisMocapHintSource.Lookup) lookupElbow.Add(s.ElbowMeanM);
                     if (hint == BasisMocapHintSource.TruthJoint) truthElbow.Add(s.ElbowMeanM);
@@ -139,6 +164,25 @@ namespace Basis.Tests.IK
                     if (s.HandMaxM > 0.01f) effectorMisses.Add($"{clip.Name} [{hint}]: hand missed by {s.HandMaxM * 100f:F1} cm");
                     footSlip = Mathf.Max(footSlip, s.FootMaxM);
                 }
+            }
+
+            log.AppendLine($"\n  worst foot slip across every row above: {footSlip * 1000f:F1} mm");
+
+            if (gateFailures.Count > 0)
+            {
+                // REPORTED, NOT ASSERTED, and the reason is specific rather than a shrug.
+                //
+                // Gate's FootMaxM clause (> 2 mm) fires on any row that drives the knee from a pole, because the
+                // leg hint is documented as NOT reach-preserving. That is the SAME pre-existing failure
+                // GivenTheTrueJoint_TheSolverReproducesIt already carries (worst ~51.9 mm on clip 69_70), and the
+                // device rows drive the knee through byte-identical wiring, so hard-asserting here would clone one
+                // known failure into a second test and report a leg-hint property as a tracker-row fault.
+                //
+                // ⚠ RATCHET GOES HERE. The moment the knee-hint foot slide is fixed, promote this to
+                // Assert.That(gateFailures, Is.Empty, ...) -- Gate's tracker-ceiling clause is already derived
+                // from the device parameters (BasisMocapAccuracy.TrackerCeilingFracOfLimb) and needs no tuning.
+                log.AppendLine($"\n  GATE FAILURES ({gateFailures.Count}) -- reported, not asserted; see the note in this test:");
+                foreach (string f in gateFailures) log.AppendLine($"    {f}");
             }
 
             log.AppendLine($"\n  CSVs: {Path.Combine(Application.persistentDataPath, "MocapAccuracy")}");

@@ -52,6 +52,15 @@ namespace Basis.Tests.IK
         const float k_Shin = 0.42f;
         static readonly Vector3 k_Hip = new Vector3(0.09f, 0.90f, 0f);
 
+        /// <summary>
+        /// Snap ceiling for the solved knee, deg of knee per deg of hint. The pre-fix fold measured 714x in the
+        /// solve core (3572x through the clamp alone); the shipped narrow-window taper
+        /// (KneeAnteriorTaperStartDeg 160 + smoothstep) lands at 6.69x, which is the deliberate price of keeping
+        /// the old posture and the noise dead zone below 160deg. This gate exists to catch a return of the FOLD,
+        /// so it sits just above the shipped figure rather than at the 5x that predated that taper.
+        /// </summary>
+        const float k_MaxGuardGain = 7.5f;
+
         static float Soft => BasisLegSolveCore.KneeAnteriorSoftDeg;
         static float Hard => BasisLegSolveCore.KneeAnteriorHardDeg;
 
@@ -235,8 +244,8 @@ namespace Basis.Tests.IK
                     have = true;
                 }
 
-                Assert.Less(worstGain, 5f,
-                    $"at reach {reach:F2} the knee moved {worstGain:F0}deg per degree of hint motion near " +
+                Assert.Less(worstGain, k_MaxGuardGain,
+                    $"at reach {reach:F2} the knee moved {worstGain:F2}deg per degree of hint motion near " +
                     $"{worstAt:F0}deg. Note this fires at EVERY reach ratio, so it is the posterior-ray fold, " +
                     "not the full-extension pole singularity.");
             }
@@ -272,8 +281,8 @@ namespace Basis.Tests.IK
                     have = true;
                 }
 
-                Assert.Less(worstGain, 5f,
-                    $"at reach {reach:F2} a near-axis hint moved the knee {worstGain:F0}deg per degree near " +
+                Assert.Less(worstGain, k_MaxGuardGain,
+                    $"at reach {reach:F2} a near-axis hint moved the knee {worstGain:F2}deg per degree near " +
                     $"{worstAt:F0}deg -- the near-colinear ease is being handed an anti-parallel slerp again");
             }
         }

@@ -79,6 +79,9 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// <summary>Extra height applied to the follow camera above its captured offset (metres at default avatar scale). Driven by the camera UI slider.</summary>
     public float followHeightOffset = 0f;
 
+    /// <summary>Sideways offset applied to the follow camera, positive to the player's right (metres at default avatar scale).</summary>
+    public float followHorizontalOffset = 0f;
+
     /// <summary>Capsule radius around the player the follow camera can never enter (metres at default avatar scale).</summary>
     public float followBoundaryRadius = 0.4f;
 
@@ -150,6 +153,12 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
     private Vector3 followOffset = Vector3.zero;
     private Quaternion followOffsetRotation = Quaternion.identity;
+
+    /// <summary>Keeps desktop fly mode active after the UI button press, since middle-click fly is a hold.</summary>
+    private bool flyModeLatched;
+
+    /// <summary>Which hand steers VR fly mode once the camera is no longer held.</summary>
+    private bool flyVRPreferLeftHand;
     /// <summary>Where to pin the camera transform.</summary>
     public enum CameraPinSpace
     {
@@ -331,6 +340,63 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             PinSpace = CameraPinSpace.HandHeld;
         }
     }
+
+    /// <summary>True while the camera is flying free of the player, in desktop or VR.</summary>
+    public bool IsFlying => pauseMove || isVRFlying;
+
+    /// <summary>
+    /// Starts or stops fly mode from the UI, in whichever mode the player is in.
+    /// Desktop fly is otherwise a hold on middle click, so the button latches it and the
+    /// camera keeps flying after the press is released.
+    /// </summary>
+    public void SetFlyModeEnabled(bool enabled)
+    {
+        string className = nameof(BasisHandHeldCameraInteractable);
+
+        if (enabled && !IsFlying)
+        {
+            flyModeLatched = true;
+            LookLock.Add(className);
+            MovementLock.Add(className);
+            CrouchingLock.Add(className);
+
+            PinSpace = CameraPinSpace.WorldSpace;
+            transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
+
+            if (BasisDeviceManagement.IsUserInDesktop())
+            {
+                pauseMove = true;
+                flyCamera.Enable();
+            }
+            else
+            {
+                isVRFlying = true;
+                Vector3 euler = smoothedRotation.eulerAngles;
+                currentPitch = targetPitch = NormalizeAngle(euler.x);
+                currentYaw = targetYaw = NormalizeAngle(euler.y);
+            }
+        }
+        else if (!enabled && IsFlying)
+        {
+            flyModeLatched = false;
+            if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
+            if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
+            if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
+
+            if (pauseMove)
+            {
+                pauseMove = false;
+                flyCamera.Disable();
+            }
+            isVRFlying = false;
+            velocityMomentum = Vector3.zero;
+            rotationMomentum = 0f;
+            PinSpace = CameraPinSpace.HandHeld;
+        }
+
+        flyModeLatched = enabled;
+        cameraUI?.RefreshAllToggleIndicators();
+    }
     /// <summary>Detects landscape vs portrait by camera roll and triggers UI orientation updates.</summary>
     private void CheckCameraOrientation()
     {
@@ -465,10 +531,13 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 BasisLocalPlayer.Instance.AvatarTransform.GetPositionAndRotation(out Vector3 followPlayerPos, out Quaternion followPlayerRot);
                 Quaternion followYaw = Quaternion.Euler(0f, followPlayerRot.eulerAngles.y, 0f);
 
+                // The whole prop flies, not just the lens: the body mesh and the viewfinder UI
+                // are siblings of the capture camera, so moving the camera alone leaves the
+                // camera you can see sitting in your hand while the shot comes from elsewhere.
                 if (previousPinState != CameraPinSpace.FollowPlayer)
                 {
                     cameraPinConstraint.Enabled = false;
-                    HHC.captureCamera.transform.GetPositionAndRotation(out Vector3 followCamPos, out Quaternion followCamRot);
+                    transform.GetPositionAndRotation(out Vector3 followCamPos, out Quaternion followCamRot);
                     followOffset = Quaternion.Inverse(followYaw) * (followCamPos - followPlayerPos);
                     followOffsetRotation = Quaternion.Inverse(followYaw) * followCamRot;
                     smoothedPosition = followCamPos;
@@ -476,7 +545,11 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 }
 
                 float followDelta = Time.deltaTime;
-                Vector3 followTargetPos = followPlayerPos + followYaw * followOffset + Vector3.up * BasisPlayerInteract.AvatarScaledRange(followHeightOffset);
+                Vector3 followUserOffset = new Vector3(
+                    BasisPlayerInteract.AvatarScaledRange(followHorizontalOffset),
+                    BasisPlayerInteract.AvatarScaledRange(followHeightOffset),
+                    0f);
+                Vector3 followTargetPos = followPlayerPos + followYaw * (followOffset + followUserOffset);
 
                 if ((followTargetPos - smoothedPosition).sqrMagnitude > followTeleportSnapDistance * followTeleportSnapDistance)
                 {
@@ -518,7 +591,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 }
                 smoothedRotation = Quaternion.Slerp(smoothedRotation, followTargetRot, followRotationSmoothing * followDelta);
 
-                HHC.captureCamera.transform.SetPositionAndRotation(smoothedPosition, smoothedRotation);
+                transform.SetPositionAndRotation(smoothedPosition, smoothedRotation);
                 previousPinState = PinSpace;
                 return;
         }
@@ -567,7 +640,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
             HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
         }
-        else if (!isMiddleClick && pauseMove)
+        else if (!isMiddleClick && pauseMove && !flyModeLatched)
         {
             pauseMove = false;
             if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
@@ -577,6 +650,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             flyCamera.Disable();
             velocityMomentum = Vector3.zero;
             rotationMomentum = 0f;
+            cameraUI?.RefreshAllToggleIndicators();
         }
 
         // Temporary manual unlock while holding RMB (when not flying)
@@ -615,6 +689,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 {
                     // Exit VR fly mode — return camera to hand
                     isVRFlying = false;
+                    flyModeLatched = false;
                     if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
                     if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
                     if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
@@ -642,13 +717,41 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 }
             }
             vrThumbstickClickPrev = thumbstickClick;
-
-            if (isVRFlying)
-            {
-                // Store VR controller rotation for movement direction and camera aim
-                vrControllerRotation = vrInput.BoneControl.OutgoingWorldData.rotation;
-            }
         }
+
+        if (isVRFlying && TryGetFlyVRInput(out BasisInputWrapper steeringInput))
+        {
+            // Store VR controller rotation for movement direction and camera aim
+            vrControllerRotation = steeringInput.BoneControl.OutgoingWorldData.rotation;
+        }
+    }
+
+    /// <summary>
+    /// VR input used to steer fly mode: the hand still holding the camera, or failing that the
+    /// hand that started the flight. The fly button can launch the camera without a grab, and
+    /// steering has to outlive letting go — otherwise the camera hangs in mid-air unreachable.
+    /// </summary>
+    private bool TryGetFlyVRInput(out BasisInputWrapper wrapper)
+    {
+        if (GetActiveVRInput(out wrapper))
+        {
+            flyVRPreferLeftHand = Inputs.leftHand.Source != null && wrapper.Source == Inputs.leftHand.Source;
+            return true;
+        }
+
+        if (IsUsableVRInput(flyVRPreferLeftHand ? Inputs.leftHand : Inputs.rightHand, out wrapper)) return true;
+        if (IsUsableVRInput(flyVRPreferLeftHand ? Inputs.rightHand : Inputs.leftHand, out wrapper)) return true;
+
+        wrapper = default;
+        return false;
+    }
+
+    private static bool IsUsableVRInput(BasisInputWrapper candidate, out BasisInputWrapper wrapper)
+    {
+        wrapper = candidate;
+        return candidate.GetState() != BasisInteractInputState.NotAdded
+            && candidate.Source != null
+            && candidate.BoneControl != null;
     }
 
     /// <summary>
@@ -737,8 +840,8 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
         if (isVRFlying)
         {
-            // VR path: read thumbstick from the interacting controller
-            if (!GetActiveVRInput(out BasisInputWrapper vrInput))
+            // VR path: read thumbstick from the steering controller
+            if (!TryGetFlyVRInput(out BasisInputWrapper vrInput))
                 return false;
 
             BasisInputState state = vrInput.Source.CurrentInputState;

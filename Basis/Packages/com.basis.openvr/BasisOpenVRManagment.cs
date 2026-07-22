@@ -4,6 +4,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.OpenVR.Structs;
 using Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Rendering;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections;
@@ -46,6 +47,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// idle XR mirror updates (~0.04ms) when proven safe.
         /// </summary>
         public static bool CutUnityXRInputSubsystems = false;
+        /// <summary>
+        /// Cadence for re-reading the compositor's recommended render target. Covers changes that
+        /// arrive without a settings event, such as SteamVR's own automatic resolution adjustment
+        /// and external tools writing the per-application resolution directly.
+        /// </summary>
+        public static float ResolutionPollInterval = 0.5f;
+        private float ResolutionPollTimer;
         private void OnDeviceConnected(uint deviceIndex, bool deviceConnected)
         {
             StartCoroutine(DelayedOnDeviceConnectedCoroutine(deviceIndex, deviceConnected));
@@ -434,6 +442,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             // Reset the persistent eye-texture multiplier so a subsequent OpenXR/Desktop
             // session doesn't inherit OpenVR's headset-native scaling.
             XRSettings.eyeTextureResolutionScale = 1f;
+            BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
+            BasisDynamicResolution.ExternalAllocationOwner = false;
+            BasisDynamicResolution.ResetAppliedState();
             SteamVR.SafeDispose();
 
             if (SteamVR_BehaviourGameobject != null)
@@ -452,6 +463,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             SteamVR_Render = null;
             IsInUse = false;
             SteamVR_Events.DeviceConnected.RemoveListener(OnDeviceConnected);
+            SteamVR_Events.System(EVREventType.VREvent_SteamVRSectionSettingChanged).RemoveListener(OnResolutionSettingChanged);
+            SteamVR_Events.System(EVREventType.VREvent_DashboardDeactivated).RemoveListener(OnResolutionSettingChanged);
         }
         public override async void StartSDK()
         {
@@ -477,6 +490,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             // Register SteamVR events
             SteamVR_Events.DeviceConnected.Listen(OnDeviceConnected);
             SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceRoleChanged).Listen(OnTrackedDeviceRoleChanged);
+            SteamVR_Events.System(EVREventType.VREvent_SteamVRSectionSettingChanged).Listen(OnResolutionSettingChanged);
+            SteamVR_Events.System(EVREventType.VREvent_DashboardDeactivated).Listen(OnResolutionSettingChanged);
 
             SteamVR_Render.Initialize(SteamVR_Render);
 
@@ -485,6 +500,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             if (State)
             {
                 BasisDebug.Log("SteamVR SDK started successfully.");
+                BasisDynamicResolution.ExternalAllocationOwner = true;
+                BasisDynamicResolution.OnAllocationScaleChanged += OnAllocationScaleChanged;
                 ApplyRecommendedRenderResolution();
                 if (CutUnityXRInputSubsystems)
                 {
@@ -500,25 +517,59 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         }
         /// <summary>
         /// Pulls SteamVR's grown recommended render target (which factors in the lens
-        /// distortion overlap between eyes) and bakes it into XRSettings.eyeTextureResolutionScale
-        /// once at SteamVR init. The OpenVR XR plugin allocates eye textures at Unity's
-        /// default size — without this, Steam super-sampling and the per-headset native
-        /// resolution are silently ignored. After this runs the URP renderScale slider
-        /// behaves identically to OpenXR/Desktop: slider 1.0 = native recommended,
-        /// slider X = X × native.
+        /// distortion overlap between eyes) and bakes it into XRSettings.eyeTextureResolutionScale.
+        /// The OpenVR XR plugin allocates eye textures at Unity's default size — without this,
+        /// Steam super-sampling and the per-headset native resolution are silently ignored.
+        /// The recommendation is re-read from the runtime rather than taken from
+        /// SteamVR.sceneWidth/sceneHeight, which are frozen in the SteamVR constructor, so
+        /// compositor-side changes (per-app resolution, supersample slider, external tools
+        /// such as OVR Dynamic Resolution) are followed while the client is running.
         /// </summary>
         private void ApplyRecommendedRenderResolution()
         {
             if (SteamVR == null) return;
-            float recommendedMax = Mathf.Max(SteamVR.sceneWidth, SteamVR.sceneHeight);
+            CVRSystem system = Valve.VR.OpenVR.System;
+            if (system == null) return;
+
+            uint recommendedWidth = 0;
+            uint recommendedHeight = 0;
+            system.GetRecommendedRenderTargetSize(ref recommendedWidth, ref recommendedHeight);
+            if (recommendedWidth == 0 || recommendedHeight == 0) return;
+
+            float grownWidth = recommendedWidth;
+            float grownHeight = recommendedHeight;
+
+            VRTextureBounds_t[] bounds = SteamVR.textureBounds;
+            if (bounds != null && bounds.Length == 2)
+            {
+                grownWidth = BasisOpenVRResolutionPolicy.GrowForLensOverlap(recommendedWidth,
+                    BasisOpenVRResolutionPolicy.LargestSpan(bounds[0].uMin, bounds[0].uMax, bounds[1].uMin, bounds[1].uMax));
+                grownHeight = BasisOpenVRResolutionPolicy.GrowForLensOverlap(recommendedHeight,
+                    BasisOpenVRResolutionPolicy.LargestSpan(bounds[0].vMin, bounds[0].vMax, bounds[1].vMin, bounds[1].vMax));
+            }
+
+            float recommendedMax = Mathf.Max(grownWidth, grownHeight);
+            float targetMax = recommendedMax * BasisDynamicResolution.AllocationScale;
             float currentMax = Mathf.Max(XRSettings.eyeTextureWidth, XRSettings.eyeTextureHeight);
-            if (recommendedMax <= 0f || currentMax <= 0f) return;
-            float currentScale = XRSettings.eyeTextureResolutionScale;
-            if (currentScale <= 0f) currentScale = 1f;
-            float baseMax = currentMax / currentScale;
-            float scale = recommendedMax / baseMax;
+
+            if (!BasisOpenVRResolutionPolicy.TryComputeEyeTextureScale(targetMax, currentMax, XRSettings.eyeTextureResolutionScale, BasisOpenVRResolutionPolicy.DefaultDeadband, out float scale))
+            {
+                return;
+            }
+
             XRSettings.eyeTextureResolutionScale = scale;
-            BasisDebug.Log($"OpenVR resolution: eye texture scaled {scale:F3}× to {SteamVR.sceneWidth}x{SteamVR.sceneHeight} (unity-base {baseMax})", BasisDebug.LogTag.Device);
+            BasisDebug.Log($"OpenVR resolution: eye texture scaled {scale:F3}× to {targetMax:F0} (compositor {recommendedMax:F0}, allocation {BasisDynamicResolution.AllocationScale:F2}, was {currentMax:F0})", BasisDebug.LogTag.Device);
+        }
+
+        private void PollRecommendedRenderResolution()
+        {
+            ResolutionPollTimer += Time.unscaledDeltaTime;
+            if (ResolutionPollTimer < ResolutionPollInterval)
+            {
+                return;
+            }
+            ResolutionPollTimer = 0f;
+            ApplyRecommendedRenderResolution();
         }
         /// <summary>
         /// OpenVR mode reads every pose and button straight from the OpenVR API (compositor poses,
@@ -689,6 +740,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         private void OnDestroy()
         {
+            BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
             ShutdownInputThread();
         }
 
@@ -719,6 +771,24 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 PollHMDPresence();
             }
+
+            PollRecommendedRenderResolution();
+        }
+
+        /// <summary>
+        /// The SteamVR dashboard writes its resolution slider into the steamvr settings section, so
+        /// a section change is the earliest signal that the recommended render target moved. The
+        /// apply itself is deferred to the next <see cref="Simulate"/> rather than run inside the
+        /// event pump, keeping a single apply path and one reallocation per frame at most.
+        /// </summary>
+        private void OnResolutionSettingChanged(VREvent_t vrEvent)
+        {
+            ResolutionPollTimer = ResolutionPollInterval;
+        }
+
+        private void OnAllocationScaleChanged()
+        {
+            ResolutionPollTimer = ResolutionPollInterval;
         }
 
         /// <summary>

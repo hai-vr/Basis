@@ -29,6 +29,9 @@ public partial class BasisHandHeldCameraUI
             case BasisCameraButtonAction.ToggleVideoOutput:
                 isOn = HHC.IsVideoOutputActive;
                 return true;
+            case BasisCameraButtonAction.ToggleFlyMode:
+                isOn = HHC.IsFlying;
+                return true;
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
                 return true;

@@ -267,6 +267,26 @@
       "value": "Render below or above native resolution for performance or sharpness."
     },
     {
+      "key": "settings.graphics.dynamicResolution.tooltip",
+      "value": "Automatically lower resolution when the GPU cannot keep up, and raise it again when there is headroom."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.minimum.tooltip",
+      "value": "The lowest resolution dynamic resolution is allowed to drop to."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.maximum.tooltip",
+      "value": "The highest resolution dynamic resolution is allowed to reach. In VR this also sets how much eye texture is reserved up front."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.targetOverride.tooltip",
+      "value": "Target a specific frame rate instead of the headset or display refresh rate."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.target.tooltip",
+      "value": "The frame rate dynamic resolution aims to hold."
+    },
+    {
       "key": "settings.graphics.hdrSupport.tooltip",
       "value": "Enable high dynamic range rendering for brighter highlights."
     },
@@ -4413,6 +4433,26 @@
     {
       "key": "settings.graphics.renderScale",
       "value": "Render Scale"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution",
+      "value": "Dynamic Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.minimum",
+      "value": "Minimum Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.maximum",
+      "value": "Maximum Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.targetOverride",
+      "value": "Override Target Frame Rate"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.target",
+      "value": "Target Frame Rate"
     },
     {
       "key": "settings.graphics.hdrSupport",

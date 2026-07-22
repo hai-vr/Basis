@@ -1799,9 +1799,43 @@ namespace Basis.BasisUI
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.renderScale"), "", 0, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.renderScale"), "", 0.5f, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
                 BasisSettingsDefaults.RenderResolution);
             sliderRenderResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.renderScale.tooltip"));
+
+            PanelToggle toggleDynamicResolution = PanelToggle.CreateNewEntry(container);
+            toggleDynamicResolution.AssignBinding(BasisSettingsDefaults.DynamicResolutionEnabled);
+            toggleDynamicResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution"));
+            toggleDynamicResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.tooltip"));
+
+            PanelSlider sliderDynamicMinimum = PanelSlider.CreateEntryAndBind(
+                container,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum"),
+                    "",
+                    0.25f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.DynamicResolutionMinimumScale);
+            sliderDynamicMinimum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum.tooltip"));
+
+            PanelSlider sliderDynamicMaximum = PanelSlider.CreateEntryAndBind(
+                container,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum"),
+                    "",
+                    0.5f, 1.5f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.DynamicResolutionMaximumScale);
+            sliderDynamicMaximum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum.tooltip"));
+
+            PanelToggle toggleDynamicTargetOverride = PanelToggle.CreateNewEntry(container);
+            toggleDynamicTargetOverride.AssignBinding(BasisSettingsDefaults.DynamicResolutionTargetOverride);
+            toggleDynamicTargetOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride"));
+            toggleDynamicTargetOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride.tooltip"));
+
+            PanelSlider sliderDynamicTarget = PanelSlider.CreateEntryAndBind(
+                container,
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.target"),
+                    "",
+                    30, 240, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.DynamicResolutionTargetFrameRate);
+            sliderDynamicTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.target.tooltip"));
 
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(container);
             dropdownHDR.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.hdrSupport"));
@@ -1850,11 +1884,27 @@ namespace Basis.BasisUI
 
             void ApplyAdvancedPlatformVisibility()
             {
-                sliderRenderResolution.Descriptor.SetActive(BasisDeviceManagement.IsUserInDesktop());
+                bool dynamicEnabled = toggleDynamicResolution.Value;
+                sliderDynamicMinimum.Descriptor.SetActive(dynamicEnabled);
+                sliderDynamicMaximum.Descriptor.SetActive(dynamicEnabled);
+                toggleDynamicTargetOverride.Descriptor.SetActive(dynamicEnabled);
+                sliderDynamicTarget.Descriptor.SetActive(dynamicEnabled && toggleDynamicTargetOverride.Value);
 #if !UNITY_ANDROID
                 sliderFoveatedRendering.Descriptor.SetActive(false);
 #endif
             }
+
+            toggleDynamicResolution.OnValueChanged += (val) =>
+            {
+                ApplyAdvancedPlatformVisibility();
+                descriptor.ForceRebuild();
+            };
+            toggleDynamicTargetOverride.OnValueChanged += (val) =>
+            {
+                ApplyAdvancedPlatformVisibility();
+                descriptor.ForceRebuild();
+            };
+
             ApplyAdvancedPlatformVisibility();
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(toggleAdvanced, container, advancedStart, false, visible =>
@@ -1902,6 +1952,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.HDRSupport.ResetToDefault();
             BasisSettingsDefaults.MemoryAllocation.ResetToDefault();
             BasisSettingsDefaults.RenderResolution.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionEnabled.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionMinimumScale.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionMaximumScale.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionTargetOverride.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionTargetFrameRate.ResetToDefault();
 
             BasisSettingsDefaults.FoveatedRendering.ResetToDefault();
             BasisSettingsDefaults.FieldOfView.ResetToDefault();

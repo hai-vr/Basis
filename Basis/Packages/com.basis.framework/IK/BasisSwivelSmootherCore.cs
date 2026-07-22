@@ -327,13 +327,16 @@ namespace Basis.IK
                 // ever recovering: the knee stays parked at the stale angle until something bends it out of
                 // the band. Divergence that large is not the sway this is built for, so re-seed instead of
                 // defending it. Well above any real sway, well below the 85 deg clamp a bad seed lands on.
-                if (Mathf.Abs(Mathf.DeltaAngle(i.State.Smooth, guardedSwivel)) > k_HoldReseedDeg)
+                // Only where the gate actually attenuates. At gate 1 nothing is frozen, so there is no stale
+                // value to rescue and reseeding would break the exact identity the hold promises a bent knee.
+                holdGate = Smoothstep(i.HoldCondLo, i.HoldCondHi, conditioning);
+                if (holdGate < 1f && Mathf.Abs(Mathf.DeltaAngle(i.State.Smooth, guardedSwivel)) > k_HoldReseedDeg)
                 {
                     state = BasisSwivelFilterCore.Seed(guardedSwivel);
+                    holdGate = 1f;
                 }
                 else
                 {
-                    holdGate = Smoothstep(i.HoldCondLo, i.HoldCondHi, conditioning);
                     float innovation = Mathf.DeltaAngle(i.State.Smooth, state.Smooth);
                     state.Smooth = i.State.Smooth + innovation * holdGate;   // gate 0 => frozen, gate 1 => full One-Euro
                 }

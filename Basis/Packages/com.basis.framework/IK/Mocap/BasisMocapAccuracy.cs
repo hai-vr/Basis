@@ -45,6 +45,34 @@ namespace Basis.IK.Mocap
         // live path is the neural angle model, already the NeuralSwivel row's knee column.)
         NeuralField,
         TruthJoint,    // the elbow/knee tracker case: hand the solver the real joint. The accuracy CEILING.
+
+        // ============================================================================================
+        // THE SAME TRACKER CASE, WITH A DEVICE IN FRONT OF IT. See BasisSyntheticTracker.
+        //
+        // TruthJoint above is not a tracker, it is the JOINT. A real puck stands centimetres off the bone,
+        // is strapped on at whatever angular station the user managed, slips over a session, jitters,
+        // drops out, and arrives late at a rate that is not the headset's. TruthJoint models NONE of that,
+        // so the "ceiling" it reports is the ceiling of an input the runtime cannot produce.
+        //
+        // That blind spot has already cost this project a shipped bug. TruthJoint sat at 1.06% and was
+        // quoted for a long time as the achievable ceiling; the solver was in fact quietly DISCARDING the
+        // tracker through two fades and a boolean pole gate, and once that was fixed the row went to 0.00%.
+        // The lesson on record: WHEN A "KNOWN CEILING" SURVIVES EVERY IMPROVEMENT, SUSPECT IT IS A BUG,
+        // NOT A LIMIT. The harness could not see it because it never modelled a device.
+        //
+        // ⚠ TRUTHJOINT IS DELIBERATELY KEPT, UNCHANGED, AS THE A/B CONTROL. These rows are only readable
+        // against it: TruthJoint isolates what the SOLVER does with a perfect pole, these isolate what the
+        // DEVICE costs on top. Merging them -- or "modernising" TruthJoint by routing it through the
+        // tracker -- would destroy the one row that can still prove the harness is wired correctly, and
+        // would re-base every baseline recorded against it.
+        //
+        // Ladder mirrors BasisTrackerPlacementSweep's "perfect / typical strap slop / sloppy" vocabulary so
+        // the project has ONE set of placement-quality names. Appended AFTER TruthJoint on purpose: six
+        // files name this enum and inserting would renumber every existing value.
+        // ============================================================================================
+        TrackerGood,     // BasisSyntheticTrackerPreset.GoodPuck    -- a careful mount on a lighthouse puck
+        TrackerTypical,  // BasisSyntheticTrackerPreset.TypicalPuck -- what a real user actually straps on
+        TrackerPoor,     // BasisSyntheticTrackerPreset.PoorPuck    -- sloppy mount, 10% glitch, real dropout
     }
 
     public struct BasisMocapAccuracySummary
@@ -115,6 +143,67 @@ namespace Basis.IK.Mocap
 
         const float k_PopJointM = 0.05f;   // 5 cm of elbow/knee travel in one frame
         const float k_PopEffectorM = 0.01f; // while the hand/foot moved under 1 cm
+
+        // ── the synthetic-device rows ───────────────────────────────────────────────────────────────
+        //
+        // These three helpers are the ONLY places the tracker rows are named, so a fourth quality tier is
+        // one enum row and one switch arm rather than a hunt through the file.
+
+        /// <summary>
+        /// True for the rows that put a modelled DEVICE between the joint and the solver.
+        ///
+        /// Every existing row returns false, which is the property the additive guarantee rests on: the
+        /// three places this is consulted (the TipRotation gate, the knee One-Euro gate, and Gate itself)
+        /// all evaluate exactly as they did before for every row that shipped before this one.
+        /// </summary>
+        static bool IsSyntheticTracker(BasisMocapHintSource hint)
+            => hint == BasisMocapHintSource.TrackerGood
+            || hint == BasisMocapHintSource.TrackerTypical
+            || hint == BasisMocapHintSource.TrackerPoor;
+
+        static BasisSyntheticTrackerPreset TrackerPresetFor(BasisMocapHintSource hint)
+        {
+            switch (hint)
+            {
+                case BasisMocapHintSource.TrackerGood: return BasisSyntheticTrackerPreset.GoodPuck;
+                case BasisMocapHintSource.TrackerTypical: return BasisSyntheticTrackerPreset.TypicalPuck;
+                case BasisMocapHintSource.TrackerPoor: return BasisSyntheticTrackerPreset.PoorPuck;
+                // Ideal is a documented BIT-EXACT identity, so this is a safe answer for a row that will
+                // never ask -- no caller reaches here without IsSyntheticTracker having said yes.
+                default: return BasisSyntheticTrackerPreset.Ideal;
+            }
+        }
+
+        // Which limb a tracker rides, folded into its seed so the left elbow and the left knee do not share
+        // a noise stream (they would otherwise glitch on the same frames and the row would report a
+        // correlated failure the hardware cannot produce).
+        const int k_TrackerLimbArm = 0;
+        const int k_TrackerLimbLeg = 1;
+
+        /// <summary>
+        /// A REPRODUCIBLE seed from (clip name, side, limb), so a clip flagged by a sweep replays with the
+        /// exact same mount error, the exact same slip phases and the exact same glitch frames. A device
+        /// model whose answer moves run to run cannot be bisected, and a number nobody can reproduce is
+        /// not a measurement.
+        ///
+        /// FNV-1a rather than string.GetHashCode(): the latter is randomised per process on CoreCLR, and
+        /// this harness is compiled by BOTH Unity's Mono and `dotnet build`. Same reasoning as
+        /// BasisSyntheticTrackerRng's refusal to use System.Random -- see its header.
+        /// </summary>
+        static int TrackerSeed(string clipName, int side, int limb)
+        {
+            unchecked
+            {
+                uint h = 2166136261u;
+                if (!string.IsNullOrEmpty(clipName))
+                {
+                    for (int c = 0; c < clipName.Length; c++) { h ^= clipName[c]; h *= 16777619u; }
+                }
+                h ^= (uint)side; h *= 16777619u;
+                h ^= (uint)limb; h *= 16777619u;
+                return (int)h;
+            }
+        }
 
         // The PRE-IK limb, modelled the way the runtime actually produces it: a fixed bind pose riding the parent
         // (chest for an arm, hips for a leg), rebuilt from scratch every frame, with IK layered on top. That is
@@ -261,6 +350,30 @@ namespace Basis.IK.Mocap
                 var arms = new Limb[2];
                 var legs = new Limb[2];
 
+                // ── the modelled devices, one per limb per side ─────────────────────────────────────
+                //
+                // STATEFUL and PER-LIMB, both of which are forced: latency, update rate, dropout and slip
+                // are temporal (the tracker is a pump, not a function of t), and a puck on the left elbow
+                // is a different physical object from the one on the right knee -- shared state would make
+                // four devices behave like one, which is not a failure any hardware can produce.
+                //
+                // ⚠ LEFT NULL FOR EVERY EXISTING ROW, and that is the additive guarantee in one line: no
+                // existing row can reach a tracker, so no existing row's numbers can move. (An Ideal-preset
+                // tracker is documented and tested as a bit-exact identity and would serve equally, but
+                // null is the stronger statement -- the old rows execute no new instruction at all, rather
+                // than executing one that is asserted to be a no-op.)
+                var armTrackers = new BasisSyntheticTracker[2];
+                var legTrackers = new BasisSyntheticTracker[2];
+                if (IsSyntheticTracker(hint))
+                {
+                    BasisSyntheticTrackerPreset preset = TrackerPresetFor(hint);
+                    for (int side = 0; side < 2; side++)
+                    {
+                        armTrackers[side] = new BasisSyntheticTracker(preset, TrackerSeed(clip.Name, side, k_TrackerLimbArm));
+                        legTrackers[side] = new BasisSyntheticTracker(preset, TrackerSeed(clip.Name, side, k_TrackerLimbLeg));
+                    }
+                }
+
                 // Elbow-swivel One-Euro state, carried frame to frame exactly as the job's NativeArray slots
                 // are. The BONE pose is never carried (see the header); the FILTER state always is.
                 var armSwivel = new BasisSwivelFilterState[2];
@@ -286,10 +399,17 @@ namespace Basis.IK.Mocap
                     }
                     Quaternion bendFrame = ArmBendFrame(hipSpringRot, chestRot);
 
+                    // Clip time for the device model. `f * dt` and not an accumulator: the tracker requires a
+                    // non-decreasing time and this one is exact at every frame rather than drifting by a
+                    // float epsilon per step, so a dropout or a device tick lands on the same frame in every
+                    // run of the same clip.
+                    float clipTimeS = f * dt;
+
                     for (int side = 0; side < 2; side++)
                     {
                         bool isLeft = side == 0;
                         SolveArm(clip, f, isLeft, ref arms[side], bendFrame, chestRot, playerUp, hipsRot, hint, lookup, dt,
+                                 armTrackers[side], clipTimeS,
                                  ref armSwivel[side], ref armSwivelSeeded[side],
                                  out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float aLen,
                                  out float armRigid, out byte armAxis, out Vector3 hintRaw, out Vector3 hintFlared,
@@ -310,7 +430,7 @@ namespace Basis.IK.Mocap
                         }
                         if (side == 0) { prevElbow0 = solvedElbow; if (f == 0) prevHand0 = clip.Get(0, BasisMocapJoint.LeftHand).Position; }
 
-                        SolveLeg(clip, f, isLeft, ref legs[side], hipsRot, hint, dt,
+                        SolveLeg(clip, f, isLeft, ref legs[side], hipsRot, hint, dt, legTrackers[side], clipTimeS,
                                  out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float lReach, out float lLen,
                                  out float legRigid, out byte legAxis);
                         legLen = lLen;
@@ -383,8 +503,11 @@ namespace Basis.IK.Mocap
             return hipsRot * chestSwing;
         }
 
+        // `tracker` is null for every row except the synthetic-device ones, and `timeS` is only read by those
+        // rows. Threading them changes no existing row's arithmetic -- see IsSyntheticTracker.
         static void SolveArm(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion bendFrame, Quaternion chestRot,
                              Vector3 playerUp, Quaternion hipsRot, BasisMocapHintSource hint, NativeArray<Vector3> lookup, float dt,
+                             BasisSyntheticTracker tracker, float timeS,
                              ref BasisSwivelFilterState swivelState, ref bool swivelSeeded,
                              out Vector3 truthElbow, out Vector3 solvedElbow, out float handErr, out float reach, out float armLen,
                              out float rigidity, out byte axis, out Vector3 hintRaw, out Vector3 hintFlared,
@@ -419,8 +542,16 @@ namespace Basis.IK.Mocap
             // gate sees it if that rule ever changes) and ElbowField (what ships). The legacy baselines
             // (Lookup, SwivelModel) stay frozen without it: they exist as fixed points of comparison, and a
             // baseline that accretes new features stops being a baseline.
+            //
+            // ⚠ THE SYNTHETIC-TRACKER ROWS BELONG HERE AND OMITTING THEM IS SILENT. They model the live rig
+            // harder than TruthJoint does, so anything TruthJoint is fed they must be fed. It is not merely
+            // the relief: BasisArmSolveCore's TRACKER FOREARM ROLL block runs precisely when HintIsTracker
+            // is set, and it reads TipRotation to blend the hand's roll DEMAND against the tracker's
+            // MEASURED roll. Leave TipRotation at default and that blend silently drops to raw tracker roll
+            // -- a different code path from the row these are supposed to be read against, so the A/B would
+            // be comparing two solvers rather than two inputs, and nothing would look wrong.
             i.TipRotation = hint == BasisMocapHintSource.TruthJoint || hint == BasisMocapHintSource.ElbowField
-                || hint == BasisMocapHintSource.NeuralField
+                || hint == BasisMocapHintSource.NeuralField || IsSyntheticTracker(hint)
                 ? animTipRot : default;
             i.TargetPosition = truthHand;
             i.TargetRotation = truthHandRot;
@@ -441,6 +572,42 @@ namespace Basis.IK.Mocap
                     // forearm roll is exercised against the corpus exactly as the live rig runs it.
                     i.HintRotation = clip.Get(f, jE).Rotation;
                     break;
+                case BasisMocapHintSource.TrackerGood:
+                case BasisMocapHintSource.TrackerTypical:
+                case BasisMocapHintSource.TrackerPoor:
+                {
+                    // TruthJoint above, with a DEVICE in front of it -- and that is the only difference, on
+                    // purpose. Same HintIsTracker, same HintRotation wiring, same TipRotation: the solver
+                    // takes byte-for-byte the same path, so the delta between this row and TruthJoint is the
+                    // measurement error and nothing else. (Anything else that differed would be confounded
+                    // with it and the row would answer a question nobody asked.)
+                    //
+                    // The mount rides the TRUE limb (shoulder -> elbow -> hand from the corpus), not the
+                    // solver's animated one: a strap goes round the human's arm, and it is the human's arm
+                    // the device is measuring. Passing the solved limb would let solver error feed back into
+                    // its own input.
+                    BasisSyntheticTrackerSample sample = tracker.Sample(clip.Get(f, jE), shoulder, truthHand, timeS);
+                    if (sample.Valid)
+                    {
+                        i.HintPosition = sample.Position;
+                        i.HintWeight = true;
+                        i.HintIsTracker = true;
+                        // The MEASURED rotation, so the forearm roll is driven by the strap's frame rather
+                        // than the bone's -- which is the point. A mis-mounted puck reports a roll that is
+                        // wrong by its mount error, and the wrist inherits the difference.
+                        i.HintRotation = sample.Rotation;
+                    }
+                    else
+                    {
+                        // The device has never delivered: there is nothing to hold and nothing to invent, so
+                        // the arm gets NO pole and falls back exactly as an untracked one does. A mid-session
+                        // dropout is NOT this case -- the model holds the last sample and keeps Valid, which
+                        // is what actually reaches the solver, and a held pole is a very different failure
+                        // from an absent one (zero velocity then a step, versus a fallback pole).
+                        i.HintWeight = false;
+                    }
+                    break;
+                }
                 case BasisMocapHintSource.ElbowField:
                 case BasisMocapHintSource.NeuralField:
                 {
@@ -672,8 +839,10 @@ namespace Basis.IK.Mocap
                                                              flareInwardGain, k_FlareFullRollDeg, k_FlareMaxDeg);
         }
 
+        // Same contract as SolveArm: `tracker` is null and `timeS` unread for every row that shipped before
+        // the synthetic-device rows landed.
         static void SolveLeg(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion hipsRot,
-                             BasisMocapHintSource hint, float dt,
+                             BasisMocapHintSource hint, float dt, BasisSyntheticTracker tracker, float timeS,
                              out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float reach, out float legLen,
                              out float rigidity, out byte axis)
         {
@@ -723,6 +892,32 @@ namespace Basis.IK.Mocap
             {
                 i.HintPosition = truthKnee;
                 i.HintWeight = 1f;
+            }
+            else if (IsSyntheticTracker(hint))
+            {
+                // The knee half of the device model: the TruthJoint branch above with a real puck in front
+                // of it, wired identically so the delta is the device and nothing else.
+                //
+                // The leg feels the mount differently from the arm, and that asymmetry is worth having.
+                // BasisArmSolveCore reads only the component of shoulder->hint PERPENDICULAR to
+                // shoulder->hand, so a stand-off along the limb's outward normal is provably invisible to
+                // the elbow (see BasisSyntheticTrackerCalibration.SlideM) -- the arm rows therefore measure
+                // mount ROLL, slip, glitch and latency. The leg has no such projection, so its rows measure
+                // the stand-off too. One model, two different exposures, which is exactly what a shared
+                // device model is for.
+                BasisSyntheticTrackerSample sample = tracker.Sample(clip.Get(f, jK), hip, truthFoot, timeS);
+                if (sample.Valid)
+                {
+                    i.HintPosition = sample.Position;
+                    i.HintWeight = 1f;
+                }
+                else
+                {
+                    // Never delivered: no knee pole at all, so the leg falls back to the bend normal exactly
+                    // as an untracked one does. BasisLegSolveInput carries no hint rotation, so unlike the
+                    // arm there is nothing else of the sample to pass on.
+                    i.HintWeight = 0f;
+                }
             }
             else if (hint == BasisMocapHintSource.SwivelModel || hint == BasisMocapHintSource.SwivelModelSmoothed
                      || hint == BasisMocapHintSource.NeuralSwivel)
@@ -807,7 +1002,16 @@ namespace Basis.IK.Mocap
             // The harness always hands the leg a real foot target, so `preserveTip` is FALSE in the runtime and
             // it takes the RESPONSIVE (foot-tracked) branch, not the heavy standing floor. These are that
             // branch's constants. If SolveLegs is retuned, retune this too -- it is a MIRROR, not a shared call.
-            if (hint != BasisMocapHintSource.TruthJoint)
+            //
+            // ⚠ THE SYNTHETIC-TRACKER ROWS ARE EXCLUDED WITH TruthJoint, AND THIS IS NOT A DETAIL. The
+            // runtime gates this filter on there being NO knee tracker; a modelled puck IS a knee tracker,
+            // so the live rig would bypass the filter for these rows exactly as it does for TruthJoint.
+            // Leave them in this branch and the One-Euro eats the jitter, the glitches and the dropout steps
+            // before they ever reach the number -- the row would then report how good the FILTER is at
+            // hiding a bad device, which is the opposite of the question. Worse, it would report it as a
+            // reassuring figure: the whole reason these rows exist is that a comfortable number from an
+            // input the runtime cannot produce is how the last ceiling stayed wrong for so long.
+            if (hint != BasisMocapHintSource.TruthJoint && !IsSyntheticTracker(hint))
             {
                 BasisSwivelSmootherInput sw = default;
                 sw.Root = hip;
@@ -847,6 +1051,48 @@ namespace Basis.IK.Mocap
         static float Mean(List<float> v) { float t = 0f; for (int i = 0; i < v.Count; i++) t += v[i]; return v.Count > 0 ? t / v.Count : float.NaN; }
         static float Pct(List<float> sorted, float p) => sorted.Count == 0 ? float.NaN : sorted[Mathf.Clamp(Mathf.RoundToInt(p * (sorted.Count - 1)), 0, sorted.Count - 1)];
 
+        /// <summary>
+        /// The error ceiling for a synthetic-tracker row, as a FRACTION OF THE LIMB, derived from the
+        /// device's own parameters rather than picked. Retune a preset and the ceiling follows it, so the
+        /// bound can never silently disagree with the model it is bounding -- the same reasoning
+        /// BasisSyntheticTracker.Slip01MaxRatePerSecond exists for.
+        ///
+        /// THE DERIVATION. The joint lies on a circle of radius r about the root->tip axis, and r &lt;= half
+        /// the limb length (the limit as the limb folds; a right-angled limb is nearer 0.35). The only
+        /// device error the POLE can express is the angular station about that axis: the mount roll, drawn
+        /// once within +-MountRollDeg, plus the session slip, peaking at SlipAroundDeg. A station error of
+        /// theta moves the joint 2*r*sin(theta/2) &lt;= r*theta. So the angular term, scale-free, is
+        /// 0.5 * (MountRollDeg + SlipAroundDeg) in radians.
+        ///
+        /// Plus a flat slack for the terms that are position-space rather than angular: jitter (2 mm sigma
+        /// at worst), glitches (3 cm on 10% of samples at worst), delivery latency and held samples -- and,
+        /// for the LEG, the stand-off, which the arm's perpendicular projection absorbs and the leg's does
+        /// not. 8% of an 0.85 m leg is 6.8 cm, which covers the 6 cm worst-case stand-off outright.
+        ///
+        /// ⚠ THIS IS A SANITY CEILING, NOT A WIRING CHECK, and the distinction is the whole reason it is
+        /// separate from TruthJoint's. TruthJoint's 3 cm / 5 cm bounds PROVE THE HARNESS IS WIRED: handed
+        /// the real joint the solver must reproduce it, and loosening them would destroy the only check that
+        /// says the corpus numbers mean anything. A 4 cm stand-off alone would blow them, so a tracker row
+        /// must never be measured against them -- it would fail for an entirely correct reason and get
+        /// "fixed" by widening the one bound in this file that must not move.
+        ///
+        /// These bounds instead say only "the device model has not gone berserk". Every term above is a
+        /// worst case applied to a MEAN, so real numbers should sit far below; if one trips, check it
+        /// against the model before touching the constant -- but widening THIS constant costs nothing that
+        /// widening TruthJoint's would. The real correctness check for these rows is a comparison Gate
+        /// structurally cannot make from a single summary: a tracker row must land BETWEEN TruthJoint and
+        /// None, and worse as the mount gets worse. That belongs in the test that sweeps the rows.
+        /// </summary>
+        static float TrackerCeilingFracOfLimb(BasisMocapHintSource hint)
+        {
+            BasisSyntheticTrackerParams p = BasisSyntheticTrackerParams.FromPreset(TrackerPresetFor(hint));
+            float swivelRad = (p.MountRollDeg + p.SlipAroundDeg) * Mathf.Deg2Rad;
+            return 0.5f * swivelRad + k_TrackerCeilingSlackFrac;
+        }
+
+        // Jitter, glitch, latency/hold, and the leg's stand-off. See TrackerCeilingFracOfLimb.
+        const float k_TrackerCeilingSlackFrac = 0.08f;
+
         public static (bool pass, string reason) Gate(in BasisMocapAccuracySummary s)
         {
             if (!s.Ok) return (false, string.IsNullOrEmpty(s.Error) ? "did not run" : s.Error);
@@ -874,6 +1120,22 @@ namespace Basis.IK.Mocap
                 // also proves the harness is wired correctly.
                 if (s.ElbowMeanM > 0.03f) return (false, $"elbow mean {s.ElbowMeanM * 100f:F1} cm even when handed the TRUE elbow -- wiring bug");
                 if (s.KneeMeanM > 0.05f) return (false, $"knee mean {s.KneeMeanM * 100f:F1} cm even when handed the TRUE knee -- wiring bug");
+            }
+            else if (IsSyntheticTracker(s.Hint))
+            {
+                // A DIFFERENT BOUND, DELIBERATELY, AND NOT TruthJoint's. See TrackerCeilingFracOfLimb for
+                // the derivation and for why reusing the wiring check here would be actively destructive.
+                // Scale-free because the bound comes from the joint's circle radius, which scales with the
+                // limb -- unlike TruthJoint's, which is an absolute "did the wiring work" tolerance.
+                float ceiling = TrackerCeilingFracOfLimb(s.Hint);
+                if (s.ElbowMeanFracArm > ceiling)
+                    return (false, $"elbow mean {s.ElbowMeanFracArm * 100f:F1}% of arm on a {s.Hint} puck, over the " +
+                                   $"{ceiling * 100f:F1}% the device model can account for -- the tracker is not reaching the solver, " +
+                                   "or the mount geometry is wrong");
+                if (s.KneeMeanFracLeg > ceiling)
+                    return (false, $"knee mean {s.KneeMeanFracLeg * 100f:F1}% of leg on a {s.Hint} puck, over the " +
+                                   $"{ceiling * 100f:F1}% the device model can account for -- the tracker is not reaching the solver, " +
+                                   "or the mount geometry is wrong");
             }
 
             return (true, $"{s.Clip} [{s.Hint}] elbow mean {s.ElbowMeanM * 100f:F1} cm (p95 {s.ElbowP95M * 100f:F1}, max {s.ElbowMaxM * 100f:F1}, " +

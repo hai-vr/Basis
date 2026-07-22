@@ -18,6 +18,7 @@ namespace Basis.EventDriver
 
         public static readonly ProfilerMarker NetworkCompleteCompute = new ProfilerMarker("BasisDriver.Network.CompleteCompute");
         public static readonly ProfilerMarker FrameClockTick = new ProfilerMarker("BasisDriver.FrameClock.Tick");
+        public static readonly ProfilerMarker DynamicResolution = new ProfilerMarker("BasisDriver.DynamicResolution.Tick");
         public static readonly ProfilerMarker VisemeSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.VisemeSimulate");
         public static readonly ProfilerMarker MainThreadActions = new ProfilerMarker("BasisDriver.MainThreadActions");
         public static readonly ProfilerMarker LifecycleQueue = new ProfilerMarker("BasisDriver.Network.LifecycleQueue");

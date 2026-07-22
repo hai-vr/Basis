@@ -13,5 +13,6 @@ public enum BasisCameraButtonAction
     DepthModeAuto,
     DepthModeManual,
     ToggleFollowPlayer,
-    ToggleVideoOutput
+    ToggleVideoOutput,
+    ToggleFlyMode
 }

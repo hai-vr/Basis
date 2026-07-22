@@ -668,6 +668,16 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> RenderResolution = new("render resolution", new BasisPlatformDefault<float>(1));
 
+        public static BasisSettingsBinding<bool> DynamicResolutionEnabled = new("dynamicresolutionenabled", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<float> DynamicResolutionMinimumScale = new("dynamicresolutionminimumscale", new BasisPlatformDefault<float>(0.6f));
+
+        public static BasisSettingsBinding<float> DynamicResolutionMaximumScale = new("dynamicresolutionmaximumscale", new BasisPlatformDefault<float>(1f));
+
+        public static BasisSettingsBinding<bool> DynamicResolutionTargetOverride = new("dynamicresolutiontargetoverride", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<float> DynamicResolutionTargetFrameRate = new("dynamicresolutiontargetframerate", new BasisPlatformDefault<float>(90));
+
         public static BasisSettingsBinding<string> MicrophoneMode = new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
         public static BasisSettingsBinding<float> P2PAvatarSyncRate = new("p2pavatarsyncrate", new BasisPlatformDefault<float>(60));
@@ -1874,6 +1884,11 @@ namespace Basis.BasisUI
             EyeFoveationAutoManage.LoadBindingValue();
             FieldOfView.LoadBindingValue();
             RenderResolution.LoadBindingValue();
+            DynamicResolutionEnabled.LoadBindingValue();
+            DynamicResolutionMinimumScale.LoadBindingValue();
+            DynamicResolutionMaximumScale.LoadBindingValue();
+            DynamicResolutionTargetOverride.LoadBindingValue();
+            DynamicResolutionTargetFrameRate.LoadBindingValue();
             VSync.LoadBindingValue();
             VSyncCapFps.LoadBindingValue();
 
