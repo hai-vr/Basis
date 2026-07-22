@@ -30,6 +30,16 @@ namespace Basis.IK
         /// strap's clock angle is arbitrary and would otherwise land as a constant forearm twist). Zero (the
         /// struct default) disables the tracker forearm roll.</summary>
         public Quaternion HintRotation;
+        /// <summary>Last frame's well-conditioned pole DIRECTION (world, unit, perpendicular to the then
+        /// shoulder->hand axis), from BasisArmSolveResult.PoleDirUsed.</summary>
+        public Vector3 PrevPoleDir;
+        /// <summary>HintRotation as it was when PrevPoleDir was stored. The pole is carried through the
+        /// tracker's rotation SINCE then, so only a relative rotation about a world axis is ever read and no
+        /// assumption is made about which local axis the forearm bone points down.</summary>
+        public Quaternion PrevHintRotation;
+        /// <summary>False (the struct default) restores the pre-anchor behaviour exactly, so every existing
+        /// caller, test and offline sweep is bit-identical.</summary>
+        public bool HasPrevPole;
     }
 
     public struct BasisArmSolveResult
@@ -65,6 +75,10 @@ namespace Basis.IK
         public float WristTwistDeg;   // signed hand-target roll vs the carried animated wrist, about the forearm axis
         public float WristReliefDeg;  // signed swivel actually spent relieving it (0 = relief not engaged)
         public float ForearmRollDeg;  // signed tracker-path forearm roll applied via MidPostRoll (0 = not engaged)
+        public Vector3 PoleDirUsed;   // pole direction to carry into next frame's PrevPoleDir
+        public Quaternion PoleRotUsed;// HintRotation to carry into next frame's PrevHintRotation
+        public bool PoleAnchorValid;  // false = nothing worth storing this frame
+        public float PoleConditioning;// 1 = the measured pole's lever arm is healthy, 0 = fully anchored
     }
 
     // Stream-free geometry shared by BasisFullIKConstraintJob.SolveTwoBoneIKArms and the
@@ -159,6 +173,38 @@ namespace Basis.IK
         // wrap pop BasisElbowFlareCore documents. Real wrists cannot reach here; only mismatch can.
         const float k_WristWrapFadeStartDeg = 155f;
         const float k_WristWrapFadeEndDeg = 178f;
+
+        // =============================================================================================
+        // ⭐ A MEASURED POLE COLLAPSES; A COMMANDED ONE DOES NOT. THAT IS THE WHOLE DIFFERENCE.
+        //
+        // The block below asserts that the pole is commanded and so never needs conditioning. That is
+        // true of BasisArmSwivelModel's pole, which is built perpendicular to shoulder->hand BY
+        // CONSTRUCTION and measures a flat 180 mm at every extension from 0.90 to 1.05. It is FALSE of a
+        // real elbow tracker: that pole is the user's own elbow, and when they straighten their arm their
+        // elbow lies ON the shoulder->hand axis, so |ahProj| genuinely goes to zero. Measured on the live
+        // core at 99.9% extension with 1 mm of puck noise: |ahProj| 13.36 mm, and the swivel flips 179°
+        // on 72 of 400 frames. Identical pole with HintIsTracker false: 0.13°, zero flips.
+        //
+        // The gain is exact and it is not a gate crossing -- d(swivel) = d(pole) / |ahProj|, verified to
+        // two decimals against prediction. So the epsilon at the admission test never fires (the failure
+        // regime sits at ~1.25 mm, twelve times above it) and tightening it would only restore the old
+        // drop-cliff. MaxElbowAngleDeg floors the OTHER lever arm: |abProj| never falls below 26.15 mm in
+        // the same frames that |ahProj| reaches 1.25 mm.
+        //
+        // ⚠ AND THE ONSET IS SET BY THE USER'S ARM, NOT THE AVATAR'S. At a user/avatar arm ratio of 0.98
+        // -- an ordinary proportion mismatch -- the flip starts at 98% of avatar extension, not 99.9%.
+        //
+        // The fix cannot be a fade toward the animated bend (that is the old hintFade, which parked the
+        // elbow on an idle pose the user is not performing) nor toward world-down (that is the
+        // stabilizer below, which measures perfectly clean here precisely BECAUSE it stops the elbow
+        // following the tracker at all -- swivel drops to 0.00°). It has to keep the measurement. So the
+        // pole is ANCHORED: the last well-conditioned pole direction is carried forward through the
+        // tracker's OWN rotation since it was stored. A puck strapped to the forearm still knows which
+        // way the elbow points when the arm is straight -- its position degenerates, its orientation
+        // does not. With no usable HintRotation the carry is identity, which is a plain hold.
+        // =============================================================================================
+        public const float TrackerPoleAnchorFrac = 0.03f;
+        public const float TrackerPoleTrustFrac = 0.12f;
 
         public static void Solve(in BasisArmSolveInput i, out BasisArmSolveResult r)
         {
@@ -268,6 +314,7 @@ namespace Basis.IK
             float swivelUsedRad = 0f;   // how much of the per-frame swivel budget the hint has already spent
             float hintProjMag = 0f;
             float armProjMag = 0f;
+            float poleCondW = 1f;
             if (i.HintWeight)
             {
                 // Original keeps the pre-root |ac|^2 here; rootDelta is a pure rotation so the
@@ -286,6 +333,25 @@ namespace Basis.IK
                     elbowDir -= acNorm * Vector3.Dot(elbowDir, acNorm);
                     hintProjMag = ahProj.magnitude;
                     armProjMag = abProj.magnitude;
+
+                    if (i.HintIsTracker && totalLen > k_Epsilon)
+                    {
+                        poleCondW = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(
+                            (hintProjMag / totalLen - TrackerPoleAnchorFrac) / (TrackerPoleTrustFrac - TrackerPoleAnchorFrac)));
+
+                        if (ahProj.sqrMagnitude > k_SqrEpsilon && (poleCondW >= 1f || !i.HasPrevPole))
+                        {
+                            r.PoleDirUsed = ahProj / hintProjMag;
+                            r.PoleRotUsed = i.HintRotation;
+                            r.PoleAnchorValid = true;
+                        }
+                        else if (i.HasPrevPole)
+                        {
+                            r.PoleDirUsed = i.PrevPoleDir;
+                            r.PoleRotUsed = i.PrevHintRotation;
+                            r.PoleAnchorValid = true;
+                        }
+                    }
 
                     // ==========================================================================================
                     // ⭐ THE POLE IS COMMANDED. IT IS OBEYED. THERE IS NOTHING HERE TO FADE.
@@ -393,7 +459,32 @@ namespace Basis.IK
                         // throws the hand clean off its target. A 12-iteration bisection used to sit right here,
                         // walking the hint back toward identity until the hand came home. Naming the axis
                         // deletes the failure and the search for it together.
-                        swivelUsedRad = SignedAngleRad(elbowDir, ahProj, acNorm) * effFade;
+                        float poleSwivel = SignedAngleRad(elbowDir, ahProj, acNorm);
+                        if (i.HintIsTracker && i.HasPrevPole && poleCondW < 1f)
+                        {
+                            Quaternion carryRot = Quaternion.identity;
+                            float prevRotSqr = i.PrevHintRotation.x * i.PrevHintRotation.x + i.PrevHintRotation.y * i.PrevHintRotation.y
+                                             + i.PrevHintRotation.z * i.PrevHintRotation.z + i.PrevHintRotation.w * i.PrevHintRotation.w;
+                            float curRotSqr = i.HintRotation.x * i.HintRotation.x + i.HintRotation.y * i.HintRotation.y
+                                            + i.HintRotation.z * i.HintRotation.z + i.HintRotation.w * i.HintRotation.w;
+                            if (prevRotSqr > 0.5f && curRotSqr > 0.5f)
+                            {
+                                carryRot = i.HintRotation * Quaternion.Inverse(i.PrevHintRotation);
+                            }
+
+                            Vector3 carried = carryRot * i.PrevPoleDir;
+                            carried -= acNorm * Vector3.Dot(carried, acNorm);
+                            if (carried.sqrMagnitude > k_SqrEpsilon)
+                            {
+                                float anchorSwivel = SignedAngleRad(elbowDir, carried, acNorm);
+                                float dSwivel = poleSwivel - anchorSwivel;
+                                if (dSwivel > Mathf.PI) dSwivel -= 2f * Mathf.PI;
+                                else if (dSwivel < -Mathf.PI) dSwivel += 2f * Mathf.PI;
+                                poleSwivel = anchorSwivel + poleCondW * dSwivel;
+                            }
+                        }
+
+                        swivelUsedRad = poleSwivel * effFade;
                         float swivel = swivelUsedRad;
 
                         // Rate-limit so the elbow eases toward the pole rather than swinging ~180 deg the frame
@@ -438,17 +529,10 @@ namespace Basis.IK
             if (i.HintWeight && !i.HintIsTracker)
             {
                 float poleCond = totalLen > k_Epsilon ? hintProjMag / totalLen : 1f;
-                // Same physical-stand-off reasoning as the hintFade floor above: a real tracker's short pole is
-                // real out-direction, so re-condition it (positions only -> pronation-safe) and the world-down
-                // stabilizer backs off, letting the elbow follow the tracker. Lookup path keeps the wider window
-                // (the backward full-stretch flip fix). Below the floor (tracker on the bone line) it still acts.
-                // Blended over [0.05, 0.10] like the hintFade floor — a hard gate flipped the stabilizer's
-                // collapse weight 1<->0 in a single frame at the same crossing.
-                if (i.HintIsTracker)
-                {
-                    float floorBlend = Mathf.Clamp01((poleCond - 0.05f) / 0.05f);
-                    poleCond = Mathf.Lerp(poleCond, Mathf.Max(poleCond, 0.30f), floorBlend);
-                }
+                // A tracker stand-off floor used to sit here, nested in `if (i.HintIsTracker)`. The enclosing
+                // branch is `HintWeight && !HintIsTracker`, so it was unreachable by construction and has been
+                // removed rather than left to read as live tracker handling. The tracker path does its own
+                // conditioning at TrackerPoleAnchorFrac/TrackerPoleTrustFrac above.
                 float collapse = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((poleCond - 0.15f) / 0.15f));
                 Vector3 acStab = cPosition - aPosition;
                 if (collapse > 0f && acStab.sqrMagnitude > k_SqrEpsilon)
@@ -705,6 +789,7 @@ namespace Basis.IK
             r.HintFade = hintFade;
             r.HintProjMag = hintProjMag;
             r.ArmProjMag = armProjMag;
+            r.PoleConditioning = poleCondW;
             r.AxisSource = axisSource;
             r.HandError = (cPosition - tPosition).magnitude;
         }

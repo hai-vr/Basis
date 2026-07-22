@@ -95,6 +95,9 @@ namespace Basis.Tests.IK
                 ParentMatrix = float4x4.identity,
                 ParentRotation = quaternion.identity,
                 EyeRot = quaternion.identity,
+                EyePos = head,
+                HipsAnchorOffsetLocal = float3.zero,
+                HeadRestFromEyeLocal = float3.zero,
 
                 HeadTargetPos = head,
                 HeadTargetRot = quaternion.identity,

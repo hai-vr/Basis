@@ -254,14 +254,20 @@ namespace Basis.Tests.IK
         [Test]
         public void Solve_DoesNotSnapTheKnee_WhenTheHintSitsNearTheLegAxis()
         {
-            // DEFECT 3, and the one most likely to be hit by an actual FBT rig. hintRadius 0.15 puts a lower-leg
-            // tracker at poleSin ~0.34 on a standing leg -- INSIDE k_PoleColinearSin (0.5), so the near-colinear
-            // ease runs. That ease is a Vector3.Slerp toward bendPole, and as the pole crosses the far side the
-            // great circle flips: measured 610x knee gain before the guard-first reorder.
+            // DEFECT 3, and the one most likely to be hit by an actual FBT rig. That ease is a Vector3.Slerp
+            // toward bendPole, and as the pole crosses the far side the great circle flips: measured 610x knee
+            // gain before the guard-first reorder.
             //
             // Kept as its own test rather than folded into the sweep above because the mechanism is different --
             // that one is the guard's own transfer function, this one is an anti-parallel slerp INPUT that the
             // guard now makes unreachable by running first.
+            //
+            // BOTH radii are swept, and which one arms the ease depends on k_PoleColinearSin. Here
+            // poleSin = r / sqrt(half^2 + r^2), so r 0.15 gives ~0.38 and r 0.025 gives ~0.06-0.08 across the
+            // reach sweep. At the shipped 0.10 only the small radius runs the ease and the large one measures
+            // the guard alone -- so the small radius is what keeps this test honest to its name. Sweeping both
+            // means the pair stays meaningful whichever side of the band the constant moves to.
+            foreach (float hintRadius in new[] { 0.025f, 0.15f })
             foreach (float reach in new[] { 0.70f, 0.85f, 0.95f, 1.00f })
             {
                 float worstGain = 0f, worstAt = 0f;
@@ -271,7 +277,7 @@ namespace Basis.Tests.IK
 
                 for (float phi = 0f; phi <= 360f; phi += step)
                 {
-                    if (!SolveKneeDir(reach, 0.15f, phi, out Vector3 dir)) continue;
+                    if (!SolveKneeDir(reach, hintRadius, phi, out Vector3 dir)) continue;
                     if (have)
                     {
                         float gain = Vector3.Angle(prev, dir) / step;
@@ -282,8 +288,9 @@ namespace Basis.Tests.IK
                 }
 
                 Assert.Less(worstGain, k_MaxGuardGain,
-                    $"at reach {reach:F2} a near-axis hint moved the knee {worstGain:F2}deg per degree near " +
-                    $"{worstAt:F0}deg -- the near-colinear ease is being handed an anti-parallel slerp again");
+                    $"at reach {reach:F2} hintRadius {hintRadius:F3} a near-axis hint moved the knee " +
+                    $"{worstGain:F2}deg per degree near {worstAt:F0}deg -- the near-colinear ease is being " +
+                    "handed an anti-parallel slerp again");
             }
         }
 

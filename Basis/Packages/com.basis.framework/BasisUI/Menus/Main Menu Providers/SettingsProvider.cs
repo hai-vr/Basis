@@ -1803,39 +1803,39 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.RenderResolution);
             sliderRenderResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.renderScale.tooltip"));
 
-            PanelToggle toggleDynamicResolution = PanelToggle.CreateNewEntry(container);
-            toggleDynamicResolution.AssignBinding(BasisSettingsDefaults.DynamicResolutionEnabled);
-            toggleDynamicResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution"));
-            toggleDynamicResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.tooltip"));
+            // PanelToggle toggleDynamicResolution = PanelToggle.CreateNewEntry(container);
+            // toggleDynamicResolution.AssignBinding(BasisSettingsDefaults.DynamicResolutionEnabled);
+            // toggleDynamicResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution"));
+            // toggleDynamicResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.tooltip"));
 
-            PanelSlider sliderDynamicMinimum = PanelSlider.CreateEntryAndBind(
-                container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum"),
-                    "",
-                    0.25f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.DynamicResolutionMinimumScale);
-            sliderDynamicMinimum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum.tooltip"));
+            // PanelSlider sliderDynamicMinimum = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum"),
+            //         "",
+            //         0.25f, 1f, false, 3, ValueDisplayMode.Percentage),
+            //     BasisSettingsDefaults.DynamicResolutionMinimumScale);
+            // sliderDynamicMinimum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum.tooltip"));
 
-            PanelSlider sliderDynamicMaximum = PanelSlider.CreateEntryAndBind(
-                container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum"),
-                    "",
-                    0.5f, 1.5f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.DynamicResolutionMaximumScale);
-            sliderDynamicMaximum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum.tooltip"));
+            // PanelSlider sliderDynamicMaximum = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum"),
+            //         "",
+            //         0.5f, 1.5f, false, 3, ValueDisplayMode.Percentage),
+            //     BasisSettingsDefaults.DynamicResolutionMaximumScale);
+            // sliderDynamicMaximum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum.tooltip"));
 
-            PanelToggle toggleDynamicTargetOverride = PanelToggle.CreateNewEntry(container);
-            toggleDynamicTargetOverride.AssignBinding(BasisSettingsDefaults.DynamicResolutionTargetOverride);
-            toggleDynamicTargetOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride"));
-            toggleDynamicTargetOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride.tooltip"));
+            // PanelToggle toggleDynamicTargetOverride = PanelToggle.CreateNewEntry(container);
+            // toggleDynamicTargetOverride.AssignBinding(BasisSettingsDefaults.DynamicResolutionTargetOverride);
+            // toggleDynamicTargetOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride"));
+            // toggleDynamicTargetOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride.tooltip"));
 
-            PanelSlider sliderDynamicTarget = PanelSlider.CreateEntryAndBind(
-                container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.target"),
-                    "",
-                    30, 240, true, 0, ValueDisplayMode.Hz),
-                BasisSettingsDefaults.DynamicResolutionTargetFrameRate);
-            sliderDynamicTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.target.tooltip"));
+            // PanelSlider sliderDynamicTarget = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.target"),
+            //         "",
+            //         30, 240, true, 0, ValueDisplayMode.Hz),
+            //     BasisSettingsDefaults.DynamicResolutionTargetFrameRate);
+            // sliderDynamicTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.target.tooltip"));
 
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(container);
             dropdownHDR.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.hdrSupport"));
@@ -1884,26 +1884,26 @@ namespace Basis.BasisUI
 
             void ApplyAdvancedPlatformVisibility()
             {
-                bool dynamicEnabled = toggleDynamicResolution.Value;
-                sliderDynamicMinimum.Descriptor.SetActive(dynamicEnabled);
-                sliderDynamicMaximum.Descriptor.SetActive(dynamicEnabled);
-                toggleDynamicTargetOverride.Descriptor.SetActive(dynamicEnabled);
-                sliderDynamicTarget.Descriptor.SetActive(dynamicEnabled && toggleDynamicTargetOverride.Value);
+                // bool dynamicEnabled = toggleDynamicResolution.Value;
+                // sliderDynamicMinimum.Descriptor.SetActive(dynamicEnabled);
+                // sliderDynamicMaximum.Descriptor.SetActive(dynamicEnabled);
+                // toggleDynamicTargetOverride.Descriptor.SetActive(dynamicEnabled);
+                // sliderDynamicTarget.Descriptor.SetActive(dynamicEnabled && toggleDynamicTargetOverride.Value);
 #if !UNITY_ANDROID
                 sliderFoveatedRendering.Descriptor.SetActive(false);
 #endif
             }
 
-            toggleDynamicResolution.OnValueChanged += (val) =>
-            {
-                ApplyAdvancedPlatformVisibility();
-                descriptor.ForceRebuild();
-            };
-            toggleDynamicTargetOverride.OnValueChanged += (val) =>
-            {
-                ApplyAdvancedPlatformVisibility();
-                descriptor.ForceRebuild();
-            };
+            // toggleDynamicResolution.OnValueChanged += (val) =>
+            // {
+            //     ApplyAdvancedPlatformVisibility();
+            //     descriptor.ForceRebuild();
+            // };
+            // toggleDynamicTargetOverride.OnValueChanged += (val) =>
+            // {
+            //     ApplyAdvancedPlatformVisibility();
+            //     descriptor.ForceRebuild();
+            // };
 
             ApplyAdvancedPlatformVisibility();
 

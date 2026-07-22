@@ -92,6 +92,9 @@ namespace Basis.IK.Mocap
         // Sanity: we COMMAND the hand and foot, so the solver must hit them. If these are not ~0 the harness
         // is not driving the solver properly and every other number here is meaningless.
         public float HandMaxM, FootMaxM;
+        // Leg frames whose target was outside [MinFlexionReach, MaxExtensionReach] and so could not be reached
+        // by any pose. Excluded from FootMaxM and reported, never silently dropped.
+        public int FootReachClampedFrames;
 
         // The cores report a solved pose BOTH as positions and as rotations. Rebuilding the joint from the
         // reported rotations over fixed bone lengths must reproduce the reported position, or the two answers
@@ -432,12 +435,13 @@ namespace Basis.IK.Mocap
 
                         SolveLeg(clip, f, isLeft, ref legs[side], hipsRot, hint, dt, legTrackers[side], clipTimeS,
                                  out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float lReach, out float lLen,
-                                 out float legRigid, out byte legAxis);
+                                 out float legRigid, out byte legAxis, out bool legReachClamped);
                         legLen = lLen;
                         s.RigidityMaxM = Mathf.Max(s.RigidityMaxM, legRigid);
                         float k = Vector3.Distance(truthKnee, solvedKnee);
                         kneeErr.Add(k);
-                        s.FootMaxM = Mathf.Max(s.FootMaxM, footErr);
+                        if (legReachClamped) s.FootReachClampedFrames++;
+                        else s.FootMaxM = Mathf.Max(s.FootMaxM, footErr);
                         Append(csv, clip.Name, f, isLeft ? "leftLeg" : "rightLeg", k, truthKnee, solvedKnee, lReach, footErr, legAxis);
 
                         if (side == 0 && f > 0)
@@ -856,7 +860,7 @@ namespace Basis.IK.Mocap
         static void SolveLeg(BasisMotionClip clip, int f, bool isLeft, ref Limb limb, Quaternion hipsRot,
                              BasisMocapHintSource hint, float dt, BasisSyntheticTracker tracker, float timeS,
                              out Vector3 truthKnee, out Vector3 solvedKnee, out float footErr, out float reach, out float legLen,
-                             out float rigidity, out byte axis)
+                             out float rigidity, out byte axis, out bool reachClamped)
         {
             BasisMocapJoint jH = isLeft ? BasisMocapJoint.LeftUpperLeg : BasisMocapJoint.RightUpperLeg;
             BasisMocapJoint jK = isLeft ? BasisMocapJoint.LeftLowerLeg : BasisMocapJoint.RightLowerLeg;
@@ -998,6 +1002,15 @@ namespace Basis.IK.Mocap
             BasisLegSolveCore.Solve(i, out BasisLegSolveResult r);
             solvedKnee = r.KneeSolved;
             footErr = Vector3.Distance(r.FootSolved, truthFoot);
+
+            // Was the target ANATOMICALLY UNREACHABLE this frame? BasisLegSolveCore clamps the hip->ankle
+            // distance to [MinFlexionReach, MaxExtensionReach] and reports the clamped value as TargetDistance,
+            // so comparing it against what we asked for detects the clamp EXACTLY -- no duplicated constant and
+            // no tolerance to tune. A clamped frame's foot error is anatomy (the knee would have to fold past
+            // MinKneeInteriorDeg and drive the calf through the thigh), not a harness wiring fault, and the two
+            // must not be pooled into one number: FootMaxM is a MAX, so a single deep fold in one clip was
+            // condemning the whole run.
+            reachClamped = Mathf.Abs(Vector3.Distance(i.TargetPosition, hip) - r.TargetDistance) > 1e-5f;
             reach = r.ReachRatio;
             axis = r.AxisSource;
             rigidity = Vector3.Distance(RebuildMid(limb, hip, r.RootRotationSolved), r.KneeSolved);
@@ -1116,11 +1129,15 @@ namespace Basis.IK.Mocap
             // was handed. If it does not, the harness is not driving the solve and nothing below means anything.
             if (s.HandMaxM > 0.01f) return (false, $"hand missed its own target by {s.HandMaxM * 100f:F1} cm -- harness is not driving the solve");
 
-            // The LEG has no such bisection: its hint is applied as a weight-scaled quaternion and is documented
-            // as not reach-preserving. So foot slip is a SOLVER PROPERTY to be measured, not a harness fault --
-            // but 5 cm of it would be a visible foot slide on a foot tracker, so it is still bounded.
+            // The LEG's swivel is AngleAxisRad(swivel, acNorm) about the hip->ankle axis, so rotating about that
+            // axis cannot move the ankle: it is reach-preserving by construction at every weight, exactly like
+            // the arm, and the hint cannot contribute foot error at all. What DOES move the foot is the pair of
+            // anatomical reach clamps (MinKneeInteriorDeg, max extension), which shorten an unreachable target.
+            // So this bound is a REACHABILITY check, not a hint check -- do not read a failure here as the hint.
             if (s.FootMaxM > 0.002f)
-                return (false, $"the knee hint slid the foot {s.FootMaxM * 1000f:F1} mm off its target -- the leg hint is not reach-preserving");
+                return (false, $"the foot missed its target by {s.FootMaxM * 1000f:F1} mm on a REACHABLE frame -- " +
+                               $"the harness is not driving the solve ({s.FootReachClampedFrames} out-of-ROM " +
+                               "frames were excluded from this bound and are not the cause)");
 
             if (s.RigidityMaxM > 0.002f)
                 return (false, $"the solved rotations rebuild the joint {s.RigidityMaxM * 1000f:F1} mm away from the solved position -- " +

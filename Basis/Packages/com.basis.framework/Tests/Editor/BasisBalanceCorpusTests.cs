@@ -329,7 +329,6 @@ namespace Basis.Tests.IK
 
             float[] leans = { 0f, 0.05f, 0.10f, 0.15f, 0.20f, 0.30f, 0.40f };
             const float k_FlipLean = 0.40f;
-            const int k_MonotonicFrom = 1;   // the 5 cm step -- see the tent-function note above
 
             var log = new StringBuilder($"\nDoes the balance number respond to a lean? (predicted CoM shift = {predictedFrac:F4} x lean)\n");
             log.AppendLine("  clip            0cm     5cm    10cm    15cm    20cm    30cm    40cm    worstComErr mm");
@@ -347,9 +346,8 @@ namespace Basis.Tests.IK
                 exercised++;
 
                 var row = new StringBuilder($"  {clip.Name,-12}");
-                float prev = float.MaxValue;
+                var margins = new List<float>();
                 float worstComErr = 0f;
-                int step = 0;
 
                 foreach (float lean in leans)
                 {
@@ -377,15 +375,8 @@ namespace Basis.Tests.IK
                     Assert.That(s.Ok, Is.True, $"{clip.Name} @ {lean:F2} m: {s.Error}");
                     row.Append($"{s.QsMarginMedian,8:F3}");
 
-                    // (b) THE MARGIN CLAIM. Monotonic only past the peak of the tent -- see the header note.
-                    if (step >= k_MonotonicFrom)
-                    {
-                        Assert.That(s.QsMarginMedian, Is.LessThan(prev + 1e-4f),
-                            $"{clip.Name}: leaning the body further forward ({lean * 100f:F0} cm) made it measure MORE " +
-                            $"balanced ({s.QsMarginMedian:F3} after {prev:F3}). Past the centre of the footprint, a " +
-                            "balance metric that rewards leaning further over your toes is not measuring balance.");
-                    }
-                    prev = s.QsMarginMedian;
+                    // (b) THE MARGIN CLAIM is asserted after the sweep, against THIS CLIP'S OWN tent peak.
+                    margins.Add(s.QsMarginMedian);
 
                     if (Mathf.Approximately(lean, k_FlipLean))
                     {
@@ -394,11 +385,36 @@ namespace Basis.Tests.IK
                             $"toes, the median quasi-static margin is still {s.QsMarginMedian:F3} -- positive, i.e. " +
                             "'balanced'. That pose falls over. The metric is not seeing the error family it exists to catch.");
                     }
-                    step++;
                 }
 
                 row.Append($"{worstComErr * 1000f,14:F4}");
                 log.AppendLine(row.ToString());
+
+                // THE MARGIN IS A TENT, and where it peaks depends on where THIS clip's CoM already sits over the
+                // footprint: leaning forward from a CoM behind centre legitimately raises the margin until it
+                // crosses, and only then must it fall. A fixed "monotonic from step N" encodes a guess about the
+                // crossing that is not true of every clip -- 143_18 was still rising at 5 cm and failed for being
+                // upright, not for being wrong. So find each clip's own peak and require the DECREASE after it.
+                // This is stronger, not looser: for a clip peaking at step 0 or 1 it asserts everything the fixed
+                // form did, and it additionally pins that the peak must arrive at all. Non-vacuity is owned by the
+                // peak-position assert below plus the k_FlipLean sign flip -- a margin that rose forever would put
+                // the peak last and could never go negative at 40 cm.
+                int peak = 0;
+                for (int m = 1; m < margins.Count; m++) if (margins[m] > margins[peak]) peak = m;
+
+                Assert.That(peak, Is.LessThan(margins.Count - 1),
+                    $"{clip.Name}: the margin never stopped rising across the whole lean sweep (peak at " +
+                    $"{leans[peak] * 100f:F0} cm, the last step). Leaning the upper body {leans[leans.Length - 1] * 100f:F0} cm " +
+                    "over the toes must eventually reduce the margin; a metric that only ever rises is not measuring balance.");
+
+                for (int m = peak + 1; m < margins.Count; m++)
+                {
+                    Assert.That(margins[m], Is.LessThan(margins[m - 1] + 1e-4f),
+                        $"{clip.Name}: past the peak at {leans[peak] * 100f:F0} cm, leaning further forward " +
+                        $"({leans[m] * 100f:F0} cm) made it measure MORE balanced ({margins[m]:F3} after {margins[m - 1]:F3}). " +
+                        "Past the centre of the footprint, a balance metric that rewards leaning further over your " +
+                        "toes is not measuring balance.");
+                }
 
                 Assert.That(worstComErr, Is.LessThan(1e-3f),
                     $"{clip.Name}: leaning the upper body by a known distance moved the whole-body centre of mass " +

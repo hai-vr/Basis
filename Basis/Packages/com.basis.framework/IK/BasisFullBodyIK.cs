@@ -201,6 +201,13 @@ collisionsEnabled;
         /// the drag instead of damped. See BasisElbowDragCore.</summary>
         public NativeArray<Quaternion> swingHintBodyRot;
         public NativeArray<int> swingHintInit;
+        /// <summary>Last well-conditioned ELBOW TRACKER pole direction per arm, and the tracker rotation it
+        /// was stored at. A measured pole collapses onto the shoulder->hand axis at full extension where a
+        /// model pole does not, so past that point the swivel is carried from here through the tracker's own
+        /// rotation instead of read off a noise-length vector. See BasisArmSolveCore's pole-anchor note.</summary>
+        public NativeArray<Vector3> swingPoleAnchor;
+        public NativeArray<Quaternion> swingPoleAnchorRot;
+        public NativeArray<int> swingPoleAnchorInit;
         // Per-leg OneEuro state (0=left, 1=right) for knee-swivel OUTPUT smoothing.
         //
         // The ARM had one of these too, and it is GONE. It was damping the jitter the old bend LOOKUP fed the
@@ -553,6 +560,9 @@ collisionsEnabled;
             SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chainLen, jointSpan,
                 cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
 
+            ReassertTrackedChest(stream, headTargetPos, firstJoint, chainLen, jointSpan,
+                cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+
             ChainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
         }
         // One CCD step aiming the head tip from joint `i` -- the exact body of the Phase A loop, extracted so
@@ -591,6 +601,149 @@ collisionsEnabled;
             // LAST, so it sees the outcome of every other constraint on this joint, not just the
             // CCD's own step. The cones above are reach heuristics; this is anatomy.
             GuardSpineJoint(stream, i);
+        }
+        // ==============================================================================================
+        // ⭐ THE TRACKED CHEST IS A MEASUREMENT, AND THE HEAD CCD ABOVE JUST OVERWROTE IT.
+        //
+        // SolveSpine writes the tracker's chest rotation ONCE, before the solve. Everything after it --
+        // DistributeSpineBend (which writes the Spine, the chest's PARENT), BiasSpineTowardChest (Spine
+        // again) and above all the CCD (which rotates the chest DIRECTLY at chainLen-3, and the Spine
+        // under it) -- is chasing the HEAD and has no term for the chest at all. ClampChestCone bounds
+        // the chest against its PARENT, never against the tracker, so nothing pulls it back.
+        //
+        // Measured with a chest tracker and the hips pinned, moving ONLY the head: the chest follows the
+        // gaze at 0.402 deg per deg, so a 45 deg look-down swings a chest that has not moved by 17.55 deg
+        // mean / 29.86 p95, and the CCD contributes 15.5 of that 17.55. A real human's chest pitches
+        // -0.05 deg/deg, i.e. not at all. That is "the head drags the chest around".
+        //
+        // ⚠️ IT IS NOT A CUMULATIVE-OVERWRITE PROBLEM, WHICH IS WHY THE OBVIOUS FIXES DO NOTHING.
+        // Deleting BiasSpineTowardChest changes the final chest error by 0.01 deg -- the CCD re-converges
+        // to the same place regardless. Turning chestIkTarget ON fixes chest POSITION (3.23 -> 0.29 cm)
+        // and not ROTATION (11.38 -> 11.51), because it is a position pull and this is a rotation
+        // complaint. Turning MaxChestDeltaProperty DOWN goes backwards (11.38 -> 16.90 deg): it
+        // constrains the chest against its parent, so the Spine simply moves instead and carries the
+        // chest with it. Only re-asserting the measurement after the solve addresses it.
+        //
+        // Re-clamped against the POST-solve neck and spine, not the pre-solve ones, because that is the
+        // pose the bound is actually protecting against. Then the head is restored with the joints ABOVE
+        // the chest only -- upperChest and neck, never the chest itself or the Spine beneath it -- the
+        // same redundancy trick SolveChestTarget uses, so the head returns to the HMD without disturbing
+        // the chest that was just pinned.
+        //
+        // ⭐⭐ THE CHEST GETS EXACTLY THE AUTHORITY THE HEAD CAN AFFORD, AND NOT ONE DEGREE MORE.
+        //
+        // The first version of this pinned the chest to the tracker OUTRIGHT. It measured beautifully --
+        // chest error 11.68 -> 1.45 deg, gaze drag 0.402 -> 0.008 -- and it was WRONG IN A HEADSET:
+        // "chest is now able to be rotated in a way that pulls it off the head". Neither number could
+        // see that, because both ask "is the chest where the tracker says" and neither asks "is the body
+        // still attached to the head". The MaxChestDeltaProperty pair is no protection either: it ships
+        // at 90 deg, so on a drifting or mis-calibrated tracker it is not a bound at all.
+        //
+        // The rule instead: walk the chest toward the tracker only as far as the joints above it can
+        // still put the head back on the HMD. Bisect the blend, keep the largest weight whose head
+        // residual is inside spineTolerance, and if even a tiny weight loses the head, keep the pose the
+        // CCD already produced. The head is never traded -- the chest spends whatever is left over. The
+        // barrier is not a tuned angle; it is wherever the neck and upperChest actually run out, which
+        // moves with the pose, the avatar and the ROM envelope, exactly as it should.
+        //
+        // ⭐ The full-authority case costs nothing extra: probe 0 tries weight 1 and returns immediately
+        // when the head survives it, so a well-calibrated tracker in an ordinary pose pays for one pass.
+        // Only a chest the head cannot afford pays for the bisection.
+        //
+        // ⚠️ GuardSpineJoint IS applied here, and the earlier reasoning for skipping it was wrong. The
+        // guard's contract says "the head and the hips: commanded, not solved. Never guarded", and a
+        // tracked chest reads like that category -- but the chest is not an END of the chain, it is in
+        // the middle of it, and an unguarded middle joint is precisely what lets the torso leave the
+        // head. Skipping it measured better (1.45 vs 5.17 deg) and felt worse, which is the whole
+        // lesson of this block.
+        // ==============================================================================================
+        const int k_ChestReassertHeadRestoreSweeps = 2;
+        const int k_ChestReassertBarrierProbes = 5;
+        const float k_ChestReassertMaxHeadErr = 0.010f;
+        void ReassertTrackedChest(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint,
+            int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
+            float ccdRelax, float neckCone, float chestCone)
+        {
+            if (!HasChestTracker || !HandleChest.IsValid(stream))
+                return;
+
+            int chestBoneIdx = chainLen - 3;
+            if (chestBoneIdx <= firstJoint || chestBoneIdx >= chainLen)
+                return;
+
+            Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+            Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+            float maxDelta = MaxChestDeltaProperty;
+
+            Quaternion solvedChestRot = HandleChest.GetRotation(stream);
+            Quaternion chestDesired = targetChestRotation * targetOffsetChest;
+            Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, maxDelta);
+            clampedChestRot = ClampRotation(clampedChestRot, spineRot, maxDelta);
+
+            // ⚠️⚠️ NO PER-JOINT SNAPSHOT, AND THAT IS DELIBERATE. The obvious way to bisect is to save the
+            // chest and the joints above it and restore them between probes -- but the only place to put
+            // that buffer is a NativeArray allocated next to ChainHeadToSpine, and EVERY test and probe
+            // in this repo assigns ChainHeadToSpine through an object initialiser instead
+            // (BasisTrackerConfigMatrixTests, BasisSpineCorpusAccuracyTests, BasisSpineTautBandTests).
+            // A guard on IsCreated therefore makes the whole stage a SILENT NO-OP under test while
+            // reading as a fix -- the exact trap GuardSpineJoint fell into with ChainSpineRestFrames.
+            // Measured: it returned bit-identical-to-shipped numbers at every head budget.
+            //
+            // It is not needed. The chest is re-set ABSOLUTELY from solvedChestRot each probe, so it
+            // cannot accumulate; and the joints above it do not need restoring because ReachHeadJoint is
+            // contractive toward the head -- whatever pose a rejected probe left them in, the next
+            // probe's sweeps re-aim them at the same target.
+            //
+            // ⚠️ THE BUDGET IS ABSOLUTE, AND BOTH RELATIVE FORMULATIONS FAIL. Against spineTolerance
+            // (1 mm) it rejects everything, because the CCD itself only reaches ~6.7 mm. Against "no
+            // worse than the CCD" it also rejects everything, because the CCD has just converged and its
+            // pose is a local optimum for the head, so ANY chest perturbation degrades it monotonically.
+            // So: a distance the head may end up from the HMD -- or the CCD's own residual, whichever is
+            // larger, so a pose the CCD could not solve is never made the chest's fault.
+            float baseHeadErrSqr = (headTargetPos - ChainHeadToSpine[0].GetPosition(stream)).sqrMagnitude;
+            float headTolSqr = Mathf.Max(k_ChestReassertMaxHeadErr * k_ChestReassertMaxHeadErr, baseHeadErrSqr);
+            float accepted = 0f;
+            float lo = 0f, hi = 1f;
+
+            for (int probe = 0; probe < k_ChestReassertBarrierProbes; probe++)
+            {
+                float t = probe == 0 ? 1f : 0.5f * (lo + hi);
+
+                HandleChest.SetRotation(stream, Quaternion.Slerp(solvedChestRot, clampedChestRot, t));
+                for (int sweep = 0; sweep < k_ChestReassertHeadRestoreSweeps; sweep++)
+                {
+                    for (int i = chestBoneIdx - 1; i >= firstJoint; i--)
+                    {
+                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                            cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                    }
+                }
+
+                bool headHeld = (headTargetPos - ChainHeadToSpine[0].GetPosition(stream)).sqrMagnitude <= headTolSqr;
+                if (headHeld)
+                {
+                    accepted = t;
+                    lo = t;
+                    if (probe == 0)
+                        return;   // the tracker cost the head nothing: the pose already standing is the answer
+                }
+                else
+                {
+                    hi = t;
+                }
+            }
+
+            {
+                HandleChest.SetRotation(stream, Quaternion.Slerp(solvedChestRot, clampedChestRot, accepted));
+                for (int sweep = 0; sweep < k_ChestReassertHeadRestoreSweeps; sweep++)
+                {
+                    for (int i = chestBoneIdx - 1; i >= firstJoint; i--)
+                    {
+                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                            cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                    }
+                }
+            }
         }
         // The Chest bone in the chain sits at chainLen-3 (the index ClampChestCone uses); the one joint below
         // it -- the Spine (lastJoint) -- is what moves it. Weight 0.5 was the corpus sweet spot: at it, BOTH
@@ -1500,7 +1653,7 @@ collisionsEnabled;
                 handle.SetRotation(stream, targetRotProp * RotationOffset);
             }
         }
-        public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset)
+        public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot = -1)
         {
             // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
             // exact same elbow math. The core returns incremental deltas; apply them through
@@ -1544,7 +1697,30 @@ collisionsEnabled;
             // the model path, whose hint rotation is just the stale property value.
             input.HintRotation = hintIsTracker ? hint.rotation : default;
 
+            bool anchorSlot = hintIsTracker && (uint)swingSlot < (uint)k_SwingCount
+                              && swingPoleAnchor.IsCreated && swingPoleAnchorRot.IsCreated && swingPoleAnchorInit.IsCreated;
+            if (anchorSlot && swingPoleAnchorInit[swingSlot] != 0)
+            {
+                input.PrevPoleDir = swingPoleAnchor[swingSlot];
+                input.PrevHintRotation = swingPoleAnchorRot[swingSlot];
+                input.HasPrevPole = true;
+            }
+
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
+
+            if (anchorSlot)
+            {
+                if (result.PoleAnchorValid)
+                {
+                    swingPoleAnchor[swingSlot] = result.PoleDirUsed;
+                    swingPoleAnchorRot[swingSlot] = result.PoleRotUsed;
+                    swingPoleAnchorInit[swingSlot] = 1;
+                }
+            }
+            else if ((uint)swingSlot < (uint)k_SwingCount && swingPoleAnchorInit.IsCreated)
+            {
+                swingPoleAnchorInit[swingSlot] = 0;
+            }
 
             mid.SetRotation(stream, result.MidDelta * mid.GetRotation(stream));
             root.SetRotation(stream, result.RootDelta * root.GetRotation(stream));
@@ -2311,7 +2487,7 @@ collisionsEnabled;
             {
                 swingHintInit[swingSlot] = 0;
             }
-            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset);
+            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset, swingSlot);
             // NO OUTPUT FILTER ON THE MODEL PATH, and that is a measured choice, not an oversight.
             //
             // SmoothElbowSwivel is a One-Euro on the elbow swivel. It existed to fight the LOOKUP's jitter
@@ -2684,6 +2860,9 @@ collisionsEnabled;
             swingHintDrag = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintBodyRot = new NativeArray<Quaternion>(k_SwingCount, Allocator.Persistent);
             swingHintInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            swingPoleAnchor = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingPoleAnchorRot = new NativeArray<Quaternion>(k_SwingCount, Allocator.Persistent);
+            swingPoleAnchorInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             legSwivelRaw = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelSmooth = new NativeArray<Vector3>(2, Allocator.Persistent);
             legSwivelInit = new NativeArray<int>(2, Allocator.Persistent);
@@ -2867,6 +3046,9 @@ collisionsEnabled;
             if (swingHintDrag.IsCreated) swingHintDrag.Dispose();
             if (swingHintBodyRot.IsCreated) swingHintBodyRot.Dispose();
             if (swingHintInit.IsCreated) swingHintInit.Dispose();
+            if (swingPoleAnchor.IsCreated) swingPoleAnchor.Dispose();
+            if (swingPoleAnchorRot.IsCreated) swingPoleAnchorRot.Dispose();
+            if (swingPoleAnchorInit.IsCreated) swingPoleAnchorInit.Dispose();
             if (legDiagnostics.IsCreated) legDiagnostics.Dispose();
             if (legSwivelRaw.IsCreated) legSwivelRaw.Dispose();
             if (legSwivelSmooth.IsCreated) legSwivelSmooth.Dispose();

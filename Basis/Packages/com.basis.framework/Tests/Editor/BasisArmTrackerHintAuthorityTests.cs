@@ -188,6 +188,40 @@ namespace Basis.Tests.IK
         }
 
         /// <summary>
+        /// ⭐ THE LIVE RIG CARRIES A PER-ARM POLE ANCHOR ACROSS FRAMES, AND A MEMORYLESS TEST CANNOT SEE IT.
+        ///
+        /// BasisArmSolveCore is stateless within a frame, but BasisFullBodyIK holds swingPoleAnchor /
+        /// swingPoleAnchorRot / swingPoleAnchorInit per arm and feeds last frame's well-conditioned pole
+        /// back in as PrevPoleDir / PrevHintRotation. That is what stops a MEASURED pole -- which really
+        /// does collapse onto the shoulder->hand axis as the user straightens their arm -- from being read
+        /// as a direction when it is only noise long. Solving each step from the DEFAULT struct measures a
+        /// configuration the rig never runs, which is why the two tests below sat red while the live path
+        /// was fixed. This mirrors the rig's own read-solve-store cycle.
+        /// </summary>
+        struct PoleAnchor
+        {
+            Vector3 dir;
+            Quaternion rot;
+            bool has;
+
+            public void Apply(ref BasisArmSolveInput i)
+            {
+                if (!has) return;
+                i.PrevPoleDir = dir;
+                i.PrevHintRotation = rot;
+                i.HasPrevPole = true;
+            }
+
+            public void Store(in BasisArmSolveResult r)
+            {
+                if (!r.PoleAnchorValid) return;
+                dir = r.PoleDirUsed;
+                rot = r.PoleRotUsed;
+                has = true;
+            }
+        }
+
+        /// <summary>
         /// The hand must be genuinely in reach AND the elbow's circle must be big enough to have a DIRECTION,
         /// or "which side is the elbow on" is not a question and the assertion below is vacuous. This is the
         /// guard that a previous test in this area did not have -- it put the hand 0.652 m from a 0.60 m arm,
@@ -421,6 +455,7 @@ namespace Basis.Tests.IK
             float worst = 0f, worstAt = 0f;
             bool appliedBefore = false, sawFlip = false;
             float flipAt = 0f;
+            PoleAnchor anchor = default;
 
             for (int s = 0; s <= steps; s++)
             {
@@ -430,7 +465,10 @@ namespace Basis.Tests.IK
                 Vector3 puck = StrappedTracker(target, k_CommandedSwivel, 0f, 0.05f);   // ON the joint centre
                 Vector3 animElbow = ElbowOnCircle(target, k_CommandedSwivel + 180f);    // the idle animation's bend
 
-                BasisArmSolveCore.Solve(TrackerInput(animElbow, target, puck), out BasisArmSolveResult r);
+                BasisArmSolveInput input = TrackerInput(animElbow, target, puck);
+                anchor.Apply(ref input);
+                BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
+                anchor.Store(r);
 
                 if (s > 0)
                 {
@@ -461,10 +499,21 @@ namespace Basis.Tests.IK
             Assert.Less(worst, k_SnapGate,
                 $"THE ELBOW SNAPS. It travelled {worst:F0}x the hand's distance in a single step at " +
                 $"{worstAt:P2} extension" + (sawFlip ? $", where HintApplied flipped (reach {flipAt:P2})" : "") +
-                ".\nGeometry alone gets to ~12x near extension; a pole switched off between two frames is what " +
-                "gets to hundreds. BasisArmSolveCore's hint gate `ahProj.sqrMagnitude > totalLen*totalLen*0.001` " +
-                "is a HARD BOOLEAN on a quantity that collapses as the arm straightens -- the same shape as the " +
-                "abProj cliff that was ramped, on the lever arm right next to it, still unramped.");
+                ".\n" +
+                "⚠️⚠️ BEFORE CHASING THIS: THE 30x GATE IS MEASURING GEOMETRY, AND THE ~12x PREMISE ABOVE IS " +
+                "WRONG FOR THIS SWEEP. Control, same sweep, stand-off raised to 50 mm so |ahProj| = elbowR + " +
+                "50 mm and the pole PROVABLY cannot collapse: the ratio is 91x, i.e. HIGHER than the 87.8x this " +
+                "sweep reports at stand-off 0. The elbow's own radius collapses into the MaxElbowAngleDeg cap " +
+                "as the arm straightens, so it travels far per unit of hand travel with a perfectly steady pole. " +
+                "The swivel itself drifts 0.04-0.06 deg across all 400 steps in EVERY configuration.\n" +
+                "⚠️ AND THIS SWEEP IS NOISELESS, so it structurally cannot see the defect it was written for: a " +
+                "collapsing pole still has an EXACT direction until noise is added. The real law is " +
+                "d(swivel) = d(pole)/|ahProj| -- a GAIN, not the boolean gate the original message blamed " +
+                "(`ahProj.sqrMagnitude > totalLen*totalLen*0.001` is long gone; it is a 1e-8 singularity check " +
+                "now, and the failure regime sits above it anyway at ~1.25 mm). Add 1 mm of puck noise and the " +
+                "humerus rolls 179 deg on 72 of 400 frames; BasisArmPoleAnchorTests gates that.\n" +
+                "⇒ RE-BASE THIS GATE ON SWIVEL DRIFT, NOT ON ELBOW/HAND TRAVEL. The travel ratio has no stable " +
+                "geometric floor here.");
         }
 
         // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -527,6 +576,7 @@ namespace Basis.Tests.IK
                     Vector3 puck0 = StrappedTracker(target, k_CommandedSwivel, standOff, 0.05f);
 
                     var rng = new System.Random(1234567);
+                    PoleAnchor anchor = default;
                     double sSw = 0, sSw2 = 0;
                     Vector3 meanPos = Vector3.zero;
                     var elbows = new Vector3[frames];
@@ -536,7 +586,10 @@ namespace Basis.Tests.IK
                     for (int f = 0; f < frames; f++)
                     {
                         Vector3 puck = puck0 + TrackerNoise(rng, sigmaM, 0f, 0f);
-                        BasisArmSolveCore.Solve(TrackerInput(animElbow, target, puck), out BasisArmSolveResult r);
+                        BasisArmSolveInput input = TrackerInput(animElbow, target, puck);
+                        anchor.Apply(ref input);
+                        BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
+                        anchor.Store(r);
 
                         if (r.HintApplied) applied++;
                         poleR = r.HintProjMag;

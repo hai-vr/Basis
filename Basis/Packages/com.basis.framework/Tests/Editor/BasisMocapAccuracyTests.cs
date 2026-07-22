@@ -273,7 +273,16 @@ namespace Basis.Tests.IK
 
             var elbow = new List<float>[rungs];
             var knee = new List<float>[rungs];
-            for (int r = 0; r < rungs; r++) { elbow[r] = new List<float>(); knee[r] = new List<float>(); }
+            var elbowP95 = new List<float>[rungs];
+            var kneeP95 = new List<float>[rungs];
+            var elbowPop = new List<float>[rungs];
+            var kneePop = new List<float>[rungs];
+            for (int r = 0; r < rungs; r++)
+            {
+                elbow[r] = new List<float>(); knee[r] = new List<float>();
+                elbowP95[r] = new List<float>(); kneeP95[r] = new List<float>();
+                elbowPop[r] = new List<float>(); kneePop[r] = new List<float>();
+            }
 
             foreach (BasisMotionClip clip in clips)
             {
@@ -285,12 +294,28 @@ namespace Basis.Tests.IK
                     Assert.That(s.Ok, Is.True, $"{clip.Name} [{k_MountLadder[r]}]: {s.Error}");
                     elbow[r].Add(s.ElbowMeanM);
                     knee[r].Add(s.KneeMeanM);
+                    // TAIL and POPS are diagnostics only, never asserted. The mean is what the ladder claim rests
+                    // on, but a mount can leave the mean ordered while inverting the tail a user actually sees, and
+                    // a pop is a discontinuity rather than an offset -- a different failure the mean cannot show.
+                    elbowP95[r].Add(s.ElbowP95M);
+                    kneeP95[r].Add(s.KneeP95M);
+                    elbowPop[r].Add(s.ElbowPops);
+                    kneePop[r].Add(s.KneePops);
                 }
             }
 
             var elbowMean = new float[rungs];
             var kneeMean = new float[rungs];
-            for (int r = 0; r < rungs; r++) { elbowMean[r] = Mean(elbow[r]); kneeMean[r] = Mean(knee[r]); }
+            var elbowP95Mean = new float[rungs];
+            var kneeP95Mean = new float[rungs];
+            var elbowPopMean = new float[rungs];
+            var kneePopMean = new float[rungs];
+            for (int r = 0; r < rungs; r++)
+            {
+                elbowMean[r] = Mean(elbow[r]); kneeMean[r] = Mean(knee[r]);
+                elbowP95Mean[r] = Mean(elbowP95[r]); kneeP95Mean[r] = Mean(kneeP95[r]);
+                elbowPopMean[r] = Mean(elbowPop[r]); kneePopMean[r] = Mean(kneePop[r]);
+            }
 
             var log = new StringBuilder($"\n  == MOUNT QUALITY LADDER (pooled over {clips.Count} clips, unweighted mean of per-clip means) ==\n");
             log.AppendLine("  worse mount -> worse joint. 'ordered' counts the clips that agree with the rung above it.");
@@ -302,6 +327,15 @@ namespace Basis.Tests.IK
                 string eOrd = r == 0 ? "--" : $"{Ordered(elbow[r - 1], elbow[r])}/{clips.Count}";
                 string kOrd = r == 0 ? "--" : $"{Ordered(knee[r - 1], knee[r])}/{clips.Count}";
                 log.AppendLine($"  {k_MountLadder[r],-15}   {elbowMean[r] * 100f,7:F2} cm   {eOrd,-8}     {kneeMean[r] * 100f,6:F2} cm   {kOrd,-8}");
+            }
+            log.AppendLine();
+            log.AppendLine("  TAIL AND POPS (diagnostic, not asserted -- the mean can stay ordered while these invert)");
+            log.AppendLine("  rung              elbow p95    knee p95     elbow pops   knee pops");
+            log.AppendLine("  ---------------   ----------   ----------   ----------   ---------");
+            for (int r = 0; r < rungs; r++)
+            {
+                log.AppendLine($"  {k_MountLadder[r],-15}   {elbowP95Mean[r] * 100f,7:F2} cm   {kneeP95Mean[r] * 100f,7:F2} cm   " +
+                               $"{elbowPopMean[r],8:F1}     {kneePopMean[r],7:F1}");
             }
             TestContext.WriteLine(log.ToString());
 

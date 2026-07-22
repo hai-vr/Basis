@@ -133,7 +133,7 @@ namespace Basis.Scripts.Drivers
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
-        private static float footIKBlendWeight = 0f; // max of left/right, used for hip bob
+        private static float footIKBlendWeight = 0f; // min of left/right, used for hip bob
         private const float FootIKBlendInSpeed = 20f;  // ~50ms to fully engage
         private const float FootIKBlendOutSpeed = 15f; // ~67ms to fully disengage
 
@@ -767,7 +767,7 @@ namespace Basis.Scripts.Drivers
                 (leftWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
             footIKBlendWeightRight = Mathf.MoveTowards(footIKBlendWeightRight, rightBlendTarget,
                 (rightWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
-            footIKBlendWeight = Mathf.Max(footIKBlendWeightLeft, footIKBlendWeightRight);
+            footIKBlendWeight = Mathf.Min(footIKBlendWeightLeft, footIKBlendWeightRight);
 
             bool notifyReengage = footDriverReady &&
                 ((leftPrevBlend < 0.001f && footIKBlendWeightLeft >= 0.001f)
@@ -944,8 +944,7 @@ namespace Basis.Scripts.Drivers
                 // ~8cm 'up in chest frame' to steer the head solve). Pinning the chest to the biased value
                 // leaned the whole torso.
                 data.TargetChestPositionRaw = chestPos;
-                if (!trackerBendNormal)
-                    chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
+                chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
                 data.TargetChestPosition = chestPos;
                 data.targetChestRotation = chestRot;
 
@@ -965,8 +964,7 @@ namespace Basis.Scripts.Drivers
                 {
                     Vector3 lllPos = pOut[S_LeftLowerLeg];
                     Quaternion lllRot = rOut[S_LeftLowerLeg];
-                    if (!trackerBendNormal)
-                        lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
+                    lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
                     data.hintPositionLeftLowerLeg = lllPos;
                     data.hintWeightLeftLowerLeg = 1f;
                 }
@@ -1015,8 +1013,7 @@ namespace Basis.Scripts.Drivers
                 {
                     Vector3 rllPos = pOut[S_RightLowerLeg];
                     Quaternion rllRot = rOut[S_RightLowerLeg];
-                    if (!trackerBendNormal)
-                        rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
+                    rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
                     data.hintPositionRightLowerLeg = rllPos;
                     data.hintWeightRightLowerLeg = 1f;
                 }

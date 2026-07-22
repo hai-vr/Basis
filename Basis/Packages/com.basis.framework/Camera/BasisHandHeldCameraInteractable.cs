@@ -148,6 +148,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     private bool isVRFlying = false;
     private bool vrThumbstickClickPrev = false;
     private Quaternion vrControllerRotation = Quaternion.identity;
+    private Quaternion flyRotationOffset = Quaternion.identity;
 
     private bool selfieRotationEnabled = false;
 
@@ -374,6 +375,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 Vector3 euler = smoothedRotation.eulerAngles;
                 currentPitch = targetPitch = NormalizeAngle(euler.x);
                 currentYaw = targetYaw = NormalizeAngle(euler.y);
+                CaptureFlyRotationOffset();
             }
         }
         else if (!enabled && IsFlying)
@@ -714,6 +716,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                     Vector3 euler = smoothedRotation.eulerAngles;
                     currentPitch = targetPitch = NormalizeAngle(euler.x);
                     currentYaw = targetYaw = NormalizeAngle(euler.y);
+                    CaptureFlyRotationOffset();
                 }
             }
             vrThumbstickClickPrev = thumbstickClick;
@@ -965,6 +968,20 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         }
     }
 
+    private void CaptureFlyRotationOffset()
+    {
+        if (TryGetFlyVRInput(out BasisInputWrapper wrapper) && wrapper.BoneControl != null)
+        {
+            vrControllerRotation = wrapper.BoneControl.OutgoingWorldData.rotation;
+        }
+
+        Quaternion cameraRotation = HHC != null && HHC.captureCamera != null
+            ? HHC.captureCamera.transform.rotation
+            : smoothedRotation;
+
+        flyRotationOffset = Quaternion.Inverse(vrControllerRotation) * cameraRotation;
+    }
+
     /// <summary>
     /// Integrates velocity into <see cref="smoothedPosition"/> and applies smoothed rotation
     /// with momentum-influenced smoothing.
@@ -979,7 +996,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             // VR: 1:1 controller-to-camera rotation for responsive aiming
             currentPitch = targetPitch;
             currentYaw = targetYaw;
-            smoothedRotation = vrControllerRotation;
+            smoothedRotation = vrControllerRotation * flyRotationOffset;
         }
         else
         {
