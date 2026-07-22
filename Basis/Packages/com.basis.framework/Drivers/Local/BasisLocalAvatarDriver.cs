@@ -132,6 +132,9 @@ namespace Basis.Scripts.Drivers
 
             player.LocalRigDriver.Initialize(player, Mapping);
 
+            BasisAvatarIKStageCalibration.BasisBendNormalStore.Clear();
+            BasisAvatarIKStageCalibration.BasisLimbRollStore.Clear();
+
             player.LocalRigDriver.CleanupBeforeContinue();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
             ScaleAvatarModification.ReInitialize(player.BasisAvatar.Animator);

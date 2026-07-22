@@ -32,6 +32,7 @@ public partial class BasisHandHeldCameraUI
             videoOutputWidth = 1920;
             videoOutputHeight = 1080;
             videoOutputFrameRate = 30f;
+            followHeightOffset = 0f;
         }
 
         public int resolutionIndex = 0;
@@ -68,5 +69,6 @@ public partial class BasisHandHeldCameraUI
         public int videoOutputWidth;
         public int videoOutputHeight;
         public float videoOutputFrameRate;
+        public float followHeightOffset;
     }
 }

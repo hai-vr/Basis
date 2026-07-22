@@ -825,19 +825,40 @@ public partial class BasisLocalFootDriver
         baseUpperLegToFootVertical = upperLegToFootVertical;
     }
 
+    public void RefreshBodyFitScale()
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+        ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
+    }
+
+    private static float BodyFitLegScale()
+    {
+        var fit = BasisLocalRigDriver.AppliedBodyFit;
+        if (!fit.HasBodyFit)
+        {
+            return 1f;
+        }
+        float legScale = fit.LegScale;
+        return legScale > 0f && !float.IsNaN(legScale) && !float.IsInfinity(legScale) ? legScale : 1f;
+    }
+
     private void ApplyScaleToMeasurements(float scale)
     {
+        float legScale = scale * BodyFitLegScale();
         stanceWidth = baseStanceWidth * scale;
-        hipToFoot = baseHipToFoot * scale;
-        leftThighLen = baseLeftThighLen * scale;
-        leftShinLen = baseLeftShinLen * scale;
-        leftLegLen = baseLeftLegLen * scale;
-        rightThighLen = baseRightThighLen * scale;
-        rightShinLen = baseRightShinLen * scale;
-        rightLegLen = baseRightLegLen * scale;
+        hipToFoot = baseHipToFoot * legScale;
+        leftThighLen = baseLeftThighLen * legScale;
+        leftShinLen = baseLeftShinLen * legScale;
+        leftLegLen = baseLeftLegLen * legScale;
+        rightThighLen = baseRightThighLen * legScale;
+        rightShinLen = baseRightShinLen * legScale;
+        rightLegLen = baseRightLegLen * legScale;
         footLength = baseFootLength * scale;
         ankleHeight = baseAnkleHeight * scale;
-        upperLegToFootVertical = baseUpperLegToFootVertical * scale;
+        upperLegToFootVertical = baseUpperLegToFootVertical * legScale;
 
         DeriveStepParameters();
         left.thighLen = leftThighLen;

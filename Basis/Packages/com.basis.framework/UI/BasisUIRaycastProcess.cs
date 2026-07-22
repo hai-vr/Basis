@@ -18,14 +18,15 @@ namespace Basis.Scripts.UI
         public BasisDeviceManagement BasisDeviceManagement;
         public List<BasisInput> Inputs;
         public bool HasEvent = false;
-        public const float TriggerReleaseThreshold = 0.5f;
 
         private Vector2 _vrScrollStick;
 
         private static bool IsTriggerDown(BasisInput input, bool wasDown)
         {
             float trigger = input.CurrentInputState.Trigger;
-            return wasDown ? trigger >= TriggerReleaseThreshold : trigger >= 1f;
+            float press = BasisSettingsDefaults.UIClickPressThreshold.RawValue;
+            float release = Mathf.Min(BasisSettingsDefaults.UIClickReleaseThreshold.RawValue, press);
+            return wasDown ? trigger >= release : trigger >= press;
         }
 
         public void Initialize()

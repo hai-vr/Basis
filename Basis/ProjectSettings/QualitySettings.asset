@@ -95,7 +95,7 @@ QualitySettings:
     enableLODCrossFade: 0
     streamingMipmapsActive: 1
     streamingMipmapsAddAllCameras: 1
-    streamingMipmapsMemoryBudget: 24138
+    streamingMipmapsMemoryBudget: 2048
     streamingMipmapsRenderersPerFrame: 512
     streamingMipmapsMaxLevelReduction: 4
     streamingMipmapsMaxFileIORequests: 512

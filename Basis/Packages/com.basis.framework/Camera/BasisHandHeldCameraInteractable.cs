@@ -76,6 +76,9 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
     public float followTeleportSnapDistance = 10f;
 
+    /// <summary>Extra height applied to the follow camera above its captured offset (metres at default avatar scale). Driven by the camera UI slider.</summary>
+    public float followHeightOffset = 0f;
+
     /// <summary>Capsule radius around the player the follow camera can never enter (metres at default avatar scale).</summary>
     public float followBoundaryRadius = 0.4f;
 
@@ -473,7 +476,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                 }
 
                 float followDelta = Time.deltaTime;
-                Vector3 followTargetPos = followPlayerPos + followYaw * followOffset;
+                Vector3 followTargetPos = followPlayerPos + followYaw * followOffset + Vector3.up * BasisPlayerInteract.AvatarScaledRange(followHeightOffset);
 
                 if ((followTargetPos - smoothedPosition).sqrMagnitude > followTeleportSnapDistance * followTeleportSnapDistance)
                 {

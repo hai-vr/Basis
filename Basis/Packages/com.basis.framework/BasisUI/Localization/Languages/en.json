@@ -4643,6 +4643,30 @@
       "value": "UI Scroll Speed"
     },
     {
+      "key": "settings.controls.uiClick.title",
+      "value": "VR UI Click"
+    },
+    {
+      "key": "settings.controls.uiClick.description",
+      "value": "How far the trigger must be pulled to click on menus and world UI in VR."
+    },
+    {
+      "key": "settings.controls.uiClickPress",
+      "value": "Click Threshold"
+    },
+    {
+      "key": "settings.controls.uiClickPress.tooltip",
+      "value": "How far the trigger must be pulled before a click registers. Lower this if clicks feel hard to trigger."
+    },
+    {
+      "key": "settings.controls.uiClickRelease",
+      "value": "Release Threshold"
+    },
+    {
+      "key": "settings.controls.uiClickRelease.tooltip",
+      "value": "How far the trigger must be let go before the click releases. Keep this below the click threshold to stop clicks flickering on and off."
+    },
+    {
       "key": "settings.controls.generalDeadzone.title",
       "value": "General Deadzone"
     },

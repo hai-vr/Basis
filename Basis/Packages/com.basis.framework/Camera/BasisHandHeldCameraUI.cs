@@ -25,6 +25,7 @@ public partial class BasisHandHeldCameraUI
     public Button AutoLevelButton;
     public Button VRStabilizationButton;
     public Button FollowPlayerButton;
+    public Button VideoOutputButton;
 
     [Space(10)]
     public GameObject focusCursor;
@@ -97,6 +98,19 @@ public partial class BasisHandHeldCameraUI
     public Slider SaturationSlider;
 
     [Space(10)]
+    public Slider FollowHeightSlider;
+    public TextMeshProUGUI FollowHeightOutput;
+    public Slider VideoResolutionSlider;
+    public TextMeshProUGUI VideoResolutionOutput;
+    public Slider VideoFrameRateSlider;
+    public TextMeshProUGUI VideoFrameRateOutput;
+
+    private static readonly (int width, int height)[] VideoResolutionPresets =
+    {
+        (1280, 720), (1920, 1080), (2560, 1440), (3840, 2160)
+    };
+
+    [Space(10)]
     // Keep your existing fields so you don't have to redo prefab references.
     public RectTransform uiOrientationElement;
     public RectTransform uiOrientationElement2;
@@ -131,6 +145,7 @@ public partial class BasisHandHeldCameraUI
 
         InitializeFormatUI();
         SeedInitialSliderValues();
+        InitializeVideoOutputControls();
         UpdateResolutionSprites();
         SetCapture360State(HHC != null && HHC.capture360Enabled);
         RefreshAllToggleIndicators();
@@ -174,6 +189,7 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
         AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
         AddIf(list, "FollowPlayer", FollowPlayerButton, BasisCameraButtonAction.ToggleFollowPlayer);
+        AddIf(list, "VideoOutput", VideoOutputButton, BasisCameraButtonAction.ToggleVideoOutput);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -271,6 +287,10 @@ public partial class BasisHandHeldCameraUI
                 button.onClick.AddListener(ToggleFollowPlayer);
                 break;
 
+            case BasisCameraButtonAction.ToggleVideoOutput:
+                button.onClick.AddListener(ToggleVideoOutput);
+                break;
+
             case BasisCameraButtonAction.DepthModeAuto:
                 button.onClick.AddListener(() => SetDepthMode(DepthMode.Auto));
                 break;
@@ -309,6 +329,9 @@ public partial class BasisHandHeldCameraUI
         HookSlider(ContrastSlider, ChangeContrast);
         HookSlider(SaturationSlider, ChangeSaturation);
         HookSlider(volumetricDensitySlider, ChangeVolumetricDensity);
+        HookSlider(FollowHeightSlider, ChangeFollowHeight);
+        HookSlider(VideoResolutionSlider, ChangeVideoResolution);
+        HookSlider(VideoFrameRateSlider, ChangeVideoFrameRate);
     }
 
     private static void HookSlider(Slider slider, Action<float> handler)
@@ -329,6 +352,9 @@ public partial class BasisHandHeldCameraUI
         if (BloomThresholdSlider != null) { BloomThresholdSlider.minValue = 0.1f; BloomThresholdSlider.maxValue = 2f; }
         if (ContrastSlider != null) { ContrastSlider.minValue = -100f; ContrastSlider.maxValue = 100f; }
         if (SaturationSlider != null) { SaturationSlider.minValue = -100f; SaturationSlider.maxValue = 100f; }
+        if (FollowHeightSlider != null) { FollowHeightSlider.minValue = -1f; FollowHeightSlider.maxValue = 2f; FollowHeightSlider.wholeNumbers = false; }
+        if (VideoResolutionSlider != null) { VideoResolutionSlider.minValue = 0f; VideoResolutionSlider.maxValue = VideoResolutionPresets.Length - 1; VideoResolutionSlider.wholeNumbers = true; }
+        if (VideoFrameRateSlider != null) { VideoFrameRateSlider.minValue = 15f; VideoFrameRateSlider.maxValue = 120f; VideoFrameRateSlider.wholeNumbers = true; }
 
         if (HHC != null && HHC.captureCamera != null && FOVSlider != null)
             FOVSlider.SetValueWithoutNotify(HHC.captureCamera.fieldOfView);
@@ -488,6 +514,80 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[FollowPlayer] Follow player is now {(HHC.IsFollowingPlayer ? "ON" : "OFF")}");
     }
 
+    private void ToggleVideoOutput()
+    {
+        if (HHC == null)
+            return;
+
+        if (!BasisHandHeldCamera.IsVideoOutputSupported)
+        {
+            BasisDebug.Log("[VideoOutput] Video output is not supported on this platform.");
+            return;
+        }
+
+        if (HHC.IsVideoOutputActive)
+            HHC.StopVideoOutput();
+        else
+            HHC.StartVideoOutput();
+        BasisDebug.Log($"[VideoOutput] Streaming is now {(HHC.IsVideoOutputActive ? "ON" : "OFF")}");
+    }
+
+    public void ChangeFollowHeight(float value)
+    {
+        if (HHC != null)
+            HHC.followHeightOffset = value;
+        if (FollowHeightOutput != null) FollowHeightOutput.text = value.ToString("F2");
+    }
+
+    public void ChangeVideoResolution(float value)
+    {
+        int index = Mathf.Clamp((int)value, 0, VideoResolutionPresets.Length - 1);
+        (int width, int height) = VideoResolutionPresets[index];
+        if (HHC != null)
+            HHC.SetVideoOutputResolution(width, height);
+        if (VideoResolutionOutput != null) VideoResolutionOutput.text = $"{width}x{height}";
+    }
+
+    public void ChangeVideoFrameRate(float value)
+    {
+        if (HHC != null)
+            HHC.SetVideoOutputFrameRate(value);
+        if (VideoFrameRateOutput != null) VideoFrameRateOutput.text = value.ToString("F0");
+    }
+
+    /// <summary>Hides the video output controls on platforms without a backend and seeds their displays.</summary>
+    private void InitializeVideoOutputControls()
+    {
+        bool supported = BasisHandHeldCamera.IsVideoOutputSupported;
+        if (VideoOutputButton != null) VideoOutputButton.gameObject.SetActive(supported);
+        if (VideoResolutionSlider != null) VideoResolutionSlider.gameObject.SetActive(supported);
+        if (VideoFrameRateSlider != null) VideoFrameRateSlider.gameObject.SetActive(supported);
+    }
+
+    private void SeedVideoAndFollowControls(CameraSettings settings)
+    {
+        SetSliderValue(FollowHeightSlider, settings.followHeightOffset);
+        if (FollowHeightOutput != null) FollowHeightOutput.text = settings.followHeightOffset.ToString("F2");
+
+        int resolutionIndex = VideoResolutionIndexFor(settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920);
+        (int width, int height) = VideoResolutionPresets[resolutionIndex];
+        SetSliderValue(VideoResolutionSlider, resolutionIndex);
+        if (VideoResolutionOutput != null) VideoResolutionOutput.text = $"{width}x{height}";
+
+        float frameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
+        SetSliderValue(VideoFrameRateSlider, frameRate);
+        if (VideoFrameRateOutput != null) VideoFrameRateOutput.text = frameRate.ToString("F0");
+    }
+
+    private static int VideoResolutionIndexFor(int width)
+    {
+        for (int Index = 0; Index < VideoResolutionPresets.Length; Index++)
+        {
+            if (VideoResolutionPresets[Index].width >= width) return Index;
+        }
+        return VideoResolutionPresets.Length - 1;
+    }
+
     public void SetCapture360State(bool enabled)
     {
         if (HHC != null)
@@ -639,6 +739,7 @@ public partial class BasisHandHeldCameraUI
             videoOutputWidth = HHC != null ? HHC.VideoOutputSettings.Width : 1920,
             videoOutputHeight = HHC != null ? HHC.VideoOutputSettings.Height : 1080,
             videoOutputFrameRate = HHC != null ? HHC.VideoOutputSettings.FrameRate : 30f,
+            followHeightOffset = HHC != null ? HHC.followHeightOffset : 0f,
         };
     }
 
@@ -731,6 +832,8 @@ public partial class BasisHandHeldCameraUI
             HHC.VideoOutputSettings.Width = settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920;
             HHC.VideoOutputSettings.Height = settings.videoOutputHeight > 0 ? settings.videoOutputHeight : 1080;
             HHC.VideoOutputSettings.FrameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
+            HHC.followHeightOffset = settings.followHeightOffset;
+            SeedVideoAndFollowControls(settings);
 
             // Apply camera intrinsics
             if (HHC.captureCamera != null)

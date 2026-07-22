@@ -465,6 +465,41 @@ namespace Basis.IK.Mocap
             return res;
         }
 
+        public static float RunCrouchKneeSplay(in BasisFootSimParams p, float crouchFrac, float durSec = 1.5f, float dt = 1f / 90f)
+        {
+            int n = Mathf.Max(4, Mathf.RoundToInt(durSec / dt));
+            float standH = p.hipToFoot + p.ankleHeight;
+            float3 fwd = new float3(0, 0, 1);
+            float3 right = math.normalize(math.cross(Up, fwd));
+            float3 hipsStand = new float3(0, standH, 0);
+
+            var feet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
+            var simState = new NativeArray<BasisFootSimState>(1, Allocator.Persistent);
+            var input = new NativeArray<BasisFootSimInput>(1, Allocator.Persistent);
+            var output = new NativeArray<BasisFootSimOutput>(1, Allocator.Persistent);
+            try
+            {
+                feet[0] = InitFoot(p, -1, hipsStand, 0f, right);
+                feet[1] = InitFoot(p, +1, hipsStand, 0f, right);
+                simState[0] = new BasisFootSimState { prevHeadPos = hipsStand, smoothedBodyFwd = fwd, smoothedBodyRight = right, prevRootFwd = fwd };
+
+                float3 hips = new float3(0, standH * crouchFrac, 0);
+                for (int f = 0; f < n; f++)
+                {
+                    input[0] = new BasisFootSimInput
+                    {
+                        dt = dt, headPos = hips, hipsPos = hips, hipsRot = quaternion.identity,
+                        chestRot = quaternion.identity, headRot = quaternion.identity,
+                        avatarForward = fwd, avatarRight = right, hasChest = true,
+                        groundHit = true, groundPoint = float3.zero, splayWhenCrouched = 1f, playerUp = Up,
+                    };
+                    new BasisFootSimulateJob { p = p, feet = feet, simState = simState, input = input, output = output }.Execute();
+                }
+                return math.dot(feet[1].kneeHint - feet[0].kneeHint, right);
+            }
+            finally { feet.Dispose(); simState.Dispose(); input.Dispose(); output.Dispose(); }
+        }
+
         // A synthetic straight walk at dimensionless speed vhat = v / sqrt(g L) (walk ~0.2-0.45), returning the
         // same dimensionless gait metrics as the mocap path -- for scale-invariance, framerate-independence and
         // idle checks that need no BVH. No rotation, flat ground.

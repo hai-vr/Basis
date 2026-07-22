@@ -733,6 +733,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> UIHaptics = new("uihaptics", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> UIClickPressThreshold = new("uiclickpressthreshold", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> UIClickReleaseThreshold = new("uiclickreleasethreshold", new BasisPlatformDefault<float>(0.4f));
 
         // ---------------- VR FINGER TOUCH ----------------
         // Direct fingertip presses on world-space UI in VR (BasisDirectTouch).
@@ -1993,6 +1995,8 @@ namespace Basis.BasisUI
             DisablePropPickup.LoadBindingValue();
             DisableVRAutoHold.LoadBindingValue();
             UIHaptics.LoadBindingValue();
+            UIClickPressThreshold.LoadBindingValue();
+            UIClickReleaseThreshold.LoadBindingValue();
             DisableVRFingerTouch.LoadBindingValue();
             FingerTouchFinger.LoadBindingValue();
             FingerTouchHands.LoadBindingValue();

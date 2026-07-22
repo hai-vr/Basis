@@ -119,6 +119,19 @@ public struct BasisFootSimulateJob : IJob
     // because the product is then positive and the gain never applies.
     const float k_YawReversalGain = 4.0f;
 
+    // MEDIAL SWING EXCURSION, as a fraction of HALF the stance width, at full stride. A real swing foot passes
+    // close to the stance leg on its way through rather than tracking a straight line between its two ground
+    // contacts, and that inward pass is one of the most recognisable things about a walk seen from the front.
+    //
+    // ⚠️ HARD BOUND, NOT A TASTE KNOB: it is coupled to k_MinFootSepFrac and must satisfy
+    //       k_MedialSwingFrac < 2 * (1 - k_MinFootSepFrac)      [= 0.30 at the shipped 0.85]
+    // The excursion PEAKS at mid-swing, which is precisely when the swing foot is passing the stance foot and
+    // their fore-aft separation is ~0 -- so the euclidean gap the backstop measures collapses to the lateral
+    // gap exactly there. At 0.35 the gap fell to 14.8 cm against a 15.3 cm backstop on an 18 cm stance: the
+    // backstop would have fired every stride and shoved the feet apart, fighting this and popping the foot.
+    // 0.20 leaves ~33% margin. Raising k_MinFootSepFrac lowers this ceiling; check both together.
+    const float k_MedialSwingFrac = 0.20f;
+
     // Reach-ahead floor: minimum forward distance of a step target as a fraction of leg, so a WALK plants the
     // foot in front deliberately (see ComputeStepPrediction). Speed-gated there so a spin is untouched.
     const float k_ReachAheadFrac = 0.25f;
@@ -828,6 +841,10 @@ public struct BasisFootSimulateJob : IJob
             float avgLeg = (p.leftLegLen + p.rightLegLen) * 0.5f;
             float stepDist = HDist(f.stepStartPos, f.stepTargetPos, up);
             float strideFrac = math.saturate(stepDist / math.max(1e-3f, avgLeg * p.stepHeightStrideRefFraction));
+            // Kept BEFORE the turn floor below: the medial swing path scales on how much ground this step
+            // actually covers, and a turn step covers almost none. Using the floored value would give a
+            // pivot-in-place step a full medial excursion, which is exactly where the feet can least afford it.
+            float travelFrac = strideFrac;
             // A turn step covers almost no ground but is still a real step -- floor it (frozen at commit, so the
             // peak height cannot move mid-swing). stepArcScale is 0 for every non-turn step and in the sweep/mocap
             // mirrors, which makes this exactly a no-op there.
@@ -849,6 +866,24 @@ public struct BasisFootSimulateJob : IJob
             // its toe and must not be lifted by the arc as well, or the heel-off double-counts.
             float lift = math.pow(swingU, a) * math.pow(1f - swingU, b) / arcPeak;
             pos += up * (math.saturate(lift) * dynamicHeight);
+
+            // MEDIAL SWING PATH. The foot was travelling a straight line from lift-off to landing, which no
+            // leg does: the swing foot passes CLOSE TO THE STANCE LEG as it comes under the body and only
+            // then swings back out to its landing spot. That inward pass is one of the most recognisable
+            // things about a walk seen from the front, and a straight lateral line is a robotic tell of the
+            // same family as the flat-topped arc that used to sit in the lift curve.
+            //
+            // sin(pi*u) is exactly zero at both ends, so lift-off and landing are untouched -- the step still
+            // starts and finishes precisely where the solver put it, only the path between bends. Scaled by
+            // TRAVEL (not the turn-floored strideFrac) so a pivot-in-place step keeps its full base, which
+            // matters because the anti-crossover margin is narrowest exactly there.
+            float3 swingRightCross = math.cross(up, rawFwd);
+            if (math.lengthsq(swingRightCross) > 1e-6f)
+            {
+                float3 swingRight = math.normalize(swingRightCross);
+                float medial = math.sin(swingU * math.PI) * (p.stanceWidth * 0.5f) * k_MedialSwingFrac * travelFrac;
+                pos -= swingRight * (f.sideSign * medial);
+            }
             f.currentPos = pos;
 
             quaternion footAlign = f.sideSign < 0 ? p.footAlignLeft : p.footAlignRight;

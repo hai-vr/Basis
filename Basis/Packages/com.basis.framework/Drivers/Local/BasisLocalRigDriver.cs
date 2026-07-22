@@ -248,6 +248,7 @@ namespace Basis.Scripts.Drivers
                 }
                 AppliedBodyFit = BasisBodyFitResult.Identity;
                 BasisBodyFitNetworking.UpdateLocalFit(in AppliedBodyFit);
+                BasisLocalPlayer.Instance?.BasisLocalFootDriver?.RefreshBodyFitScale();
                 return;
             }
 
@@ -281,6 +282,7 @@ namespace Basis.Scripts.Drivers
             // (see BasisAvatarIKStageCalibration's one-scale-frame note), so a fit that lands a frame
             // later would leave every captured offset describing a body the avatar no longer has.
             PoseSkeleton.WriteFittedLocalPositions();
+            BasisLocalPlayer.Instance?.BasisLocalFootDriver?.RefreshBodyFitScale();
 
             if (fit.HasArmFit)
             {

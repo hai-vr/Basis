@@ -26,6 +26,9 @@ public partial class BasisHandHeldCameraUI
             case BasisCameraButtonAction.ToggleFollowPlayer:
                 isOn = HHC.IsFollowingPlayer;
                 return true;
+            case BasisCameraButtonAction.ToggleVideoOutput:
+                isOn = HHC.IsVideoOutputActive;
+                return true;
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
                 return true;

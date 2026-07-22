@@ -220,6 +220,38 @@ public static class SettingsProviderControllerConfig
 
         ApplyFingerTouchTuningVisibility();
 
+        // VR UI Click
+        SettingsProviderKeyboardBindings.CreateCollapsibleSection(
+            container, BasisLocalization.Get("settings.controls.uiClick.title"),
+            BasisLocalization.Get("settings.controls.uiClick.description"), group =>
+        {
+            PanelSlider clickPressSlider = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.uiClickPress"), 0.05f, 1f, false, 2, ValueDisplayMode.percentageFromZero),
+                BasisSettingsDefaults.UIClickPressThreshold);
+            clickPressSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.uiClickPress.tooltip"));
+
+            PanelSlider clickReleaseSlider = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.uiClickRelease"), 0.05f, 1f, false, 2, ValueDisplayMode.percentageFromZero),
+                BasisSettingsDefaults.UIClickReleaseThreshold);
+            clickReleaseSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.uiClickRelease.tooltip"));
+
+            void ClampReleaseToPress()
+            {
+                float press = BasisSettingsDefaults.UIClickPressThreshold.RawValue;
+                if (BasisSettingsDefaults.UIClickReleaseThreshold.RawValue <= press)
+                {
+                    return;
+                }
+                BasisSettingsDefaults.UIClickReleaseThreshold.SetValue(press);
+                clickReleaseSlider.SetValueWithoutNotify(press);
+            }
+
+            clickPressSlider.OnValueChanged += _ => ClampReleaseToPress();
+            clickReleaseSlider.OnValueChanged += _ => ClampReleaseToPress();
+        });
+
         // Deadzone - General
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(
             container, BasisLocalization.Get("settings.controls.generalDeadzone.title"), BasisLocalization.Get("settings.controls.generalDeadzone.description"), group =>
@@ -328,6 +360,8 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.FingerTouchReleaseDistance.ResetToDefault();
         BasisSettingsDefaults.FingerTouchScrollSensitivity.ResetToDefault();
         BasisSettingsDefaults.FingerTouchHaptics.ResetToDefault();
+        BasisSettingsDefaults.UIClickPressThreshold.ResetToDefault();
+        BasisSettingsDefaults.UIClickReleaseThreshold.ResetToDefault();
     }
 
     private static void BuildBindingsUI(RectTransform container)

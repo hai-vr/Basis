@@ -48,6 +48,28 @@ public partial class ValveRenderModelFeature : OpenXRFeature
         public bool Visible;
     }
 
+    public bool IsRenderModelAvailable(bool isLeftHand)
+    {
+        if (_xrSession == 0
+            || _xrEnumerateInteractionRenderModelIdsEXT == null
+            || _xrEnumerateRenderModelSubactionPathsEXT == null)
+        {
+            return false;
+        }
+
+        return GetRenderModelId(isLeftHand) != 0;
+    }
+
+    private XrRenderModelIdEXT GetRenderModelId(bool isLeftHand)
+    {
+        return FindRenderModelByPath(GetRenderModelPath(isLeftHand));
+    }
+
+    private static string GetRenderModelPath(bool isLeftHand)
+    {
+        return $"/user/hand/{(isLeftHand ? "left" : "right")}";
+    }
+
     public bool GetRenderModelAssetData(
         bool isLeftHand,
         out ulong renderModelHandle,
@@ -61,14 +83,13 @@ public partial class ValveRenderModelFeature : OpenXRFeature
         renderModelAssetBytes = null;
 
         // Enumerate the render models and search for one with the desired model path
-        var modelPath = $"/user/hand/{(isLeftHand ? "left" : "right")}";
-        XrRenderModelIdEXT renderModelId = FindRenderModelByPath(modelPath);
+        XrRenderModelIdEXT renderModelId = GetRenderModelId(isLeftHand);
         if (renderModelId == 0)
         {
-            Debug.LogError($"No render model found for path: {modelPath}");
+            Debug.LogError($"No render model found for path: {GetRenderModelPath(isLeftHand)}");
             return false;
         }
-        
+
         if (!CreateRenderModel(renderModelId, ref renderModelHandle))
         {
             return false;
