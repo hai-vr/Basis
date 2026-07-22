@@ -75,12 +75,22 @@ namespace Basis.Tests.IK
     ///      is decide whether that target survives: with a hips tracker it is written through untouched,
     ///      and without one SolveSpine SYNTHESISES a pelvis on top of it (:381 counterbalance, :386/:1033
     ///      crouch sit-back, :395 hinge). Measured on this corpus, the untracked rows' pelvis ends up
-    ///      ~9.8 cm from the human on average and 38 cm at worst, while the tracked rows land on it exactly.
+    ///      ~7.5 cm from the human on average and 37 cm at worst, while the tracked rows land on it exactly.
     ///      So "identical inputs" does NOT mean "identical pelvis", every joint in the table hangs off that
     ///      pelvis, and any comparison between a synthesising row and a planted one has to account for it.
     ///      TheTrackerMatrix does, via the matched floor described on its own summary; an earlier version of
-    ///      this file did not, and consequently reported a 1.3 cm spine "regression" that was really a 9.8 cm
+    ///      this file did not, and consequently reported a 1.3 cm spine "regression" that was really a 7.5 cm
     ///      pelvis sitting underneath it.
+    ///
+    ///      READ THAT NUMBER CAREFULLY -- it is a DISPLACEMENT, not a residual. Because the row is fed a
+    ///      PERFECT pelvis and the stages then move it, the metric measures how far the synthesis travels
+    ///      from ground truth. The live 3-point rig is not fed a perfect pelvis: it gets the virtual spine's
+    ///      head-derived estimate (BasisVirtualSpineCore), which the sit-back exists to CORRECT. So this
+    ///      figure bounds the synthesis' authority, and is not by itself evidence the stages are wrong.
+    ///      It is also concentrated: on frames where the subject is genuinely standing (trunk vertical,
+    ///      knees straight, feet planted) the synthesised pelvis is 0.8 cm from the human and only 0.2% of
+    ///      those frames clear the crouch deadzone at all. The travel is a crouch behaviour, not a
+    ///      standing-pose bias.
     ///
     /// THE RULER CROSS-CHECK IS THE POINT OF THE FILE. Before any matrix row is worth reading, the rig,
     /// the clip set, the gaze frame and the centimetre metric have to be shown to reproduce the number the
@@ -223,6 +233,79 @@ namespace Basis.Tests.IK
             return best;
         }
 
+        /// <summary>
+        /// The subject's head height in a STANDING pose -- the mocap analogue of the calibrated avatar's
+        /// T-pose head height, which is what BasisLocalRigDriver:833 actually packs. See the call site in
+        /// BuildRig for why the clip maximum is the wrong quantity.
+        ///
+        /// A calibration pose is: trunk vertical, knees straight, both feet planted. Those three are
+        /// checkable per frame, and the median head Y over the frames that pass is a stable estimate that
+        /// no single tiptoe or jump can move. Clips that never stand (the corpus has floor-work and
+        /// crawling) have no such frames, so they fall back to the 98th percentile of head Y -- still
+        /// spike-proof, and never below what the clip actually reaches.
+        ///
+        /// Cross-checked against a frame-selection-free reconstruction (floor + ankle + leg + spine chain
+        /// lengths): the two agree to 0.5 cm averaged over the 109-clip corpus.
+        /// </summary>
+        static float StandingHeadHeight(BasisMotionClip c)
+        {
+            bool hasLegs = c.Has(BasisMocapJoint.LeftUpperLeg) && c.Has(BasisMocapJoint.RightUpperLeg)
+                        && c.Has(BasisMocapJoint.LeftLowerLeg)
+                        && c.Has(BasisMocapJoint.LeftFoot) && c.Has(BasisMocapJoint.RightFoot);
+
+            var heads = new List<float>(c.FrameCount);
+            for (int f = 0; f < c.FrameCount; f++) heads.Add(c.Get(f, BasisMocapJoint.Head).Position.y);
+
+            if (hasLegs)
+            {
+                // The ankle joint sits a few cm above the floor, so its low percentile is the ground datum.
+                var lows = new List<float>(c.FrameCount);
+                for (int f = 0; f < c.FrameCount; f++)
+                {
+                    lows.Add(Mathf.Min(c.Get(f, BasisMocapJoint.LeftFoot).Position.y,
+                                       c.Get(f, BasisMocapJoint.RightFoot).Position.y));
+                }
+                lows.Sort();
+                float ankleDatum = lows[(int)(lows.Count * 0.02f)];
+
+                float legLen = Vector3.Distance(c.Get(0, BasisMocapJoint.LeftUpperLeg).Position,
+                                                c.Get(0, BasisMocapJoint.LeftLowerLeg).Position)
+                             + Vector3.Distance(c.Get(0, BasisMocapJoint.LeftLowerLeg).Position,
+                                                c.Get(0, BasisMocapJoint.LeftFoot).Position);
+
+                var standing = new List<float>();
+                for (int f = 0; f < c.FrameCount; f++)
+                {
+                    Vector3 hips = c.Get(f, BasisMocapJoint.Hips).Position;
+                    Vector3 trunk = c.Get(f, BasisMocapJoint.Head).Position - hips;
+                    float len = trunk.magnitude;
+                    if (len < 1e-5f) continue;
+                    // sin(trunk lean from vertical); < 0.20 is within ~11.5 deg of upright.
+                    if (new Vector3(trunk.x, 0f, trunk.z).magnitude / len >= 0.20f) continue;
+
+                    float lExt = Vector3.Distance(c.Get(f, BasisMocapJoint.LeftUpperLeg).Position,
+                                                  c.Get(f, BasisMocapJoint.LeftFoot).Position);
+                    float rExt = Vector3.Distance(c.Get(f, BasisMocapJoint.RightUpperLeg).Position,
+                                                  c.Get(f, BasisMocapJoint.RightFoot).Position);
+                    if (lExt <= 0.97f * legLen || rExt <= 0.97f * legLen) continue;   // knees straight
+
+                    if (c.Get(f, BasisMocapJoint.LeftFoot).Position.y - ankleDatum >= 0.06f) continue;
+                    if (c.Get(f, BasisMocapJoint.RightFoot).Position.y - ankleDatum >= 0.06f) continue;
+
+                    standing.Add(c.Get(f, BasisMocapJoint.Head).Position.y);
+                }
+
+                if (standing.Count >= 10)
+                {
+                    standing.Sort();
+                    return Mathf.Max(0f, standing[standing.Count / 2]);
+                }
+            }
+
+            heads.Sort();
+            return Mathf.Max(0f, heads[(int)(heads.Count * 0.98f)]);
+        }
+
         static Vector3 PelvisForward(BasisMotionClip c, int f, Vector3 fallback)
         {
             Vector3 right = c.Get(f, BasisMocapJoint.RightUpperLeg).Position - c.Get(f, BasisMocapJoint.LeftUpperLeg).Position;
@@ -335,8 +418,23 @@ namespace Basis.Tests.IK
             rig.RestChest = ChestFrame(clip, restFrame, restFwd);
             rig.RestYaw = Quaternion.LookRotation(new Vector3(restFwd.x, 0f, restFwd.z).normalized, Vector3.up);
             // BasisLocalRigDriver:833 -- standing head height is the rest head's height above the play
-            // origin. Here the mocap is already floor-referenced, so the rest head's world Y is that number.
-            rig.StandingHeadHeight = Mathf.Max(0f, restHead.y);
+            // origin. Here the mocap is already floor-referenced, so a head's world Y is that number.
+            //
+            // WHICH head, though. This used to be `restHead.y` -- the head at MostUprightFrame, i.e. the
+            // clip MAXIMUM -- and that is not what the runtime packs. The runtime packs
+            // HeadControl.TposeLocalScaled.position.y: a fixed calibrated constant, and
+            // BasisHeightDriver.ApplyScale sizes the avatar by targetEyeMeters/avatarEye so that constant
+            // tracks the user's STANDING eye height. A clip maximum is the apex of whatever the subject
+            // did -- a tiptoe, a jump, an arm-raise -- so it sits ABOVE standing, and since crouchDepth is
+            // (reference - head Y) every frame inherits that overshoot as phantom depth.
+            //
+            // Measured across all 109 corpus clips the overshoot averages 3.6 cm, which is inside the
+            // 3%-of-S deadzone and therefore harmless on most clips -- but it is not uniform. On this
+            // file's own ten it is under 2.5 cm on seven of them and 13.2 cm (14_20) / 19.6 cm (56_07) on
+            // two, and those two were exactly the rows driving the printed pelvis figure: 14_20 read
+            // 14.67 cm and falls to 4.40 cm once the reference is a standing pose, 56_07 read 27.16 cm and
+            // falls to 14.74 cm. Pooled over the ten, 9.82 cm -> 7.45 cm; over the whole corpus, 5.06 cm.
+            rig.StandingHeadHeight = StandingHeadHeight(clip);
 
             BuildSpineAnatomy(rig, clip, restFrame);
 
@@ -733,14 +831,21 @@ namespace Basis.Tests.IK
         ///
         /// MEASURED, on this exact clip set and stride, by replaying SolveSpine's pelvis arithmetic against
         /// the shipped cores offline -- the pelvis' own distance from the human:
-        ///     3-point / 3-point +anatROM   9.8 cm mean, 31.3 cm p95, 38.3 cm worst, moving on 99.9% of frames
+        ///     3-point / 3-point +anatROM   7.5 cm mean, 30.1 cm p95, 37.3 cm worst
         ///     chest, no hips               3.5 cm mean,  8.7 cm p95,  9.3 cm worst  (crouch gated off by
         ///                                                                            the chest flag; only
         ///                                                                            the counterbalance runs)
         ///     every row WITH a hips tracker   0.00 cm -- the pelvis is the commanded target, bit for bit
+        ///
+        /// "Moving on 99.9% of frames" used to be quoted here too. It is true and it is misleading: it
+        /// counts ANY displacement, and the trunk counterbalance has no deadzone, so it is nonzero on
+        /// essentially every frame at a median of 0.6 cm while standing. The number worth quoting is how
+        /// many frames clear the crouch DEADZONE and command a real sit-back: 58% on this ten-clip set,
+        /// 37% across the full 109-clip corpus, and 0.2% on genuinely-standing frames.
+        ///
         /// The gap the old assertion tripped on was 7.6 vs 6.3 cm, i.e. 1.3 cm. The pelvis under that row is
-        /// nearly EIGHT TIMES that far from the human. Attributing 1.3 cm of joint error to "the spine solve
-        /// is worse than not solving" while the pelvis beneath it is 9.8 cm out is not a measurement, it is a
+        /// nearly SIX TIMES that far from the human. Attributing 1.3 cm of joint error to "the spine solve
+        /// is worse than not solving" while the pelvis beneath it is 7.5 cm out is not a measurement, it is a
         /// mislabelling -- and the version of this test that made it would have gone on failing for a reason
         /// that has nothing to do with the code it names.
         ///
@@ -914,7 +1019,7 @@ namespace Basis.Tests.IK
                 // be the target bit for bit; without one the synthesis must actually be running. Headroom on
                 // the planted case is 0.1 mm, i.e. float round-trip noise through the local/world stream --
                 // measured travel with a tracker is exactly zero. The untracked case is required to exceed
-                // 1 mm against a measured 3.5 cm (chest, no hips) to 9.8 cm (3-point), so the alarm fires on
+                // 1 mm against a measured 3.5 cm (chest, no hips) to 7.5 cm (3-point), so the alarm fires on
                 // a stage going inert long before it could be mistaken for tuning.
                 if (cfg.Hips)
                 {
@@ -940,10 +1045,10 @@ namespace Basis.Tests.IK
                     }
 
                     // A smoke alarm on the synthesised pelvis itself, so a pelvis regression is reported AS a
-                    // pelvis regression. Deliberately loose: 25 cm against a measured 9.8 cm worst-row mean,
-                    // ~2.5x headroom. This is NOT a quality bar -- a synthesised pelvis that is 9.8 cm from
-                    // the human on average is a known weak point of the untracked pipeline and the number is
-                    // printed above so it can be worked on. It is here only to catch the stage running away.
+                    // pelvis regression. Deliberately loose: 25 cm against a measured 7.5 cm worst-row mean,
+                    // ~3.3x headroom. This is NOT a quality bar -- and note the caveat on the file summary:
+                    // the row is fed a PERFECT pelvis, so this measures how far the synthesis TRAVELS, not a
+                    // residual the live rig carries. It is here only to catch the stage running away.
                     if (!(pelvisMean < 0.25f))
                     {
                         failures.Add(

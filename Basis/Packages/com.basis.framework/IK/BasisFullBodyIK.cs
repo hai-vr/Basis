@@ -1514,6 +1514,15 @@ collisionsEnabled;
             input.HintWeight = hintWeight;
             input.TargetOffset = targetOffset;
             input.PlayerUp = playerUp;
+            // The anatomy guard's ceiling is TORSO-relative (see BasisElbowAnatomyCore's frame note), so it
+            // needs the chest->neck up, not the root's. Same BuildFrame the elbow model already runs on --
+            // the house body frame, from bone POSITIONS -- so the guard and the hint cannot disagree about
+            // which way is up. Left at zero on a degenerate rig; BasisArmSolveCore then falls back to PlayerUp.
+            BasisSwivelFrame torsoFrame = BuildArmFrame(stream);
+            if (torsoFrame.Valid)
+            {
+                input.TorsoUp = torsoFrame.Up;
+            }
             // No per-frame swivel clamp. The rig runs after the animator resets the bones, so the solve is
             // stateless: a per-frame cap can't "ease in" over frames, it just permanently pins the elbow that
             // many degrees from the animated bend -- which is why an assigned elbow tracker did almost nothing

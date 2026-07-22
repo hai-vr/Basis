@@ -199,6 +199,254 @@ namespace Basis.Tests.IK
                 $"the shipped lookup elbow ({lookupMean * 100f:F1} cm) beat the TRUE elbow ({truthMean * 100f:F1} cm) -- impossible, the harness is wrong");
         }
 
+        // ════════════════════════════════════════════════════════════════════════════════════════════
+        // THE MOUNT-QUALITY LADDER -- the cross-row properties Gate cannot see.
+        // ════════════════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Best mount first, worst last, bracketed by the two CONTROLS the device rows must sit between:
+        /// TruthJoint (a perfect pole, no device at all) and None (no pole at all). The ladder is the assertion --
+        /// each rung is only meaningful relative to its neighbours.
+        /// </summary>
+        static readonly BasisMocapHintSource[] k_MountLadder =
+        {
+            BasisMocapHintSource.TruthJoint,
+            BasisMocapHintSource.TrackerGood,
+            BasisMocapHintSource.TrackerTypical,
+            BasisMocapHintSource.TrackerPoor,
+            BasisMocapHintSource.None,
+        };
+
+        /// <summary>
+        /// A FLOAT-NOISE FLOOR, NOT A TUNED THRESHOLD, and the distinction matters because this file has no
+        /// honest thresholds yet. 0.1 mm is far below anything the device model can produce -- the rungs differ
+        /// by 3 deg vs 8 deg vs 15 deg of mount roll, which on a joint circle of ~0.15 m is centimetres. Two rungs
+        /// landing inside this of each other are not "close", they are the SAME ANSWER, and that is a structural
+        /// fact rather than a judgement about how much error is acceptable.
+        /// </summary>
+        const float k_LadderNoiseM = 1e-4f;
+
+        /// <summary>
+        /// THE CROSS-ROW ASSERTION, AND THE ONLY ONE THAT CAN CATCH A DISCARDED TRACKER.
+        ///
+        /// BasisMocapAccuracy.Gate sees one summary at a time and therefore structurally cannot express this:
+        ///
+        ///     TruthJoint &lt;= TrackerGood &lt;= TrackerTypical &lt;= TrackerPoor &lt;= None
+        ///
+        /// Every rung down that ladder gives the solver a WORSE pole than the one above -- a perfect joint, then
+        /// a careful mount, then a real user's strap, then a sloppy one with a 10% glitch rate and real dropout,
+        /// then nothing at all. The solved elbow and knee must get worse in step. Nothing here is a tuned number:
+        /// it is an ORDERING, which is a property of the arrangement rather than of the corpus.
+        ///
+        /// WHY THIS IS THE TEST THAT MATTERS. TruthJoint sat at "1.06%" and was quoted as the accuracy ceiling
+        /// while the solver was in fact throwing the tracker away through two fades and a boolean pole gate;
+        /// fixed, it went to 0.00%. A discarded tracker is invisible from any single row -- it just reads like a
+        /// plausible fallback number. Across rows it is unmistakable: the device differences never reach the
+        /// solver, so the three tracker rows COLLAPSE onto each other and onto None together. So the ladder is
+        /// checked for TWO distinct failures and they are reported apart, because they mean different things:
+        ///   ORDER INVERTED -- a worse mount produced a BETTER joint. No device model can do that.
+        ///   COLLAPSED      -- two rungs are indistinguishable. The solver is not reading the difference.
+        ///
+        /// POOLED, NOT PER-CLIP, and deliberately so. A single clip's mean is a noisy estimator: a clip that
+        /// never bends its elbow past the mount-roll signal, or one where a glitch happens to fire in a pose the
+        /// solver was already wrong about, can order two adjacent rungs backwards without anything being broken.
+        /// The ladder is a claim about the DEVICE MODEL, not about clip 69_70, so it is asserted on the corpus
+        /// aggregate and the per-clip agreement count is printed alongside as the diagnostic -- "14/20 clips
+        /// ordered" localises a marginal rung, "3/20" says the pooled pass was luck. Pooling is the UNWEIGHTED
+        /// mean of per-clip means, matching ShippedElbow_MeasuredAgainstRealHumans, so that the 1368-frame clip
+        /// does not outvote the 149-frame one; the corpus is a sample of motions, not of frames.
+        ///
+        /// ⚠ IF THIS FAILS, IT IS A FINDING. Do not reorder the ladder and do not widen k_LadderNoiseM to make
+        /// it green -- the ordering is what is under test, and a test loosened until it passes is worse than no
+        /// test. This project has already shipped a pop detector that read the same count whether its cause was
+        /// present or absent, and a smoothness metric that scored over-smoothed mush above a real human.
+        ///
+        /// Headroom: UNMEASURED. This test asserts no magnitude, only the ordering and the separation. ⚠ RATCHET
+        /// GOES HERE once the numbers settle: pin the TrackerTypical elbow figure, which is the one a shipping
+        /// claim about elbow trackers would actually rest on.
+        /// </summary>
+        [Test]
+        public void TheTrackerLadder_DegradesMonotonically()
+        {
+            List<BasisMotionClip> clips = RequireCorpus();
+            int rungs = k_MountLadder.Length;
+
+            var elbow = new List<float>[rungs];
+            var knee = new List<float>[rungs];
+            for (int r = 0; r < rungs; r++) { elbow[r] = new List<float>(); knee[r] = new List<float>(); }
+
+            foreach (BasisMotionClip clip in clips)
+            {
+                for (int r = 0; r < rungs; r++)
+                {
+                    // No CSV path: ShippedElbow_MeasuredAgainstRealHumans already writes every one of these, and
+                    // this test wants only the two scalars.
+                    BasisMocapAccuracySummary s = BasisMocapAccuracy.Run(clip, k_MountLadder[r], null);
+                    Assert.That(s.Ok, Is.True, $"{clip.Name} [{k_MountLadder[r]}]: {s.Error}");
+                    elbow[r].Add(s.ElbowMeanM);
+                    knee[r].Add(s.KneeMeanM);
+                }
+            }
+
+            var elbowMean = new float[rungs];
+            var kneeMean = new float[rungs];
+            for (int r = 0; r < rungs; r++) { elbowMean[r] = Mean(elbow[r]); kneeMean[r] = Mean(knee[r]); }
+
+            var log = new StringBuilder($"\n  == MOUNT QUALITY LADDER (pooled over {clips.Count} clips, unweighted mean of per-clip means) ==\n");
+            log.AppendLine("  worse mount -> worse joint. 'ordered' counts the clips that agree with the rung above it.");
+            log.AppendLine();
+            log.AppendLine("  rung              elbow mean   ordered      knee mean   ordered");
+            log.AppendLine("  ---------------   ----------   --------     ---------   --------");
+            for (int r = 0; r < rungs; r++)
+            {
+                string eOrd = r == 0 ? "--" : $"{Ordered(elbow[r - 1], elbow[r])}/{clips.Count}";
+                string kOrd = r == 0 ? "--" : $"{Ordered(knee[r - 1], knee[r])}/{clips.Count}";
+                log.AppendLine($"  {k_MountLadder[r],-15}   {elbowMean[r] * 100f,7:F2} cm   {eOrd,-8}     {kneeMean[r] * 100f,6:F2} cm   {kOrd,-8}");
+            }
+            TestContext.WriteLine(log.ToString());
+
+            var breaks = new List<string>();
+            for (int r = 0; r + 1 < rungs; r++)
+            {
+                CheckRung(breaks, "elbow", k_MountLadder[r], k_MountLadder[r + 1], elbowMean[r], elbowMean[r + 1]);
+                CheckRung(breaks, "knee", k_MountLadder[r], k_MountLadder[r + 1], kneeMean[r], kneeMean[r + 1]);
+            }
+
+            Assert.That(breaks, Is.Empty,
+                "the mount-quality ladder is broken. A worse tracker must produce a worse joint, and two rows " +
+                "that differ by centimetres of mount error must not produce the same answer:\n" +
+                string.Join("\n", breaks) + "\n\n" + log);
+        }
+
+        /// <summary>How many clips put `worse` at or above `better`. A diagnostic, not a gate -- the assertion is
+        /// on the pooled means, because per-clip ordering is expected to be noisy.</summary>
+        static int Ordered(List<float> better, List<float> worse)
+        {
+            int n = 0;
+            for (int i = 0; i < better.Count && i < worse.Count; i++) if (worse[i] >= better[i]) n++;
+            return n;
+        }
+
+        static void CheckRung(List<string> breaks, string joint,
+                              BasisMocapHintSource better, BasisMocapHintSource worse, float betterM, float worseM)
+        {
+            float d = worseM - betterM;
+            if (d < -k_LadderNoiseM)
+            {
+                breaks.Add($"ORDER INVERTED [{joint}] {worse} ({worseM * 100f:F2} cm) BEAT {better} ({betterM * 100f:F2} cm) " +
+                           $"by {-d * 100f:F2} cm. A worse mount produced a better joint, which no device model can do -- " +
+                           "either the solver is mishandling tracker input, or a row is not wired to the mount it names.");
+            }
+            else if (d <= k_LadderNoiseM)
+            {
+                breaks.Add($"COLLAPSED [{joint}] {better} ({betterM * 100f:F2} cm) and {worse} ({worseM * 100f:F2} cm) are " +
+                           $"indistinguishable -- {d * 1000f:F4} mm apart. These two inputs differ by centimetres of mount " +
+                           "error, so the difference is not reaching the solve. THIS IS THE DISCARDED-TRACKER SIGNATURE: " +
+                           "it is exactly how the 1.06% 'ceiling' stayed wrong, and it is why this test exists.");
+            }
+        }
+
+        /// <summary>
+        /// The device model is SEEDED -- FNV-1a over (clip name, side, limb), fed to SplitMix64 -- so the same
+        /// clip must replay with the same mount error, the same slip phases, the same glitch frames and the same
+        /// dropouts. Two Run calls must therefore agree BIT-EXACTLY, and that is asserted with no tolerance at
+        /// all: a tolerance here would be admitting the number moves, and a number that moves run to run cannot
+        /// be bisected, cannot be ratcheted, and is not a measurement. (BasisSyntheticTrackerTests already proves
+        /// the RNG is reproducible in isolation; this proves the harness around it did not reintroduce ambient
+        /// state -- a UnityEngine.Random draw, a hash-code seed, a static carried between rows.)
+        ///
+        /// The last assertion is the NEGATIVE CONTROL and it is not decoration. "Two runs agree" is trivially
+        /// satisfied by a harness that ignores the row it was handed, which is a real failure mode here: this
+        /// project has already shipped a pop detector that reported an identical count whether its supposed cause
+        /// was present or absent. So a good puck and a poor one must NOT agree.
+        /// </summary>
+        [Test]
+        public void TheSameTrackerRow_RunTwice_ReturnsTheSameNumbers()
+        {
+            List<BasisMotionClip> clips = RequireCorpus();
+
+            // Three clips, not the whole corpus: determinism is a property of the mechanism, and every clip
+            // exercises the identical code with a different seed. All three ROWS are swept, though, because they
+            // differ in the stateful paths most likely to leak ambient state -- PoorPuck alone carries a 1%
+            // dropout and a 10% glitch rate.
+            int take = Mathf.Min(3, clips.Count);
+            var mismatches = new List<string>();
+            var blind = new List<string>();
+            var log = new StringBuilder("\n  tracker determinism: two Run calls per (clip, row)\n");
+
+            for (int c = 0; c < take; c++)
+            {
+                BasisMotionClip clip = clips[c];
+                float good = float.NaN, poor = float.NaN;
+
+                foreach (BasisMocapHintSource hint in new[]
+                {
+                    BasisMocapHintSource.TrackerGood, BasisMocapHintSource.TrackerTypical, BasisMocapHintSource.TrackerPoor,
+                })
+                {
+                    BasisMocapAccuracySummary a = BasisMocapAccuracy.Run(clip, hint, null);
+                    BasisMocapAccuracySummary b = BasisMocapAccuracy.Run(clip, hint, null);
+                    Assert.That(a.Ok && b.Ok, Is.True, $"{clip.Name} [{hint}]: {a.Error} / {b.Error}");
+
+                    Identical(mismatches, clip.Name, hint, "frames", a.Frames, b.Frames);
+                    Identical(mismatches, clip.Name, hint, "elbow mean", a.ElbowMeanM, b.ElbowMeanM);
+                    Identical(mismatches, clip.Name, hint, "elbow p95", a.ElbowP95M, b.ElbowP95M);
+                    Identical(mismatches, clip.Name, hint, "elbow max", a.ElbowMaxM, b.ElbowMaxM);
+                    Identical(mismatches, clip.Name, hint, "elbow frac arm", a.ElbowMeanFracArm, b.ElbowMeanFracArm);
+                    Identical(mismatches, clip.Name, hint, "knee mean", a.KneeMeanM, b.KneeMeanM);
+                    Identical(mismatches, clip.Name, hint, "knee p95", a.KneeP95M, b.KneeP95M);
+                    Identical(mismatches, clip.Name, hint, "knee max", a.KneeMaxM, b.KneeMaxM);
+                    Identical(mismatches, clip.Name, hint, "knee frac leg", a.KneeMeanFracLeg, b.KneeMeanFracLeg);
+                    Identical(mismatches, clip.Name, hint, "hand max", a.HandMaxM, b.HandMaxM);
+                    Identical(mismatches, clip.Name, hint, "foot max", a.FootMaxM, b.FootMaxM);
+                    Identical(mismatches, clip.Name, hint, "rigidity max", a.RigidityMaxM, b.RigidityMaxM);
+                    // The POP COUNTS are integers off a threshold, so they are the most brittle thing here and
+                    // the first to move if a single frame's arithmetic drifts.
+                    Identical(mismatches, clip.Name, hint, "elbow pops", a.ElbowPops, b.ElbowPops);
+                    Identical(mismatches, clip.Name, hint, "knee pops", a.KneePops, b.KneePops);
+
+                    if (hint == BasisMocapHintSource.TrackerGood) good = a.ElbowMeanM;
+                    if (hint == BasisMocapHintSource.TrackerPoor) poor = a.ElbowMeanM;
+
+                    log.AppendLine($"    {clip.Name,-12} {hint,-15} elbow {a.ElbowMeanM * 100f,6:F2} cm  knee {a.KneeMeanM * 100f,6:F2} cm  " +
+                                   $"pops {a.ElbowPops}/{a.KneePops}");
+                }
+
+                // Collected rather than asserted here, so the table above still prints when it trips -- the
+                // numbers are the whole diagnosis and aborting mid-loop would throw them away.
+                if (Mathf.Abs(poor - good) <= k_LadderNoiseM)
+                {
+                    blind.Add($"  {clip.Name}: a GOOD puck ({good * 100f:F2} cm) and a POOR one ({poor * 100f:F2} cm) produced the " +
+                              "same elbow");
+                }
+            }
+
+            TestContext.WriteLine(log.ToString());
+
+            Assert.That(blind, Is.Empty,
+                "'two runs agree' proves nothing on this harness, because it does not distinguish the rows it is " +
+                "handed -- a 3-degree mount and a 15-degree one came out the same. Fix this before reading the " +
+                "determinism result below it:\n" + string.Join("\n", blind));
+
+            Assert.That(mismatches, Is.Empty,
+                "the synthetic tracker is not reproducible -- the same clip and row gave two different answers. " +
+                "Something in this path is reading ambient state (UnityEngine.Random, a randomised string hash, a " +
+                "static carried between runs) and every number the tracker rows report is unbisectable until it is found:\n" +
+                string.Join("\n", mismatches));
+        }
+
+        // float.Equals rather than ==, so NaN compares equal to NaN: a NaN that reproduces is a different (and
+        // separately gated) problem from an answer that moves, and conflating them would misdiagnose both.
+        static void Identical(List<string> to, string clip, BasisMocapHintSource hint, string field, float a, float b)
+        {
+            if (!a.Equals(b)) to.Add($"  {clip} [{hint}] {field}: {a:R} then {b:R}");
+        }
+
+        static void Identical(List<string> to, string clip, BasisMocapHintSource hint, string field, int a, int b)
+        {
+            if (a != b) to.Add($"  {clip} [{hint}] {field}: {a} then {b}");
+        }
+
         static float Mean(List<float> v) { float t = 0f; foreach (float x in v) t += x; return v.Count > 0 ? t / v.Count : float.NaN; }
     }
 }

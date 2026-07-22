@@ -32,9 +32,21 @@ namespace Basis.Tests.IK
     ///   1. THE ANSWER KEYS. Two channels have published values measured by somebody else:
     ///      BasisElbowAnatomyCore's +0.015 arm lengths over 55,140 frames, and BasisSpineAnatomy's p99
     ///      table over 35,081. If this file cannot reproduce those, it is wrong and nothing below counts.
+    ///
+    ///      ⚠ AND ONE OF THEM DID NOT REPRODUCE -- WHICH IS THE POINT, AND IT HAS SINCE BEEN ACTED ON. Run
+    ///      2026-07-22: the spine table reproduced (and its 35,081 is exactly this corpus's root+posture
+    ///      frame count, which is its own corroboration). The ELBOW law reproduced ONLY when measured in a
+    ///      torso-relative frame -- in the frame the shipped guard enforced AT THE TIME (PlayerUp, world up)
+    ///      real humans exceeded its soft margin, on the very population the published number was taken
+    ///      over. That was a defect in shipped code, not in the ruler, and this file said so rather than
+    ///      widening a margin to make the disagreement go away. BasisArmSolveCore now passes a torso up, and
+    ///      the evidence trail is in TheRuler_ReproducesTheElbowCeilingLaw's header.
     ///   2. THE DETECTOR CAN FIRE. A self-intersection check that never fires is indistinguishable from a
     ///      clean body. So drive a synthetic arm through a synthetic chest and demand it be caught.
     ///   3. REAL HUMANS PASS. Only now is it meaningful that the corpus comes back clean.
+    ///      ⚠ ON 13 OF THE 25 CAPSULE PAIRS FOR DEPTH. The other 12 (arm x same-side leg) are rate-checked
+    ///      only: their depth number saturates on real motion, measured, and the exclusion is itself
+    ///      asserted so it cannot outlive its evidence. See RealHumans_DoNotPassThroughThemselves.
     ///   4. THE REPORT. The measured envelope, per channel, per corpus tier. No gate -- the numbers do not
     ///      exist yet, and there is no honest threshold before that. THE RATCHET SITES ARE MARKED.
     ///
@@ -79,28 +91,79 @@ namespace Basis.Tests.IK
         // ════════════════════════════════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ⭐ THE STRONGEST CHECK IN THIS FILE, because somebody else already computed the answer.
+        /// ⭐ THE STRONGEST CHECK IN THIS FILE, because somebody else already computed the answer -- and it
+        /// is the check that found a defect in shipped code rather than in itself.
         ///
         /// BasisElbowAnatomyCore's header states the law and its evidence: across 55,140 frames of real
         /// human arm motion the worst violation of "the elbow never rises above the higher of shoulder and
-        /// hand" is +0.015 of an arm length, and it is violated on 0.0000% of frames at a margin of 0.05.
+        /// hand" is +0.015 of an arm length, violated on 0.0000% of frames at a margin of 0.05, and a margin
+        /// of 0.10 would clamp ZERO poses a human actually made.
         ///
-        /// <see cref="BasisRomChannel.LeftElbowCeilingFracArm"/> measures precisely that quantity from
-        /// precisely that corpus. So the max it reports has to land in the same place. If it comes back at
-        /// 0.4 the body frame is wrong; if it comes back at 0.000 the channel is not wired to anything.
-        /// Either way every other number in this file would be worthless.
+        /// ================================================================================================
+        /// THE ANSWER KEY DID NOT REPRODUCE, AND THE RULER TURNED OUT TO BE RIGHT. Measured 2026-07-22 over
+        /// the whole corpus, both arms, every frame (133,078 frames -> 266,156 arm-samples):
+        ///
+        ///   tier      samples   max under WORLD up   max under TORSO up   %>0.05 world   %>0.05 torso
+        ///   root       27,570         0.0525               0.0150            0.0036%        0.0000%
+        ///   posture    42,592         0.3723               0.0242            0.3475%        0.0000%
+        ///   dynamic   129,366         0.2555               0.2155            0.7707%        0.2574%
+        ///   slow       66,628        -0.0785              -0.0637            0.0000%        0.0000%
+        ///
+        /// TWO INDEPENDENT DEFECTS FELL OUT OF THAT TABLE, and they are not the same defect:
+        ///
+        /// (1) ⭐ THE FRAME WAS WRONG IN THE SHIPPED GUARD. ✅ FIXED -- this is the finding this test was
+        ///     written to force, and it has been acted on. BasisArmSolveCore USED TO hand
+        ///     BasisElbowAnatomyCore `i.PlayerUp`, and PlayerUp is the PLAYER ROOT's up (BasisLocalRigDriver:
+        ///     "Identical to Vector3.up for an upright root"). But the anatomical law is about the TORSO:
+        ///     bend at the waist and your elbow rises above your shoulder in world space while sitting
+        ///     perfectly normally against your chest.
+        ///     The corpus priced that exactly. Every one of posture/'s 148 violating samples has a trunk
+        ///     tilted 73.7-119.7 deg off vertical (median 100.5 -- i.e. bent double), and on those SAME
+        ///     frames the measurement reads +0.3723 in world space and -0.3713 in the torso frame. THE SIGN
+        ///     FLIPS. +0.3723 is 7.4x the soft margin and 2.5x the HARD asymptote (0.15), so the guard was
+        ///     not merely nudging those poses, it was hauling them back hard -- worst correction 66.15 deg,
+        ///     mean 31.72, displacing the solved elbow by up to 21.28 cm.
+        ///     Only the torso frame reproduces the published claims: root max 0.0150 == the published
+        ///     +0.015, 0.0000% past 0.05, and 0.10 clamps zero. World up cannot produce +0.015 by ANY
+        ///     exclusion -- root minus its single worst clip gives 0.0027, not 0.015. So the published
+        ///     evidence described a torso-frame law while the shipped guard enforced a world-frame one.
+        ///     BasisArmSolveCore now builds `TorsoUp` from the chest->neck frame and passes THAT, falling
+        ///     back to PlayerUp only for a rig with no usable body frame. On posture/ the guard now fires
+        ///     zero times. BasisElbowAnatomyTests's section 5 carries the regression tests.
+        ///
+        ///     ⚠ AND THE NUMBERS IN THE TABLE ABOVE DID NOT MOVE, WHICH IS CORRECT, NOT A REGRESSION.
+        ///     `worstWorld` below comes from BasisRomChannel.LeftElbowCeilingFracArm, which
+        ///     BasisBodyPlausibility computes from Vector3.up against THE CORPUS -- it never consults
+        ///     BasisElbowAnatomyCore at all. Fixing the frame the SOLVER guards in cannot change what the
+        ///     humans did in world space, so the root tier still reads 0.0525 and always will. Anyone
+        ///     expecting this test's world column to fall after the fix has confused a measurement of the
+        ///     corpus with a measurement of the solver.
+        ///
+        /// (2) THE PUBLISHED POPULATION IS ALSO STALE, but that is the smaller half. `dynamic/` and `slow/`
+        ///     were added 2026-07-17 and 2026-07-18; BasisElbowAnatomyCore was written 2026-07-15, and the
+        ///     corpus is byte-identical since. So the 55,140-frame measurement provably never saw them.
+        ///     It matters less than (1) because dynamic/ violates in BOTH frames -- 0.2574% of samples past
+        ///     0.05 even in the torso frame, max 0.2155 -- so a frame fix alone would not make the law
+        ///     universal. Arms-overhead and full-extension material genuinely exceeds it.
+        ///     (The 55,140 count matches no population: the corpus at publication was root+posture = 35,081
+        ///     frames = 70,162 arm-samples, and root alone is 13,785 frames = 27,570. 55,140 is exactly
+        ///     twice the root tier's arm-sample count.)
+        ///
+        /// NEITHER WAS A REASON TO WIDEN THE MARGIN, and this test never did. What it asserts now is that
+        /// the ruler is sound -- the TORSO frame reproduces the published number, and it is the frame the
+        /// shipped guard enforces, so those two assertions have become the same assertion. The world column
+        /// is still measured and still printed, as the HISTORICAL COMPARISON BASELINE that priced the frame
+        /// bug; it is no longer a defect being held at arm's length, and it is no longer asserted on beyond
+        /// a drift canary.
+        /// ================================================================================================
         /// </summary>
         [Test]
         public void TheRuler_ReproducesTheElbowCeilingLaw_AlreadyMeasuredOn55140Frames()
         {
-            // ⚠ THE ASSERTION IS ON THE ROOT TIER, AND THAT IS NOT LAZINESS. The published figure is
-            // "55,140 frames of real human arm motion (the CMU corpus, both arms, every clip)" -- 27,570 per
-            // arm, which is the ROOT tier as it stood when the guard was written; posture/, dynamic/ and
-            // slow/ are later additions and are invisible to a non-recursive scan. Reproducing somebody
-            // else's number means reproducing it on their population. The other tiers are MEASURED and
-            // PRINTED below, because dynamic/ (martial arts, dance) is exactly where the law would break
-            // first if it were going to -- but a first run must not fail on a population the published
-            // number was never taken over.
+            // ⚠ THE ASSERTIONS ARE ON THE ROOT TIER, AND THAT IS NOT LAZINESS. Reproducing somebody else's
+            // number means reproducing it on their population, and root is the tier that existed when the
+            // guard was written (posture/ did too; dynamic/ and slow/ did not -- see the header). Every tier
+            // is MEASURED and PRINTED below, in both frames, because that table is the finding.
             var byTier = new Dictionary<string, BasisRomAccumulator>();
             var frameCount = new Dictionary<string, long>();
             foreach ((string sub, string label) in k_Tiers)
@@ -124,15 +187,19 @@ namespace Basis.Tests.IK
                 "\nELBOW CEILING -- elbow height above max(shoulder, hand), as a fraction of arm length\n" +
                 "  THE LAW (BasisElbowAnatomyCore): the elbow never rises above the higher of shoulder and hand.\n" +
                 "  Published: worst real violation +0.015 over 55,140 frames; 0.0000% of frames past 0.05.\n" +
-                $"  Guard soft margin: {BasisElbowAnatomyCore.SoftMarginFracLimb}\n\n" +
-                "  tier       frames     arm    p50       p95       p99       max\n");
+                $"  Guard soft margin: {BasisElbowAnatomyCore.SoftMarginFracLimb}   hard asymptote: {BasisElbowAnatomyCore.HardMarginFracLimb}\n" +
+                "  WORLD = what the guard used to be handed (PlayerUp); kept as the historical comparison baseline.\n" +
+                "  TORSO = the frame the guard enforces AND the frame the published number reproduces in (they agree now).\n" +
+                "  max and outside% are pooled over both arms exactly; the percentiles are the worse arm's, not a\n" +
+                "  pooled percentile -- they are here for shape, and every number asserted on below is an exact one.\n\n" +
+                "  tier       frames  frame   arm    p50       p95       p99       max     outside%\n");
 
             foreach (KeyValuePair<string, BasisRomAccumulator> kv in byTier)
             {
-                BasisRomStat l = kv.Value.Summarise(BasisRomChannel.LeftElbowCeilingFracArm);
-                BasisRomStat r = kv.Value.Summarise(BasisRomChannel.RightElbowCeilingFracArm);
-                log.AppendLine($"  {kv.Key,-9} {frameCount[kv.Key],7}   left  {l.P50,8:F4}  {l.P95,8:F4}  {l.P99,8:F4}  {l.Max,8:F4}");
-                log.AppendLine($"  {"",-9} {"",7}   right {r.P50,8:F4}  {r.P95,8:F4}  {r.P99,8:F4}  {r.Max,8:F4}");
+                Row(log, kv.Key, frameCount[kv.Key], "WORLD", kv.Value,
+                    BasisRomChannel.LeftElbowCeilingFracArm, BasisRomChannel.RightElbowCeilingFracArm);
+                Row(log, "", frameCount[kv.Key], "TORSO", kv.Value,
+                    BasisRomChannel.LeftElbowCeilingTorsoFracArm, BasisRomChannel.RightElbowCeilingTorsoFracArm);
             }
             TestContext.WriteLine(log.ToString());
 
@@ -140,7 +207,10 @@ namespace Basis.Tests.IK
             BasisRomAccumulator root = byTier["root"];
             BasisRomStat rl = root.Summarise(BasisRomChannel.LeftElbowCeilingFracArm);
             BasisRomStat rr = root.Summarise(BasisRomChannel.RightElbowCeilingFracArm);
-            float worst = Mathf.Max(rl.Max, rr.Max);
+            BasisRomStat tl = root.Summarise(BasisRomChannel.LeftElbowCeilingTorsoFracArm);
+            BasisRomStat tr = root.Summarise(BasisRomChannel.RightElbowCeilingTorsoFracArm);
+            float worstWorld = Mathf.Max(rl.Max, rr.Max);
+            float worstTorso = Mathf.Max(tl.Max, tr.Max);
 
             Assert.That(rl.Count + rr.Count, Is.GreaterThan(10000),
                 $"only {rl.Count + rr.Count} elbow samples in the root tier -- too few to reproduce a 55,140-frame result");
@@ -148,15 +218,85 @@ namespace Basis.Tests.IK
             // It has to actually be MEASURING an elbow. Real humans get the elbow close to the ceiling
             // (hands at the face, hands overhead), so a max pinned far below zero means the channel is dead
             // and its clean verdict means nothing -- the same trap RequireInReach exists to close.
-            Assert.That(worst, Is.GreaterThan(-0.05f),
-                $"the elbow never once came near its ceiling (max {worst:F4}) -- this channel is not measuring an elbow");
+            Assert.That(worstWorld, Is.GreaterThan(-0.05f),
+                $"the elbow never once came near its ceiling (max {worstWorld:F4}) -- this channel is not measuring an elbow");
+            Assert.That(tl.Count + tr.Count, Is.GreaterThan(10000),
+                $"only {tl.Count + tr.Count} torso-frame samples -- the chest frame is not being built");
 
-            // And it must land where the published measurement landed.
-            Assert.That(worst, Is.LessThan(BasisElbowAnatomyCore.SoftMarginFracLimb),
-                $"real human elbows exceed the shipped guard's soft margin by {worst:F4} arm lengths on the very " +
-                "population the published +0.015 was measured over. Either this file measures the ceiling " +
-                "differently from BasisElbowAnatomyCore (which 'up'? whose frame?), or the published number is " +
-                "stale. Both are bugs; neither is a reason to widen the margin.");
+            // ── 1. THE RULER IS SOUND: the torso frame reproduces the published number ────────────────────
+            // THIS is the answer-key check, and it is what licenses every other number in this file. Measured
+            // 0.0150 against a published +0.015 -- so the ceiling arithmetic, the arm-length denominator and
+            // the corpus loading all agree with whoever wrote the guard. The window is generous on purpose:
+            // it is asking "same quantity?", not "same decimal". A frame or convention error lands nowhere
+            // near it (world up gives 0.0525 on this very tier, and a mirrored axis would give ~-0.5).
+            Assert.That(worstTorso, Is.InRange(0.005f, 0.030f),
+                $"measured in the TORSO frame the root tier's worst elbow rise is {worstTorso:F4}, but the published " +
+                "law says +0.015 and this is the frame that reproduced it on 2026-07-22. If this moved, either the " +
+                "corpus changed or the ceiling arithmetic did -- and if the ruler is wrong then the finding about " +
+                "BasisElbowAnatomyCore that this test carries is worthless too. Fix the ruler before reading on.");
+            Assert.That(RootTorsoViolationFrac(root), Is.EqualTo(0f),
+                "the published law claims 0.0000% of frames past 0.05, and in the torso frame that reproduced " +
+                "exactly. A non-zero rate here breaks the reproduction the rest of this test rests on.");
+
+            // ── 2. THE WORLD COLUMN, AS A CORPUS-DRIFT CANARY ────────────────────────────────────────────
+            // ⚠ THIS IS NOT A GATE ON THE SOLVER, AND IT CANNOT BE ONE. `worstWorld` is measured from
+            // Vector3.up against the CORPUS (BasisBodyPlausibility.MeasureArm); it never consults
+            // BasisElbowAnatomyCore, so no change to the shipped guard can move it. What it still catches is
+            // the CORPUS or the CHANNEL moving underneath this file -- a reloaded clip set, a changed
+            // arm-length denominator, a mirrored axis -- any of which would invalidate the torso-frame
+            // reproduction asserted just above. 0.0525 was the value on 2026-07-22; this allows drift up to
+            // 0.10 before complaining.
+            //
+            // (A previous revision asserted `worstWorld > SoftMarginFracLimb` here, deliberately backwards,
+            // to pin the frame defect at its measured size while the decision about shipped code was
+            // pending. That decision has been made -- BasisArmSolveCore passes a torso up -- so the pin has
+            // been deleted rather than inverted. Inverting it would NOT have worked: worstWorld stays 0.0525
+            // regardless, because the humans did not change frame. See finding (1) in the header.)
+            Assert.That(worstWorld, Is.LessThan(0.10f),
+                $"the root tier's world-frame elbow rise has moved to {worstWorld:F4} (it was 0.0525 on " +
+                "2026-07-22, and it is a pure function of the corpus and Vector3.up, so it should not move at " +
+                "all). The corpus or the channel changed underneath this file -- which puts the torso-frame " +
+                "reproduction asserted above in doubt, because that is measured off the same clips by the same " +
+                "code. Find out what moved before trusting any number in this file.");
+
+            TestContext.WriteLine(
+                $"\n  FRAME COMPARISON: root tier worst elbow rise is {worstTorso:F4} in the TORSO frame -- the frame\n" +
+                $"    the shipped guard now enforces and the one the published +0.015 was measured in -- against\n" +
+                $"    {worstWorld:F4} in the world/PlayerUp frame the guard used to be handed. The guard's soft margin\n" +
+                $"    is {BasisElbowAnatomyCore.SoftMarginFracLimb}. The world column is a HISTORICAL BASELINE, not a defect: it measures what the\n" +
+                "    corpus did, so it did not move when the guard was fixed, and it never will. See this test's header.");
+        }
+
+        /// <summary>
+        /// One tier row of the elbow table. `max` and `outside%` are pooled over both arms exactly; the
+        /// percentiles are the WORSE ARM's, not a pooled percentile -- two histograms cannot be merged by
+        /// taking a max, and the row is for shape only. Every number this test asserts on is an exact one.
+        /// </summary>
+        static void Row(StringBuilder log, string tier, long frames, string frame, BasisRomAccumulator acc,
+            BasisRomChannel left, BasisRomChannel right)
+        {
+            BasisRomStat l = acc.Summarise(left);
+            BasisRomStat r = acc.Summarise(right);
+            int n = l.Count + r.Count;
+            float outside = n > 0 ? 100f * (l.ViolationCount + r.ViolationCount) / n : 0f;
+            log.AppendLine($"  {tier,-9} {(tier.Length > 0 ? frames.ToString() : ""),7}  {frame,-5} both  " +
+                           $"{Mathf.Max(l.P50, r.P50),8:F4}  {Mathf.Max(l.P95, r.P95),8:F4}  " +
+                           $"{Mathf.Max(l.P99, r.P99),8:F4}  {Mathf.Max(l.Max, r.Max),8:F4}  {outside,8:F4}");
+        }
+
+        /// <summary>
+        /// Fraction of root-tier torso-frame samples outside the envelope -- the published "0.0000% of frames
+        /// past 0.05". The channel's Lo is -2 arm lengths, which the geometry cannot reach (the quantity is
+        /// bounded below by roughly -1.6: the elbow is at most ~0.58 arm below the shoulder and the ceiling at
+        /// most ~1 arm above it), so every violation counted here is a violation ABOVE the soft margin, which
+        /// is the direction the published claim is about.
+        /// </summary>
+        static float RootTorsoViolationFrac(BasisRomAccumulator root)
+        {
+            BasisRomStat l = root.Summarise(BasisRomChannel.LeftElbowCeilingTorsoFracArm);
+            BasisRomStat r = root.Summarise(BasisRomChannel.RightElbowCeilingTorsoFracArm);
+            int n = l.Count + r.Count;
+            return n > 0 ? (float)(l.ViolationCount + r.ViolationCount) / n : 0f;
         }
 
         /// <summary>
@@ -511,22 +651,53 @@ namespace Basis.Tests.IK
         /// slop and genuine limb-on-limb contact, and demanding literal zero would make the test a
         /// tuning-fork for the corpus rather than a check on the code. The per-pair breakdown is printed so
         /// a failure names the pair immediately instead of sending someone hunting.
+        ///
+        /// ================================================================================================
+        /// ⚠ DEPTH IS ASSERTED ON 13 OF THE 25 PAIRS, NOT ALL 25, AND THE 12 EXCLUSIONS WERE MEASURED, NOT
+        /// ASSUMED. The arm x same-side-leg family saturates its depth number on real human motion: measured
+        /// 2026-07-22 over 109 clips / 133,078 frames, those pairs reach 0.946-0.999 of their SUMMED CORE
+        /// RADII (bone axes effectively coincident -- dynamic/135_01 f2377 has them 0.0005 m apart), while
+        /// every other pair in the corpus stays at or below 0.448. The split is bimodal with nothing in
+        /// between, and the deep hits are interior to both segments in smooth multi-frame arcs, so they are
+        /// real sustained motion rather than glitch frames -- CMU is solved without collision constraints.
+        /// `fracLimb` also has a hard per-pair ceiling of (rA+rB)/min(lenA,lenB), which for forearm x thigh
+        /// is only ~0.25, so the 0.261 that failed this test on 2026-07-22 WAS that pair's ceiling: the
+        /// threshold and the saturation point were the same number, and no value could have separated
+        /// contact from pass-through there. The full reasoning lives next to `Pair` in BasisBodyPlausibility.
+        ///
+        /// Those 12 pairs keep their RATE assertion (a solver putting an arm through a leg on 5% of frames
+        /// is still caught) and the exclusion itself is CHECKED below, so it cannot outlive its evidence.
+        /// ================================================================================================
         /// </summary>
         [Test]
         public void RealHumans_DoNotPassThroughThemselves()
         {
             const float k_MaxPooledFrac = 0.03f;
             const float k_MaxPerPairFrac = 0.05f;
-            const float k_MaxPooledDepth = 0.25f;   // a genuine pass-through reports ~0.32; a brush, hundredths
+
+            // ⭐ THE DEPTH ENVELOPE, DERIVED FROM THE MEASUREMENT RATHER THAN NUDGED TO FIT.
+            // On the 13 depth-discriminating pairs the worst real human motion produces is 0.125
+            // (torso x R-upperarm, root/141_17 f5). The synthetic arm-through-sternum fixture in this file
+            // produces 0.3192. BasisBodyPlausibility.MaxPenetrationFracLimb is 0.20, which sits 1.60x above
+            // the former and 0.63x below the latter -- headroom on both sides. It is REFERENCED, not
+            // restated, so this test and Gate() can never drift apart about what "too deep" means.
+            const float k_MeasuredWorstDiscriminating = 0.125f;   // 2026-07-22, whole corpus
+            const float k_SyntheticPassThrough = 0.3192f;         // AForearmDrivenThroughTheChest fixture
+            // The excluded family saturates; assert that it still does, so the exclusion stays earned.
+            const float k_SaturationFracRadii = 0.90f;
 
             var log = new StringBuilder("\nSELF-INTERSECTION on REAL human motion (capsule cores; the ruler-guard)\n");
             log.AppendLine("  tier      clips  frames    frames w/ overlap    worst depth (frac limb)   worst pair");
 
             var pairHits = new long[BasisBodyPlausibility.PairCount];
             var pairWorst = new float[BasisBodyPlausibility.PairCount];
+            var pairWorstRadii = new float[BasisBodyPlausibility.PairCount];
             long totalFrames = 0, totalHitFrames = 0;
             float worstDepth = 0f;
             string worstWhere = "none";
+            // Tracked separately from worstDepth: only a pair whose depth discriminates may fail the gate.
+            float worstDiscriminating = 0f;
+            string worstDiscriminatingWhere = "none";
             int measuredTiers = 0;
 
             foreach ((string sub, string label) in k_Tiers)
@@ -550,11 +721,17 @@ namespace Basis.Tests.IK
                     {
                         pairHits[p] += s.PairHitFrames[p];
                         if (s.PairWorstFracLimb[p] > pairWorst[p]) pairWorst[p] = s.PairWorstFracLimb[p];
+                        if (s.PairWorstFracRadii[p] > pairWorstRadii[p]) pairWorstRadii[p] = s.PairWorstFracRadii[p];
                     }
                     if (s.WorstPenetrationFracLimb > tierWorst)
                     {
                         tierWorst = s.WorstPenetrationFracLimb;
                         tierWorstPair = $"{s.WorstPair} ({c.Name} f{s.WorstPairFrame})";
+                    }
+                    if (s.WorstDiscriminatingPenetrationFracLimb > worstDiscriminating)
+                    {
+                        worstDiscriminating = s.WorstDiscriminatingPenetrationFracLimb;
+                        worstDiscriminatingWhere = $"{label}: {s.WorstDiscriminatingPair} ({c.Name} f{s.WorstDiscriminatingPairFrame})";
                     }
                 }
 
@@ -569,15 +746,23 @@ namespace Basis.Tests.IK
 
             if (measuredTiers == 0) Assert.Ignore($"no mocap corpus at {CorpusRoot}");
 
-            log.AppendLine("\n  per-pair breakdown (pooled over every tier):");
+            // fracRadii is the column that decides whether a pair's DEPTH means anything: it is bounded [0,1]
+            // for every pair (1.0 = the two bone axes are coincident), where fracLimb's ceiling varies by 5x
+            // across pairs and so cannot be compared between them.
+            log.AppendLine("\n  per-pair breakdown (pooled over every tier). 'depth' = is this pair's depth asserted on?");
             for (int p = 0; p < BasisBodyPlausibility.PairCount; p++)
             {
+                bool disc = BasisBodyPlausibility.PairDepthDiscriminating(p);
                 log.AppendLine($"    {BasisBodyPlausibility.PairLabel(p),-26} " +
                                $"{pairHits[p],8} frames ({(totalFrames > 0 ? 100.0 * pairHits[p] / totalFrames : 0),7:F4}%)  " +
-                               $"worst {pairWorst[p]:F3}");
+                               $"worst {pairWorst[p]:F3} limb / {pairWorstRadii[p]:F3} radii   " +
+                               $"depth {(disc ? "ASSERTED" : "excluded (saturates)")}");
             }
             log.AppendLine($"\n  pooled: {totalHitFrames}/{totalFrames} frames " +
-                           $"({(totalFrames > 0 ? 100.0 * totalHitFrames / totalFrames : 0):F3}%), worst {worstDepth:F3} at {worstWhere}");
+                           $"({(totalFrames > 0 ? 100.0 * totalHitFrames / totalFrames : 0):F3}%)");
+            log.AppendLine($"  worst depth, ANY pair            : {worstDepth:F3} at {worstWhere}");
+            log.AppendLine($"  worst depth, DISCRIMINATING pairs: {worstDiscriminating:F3} at {worstDiscriminatingWhere}" +
+                           $"   (envelope {BasisBodyPlausibility.MaxPenetrationFracLimb:F2})");
             TestContext.WriteLine(log.ToString());
 
             Assert.That(totalFrames, Is.GreaterThan(10000), "too few frames for this to mean anything");
@@ -596,9 +781,45 @@ namespace Basis.Tests.IK
                     "that pair's radii are wrong, or the two segments are effectively adjacent");
             }
 
-            Assert.That(worstDepth, Is.LessThan(k_MaxPooledDepth),
-                $"a real human registered {worstDepth:F3} of a limb length of penetration at {worstWhere}. That is " +
-                "pass-through depth, not contact -- either the corpus clip is broken or the detector is.");
+            // ── DEPTH, on the pairs where depth is a real measurement ────────────────────────────────────
+            // Measured worst on these pairs is 0.125; the envelope is 0.20; a genuine pass-through is 0.319.
+            Assert.That(worstDiscriminating, Is.LessThan(BasisBodyPlausibility.MaxPenetrationFracLimb),
+                $"a real human registered {worstDiscriminating:F3} of a limb length of penetration at " +
+                $"{worstDiscriminatingWhere}, past the {BasisBodyPlausibility.MaxPenetrationFracLimb:F2} envelope. " +
+                $"On these pairs depth DOES discriminate -- the worst real motion measured on 2026-07-22 was " +
+                $"{k_MeasuredWorstDiscriminating:F3} and an unambiguous pass-through is {k_SyntheticPassThrough:F3} -- " +
+                "so this is pass-through depth, not contact. Either the corpus clip is broken or the detector is. " +
+                "Do not widen the envelope: read the per-pair table above and find out which pair moved.");
+
+            // ── AND THE EXCLUSION MUST STAY EARNED ───────────────────────────────────────────────────────
+            // Twelve pairs are exempt from the assertion above because their depth number saturates. That is
+            // a claim about the radii, and radii can change. So CHECK it: if the arm x same-side-leg family
+            // stops pinning its axes together on real motion, the exemption has outlived its evidence and
+            // those pairs should go back under the depth assertion rather than sitting silently exempt.
+            int saturating = 0, excluded = 0;
+            for (int p = 0; p < BasisBodyPlausibility.PairCount; p++)
+            {
+                if (BasisBodyPlausibility.PairDepthDiscriminating(p)) continue;
+                excluded++;
+                if (pairWorstRadii[p] >= k_SaturationFracRadii) saturating++;
+            }
+            Assert.That(saturating, Is.GreaterThan(0),
+                $"all {excluded} depth-excluded pairs now stay under {k_SaturationFracRadii:F2} of their summed core " +
+                "radii on real human motion. The reason they were excluded -- that real motion drives their bone axes " +
+                "together and saturates the depth number (0.946-0.999 measured 2026-07-22) -- no longer holds. Put " +
+                "them back under the depth assertion, or restate why they are out.");
+
+            // The converse: no ASSERTED pair may be anywhere near saturation, or its depth number is fiction
+            // too and the exclusion list is incomplete. Measured worst on an asserted pair was 0.448.
+            for (int p = 0; p < BasisBodyPlausibility.PairCount; p++)
+            {
+                if (!BasisBodyPlausibility.PairDepthDiscriminating(p)) continue;
+                Assert.That(pairWorstRadii[p], Is.LessThan(k_SaturationFracRadii),
+                    $"pair '{BasisBodyPlausibility.PairLabel(p)}' is depth-asserted but real human motion drives its " +
+                    $"axes to {pairWorstRadii[p]:F3} of the summed core radii -- it saturates like the arm x leg " +
+                    "family does, so its depth number cannot tell contact from pass-through either. It belongs on " +
+                    "the exclusion list (BasisBodyPlausibility, next to Pair), not under this assertion.");
+            }
         }
 
         /// <summary>

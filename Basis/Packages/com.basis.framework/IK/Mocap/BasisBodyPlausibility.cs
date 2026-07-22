@@ -58,8 +58,22 @@ namespace Basis.IK.Mocap
     ///
     ///   * ELBOW CEILING. BasisElbowAnatomyCore measured 55,140 frames of real arm motion and found the
     ///     worst violation of "the elbow never rises above the higher of shoulder and hand" is +0.015 arm
-    ///     lengths. <see cref="BasisRomChannel.LeftElbowCeilingFracArm"/> measures exactly that quantity, so
-    ///     its corpus max MUST land near 0.015. If it does not, this file is wrong.
+    ///     lengths. <see cref="BasisRomChannel.LeftElbowCeilingFracArm"/> measures exactly that quantity.
+    ///
+    ///     ⚠ IT DID NOT REPRODUCE, THE RULER WAS RIGHT, AND THE SHIPPED CODE HAS SINCE BEEN FIXED.
+    ///     Ran 2026-07-22. In the frame the guard enforced AT THE TIME (PlayerUp, i.e. world up for an
+    ///     upright root) the root tier's worst was 0.0525, not 0.015 -- past the guard's own 0.05 soft
+    ///     margin. In the TORSO's frame the same tier gives exactly 0.0150. The published number had
+    ///     therefore been measured in a torso-relative frame while the guard enforced the law in world
+    ///     space, and on a bent-over torso the two disagree by the whole trunk lean (posture/ tier: +0.3723
+    ///     world, -0.3713 torso, on the SAME frames -- the sign flips).
+    ///     BasisArmSolveCore now passes BasisElbowAnatomyCore a TORSO up (chest->neck), so the guard and the
+    ///     published evidence finally describe the same law.
+    ///     <see cref="BasisRomChannel.LeftElbowCeilingTorsoFracArm"/> is the channel that tracks shipped
+    ///     behaviour; the world channel above is kept as the historical comparison baseline. Note that
+    ///     NEITHER NUMBER MOVED when the guard was fixed, and that is not a bug: both are measurements of
+    ///     what the CORPUS did, and the humans did not change frame. The full evidence is in
+    ///     BasisBodyPlausibilityTests's elbow test.
     ///   * SPINE. The lumbar / lower-thoracic / cervical channels do not re-implement anything -- they call
     ///     BasisSpineAnatomy.BuildRestFrame and BasisSpineAnatomyCore.Decompose, THE SHIPPING FUNCTIONS, so
     ///     they must reproduce the p99 table in BasisSpineAnatomy's header (lumbar 49.2 flex / 10.7 ext /
@@ -142,15 +156,22 @@ namespace Basis.IK.Mocap
         /// tells a frame mismatch apart from a stale limit, which is the one question the world-up channel
         /// above cannot answer on its own.
         ///
-        /// BasisElbowAnatomyCore is handed `PlayerUp` (BasisArmSolveCore line ~587), and PlayerUp is the
-        /// PLAYER ROOT's up -- world up for an upright root, per BasisLocalRigDriver.ApplyTuningSettings.
-        /// Bend at the waist and the root stays vertical while the chest does not, so the two frames diverge
-        /// by the whole trunk lean. Measured 2026-07-22 over the corpus, that divergence is not academic:
-        /// on posture/ the SAME 148 arm-samples read up to +0.3723 under world up and as low as -0.3713 in
-        /// the torso frame -- the sign flips. See the header of
-        /// BasisBodyPlausibilityTests.TheRuler_ReproducesTheElbowCeilingLaw... for the full table.
-        /// REPORTED, NEVER GATED: which frame the shipped guard OUGHT to use is a decision about shipped
-        /// code, not something this audit gets to enact by turning a flag on.
+        /// ⭐ AND THIS IS NOW THE FRAME THE SHIPPED GUARD ACTUALLY ENFORCES. BasisArmSolveCore hands
+        /// BasisElbowAnatomyCore a TORSO up (chest->neck, from BuildArmFrame), falling back to PlayerUp only
+        /// when no body frame can be built.
+        ///
+        /// It used to hand it `PlayerUp` unconditionally -- the PLAYER ROOT's up, world up for an upright
+        /// root per BasisLocalRigDriver.ApplyTuningSettings. Bend at the waist and the root stays vertical
+        /// while the chest does not, so the two frames diverge by the whole trunk lean. Measured 2026-07-22
+        /// over the corpus, that divergence was not academic: on posture/ the SAME 148 arm-samples read up
+        /// to +0.3723 under world up and as low as -0.3713 in the torso frame -- the sign flips -- and the
+        /// guard fired on all 148 of them, poses real humans held, at up to 66.15 deg of correction. See the
+        /// header of BasisBodyPlausibilityTests.TheRuler_ReproducesTheElbowCeilingLaw... for the full table,
+        /// and BasisElbowAnatomyTests's section 5 for the regression tests that now pin the frame.
+        ///
+        /// REPORTED, NEVER GATED, and that has not changed: this channel measures the CORPUS, so it says
+        /// what humans did, not what the solver does. dynamic/ still violates in this frame too (0.2574%
+        /// past 0.05, max 0.2155), which is a separate open question about the law's universality.
         /// </summary>
         LeftElbowCeilingTorsoFracArm = 27,
         RightElbowCeilingTorsoFracArm = 28,
@@ -479,9 +500,18 @@ namespace Basis.IK.Mocap
 
         /// <summary>
         /// Deepest single overlap allowed, as a fraction of the shorter segment's length. This is the GROSS
-        /// gate: a forearm driven through the sternum reports ~0.32, a limb merely brushing another reports
+        /// gate: a forearm driven through the sternum reports 0.3192, a limb merely brushing another reports
         /// a few hundredths. The rate gate above is the sensitive one; this one exists so a single
         /// catastrophic frame fails even in a long clip where the rate stays low.
+        ///
+        /// ⭐ NO LONGER A GUESS. Measured 2026-07-22 over all 109 clips / 133,078 frames, the worst depth
+        /// real human motion produces on a DEPTH-DISCRIMINATING pair is 0.125 (torso x R-upperarm,
+        /// root/141_17 f5). The synthetic arm-through-sternum fixture produces 0.3192. So 0.20 sits 1.60x
+        /// above anything a real human did and 0.63x below an unambiguous pass-through -- headroom on both
+        /// sides, which is what a threshold is supposed to have. It is UNCHANGED in value; what changed is
+        /// that Gate() now applies it only where depth discriminates (PairDepthDiscriminating), because the
+        /// arm x same-side-leg family saturates its depth number on real motion and was failing 8 of the 109
+        /// clips before that scope fix.
         /// </summary>
         public const float MaxPenetrationFracLimb = 0.20f;
 
@@ -722,6 +752,16 @@ namespace Basis.IK.Mocap
             AddSpine(s, BasisSpineSegment.Lumbar, BasisRomChannel.LumbarFlexDeg, "lumbar");
             AddSpine(s, BasisSpineSegment.LowerThoracic, BasisRomChannel.ChestFlexDeg, "chest");
             AddSpine(s, BasisSpineSegment.Cervical, BasisRomChannel.NeckFlexDeg, "neck");
+
+            // ── ELBOW CEILING, TORSO FRAME ───────────────────────────────────────────────────────────────
+            // The frame control. Same limit as the world-up channel so the two are directly comparable, but
+            // NOT GATED: it exists to price the difference between the frame the guard enforces and the
+            // frame its published evidence was taken in, and choosing between them is a decision about
+            // BasisElbowAnatomyCore that this audit reports rather than makes.
+            string ceilTorsoSrc = $"Same limit as the world-up channel ({BasisElbowAnatomyCore.SoftMarginFracLimb}), measured against the CHEST's up. " +
+                                  "Reproduces the guard's published +0.015 on the root tier (max 0.0150); world up gives 0.0525 on the same tier. REPORTED, NEVER GATED.";
+            s[(int)BasisRomChannel.LeftElbowCeilingTorsoFracArm] = Make("L elbow above ceiling (torso frame)", "fracArm", -2f, BasisElbowAnatomyCore.SoftMarginFracLimb, -1f, 1f, false, ceilTorsoSrc);
+            s[(int)BasisRomChannel.RightElbowCeilingTorsoFracArm] = Make("R elbow above ceiling (torso frame)", "fracArm", -2f, BasisElbowAnatomyCore.SoftMarginFracLimb, -1f, 1f, false, ceilTorsoSrc);
             return s;
         }
 
@@ -1049,8 +1089,16 @@ namespace Basis.IK.Mocap
             }
 
             // ⭐ THE CEILING LAW. Height of the elbow above the HIGHER of shoulder and hand, over arm length.
-            // `up` is WORLD up, not a torso-relative up, because that is what the shipped guard is handed as
-            // PlayerUp -- measuring it against a different up would be measuring a different law.
+            // `up` is WORLD up. That is NO LONGER the frame the shipped guard enforces: BasisArmSolveCore now
+            // hands BasisElbowAnatomyCore a TORSO up (chest->neck), which is the frame the law was measured
+            // in, so the torso channel below is the one that tracks shipped behaviour.
+            //
+            // THIS CHANNEL IS RETAINED AS THE HISTORICAL COMPARISON BASELINE, not as a defect. Holding the
+            // two frames side by side is what priced the frame bug in the first place (root tier: 0.0525
+            // world against 0.0150 torso; posture/ 0.3723 against 0.0242, sign-flipped on the same frames),
+            // and it is what would price a regression back to it. It is a measurement of what the CORPUS did
+            // in world space, so it is unaffected by anything the guard does -- which is exactly why it makes
+            // a stable baseline.
             if (scale.Valid && scale.ArmLen > k_Epsilon)
             {
                 float handUp = Vector3.Dot(hand - shoulder, Vector3.up);
@@ -1060,6 +1108,20 @@ namespace Basis.IK.Mocap
             }
 
             if (!chestOk) return;
+
+            // ⭐ THE SAME CEILING LAW, IN THE TORSO'S FRAME. Identical arithmetic to the block above with
+            // `cUp` swapped for `Vector3.up`, so the ONLY thing that can differ between the two channels is
+            // the choice of up -- which is exactly the question. This is the frame in which the guard's
+            // published +0.015 reproduces (root tier max 0.0150); under world up the same tier reads 0.0525.
+            int ceilTorsoC = (int)(rightSide ? BasisRomChannel.RightElbowCeilingTorsoFracArm : BasisRomChannel.LeftElbowCeilingTorsoFracArm);
+            if (scale.Valid && scale.ArmLen > k_Epsilon)
+            {
+                float handUpTorso = Vector3.Dot(hand - shoulder, cUp);
+                float ceilingTorso = handUpTorso > 0f ? handUpTorso : 0f;
+                v[ceilTorsoC] = (Vector3.Dot(elbow - shoulder, cUp) - ceilingTorso) / scale.ArmLen;
+                ok[ceilTorsoC] = true;
+            }
+
             Vector3 humerus = elbow - shoulder;
             if (!(humerus.sqrMagnitude > k_SqrEpsilon)) return;
             humerus.Normalize();
@@ -1330,8 +1392,10 @@ namespace Basis.IK.Mocap
             if (s.IntersectFrac > MaxIntersectFrac)
                 return (false, $"the body passes through itself on {100f * s.IntersectFrac:F2}% of frames (limit {100f * MaxIntersectFrac:F2}%); worst {s.WorstPair} at frame {s.WorstPairFrame}");
 
-            if (s.WorstPenetrationFracLimb > MaxPenetrationFracLimb)
-                return (false, $"{s.WorstPair} penetrates {s.WorstPenetrationFracLimb:F3} of a limb length at frame {s.WorstPairFrame} (limit {MaxPenetrationFracLimb:F3})");
+            // ⚠ ON THE DISCRIMINATING PAIRS ONLY. Judging the raw worst here failed 8 of 109 real human clips
+            // -- see PairDepthDiscriminating and the measurement above the Pair struct.
+            if (s.WorstDiscriminatingPenetrationFracLimb > MaxPenetrationFracLimb)
+                return (false, $"{s.WorstDiscriminatingPair} penetrates {s.WorstDiscriminatingPenetrationFracLimb:F3} of a limb length at frame {s.WorstDiscriminatingPairFrame} (limit {MaxPenetrationFracLimb:F3})");
 
             if (s.RomViolationFrac > MaxRomViolationFrac)
             {

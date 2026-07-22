@@ -39,6 +39,30 @@ namespace Basis.IK
     ///
     /// AND IT IS THE IDENTITY WHERE IT SHOULD BE. Below the soft margin it returns exactly 0f, so a legal pose
     /// is not perturbed by a guard that has no business firing -- bit for bit the unguarded solver.
+    ///
+    /// ================================================================================================
+    /// ⚠ "ABOVE" MEANS ABOVE THE TORSO, NOT ABOVE THE WORLD. The law was MEASURED in a torso frame -- the
+    /// chest->neck axis -- and it is only true there. It is a statement about the humerus and the shoulder
+    /// joint, and those are bolted to the ribcage; they have never heard of gravity.
+    ///
+    /// Bend at the waist and the two frames come apart. Re-measured over 266,156 arm-samples of the same
+    /// corpus, per tier, as a fraction of arm length:
+    ///
+    ///     tier       world-up max   torso-up max    %>0.05 world   %>0.05 torso
+    ///     root         0.0525         0.0150          0.0036%        0.0000%
+    ///     posture      0.3723         0.0242          0.3475%        0.0000%
+    ///     dynamic      0.2555         0.2155          0.7707%        0.2574%
+    ///     slow        -0.0785        -0.0637          0              0
+    ///
+    /// Only the torso frame reproduces the published numbers above (+0.015 worst, 0.0000% past 0.05, 0.10
+    /// clamping nothing). And on the 148 posture-tier frames that "violate" in world up, every one has the
+    /// trunk 73.7-119.7 deg off vertical -- bent double -- where the measurement reads +0.3723 world against
+    /// -0.3713 torso: THE SIGN FLIPS. Those are people touching their toes with their arms hanging normally.
+    /// Hand this guard a world/root up and it fires on them, hard, to "fix" an elbow that was never wrong.
+    ///
+    /// So the caller owes this function a TORSO up. BasisArmSolveCore takes it from
+    /// BasisSwivelHintCore.BuildFrame (chest->neck), the same body frame the swivel models are fitted in.
+    /// ================================================================================================
     /// </summary>
     public static class BasisElbowAnatomyCore
     {
@@ -68,8 +92,12 @@ namespace Basis.IK
         ///
         /// `totalLen` is the whole arm (upper + lower): the margins are fractions of it, so the guard is
         /// SCALE-FREE -- a child avatar and a giant get the same posture, not the same centimetres.
+        ///
+        /// `torsoUp` is the TORSO's up (chest->neck), NOT the player root's. The law is only true in that
+        /// frame -- see the frame note in this class's summary, which is measured. A world/root up turns
+        /// this guard into a hazard the moment the user bends over.
         /// </summary>
-        public static float GuardSwivelRad(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 playerUp, float totalLen)
+        public static float GuardSwivelRad(Vector3 shoulder, Vector3 elbow, Vector3 hand, Vector3 torsoUp, float totalLen)
         {
             Vector3 ac = hand - shoulder;
             float acSqr = ac.sqrMagnitude;
@@ -81,7 +109,7 @@ namespace Basis.IK
                 return 0f;
             }
 
-            Vector3 up = playerUp;
+            Vector3 up = torsoUp;
             float upSqr = up.sqrMagnitude;
             if (!(upSqr > k_SqrEpsilon))
             {

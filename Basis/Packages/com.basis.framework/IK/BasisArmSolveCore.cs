@@ -14,6 +14,14 @@ namespace Basis.IK
         public bool HintWeight;
         public Quaternion TargetOffset;
         public Vector3 PlayerUp;
+        /// <summary>The TORSO's up (chest->neck, i.e. BasisSwivelHintCore.BuildFrame(...).Up), which is the
+        /// frame BasisElbowAnatomyCore's law was measured in and the ONLY frame it is true in. PlayerUp is the
+        /// player ROOT's up: it stays vertical while the chest does not, so feeding the guard that one makes
+        /// "above the shoulder" meaningless the moment the user bends at the waist -- and the guard then fires
+        /// on ordinary bent-over poses (measured: 0.3475% of the posture tier, with the measurement's SIGN
+        /// FLIPPED). Zero -- the struct default -- falls back to PlayerUp, which is the pre-fix behaviour, so a
+        /// caller that cannot build a body frame still gets a guarded arm rather than none.</summary>
+        public Vector3 TorsoUp;
         public float HintMaxStepDeg;   // max elbow-swivel change this solve; float.MaxValue = unclamped (offline)
         public bool HintIsTracker;     // hint is a REAL elbow tracker (trust it further before the down-stabilizer overrides); false = lookup-derived
         public Quaternion TipRotation; // ANIMATED hand world rotation (pre-IK), like RootRotation/MidRotation. Zero (the default) disables wrist-roll relief.
@@ -583,8 +591,20 @@ namespace Basis.IK
             //
             // It costs no reach, structurally: the correction is a swivel about the shoulder->hand axis, and
             // the hand LIES on that axis. A rotation about a line cannot move a point on that line.
+            //
+            // ⚠ AND IT IS EVALUATED IN THE TORSO'S FRAME, NOT THE ROOT'S. The law is a statement about the
+            // humerus against the shoulder joint, and that joint is bolted to the ribcage -- so "above" means
+            // above the CHEST. This used to pass i.PlayerUp, the player ROOT up, which stays vertical when the
+            // chest does not: bend at the waist and the guard's ceiling stopped meaning anything. Measured
+            // over the 109-clip corpus, the posture tier's worst apparent rise went from 0.0242 (torso) to
+            // 0.3723 (root) -- 7.4x the soft margin, 2.5x past the hard asymptote -- and on all 148 of those
+            // frames the trunk is 73.7-119.7 deg off vertical and the measurement's SIGN IS FLIPPED. The guard
+            // was firing hardest on people bent over with their arms hanging perfectly normally. See
+            // BasisElbowAnatomyCore's frame note. Falls back to PlayerUp when no body frame is available
+            // (degenerate rig): the pre-fix behaviour, which for an upright torso is the same vector anyway.
             // =============================================================================================
-            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, i.PlayerUp, totalLen);
+            Vector3 guardUp = i.TorsoUp.sqrMagnitude > k_SqrEpsilon ? i.TorsoUp : i.PlayerUp;
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(aPosition, bPosition, cPosition, guardUp, totalLen);
             if (guardSwivel != 0f)   // exact 0 inside the envelope: legal poses take the untouched path
             {
                 Vector3 acGuard = cPosition - aPosition;

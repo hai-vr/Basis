@@ -633,9 +633,41 @@ namespace Basis.Tests.IK
         /// the only ground truth that exists -- but a shorter avatar arm CANNOT put its elbow where the
         /// human's was, so part of the growth is pure geometry and none of it is the solver's fault. The
         /// table therefore also reports IRREDUCIBLE: | |humanElbow - shoulder| - avatarUpperLen |, the
-        /// distance from the human's elbow to the sphere the avatar's elbow is confined to. That is a strict
-        /// lower bound on the error at that mismatch. EXCESS = mean error - mean irreducible is the part
-        /// that is actually attributable to the solve, and it is the column to read.
+        /// distance from the human's elbow to the sphere the avatar's elbow is confined to.
+        ///
+        /// ⭐⭐ AND DO NOT READ `EXCESS` AS A SOLVE-QUALITY NUMBER. IT WAS ONCE REPORTED AS ONE AND THAT WAS
+        /// WRONG, TWICE OVER. Measured offline against the real cores over this exact sweep:
+        ///
+        ///     scale | elbow  IRRED_sphere EXCESS_sphere | IRRED_circle |  SWIVEL-ANGLE ERR | circle r
+        ///     x1.00 |  3.46      0.00         3.46      |     0.01     |     20.93 deg     |  8.65 cm
+        ///     x1.10 |  8.01      3.03         4.98      |     5.97     |     19.44 deg     | 14.47 cm
+        ///     x1.20 | 11.98      6.06         5.92      |    10.30     |     18.95 deg     | 18.59 cm
+        ///     x1.30 | 15.54      9.09         6.45      |    14.07     |     18.85 deg     | 22.10 cm
+        ///
+        ///   1. THE SPHERE IS THE WRONG FLOOR. With the shoulder and the solved hand both fixed the elbow is
+        ///      confined to the INTERSECTION of two spheres -- a CIRCLE (Korein's swivel; the arm's
+        ///      redundancy is ONE scalar). The circle is a strict subset of the sphere, so the distance to
+        ///      the circle is a strictly TIGHTER lower bound, and at x1.30 it is 14.07 cm against the
+        ///      sphere's 9.09. Five of the "EXCESS" centimetres at x1.30 are geometry the sphere bound
+        ///      simply could not see.
+        ///
+        ///   2. THE UNIT INFLATES. Position error ~ r * angular error, and r -- the elbow's lever arm about
+        ///      the shoulder->hand axis -- is 0.171 of the arm at x1.00 and 0.336 at x1.30, because a LONGER
+        ///      avatar arm reaching the SAME human target is MORE BENT. r nearly triples (8.65 -> 22.10 cm,
+        ///      2.55x) across the sweep. The SAME angular accuracy therefore buys a bigger centimetre.
+        ///
+        ///   The scale-free quantity is the SWIVEL ANGLE, and it is FLAT-to-improving: 20.93 -> 18.85 deg.
+        ///   PAIRED sample by sample (same clip, same frame, same side, same target, only the avatar's arm
+        ///   different) the angular error at x1.30 is a mean 2.08 deg BETTER than at x1.00 and improves on
+        ///   64% of the 27,530 paired samples. Stated back in centimetres so no unit can hide in it: holding
+        ///   the x1.00 angular accuracy and changing ONLY the geometry predicts a 4.93 cm swivel-attributable
+        ///   error at x1.30; the solver actually delivers 4.61. It beats "unchanged", it does not degrade.
+        ///
+        ///   So the table reports the ANGLE alongside the centimetres, and the angle is the column to read.
+        ///   This project has been burned twice by a metric in the wrong unit -- a pop detector that was
+        ///   scale-RELATIVE and read an identical 36 whether the hint was absent, wrong or fitted, and a
+        ///   smoothness score that preferred over-smoothed mush to a real human. EXCESS was very nearly the
+        ///   third.
         ///
         /// ⚠ THIS DRIVER IS NOT BasisMocapAccuracy AND ITS ABSOLUTE NUMBERS ARE NOT COMPARABLE TO THE
         /// PUBLISHED BASELINES. Two deliberate differences, stated rather than buried:
@@ -701,6 +733,23 @@ namespace Basis.Tests.IK
                     $"  arm x{r.Scale.Arm:0.00}          | {Cm(r.ElbowMean),6} {Cm(r.ElbowP95),5} {Cm(r.ElbowIrreducibleMean),5} {Cm(r.ElbowMean - r.ElbowIrreducibleMean),6} | " +
                     $"{Delta(r.ElbowMean, baseElbow),7} | {Pct(r.ArmBeyondReach, r.ArmSamples),7:F2}%  {r.ArmReachMax,7:F3} | {r.HandShortfallDevMax * 1000f,8:F3} mm");
             }
+
+            // ⭐ THE SAME ROWS IN THE UNIT THAT DOES NOT INFLATE. Read SWIVEL, not EXCESS: see the header.
+            // IRRED_cir is the distance to the CIRCLE the elbow is actually on (tighter than the sphere
+            // bound above); r is that circle's radius, which is what converts an angle into a centimetre.
+            log.AppendLine();
+            log.AppendLine("  scale             | elbow  IRRED_sph IRRED_cir | SWIVEL ERR deg | chord | circle r  r/arm");
+            log.AppendLine("  ------------------+----------------------------+----------------+-------+----------------");
+            foreach (Sweep r in rows)
+            {
+                if (r.Scale.Leg != 1f && r.Scale.Arm == 1f) continue;
+                float rFrac = r.AvatarArmLen > 1e-5f ? r.ElbowRadiusMean / r.AvatarArmLen : float.NaN;
+                log.AppendLine(
+                    $"  arm x{r.Scale.Arm:0.00}          | {Cm(r.ElbowMean),6} {Cm(r.ElbowIrreducibleMean),9} {Cm(r.ElbowCircleFloorMean),9} | " +
+                    $"{r.ElbowSwivelMeanDeg,6:F2} {r.ElbowSwivelP95Deg,7:F2} | {Cm(r.ElbowChordMean),5} | {Cm(r.ElbowRadiusMean),7} {rFrac,6:F3}");
+            }
+            log.AppendLine($"  (swivel angle undefined on {rows[0].ElbowSwivelDegenerate} of {rows[0].ElbowSwivelSamples} " +
+                           "samples at the first row -- a collapsed circle has no angle, so they are excluded, not zeroed)");
             log.AppendLine();
             log.AppendLine("  scale             | knee  mean  p95  IRRED EXCESS | vs 1.0x | leg OOD%  maxReach | footErrMax");
             log.AppendLine("  ------------------+------------------------------+---------+--------------------+-------------");
@@ -826,6 +875,27 @@ namespace Basis.Tests.IK
             public int ArmBeyondReach, LegBeyondReach;
             public float ArmReachMax, LegReachMax;
             public float ElbowIrreducibleSum, KneeIrreducibleSum;
+
+            /// <summary>⭐ THE SCALE-FREE COLUMN. The elbow's error decomposes EXACTLY, in cylindrical
+            /// coordinates about the shoulder->solved-hand axis, into a part no swivel could have fixed and
+            /// a part that is purely the swivel being wrong:
+            ///     err^2 = [ z^2 + (rho_h - r)^2 ] + [ 4 * rho_h * r * sin^2(dTheta/2) ]
+            ///           =        dCircle^2        +              chord^2
+            /// dCircle is the distance from the human's elbow to the CIRCLE the avatar's elbow actually
+            /// lives on -- the true geometric floor, tighter than the sphere bound above. dTheta is the
+            /// swivel-angle error, and it is the only one of these that does not inflate with the avatar's
+            /// arm length. See the header for why that matters.</summary>
+            public readonly List<float> ElbowSwivelErrDeg = new List<float>();
+            public float ElbowCircleFloorSum, ElbowChordSum, ElbowRadiusSum;
+            public int ElbowSwivelSamples, ElbowSwivelDegenerate;
+
+            public float ElbowCircleFloorMean => ElbowSwivelSamples > 0 ? ElbowCircleFloorSum / ElbowSwivelSamples : float.NaN;
+            // Over the samples whose ANGLE is defined, not over all of them: the floor and the radius exist
+            // on a collapsed circle, the chord does not.
+            public float ElbowChordMean => ElbowSwivelErrDeg.Count > 0 ? ElbowChordSum / ElbowSwivelErrDeg.Count : float.NaN;
+            public float ElbowRadiusMean => ElbowSwivelSamples > 0 ? ElbowRadiusSum / ElbowSwivelSamples : float.NaN;
+            public float ElbowSwivelMeanDeg => Mean(ElbowSwivelErrDeg);
+            public float ElbowSwivelP95Deg => Pct95(ElbowSwivelErrDeg);
 
             /// <summary>Worst |handErr - expectedShortfall|, in metres for the report AND as a fraction of
             /// THAT SAMPLE'S OWN arm length for the assert. Two fields because the bound being reused from
@@ -959,11 +1029,51 @@ namespace Basis.Tests.IK
             if (solvedArm > 1e-5f)
                 acc.HandShortfallDevMaxFrac = Mathf.Max(acc.HandShortfallDevMaxFrac, dev / solvedArm);
 
-            acc.ElbowErr.Add(Vector3.Distance(r.ElbowSolved, humanElbow));
+            float elbowErr = Vector3.Distance(r.ElbowSolved, humanElbow);
+            acc.ElbowErr.Add(elbowErr);
 
             // The geometric floor: the avatar's elbow is confined to a sphere of radius UpperLength about the
             // shoulder, so it cannot get closer to the human's elbow than this. Not the solver's fault.
+            // ⚠ IT IS THE LOOSER OF THE TWO FLOORS -- the elbow is really on a CIRCLE, not the whole sphere.
+            // Kept because it is what the historical numbers were quoted against; read the circle floor below.
             acc.ElbowIrreducibleSum += Mathf.Abs(Vector3.Distance(humanElbow, shoulder) - r.UpperLength);
+
+            // ⭐ THE SWIVEL DECOMPOSITION. Every remaining degree of freedom this solver has is a rotation
+            // about the shoulder->hand axis -- the hint, the pole-collapse stabilizer, the wrist-roll relief
+            // and the anatomy guard ALL swivel about exactly that line -- so the set of elbow positions the
+            // solve could have produced is precisely the circle of radius `radius` about it. Measuring the
+            // ANGLE around that circle is measuring the solve; measuring the centimetre is measuring the
+            // circle's radius, which the avatar's arm length controls. See the test header.
+            Vector3 swivelAxis = r.HandSolved - shoulder;
+            float axisLen = swivelAxis.magnitude;
+            if (!(axisLen > 1e-5f)) { acc.ElbowSwivelDegenerate++; return; }
+            Vector3 axisN = swivelAxis / axisLen;
+
+            Vector3 toElbow = r.ElbowSolved - shoulder;
+            float elbowAlong = Vector3.Dot(toElbow, axisN);
+            Vector3 elbowPerp = toElbow - axisN * elbowAlong;
+            float radius = elbowPerp.magnitude;
+
+            Vector3 toHuman = humanElbow - shoulder;
+            float humanAlong = Vector3.Dot(toHuman, axisN);
+            Vector3 humanPerp = toHuman - axisN * humanAlong;
+            float humanRadius = humanPerp.magnitude;
+
+            float dAlong = humanAlong - elbowAlong;
+            float dRadial = humanRadius - radius;
+            acc.ElbowCircleFloorSum += Mathf.Sqrt(dAlong * dAlong + dRadial * dRadial);
+            acc.ElbowRadiusSum += radius;
+
+            // The angle is undefined when either lever collapses onto the axis. Counted, never faked -- a
+            // swivel error averaged over samples that had no swivel would be exactly the kind of quietly
+            // meaningless number the header is about.
+            if (!(radius > 1e-5f) || !(humanRadius > 1e-5f)) { acc.ElbowSwivelDegenerate++; acc.ElbowSwivelSamples++; return; }
+
+            float cosSwivel = Mathf.Clamp(Vector3.Dot(elbowPerp, humanPerp) / (radius * humanRadius), -1f, 1f);
+            float swivelErrRad = Mathf.Acos(cosSwivel);
+            acc.ElbowSwivelErrDeg.Add(swivelErrRad * Mathf.Rad2Deg);
+            acc.ElbowChordSum += 2f * Mathf.Sqrt(humanRadius * radius) * Mathf.Sin(0.5f * swivelErrRad);
+            acc.ElbowSwivelSamples++;
         }
 
         /// <summary>

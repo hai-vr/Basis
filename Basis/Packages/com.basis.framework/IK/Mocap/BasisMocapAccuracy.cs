@@ -557,6 +557,18 @@ namespace Basis.IK.Mocap
             i.TargetRotation = truthHandRot;
             i.TargetOffset = Quaternion.identity;
             i.PlayerUp = playerUp;
+            // The anatomy guard's ceiling is TORSO-relative (see BasisElbowAnatomyCore's frame note). Same
+            // BuildFrame construction the ElbowField hint below uses, so the harness measures the frame the
+            // rig actually solves in -- the lock-step rule this file is built around.
+            BasisSwivelFrame torsoFrame = BasisSwivelHintCore.BuildFrame(
+                clip.Get(f, BasisMocapJoint.LeftUpperArm).Position,
+                clip.Get(f, BasisMocapJoint.RightUpperArm).Position,
+                clip.Get(f, BasisMocapJoint.Chest).Position,
+                clip.Get(f, BasisMocapJoint.Neck).Position);
+            if (torsoFrame.Valid)
+            {
+                i.TorsoUp = torsoFrame.Up;
+            }
             // Unclamped: the rate limiter exists to bound the swivel change from the PREVIOUS SOLVE, and this is
             // a memoryless solve off the bind pose. Applying it here would throttle the solver's reach to its own
             // hint and be read as pole error that the live rig does not have.

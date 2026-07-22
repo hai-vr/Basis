@@ -32,6 +32,71 @@ namespace Basis.Tests.IK
     /// cone, iterations, tolerance, bend-weight scale). REPORT-ONLY on the variants — the numbers are the
     /// spec and the argument; asserts hold only the unambiguous properties: the shipped solve beats doing
     /// nothing, and it lands within a sane absolute bound.
+    ///
+    /// ==============================================================================================
+    /// WHAT CONFIGURATION IS THIS MEASURING? (2026-07-22 — read this before trusting any number here.)
+    ///
+    /// Until this revision: a configuration that DOES NOT SHIP. Two fields were wrong, and both of them
+    /// change the solve, not just the reporting:
+    ///
+    ///   1. MaxChestDeltaProperty was NEVER SET, so it defaulted to 0. Everyone reads that field as "the
+    ///      chest tracker's clamp" (BasisFullBodyIK.cs:414) but it is ALSO the CCD's chest cone --
+    ///      SolveSequentialSpineIK:522 reads the same field into `chestCone` and hands it to every
+    ///      ReachHeadJoint sweep, where ClampChestCone:583 enforces it. At 0 the CCD forced the chest
+    ///      COLLINEAR WITH ITS PARENT on every sweep of every frame of the whole corpus. Production ships
+    ///      FBIKMaxChestDelta = 90 (BasisSettingsDefaults.cs:1334 -> BasisLocalRigDriver.cs:1603).
+    ///   2. spineAnatomicalRom was FALSE. Production ships FBIKSpineAnatomicalRom = true (the `_v3` key,
+    ///      BasisSettingsDefaults.cs:1427 -> BasisLocalRigDriver.cs:1637). GuardSpineJoint:676 returns
+    ///      immediately when it is false, so the anatomical envelope -- the whole of BasisSpineAnatomy --
+    ///      was a structural no-op in every spine measurement this suite has ever published.
+    ///
+    /// Turning the flag on is NOT enough on its own: GuardSpineJoint also returns when
+    /// ChainSpineRestFrames is not created, and nothing in this file built it. So the rig now bakes the
+    /// envelope too (BuildSpineAnatomy below), mirroring BasisFullIKConstraintJob.BuildSpineAnatomy, or
+    /// the flag would be a lie that reads as a fix.
+    ///
+    /// BOTH CONFIGURATIONS ARE REPORTED, and that is deliberate. The OLD row is not history to be deleted:
+    /// it is the fixed point BasisTrackerConfigMatrixTests cross-checks its ruler against
+    /// (k_ShippedRulerMeanCm / k_ShippedRulerP95Cm, 1.86 / 8.56 cm), and it is the configuration every
+    /// previously published spine figure -- including the relax 0.8 -> 1.0 decision -- was measured at.
+    /// Deleting it would silently invalidate that cross-check and erase the only baseline the older
+    /// numbers can be compared against.
+    ///
+    /// NOTE, unresolved and NOT changed here: BasisFullIKConstraintJob.SetDefaultValues (:2432, the
+    /// assignment at :2509) sets spineAnatomicalRom = false, so the JOB's own default and the SETTINGS
+    /// default disagree. Anything that runs the job without going through BasisLocalRigDriver therefore
+    /// gets the guard OFF while a real player gets it ON. Whichever of the two is wrong, a test is the
+    /// wrong place to decide it. Flagged for a maintainer.
+    ///
+    /// ---------------------------------------------------------------------------------------------
+    /// NUMBERS AT THE TIME OF THE CHANGE. Pooled over the ten clips, mean / p95 cm.
+    ///
+    ///   rigid (no solve)          6.31 / 26.78
+    ///   OLD    cone 0,  ROM off   1.86 /  8.56   <- the published figure; unchanged, as expected
+    ///   SHIPPED cone 90, ROM on   1.68 /  7.03   <- the new baseline
+    ///
+    ///   field isolation, relax 1.0:  cone 90 alone 1.56 / 6.48;  ROM on alone 2.10 / 9.40
+    ///
+    ///   relax sweep      OLD            SHIPPED
+    ///     0.6          2.17 / 10.00    1.94 / 8.92
+    ///     0.7          2.09 /  9.64    1.86 / 8.52
+    ///     0.8          2.02 /  9.30    1.79 / 8.01
+    ///     0.9          1.94 /  8.95    1.72 / 7.42
+    ///     1.0          1.86 /  8.56    1.68 / 7.03
+    ///
+    /// THE SHIPPED spineCCDRelax = 1.0 SURVIVES. It was chosen on an OLD-config delta of -0.16 mean /
+    /// -0.74 p95 over 0.8; at the shipped config the same step is -0.11 mean / -0.98 p95. Monotone
+    /// improvement across the whole 0.6 -> 1.0 sweep in BOTH columns, so the decision was right for a
+    /// reason that happened to survive the configuration it was measured in. It was still luck.
+    ///
+    /// PROVENANCE, stated plainly: these figures were produced by replaying this file's own BuildRig /
+    /// RunClip against the REAL BasisFullIKConstraintJob compiled standalone (Unity was unavailable --
+    /// the Editor held the project lock). That harness reproduces the published 1.86 / 8.56 to two
+    /// decimals, and independently reproduces the -0.16 / -0.74 relax delta and this suite's recorded
+    /// 20.4 mm / 33.5 deg deep-compression figure, which is why they are written down here. They have NOT
+    /// been confirmed by an in-Editor run of this test. First maintainer to run the suite should confirm
+    /// the two pooled rows above and correct them if they differ.
+    /// ==============================================================================================
     /// </summary>
     public sealed class BasisSpineCorpusAccuracyTests
     {
@@ -62,12 +127,30 @@ namespace Basis.Tests.IK
             public bool PreBend;
             public float Relax, TwistKeep, NeckTwistKeep, ConeDeg, Tolerance, PitchScale;
             public int Iters;
+            // The two fields that made this file measure a solver nobody runs. See the class summary.
+            public float ChestCone;   // MaxChestDeltaProperty -- CCD chest cone AND chest-tracker clamp
+            public bool AnatRom;      // spineAnatomicalRom -- gives GuardSpineJoint its teeth
 
+            /// <summary>What production actually runs: chest cone 90, anatomical envelope live.</summary>
             public static SpineConfig Shipped(string name) => new SpineConfig
             {
                 Name = name, PreBend = true, Relax = 1.0f, TwistKeep = 0.25f, NeckTwistKeep = 0.9f,
                 ConeDeg = 45f, Tolerance = 0.001f, PitchScale = 1f, Iters = 20,
+                ChestCone = 90f, AnatRom = true,
             };
+
+            /// <summary>
+            /// The configuration every previously published spine figure was measured at: a ZERO-degree
+            /// chest cone and no anatomical guard. Kept as a fixed point of comparison, not as a default.
+            /// </summary>
+            public static SpineConfig Old(string name)
+            {
+                SpineConfig c = Shipped(name);
+                c.Name = name;
+                c.ChestCone = 0f;
+                c.AnatRom = false;
+                return c;
+            }
         }
 
         static List<BasisMotionClip> LoadClips()
@@ -126,6 +209,10 @@ namespace Basis.Tests.IK
             public Transform[] Bones;
             public BasisPoseSkeleton Skeleton;
             public NativeArray<BasisBoneHandle> Chain;
+            // The anatomical envelope, parallel to the chain. Without these GuardSpineJoint returns at its
+            // IsCreated check and spineAnatomicalRom = true would be decorative.
+            public NativeArray<BasisSpineRestFrame> RestFrames;
+            public NativeArray<BasisSpineRom> Roms;
             public BasisFullIKConstraintJob Job;
             public int[] MeasuredStreamIndex;   // parallel to k_Measured
             public Quaternion RestGaze;
@@ -133,6 +220,8 @@ namespace Basis.Tests.IK
             public void Dispose()
             {
                 if (Chain.IsCreated) Chain.Dispose();
+                if (RestFrames.IsCreated) RestFrames.Dispose();
+                if (Roms.IsCreated) Roms.Dispose();
                 Skeleton?.Dispose();
                 if (Root != null) Object.DestroyImmediate(Root);
             }
@@ -174,9 +263,13 @@ namespace Basis.Tests.IK
             Vector3 restFwd = PelvisForward(clip, restFrame, Vector3.forward);
             rig.RestGaze = GazeFrame(restNeck, restHead, restFwd);
 
+            BuildSpineAnatomy(rig, clip, restFrame);
+
             rig.Job = new BasisFullIKConstraintJob
             {
                 ChainHeadToSpine = rig.Chain,
+                ChainSpineRestFrames = rig.RestFrames,
+                ChainSpineRoms = rig.Roms,
                 HandleHips = rig.Skeleton.Bind(rig.Bones[0]),
                 HandleSpine = rig.Skeleton.Bind(rig.Bones[1]),
                 HandleChest = rig.Skeleton.Bind(rig.Bones[2]),
@@ -187,8 +280,9 @@ namespace Basis.Tests.IK
                 offsetRotationHips = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
-                spineAnatomicalRom = false,
                 HasChestTracker = false,
+                // spineAnatomicalRom and MaxChestDeltaProperty are set PER CONFIG in ApplyConfig, not here:
+                // they are the two fields the old/shipped A/B turns on, so a single value would erase it.
                 // Rest anatomy for the pre-bend's neck cue and rest length.
                 TposeHeadToNeckLocal = Quaternion.Inverse(rig.RestGaze)
                     * (clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Head).Position),
@@ -203,6 +297,52 @@ namespace Basis.Tests.IK
             return rig;
         }
 
+        /// <summary>
+        /// Bakes each vertebra's anatomical rest frame and ROM parallel to the chain, mirroring
+        /// BasisFullIKConstraintJob.BuildSpineAnatomy (and identical to the bake in
+        /// BasisTrackerConfigMatrixTests, deliberately, so the two harnesses stay comparable). The head
+        /// (chain 0) and the hips (chain 5) are left Valid=false on purpose -- the head is welded to the
+        /// HMD and the hips are the anchor, so neither is a DOF the solver invents and neither is guarded.
+        /// </summary>
+        static void BuildSpineAnatomy(Rig rig, BasisMotionClip clip, int restFrame)
+        {
+            rig.RestFrames = new NativeArray<BasisSpineRestFrame>(6, Allocator.Persistent);
+            rig.Roms = new NativeArray<BasisSpineRom>(6, Allocator.Persistent);
+
+            // The subject's RIGHT: a body-wide fact taken from the shoulders where they exist, never a
+            // bone's local axis. The upper legs are the fallback for a clip with no arm data.
+            Vector3 hipsRight;
+            if (clip.Has(BasisMocapJoint.LeftUpperArm) && clip.Has(BasisMocapJoint.RightUpperArm))
+            {
+                hipsRight = clip.Get(restFrame, BasisMocapJoint.RightUpperArm).Position
+                          - clip.Get(restFrame, BasisMocapJoint.LeftUpperArm).Position;
+            }
+            else
+            {
+                hipsRight = clip.Get(restFrame, BasisMocapJoint.RightUpperLeg).Position
+                          - clip.Get(restFrame, BasisMocapJoint.LeftUpperLeg).Position;
+            }
+
+            // Chain is [Head, Neck, UpperChest, Chest, Spine, Hips], so the bone at chain index i is
+            // rig.Bones[5 - i] and its CHILD is chain index i-1.
+            var segments = new (int chainIdx, BasisSpineSegment seg)[]
+            {
+                (1, BasisSpineSegment.Cervical),        // Neck
+                (2, BasisSpineSegment.UpperThoracic),   // UpperChest
+                (3, BasisSpineSegment.LowerThoracic),   // Chest
+                (4, BasisSpineSegment.Lumbar),          // Spine
+            };
+            foreach ((int chainIdx, BasisSpineSegment seg) in segments)
+            {
+                Transform bone = rig.Bones[5 - chainIdx];
+                Transform child = rig.Bones[5 - (chainIdx - 1)];
+                Transform parent = rig.Bones[5 - (chainIdx + 1)];
+                rig.RestFrames[chainIdx] = BasisSpineAnatomy.BuildRestFrame(
+                    bone.position, child.position, bone.rotation, parent.rotation, hipsRight);
+                rig.Roms[chainIdx] = BasisSpineAnatomy.Rom(seg);
+            }
+        }
+
         static void ApplyConfig(ref BasisFullIKConstraintJob job, in SpineConfig cfg)
         {
             job.spineCCDRelax = cfg.Relax;
@@ -213,6 +353,8 @@ namespace Basis.Tests.IK
             job.spineMaxIterations = cfg.Iters;
             job.spineBendPitch = 0.45f * cfg.PitchScale;
             job.upperChestBendPitch = 0.25f * cfg.PitchScale;
+            job.MaxChestDeltaProperty = cfg.ChestCone;
+            job.spineAnatomicalRom = cfg.AnatRom;
         }
 
         // Runs one configuration over one clip; appends each measured joint's error (metres).
@@ -280,35 +422,99 @@ namespace Basis.Tests.IK
             report.AppendLine($"SPINE-VS-HUMAN ACCURACY ({clips.Count} clips, mean/p95 cm over Spine+Chest+UpperChest+Neck)");
             report.AppendLine();
 
-            // ---------------- per-clip table: rigid vs CCD-only vs shipped (preBend+CCD) ----------------
+            // ------- per-clip table: rigid | CCD-only | OLD config (the A/B fixed point) | SHIPPED -------
+            // The OLD column stays because it is what every previously published figure was measured at and
+            // what BasisTrackerConfigMatrixTests' ruler cross-check is pinned to. It is a comparison point,
+            // not a candidate.
             var pooledRigid = new List<float>();
             var pooledCcd = new List<float>();
+            var pooledOld = new List<float>();
             var pooledShipped = new List<float>();
             SpineConfig shipped = SpineConfig.Shipped("shipped preBend+CCD");
+            SpineConfig oldCfg = SpineConfig.Old("OLD cone0/ROMoff");
             SpineConfig ccdOnly = SpineConfig.Shipped("CCD only");
             ccdOnly.PreBend = false;
 
-            report.AppendLine($"{"clip",-10} | {"rigid",-13} | {"CCD only",-13} | shipped preBend+CCD");
+            report.AppendLine("cone0/ROMoff = the configuration this file measured before 2026-07-22 and that");
+            report.AppendLine("every published spine figure came from; cone90/ROMon = what production ships.");
+            report.AppendLine();
+            report.AppendLine($"{"clip",-10} | {"rigid",-13} | {"CCD only",-13} | {"OLD cone0/ROMoff",-13} | SHIPPED cone90/ROMon");
             foreach (BasisMotionClip clip in clips)
             {
                 int restFrame = MostUprightFrame(clip);
                 using Rig rig = BuildRig(clip, restFrame);
 
-                var rigid = new List<float>(); var ccd = new List<float>(); var ship = new List<float>();
+                var rigid = new List<float>(); var ccd = new List<float>();
+                var old = new List<float>(); var ship = new List<float>();
                 RunClip(rig, clip, shipped, solve: false, rigid);
                 RunClip(rig, clip, ccdOnly, solve: true, ccd);
+                RunClip(rig, clip, oldCfg, solve: true, old);
                 RunClip(rig, clip, shipped, solve: true, ship);
-                pooledRigid.AddRange(rigid); pooledCcd.AddRange(ccd); pooledShipped.AddRange(ship);
+                pooledRigid.AddRange(rigid); pooledCcd.AddRange(ccd);
+                pooledOld.AddRange(old); pooledShipped.AddRange(ship);
 
                 (float rm, float rp) = Stats(rigid);
                 (float cm, float cp) = Stats(ccd);
+                (float om, float op) = Stats(old);
                 (float sm, float sp) = Stats(ship);
-                report.AppendLine($"{clip.Name,-10} | {rm * 100f,5:F2} {rp * 100f,5:F2} | {cm * 100f,5:F2} {cp * 100f,5:F2} | {sm * 100f,5:F2} {sp * 100f,5:F2}");
+                report.AppendLine($"{clip.Name,-10} | {rm * 100f,5:F2} {rp * 100f,5:F2} | {cm * 100f,5:F2} {cp * 100f,5:F2} | {om * 100f,5:F2} {op * 100f,5:F2} | {sm * 100f,5:F2} {sp * 100f,5:F2}");
             }
             (float prm, float prp) = Stats(pooledRigid);
             (float pcm, float pcp) = Stats(pooledCcd);
+            (float pom, float pop) = Stats(pooledOld);
             (float psm, float psp) = Stats(pooledShipped);
-            report.AppendLine($"{"POOLED",-10} | {prm * 100f,5:F2} {prp * 100f,5:F2} | {pcm * 100f,5:F2} {pcp * 100f,5:F2} | {psm * 100f,5:F2} {psp * 100f,5:F2}");
+            report.AppendLine($"{"POOLED",-10} | {prm * 100f,5:F2} {prp * 100f,5:F2} | {pcm * 100f,5:F2} {pcp * 100f,5:F2} | {pom * 100f,5:F2} {pop * 100f,5:F2} | {psm * 100f,5:F2} {psp * 100f,5:F2}");
+            report.AppendLine();
+
+            // ------------- which of the two fields moves the number, isolated, at shipped relax -------------
+            // Reported because they do NOT push the same way: the chest cone is most of the improvement and
+            // the anatomical guard costs accuracy against mocap (it is an anatomy constraint, not a fitter --
+            // it trades positional match for a pose a real spine can hold). The shipped pair is what ships.
+            report.AppendLine("FIELD ISOLATION (relax 1.0):");
+            var isolation = new (string name, float cone, bool rom)[]
+            {
+                ("cone 0,  ROM off (OLD)", 0f, false),
+                ("cone 90, ROM off",       90f, false),
+                ("cone 0,  ROM on",        0f, true),
+                ("cone 90, ROM on (SHIP)", 90f, true),
+            };
+            foreach ((string name, float cone, bool rom) in isolation)
+            {
+                SpineConfig c = SpineConfig.Shipped(name);
+                c.ChestCone = cone;
+                c.AnatRom = rom;
+                var e = new List<float>();
+                foreach (BasisMotionClip clip in clips)
+                {
+                    using Rig rig = BuildRig(clip, MostUprightFrame(clip));
+                    RunClip(rig, clip, c, solve: true, e);
+                }
+                (float m, float p) = Stats(e);
+                report.AppendLine($"  {name,-24} {m * 100f,5:F2} {p * 100f,5:F2}");
+            }
+            report.AppendLine();
+
+            // --------- THE RELAX DECISION, RE-RUN AT BOTH CONFIGS ---------
+            // spineCCDRelax was moved 0.8 -> 1.0 on the strength of a corpus delta measured at the OLD
+            // config. Both columns are printed so the shipped default is justified by the solver that
+            // actually ships, not by the one this file used to build.
+            report.AppendLine("RELAX SWEEP (pooled mean/p95 cm) -- the shipped default must win the RIGHT column:");
+            report.AppendLine($"  {"relax",-6} | {"OLD cone0/ROMoff",-13} | SHIPPED cone90/ROMon");
+            foreach (float relax in new[] { 0.6f, 0.7f, 0.8f, 0.9f, 1.0f })
+            {
+                SpineConfig a = SpineConfig.Old($"relax {relax:F1} old"); a.Relax = relax;
+                SpineConfig b = SpineConfig.Shipped($"relax {relax:F1}"); b.Relax = relax;
+                var ea = new List<float>(); var eb = new List<float>();
+                foreach (BasisMotionClip clip in clips)
+                {
+                    using Rig rig = BuildRig(clip, MostUprightFrame(clip));
+                    RunClip(rig, clip, a, solve: true, ea);
+                    RunClip(rig, clip, b, solve: true, eb);
+                }
+                (float am, float ap) = Stats(ea);
+                (float bm, float bp) = Stats(eb);
+                report.AppendLine($"  {relax,-6:F1} | {am * 100f,5:F2} {ap * 100f,5:F2} | {bm * 100f,5:F2} {bp * 100f,5:F2}");
+            }
             report.AppendLine();
 
             // ------------------------------- the trial: variants, pooled --------------------------------
@@ -324,7 +530,7 @@ namespace Basis.Tests.IK
             var v8 = V("bendPitch x1.5"); v8.PitchScale = 1.5f; variants.Add(v8);
             var v9 = V("bendPitch x0.5"); v9.PitchScale = 0.5f; variants.Add(v9);
 
-            report.AppendLine($"TRIAL (pooled, vs shipped {psm * 100f:F2} mean / {psp * 100f:F2} p95 cm):");
+            report.AppendLine($"TRIAL at the SHIPPED config (pooled, vs {psm * 100f:F2} mean / {psp * 100f:F2} p95 cm):");
             foreach (SpineConfig cfg in variants)
             {
                 var e = new List<float>();
@@ -339,9 +545,16 @@ namespace Basis.Tests.IK
 
             TestContext.WriteLine(report.ToString());
 
+            // REPORT-ONLY above; only the unambiguous properties are asserted. In particular there is no
+            // assert that the shipped config beats the OLD one: it does on this corpus, but "closer to a
+            // mocap joint" is not the same claim as "correct", and the anatomical guard deliberately trades
+            // some positional match for a reachable pose. Ratchet site -- if a pooled-mean threshold is ever
+            // wanted here, measure it first and put the measured number in the message.
             Assert.Less(psm, prm, "the shipped spine solve must beat doing nothing at all");
             Assert.Less(psm, 0.12f, "pooled mean spine error must stay inside a sane absolute bound");
+            Assert.Less(pom, prm, "the OLD-config A/B row must also still beat doing nothing at all");
             foreach (float e in pooledShipped) Assert.IsFalse(float.IsNaN(e) || float.IsInfinity(e));
+            foreach (float e in pooledOld) Assert.IsFalse(float.IsNaN(e) || float.IsInfinity(e));
         }
     }
 }

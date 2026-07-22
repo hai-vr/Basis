@@ -26,6 +26,41 @@ namespace Basis.Tests.IK
     /// These guard: (1) noise inside the former buzz band no longer buzzes the neck; (2) the taut regime
     /// (target at/beyond reach -- the untouched code path) stays quiet and straight; and (3) a deep
     /// commanded compression is still actually solved, i.e. the band does not neuter real bends.
+    ///
+    /// ==============================================================================================
+    /// CONFIGURATION (2026-07-22). This file used to build a rig that does not ship, in two ways:
+    ///
+    ///   MaxChestDeltaProperty was 30, production ships 90 (FBIKMaxChestDelta,
+    ///   BasisSettingsDefaults.cs:1334 -> BasisLocalRigDriver.cs:1603). That field is not only the chest
+    ///   TRACKER's clamp at BasisFullBodyIK.cs:414 -- SolveSequentialSpineIK:522 reads it into `chestCone`
+    ///   and every ReachHeadJoint sweep enforces it through ClampChestCone:583, so it shapes this CCD with
+    ///   no tracker anywhere in sight.
+    ///
+    ///   spineAnatomicalRom was false, production ships true (FBIKSpineAnatomicalRom `_v3`,
+    ///   BasisSettingsDefaults.cs:1427 -> BasisLocalRigDriver.cs:1637). GuardSpineJoint:676 returns
+    ///   immediately when it is false, so the anatomical envelope never ran here. The old comment said the
+    ///   guard was "left off so the test isolates the CCD itself" -- a defensible thing to want, but it
+    ///   meant the singularity was only ever characterised on an unguarded chain, and the guard runs LAST
+    ///   inside ReachHeadJoint, i.e. it gets the final word on every joint the CCD moves.
+    ///
+    /// Both are now shipped values, and the envelope is BAKED (BuildSpineAnatomy below) -- setting the flag
+    /// alone would have been decorative, because GuardSpineJoint also returns when ChainSpineRestFrames is
+    /// not created and nothing in this suite built it.
+    ///
+    /// THE OLD CONFIGURATION IS STILL EXERCISED, as [TestCase] rows, so the singularity behaviour has a
+    /// fixed point to be compared against rather than being silently redefined.
+    ///
+    /// WHAT MOVED. Only one measured quantity changes: DeepCompression_IsStillActuallySolved's residual
+    /// tip error. Everything else (buzz, beyond-reach, continuity, scaling, aim, lordosis pin) is
+    /// bit-identical across all four combinations, because the taut band converges those cases in zero
+    /// sweeps and the guard has nothing to guard.
+    ///
+    /// PROVENANCE: measured by replaying these scenarios against the REAL BasisFullIKConstraintJob
+    /// compiled standalone (Unity was unavailable -- the Editor held the project lock). Every assert in
+    /// this file passes at all four cone/ROM combinations. The same harness reproduces this file's own
+    /// previously recorded 20.4 mm / 33.5 deg deep-compression figure at relax 0.8, which is what
+    /// identified the stale comment corrected below. NOT yet confirmed by an in-Editor run.
+    /// ==============================================================================================
     /// </summary>
     public class BasisSpineTautBandTests
     {
@@ -33,10 +68,21 @@ namespace Basis.Tests.IK
         // measurement harness this fix was derived with.
         static readonly float[] Heights = { 0.95f, 1.06f, 1.21f, 1.33f, 1.45f, 1.57f };
 
+        // What BasisLocalRigDriver actually pushes into the job. Named so a reader can see at a glance
+        // that these are shipped values and not harness taste.
+        const float k_ShippedChestCone = 90f;    // FBIKMaxChestDelta
+        const bool k_ShippedAnatRom = true;      // FBIKSpineAnatomicalRom (_v3)
+
+        // The configuration this file measured before 2026-07-22, kept so the A/B rows can still run it.
+        const float k_OldChestCone = 30f;
+        const bool k_OldAnatRom = false;
+
         GameObject _root;
         Transform[] _bones;
         BasisPoseSkeleton _skeleton;
         NativeArray<BasisBoneHandle> _chain;
+        NativeArray<BasisSpineRestFrame> _restFrames;
+        NativeArray<BasisSpineRom> _roms;
         BasisFullIKConstraintJob _job;
         int _neckStreamIndex;
         int _chestStreamIndex;
@@ -49,7 +95,7 @@ namespace Basis.Tests.IK
             BuildRig(1f);
         }
 
-        void BuildRig(float scale)
+        void BuildRig(float scale, float chestCone = k_ShippedChestCone, bool anatRom = k_ShippedAnatRom)
         {
             DisposeRig();
             _scale = scale;
@@ -80,11 +126,16 @@ namespace Basis.Tests.IK
             _neckStreamIndex = _skeleton.Bind(_bones[4]).Index;
             _chestStreamIndex = _skeleton.Bind(_bones[2]).Index;
 
-            // Shipped defaults for every field this solve path reads. Anatomy guard and chest target are
-            // left off (their defaults) so the test isolates the CCD itself.
+            BuildSpineAnatomy();
+
+            // Shipped defaults for every field this solve path reads, including the two that used to be
+            // wrong. The chest IK target stays off (its default): it is a separate feature with its own
+            // weight, not part of the singularity this file characterises.
             _job = new BasisFullIKConstraintJob
             {
                 ChainHeadToSpine = _chain,
+                ChainSpineRestFrames = _restFrames,
+                ChainSpineRoms = _roms,
                 HandleHips = _skeleton.Bind(_bones[0]),
                 spineMaxIterations = 20,
                 spineTolerance = 0.001f,
@@ -92,12 +143,44 @@ namespace Basis.Tests.IK
                 spineTwistKeep = 0.25f,
                 spineNeckTwistKeep = 0.9f,
                 neckMaxConeDeg = 45f,
-                MaxChestDeltaProperty = 30f,
+                MaxChestDeltaProperty = chestCone,
                 targetOffsetHead = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
-                spineAnatomicalRom = false,
+                spineAnatomicalRom = anatRom,
             };
+        }
+
+        /// <summary>
+        /// Bakes the anatomical envelope parallel to the chain, mirroring
+        /// BasisFullIKConstraintJob.BuildSpineAnatomy. Without this GuardSpineJoint returns at its
+        /// IsCreated check and spineAnatomicalRom = true would be a flag that does nothing.
+        ///
+        /// This rig is axis-aligned and armless, so the subject's RIGHT is world +X -- the one place this
+        /// harness has to supply by hand what production reads off the shoulders. Head (chain 0) and hips
+        /// (chain 5) are left Valid=false on purpose: commanded, not solved, therefore never guarded.
+        /// </summary>
+        void BuildSpineAnatomy()
+        {
+            _restFrames = new NativeArray<BasisSpineRestFrame>(6, Allocator.Persistent);
+            _roms = new NativeArray<BasisSpineRom>(6, Allocator.Persistent);
+
+            var segments = new (int chainIdx, BasisSpineSegment seg)[]
+            {
+                (1, BasisSpineSegment.Cervical),        // Neck
+                (2, BasisSpineSegment.UpperThoracic),   // UpperChest
+                (3, BasisSpineSegment.LowerThoracic),   // Chest
+                (4, BasisSpineSegment.Lumbar),          // Spine
+            };
+            foreach ((int chainIdx, BasisSpineSegment seg) in segments)
+            {
+                Transform bone = _bones[5 - chainIdx];
+                Transform child = _bones[5 - (chainIdx - 1)];
+                Transform parent = _bones[5 - (chainIdx + 1)];
+                _restFrames[chainIdx] = BasisSpineAnatomy.BuildRestFrame(
+                    bone.position, child.position, bone.rotation, parent.rotation, Vector3.right);
+                _roms[chainIdx] = BasisSpineAnatomy.Rom(seg);
+            }
         }
 
         void DisposeRig()
@@ -105,6 +188,14 @@ namespace Basis.Tests.IK
             if (_chain.IsCreated)
             {
                 _chain.Dispose();
+            }
+            if (_restFrames.IsCreated)
+            {
+                _restFrames.Dispose();
+            }
+            if (_roms.IsCreated)
+            {
+                _roms.Dispose();
             }
             _skeleton?.Dispose();
             _skeleton = null;
@@ -210,8 +301,12 @@ namespace Basis.Tests.IK
 
         // ------------------------------------------------------------- real compression still solves
 
-        [Test]
-        public void DeepCompression_IsStillActuallySolved()
+        // The A/B: shipped config first, then the configuration this file used to run. It is the ONLY
+        // scenario in the file whose numbers differ between the two, which is itself the finding --
+        // everything else converges inside the band in zero sweeps, where there is nothing to guard.
+        [TestCase(k_ShippedChestCone, k_ShippedAnatRom, TestName = "DeepCompression_IsStillActuallySolved_Shipped_cone90_ROMon")]
+        [TestCase(k_OldChestCone, k_OldAnatRom, TestName = "DeepCompression_IsStillActuallySolved_Old_cone30_ROMoff")]
+        public void DeepCompression_IsStillActuallySolved(float chestCone, bool anatRom)
         {
             // 5 cm commanded compression. The raw CCD is a poor compressor from a perfectly STRAIGHT
             // base with or without the band (measured in-suite: it recovers ~1 mm of the 51) — in the
@@ -219,9 +314,24 @@ namespace Basis.Tests.IK
             // guarantee that matters is: given a disambiguated bend plane, a real compression still
             // solves THROUGH the band, whose distortion is bounded by band^2/compression (~1.7 mm
             // here). Pre-bend standing in for the pre-bend pass, then the CCD must finish the job.
-            // Measured in-suite: tipErr 20.4 mm of the 51 (band share <= 1.7), neck bow 33.5 deg —
-            // the remaining residual is the solver's own compression character (20 iters, relax 0.8,
-            // twist-stripped, thoracic-stiffened), identical with the band off.
+            //
+            // RESIDUAL, and why the assert is not tightened. The remaining error is the solver's own
+            // compression character (20 iters, twist-stripped, thoracic-stiffened), and it depends on
+            // BOTH relax and the anatomical guard:
+            //   relax 0.8, guard off : tipErr 20.4 mm, bow 33.4 deg  <- what the old comment here recorded
+            //   relax 1.0, guard off : tipErr 14.3 mm, bow 33.9 deg  <- the old config, at shipped relax
+            //   relax 1.0, guard on  : tipErr 21.3 mm, bow 33.7 deg  <- SHIPPED
+            // The old note said "relax 0.8" while the rig was already on 1.0, which is how a 20.4 that no
+            // longer reproduced ended up written down as the current number.
+            //
+            // The guard costs ~7 mm of compression recovery, which is the guard doing its job: 5 cm of
+            // axial compression through four vertebrae is near the anatomical limit, and the envelope
+            // declines to buy the last centimetre with a pose a spine cannot hold. 21.3 mm leaves only
+            // ~15% headroom under the 25 mm assert (the old config had 43%). RATCHET SITE: if this starts
+            // failing, the question is whether the guard or the threshold is wrong -- do not simply raise
+            // the number.
+            BuildRig(1f, chestCone, anatRom);
+
             Vector3 target = RestHead - new Vector3(0f, 0.05f, -0.01f);
             float initialErr = (RestHead - target).magnitude;
 
