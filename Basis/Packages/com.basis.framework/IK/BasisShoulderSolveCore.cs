@@ -42,6 +42,7 @@ namespace Basis.IK
         public float TwistLeakDeg;      // girdle rotation about the arm axis (must stay ~0)
         public bool DriverIsElbow;
         public float ShrugDeg;          // girdle elevation mined from the hanging hand's reach deficit (0 = not engaged)
+        public float RetractDeg;        // girdle retraction supplied to a posterior reach (0 = not engaged)
     }
 
     // Scapulohumeral-rhythm shoulder pre-solve. The shoulder girdle (clavicle/scapula bone) follows a
@@ -86,6 +87,34 @@ namespace Basis.IK
                                                      // defaults to 0.4); doubled on that verdict, 2026-07-16.
                                                      // NOTE: past an Elevation slider of ~0.57 the live 25 deg
                                                      // girdle clamp becomes the ceiling, not this.
+
+        // ── POSTERIOR REACH, i.e. scapular RETRACTION ───────────────────────────────────────────────
+        // Horizontal shoulder motion is strongly ASYMMETRIC and the coupled swing above is not: one
+        // ProtractionFactor answers both a reach across the chest and a reach behind the back. Real
+        // glenohumeral horizontal EXTENSION runs out at ~45-60 deg posterior -- the figure this repo
+        // already carries on BasisBodyPlausibility's ShoulderPosteriorDeg channel -- while horizontal
+        // FLEXION reaches ~130. So the forward half is comfortably inside range at the shipped
+        // coefficient and the rear half is not: measured against this core with a T-pose bind, a 90 deg
+        // posterior hand target put 86.8 deg on the humerus and 3.2 deg on the girdle.
+        //
+        // Worse, the rear poses that need the girdle most are the ones `reachFade` switches it OFF for.
+        // A hand at the lower back sits at ~0.55 of reach, under k_ReachEngageThreshold, so the girdle
+        // contributes exactly zero while the humerus swings 55 deg posterior. The reach gate is right
+        // about a folded arm IN FRONT -- the hand is near the body because the elbow is bent, and the
+        // shoulder should stay put -- and wrong about a folded arm BEHIND, because no amount of
+        // glenohumeral range puts a hand back there without the scapula. Direction separates the two
+        // cases where reach cannot, so this term is gated on direction alone and, like the shrug,
+        // deliberately skips `engage`.
+        //
+        // Driven by the raw posterior COMPONENT of the arm direction, not its horizontal azimuth:
+        // azimuth divides elevation out, so it would read a nearly-hanging arm whose hand drifts a
+        // little behind the hip as a deep posterior reach and retract the girdle in the resting stance.
+        const float k_RetractStartDot = 0.50f;       // ~30 deg posterior; the glenohumeral joint owns everything up to here
+        const float k_RetractFullDot = 0.95f;        // ~72 deg posterior; scapula fully retracted
+        const float k_RetractMaxDeg = 60f;           // full retraction BEFORE the Protraction slider, so ~18 deg at its
+                                                     // 0.3 default -- real scapular retraction range. Sized for the
+                                                     // default exactly like k_ShrugMaxDeg: past a slider of ~0.42 the
+                                                     // 25 deg girdle clamp becomes the ceiling, not this.
 
         public static void Solve(in BasisShoulderSolveInput i, out BasisShoulderSolveResult r)
         {
@@ -164,6 +193,19 @@ namespace Basis.IK
                 }
             }
 
+            // Scapular retraction on a posterior reach (see the constants block). Like the shrug it joins
+            // girdleRv before the twist-strip and the max clamp so those bounds still own the outcome,
+            // and it is deliberately NOT scaled by `engage`. Chest-local +Y swings a +X (right) arm root
+            // toward -Z (backward); the left root points -X, so its retraction is -Y.
+            float retractRad = 0f;
+            float posterior = -armDirL.z;
+            if (posterior > k_RetractStartDot)
+            {
+                float back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_RetractStartDot, k_RetractFullDot, posterior));
+                retractRad = k_RetractMaxDeg * Mathf.Deg2Rad * back * Mathf.Max(i.ProtractionFactor, 0f);
+                girdleRv.y += i.IsLeft ? -retractRad : retractRad;
+            }
+
             // Enforce twist-free exactly: strip any girdle rotation about the arm axis the anisotropic
             // per-axis scaling introduced. The clavicle swings the arm root, it does not roll with it.
             girdleRv -= Vector3.Dot(girdleRv, armDirL) * armDirL;
@@ -208,6 +250,7 @@ namespace Basis.IK
             r.TwistLeakDeg = Mathf.Abs(twistLeak) * Mathf.Rad2Deg;
             r.DriverIsElbow = i.HasElbow;
             r.ShrugDeg = shrugRad * Mathf.Rad2Deg;
+            r.RetractDeg = retractRad * Mathf.Rad2Deg;
         }
 
         // Hand-fallback reach gate: keep the shoulder at rest until the arm genuinely extends, so a

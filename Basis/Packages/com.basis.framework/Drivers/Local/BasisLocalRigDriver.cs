@@ -955,9 +955,7 @@ namespace Basis.Scripts.Drivers
                 float butterflySupineFloor = 1f; // merged toggle: butterfly knees works both supine and upright when enabled
                 bool kneeFollowsFoot = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowsFoot.RawValue;
                 float kneeFootCoupling = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootFollowUpright.RawValue;
-                float kneeFwdSmoothRate = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowSmoothOverride.RawValue
-                    ? Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFollowSmoothRate.RawValue
-                    : KneeForwardSmoothRate;
+                float kneeFwdSmoothRate = KneeForwardSmoothRate;
                 Vector3 hipsForwardDir = hipsRot * Vector3.forward;
                 bool leftFootTracked = fbtEnabled && BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
                 bool rightFootTracked = fbtEnabled && BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
@@ -1637,8 +1635,6 @@ namespace Basis.Scripts.Drivers
             data.spineAnatomicalRom = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineAnatomicalRom.RawValue;
             data.chestIkTarget = Basis.BasisUI.BasisSettingsDefaults.FBIKChestIKTarget.RawValue;
             data.legSwivelSmoothing = Basis.BasisUI.BasisSettingsDefaults.FBIKLegSwivelSmoothing.RawValue;
-            data.kneeFootPoleHold = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleHold.RawValue;
-            data.kneeFootPoleConditioning = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleConditioning.RawValue;
             data.lordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
             data.lordosisBaseDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisBaseDeg.RawValue;
             data.lordosisNeckShare = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisNeckShare.RawValue;

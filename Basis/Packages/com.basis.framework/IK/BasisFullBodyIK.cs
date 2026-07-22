@@ -161,7 +161,6 @@ collisionsEnabled;
         public bool chestIkTarget;
         public bool hintIsTrackerLeftLowerLeg, hintIsTrackerRightLowerLeg;
         public bool footIsTrackerLeftLeg, footIsTrackerRightLeg;
-        public bool kneeFootPoleHold, kneeFootPoleConditioning;
         public float lordosisPitchGainDeg;
         public float lordosisBaseDeg, lordosisNeckShare, lordosisMaxHeadPitchDeg;
         public float lordosisExtremeStartDeg, lordosisExtremeFullDeg;
@@ -185,6 +184,11 @@ collisionsEnabled;
         // Per-arm torso-collision tag written by SolveHand each frame: 0 = no push, 1 = pushed to the
         // natural side, 2 = wrong-side full snap. The swing limiter only engages when this changes.
         public NativeArray<int> swingCollided;
+
+        /// <summary>Per-arm swivel the elbow protect chose last frame, degrees from the natural pole. Feeds
+        /// BasisElbowProtectInput.PrevSwivelDeg, which is what lets the protect search the whole swivel
+        /// circle without hopping between disconnected feasible arcs.</summary>
+        public NativeArray<float> swingSwivelDeg;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
         // Per-arm gain-cap state (BasisElbowSwingCapCore): last frame's capped bend + shoulder->hand axis,
@@ -1993,8 +1997,8 @@ collisionsEnabled;
                     bool footDerivedPole = !hintIsTrackerProp && footIsTrackerProp && !usedModelHint;
                     SmoothKneeSwivel(stream, root, mid, tip, legSlot, stream.deltaTime,
                         k_TrackedKneeSwivelMinCutoffHz, k_TrackedKneeSwivelBeta, k_TrackedKneeSwivelDerivCutoffHz,
-                        conditionOnPole: !hintIsTrackerProp && (!footDerivedPole || kneeFootPoleConditioning),
-                        holdWhenSingular: !footDerivedPole || kneeFootPoleHold);
+                        conditionOnPole: !hintIsTrackerProp && !footDerivedPole,
+                        holdWhenSingular: !footDerivedPole);
                 }
                 else
                 {
@@ -2318,6 +2322,7 @@ collisionsEnabled;
             // reason it should not be: it is the user's own input, and damping it just mutes the hint they are
             // moving. So the filter now has no caller, and the arm's One-Euro state is gone with it.
             int collisionState = 0;
+            float elbowSwivelDeg = 0f;
             bool doCollisions = collisionsEnabled && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             bool elbowTrackerForced = hasHint && !usedModel;
             if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
@@ -2340,6 +2345,15 @@ collisionsEnabled;
                 epi.HandSkin = handSkin;
                 epi.PlayerUp = playerUp;
                 epi.BodyRight = bodyRight;
+                // Last frame's swivel for this arm, which turns the protect's search from a one-sided arc
+                // into the whole circle. The domain widening is where the cleared fraction comes from; the
+                // anchor is what stops a wider domain hopping between disconnected feasible arcs. See the
+                // block above SearchFullCircle in BasisElbowProtectCore -- they only work as a pair.
+                if (swingSwivelDeg.IsCreated)
+                {
+                    epi.PrevSwivelDeg = swingSwivelDeg[swingSlot];
+                    epi.HasPrevSwivel = true;
+                }
 
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
                 if (epr.Engaged)
@@ -2350,11 +2364,20 @@ collisionsEnabled;
                     tip.SetRotation(stream, preservedHandRot);
                 }
                 collisionState = epr.CollisionState;
+                elbowSwivelDeg = epr.ChosenSwivelDeg;
             }
 
             if (swingCollided.IsCreated)
             {
                 swingCollided[swingSlot] = collisionState;
+            }
+
+            // Carry the chosen swivel to next frame. Written on EVERY path, including the one where the
+            // protect did not engage -- that writes 0, which re-anchors on the natural pole, so re-engaging
+            // later starts from where the elbow actually is instead of from a stale arc.
+            if (swingSwivelDeg.IsCreated)
+            {
+                swingSwivelDeg[swingSlot] = elbowSwivelDeg;
             }
 
             if (weight < 1f)
@@ -2502,11 +2525,11 @@ collisionsEnabled;
             lowerArmTwistFraction = 0.5f;
             upperArmTwistFraction = 0.3f;
 
-            anatDifferentialStiffness = false;
-            anatShoulderSlide = false;
-            anatCervicalLordosis = false;
-            anatPelvicTwistRouting = false;
-            spineAnatomicalRom = false;
+            anatDifferentialStiffness = true;
+            anatShoulderSlide = true;
+            anatCervicalLordosis = true;
+            anatPelvicTwistRouting = true;
+            spineAnatomicalRom = true;
             chestIkTarget = false;
             legSwivelSmoothing = true;
             lordosisPitchGainDeg = 8f;
@@ -2633,6 +2656,7 @@ collisionsEnabled;
             swingLastTarget = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingContinuityInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingCollided = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
+            swingSwivelDeg = new NativeArray<float>(k_SwingCount, Allocator.Persistent);
             swingSmoothState = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingHintBend = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
@@ -2815,6 +2839,7 @@ collisionsEnabled;
             if (swingLastTarget.IsCreated) swingLastTarget.Dispose();
             if (swingContinuityInit.IsCreated) swingContinuityInit.Dispose();
             if (swingCollided.IsCreated) swingCollided.Dispose();
+            if (swingSwivelDeg.IsCreated) swingSwivelDeg.Dispose();
             if (swingSmoothState.IsCreated) swingSmoothState.Dispose();
             if (swingHintBend.IsCreated) swingHintBend.Dispose();
             if (swingHintAxis.IsCreated) swingHintAxis.Dispose();

@@ -42,10 +42,9 @@ namespace Basis.Tests.IK
         [Test]
         public void Standing_KneeFollowsFoot_FootDominant_NeverOutboard()
         {
-            // A standing leg follows the foot by the coupling fraction. At DefaultUprightCoupling 1.0 the knee
-            // tracks the toe EXACTLY, so the inboard margin coupling<1 used to buy (foot progression / tibial
-            // torsion) is deliberately forfeit -- the surviving invariant is that it never goes OUTBOARD.
-            // Drop the coupling toward 0.85 to get the inboard term back.
+            // A standing leg follows the foot by the coupling fraction. At DefaultUprightCoupling 0.75 the knee
+            // stays inboard of the toe, which is the foot-progression / tibial-torsion margin a real leg has.
+            // The invariant that holds at ANY coupling is that it never goes OUTBOARD.
             const float toe = 7f;
             var r = Eval(toeOutDeg: toe, coupling: DefaultCoupling);
             Assert.That(r.Upright01, Is.GreaterThan(0.95f), "a vertical standing leg should read fully upright.");
@@ -72,7 +71,7 @@ namespace Basis.Tests.IK
                 Assert.That(r.FollowDeg, Is.LessThanOrEqualTo(toe + 0.5f), "knee must never toe out MORE than the foot.");
                 prev = r.FollowDeg;
             }
-            LogTable("Standing toe-out sweep (coupling 0.35)", rows);
+            LogTable($"Standing toe-out sweep (coupling {DefaultCoupling:0.00})", rows);
         }
 
         [Test]

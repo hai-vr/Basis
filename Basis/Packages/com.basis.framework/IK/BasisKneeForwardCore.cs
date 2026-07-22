@@ -67,12 +67,12 @@ namespace Basis.IK
         // knee tracks the toe the whole way. Tunable (settings slider, 0.1-1); the whole feature is gated off by
         // Strength <= 0.
         //
-        // ⚠️ 1.0 GIVES UP THE FREE "KNEE SITS INBOARD OF THE FOOT" TERM. Below 1 the knee lands between
+        // ⚠️ BELOW 1.0 THE KNEE KEEPS A FREE "SITS INBOARD OF THE FOOT" TERM. At 0.75 the knee lands between
         // body-forward and the toe, which reproduces foot-progression / tibial torsion (a real knee is a few
-        // degrees inboard of the foot) with no explicit model. At 1.0 the knee points exactly where the toe does,
-        // which is what a user asking for maximum foot authority is asking for -- but it is the reason this is a
-        // slider and not a constant. Drop toward 0.85 to get the inboard bias back.
-        public const float DefaultUprightCoupling = 1.0f;
+        // degrees inboard of the foot) with no explicit model. At 1.0 the knee points exactly where the toe does
+        // -- maximum foot authority, but that inboard bias is forfeit. This is the reason it is a slider and not
+        // a constant. Must track BasisSettingsDefaults.FBIKKneeFootFollowUpright, which is what actually ships.
+        public const float DefaultUprightCoupling = 0.75f;
 
         // Where the follow starts fading out as the toe swings toward pointing back down the body. Below this the
         // fade is the exact identity, so every ordinary foot angle is untouched. See the block in Solve.
