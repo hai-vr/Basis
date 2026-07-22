@@ -543,6 +543,11 @@ namespace Basis.Scripts.Drivers
             DisposeChainArrays();
             if (_simInputs.IsCreated) _simInputs.Dispose();
             if (_simStates.IsCreated) _simStates.Dispose();
+            unsafe
+            {
+                _simInputsPtr = null;
+                _simStatesPtr = null;
+            }
             _nativeAllocated = false;
             _nativeCapacity = 0;
             _chainsBuilt = false;
@@ -553,6 +558,11 @@ namespace Basis.Scripts.Drivers
             DisposeChainArrays();
             if (_simInputs.IsCreated) _simInputs.Dispose();
             if (_simStates.IsCreated) _simStates.Dispose();
+            unsafe
+            {
+                _simInputsPtr = null;
+                _simStatesPtr = null;
+            }
             _nativeAllocated = false;
             _nativeCapacity = 0;
         }

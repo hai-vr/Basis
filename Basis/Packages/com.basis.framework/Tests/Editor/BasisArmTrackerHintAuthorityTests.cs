@@ -40,9 +40,14 @@ namespace Basis.Tests.IK
     ///   * the pole-collapse (world-down) stabilizer is skipped outright: `if (HintWeight && !HintIsTracker)`.
     ///   * HintMaxStepDeg is float.MaxValue from the live job -- no rate limit.
     ///   * the arm's One-Euro (SmoothElbowSwivel) has no caller any more -- no temporal filter.
-    ///   * so the ONLY thing left standing between a tracker and the elbow is the hard pole epsilon
-    ///     `ahProj.sqrMagnitude > totalLen*totalLen*0.001`, and BasisElbowAnatomyCore at the very end.
-    /// Those last two are what this file leans on.
+    ///   * the hard pole epsilon is GONE. It was `ahProj.sqrMagnitude > totalLen*totalLen*0.001` and is now
+    ///     `> k_SqrEpsilon` (1e-8), an absolute singularity check ~190x smaller in length. Nothing switches
+    ///     off with extension any more; see ThePoleAdmissionTest_IsAnAbsoluteSingularityCheck.
+    ///   * what conditions a tracker instead is the PER-ARM POLE ANCHOR carried across frames by
+    ///     BasisFullBodyIK (PrevPoleDir / PrevHintRotation), weighted by TrackerPoleAnchorFrac /
+    ///     TrackerPoleTrustFrac. That is STATE, so the tests that exercise it have to be temporal.
+    ///   * and BasisElbowAnatomyCore at the very end, which guards the OUTCOME.
+    /// The last two are what this file leans on.
     /// </summary>
     public sealed class BasisArmTrackerHintAuthorityTests
     {
@@ -59,9 +64,24 @@ namespace Basis.Tests.IK
         /// so BasisElbowAnatomyCore stays at exact identity and cannot be mistaken for hint authority.</summary>
         const float k_CommandedSwivel = 30f;
 
-        /// <summary>BasisArmSolveCore admits a hint only when `ahProj.sqrMagnitude > totalLen^2 * 0.001`.
-        /// As a fraction of arm length that is sqrt(0.001). It is a HARD BOOLEAN -- there is no ramp.</summary>
-        const float k_PoleEpsFrac = 0.0316228f;
+        /// <summary>
+        /// ⚠️ HISTORICAL. THIS IS NOT THE THRESHOLD THE SOLVER USES, AND HAS NOT BEEN FOR SOME TIME.
+        ///
+        /// BasisArmSolveCore's hint admission test USED to read `ahProj.sqrMagnitude > totalLen^2 * 0.001`
+        /// -- sqrt(0.001) = 3.16% of arm length, 18.97 mm on the 0.60 m arm here -- and it was a HARD
+        /// BOOLEAN on a quantity that collapses as the arm straightens, so an ordinary extended reach
+        /// walked off a cliff. That gate is GONE. The live test is `ahProj.sqrMagnitude > k_SqrEpsilon`
+        /// with k_SqrEpsilon = 1e-8, i.e. |ahProj| > 0.1 mm: an ABSOLUTE singularity check about 190x
+        /// smaller in length, and one that does not scale with the avatar at all.
+        ///
+        /// The number is kept because two tests below are FENCES around that removal -- they exist to fail
+        /// if anybody reintroduces a fractional-length epsilon -- and a fence needs to know where the old
+        /// gate stood. It is not a description of current behaviour and must not be read as one.
+        /// </summary>
+        const float k_HistoricPoleEpsFrac = 0.0316228f;
+
+        /// <summary>The live admission test, restated in metres: |ahProj| must exceed sqrt(k_SqrEpsilon).</summary>
+        const float k_LivePoleEpsMetres = 1e-4f;
 
         /// <summary>The extensions under test. 50% is a comfortable bend; above ~97% is where the arm's
         /// authority used to collapse and where a VR user actually lives.</summary>
@@ -282,8 +302,8 @@ namespace Basis.Tests.IK
                     {
                         failures.AppendLine(
                             $"  standOff {standOff * 100f,2:F0} cm  reach {reach,6:P1}  ->  elbow {off,6:F1} deg off the " +
-                            $"tracker's pole  (applied={r.HintApplied}, fade={r.HintFade:F3}, " +
-                            $"poleNorm={r.HintProjMag / k_ArmLen:F4}, eps={k_PoleEpsFrac:F4})");
+                            $"tracker's pole  (applied={r.HintApplied}, poleNorm={r.HintProjMag / k_ArmLen:F4}, " +
+                            $"cond={r.PoleConditioning:F3})");
                     }
                 }
             }
@@ -294,9 +314,10 @@ namespace Basis.Tests.IK
                     "A REAL ELBOW TRACKER DOES NOT REACH THE ELBOW.\n" +
                     "The solver left the elbow on the pose the ANIMATION put it in (180 deg from the tracker) " +
                     "instead of on the pole the user's own tracker commanded:\n" + failures +
-                    "\n`applied=False` means BasisArmSolveCore's hard pole epsilon " +
-                    "(ahProj^2 > totalLen^2 * 0.001) rejected the hint outright -- the tracker was not faded, " +
-                    "it was DROPPED.");
+                    "\n`applied=False` means BasisArmSolveCore's admission test rejected the hint outright -- the " +
+                    "tracker was not faded, it was DROPPED. That test is now an absolute 1e-8 singularity check, so " +
+                    "a False here means either a degenerate pole or that a fractional-length epsilon has come back; " +
+                    "ThePoleAdmissionTest_IsAnAbsoluteSingularityCheck tells the two apart.");
             }
         }
 
@@ -375,54 +396,118 @@ namespace Basis.Tests.IK
         // ════════════════════════════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// ⭐ THE HINT MUST ACTUALLY BE APPLIED.
+        /// ⭐ A FENCE AROUND A REMOVED MECHANISM. IT PINS THAT THE CLIFF IS GONE, NOT THAT IT IS SURVIVED.
         ///
-        /// The abProj FADE is gone (hintFade is a hard 1f). But `ahProj.sqrMagnitude > totalLen^2 * 0.001`
-        /// SURVIVES, and it is a BOOLEAN, not a ramp -- full hint on one side of it, NO hint at all on the
-        /// other. That is precisely the shape of the cliff that project_basis_ik_hint_extension_snap was
-        /// written about, and it is still standing on the quantity a tracker cannot keep clear of zero.
+        /// ⚠️ THIS TEST USED TO CLAIM SOMETHING THAT HAD STOPPED BEING TRUE. Its docstring asserted that
+        /// `ahProj.sqrMagnitude > totalLen^2 * 0.001` "SURVIVES", and that passing it meant a tracker had
+        /// cleared that boolean. The gate had already been replaced by `ahProj.sqrMagnitude > k_SqrEpsilon`
+        /// -- 1e-8, about 190x smaller in length and not a fraction of anything -- so the test passed
+        /// because THE CLIFF IT WAS WRITTEN TO CATCH NO LONGER EXISTED. It asserted a mechanism, the
+        /// mechanism was deleted, and the green tick was reporting on nothing.
         ///
-        /// A tracker's pole is `hint - shoulder` projected off the arm axis. For the hint THE LIVE RIG ACTUALLY
-        /// SENDS -- the calibrated lower-arm BONE, i.e. the joint centre, stand-off ~= 0 -- that projection IS
-        /// the elbow's own collapsing lever arm. So it goes to zero as the arm straightens, crosses the epsilon,
-        /// and the tracker is dropped in a single frame.
+        /// So it is re-pointed at what is actually load-bearing now, which is that the admission test is a
+        /// NUMERICAL SINGULARITY CHECK and not a BEHAVIOURAL GATE. Two properties distinguish those, and
+        /// both are asserted:
         ///
-        /// A stand-off is the only thing that keeps it clear. This test says how much you need.
+        ///   1. IT IS ABSOLUTE, NOT A FRACTION OF THE LIMB. A pole one millimetre long -- nineteen times
+        ///      shorter than the old fractional epsilon -- is still admitted. If someone reintroduces any
+        ///      epsilon proportional to totalLen, this fails.
+        ///   2. IT STILL EXISTS. A pole of 0.01 mm, which is genuinely below float's ability to carry a
+        ///      direction, IS rejected. Without this the first assertion could be satisfied by deleting the
+        ///      guard altogether, and a NaN would reach a bone.
+        ///
+        /// The realistic sweep is kept underneath as the practical statement, with the anti-tautology that
+        /// at least one of its configurations must sit BELOW the old fractional epsilon -- otherwise the
+        /// sweep never crosses where the cliff used to be and proves nothing about its removal.
         /// </summary>
         [Test]
-        public void ATrackerHint_IsNotDroppedByThePoleEpsilon_AtAnyExtension()
+        public void ThePoleAdmissionTest_IsAnAbsoluteSingularityCheck_NotAFractionOfTheLimb()
         {
+            // ── 1 + 2. The threshold itself, bracketed. The pole is CONSTRUCTED to an exact length here
+            // rather than arrived at through a pose, so the quantity under test is unambiguous.
+            Vector3 target = k_Shoulder + k_ReachDir * (0.95f * k_ArmLen);
+            RequireInReach(target);
+            SwingBasis(target, out Vector3 axis, out Vector3 u, out _);
+            Vector3 animElbow = ElbowOnCircle(target, k_CommandedSwivel + 180f);
+
+            // A hint sitting `poleLen` off the shoulder->hand axis, plus an arbitrary slide along it (which
+            // the solver provably cannot see -- StrapPosition_AlongTheArm_CannotChangeTheCommandedSwivel).
+            BasisArmSolveResult AtPoleLength(float poleLen)
+            {
+                Vector3 hint = k_Shoulder + axis * (0.25f * k_ArmLen) + u * poleLen;
+                BasisArmSolveCore.Solve(TrackerInput(animElbow, target, hint), out BasisArmSolveResult res);
+                return res;
+            }
+
+            const float wellUnderTheOldGate = 1e-3f;   // 1 mm: 19x below the old 18.97 mm fractional epsilon
+            Assert.Less(wellUnderTheOldGate, k_HistoricPoleEpsFrac * k_ArmLen,
+                "this test's 'small' pole is not actually below the historic fractional epsilon, so it does not " +
+                "fence anything");
+
+            BasisArmSolveResult small = AtPoleLength(wellUnderTheOldGate);
+            Assert.IsTrue(small.HintApplied,
+                $"a {wellUnderTheOldGate * 1000f:F1} mm pole was DROPPED. The old fractional gate " +
+                $"(sqrt(0.001) * totalLen = {k_HistoricPoleEpsFrac * k_ArmLen * 1000f:F2} mm) is supposed to be gone " +
+                "and replaced by an absolute 1e-8 singularity check. A boolean gate on a quantity that collapses " +
+                "with extension is a snap -- see ATrackerHint_DoesNotSnapTheElbow.");
+
+            BasisArmSolveResult tiny = AtPoleLength(0.1f * k_LivePoleEpsMetres);   // 0.01 mm
+            Assert.IsFalse(tiny.HintApplied,
+                $"a {0.1f * k_LivePoleEpsMetres * 1000f:F3} mm pole was ADMITTED. Below sqrt(k_SqrEpsilon) = " +
+                $"{k_LivePoleEpsMetres * 1000f:F1} mm a direction is float noise, and the singularity check has to " +
+                "still be there -- otherwise the first assertion in this test could be satisfied by deleting the " +
+                "guard, and a degenerate pole would reach a bone.");
+
+            // ── 3. The realistic sweep: nothing a real mount and a real reach can produce is dropped.
             var dropped = new StringBuilder();
+            int belowHistoricGate = 0;
 
             foreach (float standOff in k_StandOffs)
             {
                 foreach (float reach in k_Reaches)
                 {
-                    Vector3 target = k_Shoulder + k_ReachDir * (reach * k_ArmLen);
-                    Vector3 puck = StrappedTracker(target, k_CommandedSwivel, standOff, 0.05f);
-                    Vector3 animElbow = ElbowOnCircle(target, k_CommandedSwivel + 180f);
+                    Vector3 t = k_Shoulder + k_ReachDir * (reach * k_ArmLen);
+                    Vector3 puck = StrappedTracker(t, k_CommandedSwivel, standOff, 0.05f);
+                    Vector3 anim = ElbowOnCircle(t, k_CommandedSwivel + 180f);
 
-                    BasisArmSolveCore.Solve(TrackerInput(animElbow, target, puck), out BasisArmSolveResult r);
+                    BasisArmSolveCore.Solve(TrackerInput(anim, t, puck), out BasisArmSolveResult r);
+
+                    if (r.HintProjMag < k_HistoricPoleEpsFrac * k_ArmLen)
+                    {
+                        belowHistoricGate++;
+                    }
 
                     if (!r.HintApplied)
                     {
                         dropped.AppendLine(
                             $"  standOff {standOff * 100f,2:F0} cm  reach {reach,6:P1}  ->  DROPPED " +
-                            $"(poleNorm {r.HintProjMag / k_ArmLen:F4} < eps {k_PoleEpsFrac:F4})");
+                            $"(poleNorm {r.HintProjMag / k_ArmLen:F4})");
                     }
                 }
             }
 
+            // ANTI-TAUTOLOGY. If every configuration sits comfortably above where the old gate stood, then
+            // none of them would have been dropped by the old gate either, and "nothing was dropped" says
+            // nothing whatever about its removal.
+            Assert.Greater(belowHistoricGate, 0,
+                "not one configuration in the sweep has a pole shorter than the historic fractional epsilon " +
+                $"({k_HistoricPoleEpsFrac * k_ArmLen * 1000f:F2} mm), so the sweep never reaches the regime the old " +
+                "cliff lived in and its pass is vacuous. Add a straighter reach or a smaller stand-off.");
+
             if (dropped.Length > 0)
             {
                 Assert.Fail(
-                    "THE TRACKER'S HINT WAS DROPPED OUTRIGHT by BasisArmSolveCore's hard pole epsilon.\n" +
-                    "Not faded -- DROPPED, in one frame, leaving the elbow wherever the animation put it:\n" + dropped +
-                    "\nThis is a BOOLEAN gate on ahProj. The abProj fade next to it was replaced by a ramp " +
-                    "precisely because a boolean on a collapsing quantity is a snap; this one was left alone, " +
-                    "and for a hint calibrated onto the joint centre -- which is what BasisLocalRigDriver sends -- " +
-                    "ahProj collapses just as surely.");
+                    "A TRACKER'S HINT WAS DROPPED OUTRIGHT at a realistic mount and reach:\n" + dropped +
+                    $"\n{belowHistoricGate} of the swept configurations sit below the historic fractional epsilon, " +
+                    "which is the regime this fence exists for. For a hint calibrated onto the joint centre -- what " +
+                    "BasisLocalRigDriver sends -- ahProj IS the elbow's own collapsing lever arm, so any epsilon " +
+                    "proportional to limb length is a cliff an ordinary reach walks off.");
             }
+
+            TestContext.WriteLine(
+                $"  admission: 1.0 mm pole applied={small.HintApplied}, 0.01 mm pole applied={tiny.HintApplied}; " +
+                $"{belowHistoricGate}/{k_StandOffs.Length * k_Reaches.Length} swept configurations sit below the " +
+                $"historic {k_HistoricPoleEpsFrac * k_ArmLen * 1000f:F2} mm gate and none were dropped.");
         }
 
         /// <summary>
@@ -514,6 +599,163 @@ namespace Basis.Tests.IK
                 "⚠️ This sweep is also NOISELESS, so it is not the tightest instrument for the defect -- a " +
                 "collapsing pole still has an exact direction until noise is added. BasisArmPoleAnchorTests " +
                 "adds 1 mm of puck noise and gates the 179 deg humerus roll directly.");
+        }
+
+        /// <summary>A puck bolted to the limb. It rides the limb's roll, so swivelling the arm by phi about
+        /// the shoulder->hand axis rotates the puck by phi about that same axis -- which is the entire reason
+        /// its ROTATION still carries an azimuth after its POSITION has collapsed onto the axis. The rig
+        /// supplies this through BasisLimbRollStore; a zero here would leave the anchor's carry at identity,
+        /// i.e. a plain hold, and would be testing a rig that does not ship.</summary>
+        static Quaternion StrappedTrackerRotation(Vector3 hand, float swivelDeg)
+        {
+            SwingBasis(hand, out Vector3 axis, out _, out _);
+            return Quaternion.AngleAxis(swivelDeg, axis);
+        }
+
+        /// <summary>
+        /// ⭐⭐ AFTER A TRACKER DROPOUT AT FULL EXTENSION, THE ELBOW MUST NOT PARK IN AN ARBITRARY ROLL.
+        ///
+        /// ⚠️ THIS IS A TEMPORAL DEFECT AND EVERY SINGLE-SOLVE TEST IN THIS FILE IS STRUCTURALLY BLIND TO IT.
+        /// Each individual frame is perfectly reasonable -- the elbow is on a legal, stable, smoothly-moving
+        /// pole. It is simply the WRONG pole, and it stays wrong, which is a statement about a sequence.
+        ///
+        /// THE MECHANISM, read from BasisArmSolveCore rather than assumed:
+        ///   * BasisFullBodyIK zeroes swingPoleAnchorInit[slot] on any frame without a tracker, so a dropout
+        ///     forces HasPrevPole = false on re-acquisition.
+        ///   * the !HasPrevPole branch seeds the anchor from `ahProj / |ahProj|` REGARDLESS of conditioning.
+        ///     Re-acquire while the arm is straight and |ahProj| is tracker noise, so the seed is a uniformly
+        ///     random direction.
+        ///   * and the refresh above it fires only at poleCondW >= 1. For the joint-centred hint the live rig
+        ///     sends, |ahProj| is the elbow's own lever arm rho = 0.5*L*sqrt(1-reach^2), so poleCondW reaches
+        ///     1 only at an elbow angle of 152.2 deg (reach 0.971) and is 0.06 at 170 deg. A relaxed human arm
+        ///     hangs at 170-175 deg. SO THE BAD SEED WAS NEVER CORRECTED.
+        ///
+        /// MEASURED BEFORE THE FIX, on this exact scenario across 12 noise seeds: after 300 frames of holding
+        /// a 164 deg arm perfectly still, the elbow sat 0.9 to 97.4 degrees off the tracker's actual pole and
+        /// was not converging. After it: 1.65 degrees worst.
+        ///
+        /// THE FIX IS NOT "REFRESH MORE EAGERLY", and this test would not accept that: refreshing fully at any
+        /// poleCondW > 0 hands the raw measurement straight back and restores the 179 deg flips that
+        /// BasisArmPoleAnchorTests gates. The anchor is EASED toward the measurement at the measurement's own
+        /// trust weight, so it is a low-pass that converges rather than a switch that snaps.
+        /// </summary>
+        [Test]
+        public void AfterATrackerDropout_TheAnchorRecovers_InsteadOfParkingTheElbowForever()
+        {
+            const float k_Commanded = 35f;      // a legal elbow station -- BasisElbowAnatomyCore stays inert
+            const float k_StraightReach = 1.000f;   // the re-acquisition pose: rho = 0, so the seed is pure noise
+            const float k_HoldReach = 0.990f;   // a relaxed 163.8 deg arm. poleCondW ~0.43 -- NEVER 1.
+            const int k_Seeds = 12;
+            const int k_StraightFrames = 40;
+            const int k_HoldFrames = 300;
+
+            const float k_RecoveredDeg = 5f;    // where the elbow must end up
+            const float k_MustStartWrongDeg = 20f;   // ...having genuinely started wrong. See below.
+
+            // ⚠️ THE STRAIGHT-ARM PHASE CANNOT PUT THE HAND ON ITS TARGET, BY DESIGN, AND THE BOUND IS EXACT.
+            // k_StraightReach asks for the hand at 100% of arm length; MaxElbowAngleDeg caps the elbow at
+            // 170 deg, which spans only armLen * sin(85 deg). The shortfall is armLen * (1 - sin(85 deg)) =
+            // 2.283 mm and is the whole point of that constant ("180 -> 170 deg costs 2.3 MILLIMETRES of
+            // reach, buys 2.61 CENTIMETRES of guaranteed lever arm"). Deriving it here rather than widening
+            // the tolerance keeps this a real assertion: if MaxElbowAngleDeg changes, this tracks it, and a
+            // genuine swivel leak on top of it still fails.
+            float straightBound = k_ArmLen * (1f - Mathf.Sin(0.5f * BasisArmSolveCore.MaxElbowAngleDeg * Mathf.Deg2Rad)) + 1e-4f;
+
+            float worstFinal = 0f, worstInitial = 0f, worstCond = 0f;
+            float worstHandErrHold = 0f, worstHandErrStraight = 0f;
+            var report = new StringBuilder();
+            report.AppendLine();
+            report.AppendLine("  dropout at full extension, then a relaxed arm held still:");
+            report.AppendLine("    seed   error 1 frame after re-acquire   error after 300 frames");
+
+            for (int seed = 0; seed < k_Seeds; seed++)
+            {
+                var rng = new System.Random(seed * 7919 + 13);
+                PoleAnchor anchor = default;     // ⭐ the dropout: no anchor, exactly as the rig leaves it
+                float errFirst = 0f, errLast = 0f;
+
+                for (int f = 0; f < k_StraightFrames + k_HoldFrames; f++)
+                {
+                    float reach = f < k_StraightFrames ? k_StraightReach : k_HoldReach;
+                    Vector3 target = k_Shoulder + k_ReachDir * (reach * k_ArmLen);
+
+                    // The hint the LIVE RIG SENDS: the calibrated joint centre, stand-off 0, plus puck noise.
+                    Vector3 puck = ElbowOnCircle(target, k_Commanded) + TrackerNoise(rng, 0.001f, 0f, 0f);
+
+                    BasisArmSolveInput input = TrackerInput(ElbowOnCircle(target, k_Commanded + 180f), target, puck);
+                    input.HintRotation = StrappedTrackerRotation(target, k_Commanded);
+                    anchor.Apply(ref input);
+                    BasisArmSolveCore.Solve(input, out BasisArmSolveResult r);
+                    anchor.Store(r);
+
+                    float handErr = Vector3.Distance(r.HandSolved, target);
+
+                    if (f < k_StraightFrames)
+                    {
+                        worstHandErrStraight = Mathf.Max(worstHandErrStraight, handErr);
+                    }
+                    else
+                    {
+                        worstHandErrHold = Mathf.Max(worstHandErrHold, handErr);
+                    }
+
+                    if (f >= k_StraightFrames)
+                    {
+                        worstCond = Mathf.Max(worstCond, r.PoleConditioning);
+                        float err = DeltaDeg(SwivelDeg(r.HandSolved, r.ElbowSolved), k_Commanded);
+                        if (f == k_StraightFrames + 1) errFirst = err;
+                        if (f == k_StraightFrames + k_HoldFrames - 1) errLast = err;
+                    }
+                }
+
+                worstFinal = Mathf.Max(worstFinal, errLast);
+                worstInitial = Mathf.Max(worstInitial, errFirst);
+                report.AppendLine($"    {seed,4}   {errFirst,26:F2} deg   {errLast,18:F2} deg");
+            }
+
+            TestContext.WriteLine(report.ToString());
+
+            // ── ANTI-TAUTOLOGY 1. The scenario has to actually produce a bad anchor. If the noisy seed
+            // happens to land near the truth on every seed, "the elbow recovered" is measuring nothing --
+            // it never had anything to recover from.
+            Assert.Greater(worstInitial, k_MustStartWrongDeg,
+                $"ANTI-TAUTOLOGY: the worst elbow error immediately after re-acquisition was only " +
+                $"{worstInitial:F2} deg across {k_Seeds} noise seeds. The seed is supposed to be taken from a " +
+                "noise-length ahProj at full extension and therefore be badly wrong; if it is not, this test never " +
+                "creates the defect it claims to fix and its pass is worthless.");
+
+            // ── ANTI-TAUTOLOGY 2. The recovery must come from the GRADED refresh, not from the pre-existing
+            // full refresh. If the hold ever reached poleCondW = 1, the old code would have re-seeded too and
+            // this test would pass on a mechanism it is not written for.
+            Assert.Less(worstCond, 1f,
+                $"ANTI-TAUTOLOGY: the hold reached poleCondW = {worstCond:F3}. At 1.0 the ORIGINAL full-refresh " +
+                "branch fires and the anchor is replaced outright, so the recovery below would prove nothing about " +
+                "the graded refresh. Straighten k_HoldReach until the conditioning stays under 1.");
+
+            // ── the structural invariant, cheap and always worth pinning. Once the hand is genuinely IN
+            // reach, every swivel here is about the shoulder->hand axis and the hand lies on it, so any
+            // error at all is a named-axis swivel having been replaced by a FromToRotation again.
+            Assert.Less(worstHandErrHold, 2e-3f,
+                $"the hand came {worstHandErrHold * 1000f:F2} mm off its target during the hold, where it is " +
+                "comfortably in reach. Every swivel here is about the shoulder->hand axis and the hand lies on " +
+                "that axis, so this is structurally impossible.");
+            Assert.Less(worstHandErrStraight, straightBound,
+                $"during the straight-arm phase the hand fell {worstHandErrStraight * 1000f:F3} mm short, past the " +
+                $"{straightBound * 1000f:F3} mm that MaxElbowAngleDeg = {BasisArmSolveCore.MaxElbowAngleDeg:F0} costs " +
+                "on its own. That constant's shortfall is deliberate; anything beyond it is a swivel moving the hand.");
+
+            // ── THE GATE.
+            Assert.Less(worstFinal, k_RecoveredDeg,
+                $"THE ELBOW PARKED. After {k_HoldFrames} frames of holding a {2f * Mathf.Asin(k_HoldReach) * Mathf.Rad2Deg:F1} " +
+                $"deg arm perfectly still, it was still {worstFinal:F2} deg off the pole its own tracker was " +
+                $"commanding (worst of {k_Seeds} noise seeds; it started {worstInitial:F2} deg off).\n" +
+                "The pole anchor is seeded on re-acquisition REGARDLESS of conditioning -- so a tracker recovered " +
+                "while the arm is straight is calibrated from a noise-length vector -- and if it is then only ever " +
+                "refreshed at poleCondW >= 1 (an elbow angle of 152.2 deg) it is never corrected, because a relaxed " +
+                "arm sits at 170-175 deg and never gets there.\n" +
+                "⚠️ DO NOT FIX THIS BY REFRESHING AT ANY poleCondW > 0. That hands the raw measurement back every " +
+                "frame and is exactly the 179 deg flip BasisArmPoleAnchorTests gates. The anchor must EASE toward " +
+                "the measurement at the measurement's own weight.");
         }
 
         // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -789,9 +1031,10 @@ namespace Basis.Tests.IK
             var sb = new StringBuilder();
             sb.AppendLine();
             sb.AppendLine("  ══ WHAT BasisArmSolveCore GRANTS A TRACKER (HintIsTracker = true) ══");
-            sb.AppendLine($"  arm {k_ArmLen:F2} m, pole epsilon = {k_PoleEpsFrac:F4} * armLen = {k_PoleEpsFrac * k_ArmLen * 1000f:F1} mm");
+            sb.AppendLine($"  arm {k_ArmLen:F2} m, LIVE pole admission = {k_LivePoleEpsMetres * 1000f:F1} mm (absolute); " +
+                          $"the HISTORIC fractional gate stood at {k_HistoricPoleEpsFrac * k_ArmLen * 1000f:F1} mm");
             sb.AppendLine();
-            sb.AppendLine("  standOff  reach     elbowR    poleR     fade    applied   elbow off pole   swivel gain");
+            sb.AppendLine("  standOff  reach     elbowR    poleR     cond    applied   elbow off pole   swivel gain");
             sb.AppendLine("  --------  ------    ------    ------    ----    -------   --------------   -----------");
 
             foreach (float standOff in k_StandOffs)
@@ -819,7 +1062,7 @@ namespace Basis.Tests.IK
 
                     sb.AppendLine(
                         $"  {standOff * 100f,5:F0} cm  {reach,6:P1}   {elbowR * 1000f,6:F1}mm  {r.HintProjMag * 1000f,6:F1}mm  " +
-                        $"{r.HintFade,5:F2}   {(r.HintApplied ? "  yes  " : "  NO   "),-7}   {off,10:F1} deg   {gain,7:F2} deg/mm");
+                        $"{r.PoleConditioning,5:F2}   {(r.HintApplied ? "  yes  " : "  NO   "),-7}   {off,10:F1} deg   {gain,7:F2} deg/mm");
                 }
                 sb.AppendLine();
             }

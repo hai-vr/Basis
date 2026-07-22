@@ -82,6 +82,14 @@ namespace Basis.Scripts.UI
         public BasisCursorType ActiveCursorType = BasisCursorType.Default;
         public Renderer ReticleRenderer;
 
+        public BasisUIToolkitPanel HitToolkitPanel;
+        public bool HadToolkitPanelTarget = false;
+        public Vector2 ToolkitPanelPosition;
+        public Vector3 ToolkitSurfacePoint;
+        public readonly BasisUIToolkitPointer ToolkitPointer = new BasisUIToolkitPointer();
+        private struct ToolkitPanelCacheEntry { public BasisUIToolkitPanel Panel; public int Frame; }
+        private readonly Dictionary<Transform, ToolkitPanelCacheEntry> _toolkitPanelCache = new Dictionary<Transform, ToolkitPanelCacheEntry>();
+
         public void Initialize(BasisInput basisInput, BasisPointRaycaster pointRaycaster)
         {
 
@@ -193,6 +201,8 @@ namespace Basis.Scripts.UI
             SortedGraphics.Clear();
             SortedRays.Clear();
             HadRaycastUITarget = false;
+            HadToolkitPanelTarget = false;
+            HitToolkitPanel = null;
 
             int hitCount = BasisPointRaycaster.PhysicHitCount;
             if (hitCount == 0)
@@ -249,22 +259,38 @@ namespace Basis.Scripts.UI
                 }
 
                 GetActiveCanvases(candidateTransform, Results);
-                if (Results.Count == 0)
+                if (Results.Count != 0)
                 {
-                    continue;
+                    SortedGraphics.Clear();
+                    SortedRays.Clear();
+                    PhysicHit = hits[hitIndex];
+                    DidPhysicHit = true;
+                    HitCollider = PhysicHit.collider;
+
+                    if (RaycastToUI())
+                    {
+                        HadRaycastUITarget = true;
+                        HandleDidHit();
+                        return;
+                    }
                 }
 
-                SortedGraphics.Clear();
-                SortedRays.Clear();
-                PhysicHit = hits[hitIndex];
-                DidPhysicHit = true;
-                HitCollider = PhysicHit.collider;
-
-                if (RaycastToUI())
+                // UI Toolkit panels are invisible to the canvas walk above: they have no Graphic
+                // and no entry in GraphicRegistry. They carry their own collider, so they arrive
+                // here as an ordinary physics hit and inherit the OverlayUI/distance ordering.
+                BasisUIToolkitPanel toolkitPanel = GetToolkitPanel(candidateTransform);
+                if (toolkitPanel != null)
                 {
-                    HadRaycastUITarget = true;
-                    HandleDidHit();
-                    return;
+                    PhysicHit = hits[hitIndex];
+                    DidPhysicHit = true;
+                    HitCollider = PhysicHit.collider;
+
+                    if (RaycastToToolkitPanel(toolkitPanel))
+                    {
+                        HadToolkitPanelTarget = true;
+                        HandleDidHit();
+                        return;
+                    }
                 }
             }
 
@@ -294,6 +320,42 @@ namespace Basis.Scripts.UI
                     output.Add(c);
                 }
             }
+        }
+
+        private BasisUIToolkitPanel GetToolkitPanel(Transform root)
+        {
+            int frame = Time.frameCount;
+            if (!_toolkitPanelCache.TryGetValue(root, out ToolkitPanelCacheEntry entry) || frame - entry.Frame >= CanvasCacheRevalidateFrames)
+            {
+                entry.Panel = root.GetComponentInParent<BasisUIToolkitPanel>(true);
+                entry.Frame = frame;
+                _toolkitPanelCache[root] = entry;
+            }
+
+            BasisUIToolkitPanel panel = entry.Panel;
+            if (panel == null || !panel.isActiveAndEnabled)
+            {
+                return null;
+            }
+            return panel;
+        }
+
+        private bool RaycastToToolkitPanel(BasisUIToolkitPanel panel)
+        {
+            if (!panel.TryGetPanelPosition(BasisPointRaycaster.ray, true, out Vector2 panelPosition, out Vector3 worldPosition, out float distance))
+            {
+                return false;
+            }
+
+            if (distance > BasisPointRaycaster.EffectiveMaxDistance)
+            {
+                return false;
+            }
+
+            HitToolkitPanel = panel;
+            ToolkitPanelPosition = panelPosition;
+            ToolkitSurfacePoint = worldPosition;
+            return true;
         }
 
         private static int CompareUiHitOrder(int[] layers, RaycastHit[] hits, int leftIndex, int rightIndex)
@@ -376,6 +438,16 @@ namespace Basis.Scripts.UI
         bool ContainsLayer(LayerMask mask, int layer)
         {
             return (mask.value & (1 << layer)) != 0;
+        }
+
+        public static bool IsUILayer(int layer)
+        {
+            // Panels can enable before any raycaster has initialised the shared mask.
+            if (UILayers.value == 0)
+            {
+                UILayers = LayerMask.GetMask("UI", "OverlayUI");
+            }
+            return (UILayers.value & (1 << layer)) != 0;
         }
 
         private void HandleDidHit()
@@ -502,6 +574,12 @@ namespace Basis.Scripts.UI
         /// </summary>
         private Vector3 GetVisualSurfacePoint()
         {
+            // Panel hits already resolve on the panel plane, not the collider face.
+            if (HadToolkitPanelTarget && HitToolkitPanel != null)
+            {
+                return ToolkitSurfacePoint;
+            }
+
             Vector3 point = PhysicHit.point;
             if (FoundCanvas == null)
             {
@@ -551,7 +629,11 @@ namespace Basis.Scripts.UI
             BasisCursorType newType = BasisCursorType.Default;
             Texture2D customTex = null;
 
-            if (SortedGraphics.Count > 0 && SortedGraphics[0].graphic != null)
+            if (HadToolkitPanelTarget)
+            {
+                newType = BasisCursorType.Pointer;
+            }
+            else if (SortedGraphics.Count > 0 && SortedGraphics[0].graphic != null)
             {
                 var graphic = SortedGraphics[0].graphic;
                 if (graphic.TryGetComponent(out BasisCursorHint hint))

@@ -1424,8 +1424,20 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKSpineAnatomicalRom = new("fbikspineanatomicalrom_v3", new BasisPlatformDefault<bool>(true));
         // The chest becomes a real (secondary) IK target instead of a free FK consequence of the head
         // solve. Placed by the lower spine, with the head restored by the upper joints so it is never
-        // traded away. ON by default; the clear win is chest-tracker users, marginal-but-harmless without.
-        public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget_v2", new BasisPlatformDefault<bool>(false));
+        // traded away.
+        // ON by default. Measured: pooled spine 0.471 vs 2.181 cm and UpperChest/Neck 3.2x better with a
+        // chest tracker; chest POSITION goes 3.23 -> 0.29 cm. Without a chest tracker it is marginal but
+        // harmless.
+        // ⚠ HISTORY, so this is not "fixed" back and forth a third time: it was ON, the _v2 rename shipped it
+        // false, and it stayed false because in-headset it CRANED THE NECK -- having passed every position
+        // test first. That is the precedent that makes a corpus number alone insufficient here. It is being
+        // re-enabled now because the head CCD's drag on a tracked chest was separately root-caused and fixed
+        // (ReassertTrackedChest, 0.402 -> 0.125 deg per deg of gaze), which is the most likely cause of the
+        // craning. If the neck cranes again in a headset, THAT is the finding -- turn this off and say so,
+        // rather than compensating for it somewhere downstream.
+        // Key bumped _v2 -> _v3 because a value-only change cannot reach installs that already ran the build
+        // which pinned false on disk -- exactly why FBIKSpineAnatomicalRom above is _v3.
+        public static BasisSettingsBinding<bool> FBIKChestIKTarget = new("fbikchestiktarget_v3", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKLegSwivelSmoothing = new("fbiklegswivelsmoothing", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKTrackerBendNormal = new("fbiktrackerbendnormal", new BasisPlatformDefault<bool>(true));
 

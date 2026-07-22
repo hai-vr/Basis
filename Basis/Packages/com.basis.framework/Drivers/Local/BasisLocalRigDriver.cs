@@ -218,6 +218,7 @@ namespace Basis.Scripts.Drivers
             PlayableGraph = animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(EngineDrivenAnimatorEvaluate ? DirectorUpdateMode.GameTime : DirectorUpdateMode.Manual);
 
+            LocomotionPose.CompleteIfPending();
             PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
             IKJob.Create(PoseSkeleton, basisTransformMapping);

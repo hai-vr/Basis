@@ -36,7 +36,9 @@ namespace Basis.Scripts.Drivers
         {
             int samples = ClipSampleCount[clip];
             float length = ClipLength[clip];
-            float x = math.clamp(time / length, 0f, 1f) * (samples - 1);
+            float u = time / length;
+            u = math.select(math.clamp(u, 0f, 1f), 0f, math.isnan(u));
+            float x = u * (samples - 1);
             a = (int)math.floor(x);
             b = math.min(a + 1, samples - 1);
             t = x - a;
@@ -49,7 +51,14 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
-            for (int node = 0; node < NodeCount; node++)
+            int nodes = NodeCount;
+            nodes = math.min(nodes, RestPositions.Length);
+            nodes = math.min(nodes, SnapshotScales.Length);
+            nodes = math.min(nodes, OutLocalPosition.Length);
+            nodes = math.min(nodes, OutLocalRotation.Length);
+            nodes = math.min(nodes, OutLocalScale.Length);
+
+            for (int node = 0; node < nodes; node++)
             {
                 float4 accumulated = float4.zero;
                 float4 reference = float4.zero;
@@ -92,7 +101,7 @@ namespace Basis.Scripts.Drivers
                 hips += contribution.Weight * math.lerp(HipsPositions[hipsBase + a], HipsPositions[hipsBase + b], t);
                 totalWeight += contribution.Weight;
             }
-            if (totalWeight > 1e-6f)
+            if (totalWeight > 1e-6f && (uint)HipsNode < (uint)OutLocalPosition.Length)
             {
                 OutLocalPosition[HipsNode] = hips / totalWeight;
             }

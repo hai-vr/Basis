@@ -145,6 +145,13 @@ namespace Basis.IK
                 return;
             }
 
+            int simCount = simStates.Length;
+            if (!HasWiredSlot(head, simCount) || !HasWiredSlot(neck, simCount) || !HasWiredSlot(chest, simCount)
+                || !HasWiredSlot(spine, simCount) || !HasWiredSlot(hips, simCount))
+            {
+                return;
+            }
+
             Matrix4x4 parentMatrix = BasisLocalPlayer.localToWorldMatrix;
 
             float torsoYawDeadzoneDeg = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawDeadzoneDeg.RawValue;
@@ -230,6 +237,11 @@ namespace Basis.IK
                 IdxSpine = spine.Index,
                 IdxHips = hips.Index,
             }.Run();
+        }
+
+        private static bool HasWiredSlot(BasisLocalBoneControl c, int count)
+        {
+            return c != null && c.Owner != null && (uint)c.Index < (uint)count;
         }
 
         private static float3 ResolveTargetPos(BasisLocalBoneControl c)

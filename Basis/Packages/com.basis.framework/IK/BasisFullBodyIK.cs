@@ -189,12 +189,24 @@ collisionsEnabled;
         /// BasisElbowProtectInput.PrevSwivelDeg, which is what lets the protect search the whole swivel
         /// circle without hopping between disconnected feasible arcs.</summary>
         public NativeArray<float> swingSwivelDeg;
+        /// <summary>Which side of its circle the elbow anatomy guard chose last frame, per arm. The guard's
+        /// branch cut is IRREDUCIBLE -- identity-on-legal plus enforcement forces either a jump or unbounded
+        /// gain, whatever the inputs -- but the BUZZ is not: `s` at the top of the circle is noise, so the
+        /// branch re-decided 92-110 times per 200 frames and dragged the elbow through 4-38 METRES of path
+        /// for an input standing still. Hysteresis makes the flip points differ by direction of travel, so
+        /// no azimuth re-decides: 0-1 flips. 0 = no history, which declines to the shipped behaviour.</summary>
+        public NativeArray<int> swingGuardSide;
         // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
         // Per-arm gain-cap state (BasisElbowSwingCapCore): last frame's capped bend + shoulder->hand axis,
         // and an init flag reset whenever the no-tracker model did not drive the elbow (so it re-seeds).
         public NativeArray<Vector3> swingHintBend;
         public NativeArray<Vector3> swingHintAxis;
+        /// <summary>Last frame's reach (|hand - shoulder| / armLength) per arm -- the RADIAL half of the hand's
+        /// motion, which swingHintAxis throws away when it normalises. Without it the swing cap's budget is
+        /// structurally zero for a straight-line reach: a punch rotates the axis by exactly 0, so the cap
+        /// froze the bend while the field genuinely moved. See BasisElbowSwingCapCore.</summary>
+        public NativeArray<float> swingHintReach;
         /// <summary>Last DRAGGED pole per arm — the drag's own state, deliberately not the cap's. See SolveHand.</summary>
         public NativeArray<Vector3> swingHintDrag;
         /// <summary>Body (hips) rotation when swingHintDrag was stored, so a pure turn can be carried out of
@@ -224,10 +236,34 @@ collisionsEnabled;
         public bool shoulderSolveEnabled;
         public bool shoulderShrugEnabled;
         public bool shoulderRetractionEnabled;
+        /// <summary>Scapulohumeral rhythm: clavicular elevation + retraction as a function of humeral
+        /// elevation and plane of elevation. Ships FALSE, unlike Shrug and Retraction which ship on --
+        /// CMU carries no clavicle motion at all (RightShoulder channel range is 0/0/0 in every clip) so
+        /// the corpus cannot validate it, it is headset-unverified, and it perturbs the humeral twist
+        /// guard's segmented firing-rate calibration by up to ~15.8 deg at the extremes. Re-run that audit
+        /// with this ON before flipping the default. Inert and bit-identical while false.</summary>
+        public bool shoulderRhythmEnabled;
         // T-pose baked reference data for shoulder solve
+        /// <summary>Bind data for BasisArmSolveCore's humeral twist guard. RefAxis is baked per rig rather
+        /// than hardcoded: a fixed world axis is parallel to the bone on some rigs, which would silently
+        /// decline the guard instead of failing loudly.</summary>
+        public Quaternion TposeLeftUpperArmRot, TposeRightUpperArmRot;
+        /// <summary>Bind world rotation of the LOWER ARM. Defines zero pronation as the rig's own
+        /// forearm-vs-humerus relationship, so the forearm's axial roll stops being inherited 1:1 from
+        /// whichever idle clip happens to be playing. See BasisArmSolveCore's forearm-roll note.</summary>
+        public Quaternion TposeLeftLowerArmRot, TposeRightLowerArmRot;
+        public Vector3 TposeLeftHumerusDir, TposeRightHumerusDir;
+        public Vector3 TposeLeftHumerusRefAxis, TposeRightHumerusRefAxis;
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
         public Quaternion TposeChestRot;
+        /// <summary>ROOT-RELATIVE bind of the same bone TposeChestRot is baked from, so BasisShoulderSolveCore
+        /// can build its girdle frame anatomically instead of reading the chest BONE's local axes as
+        /// lateral/up/forward. Derived from TposeChestRot so it can never drift to a different bone than the
+        /// live rotation. Root-relative and not the raw world bind: a world bind leaves the anatomical axes
+        /// tilted by whatever yaw the AnimatorRoot happened to have at capture -- the same trap
+        /// BasisCalibrationDebugCsvWindow already warns about for the head offset. Zero declines.</summary>
+        public Quaternion TposeChestBind;
         public float TposeShoulderToHandLeft, TposeShoulderToHandRight;
         public float TposeClavicleLenLeft, TposeClavicleLenRight;
         public float TposeShoulderToElbowLeft, TposeShoulderToElbowRight;
@@ -1335,7 +1371,16 @@ collisionsEnabled;
                 return;
             }
 
-            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            // ==========================================================================================
+            // ⚠️ BIND-CANCELLED HIPS FRAME (hipsRot * inv(bind)), NOT THE RAW HIPS BONE. This was the last
+            // stage in this file still measuring and applying about the bone's own axes -- DistributeSpineBend,
+            // ApplyArmSwingChestFollow and ApplyCervicalLordosis were all fixed for exactly this and it was
+            // missed. Measured against the live BasisTwistSolveCore on an X-90 (Blender bone-Y-up) hips bind:
+            // a real 60 deg chest TWIST reported 0.0 deg and a real 60 deg lateral LEAN reported -60.0 deg,
+            // with the counter-yaw then applied about the body's fore-aft axis -- i.e. as a shoulder ROLL,
+            // one shoulder up and one down, on a user who merely leaned. No-op at an identity bind.
+            // ==========================================================================================
+            Quaternion hipsRot = HandleHips.GetRotation(stream) * Quaternion.Inverse(offsetRotationHips);
             Quaternion chestRot = HandleChest.GetRotation(stream);
             Quaternion chestLocal = Quaternion.Inverse(hipsRot) * chestRot;
             // The chest's AXIAL twist about the spine (hips-up), by swing-twist -- NOT eulerAngles.y, which
@@ -1477,8 +1522,34 @@ collisionsEnabled;
             input.ElbowPos = hintPosProp;
             input.HasElbow = hintWeightProp;
             input.HasShoulderTracker = hasShoulderTrackerProp;
-            input.ChestRot = HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream) : Quaternion.identity;
+            // ==========================================================================================
+            // ⭐ THE CLAVICLE'S PARENT IS THE UPPERCHEST, NOT THE CHEST -- AND THIS WRITES A WORLD ROTATION.
+            //
+            // BasisShoulderSolveCore builds `ChestRot * girdle * shoulderRestLocal` and the result is
+            // applied with SetRotation, i.e. SetWorldRotation: the parent chain is DISCARDED and the
+            // clavicle is pinned outright to whatever frame is handed in here. So handing it the Chest
+            // while the bone actually hangs off the UpperChest leaves an error equal to the
+            // UpperChest-vs-Chest delta from bind -- and by the time this runs, SolveSpine has already
+            // written the UpperChest TWICE, independently of the Chest: DistributeSpineBend (pitch 0.25 /
+            // roll 0.20, plus 0.75x of the routed axial twist when anatPelvicTwistRouting is on, which is
+            // the default) and ApplyArmSwingChestFollow (0.4 of a delta capped at 15 deg/axis).
+            //
+            // Measured from the shipped constants: ~11 deg on a 45 deg forward fold, +6 deg from the arm
+            // swing, and up to 0.75x the torso twist -- about 30 deg on a 40 deg rotation.
+            //
+            // ⭐⭐ AND IT PUT THE SHOULDER SOLVE AND THE ELBOW MODEL IN DIFFERENT FRAMES. BuildArmFrame,
+            // which feeds BasisElbowFieldModel and the anatomy guard's TorsoUp, is built from POSITIONS
+            // including the neck, so it follows the UpperChest correctly. The two disagreed about where
+            // the torso was on every frame the user twisted, which is exactly when the arm root is most
+            // wrong. TposeChestRot is baked from the same bone (see the bake site) so the delta stays a
+            // pure since-bind rotation; taking the live rotation from one bone and the bind from another
+            // would be worse than either choice alone.
+            // ==========================================================================================
+            input.ChestRot = HandleUpperChest.IsValid(stream) ? HandleUpperChest.GetRotation(stream)
+                           : HandleChest.IsValid(stream) ? HandleChest.GetRotation(stream)
+                           : Quaternion.identity;
             input.TposeChestRot = tposeChestRot;
+            input.ChestBind = TposeChestBind;
             input.TposeShoulderRot = tposeShoulderRot;
             input.TposeArmDirWorld = tposeArmDir;
             input.TposeArmLength = tposeArmLength;
@@ -1486,6 +1557,7 @@ collisionsEnabled;
             input.TposeElbowLength = tposeElbowLen;
             input.ShrugEnabled = shoulderShrugEnabled;
             input.RetractEnabled = shoulderRetractionEnabled;
+            input.RhythmEnabled = shoulderRhythmEnabled;
             input.ElevationFactor = shoulderElevationFactor;
             input.ProtractionFactor = shoulderProtractionFactor;
             input.CoupleRatio = k_ShoulderCoupleRatio;
@@ -1498,6 +1570,37 @@ collisionsEnabled;
             {
                 shoulderHandle.SetRotation(stream, result.ShoulderRotation);
             }
+        }
+        /// <summary>
+        /// Bind inputs for the humeral twist guard. The reference axis is chosen PER RIG, perpendicular to
+        /// the bone in its own local frame: a hardcoded world axis lands parallel to the humerus on rigs
+        /// whose arm points down its local -Y, and the guard would then decline silently rather than fail
+        /// loudly. Zero outputs mean decline, which keeps every existing caller bit-identical.
+        /// </summary>
+        static void BakeHumerusTwistBind(Transform upperArm, Transform lowerArm,
+            out Quaternion bindRot, out Vector3 bindDir, out Vector3 refAxis)
+        {
+            bindRot = Quaternion.identity;
+            bindDir = Vector3.zero;
+            refAxis = Vector3.zero;
+            if (upperArm == null || lowerArm == null)
+            {
+                return;
+            }
+
+            Vector3 dir = lowerArm.position - upperArm.position;
+            if (dir.sqrMagnitude < k_SqrEpsilon)
+            {
+                return;
+            }
+
+            bindRot = upperArm.rotation;
+            bindDir = dir.normalized;
+
+            Vector3 localBone = Quaternion.Inverse(bindRot) * bindDir;
+            Vector3 refLocal = Mathf.Abs(localBone.y) < 0.9f ? Vector3.up : Vector3.forward;
+            Vector3 perp = refLocal - localBone * Vector3.Dot(refLocal, localBone);
+            refAxis = perp.sqrMagnitude > k_SqrEpsilon ? perp.normalized : Vector3.zero;
         }
         public static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
@@ -1653,7 +1756,7 @@ collisionsEnabled;
                 handle.SetRotation(stream, targetRotProp * RotationOffset);
             }
         }
-        public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot = -1)
+        public void SolveTwoBoneIKArms(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot = -1, Vector3 bodyRight = default)
         {
             // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
             // exact same elbow math. The core returns incremental deltas; apply them through
@@ -1697,6 +1800,26 @@ collisionsEnabled;
             // the model path, whose hint rotation is just the stale property value.
             input.HintRotation = hintIsTracker ? hint.rotation : default;
 
+            // Humeral twist guard bind + live clavicle. Handedness from the swing slot, exactly as SolveHand
+            // derives it. Anything unavailable is left at zero, which declines the guard.
+            if (swingSlot == k_SwingLeftElbow || swingSlot == k_SwingRightElbow)
+            {
+                bool twistIsLeft = swingSlot == k_SwingLeftElbow;
+                // Lateral OUT seeds the cold start; the previous frame's side is what actually kills the buzz.
+                input.ElbowLateralOut = twistIsLeft ? -bodyRight : bodyRight;
+                if (swingGuardSide.IsCreated) input.PrevGuardSide = swingGuardSide[swingSlot];
+                input.BindLowerArmRotation = twistIsLeft ? TposeLeftLowerArmRot : TposeRightLowerArmRot;
+                BasisBoneHandle clavicle = twistIsLeft ? HandleLeftShoulder : HandleRightShoulder;
+                if (clavicle.IsValid(stream))
+                {
+                    input.ClavicleRotation = clavicle.GetRotation(stream);
+                    input.BindClavicleRotation = twistIsLeft ? TposeLeftShoulderRot : TposeRightShoulderRot;
+                    input.BindHumerusRotation = twistIsLeft ? TposeLeftUpperArmRot : TposeRightUpperArmRot;
+                    input.BindHumerusDir = twistIsLeft ? TposeLeftHumerusDir : TposeRightHumerusDir;
+                    input.BindHumerusRefAxis = twistIsLeft ? TposeLeftHumerusRefAxis : TposeRightHumerusRefAxis;
+                }
+            }
+
             bool anchorSlot = hintIsTracker && (uint)swingSlot < (uint)k_SwingCount
                               && swingPoleAnchor.IsCreated && swingPoleAnchorRot.IsCreated && swingPoleAnchorInit.IsCreated;
             if (anchorSlot && swingPoleAnchorInit[swingSlot] != 0)
@@ -1707,6 +1830,11 @@ collisionsEnabled;
             }
 
             BasisArmSolveCore.Solve(input, out BasisArmSolveResult result);
+
+            if (swingGuardSide.IsCreated && (uint)swingSlot < (uint)k_SwingCount)
+            {
+                swingGuardSide[swingSlot] = result.GuardSideUsed;
+            }
 
             if (anchorSlot)
             {
@@ -1848,6 +1976,58 @@ collisionsEnabled;
             float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
             float penetration = (rSum - d);
             return normal * penetration;
+        }
+        // ==============================================================================================
+        // ⚠️ BasisArmSolveCore's anatomy guard says "there is no path by which the arm can end a frame
+        // outside the envelope, because this is the end of the frame." IT IS NOT THE END OF THE FRAME.
+        // The elbow protect and the swing limiter both re-swivel the elbow about the SAME shoulder->hand
+        // axis afterwards, and the protect's objective is clearance minus a swing preference minus a
+        // temporal anchor -- there is NO anatomy term in it at all, and its flip-commit can drive the
+        // elbow to outDir outright.
+        //
+        // Measured as the illegal fraction of the elbow's full circle, using the live GuardSwivelRad:
+        // cross-body at chest height 150.5 deg of 360 (41.8%); hand at the opposite shoulder 133.5 deg
+        // (37.1%), where a representative outDir is ITSELF illegal; hand at chin 98.5 deg (27.4%). Those
+        // are exactly the poses the torso collider is active for, so "the elbow points at the sky"
+        // survived precisely where the guard was supposed to own it.
+        //
+        // Re-running the guard costs nothing when the pose is already legal: GuardSwivelRad returns an
+        // exact 0f inside the envelope and this early-outs. It is a swivel about shoulder->hand, and the
+        // hand LIES on that axis, so it cannot move the hand the protect just preserved.
+        // ==============================================================================================
+        void ReGuardElbowAnatomy(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip)
+        {
+            if (!root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
+            {
+                return;
+            }
+
+            Vector3 a = root.GetPosition(stream);
+            Vector3 b = mid.GetPosition(stream);
+            Vector3 c = tip.GetPosition(stream);
+            float totalLen = (b - a).magnitude + (c - b).magnitude;
+            if (totalLen <= k_Epsilon)
+            {
+                return;
+            }
+
+            BasisSwivelFrame torsoFrame = BuildArmFrame(stream);
+            Vector3 guardUp = torsoFrame.Valid ? torsoFrame.Up : playerUp;
+            float guardSwivel = BasisElbowAnatomyCore.GuardSwivelRad(a, b, c, guardUp, totalLen);
+            if (guardSwivel == 0f)
+            {
+                return;
+            }
+
+            Vector3 ac = c - a;
+            if (ac.sqrMagnitude <= k_SqrEpsilon)
+            {
+                return;
+            }
+
+            Quaternion guard = Quaternion.AngleAxis(guardSwivel * Mathf.Rad2Deg, ac.normalized);
+            root.SetRotation(stream, guard * root.GetRotation(stream));
+            mid.SetRotation(stream, guard * mid.GetRotation(stream));
         }
         public static void SwingElbowAroundAC(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 desiredB)
         {
@@ -2413,7 +2593,7 @@ collisionsEnabled;
                 // internally by a fallback at the exact cores (its old fade BAND is gone -- the fade's
                 // antipodal lerp was the "big swings flip drastically" teleport; see the model's header).
                 if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft,
-                                                out Vector3 modelHint, out _, useNeuralPole))
+                                                out Vector3 modelHint, out float poleConditioning, useNeuralPole))
                 {
                     // GAIN-CAP the model bend against the hand's own rotation. The bend field has
                     // topologically-required cores (BasisElbowFieldModel's down-and-back one is the
@@ -2433,12 +2613,23 @@ collisionsEnabled;
                         Vector3 curAxis = curAxisV / axLen;
                         Vector3 rawBend = rawBendV / rbLen;
                         bool seeded = swingHintInit[swingSlot] != 0;
+                        // The cap budgets the hand's ROTATION and its RADIAL travel separately. A straight punch
+                        // rotates the axis by exactly zero, so on the rotation term alone the budget is zero and
+                        // the bend freezes while the field -- which is a function of the whole of tipLocal, not
+                        // just its direction -- genuinely moves. Measured cost of the missing term on
+                        // punch/push/point: 21.5-29.8 deg of pole error and 5.0-7.0 cm of elbow error, against a
+                        // field model whose entire budget is 2.07 cm. The conditioning gate is load-bearing:
+                        // radial budget is only safe where the field's radial answer means anything, and both
+                        // conditioning and radial sensitivity go as 1/|perp|, so they collapse together at a core.
+                        float curReach = axLen / armLen;
                         Vector3 cappedBend = seeded
                             ? (Vector3)BasisElbowSwingCapCore.Apply(swingHintBend[swingSlot], swingHintAxis[swingSlot],
-                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain)
+                                                                    curAxis, rawBend, BasisElbowSwingCapCore.MaxGain,
+                                                                    curReach - swingHintReach[swingSlot], poleConditioning)
                             : rawBend;
                         swingHintBend[swingSlot] = cappedBend;
                         swingHintAxis[swingSlot] = curAxis;
+                        swingHintReach[swingSlot] = curReach;
 
                         // DRAG — no-tracker path only, and it keeps its OWN state rather than feeding back into
                         // the cap's. That separation is load-bearing, not tidiness:
@@ -2456,11 +2647,24 @@ collisionsEnabled;
                         // So the cap chases the FIELD from its own last output, exactly as before and
                         // bit-identically whether or not drag is on, and the drag is a pure post-filter on top.
                         // Nothing gates the drag's convergence, so a stopped hand settles onto the field.
-                        // Body frame for the drag. The hips are solved in step 1 and the hands in step 4, so
-                        // this rotation is final by now — the same source SmoothKneeSwivel uses. Identity when
-                        // the hips are unavailable, which degrades to the world-frame behaviour rather than
-                        // fabricating a frame.
-                        Quaternion bodyRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
+                        // ==================================================================================
+                        // ⚠️ THE DRAG MUST CANCEL THE FRAME THE POLE LIVES IN, AND THAT IS THE ARM FRAME --
+                        // NOT THE HIPS. This read HandleHips, copied from SmoothKneeSwivel, which is correct
+                        // for the LEG because BuildLegFrame's frame IS the pelvis. The arm's pole comes from
+                        // BasisSwivelHintCore.ArmHint on BuildArmFrame -- the shoulder line and chest->neck --
+                        // so cancelling the hips left the CHEST-RELATIVE-TO-HIPS rotation entirely uncancelled,
+                        // and the drag read every torso twist as swivel error to be damped. The drag's own
+                        // header gives the cost of exactly that failure: 0.86 cm at 90 deg/s and 2.5 Hz,
+                        // 1.81 cm at 1.25 Hz (the shipped default), 3.57 cm at 180 deg/s -- against a field
+                        // model whose entire error budget is ~2.1 cm. Reads as the elbow "swimming" when you
+                        // turn your upper body with your feet planted.
+                        //
+                        // Falls back to the hips, then to identity, so a degenerate arm frame degrades to the
+                        // previous behaviour rather than fabricating a frame.
+                        // ==================================================================================
+                        Quaternion bodyRot = frame.Valid
+                            ? Quaternion.LookRotation(frame.Forward, frame.Up)
+                            : HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
 
                         Vector3 outBend = cappedBend;
                         if (elbowDragEnabled && seeded)
@@ -2487,7 +2691,7 @@ collisionsEnabled;
             {
                 swingHintInit[swingSlot] = 0;
             }
-            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset, swingSlot);
+            SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset, swingSlot, bodyRight);
             // NO OUTPUT FILTER ON THE MODEL PATH, and that is a measured choice, not an oversight.
             //
             // SmoothElbowSwivel is a One-Euro on the elbow swivel. It existed to fight the LOOKUP's jitter
@@ -2555,6 +2759,7 @@ collisionsEnabled;
                     SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
                     tip.SetPosition(stream, preservedHandPos);
                     tip.SetRotation(stream, preservedHandRot);
+                    ReGuardElbowAnatomy(stream, root, mid, tip);
                 }
                 collisionState = epr.CollisionState;
                 elbowSwivelDeg = epr.Engaged ? epr.ChosenSwivelDeg : float.NaN;
@@ -2690,6 +2895,7 @@ collisionsEnabled;
             shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
             shoulderRetractionEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderRetraction.RawValue;
+            shoulderRhythmEnabled = false;
             shoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
             shoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
@@ -2724,7 +2930,7 @@ collisionsEnabled;
             anatCervicalLordosis = true;
             anatPelvicTwistRouting = true;
             spineAnatomicalRom = true;
-            chestIkTarget = false;
+            chestIkTarget = true;
             legSwivelSmoothing = true;
             lordosisPitchGainDeg = 8f;
             lordosisBaseDeg = 5f;
@@ -2793,7 +2999,22 @@ collisionsEnabled;
             // Baked T-pose data for shoulder solve
             TposeLeftShoulderRot = Mapping.leftShoulder != null ? Mapping.leftShoulder.rotation : Quaternion.identity;
             TposeRightShoulderRot = Mapping.RightShoulder != null ? Mapping.RightShoulder.rotation : Quaternion.identity;
-            TposeChestRot = Mapping.chest != null ? Mapping.chest.rotation : Quaternion.identity;
+            BakeHumerusTwistBind(Mapping.leftUpperArm, Mapping.leftLowerArm,
+                out TposeLeftUpperArmRot, out TposeLeftHumerusDir, out TposeLeftHumerusRefAxis);
+            BakeHumerusTwistBind(Mapping.RightUpperArm, Mapping.RightLowerArm,
+                out TposeRightUpperArmRot, out TposeRightHumerusDir, out TposeRightHumerusRefAxis);
+            TposeLeftLowerArmRot = Mapping.leftLowerArm != null ? Mapping.leftLowerArm.rotation : Quaternion.identity;
+            TposeRightLowerArmRot = Mapping.RightLowerArm != null ? Mapping.RightLowerArm.rotation : Quaternion.identity;
+
+            // Must be the SAME bone SolveShoulder reads live -- the clavicle's actual parent, which is the
+            // UpperChest when the rig has one. Baking the bind from one bone and reading the live rotation
+            // from another turns the girdle frame into a since-bind delta plus a constant offset.
+            TposeChestRot = Mapping.Upperchest != null ? Mapping.Upperchest.rotation
+                          : Mapping.chest != null ? Mapping.chest.rotation
+                          : Quaternion.identity;
+            TposeChestBind = (Mapping.HasAnimatorRoot && Mapping.AnimatorRoot != null
+                ? Quaternion.Inverse(Mapping.AnimatorRoot.rotation)
+                : Quaternion.identity) * TposeChestRot;
             TposeLeftShoulderLocalDir = (Mapping.leftShoulder != null && Mapping.leftUpperArm != null)
                 ? (Mapping.leftUpperArm.position - Mapping.leftShoulder.position).normalized : Vector3.left;
             TposeRightShoulderLocalDir = (Mapping.RightShoulder != null && Mapping.RightUpperArm != null)
@@ -2851,12 +3072,14 @@ collisionsEnabled;
             swingContinuityInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingCollided = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingSwivelDeg = new NativeArray<float>(k_SwingCount, Allocator.Persistent);
+            swingGuardSide = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             // NativeArray zero-inits, and 0 would read as "anchored on the natural pole" rather than
             // "no history" -- which is the exact conflation that measured backwards on the sweep.
             for (int s = 0; s < k_SwingCount; s++) swingSwivelDeg[s] = float.NaN;
             swingSmoothState = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingHintBend = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
+            swingHintReach = new NativeArray<float>(k_SwingCount, Allocator.Persistent);
             swingHintDrag = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintBodyRot = new NativeArray<Quaternion>(k_SwingCount, Allocator.Persistent);
             swingHintInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
@@ -3040,9 +3263,11 @@ collisionsEnabled;
             if (swingContinuityInit.IsCreated) swingContinuityInit.Dispose();
             if (swingCollided.IsCreated) swingCollided.Dispose();
             if (swingSwivelDeg.IsCreated) swingSwivelDeg.Dispose();
+            if (swingGuardSide.IsCreated) swingGuardSide.Dispose();
             if (swingSmoothState.IsCreated) swingSmoothState.Dispose();
             if (swingHintBend.IsCreated) swingHintBend.Dispose();
             if (swingHintAxis.IsCreated) swingHintAxis.Dispose();
+            if (swingHintReach.IsCreated) swingHintReach.Dispose();
             if (swingHintDrag.IsCreated) swingHintDrag.Dispose();
             if (swingHintBodyRot.IsCreated) swingHintBodyRot.Dispose();
             if (swingHintInit.IsCreated) swingHintInit.Dispose();

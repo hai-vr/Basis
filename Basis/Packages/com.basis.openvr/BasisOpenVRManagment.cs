@@ -557,6 +557,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 return;
             }
 
+            if (Mathf.Approximately(scale, XRSettings.eyeTextureResolutionScale))
+            {
+                return;
+            }
+
             XRSettings.eyeTextureResolutionScale = scale;
             BasisDebug.Log($"OpenVR resolution: eye texture scaled {scale:F3}× to {targetMax:F0} (compositor {recommendedMax:F0}, allocation {BasisDynamicResolution.AllocationScale:F2}, was {currentMax:F0})", BasisDebug.LogTag.Device);
         }
