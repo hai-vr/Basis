@@ -59,7 +59,8 @@ namespace Basis.Tests.IK
         static float PostDeg(Vector3 d) => Mathf.Asin(Mathf.Clamp(-d.normalized.z, -1f, 1f)) * Mathf.Rad2Deg;
 
         static BasisShoulderSolveInput Input(float az, float el, float reachFrac, bool hasElbow,
-                                             bool isLeft = false, float protraction = Protraction)
+                                             bool isLeft = false, float protraction = Protraction,
+                                             bool retractEnabled = true)
         {
             Vector3 d = Dir(az, el, isLeft);
             BasisShoulderSolveInput s = default;
@@ -76,6 +77,7 @@ namespace Basis.Tests.IK
             s.TposeClavicleLength = ClavLen;
             s.TposeElbowLength = hasElbow ? ElbowLen : 0f;
             s.ShrugEnabled = false;
+            s.RetractEnabled = retractEnabled;
             s.ElevationFactor = Elevation;
             s.ProtractionFactor = protraction;
             s.CoupleRatio = Couple;
@@ -169,6 +171,25 @@ namespace Basis.Tests.IK
         {
             var r = Solve(Input(90f, 0f, 0.95f, false, false, 0f));
             Assert.That(r.RetractDeg, Is.EqualTo(0f), "Protraction 0 must switch the retraction off outright.");
+        }
+
+        [Test]
+        public void ToggleOff_IsExactlyTheOldGirdle()
+        {
+            // FBIKShoulderRetraction off must restore the pre-term result BIT-FOR-BIT, not merely
+            // something close: the term is the only thing gated by it, so anything else moving means
+            // it leaked into a shared code path. Note the core input defaults RetractEnabled FALSE, so
+            // the offline sweeps and BasisShoulderDirectionTests (both `= default`) never see the term.
+            for (float az = 40f; az <= 120f; az += 20f)
+            foreach (bool elbow in new[] { false, true })
+            {
+                var on = Solve(Input(az, 0f, 0.95f, elbow));
+                var off = Solve(Input(az, 0f, 0.95f, elbow, false, Protraction, retractEnabled: false));
+                Assert.That(off.RetractDeg, Is.EqualTo(0f), $"az={az}: the toggle did not switch the term off.");
+                Assert.That(on.RetractDeg, Is.GreaterThan(0f), $"az={az}: the term was not on to begin with.");
+                Assert.That(Quaternion.Angle(off.ShoulderRotation, on.ShoulderRotation), Is.GreaterThan(1f),
+                    $"az={az}: on and off produced the same girdle — the toggle is not wired to anything.");
+            }
         }
 
         [Test]

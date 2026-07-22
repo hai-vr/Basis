@@ -1328,6 +1328,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKHandSkin = new("fbikhandskin_v2", new BasisPlatformDefault<float>(0.03f));
         public static BasisSettingsBinding<bool> FBIKShoulderSolveEnabled = new("fbikshouldersolveenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKShoulderShrug = new("fbikshouldershrug", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKShoulderRetraction = new("fbikshoulderretraction", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKShoulderElevation = new("fbikshoulderelevation", new BasisPlatformDefault<float>(0.4f));
         public static BasisSettingsBinding<float> FBIKShoulderProtraction = new("fbikshoulderprotraction", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKMaxBendDeg = new("fbikmaxbenddeg", new BasisPlatformDefault<float>(90f));
@@ -2182,6 +2183,7 @@ namespace Basis.BasisUI
             FBIKHandSkin.LoadBindingValue();
             FBIKShoulderSolveEnabled.LoadBindingValue();
             FBIKShoulderShrug.LoadBindingValue();
+            FBIKShoulderRetraction.LoadBindingValue();
             FBIKShoulderElevation.LoadBindingValue();
             FBIKShoulderProtraction.LoadBindingValue();
             FBIKMaxBendDeg.LoadBindingValue();

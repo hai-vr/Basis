@@ -16,12 +16,17 @@ namespace Basis.Tests.IK
     /// sample count, because the feasible arcs are wide (median widest arc 67 deg, only 0.6% narrower
     /// than the old 7.5 deg spacing).
     ///
-    /// ⚠️ THE DOMAIN AND THE SELECTION RULE ONLY WORK AS A PAIR. Full circle with the old "smallest
+    /// THE DOMAIN AND THE SELECTION RULE ONLY WORK AS A PAIR. Full circle with the old "smallest
     /// swing wins" rule is a REGRESSION -- measured over 30 hand slides it popped 145 deg in a single
     /// frame, 25 times, against 54 deg / 4 times for the shipped one-sided sweep -- because a wider
     /// domain makes the feasible set genuinely disconnected and a stateless argmax hops between
-    /// components as they open and close. Anchoring on last frame's answer removes that. Hence the
-    /// PrevSwivelDeg/HasPrevSwivel pair: without the anchor the branch does not run.
+    /// components as they open and close. Anchoring on last frame's answer removes that.
+    ///
+    /// BUT THE DOMAIN AND THE ANCHOR ARE INDEPENDENT KNOBS, AND CONFLATING THEM MEASURED BACKWARDS.
+    /// They were originally one flag, and because an absent anchor defaults to ZERO -- a pull toward the
+    /// natural pole, not a neutral start -- the 354k-point sweep read the cleared fraction going the WRONG
+    /// WAY, 0.3606 -> 0.3552, with mean swing FALLING 12.68 -> 11.70 deg. FullCircle widens the search;
+    /// HasPrevSwivel says an established previous choice exists. Keep them separate.
     ///
     /// So there are two things worth gating, and they pull in opposite directions: the search has to
     /// find MORE (Clears_StrictlyMorePoses_ThanTheOneSidedSweep) and it has to move LESS
@@ -96,7 +101,7 @@ namespace Basis.Tests.IK
             return hands;
         }
 
-        /// <summary>The default struct -- HasPrevSwivel false -- must keep the original one-sided sweep.
+        /// <summary>The default struct -- FullCircle false -- must keep the original one-sided sweep.
         /// BlendUsed is the swivel as a fraction of thetaOut, so the legacy domain is exactly [0, 1];
         /// anything outside it means the full-circle branch ran when it was not asked to.</summary>
         [Test]
@@ -132,8 +137,7 @@ namespace Basis.Tests.IK
                 if (legacy.CollisionState == 1) legacyCleared++;
 
                 BasisElbowProtectInput f = i;
-                f.HasPrevSwivel = true;
-                f.PrevSwivelDeg = 0f;                       // anchored on the natural pole
+                f.FullCircle = true;   // domain only; no history on a single-pose comparison
                 BasisElbowProtectCore.Solve(f, out BasisElbowProtectResult full);
                 if (full.CollisionState == 1) fullCleared++;
                 if (legacy.CollisionState == 2 && full.CollisionState == 1) rescued++;
@@ -167,7 +171,8 @@ namespace Basis.Tests.IK
                         Vector3 h = new Vector3(x, 1.05f + s * 0.0005f, z);
                         if (!Input(h, out BasisElbowProtectInput i)) { have = false; continue; }
 
-                        i.HasPrevSwivel = true;
+                        i.FullCircle = true;
+                        i.HasPrevSwivel = have;
                         i.PrevSwivelDeg = prev;
                         BasisElbowProtectCore.Solve(i, out BasisElbowProtectResult r);
 
@@ -194,6 +199,7 @@ namespace Basis.Tests.IK
         {
             Vector3 farOut = new Vector3(0.50f, 1.38f, 0f);   // arm hanging clear of the torso
             Assert.That(Input(farOut, out BasisElbowProtectInput i), Is.True);
+            i.FullCircle = true;
             i.HasPrevSwivel = true;
             i.PrevSwivelDeg = 90f;                            // a large stale anchor
 
@@ -203,3 +209,4 @@ namespace Basis.Tests.IK
         }
     }
 }
+

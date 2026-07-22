@@ -16,6 +16,7 @@ namespace Basis.IK
         public float TposeClavicleLength;  // rest shoulder->upperArm distance; feeds the shrug's expected-reach geometry
         public float TposeElbowLength;     // rest shoulder->lowerArm distance; 0 (the default) disables the elbow-driven shrug
         public bool ShrugEnabled;          // the user's body-tracking toggle; false (the default) disables the shrug outright
+        public bool RetractEnabled;        // the user's body-tracking toggle; false (the default) disables the posterior retraction outright
         public float ElevationFactor;      // per-axis trim on the lift component of the coupled swing
         public float ProtractionFactor;    // per-axis trim on the horizontal (protraction / cross-body) component
         public float CoupleRatio;          // scapulohumeral coupling: girdle share of the humeral swing
@@ -59,6 +60,17 @@ namespace Basis.IK
         const float k_TrackerRefine = 0.35f;         // with a shoulder tracker, only a gentle anatomical nudge (tracker stays dominant)
         const float k_DepressionShare = 0.25f;       // lowering below bind moves the girdle far less than raising
         const float k_DepressionBand = 0.12f;        // smooth raise/lower crossover, in chest-up units
+
+        // ── ELBOW TRUST ─────────────────────────────────────────────────────────────────────────────
+        // An elbow tracker is only worth believing if it sits about where an elbow can: compare its
+        // distance from the shoulder against the baked upper-arm length and fade the reach gate back in
+        // as that mismatch grows, so a badly placed or drifting tracker stops driving the girdle.
+        // Fraction by which the elbow tracker overshoots the straight-arm reach for the direction it is
+        // ALREADY pointing. Only the FAR side is gated: a shrug can only bring the elbow CLOSER, so the
+        // near side stays untouched and the elbow path still never fades. The band clears the ~19% that
+        // live girdle rotation can legitimately add, since `expected` is cast from the REST clavicle.
+        const float k_ElbowOvershootStartFrac = 0.25f;
+        const float k_ElbowOvershootEndFrac = 0.60f;
 
         // ── SHRUG, mined from the hands (or better, the elbows) ─────────────────────────────────────
         // Hanging at the side, a real shrug lifts the whole girdle: the controller RISES while the arm's
@@ -140,7 +152,33 @@ namespace Basis.IK
             float swingDeg = rv.magnitude * Mathf.Rad2Deg;
 
             float rawReach = handVec.magnitude / (armLen * 1.1f);
-            float reachFade = i.HasElbow ? 1f : ReachEngage(Mathf.Clamp01(rawReach));
+            float reachEngage = ReachEngage(Mathf.Clamp01(rawReach));
+            // Fails OPEN. TposeElbowLength == 0 means the caller did not bake one (its own doc: "0 (the
+            // default) disables the elbow-driven shrug"), i.e. absent -- NOT evidence the tracker is
+            // wrong. Starting from 0 would read "no data" as "maximum doubt" and silently collapse the
+            // whole solve to the hand-path reach gate for every caller that omits it, which is the
+            // offline sweeps and BasisShoulderDirectionTests: they drive the elbow path with
+            // HandTargetPos == ShoulderPos, so rawReach is 0 and the girdle would never move at all.
+            // Trusting by default reproduces the pre-trust `HasElbow ? 1f : ...` exactly, and the live
+            // path is unchanged either way because BasisFullBodyIK always bakes the length.
+            float elbowTrust = 1f;
+            if (i.HasElbow && i.TposeElbowLength > k_Epsilon)
+            {
+                float trustClav = Mathf.Clamp(i.TposeClavicleLength, 0f, i.TposeElbowLength * 0.45f);
+                float trustSeg = Mathf.Max(i.TposeElbowLength - trustClav, k_Epsilon);
+                float trustCr = Vector3.Dot(restDirL, armDirL);
+                float trustRoot = trustClav * trustClav * (trustCr * trustCr - 1f) + trustSeg * trustSeg;
+                float trustExpected = trustClav * trustCr + Mathf.Sqrt(trustRoot > 0f ? trustRoot : 0f);
+                if (trustExpected > k_Epsilon)
+                {
+                    float overshootFrac = (armVec.magnitude - trustExpected) / trustExpected;
+                    if (overshootFrac > 0f)
+                    {
+                        elbowTrust = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_ElbowOvershootStartFrac, k_ElbowOvershootEndFrac, overshootFrac));
+                    }
+                }
+            }
+            float reachFade = i.HasElbow ? Mathf.Lerp(reachEngage, 1f, elbowTrust) : reachEngage;
             float setting = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_SetStartDeg, k_SetFullDeg, swingDeg));
             float engage = setting * reachFade;
 
@@ -199,7 +237,7 @@ namespace Basis.IK
             // toward -Z (backward); the left root points -X, so its retraction is -Y.
             float retractRad = 0f;
             float posterior = -armDirL.z;
-            if (posterior > k_RetractStartDot)
+            if (i.RetractEnabled && posterior > k_RetractStartDot)
             {
                 float back = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(k_RetractStartDot, k_RetractFullDot, posterior));
                 retractRad = k_RetractMaxDeg * Mathf.Deg2Rad * back * Mathf.Max(i.ProtractionFactor, 0f);

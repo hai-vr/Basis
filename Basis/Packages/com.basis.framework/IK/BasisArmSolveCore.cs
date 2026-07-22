@@ -152,6 +152,8 @@ namespace Basis.IK
         // wrong forearm beats an unbounded one.
         public const float TrackerForearmRollMaxDeg = 120f;
 
+        public const float TrackerForearmRollSoftDeg = 90f;
+
         // The measured twist is a principal angle, so +180 and -180 are the SAME hand pose with opposite
         // relief signs. Fade the relief out approaching the seam so both sides meet at zero -- the exact
         // wrap pop BasisElbowFlareCore documents. Real wrists cannot reach here; only mismatch can.
@@ -670,8 +672,10 @@ namespace Basis.IK
                     // Bound, then apply -- in the reject-unless-good shape, because Mathf.Clamp waves NaN
                     // through and a NaN written to a bone persists.
                     float rollAbs = Mathf.Abs(roll);
-                    float rollCap = TrackerForearmRollMaxDeg * Mathf.Deg2Rad;
-                    if (rollAbs > rollCap) rollAbs = rollCap;
+                    rollAbs = BasisJointLimitCore.Saturate(
+                        rollAbs,
+                        TrackerForearmRollSoftDeg * Mathf.Deg2Rad,
+                        TrackerForearmRollMaxDeg * Mathf.Deg2Rad);
                     if (rollAbs > 1e-6f)
                     {
                         float rollSigned = roll < 0f ? -rollAbs : rollAbs;

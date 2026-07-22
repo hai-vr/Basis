@@ -43,6 +43,12 @@ namespace Basis.IK.Debugging
         public Vector3 MaxFrac;
         public Vector3Int Steps;
 
+        /// <summary>Search the WHOLE swivel circle instead of only the natural->outDir arc. A grid sweep has
+        /// no previous frame, so the anchor is the natural pole (PrevSwivelDeg = 0), which measures the pure
+        /// DOMAIN effect with no temporal component -- exactly the comparison the gate wants. Off by default
+        /// so the historical sweep numbers stay reproducible.</summary>
+        public bool FullCircleSearch;
+
         public static BasisElbowProtectSweepConfig Default()
         {
             return new BasisElbowProtectSweepConfig
@@ -286,6 +292,10 @@ namespace Basis.IK.Debugging
         {
             return new BasisElbowProtectInput
             {
+                // FullCircle only. A grid sweep has no previous frame, so HasPrevSwivel stays FALSE --
+                // see its doc comment: a zero-seeded anchor is a pull toward the natural pole, not a
+                // neutral start, and it measures the wrong thing.
+                FullCircle = cfg.FullCircleSearch,
                 HipsPos = new Vector3(0f, cfg.HipsHeight, 0f),
                 SpinePos = new Vector3(0f, cfg.SpineHeight, 0f),
                 ChestPos = new Vector3(0f, cfg.ChestHeight, 0f),

@@ -32,14 +32,23 @@ namespace Basis.IK
         // back to deriving the axis from the shoulder's own offset, so old callers that never set it still work.
         public Vector3 BodyRight;
 
+        /// <summary>Search the WHOLE swivel circle rather than only the natural->outDir arc. False -- the
+        /// struct default -- keeps the original one-sided sweep bit for bit, so every existing caller, test
+        /// and sweep is unchanged.</summary>
+        public bool FullCircle;
+
         /// <summary>Last frame's chosen swivel for this slot, signed degrees about the shoulder->hand axis
         /// measured from the natural pole. Only read when <see cref="HasPrevSwivel"/> is set.</summary>
         public float PrevSwivelDeg;
 
-        /// <summary>Opt in to the FULL-CIRCLE search with temporal nearest-selection. False -- the struct
-        /// default -- keeps the original one-sided natural->outDir sweep, bit for bit, so every existing
-        /// caller, test and sweep is unchanged. See the block on k_FullCircleSearch below for why the domain
-        /// and the selection rule have to change together.</summary>
+        /// <summary>There IS an established previous choice to stay near. ⚠️ THIS IS NOT "the caller has a
+        /// slot to store one in" -- it must be false on the first engaging frame and after any disengage,
+        /// because an anchor seeded at zero is not neutral, it is a PULL TOWARD THE NATURAL POLE. At
+        /// k_TemporalAnchorPerDeg a 90 deg swing would be priced at 45 mm of clearance, more than a swing
+        /// can ever buy, so a zero-seeded anchor suppresses exactly the large swings the full circle exists
+        /// to reach. Measured on the 354k-point sweep: conflating the two took the cleared fraction the
+        /// WRONG WAY, 0.3606 -> 0.3552, with mean swing falling 12.68 -> 11.70 deg. The domain and the
+        /// anchor are independent knobs and must stay that way.</summary>
         public bool HasPrevSwivel;
     }
 
@@ -416,11 +425,11 @@ namespace Basis.IK
             // path-following rule. Continuity across ENGAGE/DISENGAGE is still owned by the authority and
             // contact-margin ramps below, which drive the angle to exactly zero at both edges.
             // =============================================================================================
-            if (i.HasPrevSwivel && Mathf.Abs(thetaOut) > k_FullCircleMinThetaOutDeg)
+            if (i.FullCircle && Mathf.Abs(thetaOut) > k_FullCircleMinThetaOutDeg)
             {
                 chosenAngleDeg = SearchFullCircle(i, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
                     shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference,
-                    i.PrevSwivelDeg, out cleared);
+                    i.PrevSwivelDeg, i.HasPrevSwivel, out cleared);
             }
 
             // Bones do not stretch, so the FK chain gives the arm's true length whatever pose it is in.
@@ -528,7 +537,7 @@ namespace Basis.IK
         static float SearchFullCircle(in BasisElbowProtectInput i, float thetaOut, Vector3 acDir,
             Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
             float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
-            float swingPreference, float prevSwivelDeg, out bool cleared)
+            float swingPreference, float prevSwivelDeg, bool hasPrev, out bool cleared)
         {
             float bestScore = float.NegativeInfinity;
             float bestAngle = 0f;
@@ -542,9 +551,16 @@ namespace Basis.IK
                 float c = SwivelClearanceAtAngle(i, ang, acDir, currentDir, elbowCenter, elbowRadius,
                     shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
 
-                float fromPrev = ang - prevSwivelDeg;
-                if (fromPrev < 0f) fromPrev = -fromPrev;
-                if (fromPrev > 180f) fromPrev = 360f - fromPrev;
+                // No established previous choice => NO anchor term. Anchoring on a default of zero is a pull
+                // toward the natural pole, not a neutral start, and it prices away the very swings this
+                // search exists to find.
+                float fromPrev = 0f;
+                if (hasPrev)
+                {
+                    fromPrev = ang - prevSwivelDeg;
+                    if (fromPrev < 0f) fromPrev = -fromPrev;
+                    if (fromPrev > 180f) fromPrev = 360f - fromPrev;
+                }
 
                 float absAng = ang < 0f ? -ang : ang;
 

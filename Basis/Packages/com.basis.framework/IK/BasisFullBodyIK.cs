@@ -216,6 +216,7 @@ collisionsEnabled;
         public float ikLockMode;
         public bool shoulderSolveEnabled;
         public bool shoulderShrugEnabled;
+        public bool shoulderRetractionEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
@@ -1331,6 +1332,7 @@ collisionsEnabled;
             input.TposeClavicleLength = tposeClavicleLen;
             input.TposeElbowLength = tposeElbowLen;
             input.ShrugEnabled = shoulderShrugEnabled;
+            input.RetractEnabled = shoulderRetractionEnabled;
             input.ElevationFactor = shoulderElevationFactor;
             input.ProtractionFactor = shoulderProtractionFactor;
             input.CoupleRatio = k_ShoulderCoupleRatio;
@@ -2322,7 +2324,7 @@ collisionsEnabled;
             // reason it should not be: it is the user's own input, and damping it just mutes the hint they are
             // moving. So the filter now has no caller, and the arm's One-Euro state is gone with it.
             int collisionState = 0;
-            float elbowSwivelDeg = 0f;
+            float elbowSwivelDeg = float.NaN;   // NaN == no established choice to anchor on next frame
             bool doCollisions = collisionsEnabled && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             bool elbowTrackerForced = hasHint && !usedModel;
             if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
@@ -2349,10 +2351,25 @@ collisionsEnabled;
                 // into the whole circle. The domain widening is where the cleared fraction comes from; the
                 // anchor is what stops a wider domain hopping between disconnected feasible arcs. See the
                 // block above SearchFullCircle in BasisElbowProtectCore -- they only work as a pair.
+                // ⚠️ OFF ON PURPOSE -- the measured trade does not pay for itself yet.
+                // BasisElbowProtectSweep over 354 375 points, production collider + arm solve:
+                //   legacy      clearedFrac 0.3606  couldNotClear 57740  meanSwing 12.68  sens 3.126
+                //   fullCircle  clearedFrac 0.3707  couldNotClear 55952  meanSwing 20.99  sens 3.525
+                // +1.0 point of clearing for +66% elbow swing and +13% twitch. An offline harness on a
+                // slimmer collider predicted +12.9 points; the production rig does not reproduce it, and
+                // the swing/sensitivity cost is a FEEL regression that no gate here can see.
+                // Flip to true and re-run BasisIKSweepBatch.ElbowProtectFullCircle before trusting either.
+                epi.FullCircle = false;
                 if (swingSwivelDeg.IsCreated)
                 {
-                    epi.PrevSwivelDeg = swingSwivelDeg[swingSlot];
-                    epi.HasPrevSwivel = true;
+                    // NaN == no established choice (first engage, or the protect was off last frame). The
+                    // anchor MUST stay off in that case -- see HasPrevSwivel's doc comment.
+                    float prev = swingSwivelDeg[swingSlot];
+                    if (!float.IsNaN(prev))
+                    {
+                        epi.PrevSwivelDeg = prev;
+                        epi.HasPrevSwivel = true;
+                    }
                 }
 
                 BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
@@ -2364,7 +2381,7 @@ collisionsEnabled;
                     tip.SetRotation(stream, preservedHandRot);
                 }
                 collisionState = epr.CollisionState;
-                elbowSwivelDeg = epr.ChosenSwivelDeg;
+                elbowSwivelDeg = epr.Engaged ? epr.ChosenSwivelDeg : float.NaN;
             }
 
             if (swingCollided.IsCreated)
@@ -2496,6 +2513,7 @@ collisionsEnabled;
 
             shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
+            shoulderRetractionEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderRetraction.RawValue;
             shoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
             shoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
@@ -2657,6 +2675,9 @@ collisionsEnabled;
             swingContinuityInit = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingCollided = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingSwivelDeg = new NativeArray<float>(k_SwingCount, Allocator.Persistent);
+            // NativeArray zero-inits, and 0 would read as "anchored on the natural pole" rather than
+            // "no history" -- which is the exact conflation that measured backwards on the sweep.
+            for (int s = 0; s < k_SwingCount; s++) swingSwivelDeg[s] = float.NaN;
             swingSmoothState = new NativeArray<int>(k_SwingCount, Allocator.Persistent);
             swingHintBend = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);
             swingHintAxis = new NativeArray<Vector3>(k_SwingCount, Allocator.Persistent);

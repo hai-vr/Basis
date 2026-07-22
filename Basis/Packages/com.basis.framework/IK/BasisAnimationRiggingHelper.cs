@@ -193,6 +193,7 @@ public static class BasisAnimationRiggingHelper
         // Shoulder pre-solve defaults
         job.shoulderSolveEnabled = true;
         job.shoulderShrugEnabled = true;
+        job.shoulderRetractionEnabled = true;
         job.shoulderElevationFactor = 0.4f;
         job.shoulderProtractionFactor = 0.3f;
 

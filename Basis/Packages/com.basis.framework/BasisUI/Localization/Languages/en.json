@@ -703,6 +703,10 @@
       "value": "Raise your shoulders when you shrug with your arms at your sides."
     },
     {
+      "key": "settings.bodyTracking.shoulderRetraction.title.tooltip",
+      "value": "Pull your shoulder back when you reach behind you."
+    },
+    {
       "key": "settings.bodyTracking.shoulderElevation.title.tooltip",
       "value": "How much your shoulders lift when you reach upward."
     },
@@ -5389,6 +5393,14 @@
     {
       "key": "settings.bodyTracking.shoulderShrug.description",
       "value": "Detects a shrug from the hands or elbow trackers while your arms hang at your sides and raises the shoulders to match. Default: on"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderRetraction.title",
+      "value": "Shoulder Retraction"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderRetraction.description",
+      "value": "Pulls the shoulder blade back when you reach behind your body, so the shoulder and upper arm do not absorb the whole rotation. Default: on"
     },
     {
       "key": "settings.bodyTracking.shoulderElevation.title",

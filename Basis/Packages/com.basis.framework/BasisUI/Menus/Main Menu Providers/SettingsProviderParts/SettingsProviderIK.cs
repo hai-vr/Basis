@@ -359,6 +359,11 @@ public static class SettingsProviderIK
             shoulderShrugToggle.AssignBinding(BasisSettingsDefaults.FBIKShoulderShrug);
             shoulderShrugToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.shoulderShrug.title.tooltip"));
 
+            var shoulderRetractionToggle = PanelToggle.CreateNewEntry(shoulderParent);
+            shoulderRetractionToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.shoulderRetraction.title"));
+            shoulderRetractionToggle.AssignBinding(BasisSettingsDefaults.FBIKShoulderRetraction);
+            shoulderRetractionToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.shoulderRetraction.title.tooltip"));
+
             // var shoulderElevSlider = PanelSlider.CreateAndBind(
             //     shoulderParent,
             //     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.shoulderElevation.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
@@ -1424,6 +1429,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHandSkin.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderSolveEnabled.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderShrug.ResetToDefault();
+        BasisSettingsDefaults.FBIKShoulderRetraction.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderElevation.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderProtraction.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxBendDeg.ResetToDefault();
