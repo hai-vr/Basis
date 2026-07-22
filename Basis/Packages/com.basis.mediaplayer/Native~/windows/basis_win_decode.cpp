@@ -2110,6 +2110,44 @@ extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) 
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
 
+extern "C" void basis_decoder_notify_end_of_stream(basis_decoder_t* d) {
+    if (!d || !d->vdec) return;
+    /* Caller is the video-submit (demux) thread, which owns vdec and the ring —
+     * same ownership as submit_video, so drain_video is safe here. The MFT is
+     * synchronous: after DRAIN, ProcessOutput hands over every retained frame,
+     * and drain_video's until-NEED_MORE_INPUT loop is that documented pattern.
+     * Best-effort by design: if either message fails, the tail stays inside
+     * the MFT, presentation_pending never sees it, and the core's drain-wait
+     * ends on its idle cap — the frames are unrecoverable either way, so
+     * there is nothing a propagated HRESULT could change. */
+    d->vdec->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+    d->vdec->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+    drain_video(d);
+}
+
+extern "C" int basis_decoder_presentation_pending(basis_decoder_t* d) {
+    if (!d) return 0;
+    int pending = 0;
+    EnterCriticalSection(&d->presentLock);
+    /* Compare against lastPresentedPts, not presentedPosUs: a seek snaps the
+     * latter to the target before anything presents, so a banked frame whose
+     * PTS lands exactly on the target would read as already shown and the
+     * EOS drain could raise ENDED without it. lastPresentedPts stays
+     * INT64_MIN until a frame genuinely presents, and the final frame's
+     * lingering ring slot equals it (not >), so a finished play-out still
+     * reads as drained. */
+    int64_t presented = d->lastPresentedPts;
+    for (int i = 0; i < basis_decoder::RING; ++i)
+        if (d->ringPts[i] != INT64_MIN && d->ringPts[i] > presented) { pending = 1; break; }
+    LeaveCriticalSection(&d->presentLock);
+    if (!pending) {
+        EnterCriticalSection(&d->pcm.cs);
+        pending = d->pcm.fill() > 0;
+        LeaveCriticalSection(&d->pcm.cs);
+    }
+    return pending;
+}
+
 extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
     if (!d) return;
     /* Record the pre-seek audio front before the flush clears it, so the audio-only

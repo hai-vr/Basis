@@ -424,12 +424,16 @@ static int ensure_reader(basis_decoder_t* d, int w, int h) {
 
 /* ---- output draining (push decoded frames to the Surface) --------------- */
 
-static void drain_video_output(basis_decoder_t* d) {
-    if (!d->vcodec) return;
+/* Returns 1 once the codec has emitted its end-of-stream output (only after
+ * basis_decoder_notify_end_of_stream queued the EOS input); 0 otherwise. */
+static int drain_video_output(basis_decoder_t* d) {
+    if (!d->vcodec) return 0;
+    int eos = 0;
     for (;;) {
         AMediaCodecBufferInfo info;
         ssize_t oi = AMediaCodec_dequeueOutputBuffer(d->vcodec, &info, 0);
         if (oi >= 0) {
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) eos = 1;
             d->lastPtsUs = info.presentationTimeUs;
             /* render=true pushes the frame onto the AImageReader Surface. Post-seek
              * preroll (keyframe run-up short of the target) is decoded so later
@@ -465,6 +469,42 @@ static void drain_video_output(basis_decoder_t* d) {
             break; /* try again later / no buffer */
         }
     }
+    return eos;
+}
+
+void basis_decoder_notify_end_of_stream(basis_decoder_t* d) {
+    if (!d || !d->vcodec) return;
+    /* Caller is the video-submit (demux) thread, which owns vcodec — same
+     * ownership as submit_video. MediaCodec flushes asynchronously after the
+     * EOS input, so pump the output side (bounded) until the EOS-flagged
+     * buffer emerges rather than trusting a single drain pass.
+     * TRY_AGAIN_LATER from dequeueInputBuffer is routine while the codec is
+     * busy, so retry to a short deadline (draining outputs frees input slots).
+     * If the EOS input still can't be queued, the retained tail stays in the
+     * codec, presentation_pending never sees it, and the core's drain-wait
+     * ends on its idle cap — degraded, not wedged. */
+    ssize_t ii = -1;
+    for (int i = 0; i < 50 && ii < 0; ++i) {   /* ~500ms deadline */
+        ii = AMediaCodec_dequeueInputBuffer(d->vcodec, 10000);
+        if (ii < 0) drain_video_output(d);
+    }
+    if (ii < 0) return;
+    if (AMediaCodec_queueInputBuffer(d->vcodec, ii, 0, 0, 0,
+                                     AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) != AMEDIA_OK) return;
+    for (int i = 0; i < 100; ++i) {   /* ~1s cap */
+        if (drain_video_output(d)) return;
+        usleep(10000);
+    }
+}
+
+int basis_decoder_presentation_pending(basis_decoder_t* d) {
+    if (!d) return 0;
+    int pending = 0;
+    pthread_mutex_lock(&d->vm);
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { pending = 1; break; }
+    pthread_mutex_unlock(&d->vm);
+    if (!pending) pending = ring_fill_ms(&d->pcm) > 0;
+    return pending;
 }
 
 static void drain_audio_output(basis_decoder_t* d) {

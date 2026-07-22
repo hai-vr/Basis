@@ -426,7 +426,14 @@ static void sink_transport(void* user, const char* t) {
     e->transport[sizeof(e->transport) - 1] = 0;
     mutex_unlock(&e->lock);
 }
-static void sink_eos(void* user) { basis_engine_set_state((basis_media_engine_t*)user, BASIS_MEDIA_STATE_ENDED); }
+/* Live end-of-stream ends now. A paced (VOD) source's delivery runs ahead of
+ * presentation — the pace lead, the audio serve cushion, and any post-seek
+ * settle skew are all still banked when the demuxer finishes — so its ENDED
+ * is raised by demux_body after the presentation drain, not here. */
+static void sink_eos(void* user) {
+    basis_media_engine_t* e = (basis_media_engine_t*)user;
+    if (!e->paced) basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+}
 static void sink_duration(void* user, int64_t us) { basis_media_engine_t* e = (basis_media_engine_t*)user; if (us > 0) e->duration_us = us; }
 /* A raised error is fatal to the current demux run: the reconnect loop already
  * treats an error state as non-retryable, so stopping here makes the protocol
@@ -1081,8 +1088,45 @@ static void demux_body(basis_media_engine_t* e) {
         /* Paced (VOD) sources are finite and play once: a clean run end is EOF, not
          * a live drop to reconnect through. Looping would replay from PTS 0 while the
          * paced clock is at the old edge — every frame would read "behind" the clock
-         * and flood in ungated (fast-forward). Stop instead. */
-        if (e->paced) { basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED); break; }
+         * and flood in ungated (fast-forward). Stop instead — but let presentation
+         * drain first: delivery runs ahead by the pace lead plus the audio serve
+         * cushion (and any post-seek settle skew), so several seconds can still be
+         * banked when the demuxer finishes. ENDED fires once the reported position
+         * has stopped advancing for a beat; paused time doesn't count as idle. */
+        if (e->paced) {
+            /* Flush the video decoder's reorder tail into the ring first —
+             * nothing else ever tells it the stream is over, and what it
+             * retains is the end of the file (seconds, at low frame rates). */
+            if (e->decoder) {
+                mutex_lock(&e->submit_lock);
+                basis_decoder_notify_end_of_stream(e->decoder);
+                mutex_unlock(&e->submit_lock);
+            }
+            /* Presentation is drained when the decoder holds nothing more to
+             * show or serve AND the reported position has settled — a stall
+             * alone is not enough, since a variable-frame-rate tail can hold
+             * the position flat for seconds with frames still queued. The
+             * absolute cap is the escape hatch for a consumer that never
+             * presents (a headless probe) or a wedged renderer. Paused time
+             * counts toward neither clock. */
+            int64_t last_pos = -1;
+            int idle_ms = 0, waited_ms = 0;
+            while (e->running) {
+                if (e->paused) { idle_ms = 0; sleep_interruptible(e, 50); continue; }
+                int pending = e->decoder ? basis_decoder_presentation_pending(e->decoder) : 0;
+                int64_t pos = e->decoder ? basis_decoder_get_position_us(e->decoder) : -1;
+                if (pos != last_pos) { last_pos = pos; idle_ms = 0; }
+                else idle_ms += 50;
+                if (!pending && idle_ms >= 700) break;
+                waited_ms += 50;
+                if (waited_ms >= 10000) break;
+                sleep_interruptible(e, 50);
+            }
+            /* A stop/close that cleared `running` mid-drain must not read as the
+             * content finishing: ENDED reaches OnEnded consumers (playlists). */
+            if (e->running) basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+            break;
+        }
 
         long au_after = e->video_au_count + e->audio_frame_count;
         long delta = au_after - au_before;
