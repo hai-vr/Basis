@@ -282,6 +282,21 @@ struct basis_decoder {
     int64_t seekTargetUs;     /* atomic */
     int64_t seekFromUs;       /* pre-seek audio front, for the audio-only settle (main thread only) */
     int audioSeekGen;         /* audio-submit (demux) thread only */
+    int64_t aOutPtsBiasUs;    /* audio-submit thread only: correction added to codec
+                               * output PTS before it banks into the ring. The MP3
+                               * software decoder stamps outputs from an internal
+                               * first-input anchor plus a sample accumulator and
+                               * ignores later input-PTS jumps — the anchor survives
+                               * a flush — so post-seek outputs keep pre-seek time
+                               * (frozen position bar; backward seeks overrun the
+                               * duration). Measured per seek as first post-flush
+                               * input PTS minus first post-flush output PTS; ~0 for
+                               * decoders that pass input PTS through. */
+    int64_t aResyncInPts;     /* audio-submit thread only: first post-flush input
+                               * PTS, awaiting its output to measure the bias;
+                               * INT64_MIN = no measurement pending */
+    int     aResyncPending;   /* audio-submit thread only: seek flush done, latch
+                               * aResyncInPts from the next queued input */
     int videoSeekGen;         /* video-submit (demux) thread only */
     int renderSeekGen;        /* render thread only */
     int videoSeekAck;         /* atomic: demux publishes seekGen once it has flushed the
@@ -573,7 +588,14 @@ static void drain_audio_output(basis_decoder_t* d) {
             size_t cap = 0;
             uint8_t* buf = AMediaCodec_getOutputBuffer(d->acodec, oi, &cap);
             if (buf && info.size >= 2) {
-                int64_t pts = info.presentationTimeUs;
+                /* First output after a seek flush: its input PTS is known, so any
+                 * difference is the decoder's own timeline drifting from the demux
+                 * timeline — cancel it for the rest of this seek generation. */
+                if (d->aResyncInPts != INT64_MIN) {
+                    d->aOutPtsBiasUs = d->aResyncInPts - info.presentationTimeUs;
+                    d->aResyncInPts = INT64_MIN;
+                }
+                int64_t pts = info.presentationTimeUs + d->aOutPtsBiasUs;
                 int frame = d->ach > 0 ? d->ach : (d->pcm.frame > 0 ? d->pcm.frame : 2);
                 int srr = d->asr > 0 ? d->asr : 48000;
                 if (d->apcm_float) {
@@ -728,6 +750,7 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     d->vAwaitKeyPts = INT64_MIN;
     d->vAwaitDrained = 0;
     d->prevWritePts = INT64_MIN;
+    d->aResyncInPts = INT64_MIN;
     d->audClockOffsetUs = INT64_MIN;
     d->bufferUs = 120000;
     d->bufferMode = 1;
@@ -1114,6 +1137,8 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
         d->audioSeekGen = sg;
         ring_flush(&d->pcm);
         if (d->acodec) AMediaCodec_flush(d->acodec);
+        d->aResyncPending = 1;
+        d->aResyncInPts = INT64_MIN;
     }
     if (d->ac == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (!d->acodec) return -1;
@@ -1125,6 +1150,7 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
         if (buf && (size_t)len <= cap) {
             memcpy(buf, data, (size_t)len);
             rc = (AMediaCodec_queueInputBuffer(d->acodec, ii, 0, len, pts_us, 0) == AMEDIA_OK) ? 0 : -1;
+            if (rc == 0 && d->aResyncPending) { d->aResyncPending = 0; d->aResyncInPts = pts_us; }
         } else {
             /* Never feed a partial frame — it decodes to an error + silence.
              * max-input-size should prevent this; return the buffer empty if not. */
