@@ -242,8 +242,10 @@ is the failure to watch for. Also seek **from the tail**: once the fetcher has d
 remaining segment (the last buffer's worth of the stream, so roughly the final ten seconds of a
 short VOD) it parks rather than exits, and a backward seek from there must still reposition —
 a bar that flashes the target and snaps forward means the parked-fetcher revival broke. Playing
-through to the end must still raise ENDED. Shared clock, so check both the Editor (Windows)
-and Quest.
+through to the end must present the tail before ENDED is raised: the position walks all the way
+to the true duration and the final content is actually shown and heard — ENDED firing early
+while banked audio or video is discarded is the failure. Shared clock, so check both the Editor
+(Windows) and Quest.
 
 **Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
 top-level `sidx`) served from a range/`206` host. Produce one from a CC clip:
