@@ -19,8 +19,14 @@ namespace Basis.IK
 
         /// <summary>How far the head may get from the support base without the user having stepped, as a
         /// fraction of their standing head height. Inside it the head is leaning and the support base holds;
-        /// beyond it the user must have stepped, so the base follows.</summary>
-        private const float StanceRadiusFrac = 0.12f;
+        /// beyond it the user must have stepped, so the base follows.
+        /// Softened 0.12 -> 0.10 (~19 -> 16 cm on a 1.6 m head): a wider dead-zone left the synthesized hips
+        /// visibly TRAILING forward head/body movement -- inside it the base holds, so the hips carry only
+        /// CounterbalanceFollowFrac (0.25) of the travel and lag the rest -- until the base finally caught up.
+        /// Smaller = the hips track forward motion sooner. 0.10 is the FLOOR the gates allow: the lean probes
+        /// in BasisHipsSlideProbeTests hold a 15 cm lean and require it to stay INSIDE the radius, so a frac
+        /// below ~0.094 would reclassify that lean as a step and break them.</summary>
+        private const float StanceRadiusFrac = 0.10f;
 
         /// <summary>Extra stance radius per metre the head has DESCENDED, so a crouch is not mistaken for a step.
         /// "A lean cannot reach past a stance radius" holds for a standing lean but NOT for a squat: a real one
@@ -35,7 +41,11 @@ namespace Basis.IK
 
         /// <summary>Rate (s⁻¹) the support base follows the head once the head is a full stance radius outside
         /// it. Stiff on purpose: a soft pull lags the head through a step and then creeps into the leftover
-        /// error after it stops, which is the drift this replaces.</summary>
+        /// error after it stops, which is the drift this replaces (and which
+        /// BasisHipsSlideProbeTests.AStep_MovesTheSupportBase_ButStillSettlesPromptly pins at drift &lt; 2.5 cm,
+        /// settle &lt; 300 ms). The "wild lagging" softening was done on StanceRadiusFrac (the dead-zone), NOT
+        /// here: lowering this rate to smooth the catch-up trades directly against that settle gate, so it
+        /// wants a suite re-run to recalibrate rather than a blind change.</summary>
         private const float HeadBaselinePullRate = 200f;
 
         /// <summary>How much hips track the head's deviation from baseline. 0 = pure counterbalance

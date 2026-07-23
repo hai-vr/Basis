@@ -171,6 +171,19 @@ public partial class BasisHandHeldCameraUI
         SetCapture360State(HHC != null && HHC.capture360Enabled);
         RefreshAllToggleIndicators();
         RefreshDesktopOutputButtonVisibility();
+        HideRelocatedPropButtons();
+    }
+
+    /// <summary>
+    /// Hides the prop buttons whose controls now live only in the Camera Settings panel
+    /// (Nameplates, Auto Level, VR Stabilization). They are also no longer bound to any action,
+    /// so hiding them just removes dead buttons from the prop rather than changing behaviour.
+    /// </summary>
+    private void HideRelocatedPropButtons()
+    {
+        if (Nameplates != null) Nameplates.gameObject.SetActive(false);
+        if (AutoLevelButton != null) AutoLevelButton.gameObject.SetActive(false);
+        if (VRStabilizationButton != null) VRStabilizationButton.gameObject.SetActive(false);
     }
 
     public void RefreshDesktopOutputButtonVisibility()
@@ -187,6 +200,25 @@ public partial class BasisHandHeldCameraUI
 
         if (HHC.MetaData.colorAdjustments != null)
             HHC.MetaData.colorAdjustments.active = true;
+
+        // The camera owns its profile asset outright (nothing else references it), so adding the
+        // extra overrides at runtime is safe and keeps the authored asset untouched. Each starts
+        // inactive so an unconfigured effect never silently alters the shot.
+        HHC.MetaData.vignette = GetOrAddOverride<UnityEngine.Rendering.Universal.Vignette>();
+        HHC.MetaData.chromaticAberration = GetOrAddOverride<UnityEngine.Rendering.Universal.ChromaticAberration>();
+        HHC.MetaData.filmGrain = GetOrAddOverride<UnityEngine.Rendering.Universal.FilmGrain>();
+        HHC.MetaData.whiteBalance = GetOrAddOverride<UnityEngine.Rendering.Universal.WhiteBalance>();
+        HHC.MetaData.lensDistortion = GetOrAddOverride<UnityEngine.Rendering.Universal.LensDistortion>();
+    }
+
+    private T GetOrAddOverride<T>() where T : UnityEngine.Rendering.VolumeComponent
+    {
+        if (HHC == null || HHC.MetaData.Profile == null) return null;
+        if (HHC.MetaData.Profile.TryGet(out T existing)) return existing;
+
+        T added = HHC.MetaData.Profile.Add<T>(true);
+        if (added != null) added.active = false;
+        return added;
     }
 
     // ---------- Binding (Buttons via descriptors) ----------
@@ -204,11 +236,13 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "Timer", Timer, BasisCameraButtonAction.Timer);
 
         // Optional buttons (may be removed in your project)
-        AddIf(list, "Nameplates", Nameplates, BasisCameraButtonAction.ToggleNameplates);
+        // Nameplates, Auto Level and VR Stabilization moved to the Camera Settings panel only —
+        // buttons hidden on the prop (see HideRelocatedPropButtons) and no longer bound here.
+        // AddIf(list, "Nameplates", Nameplates, BasisCameraButtonAction.ToggleNameplates);
         AddIf(list, "OverrideDesktopOutput", OverrideDesktopOutput, BasisCameraButtonAction.ToggleDesktopOutput);
         AddIf(list, "Selfie", Selfie, BasisCameraButtonAction.ToggleSelfie);
-        AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
-        AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
+        // AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
+        // AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -487,6 +521,9 @@ public partial class BasisHandHeldCameraUI
 
     // ---------- UI Actions ----------
 
+    /// <summary>Flips the camera between selfie (facing the user, mirrored) and normal.</summary>
+    public void ToggleSelfie() => SelfieToggle();
+
     private void SelfieToggle()
     {
         selfieBool = !selfieBool;
@@ -666,6 +703,7 @@ public partial class BasisHandHeldCameraUI
         {
             resolutionIndex = currentResolutionIndex,
             formatIndex = GetFormatIndex(),
+            msaaSamples = HHC != null ? HHC.msaaSamples : 2,
             fov = FOVSlider != null ? FOVSlider.value : 40f,
             bloomIntensity = BloomIntensitySlider != null ? BloomIntensitySlider.value : 0.5f,
             bloomThreshold = BloomThresholdSlider != null ? BloomThresholdSlider.value : 0.5f,
@@ -673,11 +711,36 @@ public partial class BasisHandHeldCameraUI
             saturation = SaturationSlider != null ? SaturationSlider.value : 1f,
             depthAperture = DepthApertureSlider != null ? DepthApertureSlider.value : 1f,
             depthFocusDistance = DepthFocusDistanceSlider != null ? DepthFocusDistanceSlider.value : 10f,
+            // depthIsActive owns whether DoF is on, so it has to be captured from the live effect.
+            // It was never saved before, which only went unnoticed because loading re-derived the
+            // on/off from dofMode instead.
+            depthIsActive = HHC != null && HHC.MetaData.depthOfField != null && HHC.MetaData.depthOfField.active,
+            // Applied on load but never captured, so the auto/manual focus choice reset every session.
+            useManualFocus = currentDepthMode == DepthMode.Manual,
+            dofMode = HHC != null && HHC.MetaData.depthOfField != null ? (int)HHC.MetaData.depthOfField.mode.value : 2,
+            dofFocalLength = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.focalLength.value : 125f,
+            dofBladeCount = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.bladeCount.value : 5,
             exposureIndex = Mathf.Clamp((int)(ExposureSlider != null ? ExposureSlider.value : 6), 0, ExposureStops.Length - 1),
             showExposureOnCamera = ShowExposureOnCamera,
             VolumetricFogVolumedensity = volumetricDensitySlider != null ? volumetricDensitySlider.value : 0.01f,
             VolumetricFogenableAPVContribution = true,
             VolumetricFogenableMainLightContribution = true,
+            hueShift = HHC != null && HHC.MetaData.colorAdjustments != null ? HHC.MetaData.colorAdjustments.hueShift.value : 0f,
+            vignette = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.intensity.value : 0f,
+            chromaticAberration = HHC != null && HHC.MetaData.chromaticAberration != null ? HHC.MetaData.chromaticAberration.intensity.value : 0f,
+            filmGrain = HHC != null && HHC.MetaData.filmGrain != null ? HHC.MetaData.filmGrain.intensity.value : 0f,
+            whiteBalanceTemperature = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.temperature.value : 0f,
+            whiteBalanceTint = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.tint.value : 0f,
+            lensDistortion = HHC != null && HHC.MetaData.lensDistortion != null ? HHC.MetaData.lensDistortion.intensity.value : 0f,
+            autoFocusFollowSubject = HHC != null && HHC.autoFocusFollowSubject,
+            autoFollowPositionOffset = HHC != null ? HHC.autoFollowPositionOffset : new Vector3(0.5f, 0f, 1.4f),
+            autoFollowRotationOffset = HHC != null ? HHC.autoFollowRotationOffset : Vector3.zero,
+            autoFollowPlayspace = HHC == null || HHC.autoFollowPlayspace,
+            autoFollowLookAtPlayer = HHC == null || HHC.autoFollowLookAtPlayer,
+            autoFollowLookAtHeightOffset = HHC != null ? HHC.autoFollowLookAtHeightOffset : 0f,
+            capture360 = HHC != null && HHC.capture360Enabled,
+            useAutoLeveling = HHC != null && HHC.useAutoLeveling,
+            useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
         };
     }
 
@@ -725,6 +788,7 @@ public partial class BasisHandHeldCameraUI
         {
             string json = await File.ReadAllTextAsync(path);
             var loaded = JsonUtility.FromJson<CameraSettings>(json);
+            MigrateSettings(loaded);
             ApplySettings(loaded);
         }
         catch (Exception ex)
@@ -733,6 +797,49 @@ public partial class BasisHandHeldCameraUI
             ApplySettings(new CameraSettings());
         }
     }
+
+    /// <summary>
+    /// Fills fields that a pre-v2 file lacks with their real defaults, since JsonUtility zero-fills
+    /// absent fields — without this, upgrading a save would silently turn follow features off and
+    /// park the camera at the player's origin (position offset 0,0,0).
+    /// </summary>
+    private static void MigrateSettings(CameraSettings settings)
+    {
+        if (settings.settingsVersion < 2)
+        {
+            var defaults = new CameraSettings();
+            settings.autoFollowPositionOffset = defaults.autoFollowPositionOffset;
+            settings.autoFollowRotationOffset = defaults.autoFollowRotationOffset;
+            settings.autoFollowPlayspace = defaults.autoFollowPlayspace;
+            settings.autoFollowLookAtPlayer = defaults.autoFollowLookAtPlayer;
+            settings.autoFollowLookAtHeightOffset = defaults.autoFollowLookAtHeightOffset;
+            settings.msaaSamples = defaults.msaaSamples;
+        }
+
+        if (settings.settingsVersion < 3)
+        {
+            // dofMode zero-fills to 0 (Off), which would silently disable DoF on upgrade.
+            var defaults = new CameraSettings();
+            settings.dofMode = defaults.dofMode;
+            settings.dofFocalLength = defaults.dofFocalLength;
+            settings.dofBladeCount = defaults.dofBladeCount;
+        }
+
+        if (settings.settingsVersion < 4)
+        {
+            // depthIsActive was never written before v4, so every old file has it false while the
+            // real on/off lived in dofMode (Off meant disabled). Recover it from there, or upgrading
+            // would silently switch depth of field off for anyone who had it on.
+            settings.depthIsActive = settings.dofMode != 0;
+        }
+
+        settings.settingsVersion = CameraSettings.CurrentVersion;
+    }
+
+#if UNITY_INCLUDE_TESTS
+    /// <summary>Test-only access to the private migration.</summary>
+    public static void MigrateSettingsForTest(CameraSettings settings) => MigrateSettings(settings);
+#endif
 
     private void ApplySettings(CameraSettings settings)
     {
@@ -743,6 +850,10 @@ public partial class BasisHandHeldCameraUI
 
         try
         {
+            // MSAA before resolution: ChangeResolution rebuilds the RT, so the sample count must
+            // be in place first or the preview keeps the old one until the next rebuild.
+            HHC.msaaSamples = settings.msaaSamples;
+
             // Resolution & indicator sprites
             currentResolutionIndex = settings.resolutionIndex;
             HHC.ChangeResolution(currentResolutionIndex);
@@ -766,12 +877,16 @@ public partial class BasisHandHeldCameraUI
 
             SetFormat(settings.formatIndex);
 
-            // Apply camera intrinsics
+            // Apply camera intrinsics. On a physical camera (usePhysicalProperties = true) the
+            // sensor size, focal length and field of view are one value seen three ways, so order
+            // matters: sensor and gate fit first, then FOV LAST so it is authoritative. focusDistance
+            // is a depth-of-field concept in metres and must never be written to focalLength (mm of
+            // lens) — doing so drove the FOV to ~100 deg regardless of settings.fov.
             if (HHC.captureCamera != null)
             {
-                HHC.captureCamera.fieldOfView = settings.fov;
-                HHC.captureCamera.focalLength = settings.focusDistance;
                 HHC.captureCamera.sensorSize = new Vector2(settings.sensorSizeX, settings.sensorSizeY);
+                HHC.captureCamera.gateFit = Camera.GateFitMode.Vertical;
+                HHC.captureCamera.fieldOfView = settings.fov;
 
                 // Aperture
                 if (settings.apertureIndex >= 0 && settings.apertureIndex < HHC.MetaData.apertures.Length)
@@ -848,7 +963,12 @@ public partial class BasisHandHeldCameraUI
         {
             HHC.MetaData.depthOfField.aperture.value = settings.depthAperture;
             HHC.MetaData.depthOfField.focusDistance.value = settings.depthFocusDistance;
+            // Style first, then the on/off — ApplyDoFModeOnly deliberately does not touch active,
+            // so depthIsActive stays the single owner of whether DoF is enabled.
+            ApplyDoFModeOnly(settings.dofMode);
             HHC.MetaData.depthOfField.active = settings.depthIsActive;
+            ChangeDoFFocalLength(settings.dofFocalLength);
+            ChangeDoFBladeCount(settings.dofBladeCount);
         }
 
         if (HHC.MetaData.bloom != null)
@@ -856,6 +976,27 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.bloom.intensity.value = settings.bloomIntensity;
             HHC.MetaData.bloom.threshold.value = settings.bloomThreshold;
         }
+
+        if (HHC.MetaData.colorAdjustments != null)
+            HHC.MetaData.colorAdjustments.hueShift.value = settings.hueShift;
+
+        ChangeVignette(settings.vignette);
+        ChangeChromaticAberration(settings.chromaticAberration);
+        ChangeFilmGrain(settings.filmGrain);
+        ChangeWhiteBalanceTemperature(settings.whiteBalanceTemperature);
+        ChangeWhiteBalanceTint(settings.whiteBalanceTint);
+        ChangeLensDistortion(settings.lensDistortion);
+
+        HHC.autoFocusFollowSubject = settings.autoFocusFollowSubject;
+
+        HHC.autoFollowPositionOffset = settings.autoFollowPositionOffset;
+        HHC.autoFollowRotationOffset = settings.autoFollowRotationOffset;
+        HHC.autoFollowPlayspace = settings.autoFollowPlayspace;
+        HHC.autoFollowLookAtPlayer = settings.autoFollowLookAtPlayer;
+        HHC.autoFollowLookAtHeightOffset = settings.autoFollowLookAtHeightOffset;
+        HHC.capture360Enabled = settings.capture360;
+        HHC.useAutoLeveling = settings.useAutoLeveling;
+        HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)
@@ -865,6 +1006,34 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value = settings.VolumetricFogenableMainLightContribution;
         }
 #endif
+    }
+
+    /// <summary>
+    /// Re-seeds the prop's own sliders and indicators from the authoritative camera state, so a
+    /// change made from the main-menu panel (or the click-to-focus handler, or auto-focus) shows
+    /// up on the prop HUD too. Pure SetValueWithoutNotify, so it never re-drives the camera and is
+    /// safe to call every frame — the panel does exactly that while it is open.
+    /// </summary>
+    public void SyncPropControlsFromState()
+    {
+        if (HHC == null) return;
+
+        if (FOVSlider != null && HHC.captureCamera != null)
+            FOVSlider.SetValueWithoutNotify(HHC.captureCamera.fieldOfView);
+
+        if (ExposureSlider != null)
+            ExposureSlider.SetValueWithoutNotify(ExposureIndex);
+
+        if (HHC.MetaData.depthOfField != null)
+        {
+            if (DepthApertureSlider != null)
+                DepthApertureSlider.SetValueWithoutNotify(HHC.MetaData.depthOfField.aperture.value);
+            if (DepthFocusDistanceSlider != null)
+                DepthFocusDistanceSlider.SetValueWithoutNotify(HHC.MetaData.depthOfField.focusDistance.value);
+        }
+
+        RefreshAllReadouts();
+        RefreshAllToggleIndicators();
     }
 
     private void RefreshAllReadouts()
@@ -895,6 +1064,54 @@ public partial class BasisHandHeldCameraUI
         {
             HHC.MetaData.depthOfField.aperture.value = value;
             if (DepthApertureOutput != null) DepthApertureOutput.text = value.ToString();
+        }
+    }
+
+    /// <summary>Depth of field mode: 0 = Off, 1 = Gaussian, 2 = Bokeh.</summary>
+    public int DoFMode => HHC != null && HHC.MetaData.depthOfField != null
+        ? (int)HHC.MetaData.depthOfField.mode.value
+        : 0;
+
+    /// <summary>
+    /// Sets the depth of field mode from the panel dropdown, which offers Off as its first entry
+    /// and so also owns the on/off state.
+    /// </summary>
+    public void SetDoFMode(int mode)
+    {
+        if (HHC.MetaData.depthOfField == null) return;
+        int clamped = ApplyDoFModeOnly(mode);
+        HHC.MetaData.depthOfField.active = clamped != 0;
+    }
+
+    /// <summary>
+    /// Sets only the mode (the blur style), leaving the on/off state alone, and returns the
+    /// clamped mode. Loading settings uses this: dofMode stores the style and depthIsActive
+    /// stores on/off, so applying the style must not decide whether DoF is enabled — doing that
+    /// let a saved style of Bokeh switch DoF back on over a saved off state.
+    /// </summary>
+    private int ApplyDoFModeOnly(int mode)
+    {
+        int clamped = Mathf.Clamp(mode, 0, 2);
+        HHC.MetaData.depthOfField.mode.overrideState = true;
+        HHC.MetaData.depthOfField.mode.value = (UnityEngine.Rendering.Universal.DepthOfFieldMode)clamped;
+        return clamped;
+    }
+
+    public void ChangeDoFFocalLength(float value)
+    {
+        if (HHC.MetaData.depthOfField != null)
+        {
+            HHC.MetaData.depthOfField.focalLength.overrideState = true;
+            HHC.MetaData.depthOfField.focalLength.value = value;
+        }
+    }
+
+    public void ChangeDoFBladeCount(float value)
+    {
+        if (HHC.MetaData.depthOfField != null)
+        {
+            HHC.MetaData.depthOfField.bladeCount.overrideState = true;
+            HHC.MetaData.depthOfField.bladeCount.value = Mathf.RoundToInt(value);
         }
     }
 
@@ -938,14 +1155,87 @@ public partial class BasisHandHeldCameraUI
     {
         if (HHC.MetaData.colorAdjustments != null)
         {
+            // hueShift is authored with overrideState off in the profile (unlike contrast /
+            // saturation / exposure), so the volume ignores the value until it is overridden.
+            HHC.MetaData.colorAdjustments.hueShift.overrideState = true;
             HHC.MetaData.colorAdjustments.hueShift.value = value;
+        }
+    }
+
+    public void ChangeVignette(float value)
+    {
+        if (HHC.MetaData.vignette != null)
+        {
+            // A VolumeParameter is blended into the final image only when overrideState is true;
+            // without it the volume keeps its default and the slider looks dead.
+            HHC.MetaData.vignette.intensity.overrideState = true;
+            HHC.MetaData.vignette.intensity.value = value;
+            HHC.MetaData.vignette.active = value > 0f;
+        }
+    }
+
+    public void ChangeChromaticAberration(float value)
+    {
+        if (HHC.MetaData.chromaticAberration != null)
+        {
+            HHC.MetaData.chromaticAberration.intensity.overrideState = true;
+            HHC.MetaData.chromaticAberration.intensity.value = value;
+            HHC.MetaData.chromaticAberration.active = value > 0f;
+        }
+    }
+
+    public void ChangeFilmGrain(float value)
+    {
+        if (HHC.MetaData.filmGrain != null)
+        {
+            // Film grain needs its lookup type overridden too, or no grain texture is chosen and
+            // nothing renders however high the intensity is.
+            HHC.MetaData.filmGrain.type.overrideState = true;
+            if (HHC.MetaData.filmGrain.type.value == UnityEngine.Rendering.Universal.FilmGrainLookup.Custom)
+            {
+                HHC.MetaData.filmGrain.type.value = UnityEngine.Rendering.Universal.FilmGrainLookup.Thin1;
+            }
+            HHC.MetaData.filmGrain.intensity.overrideState = true;
+            HHC.MetaData.filmGrain.intensity.value = value;
+            HHC.MetaData.filmGrain.response.overrideState = true;
+            HHC.MetaData.filmGrain.active = value > 0f;
+        }
+    }
+
+    public void ChangeWhiteBalanceTemperature(float value)
+    {
+        if (HHC.MetaData.whiteBalance != null)
+        {
+            HHC.MetaData.whiteBalance.temperature.overrideState = true;
+            HHC.MetaData.whiteBalance.temperature.value = value;
+            HHC.MetaData.whiteBalance.active = value != 0f || HHC.MetaData.whiteBalance.tint.value != 0f;
+        }
+    }
+
+    public void ChangeWhiteBalanceTint(float value)
+    {
+        if (HHC.MetaData.whiteBalance != null)
+        {
+            HHC.MetaData.whiteBalance.tint.overrideState = true;
+            HHC.MetaData.whiteBalance.tint.value = value;
+            HHC.MetaData.whiteBalance.active = value != 0f || HHC.MetaData.whiteBalance.temperature.value != 0f;
+        }
+    }
+
+    public void ChangeLensDistortion(float value)
+    {
+        if (HHC.MetaData.lensDistortion != null)
+        {
+            HHC.MetaData.lensDistortion.intensity.overrideState = true;
+            HHC.MetaData.lensDistortion.intensity.value = value;
+            HHC.MetaData.lensDistortion.active = value != 0f;
         }
     }
 
     public void ChangeFOV(float value)
     {
-        if (HHC.captureCamera != null)
-            HHC.captureCamera.fieldOfView = value;
+        // Applies the field of view directly. (Follow distance is a plain dolly, not a lens zoom.)
+        HHC?.SetFieldOfView(value);
 
         if (FOVOutput != null)
             FOVOutput.text = value.ToString();
@@ -953,8 +1243,9 @@ public partial class BasisHandHeldCameraUI
 
     public void ChangeFocusDistance(float value)
     {
-        if (HHC.captureCamera != null)
-            HHC.captureCamera.focalLength = value;
+        // focusDistance is a depth-of-field concept, not a lens focal length — forward it there
+        // rather than writing captureCamera.focalLength, which would corrupt the FOV.
+        DepthChangeFocusDistance(value);
     }
 
     public void ChangeAperture(int index)

@@ -177,8 +177,38 @@ namespace Basis.BasisUI
             }
         }
 
+        /// <summary>
+        /// Raised before a prop is spawned, with the item's Url. A handler returning true has
+        /// taken responsibility for the request and no prop is spawned.
+        /// <para>
+        /// This exists so packages the framework cannot reference can claim their own item —
+        /// the handheld camera uses it to bring a hidden instance back rather than let a
+        /// second one be created alongside it.
+        /// </para>
+        /// </summary>
+        public static event Func<string, bool> OnBeforePropSpawn;
+
+        /// <summary>
+        /// Offers the spawn to each handler in turn. Multicast delegates only surface the last
+        /// return value, so they are invoked one at a time and the first claim wins.
+        /// </summary>
+        private static bool PropSpawnClaimed(string url)
+        {
+            Func<string, bool> handlers = OnBeforePropSpawn;
+            if (handlers == null) return false;
+
+            Delegate[] list = handlers.GetInvocationList();
+            for (int Index = 0; Index < list.Length; Index++)
+            {
+                if (((Func<string, bool>)list[Index]).Invoke(url)) return true;
+            }
+            return false;
+        }
+
         public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool admin = false, bool modifyScale = false)
         {
+            if (PropSpawnClaimed(item.Url)) return;
+
             if (CachedMetaData.TryGetMeta(item.Url, out var cached) || (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable))
             {
                 if (desiredNetworkType == BundledContentHolder.NetworkType.Predownload)

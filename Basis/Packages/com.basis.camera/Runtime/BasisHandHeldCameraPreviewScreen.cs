@@ -7,10 +7,9 @@ using UnityEngine;
 /// <summary>
 /// Spawns a grabbable, resizable preview screen next to the handheld camera that mirrors the
 /// camera's live feed. By default it exists only while the Camera HUD setting is on, the user is
-/// in VR, and the camera is in direct-to-screen (recording-view) mode — in that mode the feed
-/// lives in <see cref="CopyCameraColorToStaticRTFeature.OutputRT"/> and the camera is already
-/// force-rendering. <see cref="SetPreviewScreenVisible"/> overrides that gate in either direction,
-/// falling back to the camera's own preview texture outside direct-to-screen mode.
+/// in VR, and the camera is in direct-to-screen mode. It always shows the camera's own render
+/// texture — there is a single render path — and <see cref="SetPreviewScreenVisible"/> overrides
+/// the automatic gate in either direction.
 /// </summary>
 public partial class BasisHandHeldCamera
 {
@@ -66,9 +65,9 @@ public partial class BasisHandHeldCamera
     }
 
     private RenderTexture PreviewScreenFeed =>
-        IsOverridingDesktopView && CopyCameraColorToStaticRTFeature.OutputRT != null
-            ? CopyCameraColorToStaticRTFeature.OutputRT
-            : renderTexture;
+        // Single render path now: the camera always renders into its own RT (see
+        // BasisHandHeldCameraDirectToScreen), so the preview screen never needs the copy RT.
+        renderTexture;
 
     /// <summary>Subscribes to the Camera HUD setting so toggling it spawns/despawns the screen live.</summary>
     private void SubscribePreviewScreen()

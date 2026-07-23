@@ -278,7 +278,7 @@ public partial class BasisHandHeldCamera
         // Nobody watching: skip the blit as well as the encode, so an idle stream is free.
         if (!webSink.HasClients) return;
 
-        Texture source = IsOverridingDesktopView ? (Texture)CopyCameraColorToStaticRTFeature.OutputRT : renderTexture;
+        Texture source = renderTexture;
         if (source == null) return;
         if (!webPacing.AllowThisFrame(Time.unscaledDeltaTime, VideoOutputSettings.FrameRate, true)) return;
 
@@ -380,7 +380,7 @@ public partial class BasisHandHeldCamera
             StopVideoOutput();
             return;
         }
-        Texture source = IsOverridingDesktopView ? (Texture)CopyCameraColorToStaticRTFeature.OutputRT : renderTexture;
+        Texture source = renderTexture;
         if (source == null) return;
         if (!videoPacing.AllowThisFrame(Time.unscaledDeltaTime, VideoOutputSettings.FrameRate, true)) return;
 #if BASIS_VIDEO_OUTPUT_V4L2

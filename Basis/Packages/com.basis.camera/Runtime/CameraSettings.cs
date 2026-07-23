@@ -1,12 +1,33 @@
 using System;
+using UnityEngine;
 
 public partial class BasisHandHeldCameraUI
 {
     [Serializable]
     public class CameraSettings
     {
+        /// <summary>
+        /// Bumped whenever fields are added whose zero-fill value (JsonUtility leaves absent fields
+        /// at 0/false) differs from their intended default. LoadSettings migrates older files.
+        /// v2 added the auto-follow config, capture toggles and MSAA.
+        /// </summary>
+        public const int CurrentVersion = 4;
+        public int settingsVersion = CurrentVersion;
+
         public CameraSettings()
         {
+            settingsVersion = CurrentVersion;
+
+            autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
+            autoFollowRotationOffset = Vector3.zero;
+            autoFollowPlayspace = true;
+            autoFollowLookAtPlayer = true;
+            autoFollowLookAtHeightOffset = 0f;
+
+            dofMode = 2;          // Bokeh, matching the authored profile
+            dofFocalLength = 125f;
+            dofBladeCount = 5;
+
             resolutionIndex = 1;
             formatIndex = 0;
             apertureIndex = 0;
@@ -29,10 +50,13 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = 0.01f;
             VolumetricFogenableAPVContribution = true;
             VolumetricFogenableMainLightContribution = true;
+
+            msaaSamples = 2;
         }
 
         public int resolutionIndex = 1;
         public int formatIndex = 0;
+        public int msaaSamples = 2;
 
         public int apertureIndex;
         public int shutterSpeedIndex;
@@ -59,11 +83,36 @@ public partial class BasisHandHeldCameraUI
         public float depthAperture;
         public float depthFocusDistance;
         public bool depthIsActive;
+        public int dofMode;
+        public float dofFocalLength;
+        public int dofBladeCount;
 
         public bool useManualFocus = true;
 
         public float VolumetricFogVolumedensity;
         public bool VolumetricFogenableAPVContribution;
         public bool VolumetricFogenableMainLightContribution;
+
+        // Extra post-processing (0 = effect off, so a fresh install adds nothing to the shot).
+        public float vignette;
+        public float chromaticAberration;
+        public float filmGrain;
+        public float whiteBalanceTemperature;
+        public float whiteBalanceTint;
+        public float lensDistortion;
+
+        public bool autoFocusFollowSubject;
+
+        // Auto-follow configuration (the follow target itself is per-session and not persisted).
+        public Vector3 autoFollowPositionOffset;
+        public Vector3 autoFollowRotationOffset;
+        public bool autoFollowPlayspace;
+        public bool autoFollowLookAtPlayer;
+        public float autoFollowLookAtHeightOffset;
+
+        // Capture-mode toggles.
+        public bool capture360;
+        public bool useAutoLeveling;
+        public bool useVRHandheldSmoothing;
     }
 }

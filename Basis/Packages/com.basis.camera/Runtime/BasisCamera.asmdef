@@ -6,6 +6,7 @@
         "BasisSDK",
         "BasisCommon",
         "BasisDebug",
+        "BasisGizmos",
         "BasisSettings",
         "BasisNetworkCore",
         "UnityEngine.UI",

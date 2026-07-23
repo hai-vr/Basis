@@ -803,7 +803,14 @@ collisionsEnabled;
         {
             // Off (toggle false -> weight 0): return before touching a single bone, so the head-only solve
             // above is the whole story, bit for bit. This is the "same usability" guarantee.
-            if (!chestIkTarget)
+            //
+            // Also gated on a REAL chest tracker. Without one, TargetChestPositionRaw is NOT a measurement --
+            // it is the virtual spine's OWN chest (lerp(neck, hips), routed back out through the rig driver),
+            // so pinning the bone to it adds motion without adding truth: in half-body the chest tracked the
+            // head instead of sitting as the stable FK consequence of the head solve, and moved far too much.
+            // The measured-chest win is real and stays on for tracker users; a synthesized "target" is not a
+            // target. (The head CCD's drag on a TRACKED chest is a separate concern, owned by ReassertTrackedChest.)
+            if (!chestIkTarget || !HasChestTracker)
                 return;
 
             int chestBoneIdx = chainLen - 3;   // the Chest bone

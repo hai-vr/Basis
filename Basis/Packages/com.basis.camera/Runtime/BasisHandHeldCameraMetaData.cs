@@ -79,4 +79,11 @@ public class BasisHandHeldCameraMetaData
 
     public VolumetricFogVolumeComponent VolumetricFogVolume;
 #endif
+
+    /// <summary>Additional post-processing overrides, added to the profile at runtime if absent.</summary>
+    public Vignette vignette;
+    public ChromaticAberration chromaticAberration;
+    public FilmGrain filmGrain;
+    public WhiteBalance whiteBalance;
+    public LensDistortion lensDistortion;
 }

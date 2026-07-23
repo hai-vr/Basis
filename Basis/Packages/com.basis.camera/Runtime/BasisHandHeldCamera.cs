@@ -82,6 +82,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     [Tooltip("Depth buffer bits for render texture")]
     public int depth = 24;
 
+    /// <summary>MSAA sample count on the capture render texture (1 = off, else 2/4/8).</summary>
+    [Tooltip("MSAA samples on the capture render texture")]
+    public int msaaSamples = 2;
+
     /// <summary>Instance identifier for multi-camera setups.</summary>
     [Tooltip("Instance ID for multi-camera setups")]
     public int InstanceID;
@@ -92,6 +96,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>Static metadata/presets and PP component references.</summary>
     public BasisHandHeldCameraMetaData MetaData = new BasisHandHeldCameraMetaData();
+
+    /// <summary>World-space debug representations of this camera, toggled from the settings panel.</summary>
+    public BasisHandHeldCameraGizmos DebugGizmos { get; } = new BasisHandHeldCameraGizmos();
 
     // --- private state ---
 
@@ -155,6 +162,40 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>True when the camera is running but invisible — "closed" without being destroyed.</summary>
     public bool IsCameraHidden => cameraHidden;
 
+    /// <summary>The camera that currently owns the scene audio listener, or null. Only one at a time — there is one listener.</summary>
+    private static BasisHandHeldCamera audioListenerOwner;
+
+    /// <summary>True while this camera is the audio listener, so the world is heard from here.</summary>
+    public bool IsAudioListener => audioListenerOwner == this;
+
+    /// <summary>
+    /// Routes the scene audio listener to this camera's pose, or releases it. Because there is
+    /// a single listener, taking it hands it over from whichever camera held it. Released
+    /// automatically on hide-to-destroy so a gone camera can't strand the listener in space.
+    /// </summary>
+    public void SetAudioListener(bool enabled)
+    {
+        if (enabled)
+        {
+            audioListenerOwner = this;
+            // Feed the driver this camera's live pose each frame it asks; the null guard hands
+            // control back the instant a different camera claims it or this one releases.
+            BasisLocalCameraDriver.AudioListenerPoseOverride = GetAudioListenerPose;
+        }
+        else if (audioListenerOwner == this)
+        {
+            audioListenerOwner = null;
+            BasisLocalCameraDriver.AudioListenerPoseOverride = null;
+        }
+    }
+
+    private (Vector3 position, Quaternion rotation)? GetAudioListenerPose()
+    {
+        if (audioListenerOwner != this || captureCamera == null) return null;
+        captureCamera.transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+        return (position, rotation);
+    }
+
     /// <summary>
     /// Performs camera/PP/UI/material initialization, creates folders, saves initial settings,
     /// and starts the preview loop. Also hooks boot-mode changes.
@@ -172,21 +213,34 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         InitializeMaterial();
         InitializeMeshRendererCheck();
         await InitializeUI();
+
+        // Destroyed while an await above was running — closed straight away, or the scene went.
+        // OnDestroy has already run its teardown, so continuing would re-register the handlers
+        // below onto a dead object and leave SimulateLate firing every frame forever.
+        if (this == null) return;
+
         InitializeTonemapping();
         InitializeDepthOfField();
         InitializeVolumetrics();
         InitializeFolders();
         await HandHeld.SaveSettings();
+
+        if (this == null) return;
+
         SetupUILayerMask();
         SetupClearMaterial();
 
         base.Awake();
 
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
+        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
 
         SubscribePreviewScreen();
+
+        // Ordered late phase instead of Unity's LateUpdate, so this always runs after the camera
+        // has been moved for the frame rather than racing it.
+        BasisLocalPlayer.AfterSimulateOnLate.AddAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
@@ -243,6 +297,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // the next camera come up as "Basis Camera 2".
         StopWebStream();
         StopVideoOutput();
+        SetAudioListener(false);
+        DespawnFollowPip();
+        DespawnDirectToScreenOverlay();
+
+        DebugGizmos.Shutdown();
 
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
@@ -257,6 +316,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         
         }
         
+
+        BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
@@ -276,7 +337,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void OnEnable()
     {
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
+        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
         BasisDebug.Log($"[HandHeldCamera] Preview reset to {PreviewCaptureWidth}x{PreviewCaptureHeight} @ {AntialiasingQuality.Low}");
         captureCamera.targetTexture = renderTexture;
         BasisCullingCameraRegistry.Register(captureCamera);
@@ -395,6 +456,43 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     }
 
     /// <summary>
+    /// Brings a hidden camera back as though it had just been spawned: visible again, out of
+    /// world-space follow, and returned to the hand. Everything it was doing while hidden —
+    /// streaming, settings, the session — carries over, which is the point of hiding rather
+    /// than destroying.
+    /// </summary>
+    public void RevealAsFreshSpawn()
+    {
+        SetCameraHidden(false);
+        SetAutoFollowEnabled(false);
+        PinSpace = CameraPinSpace.HandHeld;
+    }
+
+    /// <summary>Forward distance the camera spawns at, matching the Photo Camera catalog offset (0,0,0.5).</summary>
+    private const float SpawnForwardOffset = 0.5f;
+
+    /// <summary>
+    /// Teleports the camera to where it would spawn — in front of the player at head height,
+    /// facing them — using the same placement math as a fresh spawn (SpawnInFrontOfPlayer),
+    /// just without instantiating a new one. Used to retrieve a camera that has flown off.
+    /// Drops auto-follow and world-pins it there so it holds the pose and can be grabbed.
+    /// </summary>
+    public void TeleportInFrontOfPlayer()
+    {
+        if (!BasisLocalCameraDriver.HasInstance || captureCamera == null) return;
+
+        SetCameraHidden(false);
+
+        Vector3 headPos = BasisLocalCameraDriver.HeadPosition;
+        Vector3 forward = BasisLocalCameraDriver.HeadForward();
+        forward = forward.sqrMagnitude > 1e-6f ? forward.normalized : Vector3.forward;
+
+        Vector3 position = headPos + forward * SpawnForwardOffset;
+        Quaternion rotation = Quaternion.LookRotation(forward, Vector3.up);
+        PlaceWorldPinned(position, rotation);
+    }
+
+    /// <summary>
     /// Hides or restores the prop's own HUD. Used while the main-menu camera panel is
     /// open, so the same controls aren't fighting for the same screen space on desktop.
     /// Toggles the canvas rather than the GameObject so nothing under it re-runs
@@ -417,6 +515,45 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         onPropUICanvas.enabled = !hidden;
         if (onPropUIRaycaster != null) onPropUIRaycaster.enabled = !hidden;
         if (onPropUICollider != null) onPropUICollider.enabled = !hidden;
+    }
+
+    /// <summary>
+    /// Layers the render-layers UI must not expose, because the camera manages them itself:
+    /// UI carries the nameplate toggle, OverlayUI is the prop's own HUD. Letting the user
+    /// flip these by hand would fight <see cref="Nameplates"/> and show the HUD in captures.
+    /// </summary>
+    private static readonly string[] ManagedCaptureLayers = { "UI", "OverlayUI" };
+
+    /// <summary>Whether a given layer is one the user may toggle for this camera's captures.</summary>
+    public static bool IsCaptureLayerUserTogglable(int layer)
+    {
+        if (layer < 0 || layer > 31) return false;
+        string name = LayerMask.LayerToName(layer);
+        if (string.IsNullOrEmpty(name)) return false;
+        for (int Index = 0; Index < ManagedCaptureLayers.Length; Index++)
+        {
+            if (name == ManagedCaptureLayers[Index]) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Reads whether a layer is currently rendered by the capture camera.</summary>
+    public bool IsCaptureLayerEnabled(int layer)
+    {
+        if (captureCamera == null || layer < 0 || layer > 31) return false;
+        return (captureCamera.cullingMask & (1 << layer)) != 0;
+    }
+
+    /// <summary>
+    /// Shows or hides a whole layer in this camera's captures by editing its culling mask.
+    /// Refuses the layers the camera drives itself, so this can't undermine the nameplate
+    /// toggle or leak the prop HUD into a shot.
+    /// </summary>
+    public void SetCaptureLayerEnabled(int layer, bool enabled)
+    {
+        if (captureCamera == null || !IsCaptureLayerUserTogglable(layer)) return;
+        if (enabled) captureCamera.cullingMask |= 1 << layer;
+        else captureCamera.cullingMask &= ~(1 << layer);
     }
 
     /// <summary>Fetches Tonemapping from the profile and sets default mode.</summary>
@@ -444,11 +581,65 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Creates/ensures a “Basis” pictures folder for screenshots.</summary>
     private void InitializeFolders()
     {
-        picturesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Basis");
+        picturesFolder = PhotosDirectory;
         if (!Directory.Exists(picturesFolder))
         {
             Directory.CreateDirectory(picturesFolder);
         }
+    }
+
+    /// <summary>
+    /// The one folder screenshots are written to, resolved per platform. Windows gets a
+    /// browsable Pictures/Basis; the mobile and other-desktop paths fall back to
+    /// persistentDataPath, which is the only writable location that always exists.
+    /// </summary>
+    public static string PhotosDirectory
+    {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+        get => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Basis");
+#else
+        get => Application.persistentDataPath;
+#endif
+    }
+
+    /// <summary>True where a file manager can be launched: the three desktop platforms.</summary>
+    public static bool CanOpenPhotosFolder =>
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX || UNITY_EDITOR
+        true;
+#else
+        false;
+#endif
+
+    /// <summary>
+    /// Opens the screenshot folder in the OS file browser. Desktop only; the path is built
+    /// internally, never from user input, so it cannot be steered elsewhere.
+    /// </summary>
+    public static bool OpenPhotosFolder()
+    {
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX || UNITY_EDITOR
+        try
+        {
+            string folder = PhotosDirectory;
+            if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            // explorer wants backslashes and does not accept a file:// URI.
+            System.Diagnostics.Process.Start("explorer.exe", $"\"{folder.Replace('/', '\\')}\"");
+#elif UNITY_STANDALONE_OSX || UNITY_EDITOR_OSX
+            System.Diagnostics.Process.Start("open", $"\"{folder}\"");
+#else
+            System.Diagnostics.Process.Start("xdg-open", $"\"{folder}\"");
+#endif
+            return true;
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogError($"Could not open photos folder: {e.GetType().Name}: {e.Message}", BasisDebug.LogTag.Camera);
+            return false;
+        }
+#else
+        return false;
+#endif
     }
 
     /// <summary>Stores the UI layer bit as a culling mask for toggling nameplates.</summary>
@@ -503,11 +694,61 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <param name="height">RT height.</param>
     /// <param name="AQ">URP SMAA quality.</param>
     /// <param name="RenderTextureFormat">Render texture format (ARGBFloat for EXR).</param>
+    /// <summary>
+    /// Continuously points depth of field at the follow subject so they stay sharp while moving.
+    /// Reads the camera's already-positioned transform, so it runs a frame behind the move — below
+    /// perception, and it avoids re-solving the subject before the camera itself has settled.
+    /// <para>
+    /// Only drives the focus distance; it must not switch DoF on. The DoF toggle on the prop is
+    /// the single owner of <c>depthOfField.active</c>, and force-enabling it here made the effect
+    /// come on while that toggle read off.
+    /// </para>
+    /// </summary>
+    private void UpdateAutoFocus()
+    {
+        if (!autoFocusFollowSubject || MetaData.depthOfField == null || captureCamera == null) return;
+        if (!MetaData.depthOfField.active) return;
+        if (!TryGetFollowFocusPoint(out Vector3 point)) return;
+
+        float distance = Vector3.Distance(captureCamera.transform.position, point);
+        MetaData.depthOfField.focusDistance.value = Mathf.Max(0.1f, distance);
+    }
+
+    /// <summary>Clamps an arbitrary sample count to a value the GPU accepts (1/2/4/8).</summary>
+    private static int SanitizeMsaaSamples(int requested)
+    {
+        if (requested >= 8) return 8;
+        if (requested >= 4) return 4;
+        if (requested >= 2) return 2;
+        return 1;
+    }
+
+    /// <summary>Sets MSAA samples on the capture RT and rebuilds the live preview to match.</summary>
+    public void SetMsaaSamples(int samples)
+    {
+        msaaSamples = SanitizeMsaaSamples(samples);
+        if (renderTexture != null)
+        {
+            SetResolution(renderTexture.width, renderTexture.height, CameraData.antialiasingQuality, renderTexture.format);
+        }
+    }
+
+    /// <summary>
+    /// Live-preview RT format. SDR + sRGB (unlike the ARGBFloat capture RT) so the quad displays
+    /// the same gamma the camera renders to the screen in Direct To Screen mode — an ARGBFloat RT
+    /// silently ignores the descriptor's sRGB flag (float formats have no hardware sRGB), which
+    /// made the preview look darker/off versus the actual on-screen render. EXR capture still
+    /// switches to ARGBFloat for that one frame.
+    /// </summary>
+    private const RenderTextureFormat PreviewRenderTextureFormat = RenderTextureFormat.Default;
+
     public void SetResolution(int width, int height, AntialiasingQuality AQ, RenderTextureFormat RenderTextureFormat = RenderTextureFormat.ARGBFloat)
     {
         bool textureChanged = false;
 
-        if (renderTexture == null || renderTexture.width != width || renderTexture.height != height || renderTexture.format != RenderTextureFormat)
+        int samples = SanitizeMsaaSamples(msaaSamples);
+
+        if (renderTexture == null || renderTexture.width != width || renderTexture.height != height || renderTexture.format != RenderTextureFormat || renderTexture.antiAliasing != samples)
         {
             if (renderTexture != null)
             {
@@ -517,7 +758,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
             var descriptor = new RenderTextureDescriptor(width, height, RenderTextureFormat, depth)
             {
-                msaaSamples = 2,
+                msaaSamples = samples,
                 useMipMap = false,
                 autoGenerateMips = false,
                 sRGB = true
@@ -595,14 +836,41 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
     }
     /// <summary>Starts a 5-second countdown and triggers a capture at the end.</summary>
+    /// <summary>Running countdown coroutine, held so a second press can cancel it.</summary>
+    private Coroutine countdownRoutine;
+
+    /// <summary>
+    /// Starts the self-timer, or cancels it if one is already counting down — the timer button
+    /// is a toggle. Cancelling only stops the local capture; a remote that already received the
+    /// countdown will still play its tick/shutter sounds, since the countdown network message
+    /// is fire-and-forget with no cancel path.
+    /// </summary>
     public void Timer()
     {
+        if (IsCountingDown)
+        {
+            CancelTimer();
+            return;
+        }
+
         // Notify remote clients so they replay the same tick/shutter timing
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
             BasisNetworkPIPCameraDriver.SendCountdown(5);
         }
-        StartCoroutine(DelayedAction(5));
+        countdownRoutine = StartCoroutine(DelayedAction(5));
+    }
+
+    /// <summary>Stops a running self-timer and clears the countdown display.</summary>
+    public void CancelTimer()
+    {
+        if (countdownRoutine != null)
+        {
+            StopCoroutine(countdownRoutine);
+            countdownRoutine = null;
+        }
+        CountdownRemaining = 0;
+        if (countdownText != null) countdownText.text = string.Empty;
     }
 
     /// <summary>Countdown coroutine that flashes “!” and then takes a screenshot.</summary>
@@ -644,6 +912,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             BasisUISounds.PlayAt(BasisUISoundEvent.CameraShutter, BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position, SMModuleAudio.ActivePropVolume);
         }
+
+        countdownRoutine = null;
 
         if (capture360Enabled)
             StartCoroutine(TakeScreenshot360(captureFormat == "EXR"));
@@ -707,20 +977,44 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         StartCoroutine(TakeScreenshot(format, renderFormat));
     }
     bool IsOverridingDesktopView = false;
+
+    /// <summary>
+    /// True while the camera's feed is also presented on the main screen (Direct To Screen). The
+    /// camera still renders into its own RT — the mode only adds a fullscreen overlay showing it —
+    /// so post-processing, MSAA and colour are the same as when it is off.
+    /// </summary>
+    public bool IsDirectToScreen => IsOverridingDesktopView;
     private BasisRenderRateLimiter renderRateLimiter;
-    public void LateUpdate()
+
+    /// <summary>Late-phase priority: after the camera has been moved (202) and the PIP driver (203).</summary>
+    private const int SimulateLatePriority = 204;
+
+    /// <summary>
+    /// Per-frame camera upkeep, run from <see cref="BasisLocalPlayer.AfterSimulateOnLate"/> rather
+    /// than a Unity LateUpdate.
+    /// <para>
+    /// Everything here reads the capture camera's pose — the preview screen, the detached marker,
+    /// and the networked PIP position. The camera is moved by UpdateCamera at priority 202 inside
+    /// the player's own late simulate, so a plain LateUpdate raced it: with no script execution
+    /// order set, this could run either side of the move and would intermittently publish and
+    /// place things from the previous frame's pose. That inconsistency read as jitter.
+    /// </para>
+    /// </summary>
+    private void SimulateLate()
     {
         ApplyRenderRateLimit();
 
         if (IsOverridingDesktopView)
         {
-            actualMaterial.mainTexture = CopyCameraColorToStaticRTFeature.OutputRT;
-            actualMaterial.SetTexture("_MainTex", CopyCameraColorToStaticRTFeature.OutputRT);
+            UpdateDirectToScreenTexture();
         }
 
         UpdatePreviewScreenTexture();
         TickVideoOutput();
         UpdateOnPropUIVisibility();
+        UpdateAutoFocus();
+        UpdateFollowPip();
+        DebugGizmos.Tick(this);
 
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -736,26 +1030,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void OverrideDesktopOutput()
     {
         IsOverridingDesktopView = enableRecordingView && !BasisDeviceManagement.IsUserInDesktop();
-        if (IsOverridingDesktopView)
-        {
-            captureCamera.targetTexture = null;
-            captureCamera.depth = 1;
-            captureCamera.targetDisplay = 0;
-            if(CopyCameraColorToStaticRTFeature.OutputRT == null)
-            {
-                BasisDebug.LogError("Missing RT Copy From Cam");
-            }
-            actualMaterial.mainTexture = CopyCameraColorToStaticRTFeature.OutputRT;
-            actualMaterial.SetTexture("_MainTex", CopyCameraColorToStaticRTFeature.OutputRT);
-        }
-        else
-        {
-            captureCamera.depth = -1;
-            captureCamera.targetDisplay = 0;
-            captureCamera.targetTexture = renderTexture;
-            actualMaterial.mainTexture = renderTexture;
-            actualMaterial.SetTexture("_MainTex", renderTexture);
-        }
+
+        // ONE render path. The camera always renders into its own RT, so post-processing, MSAA and
+        // colour are identical whether or not Direct To Screen is on; the mode only changes where
+        // that RT is presented. Re-targeting the camera at the backbuffer (what this used to do)
+        // was the root cause of PP dropping out, MSAA falling back and the mismatched look.
+        captureCamera.depth = -1;
+        captureCamera.targetDisplay = 0;
+        captureCamera.targetTexture = renderTexture;
+        actualMaterial.mainTexture = renderTexture;
+        actualMaterial.SetTexture("_MainTex", renderTexture);
+
+        SetDirectToScreenOverlayActive(IsOverridingDesktopView);
 
         VisibilityFlag(Renderer != null && Renderer.isVisible);
         UpdatePreviewScreen();
@@ -791,14 +1077,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     }
 
     /// <summary>Builds a platform-appropriate save path for a screenshot filename.</summary>
-    public string GetSavePath(string filename)
-    {
-#if UNITY_STANDALONE_WIN
-        return Path.Combine(picturesFolder, filename);
-#else
-        return Path.Combine(Application.persistentDataPath, filename);
-#endif
-    }
+    public string GetSavePath(string filename) => Path.Combine(PhotosDirectory, filename);
 
     /// <summary>Applies one of the preset resolutions from <see cref="MetaData.resolutions"/>.</summary>
     public void ChangeResolution(int index)
@@ -823,7 +1102,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         ToggleToneMapping(TonemappingMode.Neutral);
         BasisLocalAvatarDriver.ScaleHeadToZero();
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low);
+        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
     }
 
     /// <summary>Sets the URP tonemapping mode on the active profile.</summary>

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 
@@ -69,6 +70,14 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     /// <param name="enabled">Whether DoF should be active.</param>
     public void SetDoFState(bool enabled)
     {
+        // Turning DoF on while the stored blur style is Off would render nothing and read as
+        // "the toggle does nothing", so promote it to a real mode on the way in.
+        if (enabled && cameraController.MetaData.depthOfField.mode.value == DepthOfFieldMode.Off)
+        {
+            cameraController.MetaData.depthOfField.mode.overrideState = true;
+            cameraController.MetaData.depthOfField.mode.value = DepthOfFieldMode.Bokeh;
+        }
+
         cameraController.MetaData.depthOfField.active = enabled;
         depthOfFieldToggle.SetIsOnWithoutNotify(enabled);
         SetCursorVisibility(enabled);
