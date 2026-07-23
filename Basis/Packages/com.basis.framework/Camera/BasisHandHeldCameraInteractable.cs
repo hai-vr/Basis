@@ -120,7 +120,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     [SerializeReference] private BasisParentConstraint cameraPinConstraint;
     [SerializeReference] private BasisFlyCamera flyCamera;
 
-    private const float cameraDefaultScale = 0.00015f;
+    private const float cameraDefaultScale = 1f;
 
     private bool isPlayerManuallyUnlocked = false;
     private bool desktopSetup = false;

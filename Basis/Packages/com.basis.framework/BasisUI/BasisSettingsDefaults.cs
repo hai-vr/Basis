@@ -183,6 +183,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> PlayspaceMoverFlipAngle = new("playspacemoverflipangle", new BasisPlatformDefault<float>(180f));
         public static BasisSettingsBinding<string> PlayspaceMoverFlipAxis = new("playspacemoverflipaxis", new BasisPlatformDefault<string>(BasisLocalPlayspaceMover.AxisRoll));
 
+        // Lets the avatar you are wearing feed synthetic locomotion / play-space input through its
+        // cilbox script. Only the locally worn avatar is ever accepted; turn off to ignore all of it.
+        public static BasisSettingsBinding<bool> EnableScriptedPlayerInput = new("enablescriptedplayerinput", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<string> QualityLevel = new("qualitylevel", new BasisPlatformDefault<string>
         {
             windows = "Ultra",
@@ -1801,6 +1805,7 @@ namespace Basis.BasisUI
             PlayspaceMoverFlip.LoadBindingValue();
             PlayspaceMoverFlipAngle.LoadBindingValue();
             PlayspaceMoverFlipAxis.LoadBindingValue();
+            EnableScriptedPlayerInput.LoadBindingValue();
 
             // Rendering / Graphics
             QualityLevel.LoadBindingValue();

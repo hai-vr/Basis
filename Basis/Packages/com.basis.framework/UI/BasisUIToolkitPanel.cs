@@ -9,10 +9,10 @@ namespace Basis.Scripts.UI
     /// Keeps a <see cref="BoxCollider"/> matched to the panel so the existing physics
     /// raycast finds it, and converts a world ray into UI Toolkit panel coordinates.
     /// </summary>
-    [RequireComponent(typeof(UIDocument))]
+    [RequireComponent(typeof(PanelRenderer))]
     public class BasisUIToolkitPanel : MonoBehaviour
     {
-        public UIDocument Document;
+        public PanelRenderer Document;
         public bool ManageCollider = true;
         public bool AssignUILayer = true;
         public float ColliderDepth = 0.02f;
@@ -21,7 +21,18 @@ namespace Basis.Scripts.UI
         private Vector2 CachedWorldSize;
         private static PanelInputConfiguration InputConfiguration;
 
-        public IPanel RuntimePanel => Document != null ? Document.runtimePanel : null;
+        private VisualElementReference RootReference;
+        private VisualElement ResolvedRoot;
+
+        /// <summary>
+        /// Root of the panel's visual tree. PanelRenderer exposes no rootVisualElement; the root
+        /// is addressed by an EMPTY <see cref="AuthoringIdPath"/> and delivered asynchronously,
+        /// so consumers must handle it arriving after enable (see <see cref="RootResolved"/>).
+        /// </summary>
+        public VisualElement Root => ResolvedRoot;
+        public event System.Action<VisualElement> RootResolved;
+
+        public IPanel RuntimePanel => ResolvedRoot?.panel;
 
         /// <summary>
         /// Normal of the pressable face. Unlike wild uGUI canvases (which
@@ -67,6 +78,35 @@ namespace Basis.Scripts.UI
             EnsureInputConfiguration();
             EnsureUILayer();
             RefreshCollider();
+            ResolveRoot();
+        }
+
+        private void OnDisable()
+        {
+            if (RootReference != null)
+            {
+                RootReference.UnregisterReferenceResolvedCallback(OnRootResolved);
+                RootReference = null;
+            }
+            ResolvedRoot = null;
+        }
+
+        private void ResolveRoot()
+        {
+            if (Document == null)
+            {
+                return;
+            }
+
+            // An empty AuthoringIdPath addresses the document root.
+            RootReference = new VisualElementReference(Document, new AuthoringIdPath());
+            RootReference.RegisterReferenceResolvedCallback(OnRootResolved);
+        }
+
+        private void OnRootResolved(VisualElement root)
+        {
+            ResolvedRoot = root;
+            RootResolved?.Invoke(root);
         }
 
         /// <summary>
@@ -89,7 +129,12 @@ namespace Basis.Scripts.UI
         /// </summary>
         public void RefreshCollider()
         {
-            if (!ManageCollider || Document == null)
+            if (Document == null)
+            {
+                return;
+            }
+
+            if (!ManageCollider)
             {
                 return;
             }
@@ -105,9 +150,32 @@ namespace Basis.Scripts.UI
                 PanelCollider = BasisHelpers.GetOrAddComponent<BoxCollider>(gameObject);
             }
 
-            PanelCollider.size = new Vector3(size.x, size.y, ColliderDepth);
+            PanelCollider.size = new Vector3(size.x, size.y, MetresToLocal(ColliderDepth));
             PanelCollider.center = Vector3.zero;
             CachedWorldSize = size;
+        }
+
+        /// <summary>
+        /// Converts a world-metre thickness into the panel's local units.
+        ///
+        /// The collider's width and height come straight from the panel size, so they are in panel
+        /// units — the depth has to be expressed in the same space or the box is inconsistent.
+        /// Writing metres in directly made the collider vanishingly thin once the transform was
+        /// scaled down (0.02 became ~10 microns on the camera deck), which turns every ray hit
+        /// into a grazing one and leaves the fingertip nothing to press into.
+        ///
+        /// uGUI uses the same convention: BasisGraphicUIRayCaster sizes canvas colliders entirely
+        /// in canvas units, so depth scales with the canvas rather than staying a fixed metre value.
+        /// </summary>
+        private float MetresToLocal(float metres)
+        {
+            float scale = Mathf.Abs(transform.localScale.x);
+            return scale > 1e-9f ? metres / scale : metres;
+        }
+
+        private static float SafeInverse(float value)
+        {
+            return Mathf.Abs(value) > 1e-6f ? 1f / value : 1f;
         }
 
         /// <summary>

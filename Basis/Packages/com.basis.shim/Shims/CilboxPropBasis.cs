@@ -103,6 +103,10 @@ namespace Cilbox
 				typeof(GameObject).GetProperty(nameof(GameObject.layer)).GetGetMethod().Name,
 				} },
 			{ typeof(UnityEngine.Graphics), new HashSet<string>{ "Blit" } },
+			// Scripted player input is an AVATAR-box feature; Basis.Shims.* is type-whitelisted here, so
+			// block every method to keep prop scripts out of the local player's locomotion.
+			{ typeof(Basis.Shims.BasisPlayspaceInputShim), new HashSet<string>() },
+			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(UnityEngine.Rendering.AsyncGPUReadback), new HashSet<string>{ "Request" } },
 			{ typeof(BitConverter), new HashSet<string>{
 				"GetBytes", "ToBoolean", "ToChar", "ToDouble", "ToInt16", "ToInt32",
