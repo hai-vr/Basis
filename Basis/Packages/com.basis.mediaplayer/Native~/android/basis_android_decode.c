@@ -308,9 +308,11 @@ struct basis_decoder {
     int64_t vAwaitKeyPts;     /* video-submit thread only: PTS of that keyframe;
                                * INT64_MIN until it is submitted */
     int vAwaitDrained;        /* video-submit thread only: outputs drained since the
-                               * keyframe was submitted; bounds the wait so a dropped
-                               * or re-stamped keyframe output can't hold the gate
-                               * (and video) shut until the next seek */
+                               * seek flush; bounds the wait so a dropped or
+                               * re-stamped keyframe output — or a run whose post-seek
+                               * AUs are never flagged as keyframes, which would
+                               * otherwise never latch vAwaitKeyPts — can't hold the
+                               * gate (and video) shut until the next seek */
 
     /* debug counters */
     long dbg_render, dbg_nodue, dbg_acqfail, dbg_drop, dbg_lagms;
@@ -474,8 +476,9 @@ static int drain_video_output(basis_decoder_t* d) {
              * cut below gates it). The drain bound is a backstop, set well past any
              * plausible garbage-tail length: past it the cut still suppresses the
              * run-up, so the worst case is one stale frame — degraded, not wedged. */
-            if (d->vAwaitKey && d->vAwaitKeyPts != INT64_MIN &&
-                (info.presentationTimeUs == d->vAwaitKeyPts || ++d->vAwaitDrained > 16))
+            if (d->vAwaitKey &&
+                ((d->vAwaitKeyPts != INT64_MIN && info.presentationTimeUs == d->vAwaitKeyPts) ||
+                 ++d->vAwaitDrained > 16))
                 d->vAwaitKey = 0;
             if (d->vAwaitKey) {
                 render = 0;

@@ -400,9 +400,12 @@ struct basis_decoder {
     int64_t vAwaitKeyPts = INT64_MIN;  /* video-submit thread only: PTS of that keyframe;
                                         * INT64_MIN until it is submitted */
     int vAwaitDrained = 0;             /* video-submit thread only: outputs drained since
-                                        * the keyframe was submitted; bounds the wait so a
-                                        * dropped or re-stamped keyframe output can't hold
-                                        * the gate (and video) shut until the next seek */
+                                        * the seek flush; bounds the wait so a dropped or
+                                        * re-stamped keyframe output — or a run whose
+                                        * post-seek AUs are never flagged as keyframes,
+                                        * which would otherwise never latch vAwaitKeyPts —
+                                        * can't hold the gate (and video) shut until the
+                                        * next seek */
 };
 
 /* ---- D3D / MF helpers --------------------------------------------------- */
@@ -1001,8 +1004,9 @@ static void drain_video(basis_decoder* d) {
                          * backstop, set well past any plausible garbage-tail length,
                          * so a dropped or re-stamped keyframe output degrades to at
                          * worst one stale frame instead of wedging video. */
-                        if (d->vAwaitKey && d->vAwaitKeyPts != INT64_MIN &&
-                            (d->lastPtsUs == d->vAwaitKeyPts || ++d->vAwaitDrained > 16))
+                        if (d->vAwaitKey &&
+                            ((d->vAwaitKeyPts != INT64_MIN && d->lastPtsUs == d->vAwaitKeyPts) ||
+                             ++d->vAwaitDrained > 16))
                             d->vAwaitKey = 0;
                         if (d->vAwaitKey ||
                             (d->vPrerollCutUs != INT64_MIN && d->lastPtsUs < d->vPrerollCutUs)) {
