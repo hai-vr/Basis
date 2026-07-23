@@ -407,6 +407,14 @@ static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t p
     if (e->url_audio[0] || !e->video_format_seen)
         pace_gate(e, pts);          /* paced mode: hold until ~real time; no-op otherwise */
     if (!e->running) return;
+    /* Re-check the pre-seek drop after the pace hold: pace_gate parks this thread
+     * for up to the pace lead, so a seek posted while this frame slept would
+     * otherwise let it through with its pre-seek PTS. Submitted, it would trigger
+     * the decoder's seek flush early — the post-flush timeline re-anchor would
+     * measure against its stale PTS — and it would sit in the flushed ring as a
+     * stale front chunk. */
+    taken = e->url_audio[0] ? e->seek_taken_audio : e->seek_taken_main;
+    if (!e->active_hls && e->seek_seq != taken) return;
     e->audio_frame_count++;
     mutex_lock(&e->submit_lock);
     basis_decoder_submit_audio(e->decoder, data, len, pts);
