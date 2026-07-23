@@ -27,10 +27,23 @@ public partial class BasisHandHeldCamera
     /// <summary>Largest the screen can be resized to, as a percent of its spawn size (two-hand gesture).</summary>
     public float previewScreenMaxScalePercent = 1200f;
 
+    /// <summary>Viewing distance the width and side offset above are authored for.</summary>
+    public float previewScreenReferenceDistance = 0.5f;
+
+    /// <summary>Closest the screen is allowed to sit to the viewer, in metres at default avatar scale.</summary>
+    public float previewScreenMinDistance = 0.4f;
+
+    /// <summary>Furthest the screen is allowed to sit from the viewer, in metres at default avatar scale.</summary>
+    public float previewScreenMaxDistance = 1.5f;
+
     private GameObject previewScreenGO;
     private Material previewScreenMaterial;
+    private BasisPickupInteractable previewScreenPickup;
     private bool previewScreenSubscribed;
     private bool? previewScreenOverride;
+
+    /// <summary>Set once the user grabs the screen, after which it stays where they put it.</summary>
+    private bool previewScreenUserPlaced;
 
     /// <summary>True while the preview screen is spawned.</summary>
     public bool IsPreviewScreenVisible => previewScreenGO != null;
@@ -80,9 +93,13 @@ public partial class BasisHandHeldCamera
     /// </summary>
     private void UpdatePreviewScreen()
     {
+        // Flying and auto-follow both put the camera somewhere you cannot see its own screen,
+        // which is exactly when a PiP earns its keep. Neither is VR-only — flying is driven
+        // from the desktop mouse — so the VR check stays scoped to direct-to-screen mode.
         bool shouldShow = previewScreenOverride ?? (BasisSettingsDefaults.CameraHud.RawValue
-            && BasisDeviceManagement.IsCurrentModeVR()
-            && IsOverridingDesktopView);
+            && (IsFlying
+                || IsAutoFollowing
+                || (BasisDeviceManagement.IsCurrentModeVR() && IsOverridingDesktopView)));
 
         if (shouldShow)
         {
@@ -100,7 +117,6 @@ public partial class BasisHandHeldCamera
     private void SpawnPreviewScreen()
     {
         RenderTexture feed = PreviewScreenFeed;
-        float aspect = (feed != null && feed.height > 0) ? (float)feed.width / feed.height : 16f / 9f;
 
         previewScreenGO = GameObject.CreatePrimitive(PrimitiveType.Quad);
         previewScreenGO.name = "CameraPreviewScreen";
@@ -124,25 +140,78 @@ public partial class BasisHandHeldCamera
             meshRenderer.sharedMaterial = previewScreenMaterial;
         }
 
-        float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
-        float width = previewScreenWidth * scale;
-        previewScreenGO.transform.localScale = new Vector3(width, width / aspect, 1f);
+        previewScreenUserPlaced = false;
+        PositionPreviewScreen();
 
+        previewScreenPickup = previewScreenGO.AddComponent<BasisPickupInteractable>();
+        previewScreenPickup.enableScaleWithGesture = true;
+        previewScreenPickup.minScalePercent = previewScreenMinScalePercent;
+        previewScreenPickup.maxScalePercent = previewScreenMaxScalePercent;
+    }
+
+    /// <summary>
+    /// Places the screen on the line from the viewer to the camera, but at a distance of its
+    /// own choosing.
+    /// <para>
+    /// The authored width and side offset describe how the screen should look from
+    /// <see cref="previewScreenReferenceDistance"/>. Both are then scaled by the distance
+    /// actually used, which is what holds the apparent size and the apparent gap constant:
+    /// angular size is size over distance, so scaling size with distance cancels. Anchoring
+    /// to the camera instead — as this did — meant the whole arrangement shrank with range
+    /// until flying across the map left the PiP a speck, and the fixed metre offset went from
+    /// a comfortable gap up close to invisible far away.
+    /// </para>
+    /// <para>
+    /// The distance is clamped rather than tracked all the way out: a billboard hundreds of
+    /// metres off would be scaled to match, land inside world geometry, and be occluded by
+    /// everything between. Past the clamp only the direction is borrowed.
+    /// </para>
+    /// </summary>
+    private void PositionPreviewScreen()
+    {
+        if (previewScreenGO == null) return;
+
+        float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
         Vector3 headPos = BasisLocalCameraDriver.HeadPosition;
         Quaternion headRot = BasisLocalCameraDriver.HeadRotation;
-        Vector3 spawnPos = transform.position + (headRot * Vector3.right) * (previewScreenSideOffset * scale);
-        Vector3 faceDir = spawnPos - headPos;
-        Quaternion spawnRot = faceDir.sqrMagnitude > 1e-6f ? Quaternion.LookRotation(faceDir, Vector3.up) : headRot;
-        previewScreenGO.transform.SetPositionAndRotation(spawnPos, spawnRot);
 
-        BasisPickupInteractable pickup = previewScreenGO.AddComponent<BasisPickupInteractable>();
-        pickup.enableScaleWithGesture = true;
-        pickup.minScalePercent = previewScreenMinScalePercent;
-        pickup.maxScalePercent = previewScreenMaxScalePercent;
+        Vector3 forward = headRot * Vector3.forward;
+        Vector3 toCamera = transform.position - headPos;
+        Vector3 direction = toCamera.sqrMagnitude > 1e-6f ? toCamera.normalized : forward;
+
+        // Fly the camera behind yourself and pointing at it would put the PiP behind your
+        // head. Past 90 degrees off, fall back to straight ahead — being visible beats
+        // pointing the right way.
+        if (Vector3.Dot(direction, forward) <= 0f) direction = forward;
+
+        float distance = Mathf.Clamp(toCamera.magnitude,
+            previewScreenMinDistance * scale, previewScreenMaxDistance * scale);
+
+        float reference = Mathf.Max(previewScreenReferenceDistance * scale, 1e-4f);
+        float distanceRatio = distance / reference;
+
+        // Horizontal right of the view direction, so the screen never rolls with head tilt.
+        Vector3 right = Vector3.Cross(Vector3.up, direction);
+        right = right.sqrMagnitude > 1e-6f ? right.normalized : headRot * Vector3.right;
+
+        Vector3 position = headPos + direction * distance
+            + right * (previewScreenSideOffset * scale * distanceRatio);
+        Vector3 faceDir = position - headPos;
+        Quaternion rotation = faceDir.sqrMagnitude > 1e-6f
+            ? Quaternion.LookRotation(faceDir, Vector3.up)
+            : headRot;
+        previewScreenGO.transform.SetPositionAndRotation(position, rotation);
+
+        RenderTexture feed = PreviewScreenFeed;
+        float aspect = (feed != null && feed.height > 0) ? (float)feed.width / feed.height : 16f / 9f;
+        float width = previewScreenWidth * scale * distanceRatio;
+        previewScreenGO.transform.localScale = new Vector3(width, width / aspect, 1f);
     }
 
     private void DespawnPreviewScreen()
     {
+        previewScreenPickup = null;
+        previewScreenUserPlaced = false;
         if (previewScreenGO != null)
         {
             Destroy(previewScreenGO);
@@ -155,11 +224,25 @@ public partial class BasisHandHeldCamera
         }
     }
 
-    /// <summary>Keeps the screen bound to the current direct-to-screen feed (the static RT can change).</summary>
+    /// <summary>
+    /// Per-frame upkeep: re-evaluates the gate (fly and follow can start or stop at any
+    /// moment), keeps the screen bound to the current direct-to-screen feed since the static
+    /// RT can change, and re-anchors it to the viewer.
+    /// </summary>
     private void UpdatePreviewScreenTexture()
     {
+        UpdatePreviewScreen();
         if (previewScreenGO == null || previewScreenMaterial == null) return;
+
         BindPreviewScreenFeed(PreviewScreenFeed);
+
+        // Follow the viewer until the user grabs it; after that it is theirs to place, and
+        // re-anchoring would tear it out of their hand or snap it back on release.
+        if (previewScreenPickup != null && previewScreenPickup.Inputs.AnyInteracting())
+        {
+            previewScreenUserPlaced = true;
+        }
+        if (!previewScreenUserPlaced) PositionPreviewScreen();
     }
 
     private void BindPreviewScreenFeed(RenderTexture feed)

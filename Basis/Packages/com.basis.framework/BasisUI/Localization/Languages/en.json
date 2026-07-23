@@ -675,6 +675,10 @@
       "value": "Let body collision push the elbow even when an elbow tracker is driving it."
     },
     {
+      "key": "settings.bodyTracking.wristAxialBound.title.tooltip",
+      "value": "Limit wrist twist by rolling the hand away from the controller. Off keeps hands exactly on their targets."
+    },
+    {
       "key": "settings.bodyTracking.handCapsule.title.tooltip",
       "value": "Use a capsule shape instead of a point for hand collisions."
     },
@@ -5313,6 +5317,14 @@
     {
       "key": "settings.bodyTracking.collideTrackedElbow.description",
       "value": "Allow body collision to push the elbow even when an elbow tracker is driving it. Off lets the tracker fully control a tracked elbow."
+    },
+    {
+      "key": "settings.bodyTracking.wristAxialBound.title",
+      "value": "Wrist Twist Limit"
+    },
+    {
+      "key": "settings.bodyTracking.wristAxialBound.description",
+      "value": "Caps how far the hand can twist against the forearm by rolling the hand off the controller's rotation. Off keeps hands exactly on their rotation targets."
     },
     {
       "key": "settings.bodyTracking.elbowDrag.title",

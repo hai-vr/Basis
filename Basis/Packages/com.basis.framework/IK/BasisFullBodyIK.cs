@@ -89,6 +89,7 @@ hintWeightLeftHand,
 hintWeightRightHand,
 protectElbow, collideTrackedElbow, useNeuralPole,
 elbowDragEnabled,
+wristAxialBound,
 collisionsEnabled;
 
         /// <summary>Corner frequency of the no-elbow-tracker pole drag, Hz. Lower = heavier drag (tau =
@@ -1816,6 +1817,7 @@ collisionsEnabled;
                 if (swingGuardSide.IsCreated) input.PrevGuardSide = swingGuardSide[swingSlot];
                 input.BindLowerArmRotation = twistIsLeft ? TposeLeftLowerArmRot : TposeRightLowerArmRot;
                 input.BindHandRotation = twistIsLeft ? TposeLeftHandRot : TposeRightHandRot;
+                input.ApplyWristAxialBound = wristAxialBound;
                 BasisBoneHandle clavicle = twistIsLeft ? HandleLeftShoulder : HandleRightShoulder;
                 if (clavicle.IsValid(stream))
                 {
@@ -2929,6 +2931,7 @@ collisionsEnabled;
             elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
             elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
             collideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
+            wristAxialBound = Basis.BasisUI.BasisSettingsDefaults.FBIKWristAxialBound.RawValue;
 
             shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;

@@ -1298,6 +1298,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKCollisionsEnabled = new("fbikcollisionsenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKProtectElbow = new("fbikprotectelbow", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> FBIKCollideTrackedElbow = new("fbikcollidetrackedelbow", new BasisPlatformDefault<bool>(false));
+        // Wrist axial bound (BasisArmSolveCore). Caps hand-vs-forearm roll at 15 deg by taking the excess off
+        // the HAND, so it is the one stage in the arm that moves the hand away from the controller's rotation.
+        // Default OFF: the hand leaving its rotation target is more visible in a headset than an over-twisted
+        // wrist, because the user is holding the reference.
+        public static BasisSettingsBinding<bool> FBIKWristAxialBound = new("fbikwristaxialbound", new BasisPlatformDefault<bool>(false));
         // Elbow DRAG — no-elbow-tracker arms only. Lags the predicted pole with a fixed time constant so a
         // waved hand does not throw the elbow around; a real elbow tracker is the user's own input and is
         // never lagged. Hz is a corner frequency, so LOWER = heavier drag (tau = 1/(2*pi*hz)).
@@ -2192,6 +2197,7 @@ namespace Basis.BasisUI
             FBIKCollisionsEnabled.LoadBindingValue();
             FBIKProtectElbow.LoadBindingValue();
             FBIKCollideTrackedElbow.LoadBindingValue();
+            FBIKWristAxialBound.LoadBindingValue();
             FBIKElbowDrag.LoadBindingValue();
             FBIKElbowDragHz.LoadBindingValue();
             FBIKChestRadius.LoadBindingValue();

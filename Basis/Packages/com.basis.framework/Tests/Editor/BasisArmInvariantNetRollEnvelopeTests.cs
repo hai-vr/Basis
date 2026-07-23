@@ -135,6 +135,7 @@ namespace Basis.Tests.IK
                 s.RefPerp = Vector3.up;
                 s.FeedTwistBind = feedTwistBind;
                 s.FeedLowerBind = feedLowerBind;
+                s.WristBound = feedLowerBind;
                 s.FeedTip = true;
                 // The ANIMATED forearm's own roll is swept too. With the bind fed the solve must not
                 // inherit it at all; with the bind DECLINED it inherits it 1:1, which is what makes the

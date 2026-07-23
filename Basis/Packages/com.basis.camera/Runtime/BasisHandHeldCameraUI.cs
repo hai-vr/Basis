@@ -617,11 +617,25 @@ public partial class BasisHandHeldCameraUI
             Cursor.visible = false;
     }
 
+    /// <summary>
+    /// Whether closing the camera hides it instead of destroying it. Left on, the camera keeps
+    /// capturing and streaming while invisible, and bringing it out again restores that session
+    /// rather than starting a new one.
+    /// </summary>
+    public bool CloseHidesCamera;
+
     public void CloseUI()
     {
         if (HHC == null) return;
 
         ReleaseUILock();
+
+        if (CloseHidesCamera)
+        {
+            HHC.SetCameraHidden(true);
+            return;
+        }
+
         GameObject.Destroy(HHC.gameObject);
     }
 

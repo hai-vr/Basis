@@ -43,6 +43,7 @@ public partial class BasisHandHeldCameraUI
         /// <summary>Whether the exposure slider is shown on the camera's own interface. Off unless turned on from the camera panel.</summary>
         public bool showExposureOnCamera = false;
 
+
         public float fov;
         public float focusDistance;
         public float sensorSizeX;

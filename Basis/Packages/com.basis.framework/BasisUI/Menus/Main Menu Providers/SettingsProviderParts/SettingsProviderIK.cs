@@ -284,6 +284,11 @@ public static class SettingsProviderIK
             collideTrackedElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKCollideTrackedElbow);
             collideTrackedElbowToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title.tooltip"));
 
+            var wristAxialBoundToggle = PanelToggle.CreateNewEntry(collisionParent);
+            wristAxialBoundToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.wristAxialBound.title"));
+            wristAxialBoundToggle.AssignBinding(BasisSettingsDefaults.FBIKWristAxialBound);
+            wristAxialBoundToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.wristAxialBound.title.tooltip"));
+
             // Elbow drag (no elbow tracker only). How heavy this should feel is subjective and cannot be
             // settled offline, so the corner frequency is exposed rather than baked. The slider's minimum is
             // a real value (1 Hz = heaviest), not a "0 means default" sentinel.
@@ -1421,6 +1426,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKJobLocomotion.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKCollideTrackedElbow.ResetToDefault();
+        BasisSettingsDefaults.FBIKWristAxialBound.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowDrag.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowDragHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();

@@ -64,6 +64,10 @@ namespace Basis.IK
         /// relation instead, and a rig whose bind hand carries an axial offset needs it -- without it the
         /// wrist bound is centred that offset away from the rig's true neutral.</summary>
         public Quaternion BindHandRotation;
+        /// <summary>Lets the wrist bound at the end of Solve write the hand. False -- the struct default --
+        /// still MEASURES the breach into WristAxialDeg but leaves TipRotation exactly on the target, because
+        /// a hand that has left the controller's rotation is the worse of the two artifacts in a headset.</summary>
+        public bool ApplyWristAxialBound;
         /// <summary>Bind/T-pose world rotation of the LOWER ARM bone. With BindHumerusRotation it fixes the
         /// forearm's ZERO-PRONATION relationship to the humerus, which is the only thing that makes the
         /// no-tracker forearm roll a DEFINED quantity instead of one inherited from the animation clip.
@@ -1619,6 +1623,12 @@ namespace Basis.IK
             // DECLINES to the exact identity unless the rig bakes BindLowerArmRotation -- the same gate, and
             // the same reason, as the no-tracker forearm roll above: without the rig's own bind there is no
             // rig-defined zero for this angle and the solver would be bounding it against one it invented.
+            //
+            // ⚠️ AND IT DECLINES AGAIN UNLESS ApplyWristAxialBound, WHICH IS DEFAULT OFF (FBIKWristAxialBound).
+            // The trade above was measured correctly and rejected in a headset: p50 15.9 deg of hand roll on
+            // the tracker path is a hand that visibly does not match the controller the user is holding, and
+            // the user is looking straight at both. The MEASUREMENT is kept unconditional -- WristAxialDeg is
+            // published either way, so the recorder can still show what the wrist is being asked to do.
             // =============================================================================================
             if (bindLowerSqr > 0.5f)
             {
@@ -1645,7 +1655,7 @@ namespace Basis.IK
                     if (!(bound > 0f)) bound = 0f;   // reject-unless-good: NaN lands here, not in a bone
 
                     float pull = mag - bound;
-                    if (pull > 1e-6f)
+                    if (i.ApplyWristAxialBound && pull > 1e-6f)
                     {
                         float need = wristRad < 0f ? pull : -pull;
                         tRotation = AngleAxisRad(need, foreWristN) * tRotation;

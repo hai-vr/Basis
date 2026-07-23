@@ -59,6 +59,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelElementDescriptor _followGroup;
         private PanelToggle _autoFollowToggle;
+        private PanelToggle _followPlayspaceToggle;
         private PanelToggle _followLookAtToggle;
         private PanelSlider _followLookAtHeightSlider;
         private PanelSlider _followSideSlider;
@@ -73,17 +74,28 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _nameplateToggle;
         private PanelToggle _capture360Toggle;
         private PanelToggle _previewScreenToggle;
+        private PanelToggle _hideCameraToggle;
+        private PanelToggle _closeHidesToggle;
         private PanelToggle _videoOutputToggle;
+        private PanelDropdown _transportDropdown;
+        private List<BasisVideoTransport> _transports = new List<BasisVideoTransport>();
         private PanelDropdown _videoResolutionDropdown;
         private PanelSlider _videoFrameRateSlider;
+        private PanelSlider _webQualitySlider;
+        private PanelTextField _webPortField;
+        private PanelButton _openStreamButton;
         private PanelTextField _videoSenderNameField;
 
         private BasisHandHeldCamera _activeCamera;
         private readonly List<BasisHandHeldCamera> _entries = new List<BasisHandHeldCamera>();
         private bool _panelTickSubscribed;
         private bool? _lastVideoOutputActive;
+        private bool? _lastWebStreamActive;
+        private string _lastWebStreamDescription;
         private bool? _lastRecordingView;
         private bool? _lastPreviewScreenVisible;
+        private bool? _lastCameraHidden;
+        private bool? _lastCloseHides;
         private bool? _lastAutoFollow;
         private bool? _lastExposureOnCamera;
 
@@ -179,9 +191,41 @@ namespace Basis.BasisUI.HandHeldCamera
 
             BuildResetButton(_scrollContent);
 
+            MakeSlidersLive(_scrollContent);
+
             RebuildSelector();
 
             SetPanelTickSubscription(true);
+        }
+
+        /// <summary>
+        /// Makes this page's sliders apply while being dragged instead of on release.
+        /// <para>
+        /// PanelSlider writes through only on confirm — deliberately, since most settings are
+        /// expensive to apply — but this page shows its result live in the preview, so waiting
+        /// for release makes framing and grading feel disconnected from the handle.
+        /// </para>
+        /// <para>
+        /// Scoped to this panel by hooking the underlying Slider directly, so PanelSlider keeps
+        /// its confirm-only behaviour everywhere else. Sweeping the built page rather than
+        /// naming each slider means sliders added here later are live without extra wiring.
+        /// Pushing values in stays safe: SetValueWithoutNotify routes through the Slider's own
+        /// SetValueWithoutNotify, so it cannot feed back into this listener.
+        /// </para>
+        /// </summary>
+        private static void MakeSlidersLive(RectTransform page)
+        {
+            if (page == null) return;
+
+            PanelSlider[] sliders = page.GetComponentsInChildren<PanelSlider>(true);
+            for (int Index = 0; Index < sliders.Length; Index++)
+            {
+                PanelSlider slider = sliders[Index];
+                if (slider == null || slider.SliderComponent == null) continue;
+                // Read the callback at invoke time, not now — the Build methods assign
+                // OnValueChanged after the slider is created.
+                slider.SliderComponent.onValueChanged.AddListener(value => slider.OnValueChanged?.Invoke(value));
+            }
         }
 
         /// <summary>
@@ -268,6 +312,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _followSection = null;
             _actionSection = null;
             _autoFollowToggle = null;
+            _followPlayspaceToggle = null;
             _followLookAtToggle = null;
             _followLookAtHeightSlider = null;
             _followSideSlider = null;
@@ -282,14 +327,24 @@ namespace Basis.BasisUI.HandHeldCamera
             _nameplateToggle = null;
             _capture360Toggle = null;
             _previewScreenToggle = null;
+            _hideCameraToggle = null;
+            _closeHidesToggle = null;
             _videoOutputToggle = null;
+            _transportDropdown = null;
             _videoResolutionDropdown = null;
             _videoFrameRateSlider = null;
+            _webQualitySlider = null;
+            _webPortField = null;
+            _openStreamButton = null;
             _videoSenderNameField = null;
             _activeCamera = null;
             _lastVideoOutputActive = null;
+            _lastWebStreamActive = null;
+            _lastWebStreamDescription = null;
             _lastRecordingView = null;
             _lastPreviewScreenVisible = null;
+            _lastCameraHidden = null;
+            _lastCloseHides = null;
             _lastExposureOnCamera = null;
             _entries.Clear();
         }
@@ -414,28 +469,71 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera.enableRecordingView != v) _activeCamera.OnOverrideDesktopOutputButtonPress();
             };
 
+            _hideCameraToggle = PanelToggle.CreateNewEntry(content);
+            _hideCameraToggle.Descriptor.SetTitle("Hide Camera");
+            _hideCameraToggle.Descriptor.SetDescription("Hide the camera itself while it keeps running — capture, streaming and follow all continue.");
+            _hideCameraToggle.OnValueChanged = v =>
+            {
+                _activeCamera?.SetCameraHidden(v);
+                _lastCameraHidden = v;
+            };
+
+            _closeHidesToggle = PanelToggle.CreateNewEntry(content);
+            _closeHidesToggle.Descriptor.SetTitle("Close Hides Instead");
+            _closeHidesToggle.Descriptor.SetDescription("Closing the camera hides it rather than destroying it, so bringing it back resumes the same session.");
+            _closeHidesToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.HandHeld.CloseHidesCamera = v;
+                _lastCloseHides = v;
+            };
+
             _previewScreenToggle = PanelToggle.CreateNewEntry(content);
             _previewScreenToggle.Descriptor.SetTitle("Preview Screen");
             _previewScreenToggle.Descriptor.SetDescription("Spawn a grabbable, resizable screen showing this camera's feed.");
             _previewScreenToggle.OnValueChanged = v => _activeCamera?.SetPreviewScreenVisible(v);
 
-            if (!BasisHandHeldCamera.IsVideoOutputSupported) return;
-
-            _videoOutputToggle = PanelToggle.CreateNewEntry(content);
-            _videoOutputToggle.Descriptor.SetTitle($"{BasisHandHeldCamera.VideoOutputBackendName} Output");
-            _videoOutputToggle.Descriptor.SetDescription(
-                $"Publish this camera as a live video source. {BasisHandHeldCamera.VideoOutputRequirement}");
-            _videoOutputToggle.OnValueChanged = v =>
+            // No platform gate here: the web stream is pure sockets, so there is always at
+            // least one transport to choose from, even where no shared-texture backend exists.
+            _transports = BasisHandHeldCamera.AvailableVideoTransports();
+            List<string> transportLabels = new List<string>();
+            for (int Index = 0; Index < _transports.Count; Index++)
             {
-                if (_activeCamera == null) return;
-                if (v) _activeCamera.StartVideoOutput();
-                else _activeCamera.StopVideoOutput();
-                // The click already moved the widget, so the cached value no longer describes
-                // it — clear it or a failed start would leave the toggle stuck on.
+                transportLabels.Add(BasisHandHeldCamera.GetVideoTransportName(_transports[Index]));
+            }
+
+            _transportDropdown = PanelDropdown.CreateNewEntry(content);
+            _transportDropdown.Descriptor.SetTitle("Transport");
+            _transportDropdown.AssignEntries(transportLabels);
+            _transportDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _transportDropdown == null) return;
+                int index = _transportDropdown.Index;
+                if (index < 0 || index >= _transports.Count) return;
+                // Carries the running state across, so switching transport mid-stream just
+                // moves it rather than silently stopping the output.
+                _activeCamera.SetVideoTransport(_transports[index]);
                 _lastVideoOutputActive = null;
+                _lastWebStreamActive = null;
                 RefreshVideoOutputState();
             };
 
+            _videoOutputToggle = PanelToggle.CreateNewEntry(content);
+            _videoOutputToggle.Descriptor.SetTitle("Live Output");
+            _videoOutputToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera == null) return;
+                if (v) _activeCamera.StartLiveOutput();
+                else _activeCamera.StopLiveOutput();
+                // The click already moved the widget, so the cached value no longer describes
+                // it — clear it or a failed start would leave the toggle stuck on.
+                _lastVideoOutputActive = null;
+                _lastWebStreamActive = null;
+                RefreshVideoOutputState();
+            };
+
+            // Resolution and frame rate apply to every transport, so they sit above the
+            // platform gate — otherwise a machine with no shared-texture backend would get the
+            // web stream with no controls at all.
             _videoResolutionDropdown = PanelDropdown.CreateNewEntry(content);
             _videoResolutionDropdown.Descriptor.SetTitle("Stream Resolution");
             List<string> resolutionLabels = new List<string>();
@@ -457,6 +555,28 @@ namespace Basis.BasisUI.HandHeldCamera
                 "Stream Frame Rate", 15f, 120f, true, 0, ValueDisplayMode.Hz));
             _videoFrameRateSlider.OnValueChanged = v => _activeCamera?.SetVideoOutputFrameRate(v);
 
+            // Web-only settings. Shown or hidden by RefreshTransportSelection so the group
+            // only ever offers what the chosen transport actually uses.
+            _webQualitySlider = PanelSlider.CreateNew(content);
+            _webQualitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Stream Quality", 10f, 95f, true, 0, ValueDisplayMode.Raw));
+            _webQualitySlider.OnValueChanged = v => _activeCamera?.SetWebStreamQuality((int)v);
+
+            _webPortField = PanelTextField.CreateNewEntry(content);
+            _webPortField.Descriptor.SetTitle("Stream Port");
+            _webPortField.OnValueChanged = v =>
+            {
+                if (_activeCamera == null || !int.TryParse(v, out int port)) return;
+                _activeCamera.SetWebStreamPort(port);
+                RefreshVideoOutputState();
+            };
+
+            _openStreamButton = PanelButton.CreateNew(content);
+            _openStreamButton.Descriptor.SetTitle("Open In Browser");
+            _openStreamButton.OnClicked += () => _activeCamera?.OpenWebStreamInBrowser();
+
+            if (!BasisHandHeldCamera.IsVideoOutputSupported) return;
+
             _videoSenderNameField = PanelTextField.CreateNewEntry(content);
             _videoSenderNameField.Descriptor.SetTitle("Sender Name");
             _videoSenderNameField.OnValueChanged = v =>
@@ -476,6 +596,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _autoFollowToggle = PanelToggle.CreateNewEntry(content);
             _autoFollowToggle.Descriptor.SetTitle("Auto Follow");
             _autoFollowToggle.OnValueChanged = v => _activeCamera?.SetAutoFollowEnabled(v);
+
+            _followPlayspaceToggle = PanelToggle.CreateNewEntry(content);
+            _followPlayspaceToggle.Descriptor.SetTitle("Follow Playspace");
+            _followPlayspaceToggle.Descriptor.SetDescription("Track your body's centre of mass, so walking around your room keeps you in frame. Off follows the playspace origin instead.");
+            _followPlayspaceToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera != null) _activeCamera.autoFollowPlayspace = v;
+            };
 
             _followLookAtToggle = PanelToggle.CreateNewEntry(content);
             _followLookAtToggle.Descriptor.SetTitle("Look At Me");
@@ -716,12 +844,15 @@ namespace Basis.BasisUI.HandHeldCamera
 
             SyncToggle(_recordToggle, _activeCamera.enableRecordingView, ref _lastRecordingView);
             SyncToggle(_previewScreenToggle, _activeCamera.IsPreviewScreenVisible, ref _lastPreviewScreenVisible);
+            SyncToggle(_hideCameraToggle, _activeCamera.IsCameraHidden, ref _lastCameraHidden);
+            SyncToggle(_closeHidesToggle, _activeCamera.HandHeld.CloseHidesCamera, ref _lastCloseHides);
             _nameplateToggle?.SetValueWithoutNotify(_activeCamera.ShowUIInCapture);
             _capture360Toggle?.SetValueWithoutNotify(_activeCamera.capture360Enabled);
             _formatDropdown?.SetValueWithoutNotify(
                 _activeCamera.HandHeld.FormatIndex == BasisHandHeldCameraUI.FORMAT_EXR ? "EXR" : "PNG");
 
             SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
+            _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.autoFollowPlayspace);
             _followLookAtToggle?.SetValueWithoutNotify(_activeCamera.autoFollowLookAtPlayer);
             _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.autoFollowLookAtHeightOffset);
             _followSideSlider?.SetValueWithoutNotify(_activeCamera.autoFollowPositionOffset.x);
@@ -746,12 +877,70 @@ namespace Basis.BasisUI.HandHeldCamera
             return -1;
         }
 
+        /// <summary>
+        /// Points the dropdown at whatever transport the selected camera is set to, and shows
+        /// only the rows that transport actually uses.
+        /// </summary>
+        private void RefreshTransportSelection()
+        {
+            if (_activeCamera == null) return;
+
+            if (_transportDropdown != null)
+            {
+                int index = _transports.IndexOf(_activeCamera.VideoTransport);
+                if (index >= 0)
+                {
+                    _transportDropdown.SetValueWithoutNotify(
+                        BasisHandHeldCamera.GetVideoTransportName(_transports[index]));
+                }
+            }
+
+            // Direct To Screen swaps the headset view for the camera's. On desktop there is no
+            // second view to give up — OverrideDesktopOutput already no-ops there — so the row
+            // would be a control that does nothing. Matches the prop HUD, which hides its own
+            // button the same way.
+            if (_recordToggle != null)
+            {
+                _recordToggle.gameObject.SetActive(BasisDeviceManagement.IsCurrentModeVR());
+            }
+
+            bool web = _activeCamera.VideoTransport == BasisVideoTransport.Web;
+            if (_webQualitySlider != null) _webQualitySlider.gameObject.SetActive(web);
+            if (_webPortField != null) _webPortField.gameObject.SetActive(web);
+            // Nothing to open until it is actually serving, and the address only exists then.
+            if (_openStreamButton != null) _openStreamButton.gameObject.SetActive(web && _activeCamera.IsWebStreamActive);
+            if (_videoSenderNameField != null) _videoSenderNameField.gameObject.SetActive(!web);
+        }
+
+        /// <summary>
+        /// Keeps the toggle's caption describing the selected transport: what it needs on the
+        /// receiving side while idle, and the live address once the web stream is serving —
+        /// the port rolls forward when taken, so the URL isn't something the user can guess.
+        /// </summary>
+        private void RefreshLiveOutputDescription()
+        {
+            if (_videoOutputToggle == null || _activeCamera == null) return;
+
+            string description = _activeCamera.IsWebStreamActive
+                ? $"Serving at {_activeCamera.WebStreamUrl} — add that as a Browser source in OBS, or open it in a browser."
+                : $"Publish this camera as a live video source. {BasisHandHeldCamera.GetVideoTransportRequirement(_activeCamera.VideoTransport)}";
+            if (_lastWebStreamDescription == description) return;
+
+            _lastWebStreamDescription = description;
+            _videoOutputToggle.Descriptor.SetDescription(description);
+        }
+
         private void RefreshVideoOutputState()
         {
             if (_activeCamera == null) return;
 
-            SyncToggle(_videoOutputToggle, _activeCamera.IsVideoOutputActive, ref _lastVideoOutputActive);
+            SyncToggle(_videoOutputToggle, _activeCamera.IsAnyVideoOutputActive, ref _lastVideoOutputActive);
+            _lastWebStreamActive = _activeCamera.IsWebStreamActive;
+            RefreshTransportSelection();
+            RefreshLiveOutputDescription();
             _videoFrameRateSlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.FrameRate);
+            _webQualitySlider?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.WebQuality);
+            _webPortField?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.WebPort.ToString());
             _videoSenderNameField?.SetValueWithoutNotify(_activeCamera.VideoOutputSettings.SenderName);
 
             if (_videoResolutionDropdown != null)
@@ -815,7 +1004,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             RefreshPreviewTexture();
 
-            if (_activeCamera.IsVideoOutputActive != _lastVideoOutputActive)
+            if (_activeCamera.IsVideoOutputActive != _lastVideoOutputActive ||
+                _activeCamera.IsWebStreamActive != _lastWebStreamActive)
             {
                 RefreshVideoOutputState();
             }

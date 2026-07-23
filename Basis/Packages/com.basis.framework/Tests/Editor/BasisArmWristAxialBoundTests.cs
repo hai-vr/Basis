@@ -93,6 +93,7 @@ namespace Basis.Tests.IK
                 s.FeedTip = true;
                 s.AnimForeRollDeg = 35f + aux;
                 s.AnimHandRollDeg = -20f;
+                s.WristBound = true;
 
                 BasisArmSolveInput i = BasisArmNet.Build(s);
                 BasisArmNet.Solve(i, out BasisArmSolveResult r);
@@ -240,6 +241,7 @@ namespace Basis.Tests.IK
                 s.RefPerp = Vector3.up;
                 s.FeedTwistBind = true; s.FeedLowerBind = true; s.FeedTip = true;
                 s.AnimForeRollDeg = 35f + aux; s.AnimHandRollDeg = -20f;
+                s.WristBound = true;
 
                 BasisArmSolveInput a = BasisArmNet.Build(s);
                 BasisArmSolveInput b = a;
@@ -408,6 +410,7 @@ namespace Basis.Tests.IK
                     s.RefPerp = Vector3.up;
                     s.FeedTwistBind = true; s.FeedLowerBind = true; s.FeedTip = true;
                     s.AnimForeRollDeg = 95f; s.AnimHandRollDeg = -20f;
+                    s.WristBound = true;
 
                     BasisArmSolveInput i = BasisArmNet.Build(s);
                     BasisArmNet.Solve(i, out BasisArmSolveResult r);
@@ -489,6 +492,7 @@ namespace Basis.Tests.IK
                 s.RefPerp = Vector3.up;
                 s.FeedTwistBind = true; s.FeedLowerBind = true; s.FeedTip = true;
                 s.AnimForeRollDeg = 35f + aux; s.AnimHandRollDeg = -20f;
+                s.WristBound = true;
 
                 BasisArmSolveInput zero = BasisArmNet.Build(s);
                 BasisArmSolveInput aligned = zero;

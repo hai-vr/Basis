@@ -235,6 +235,7 @@ namespace Basis.Tests.IK
             public bool FeedTwistBind;       // ClavicleRotation + the four humerus binds
             public bool FeedLowerBind;       // BindLowerArmRotation (the no-tracker forearm roll)
             public bool FeedTip;             // TipRotation (wrist-roll relief / the hand's roll demand)
+            public bool WristBound;          // ApplyWristAxialBound (default OFF in the shipped settings)
             public Quaternion ClavLive;      // zero => ClavBind (a girdle that has not moved)
 
             // --- frames
@@ -410,6 +411,7 @@ namespace Basis.Tests.IK
             {
                 i.TipRotation = W * BoneRot(foreDir, s.AnimHandRollDeg, s.Rig.Conv);
             }
+            i.ApplyWristAxialBound = s.WristBound;
             return i;
         }
 

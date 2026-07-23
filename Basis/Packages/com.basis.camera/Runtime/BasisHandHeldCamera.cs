@@ -146,6 +146,15 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private Collider onPropUICollider;
     private bool onPropUIHidden;
 
+    /// <summary>Every renderer on the prop, so the whole thing can go without stopping it.</summary>
+    private Renderer[] cameraBodyRenderers;
+
+    /// <summary>True while the prop is hidden but still live.</summary>
+    private bool cameraHidden;
+
+    /// <summary>True when the camera is running but invisible — "closed" without being destroyed.</summary>
+    public bool IsCameraHidden => cameraHidden;
+
     /// <summary>
     /// Performs camera/PP/UI/material initialization, creates folders, saves initial settings,
     /// and starts the preview loop. Also hooks boot-mode changes.
@@ -227,6 +236,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
+
+        // Neither of these unwinds itself. The web stream owns a socket and a thread that
+        // Unity knows nothing about, so they would outlive the camera and hold the port for
+        // the rest of the session; the Spout path leaks its claimed sender name, which makes
+        // the next camera come up as "Basis Camera 2".
+        StopWebStream();
+        StopVideoOutput();
 
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
@@ -344,10 +360,38 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void CacheOnPropUI()
     {
+        // Grabbed once at init, before the preview screen can exist, so hiding the prop can
+        // never reach the separately-rooted screen the user may have placed in the world.
+        cameraBodyRenderers = GetComponentsInChildren<Renderer>(true);
+
         onPropUICanvas = GetComponentInChildren<Canvas>(true);
         if (onPropUICanvas == null) return;
         onPropUICanvas.TryGetComponent(out onPropUIRaycaster);
         onPropUICanvas.TryGetComponent(out onPropUICollider);
+    }
+
+    /// <summary>
+    /// Hides the prop without stopping it. Everything downstream keeps running — capture,
+    /// streaming, auto-follow, the panel preview — only the visuals go, which is what lets a
+    /// "closed" camera stay alive and be brought back rather than respawned.
+    /// </summary>
+    public void SetCameraHidden(bool hidden)
+    {
+        if (cameraHidden == hidden) return;
+        cameraHidden = hidden;
+
+        if (cameraBodyRenderers != null)
+        {
+            for (int Index = 0; Index < cameraBodyRenderers.Length; Index++)
+            {
+                if (cameraBodyRenderers[Index] != null) cameraBodyRenderers[Index].enabled = !hidden;
+            }
+        }
+
+        // Hiding the preview mesh drops Renderer.isVisible, which would otherwise cull the
+        // capture camera and stop the feed the moment the prop went invisible.
+        VisibilityFlag(Renderer != null && Renderer.isVisible);
+        UpdateOnPropUIVisibility();
     }
 
     /// <summary>
@@ -362,7 +406,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void UpdateOnPropUIVisibility()
     {
-        SetOnPropUIHidden(BasisDeviceManagement.IsUserInDesktop() && BasisMainMenu.Instance != null);
+        SetOnPropUIHidden(cameraHidden
+            || (BasisDeviceManagement.IsUserInDesktop() && BasisMainMenu.Instance != null));
     }
 
     public void SetOnPropUIHidden(bool hidden)
@@ -850,7 +895,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // A live video stream is the RT's real consumer: publishing at 30fps off a camera
         // the user limited to 10fps would send the same frame three times. Floor the render
         // rate at the stream rate for as long as the stream is up.
-        if (IsVideoOutputActive && VideoOutputSettings.FrameRate > 0f)
+        if (IsAnyVideoOutputActive && VideoOutputSettings.FrameRate > 0f)
         {
             targetHz = Mathf.Max(targetHz, VideoOutputSettings.FrameRate);
         }
@@ -882,7 +927,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         // While streaming, the RT feeds a receiver that has no idea whether the prop is on
         // screen — culling the capture camera would freeze the stream on its last frame.
-        bool shouldRender = isVisible || IsOverridingDesktopView || IsVideoOutputActive;
+        bool shouldRender = isVisible || IsOverridingDesktopView || IsAnyVideoOutputActive || cameraHidden;
         if (shouldRender == LastVisibilityState)
             return;
 

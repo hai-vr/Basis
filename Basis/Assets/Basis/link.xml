@@ -12,6 +12,7 @@
     <assembly fullname="Basis.OpenLipSync.Runtime" preserve="all" />
     <assembly fullname="Basis.Shims.Samples" preserve="all" />
     <assembly fullname="BasisBundleManagement" preserve="all" />
+    <assembly fullname="BasisCamera" preserve="all" />
     <assembly fullname="BasisCommon" preserve="all" />
     <assembly fullname="BasisConsoleDisplay" preserve="all" />
     <assembly fullname="BasisDebug" preserve="all" />

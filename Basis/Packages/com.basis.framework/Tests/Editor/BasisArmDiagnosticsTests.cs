@@ -779,6 +779,7 @@ namespace Basis.Tests.IK
                     s.FeedTip = true;
                     s.HandRollDeg = 40f;
                     s.TrackerRollDeg = a * 0.5f - 90f;
+                    s.WristBound = true;
                     yield return WithLateral(BasisArmNet.Build(s));
                 }
             }

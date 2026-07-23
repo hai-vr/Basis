@@ -121,6 +121,9 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     [Tooltip("Extra rotation applied after aiming, in degrees.")]
     public Vector3 autoFollowRotationOffset = Vector3.zero;
 
+    [Tooltip("Follow your body's centre of mass (hips) so room-scale movement keeps you in frame. Off anchors to the playspace origin, which is steadier but ignores physical walking.")]
+    public bool autoFollowPlayspace = true;
+
     [Tooltip("Aim the camera at the player rather than facing the player's forward.")]
     public bool autoFollowLookAtPlayer = true;
 
@@ -134,6 +137,9 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     public float autoFollowTeleportDistance = 10f;
 
     public bool IsAutoFollowing => autoFollowEnabled;
+
+    /// <summary>True while the desktop fly controls have the camera, so it is off in the world somewhere.</summary>
+    public bool IsFlying => pauseMove;
 
     public void SetAutoFollowEnabled(bool enabled)
     {
@@ -160,12 +166,16 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
     private void MoveCameraAutoFollow(float deltaTime)
     {
-        if (BasisLocalPlayer.Instance == null || BasisLocalPlayer.Instance.AvatarTransform == null)
+        if (BasisLocalPlayer.Instance == null)
         {
             return;
         }
 
-        BasisLocalPlayer.Instance.AvatarTransform.GetPositionAndRotation(out Vector3 anchorPos, out Quaternion anchorRot);
+        // Anchor to the player root, not AvatarTransform. The latter is the loaded avatar model
+        // (BasisAvatarFactory assigns avatar.transform), so it carries every IK correction and
+        // foot-plant as shake, its rotation is slammed to identity on teleport, and it is
+        // replaced on every avatar swap. The root is what locomotion actually moves.
+        BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 rootPos, out Quaternion anchorRot);
         Quaternion anchorYaw = Quaternion.Euler(0f, anchorRot.eulerAngles.y, 0f);
 
         float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
@@ -173,10 +183,24 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         // Height is measured from calibrated eye level, not the feet, so a zero offset films you
         // level with your eyeline on any avatar. GetTposeHeadHeight is already avatar-scaled, and
         // being calibration-derived it does not bob with crouching the way the live head does.
+        Vector3 anchorPos = rootPos;
         Vector3 eyeLevel = Vector3.up * GetTposeHeadHeight();
+
+        float hipsHeight = GetTposeHipsHeight();
+        if (autoFollowPlayspace && hipsHeight > 0f && BasisLocalBoneDriver.HipsControl != null)
+        {
+            // Centre of mass. The hips carry their own height, so lift by only the calibrated
+            // eye-above-hips gap and a zero offset still sits on your eyeline. Vertical now
+            // tracks crouching, which the playspace root cannot do. Falls back to the root
+            // above when there is no T-pose snapshot to measure the gap from.
+            anchorPos = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
+            eyeLevel = Vector3.up * Mathf.Max(0f, GetTposeHeadHeight() - hipsHeight);
+        }
+
         Vector3 targetPosition = anchorPos + eyeLevel + anchorYaw * (autoFollowPositionOffset * scale);
 
-        Vector3 lookTarget = GetAutoFollowLookTarget(anchorPos, scale);
+        // The aim helper measures up from the feet, so hand it the body's ground position.
+        Vector3 lookTarget = GetAutoFollowLookTarget(new Vector3(anchorPos.x, rootPos.y, anchorPos.z), scale);
         Vector3 toPlayer = lookTarget - targetPosition;
 
         Quaternion targetRotation = autoFollowLookAtPlayer && toPlayer.sqrMagnitude > 1e-6f
@@ -215,6 +239,23 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// Height of the head above the avatar root in its T-pose, already scaled to the avatar
     /// as worn. Falls back to the measured avatar height before a T-pose snapshot exists.
     /// </summary>
+    /// <summary>
+    /// Height of the hips above the avatar root in its T-pose, already scaled to the avatar as
+    /// worn. Returns 0 when no snapshot exists yet, which callers treat as "unavailable".
+    /// </summary>
+    private static float GetTposeHipsHeight()
+    {
+        if (BasisLocalAvatarDriver.HasTposeBoneSnapshot)
+        {
+            BasisLocalBoneControl hips = BasisLocalBoneDriver.HipsControl;
+            if (hips != null && hips.TposeLocalScaled.position.y > 0.01f)
+            {
+                return hips.TposeLocalScaled.position.y;
+            }
+        }
+        return 0f;
+    }
+
     private static float GetTposeHeadHeight()
     {
         if (BasisLocalAvatarDriver.HasTposeBoneSnapshot)
@@ -571,7 +612,10 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     return;
 
             case CameraPinSpace.PlaySpace:
-                BasisLocalPlayer.Instance.AvatarTransform.GetPositionAndRotation(out Vector3 pinParentPos, out Quaternion pinParentRot);
+                // Player root, not the avatar model — see MoveCameraAutoFollow. Pinning to the
+                // avatar fed every IK correction into the constraint as shake, and the playspace
+                // is the root by definition.
+                BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Vector3 pinParentPos, out Quaternion pinParentRot);
                 cameraPinConstraint.UpdateSourcePositionAndRotation(0, pinParentPos, pinParentRot);
 
                 MoveCameraFlying();
