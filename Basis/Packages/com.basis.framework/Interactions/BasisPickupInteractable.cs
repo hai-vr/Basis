@@ -117,7 +117,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Parent constraint that drives the object to follow the active input source with offsets.
         /// </summary>
         [SerializeReference]
-        internal BasisParentConstraint InputConstraint;
+        protected internal BasisParentConstraint InputConstraint;
 
         #endregion
 
@@ -126,7 +126,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <summary>
         /// Highlight mesh instance cloned from <see cref="ColliderRef"/> (if enabled).
         /// </summary>
-        internal GameObject HighlightClone;
+        protected internal GameObject HighlightClone;
 
         /// <summary>
         /// Renderers to highlight when this object is hovered (if enabled).

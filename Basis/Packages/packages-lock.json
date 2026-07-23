@@ -20,6 +20,15 @@
         "com.unity.addressables": "2.9.1"
       }
     },
+    "com.basis.camera": {
+      "version": "file:com.basis.camera",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.addressables": "2.9.1",
+        "com.unity.ugui": "2.0.0"
+      }
+    },
     "com.basis.common": {
       "version": "file:com.basis.common",
       "depth": 0,
