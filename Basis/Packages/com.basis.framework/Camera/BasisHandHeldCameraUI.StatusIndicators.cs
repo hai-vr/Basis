@@ -23,15 +23,6 @@ public partial class BasisHandHeldCameraUI
             case BasisCameraButtonAction.ToggleVRHandheldSmoothing:
                 isOn = HHC.useVRHandheldSmoothing;
                 return true;
-            case BasisCameraButtonAction.ToggleFollowPlayer:
-                isOn = HHC.IsFollowingPlayer;
-                return true;
-            case BasisCameraButtonAction.ToggleVideoOutput:
-                isOn = HHC.IsVideoOutputActive;
-                return true;
-            case BasisCameraButtonAction.ToggleFlyMode:
-                isOn = HHC.IsFlying;
-                return true;
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
                 return true;
@@ -70,7 +61,7 @@ public partial class BasisHandHeldCameraUI
         descriptor.statusIndicator.color = isOn ? StatusOnColor : StatusOffColor;
     }
 
-    public void RefreshAllToggleIndicators()
+    private void RefreshAllToggleIndicators()
     {
         if (ScriptableButtons == null)
             return;

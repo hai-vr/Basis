@@ -86,9 +86,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Static metadata/presets and PP component references.</summary>
     public BasisHandHeldCameraMetaData MetaData = new BasisHandHeldCameraMetaData();
 
-    /// <summary>Local volume carrying this camera's post-processing. Its profile is cloned at runtime.</summary>
-    public Volume PostProcessVolume;
-
     // --- private state ---
 
     /// <summary>Instantiated material assigned to the preview renderer.</summary>
@@ -147,7 +144,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         ApplyReticleSuppression();
 
         InitializeCameraSettings();
-        InitializePostProcessingVolume();
         InitializeMaterial();
         InitializeMeshRendererCheck();
         await InitializeUI();
@@ -183,47 +179,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             BasisNetworkPIPCameraDriver.SendPIPState(true, pipPos, pipRot);
         }
     }
-    /// <summary>
-    /// Gives this camera its own copy of the post-processing profile and points the capture
-    /// camera at its own volume.
-    /// <para>
-    /// The prefab assigns the profile <em>asset</em>, and every slider writes straight through
-    /// to the override objects it holds. Shared like that, one camera's depth of field or
-    /// exposure lands on anything else sampling the same profile — and in the editor the edits
-    /// are saved into the asset on disk. <see cref="Volume.profile"/> hands back a runtime clone
-    /// instead, so the effects stay inside this viewfinder.
-    /// </para>
-    /// </summary>
-    private void InitializePostProcessingVolume()
-    {
-        if (PostProcessVolume == null && captureCamera != null)
-        {
-            PostProcessVolume = captureCamera.GetComponentInChildren<Volume>(true);
-        }
-
-        if (PostProcessVolume == null)
-        {
-            BasisDebug.LogError("Handheld camera has no post-processing Volume; effects would be written to the shared profile asset.", BasisDebug.LogTag.Camera);
-            return;
-        }
-
-        MetaData.Profile = PostProcessVolume.profile;
-        PostProcessVolume.isGlobal = false;
-
-        if (CameraData != null)
-        {
-            CameraData.renderPostProcessing = true;
-            CameraData.volumeTrigger = PostProcessVolume.transform;
-            CameraData.volumeLayerMask = 1 << PostProcessVolume.gameObject.layer;
-        }
-    }
-
     public void InitializeVolumetrics()
     {
 #if Basis_VOLUMETRIC_SUPPORTED
         if (MetaData.Profile.TryGet(out MetaData.VolumetricFogVolume))
         {
-            HandHeld.SyncVolumetricDensityToWorld();
+
         }
 #endif
     }
@@ -250,7 +211,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
 
-        StopVideoOutput();
         UnsubscribeMeshRendererCheck();
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
@@ -261,9 +221,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (HandHeld != null)
         {
             HandHeld.ReleaseUILock(); // we should release locks if for whatever reason we get destroyed
-            HandHeld.SaveSettingsImmediate();
+        
         }
-
+        
 
         RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
@@ -658,7 +618,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
 
         UpdatePreviewScreenTexture();
-        TickVideoOutput();
 
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -826,13 +785,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             captureCamera.enabled = true;
             return;
         }
-        float targetHz = BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue;
-        if (IsVideoOutputActive && VideoOutputSettings.FrameRate > targetHz)
-        {
-            targetHz = VideoOutputSettings.FrameRate;
-        }
         captureCamera.enabled = renderRateLimiter.AllowThisFrame(
-            Time.unscaledDeltaTime, targetHz,
+            Time.unscaledDeltaTime, BasisSettingsDefaults.HandHeldCameraRenderHz.RawValue,
             BasisSettingsDefaults.LimitHandHeldCameraRate.RawValue);
     }
 
@@ -858,7 +812,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (BasisLocalPlayer.Instance == null)
             return;
 
-        bool shouldRender = isVisible || IsOverridingDesktopView || IsVideoOutputActive;
+        bool shouldRender = isVisible || IsOverridingDesktopView;
         if (shouldRender == LastVisibilityState)
             return;
 

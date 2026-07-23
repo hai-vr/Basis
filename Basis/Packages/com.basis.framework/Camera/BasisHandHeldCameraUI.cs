@@ -6,7 +6,6 @@ using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 /// <summary>
@@ -25,9 +24,6 @@ public partial class BasisHandHeldCameraUI
     public Button Selfie;
     public Button AutoLevelButton;
     public Button VRStabilizationButton;
-    public Button FollowPlayerButton;
-    public Button VideoOutputButton;
-    public Button FlyModeButton;
 
     [Space(10)]
     public GameObject focusCursor;
@@ -75,7 +71,7 @@ public partial class BasisHandHeldCameraUI
     [Space(10)]
     public Slider volumetricDensitySlider;
 
-    public static readonly float[] ExposureStops =
+    private static readonly float[] ExposureStops =
     {
         -3f, -2.5f, -2f, -1.5f, -1f, -0.5f, 0f, 0.5f, 1f, 1.5f, 2f, 2.5f, 3f
     };
@@ -98,21 +94,6 @@ public partial class BasisHandHeldCameraUI
     public Slider BloomThresholdSlider;
     public Slider ContrastSlider;
     public Slider SaturationSlider;
-
-    [Space(10)]
-    public Slider FollowHeightSlider;
-    public TextMeshProUGUI FollowHeightOutput;
-    public Slider FollowHorizontalSlider;
-    public TextMeshProUGUI FollowHorizontalOutput;
-    public Slider VideoResolutionSlider;
-    public TextMeshProUGUI VideoResolutionOutput;
-    public Slider VideoFrameRateSlider;
-    public TextMeshProUGUI VideoFrameRateOutput;
-
-    public static readonly (int width, int height)[] VideoResolutionPresets =
-    {
-        (1280, 720), (1920, 1080), (2560, 1440), (3840, 2160)
-    };
 
     [Space(10)]
     // Keep your existing fields so you don't have to redo prefab references.
@@ -149,7 +130,6 @@ public partial class BasisHandHeldCameraUI
 
         InitializeFormatUI();
         SeedInitialSliderValues();
-        InitializeVideoOutputControls();
         UpdateResolutionSprites();
         SetCapture360State(HHC != null && HHC.capture360Enabled);
         RefreshAllToggleIndicators();
@@ -192,9 +172,6 @@ public partial class BasisHandHeldCameraUI
         AddIf(list, "Selfie", Selfie, BasisCameraButtonAction.ToggleSelfie);
         AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
         AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
-        AddIf(list, "FollowPlayer", FollowPlayerButton, BasisCameraButtonAction.ToggleFollowPlayer);
-        AddIf(list, "VideoOutput", VideoOutputButton, BasisCameraButtonAction.ToggleVideoOutput);
-        AddIf(list, "FlyMode", FlyModeButton, BasisCameraButtonAction.ToggleFlyMode);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -288,18 +265,6 @@ public partial class BasisHandHeldCameraUI
                 button.onClick.AddListener(ToggleVRHandheldSmoothing);
                 break;
 
-            case BasisCameraButtonAction.ToggleFollowPlayer:
-                button.onClick.AddListener(ToggleFollowPlayer);
-                break;
-
-            case BasisCameraButtonAction.ToggleVideoOutput:
-                button.onClick.AddListener(ToggleVideoOutput);
-                break;
-
-            case BasisCameraButtonAction.ToggleFlyMode:
-                button.onClick.AddListener(ToggleFlyMode);
-                break;
-
             case BasisCameraButtonAction.DepthModeAuto:
                 button.onClick.AddListener(() => SetDepthMode(DepthMode.Auto));
                 break;
@@ -338,10 +303,6 @@ public partial class BasisHandHeldCameraUI
         HookSlider(ContrastSlider, ChangeContrast);
         HookSlider(SaturationSlider, ChangeSaturation);
         HookSlider(volumetricDensitySlider, ChangeVolumetricDensity);
-        HookSlider(FollowHeightSlider, ChangeFollowHeight);
-        HookSlider(FollowHorizontalSlider, ChangeFollowHorizontal);
-        HookSlider(VideoResolutionSlider, ChangeVideoResolution);
-        HookSlider(VideoFrameRateSlider, ChangeVideoFrameRate);
     }
 
     private static void HookSlider(Slider slider, Action<float> handler)
@@ -362,13 +323,6 @@ public partial class BasisHandHeldCameraUI
         if (BloomThresholdSlider != null) { BloomThresholdSlider.minValue = 0.1f; BloomThresholdSlider.maxValue = 2f; }
         if (ContrastSlider != null) { ContrastSlider.minValue = -100f; ContrastSlider.maxValue = 100f; }
         if (SaturationSlider != null) { SaturationSlider.minValue = -100f; SaturationSlider.maxValue = 100f; }
-        if (FollowHeightSlider != null) { FollowHeightSlider.minValue = -1f; FollowHeightSlider.maxValue = 2f; FollowHeightSlider.wholeNumbers = false; }
-        if (FollowHorizontalSlider != null) { FollowHorizontalSlider.minValue = -2f; FollowHorizontalSlider.maxValue = 2f; FollowHorizontalSlider.wholeNumbers = false; }
-        // The fog override's own range is 0..1; a 0..0.1 slider cannot even reach a world
-        // rendering the component's 0.2 default, which reads as the slider being out of sync.
-        if (volumetricDensitySlider != null) { volumetricDensitySlider.minValue = 0f; volumetricDensitySlider.maxValue = 1f; volumetricDensitySlider.wholeNumbers = false; }
-        if (VideoResolutionSlider != null) { VideoResolutionSlider.minValue = 0f; VideoResolutionSlider.maxValue = VideoResolutionPresets.Length - 1; VideoResolutionSlider.wholeNumbers = true; }
-        if (VideoFrameRateSlider != null) { VideoFrameRateSlider.minValue = 15f; VideoFrameRateSlider.maxValue = 120f; VideoFrameRateSlider.wholeNumbers = true; }
 
         if (HHC != null && HHC.captureCamera != null && FOVSlider != null)
             FOVSlider.SetValueWithoutNotify(HHC.captureCamera.fieldOfView);
@@ -487,7 +441,7 @@ public partial class BasisHandHeldCameraUI
 
     // ---------- UI Actions ----------
 
-    public void SelfieToggle()
+    private void SelfieToggle()
     {
         selfieBool = !selfieBool;
 
@@ -502,7 +456,7 @@ public partial class BasisHandHeldCameraUI
         }
     }
     
-    public void ToggleAutoLevel()
+    private void ToggleAutoLevel()
     {
         if (HHC == null)
             return;
@@ -510,134 +464,13 @@ public partial class BasisHandHeldCameraUI
         HHC.useAutoLeveling = !HHC.useAutoLeveling;
         BasisDebug.Log($"[AutoLevel] Auto leveling is now {(HHC.useAutoLeveling ? "ON" : "OFF")}");
     }
-    public void ToggleVRHandheldSmoothing()
+    private void ToggleVRHandheldSmoothing()
     {
         if (HHC == null)
             return;
 
         HHC.useVRHandheldSmoothing = !HHC.useVRHandheldSmoothing;
         BasisDebug.Log($"[VRStabilization] VR handheld smoothing is now {(HHC.useVRHandheldSmoothing ? "ON" : "OFF")}");
-    }
-
-    public void ToggleFollowPlayer()
-    {
-        if (HHC == null)
-            return;
-
-        HHC.SetFollowPlayerEnabled(!HHC.IsFollowingPlayer);
-        BasisDebug.Log($"[FollowPlayer] Follow player is now {(HHC.IsFollowingPlayer ? "ON" : "OFF")}");
-    }
-
-    public void ToggleVideoOutput()
-    {
-        if (HHC == null)
-            return;
-
-        if (!BasisHandHeldCamera.IsVideoOutputSupported)
-        {
-            BasisDebug.Log("[VideoOutput] Video output is not supported on this platform.");
-            return;
-        }
-
-        if (HHC.IsVideoOutputActive)
-            HHC.StopVideoOutput();
-        else
-            HHC.StartVideoOutput();
-        BasisDebug.Log($"[VideoOutput] Streaming is now {(HHC.IsVideoOutputActive ? "ON" : "OFF")}");
-    }
-
-    public void ChangeFollowHeight(float value)
-    {
-        if (HHC != null)
-            HHC.followHeightOffset = value;
-        if (FollowHeightOutput != null) FollowHeightOutput.text = value.ToString("F2");
-    }
-
-    public void ChangeFollowHorizontal(float value)
-    {
-        if (HHC != null)
-            HHC.followHorizontalOffset = value;
-        if (FollowHorizontalOutput != null) FollowHorizontalOutput.text = value.ToString("F2");
-    }
-
-    public void ToggleFlyMode()
-    {
-        if (HHC == null)
-            return;
-
-        HHC.SetFlyModeEnabled(!HHC.IsFlying);
-        BasisDebug.Log($"[FlyMode] Fly mode is now {(HHC.IsFlying ? "ON" : "OFF")}");
-    }
-
-#if Basis_VOLUMETRIC_SUPPORTED
-    /// <summary>
-    /// Seeds the fog slider from the fog the world is actually rendering, so the camera opens
-    /// showing the same haze the player sees instead of whatever density was stored last
-    /// session — which is what made the slider look wrong until it was nudged.
-    /// </summary>
-    public void SyncVolumetricDensityToWorld()
-    {
-        if (HHC == null || HHC.MetaData.VolumetricFogVolume == null) return;
-
-        VolumetricFogVolumeComponent worldFog = VolumeManager.instance.stack?.GetComponent<VolumetricFogVolumeComponent>();
-        float density = worldFog != null ? worldFog.density.value : HHC.MetaData.VolumetricFogVolume.density.value;
-
-        HHC.MetaData.VolumetricFogVolume.density.value = density;
-        SetSliderValue(volumetricDensitySlider, density);
-        if (VolFogOutput != null) VolFogOutput.text = density.ToString("F2");
-    }
-#endif
-
-    public void ChangeVideoResolution(float value)
-    {
-        int index = Mathf.Clamp((int)value, 0, VideoResolutionPresets.Length - 1);
-        (int width, int height) = VideoResolutionPresets[index];
-        if (HHC != null)
-            HHC.SetVideoOutputResolution(width, height);
-        if (VideoResolutionOutput != null) VideoResolutionOutput.text = $"{width}x{height}";
-    }
-
-    public void ChangeVideoFrameRate(float value)
-    {
-        if (HHC != null)
-            HHC.SetVideoOutputFrameRate(value);
-        if (VideoFrameRateOutput != null) VideoFrameRateOutput.text = value.ToString("F0");
-    }
-
-    /// <summary>Hides the video output controls on platforms without a backend and seeds their displays.</summary>
-    private void InitializeVideoOutputControls()
-    {
-        bool supported = BasisHandHeldCamera.IsVideoOutputSupported;
-        if (VideoOutputButton != null) VideoOutputButton.gameObject.SetActive(supported);
-        if (VideoResolutionSlider != null) VideoResolutionSlider.gameObject.SetActive(supported);
-        if (VideoFrameRateSlider != null) VideoFrameRateSlider.gameObject.SetActive(supported);
-    }
-
-    private void SeedVideoAndFollowControls(CameraSettings settings)
-    {
-        SetSliderValue(FollowHeightSlider, settings.followHeightOffset);
-        if (FollowHeightOutput != null) FollowHeightOutput.text = settings.followHeightOffset.ToString("F2");
-
-        SetSliderValue(FollowHorizontalSlider, settings.followHorizontalOffset);
-        if (FollowHorizontalOutput != null) FollowHorizontalOutput.text = settings.followHorizontalOffset.ToString("F2");
-
-        int resolutionIndex = VideoResolutionIndexFor(settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920);
-        (int width, int height) = VideoResolutionPresets[resolutionIndex];
-        SetSliderValue(VideoResolutionSlider, resolutionIndex);
-        if (VideoResolutionOutput != null) VideoResolutionOutput.text = $"{width}x{height}";
-
-        float frameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
-        SetSliderValue(VideoFrameRateSlider, frameRate);
-        if (VideoFrameRateOutput != null) VideoFrameRateOutput.text = frameRate.ToString("F0");
-    }
-
-    private static int VideoResolutionIndexFor(int width)
-    {
-        for (int Index = 0; Index < VideoResolutionPresets.Length; Index++)
-        {
-            if (VideoResolutionPresets[Index].width >= width) return Index;
-        }
-        return VideoResolutionPresets.Length - 1;
     }
 
     public void SetCapture360State(bool enabled)
@@ -680,7 +513,7 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.colorAdjustments.postExposure.value = ExposureStops[i];
     }
 
-    public void OnFormatToggleChanged(bool state)
+    private void OnFormatToggleChanged(bool state)
     {
         BasisDebug.Log($"[Format] Changed to {(state ? "EXR" : "PNG")}");
 
@@ -691,7 +524,7 @@ public partial class BasisHandHeldCameraUI
         if (ExrSprite != null) ExrSprite.SetActive(state);
     }
 
-    public void CycleResolutionPreset()
+    private void CycleResolutionPreset()
     {
         currentResolutionIndex = (currentResolutionIndex + 1) % 4;
 
@@ -771,7 +604,7 @@ public partial class BasisHandHeldCameraUI
         }
     }
 
-    public CameraSettings CreateCurrentCameraSettings()
+    private CameraSettings CreateCurrentCameraSettings()
     {
         return new CameraSettings
         {
@@ -788,38 +621,7 @@ public partial class BasisHandHeldCameraUI
             VolumetricFogVolumedensity = volumetricDensitySlider != null ? volumetricDensitySlider.value : 0.01f,
             VolumetricFogenableAPVContribution = true,
             VolumetricFogenableMainLightContribution = true,
-            videoOutputWidth = HHC != null ? HHC.VideoOutputSettings.Width : 1920,
-            videoOutputHeight = HHC != null ? HHC.VideoOutputSettings.Height : 1080,
-            videoOutputFrameRate = HHC != null ? HHC.VideoOutputSettings.FrameRate : 30f,
-            followHeightOffset = HHC != null ? HHC.followHeightOffset : 0f,
-            followHorizontalOffset = HHC != null ? HHC.followHorizontalOffset : 0f,
-            // Anything omitted here silently reverts to the constructor default on the next
-            // load, which is what made the camera come back blank after a world change.
-            depthIsActive = HHC != null && HHC.MetaData.depthOfField != null && HHC.MetaData.depthOfField.active,
-            useManualFocus = currentDepthMode == DepthMode.Manual,
-            focusDistance = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.focalLength : 10f,
-            sensorSizeX = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.sensorSize.x : 36f,
-            sensorSizeY = HHC != null && HHC.captureCamera != null ? HHC.captureCamera.sensorSize.y : 24f,
-            hueShift = HHC != null && HHC.MetaData.colorAdjustments != null ? HHC.MetaData.colorAdjustments.hueShift.value : 0f,
         };
-    }
-
-    /// <summary>
-    /// Writes the settings on the calling thread. Used when the camera is being destroyed —
-    /// a world change tears the scene down before an awaited write resumes, so the async path
-    /// loses everything the player changed during the session.
-    /// </summary>
-    public void SaveSettingsImmediate()
-    {
-        try
-        {
-            string json = JsonUtility.ToJson(CreateCurrentCameraSettings(), true);
-            File.WriteAllText(Path.Combine(Application.persistentDataPath, CameraSettingsJson), json);
-        }
-        catch (Exception ex)
-        {
-            BasisDebug.LogError($"[SaveSettingsImmediate] Failed: {ex.Message}");
-        }
     }
 
     private async Task SaveDefaultSettings()
@@ -842,16 +644,7 @@ public partial class BasisHandHeldCameraUI
     {
         try
         {
-            // A camera that flew off or is orbiting in follow mode has to come back as well,
-            // otherwise a "reset" leaves it parked somewhere the player can't reach it.
-            if (HHC != null)
-            {
-                HHC.SetFlyModeEnabled(false);
-                HHC.SetFollowPlayerEnabled(false);
-            }
-
             ApplySettings(new CameraSettings());
-            RefreshAllToggleIndicators();
             BasisDebug.Log("Settings have been reset to default values.");
         }
         catch (Exception ex)
@@ -916,22 +709,12 @@ public partial class BasisHandHeldCameraUI
             if (Format != null)
                 Format.SetIsOnWithoutNotify(settings.formatIndex == FORMAT_EXR);
 
-            // Video output (older settings files deserialize these as 0 — keep defaults then)
-            HHC.VideoOutputSettings.Width = settings.videoOutputWidth > 0 ? settings.videoOutputWidth : 1920;
-            HHC.VideoOutputSettings.Height = settings.videoOutputHeight > 0 ? settings.videoOutputHeight : 1080;
-            HHC.VideoOutputSettings.FrameRate = settings.videoOutputFrameRate > 0f ? settings.videoOutputFrameRate : 30f;
-            HHC.followHeightOffset = settings.followHeightOffset;
-            HHC.followHorizontalOffset = settings.followHorizontalOffset;
-            SeedVideoAndFollowControls(settings);
-
-            // Apply camera intrinsics. Sensor/gate fit first: on a physical camera the focal
-            // length and field of view are the same value viewed two ways, so FOV must be
-            // written last or the sensor change silently reframes the shot.
+            // Apply camera intrinsics
             if (HHC.captureCamera != null)
             {
-                HHC.captureCamera.sensorSize = new Vector2(settings.sensorSizeX, settings.sensorSizeY);
-                HHC.captureCamera.gateFit = Camera.GateFitMode.Vertical;
                 HHC.captureCamera.fieldOfView = settings.fov;
+                HHC.captureCamera.focalLength = settings.focusDistance;
+                HHC.captureCamera.sensorSize = new Vector2(settings.sensorSizeX, settings.sensorSizeY);
 
                 // Aperture
                 if (settings.apertureIndex >= 0 && settings.apertureIndex < HHC.MetaData.apertures.Length)
@@ -1114,13 +897,10 @@ public partial class BasisHandHeldCameraUI
             FOVOutput.text = value.ToString();
     }
 
-    /// <summary>
-    /// Focus distance in metres. Writes the depth of field override, never
-    /// <see cref="Camera.focalLength"/> — that is millimetres of lens and drives the FOV.
-    /// </summary>
     public void ChangeFocusDistance(float value)
     {
-        DepthChangeFocusDistance(value);
+        if (HHC.captureCamera != null)
+            HHC.captureCamera.focalLength = value;
     }
 
     public void ChangeAperture(int index)
