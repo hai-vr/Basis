@@ -148,6 +148,14 @@ namespace Basis.IK
             public byte PostureModel;
             public float HipsCompressionStrength;
             public float HipsMaxDropMeters;
+            /// <summary>Metres-at-default-height to draw the standing pelvis BACK along torso-forward, after the
+            /// authored eye→hips arm has placed it. Multiplied by Scale in the solve (like HipsForwardBias), so
+            /// it tracks the avatar's size. The arm reproduces the avatar's authored pelvis-forward faithfully
+            /// (measured +2.2 cm ahead of the feet on the test rig), which reads as slightly forward without a
+            /// hips tracker; this trims a fixed fraction of that toward over-the-base-of-support. 0 = the exact
+            /// authored placement (no behaviour change). Only the no-feet-tracked branch — a real feet/hips
+            /// tracker owns the pelvis and this must not touch it.</summary>
+            public float HipsSetbackMeters;
         }
 
         /// <summary>Persistent spine solver state carried across frames (low-pass + yaw deadzone).</summary>
@@ -249,6 +257,18 @@ namespace Basis.IK
                 float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, eyePosDevice, dt, P.StandingHeadLocalY, stanceHeadDrop, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
                 float3 hipsArm = math.mul(torsoYawTarget, P.HipsAnchorOffsetLocal);
                 desiredHipsXZ += new float3(hipsArm.x, 0f, hipsArm.z);
+                // Trim a fixed slice of the authored pelvis-forward back over the base of support. Applied only
+                // when NEITHER foot is tracked -- a feet-tracked pendulum base measures the real support and
+                // must not be nudged. Torso-forward, XZ only, so it never changes pelvis height.
+                if (P.HipsSetbackMeters != 0f && !(P.LeftFootTracked != 0 && P.RightFootTracked != 0))
+                {
+                    // Scaled by P.Scale, exactly like HipsForwardBias above: the thing being trimmed is the
+                    // avatar's own authored pelvis-forward, a body dimension, so the trim is metres-at-default
+                    // height and grows/shrinks with the avatar. A fixed metre would over-correct a child and
+                    // under-correct a giant.
+                    float3 torsoFwd = math.mul(torsoYawTarget, new float3(0f, 0f, 1f));
+                    desiredHipsXZ -= new float3(torsoFwd.x, 0f, torsoFwd.z) * (P.HipsSetbackMeters * P.Scale);
+                }
                 // The posture model's lean must measure the head's TRAVEL, not the avatar's authoring or the
                 // view yaw: offset the support base to where the head RESTS over it (the authored eye->head
                 // arm in the torso frame). Without this the lean carried a facing-dependent phantom of up to

@@ -537,7 +537,8 @@ public partial class BasisHandHeldCameraUI
 
         if (CloseHidesCamera)
         {
-            HHC.SetCameraHidden(true);
+            // Dismiss to hidden (not just hide the visuals) so the panel offers Bring Back.
+            HHC.CloseToHidden();
             return;
         }
 

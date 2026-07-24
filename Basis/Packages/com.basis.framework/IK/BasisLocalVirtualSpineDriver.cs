@@ -46,6 +46,13 @@ namespace Basis.IK
         /// head-rest reference over the support base.</summary>
         private float3 _headFromEyeTposeXZ;
 
+        /// <summary>Metres-at-default-height the standing pelvis is drawn BACK along torso-forward when no
+        /// hips/feet tracker owns it; the solve multiplies it by avatar Scale so it tracks body size. Live-
+        /// tunable: the estimator reproduces the avatar's authored pelvis-forward exactly, which reads as
+        /// slightly forward for some rigs; dial to taste (0 = exact authored placement). A few cm at most —
+        /// over-pulling bows the FBIK spine the other way. No-tracker path only.</summary>
+        public static float StandingPelvisSetbackMeters = 0.010f;
+
         /// <summary>Set whenever cached lengths need to be recomputed (scale or TPose changed).</summary>
         private bool _lengthsDirty = true;
 
@@ -221,6 +228,7 @@ namespace Basis.IK
                 EyePos = eye.OutGoingData.position,
                 HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
                 HeadRestFromEyeLocal = _headFromEyeTposeXZ,
+                HipsSetbackMeters = StandingPelvisSetbackMeters,
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
                 HipsCompressionStrength = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsCompressionStrength.RawValue,
                 HipsMaxDropMeters = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsMaxDropMeters.RawValue * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale,

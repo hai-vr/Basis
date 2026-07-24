@@ -163,6 +163,23 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>True when the camera is running but invisible — "closed" without being destroyed.</summary>
     public bool IsCameraHidden => cameraHidden;
 
+    /// <summary>True when the camera was dismissed via Close (kept alive) rather than merely hidden from the panel.</summary>
+    private bool dismissed;
+
+    /// <summary>
+    /// True only when the camera was closed with "Close Hides Instead" — the state the panel shows
+    /// the Bring Back banner for. Just hiding the visuals from the Hide Camera toggle is not this,
+    /// so the settings stay put while you keep adjusting a hidden camera.
+    /// </summary>
+    public bool IsClosedHidden => dismissed && cameraHidden;
+
+    /// <summary>Closes the camera to a hidden-but-running state, marking it for the panel's Bring Back flow.</summary>
+    public void CloseToHidden()
+    {
+        dismissed = true;
+        SetCameraHidden(true);
+    }
+
     /// <summary>The camera that currently owns the scene audio listener, or null. Only one at a time — there is one listener.</summary>
     private static BasisHandHeldCamera audioListenerOwner;
 
@@ -442,6 +459,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (cameraHidden == hidden) return;
         cameraHidden = hidden;
+
+        // Shown again means it is no longer a dismissed camera awaiting bring-back.
+        if (!hidden) dismissed = false;
 
         if (cameraBodyRenderers != null)
         {

@@ -18,6 +18,9 @@ namespace Basis.BasisUI.HandHeldCamera
         // Index 0 follows the subject's depth automatically; index 1 uses the Focus Distance slider.
         private static readonly string[] FocusModeLabels = { "Follow Subject", "Manual" };
 
+        // Ordered to match BasisCameraDetachedMarker (Off / Puck / Wireframe).
+        private static readonly string[] DetachedMarkerLabels = { "Off", "Puck", "Wireframe" };
+
         /// <summary>Preview height used until the row has a laid-out width to derive one from.</summary>
         private const float PreviewFallbackHeight = 320f;
 
@@ -36,11 +39,17 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelButton _bringBackButton;
         private bool? _lastHiddenState;
         private PanelElementDescriptor _previewGroup;
-        private PanelElementDescriptor _lookGroup;
+        private PanelElementDescriptor _lensGroup;
+        private PanelElementDescriptor _dofGroup;
+        private PanelElementDescriptor _colorGroup;
+        private PanelElementDescriptor _effectsGroup;
         private PanelElementDescriptor _outputGroup;
         private PanelElementDescriptor _actionGroup;
         private PanelSectionToggle _previewSection;
-        private PanelSectionToggle _lookSection;
+        private PanelSectionToggle _lensSection;
+        private PanelSectionToggle _dofSection;
+        private PanelSectionToggle _colorSection;
+        private PanelSectionToggle _effectsSection;
         private PanelSectionToggle _outputSection;
         private PanelSectionToggle _followSection;
         private PanelSectionToggle _actionSection;
@@ -65,7 +74,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _bloomThresholdSlider;
         private PanelSlider _contrastSlider;
         private PanelSlider _saturationSlider;
-        private PanelSlider _hueShiftSlider;
         private PanelDropdown _dofModeDropdown;
         private PanelSlider _apertureSlider;
         private PanelSlider _focusSlider;
@@ -225,8 +233,17 @@ namespace Basis.BasisUI.HandHeldCamera
             BuildPreviewGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_previewSection, _previewGroup, true, OnSectionExpanded);
 
-            BuildLookGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_lookSection, _lookGroup, false, OnSectionExpanded);
+            BuildLensGroup(_scrollContent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_lensSection, _lensGroup, false, OnSectionExpanded);
+
+            BuildDofGroup(_scrollContent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dofSection, _dofGroup, false, OnSectionExpanded);
+
+            BuildColorGroup(_scrollContent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_colorSection, _colorGroup, false, OnSectionExpanded);
+
+            BuildEffectsGroup(_scrollContent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_effectsSection, _effectsGroup, false, OnSectionExpanded);
 
             BuildOutputGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, false, OnSectionExpanded);
@@ -246,6 +263,7 @@ namespace Basis.BasisUI.HandHeldCamera
             BuildResetButton(_scrollContent);
 
             MakeSlidersLive(_scrollContent);
+            AssignSliderResetDefaults();
 
             RebuildSelector();
 
@@ -280,6 +298,53 @@ namespace Basis.BasisUI.HandHeldCamera
                 // OnValueChanged after the slider is created.
                 slider.SliderComponent.onValueChanged.AddListener(value => slider.OnValueChanged?.Invoke(value));
             }
+        }
+
+        /// <summary>
+        /// Gives every camera slider the value a reset returns it to, so right-click (desktop) and
+        /// press-and-hold (VR) can reset them. These sliders are callback-driven, not bound to the
+        /// settings system, so PanelSlider can't derive the default itself. The grading sliders
+        /// (contrast, saturation, hue, white balance, and the added effects) show the live
+        /// post-process value whose neutral is 0; the rest use the CameraSettings / follow defaults.
+        /// </summary>
+        private void AssignSliderResetDefaults()
+        {
+            BasisHandHeldCameraUI.CameraSettings defaults = new BasisHandHeldCameraUI.CameraSettings();
+
+            _fovSlider?.SetResetDefault(defaults.fov);
+            _exposureSlider?.SetResetDefault(defaults.exposureIndex);
+            _bloomIntensitySlider?.SetResetDefault(defaults.bloomIntensity);
+            _bloomThresholdSlider?.SetResetDefault(defaults.bloomThreshold);
+            _apertureSlider?.SetResetDefault(defaults.depthAperture);
+            _focusSlider?.SetResetDefault(defaults.depthFocusDistance);
+            _dofFocalLengthSlider?.SetResetDefault(defaults.dofFocalLength);
+            _dofBladeCountSlider?.SetResetDefault(defaults.dofBladeCount);
+
+            // Grading effects — neutral is 0 (no grade), matching a fresh camera.
+            _contrastSlider?.SetResetDefault(0f);
+            _saturationSlider?.SetResetDefault(0f);
+            _hueSlider?.SetResetDefault(0f);
+            _whiteBalanceTempSlider?.SetResetDefault(0f);
+            _whiteBalanceTintSlider?.SetResetDefault(0f);
+            _vignetteSlider?.SetResetDefault(0f);
+            _chromaticSlider?.SetResetDefault(0f);
+            _filmGrainSlider?.SetResetDefault(0f);
+            _lensDistortionSlider?.SetResetDefault(0f);
+#if Basis_VOLUMETRIC_SUPPORTED
+            _fogSlider?.SetResetDefault(defaults.VolumetricFogVolumedensity);
+#endif
+
+            _videoFrameRateSlider?.SetResetDefault(30f);
+            _webQualitySlider?.SetResetDefault(70f);
+
+            // Follow — from the interactable's field initializers.
+            _followSideSlider?.SetResetDefault(defaults.autoFollowPositionOffset.x);
+            _followHeightSlider?.SetResetDefault(defaults.autoFollowPositionOffset.y);
+            _followDistanceSlider?.SetResetDefault(defaults.autoFollowPositionOffset.z);
+            _followYawSlider?.SetResetDefault(defaults.autoFollowRotationOffset.y);
+            _followPitchSlider?.SetResetDefault(defaults.autoFollowRotationOffset.x);
+            _followLookAtHeightSlider?.SetResetDefault(defaults.autoFollowLookAtHeightOffset);
+            _followLateralSlider?.SetResetDefault(0.5f);
         }
 
         /// <summary>
@@ -342,7 +407,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _bringBackButton = null;
             _lastHiddenState = null;
             _previewGroup = null;
-            _lookGroup = null;
+            _lensGroup = null;
+            _dofGroup = null;
+            _colorGroup = null;
+            _effectsGroup = null;
             _outputGroup = null;
             _actionGroup = null;
             _previewImage = null;
@@ -353,7 +421,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _bloomThresholdSlider = null;
             _contrastSlider = null;
             _saturationSlider = null;
-            _hueShiftSlider = null;
             _apertureSlider = null;
             _focusSlider = null;
             _dofModeDropdown = null;
@@ -380,7 +447,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _timerButton = null;
             _lastCountdownShown = -1;
             _previewSection = null;
-            _lookSection = null;
+            _lensSection = null;
+            _dofSection = null;
+            _colorSection = null;
+            _effectsSection = null;
             _outputSection = null;
             _followSection = null;
             _actionSection = null;
@@ -479,16 +549,90 @@ namespace Basis.BasisUI.HandHeldCamera
             card.sizeDelta = new Vector2(card.sizeDelta.x, PreviewFallbackHeight);
         }
 
-        private void BuildLookGroup(RectTransform parent)
+        private void BuildLensGroup(RectTransform parent)
         {
-            _lookSection = PanelSectionToggle.CreateNewEntry(parent);
-            _lookGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-                _lookSection, parent, "Lens & Grading", false);
-            RectTransform content = _lookGroup.ContentParent;
+            _lensSection = PanelSectionToggle.CreateNewEntry(parent);
+            _lensGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _lensSection, parent, "Lens", false);
+            RectTransform content = _lensGroup.ContentParent;
 
             _fovSlider = PanelSlider.CreateNew(content);
             _fovSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees("Field Of View", 20f, 120f, false, 1));
             _fovSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeFOV(v);
+
+            _msaaDropdown = PanelDropdown.CreateNewEntry(content);
+            _msaaDropdown.Descriptor.SetTitle("MSAA");
+            _msaaDropdown.Descriptor.SetDescription("Multisample anti-aliasing on the captured image. Higher is smoother but costs more.");
+            _msaaDropdown.AssignEntries(BuildMsaaLabels());
+            _msaaDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _msaaDropdown == null) return;
+                int index = _msaaDropdown.Index;
+                if (index >= 0 && index < MsaaSampleCounts.Length)
+                {
+                    _activeCamera.SetMsaaSamples(MsaaSampleCounts[index]);
+                }
+            };
+        }
+
+        private void BuildDofGroup(RectTransform parent)
+        {
+            _dofSection = PanelSectionToggle.CreateNewEntry(parent);
+            _dofGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _dofSection, parent, "Depth Of Field", false);
+            RectTransform content = _dofGroup.ContentParent;
+
+            _dofModeDropdown = PanelDropdown.CreateNewEntry(content);
+            _dofModeDropdown.Descriptor.SetTitle("Mode");
+            _dofModeDropdown.Descriptor.SetDescription("Off, Gaussian (cheap far blur) or Bokeh (physical, shaped highlights).");
+            _dofModeDropdown.AssignEntries(new List<string> { "Off", "Gaussian", "Bokeh" });
+            _dofModeDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _dofModeDropdown == null) return;
+                _activeCamera.HandHeld.SetDoFMode(_dofModeDropdown.Index);
+                RefreshDoFModeVisibility();
+            };
+
+            _focusModeDropdown = PanelDropdown.CreateNewEntry(content);
+            _focusModeDropdown.Descriptor.SetTitle("Focus");
+            _focusModeDropdown.Descriptor.SetDescription("Follow Subject keeps depth of field on whoever the camera follows (turns it on); Manual sets the focus distance by hand.");
+            _focusModeDropdown.AssignEntries(new List<string>(FocusModeLabels));
+            _focusModeDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _focusModeDropdown == null) return;
+                SetFocusFollowsSubject(_focusModeDropdown.Index == 0);
+            };
+
+            _focusSlider = PanelSlider.CreateNew(content);
+            _focusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Focus Distance", 0.1f, 100f, false, 1, ValueDisplayMode.Meters));
+            _focusSlider.OnValueChanged = v => _activeCamera?.HandHeld.DepthChangeFocusDistance(v);
+
+            _apertureSlider = PanelSlider.CreateNew(content);
+            _apertureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Aperture", 0.05f, 32f, false, 2, ValueDisplayMode.Raw));
+            _apertureSlider.Descriptor.SetDescription("Lower is a shallower focus with more blur (Bokeh).");
+            _apertureSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeAperture(v);
+
+            _dofFocalLengthSlider = PanelSlider.CreateNew(content);
+            _dofFocalLengthSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Focal Length", 1f, 300f, false, 0, ValueDisplayMode.Raw));
+            _dofFocalLengthSlider.Descriptor.SetDescription("Longer compresses the scene and deepens the blur (Bokeh).");
+            _dofFocalLengthSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFFocalLength(v);
+
+            _dofBladeCountSlider = PanelSlider.CreateNew(content);
+            _dofBladeCountSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Bokeh Blades", 3f, 9f, true, 0, ValueDisplayMode.Raw));
+            _dofBladeCountSlider.Descriptor.SetDescription("Number of aperture blades — the shape of out-of-focus highlights (Bokeh).");
+            _dofBladeCountSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFBladeCount(v);
+        }
+
+        private void BuildColorGroup(RectTransform parent)
+        {
+            _colorSection = PanelSectionToggle.CreateNewEntry(parent);
+            _colorGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _colorSection, parent, "Exposure & Colour", false);
+            RectTransform content = _colorGroup.ContentParent;
 
             _exposureSlider = PanelSlider.CreateNew(content);
             _exposureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -506,16 +650,6 @@ namespace Basis.BasisUI.HandHeldCamera
                 _lastExposureOnCamera = v;
             };
 
-            _bloomIntensitySlider = PanelSlider.CreateNew(content);
-            _bloomIntensitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Bloom Intensity", 0f, 5f, false, 2, ValueDisplayMode.Raw));
-            _bloomIntensitySlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomIntensity(v);
-
-            _bloomThresholdSlider = PanelSlider.CreateNew(content);
-            _bloomThresholdSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Bloom Threshold", 0.1f, 2f, false, 2, ValueDisplayMode.Raw));
-            _bloomThresholdSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomThreshold(v);
-
             _contrastSlider = PanelSlider.CreateNew(content);
             _contrastSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 "Contrast", -100f, 100f, false, 1, ValueDisplayMode.Raw));
@@ -526,59 +660,37 @@ namespace Basis.BasisUI.HandHeldCamera
                 "Saturation", -100f, 100f, false, 1, ValueDisplayMode.Raw));
             _saturationSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeSaturation(v);
 
-            _hueShiftSlider = PanelSlider.CreateNew(content);
-            _hueShiftSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Hue Shift", -180f, 180f, false, 0, ValueDisplayMode.Raw));
-            _hueShiftSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeHueShift(v);
-
-            _dofModeDropdown = PanelDropdown.CreateNewEntry(content);
-            _dofModeDropdown.Descriptor.SetTitle("Depth Of Field");
-            _dofModeDropdown.Descriptor.SetDescription("Off, Gaussian (cheap far blur) or Bokeh (physical, shaped highlights).");
-            _dofModeDropdown.AssignEntries(new List<string> { "Off", "Gaussian", "Bokeh" });
-            _dofModeDropdown.OnValueChanged = _ =>
-            {
-                if (_activeCamera == null || _dofModeDropdown == null) return;
-                _activeCamera.HandHeld.SetDoFMode(_dofModeDropdown.Index);
-                RefreshDoFModeVisibility();
-            };
-
-            _apertureSlider = PanelSlider.CreateNew(content);
-            _apertureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Aperture", 0.05f, 32f, false, 2, ValueDisplayMode.Raw));
-            _apertureSlider.Descriptor.SetDescription("Lower is a shallower focus with more blur (Bokeh).");
-            _apertureSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeAperture(v);
-
-            _focusSlider = PanelSlider.CreateNew(content);
-            _focusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Focus Distance", 0.1f, 100f, false, 1, ValueDisplayMode.Meters));
-            _focusSlider.OnValueChanged = v => _activeCamera?.HandHeld.DepthChangeFocusDistance(v);
-
-            _dofFocalLengthSlider = PanelSlider.CreateNew(content);
-            _dofFocalLengthSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Focal Length", 1f, 300f, false, 0, ValueDisplayMode.Raw));
-            _dofFocalLengthSlider.Descriptor.SetDescription("Longer compresses the scene and deepens the blur (Bokeh).");
-            _dofFocalLengthSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFFocalLength(v);
-
-            _dofBladeCountSlider = PanelSlider.CreateNew(content);
-            _dofBladeCountSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Bokeh Blades", 3f, 9f, true, 0, ValueDisplayMode.Raw));
-            _dofBladeCountSlider.Descriptor.SetDescription("Number of aperture blades — the shape of out-of-focus highlights (Bokeh).");
-            _dofBladeCountSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFBladeCount(v);
-
-            _focusModeDropdown = PanelDropdown.CreateNewEntry(content);
-            _focusModeDropdown.Descriptor.SetTitle("Focus");
-            _focusModeDropdown.Descriptor.SetDescription("Follow Subject keeps depth of field on whoever the camera follows (turns it on); Manual sets the focus distance by hand.");
-            _focusModeDropdown.AssignEntries(new List<string>(FocusModeLabels));
-            _focusModeDropdown.OnValueChanged = _ =>
-            {
-                if (_activeCamera == null || _focusModeDropdown == null) return;
-                SetFocusFollowsSubject(_focusModeDropdown.Index == 0);
-            };
-
             _hueSlider = PanelSlider.CreateNew(content);
-            _hueSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Hue Shift", -180f, 180f, false, 0, ValueDisplayMode.Degrees));
+            _hueSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees("Hue Shift", -180f, 180f, false, 0));
             _hueSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeHueShift(v);
+
+            _whiteBalanceTempSlider = PanelSlider.CreateNew(content);
+            _whiteBalanceTempSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "White Balance Temp", -100f, 100f, false, 0, ValueDisplayMode.Raw));
+            _whiteBalanceTempSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeWhiteBalanceTemperature(v);
+
+            _whiteBalanceTintSlider = PanelSlider.CreateNew(content);
+            _whiteBalanceTintSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "White Balance Tint", -100f, 100f, false, 0, ValueDisplayMode.Raw));
+            _whiteBalanceTintSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeWhiteBalanceTint(v);
+        }
+
+        private void BuildEffectsGroup(RectTransform parent)
+        {
+            _effectsSection = PanelSectionToggle.CreateNewEntry(parent);
+            _effectsGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _effectsSection, parent, "Effects", false);
+            RectTransform content = _effectsGroup.ContentParent;
+
+            _bloomIntensitySlider = PanelSlider.CreateNew(content);
+            _bloomIntensitySlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Bloom Intensity", 0f, 5f, false, 2, ValueDisplayMode.Raw));
+            _bloomIntensitySlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomIntensity(v);
+
+            _bloomThresholdSlider = PanelSlider.CreateNew(content);
+            _bloomThresholdSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                "Bloom Threshold", 0.1f, 2f, false, 2, ValueDisplayMode.Raw));
+            _bloomThresholdSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeBloomThreshold(v);
 
             _vignetteSlider = PanelSlider.CreateNew(content);
             _vignetteSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Vignette"));
@@ -592,34 +704,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _filmGrainSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Film Grain"));
             _filmGrainSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeFilmGrain(v / 100f);
 
-            _whiteBalanceTempSlider = PanelSlider.CreateNew(content);
-            _whiteBalanceTempSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "White Balance Temp", -100f, 100f, false, 0, ValueDisplayMode.Raw));
-            _whiteBalanceTempSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeWhiteBalanceTemperature(v);
-
-            _whiteBalanceTintSlider = PanelSlider.CreateNew(content);
-            _whiteBalanceTintSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "White Balance Tint", -100f, 100f, false, 0, ValueDisplayMode.Raw));
-            _whiteBalanceTintSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeWhiteBalanceTint(v);
-
             _lensDistortionSlider = PanelSlider.CreateNew(content);
             _lensDistortionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 "Lens Distortion", -100f, 100f, false, 0, ValueDisplayMode.Raw));
             _lensDistortionSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeLensDistortion(v / 100f);
-
-            _msaaDropdown = PanelDropdown.CreateNewEntry(content);
-            _msaaDropdown.Descriptor.SetTitle("MSAA");
-            _msaaDropdown.Descriptor.SetDescription("Multisample anti-aliasing on the captured image. Higher is smoother but costs more.");
-            _msaaDropdown.AssignEntries(BuildMsaaLabels());
-            _msaaDropdown.OnValueChanged = _ =>
-            {
-                if (_activeCamera == null || _msaaDropdown == null) return;
-                int index = _msaaDropdown.Index;
-                if (index >= 0 && index < MsaaSampleCounts.Length)
-                {
-                    _activeCamera.SetMsaaSamples(MsaaSampleCounts[index]);
-                }
-            };
 
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider = PanelSlider.CreateNew(content);
@@ -802,8 +890,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _followMarkerDropdown = PanelDropdown.CreateNewEntry(content);
             _followMarkerDropdown.Descriptor.SetTitle("Detached Marker");
-            _followMarkerDropdown.Descriptor.SetDescription("What marks the camera when it leaves your hand — a grabbable puck, a lightweight wireframe gizmo, or nothing.");
-            _followMarkerDropdown.AssignEntries(new List<string> { "Off", "Puck", "Gizmo" });
+            _followMarkerDropdown.Descriptor.SetDescription("What marks the camera when it leaves your hand — a grabbable puck, a lightweight wireframe, or nothing.");
+            _followMarkerDropdown.AssignEntries(new List<string>(DetachedMarkerLabels));
             _followMarkerDropdown.OnValueChanged = _ =>
             {
                 if (_activeCamera == null || _followMarkerDropdown == null) return;
@@ -1099,14 +1187,16 @@ namespace Basis.BasisUI.HandHeldCamera
                 return;
             }
 
-            bool hidden = _activeCamera.IsCameraHidden;
+            // Only the Close-to-hidden state shows the Bring Back banner. Merely hiding the camera
+            // visuals from the Hide Camera toggle keeps the settings up so you can keep adjusting it.
+            bool dismissed = _activeCamera.IsClosedHidden;
             // Edge-triggered: toggling groups runs a layout rebuild, too costly to do every tick.
-            if (_lastHiddenState == hidden) return;
-            _lastHiddenState = hidden;
+            if (_lastHiddenState == dismissed) return;
+            _lastHiddenState = dismissed;
 
-            _hiddenState.SetActive(hidden);
-            // When hidden, collapse everything else so the banner stands alone.
-            SetGroupsActive(!hidden);
+            _hiddenState.SetActive(dismissed);
+            // When dismissed, collapse everything else so the banner stands alone.
+            SetGroupsActive(!dismissed);
         }
 
         private void BuildTopActions(RectTransform parent)
@@ -1184,7 +1274,10 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             if (_topActions != null) _topActions.gameObject.SetActive(active);
             SetSectionActive(_previewSection, _previewGroup, active);
-            SetSectionActive(_lookSection, _lookGroup, active);
+            SetSectionActive(_lensSection, _lensGroup, active);
+            SetSectionActive(_dofSection, _dofGroup, active);
+            SetSectionActive(_colorSection, _colorGroup, active);
+            SetSectionActive(_effectsSection, _effectsGroup, active);
             SetSectionActive(_outputSection, _outputGroup, active);
             SetSectionActive(_followSection, _followGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
@@ -1225,7 +1318,7 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 _contrastSlider?.SetValueWithoutNotify(metaData.colorAdjustments.contrast.value);
                 _saturationSlider?.SetValueWithoutNotify(metaData.colorAdjustments.saturation.value);
-                _hueShiftSlider?.SetValueWithoutNotify(metaData.colorAdjustments.hueShift.value);
+                _hueSlider?.SetValueWithoutNotify(metaData.colorAdjustments.hueShift.value);
             }
 
             if (metaData.depthOfField != null)
@@ -1244,8 +1337,6 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[_activeCamera.autoFocusFollowSubject ? 0 : 1]);
 
-            if (metaData.colorAdjustments != null)
-                _hueSlider?.SetValueWithoutNotify(metaData.colorAdjustments.hueShift.value);
             if (metaData.vignette != null)
                 _vignetteSlider?.SetValueWithoutNotify(metaData.vignette.intensity.value * 100f);
             if (metaData.chromaticAberration != null)
@@ -1303,9 +1394,8 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
             if (_followMarkerDropdown != null)
             {
-                string[] markerLabels = { "Off", "Puck", "Gizmo" };
-                int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, markerLabels.Length - 1);
-                _followMarkerDropdown.SetValueWithoutNotify(markerLabels[markerIndex]);
+                int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, DetachedMarkerLabels.Length - 1);
+                _followMarkerDropdown.SetValueWithoutNotify(DetachedMarkerLabels[markerIndex]);
             }
             _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.autoFollowPlayspace);
             _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.autoFollowLookAtHeightOffset);
@@ -1598,7 +1688,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _apertureSlider?.gameObject.SetActive(bokeh);
             _dofFocalLengthSlider?.gameObject.SetActive(bokeh);
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);
-            ForceLayoutRebuild(_lookGroup);
+            ForceLayoutRebuild(_dofGroup);
         }
 
         // PanelSlider.ApplyValue restarts a 0.15s fill-colour tween on every call, and the tween
