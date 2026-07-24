@@ -82,7 +82,8 @@ namespace Basis.BasisUI
         [field:SerializeField] public string DefaultTitle { get; private set; }
         [field:SerializeField] public string DefaultDescription { get; private set; }
 
-        [field:Header("References")]
+        [field: Header("References")]
+        [field: SerializeField] public Image ElementBaseImage;
         [field:SerializeField] public Image IconImage { get; private set; }
         [field:SerializeField] public RawImage TextureImage { get; private set; }
         [field:SerializeField] public GameObject IconBackground { get; private set; }
@@ -91,6 +92,7 @@ namespace Basis.BasisUI
 
         [field: SerializeField] public RectTransform Header { get; private set; }
 
+        public bool HasElementBaseImage => ElementBaseImage;
         public bool HasIcon => IconImage;
         public bool HasTexture => TextureImage;
         public bool HasTitle => TitleLabel;
@@ -412,6 +414,13 @@ namespace Basis.BasisUI
                 TitleLabel.text = DefaultTitle;
             }
 
+            if(HasElementBaseImage == false)
+            {
+                if (TryGetComponent(out ElementBaseImage))
+                {
+
+                }
+            }
             if (HasIcon && IconImage.sprite != DefaultIcon)
             {
                 Undo.RecordObject(IconImage, $"Assigned default Icon to {IconImage.gameObject.name}: {DefaultIcon}");

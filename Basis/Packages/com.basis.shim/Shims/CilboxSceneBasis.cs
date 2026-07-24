@@ -306,6 +306,11 @@ namespace Cilbox
 			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
 			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.
 			{ typeof(Basis.Scripts.Drivers.BasisLocalCameraDriver), new HashSet<string>() },
+			// Scripted player input is an AVATAR-box feature (the avatar you are wearing drives your own
+			// locomotion / play-space mover). Basis.Shims.* is type-whitelisted here, so block every
+			// method to keep world scripts out of it; worlds already have Teleport/Respawn/Immobilize.
+			{ typeof(Basis.Shims.BasisPlayspaceInputShim), new HashSet<string>() },
+			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(BasisLocalPlayer), new HashSet<string>{
 				nameof(BasisLocalPlayer.GetPositionAndRotation),
 				nameof(BasisLocalPlayer.Teleport),

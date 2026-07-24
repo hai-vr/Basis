@@ -1,3 +1,4 @@
+using Basis.BTween;
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
@@ -50,8 +51,10 @@ namespace Basis.BasisUI
 
         private List<ServerDirectoryEntry> _entries = new List<ServerDirectoryEntry>();
         private readonly Dictionary<string, ServerRow> _rows = new();
+        private readonly Dictionary<string, ServerProbeResult> _probeResults = new();
         private string _editingId;
         private readonly List<IServerDirectorySource> _subscribedSources = new List<IServerDirectorySource>();
+        private bool _pendingDefaultHighlight;
 
         private static bool IsDefault(ServerDirectoryEntry entry) =>
             entry != null && SavedServersDirectorySource.IsDefaultEntryId(entry.Id);
@@ -128,6 +131,11 @@ namespace Basis.BasisUI
             HideEditor();
             SubscribeSourceEvents();
             _ = ReloadEntriesAsync(probeAfter: true, autoConnectAfter: true);
+
+            if (ServersFirstRunWelcome.ShouldShow)
+            {
+                _ = RunFirstRunWelcomeAsync(panel);
+            }
         }
 
         private void OnPanelClosed()
@@ -136,7 +144,9 @@ namespace Basis.BasisUI
             _queryCts = null;
             _rows.Clear();
             _entries.Clear();
+            _probeResults.Clear();
             _pendingUsernameEntry = null;
+            _pendingDefaultHighlight = false;
             UnsubscribeSourceEvents();
             _panel = null;
         }
@@ -666,6 +676,12 @@ namespace Basis.BasisUI
             }
 
             _rows[entry.Id] = row;
+
+            if (_pendingDefaultHighlight && isDefault)
+            {
+                _pendingDefaultHighlight = false;
+                ApplyDefaultHighlight(row);
+            }
         }
 
         private static void ApplyRowButtonWeight(PanelButton button, float flex)
@@ -674,6 +690,39 @@ namespace Basis.BasisUI
             button.Layout.minWidth = 0f;
             button.Layout.preferredWidth = 0f;
             button.Layout.flexibleWidth = flex;
+        }
+
+        private async Task RunFirstRunWelcomeAsync(BasisMenuPanel panel)
+        {
+            bool acknowledged = await ServersFirstRunWelcome.ShowAsync(panel);
+            if (!acknowledged) return;
+            if (_panel == null) return;
+
+            if (_rows.TryGetValue(SavedServersDirectorySource.DefaultServerId, out ServerRow row))
+            {
+                ApplyDefaultHighlight(row);
+            }
+            else
+            {
+                _pendingDefaultHighlight = true;
+            }
+        }
+
+        private static void ApplyDefaultHighlight(ServerRow row)
+        {
+            if (row == null) return;
+            if (row.Group != null && row.Group.TryGetComponent(out Image groupBackground))
+            {
+                ServersWelcomeFlash.Attach(groupBackground, pulse: false);
+            }
+            if (row.ConnectButton != null)
+            {
+                if (row.ConnectButton.ButtonComponent != null)
+                {
+                    ServersWelcomeFlash.Attach(row.ConnectButton.ButtonComponent.image, pulse: true);
+                }
+                UIAnimations.PunchScale(row.ConnectButton.transform);
+            }
         }
 
         private static string BuildConnectionString(ServerDirectoryEntry entry)
@@ -758,6 +807,10 @@ namespace Basis.BasisUI
             catch (OperationCanceledException) { return; }
 
             if (ct.IsCancellationRequested) return;
+
+            if (result != null && result.Reachable) _probeResults[entry.Id] = result;
+            else _probeResults.Remove(entry.Id);
+
             if (!_rows.TryGetValue(entry.Id, out ServerRow row)) return;
             if (row.Group == null || row.Group.gameObject == null) return;
 
@@ -861,6 +914,17 @@ namespace Basis.BasisUI
             }
             _pendingUsernameEntry = null;
 
+            // The last probe of this row said the server is crowded → offer the performance
+            // preset before committing to the connection. Each prompt choice re-enters this
+            // method; the tier is then marked asked, so the second pass falls through.
+            if (!isHostMode
+                && _probeResults.TryGetValue(entry.Id, out ServerProbeResult probe)
+                && BasisHighPlayerCapPerformanceMode.TryOfferBeforeConnect(
+                    probe.Online + 1, () => _ = ConnectToAsync(entry, isHostMode)))
+            {
+                return;
+            }
+
             if (isHostMode)
             {
                 BasisNetworkManagement.HostServerName = BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName);
@@ -887,10 +951,75 @@ namespace Basis.BasisUI
             _pendingUsernameEntry = entry;
             _pendingUsernameHostMode = isHostMode;
 
-            if (_usernameField == null) return;
+            if (_panel == null)
+            {
+                if (_usernameField == null) return;
+                _usernameField._inputField.Select();
+                _usernameField._inputField.ActivateInputField();
+                return;
+            }
 
-            _usernameField._inputField.Select();
-            _usernameField._inputField.ActivateInputField();
+            DialogBox<bool> dialog = DialogBox<bool>.Create(_panel, new Vector2(650, 320),
+                BasisLocalization.Get("menu.servers.usernamePrompt.title"),
+                BasisLocalization.Get("menu.servers.usernamePrompt.body"),
+                AddressableAssets.Sprites.Information,
+                true);
+            if (dialog.Descriptor == null) return;
+
+            PanelTextField nameField = PanelTextField.CreateNewEntry(dialog.Descriptor.ContentParent);
+            nameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.username"));
+            if (nameField._placeholderLabel != null)
+                nameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
+
+            void TryConfirm()
+            {
+                if (dialog.IsBusy) return;
+                string typed = nameField._inputField.text;
+                if (string.IsNullOrWhiteSpace(typed))
+                {
+                    nameField._inputField.Select();
+                    nameField._inputField.ActivateInputField();
+                    return;
+                }
+                dialog.IsBusy = true;
+                _usernameField?.SetValueWithoutNotify(typed.Trim());
+                dialog.CloseWithResult(true);
+            }
+
+            nameField._inputField.onSubmit.AddListener(_ => TryConfirm());
+
+            PanelTabGroup actions = PanelTabGroup.CreateNew(dialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
+            actions.Descriptor.SetHeight(60);
+
+            PanelButton cancelButton = PanelButton.CreateNew(PanelButton.ButtonStyles.CancelButton, actions.TabButtonParent);
+            cancelButton.Descriptor.SetTitle(BasisLocalization.Get("ui.cancel"));
+            cancelButton.Descriptor.SetWidth(200);
+            cancelButton.Descriptor.SetHeight(60);
+            cancelButton.OnClicked += () =>
+            {
+                if (dialog.IsBusy) return;
+                dialog.IsBusy = true;
+                dialog.CloseWithResult(false);
+            };
+
+            PanelButton connectButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, actions.TabButtonParent);
+            connectButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.connect"));
+            connectButton.Descriptor.SetWidth(200);
+            connectButton.Descriptor.SetHeight(60);
+            connectButton.OnClicked += TryConfirm;
+
+            nameField._inputField.Select();
+            nameField._inputField.ActivateInputField();
+
+            _ = AwaitUsernamePromptAsync(dialog, entry, isHostMode);
+        }
+
+        private async Task AwaitUsernamePromptAsync(DialogBox<bool> dialog, ServerDirectoryEntry entry, bool isHostMode)
+        {
+            bool confirmed = await dialog.WaitAsync();
+            _pendingUsernameEntry = null;
+            if (!confirmed) return;
+            _ = ConnectToAsync(entry, isHostMode);
         }
 
         private void OnUsernameSubmitted()

@@ -267,6 +267,26 @@
       "value": "Render below or above native resolution for performance or sharpness."
     },
     {
+      "key": "settings.graphics.dynamicResolution.tooltip",
+      "value": "Automatically lower resolution when the GPU cannot keep up, and raise it again when there is headroom."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.minimum.tooltip",
+      "value": "The lowest resolution dynamic resolution is allowed to drop to."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.maximum.tooltip",
+      "value": "The highest resolution dynamic resolution is allowed to reach. In VR this also sets how much eye texture is reserved up front."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.targetOverride.tooltip",
+      "value": "Target a specific frame rate instead of the headset or display refresh rate."
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.target.tooltip",
+      "value": "The frame rate dynamic resolution aims to hold."
+    },
+    {
       "key": "settings.graphics.hdrSupport.tooltip",
       "value": "Enable high dynamic range rendering for brighter highlights."
     },
@@ -423,6 +443,10 @@
       "value": "Show each remote player's received traffic — bytes on the wire per second and packet rate — above their gizmo."
     },
     {
+      "key": "settings.developer.networkAdditionalInfo.tooltip",
+      "value": "Adds voice traffic to each player's network label, and floats an overall readout in front of you totalling the received avatar, voice and scene channels."
+    },
+    {
       "key": "settings.developer.gizmoLabels.tooltip",
       "value": "Show text labels on the visible gizmos (tracker roles, linked pairs, IK colliders, audio)."
     },
@@ -461,6 +485,10 @@
     {
       "key": "settings.developer.logLevelFilter.tooltip",
       "value": "Only show logs at or above the chosen severity level."
+    },
+    {
+      "key": "settings.developer.contentPoliceLogging.tooltip",
+      "value": "Log what Content Police changed while loading avatars, props, and worlds (converted constraints, stripped events, collider fixes)."
     },
     {
       "key": "settings.developer.shaderPrewarm.tooltip",
@@ -647,6 +675,10 @@
       "value": "Let body collision push the elbow even when an elbow tracker is driving it."
     },
     {
+      "key": "settings.bodyTracking.wristAxialBound.title.tooltip",
+      "value": "Limit wrist twist by rolling the hand away from the controller. Off keeps hands exactly on their targets."
+    },
+    {
       "key": "settings.bodyTracking.handCapsule.title.tooltip",
       "value": "Use a capsule shape instead of a point for hand collisions."
     },
@@ -673,6 +705,10 @@
     {
       "key": "settings.bodyTracking.shoulderShrug.title.tooltip",
       "value": "Raise your shoulders when you shrug with your arms at your sides."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderRetraction.title.tooltip",
+      "value": "Pull your shoulder back when you reach behind you."
     },
     {
       "key": "settings.bodyTracking.shoulderElevation.title.tooltip",
@@ -1307,6 +1343,18 @@
       "value": "Maximum distance from a camera at which jiggle collisions still run."
     },
     {
+      "key": "settings.perf.jiggleCullExpansion.tooltip",
+      "value": "Widens the culling view before off-screen collisions are dropped, so colliders keep working slightly outside your view. Higher values reduce jiggle popping when you turn quickly, at a small performance cost. 1.00 culls exactly at the screen edge."
+    },
+    {
+      "key": "settings.perf.jiggleCullNearKeep.tooltip",
+      "value": "Colliders closer than this to a camera never get culled, whatever the frustum and distance settings say."
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize.tooltip",
+      "value": "Size of one cell in the grid used to find which colliders each jiggle bone can touch. Smaller cells test fewer colliders per bone but build more cells and use more memory. Changing this only takes effect after a restart."
+    },
+    {
       "key": "settings.perf.jiggleColliderLod.toggle.tooltip",
       "value": "Cut back remote avatars' arm, finger and foot jiggle colliders by distance to save performance in crowded instances."
     },
@@ -1373,6 +1421,26 @@
     {
       "key": "settings.controls.dominantHand.tooltip",
       "value": "Choose which hand is treated as your main interaction hand."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR",
+      "value": "Desktop Input in VR"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.tooltip",
+      "value": "How keyboard, mouse and gamepad input is processed while in SteamVR. Adaptive runs at full speed while you type or click and winds down when idle. Always On processes input every frame. Off leaves desktop devices dormant while in VR. Desktop and OpenXR always run at full speed."
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.adaptive",
+      "value": "Adaptive"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.alwaysOn",
+      "value": "Always On"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.off",
+      "value": "Off"
     },
     {
       "key": "settings.controls.invertMouse.tooltip",
@@ -3659,6 +3727,14 @@
       "value": "Vibrate the controller when the pointer hovers over and clicks menu elements."
     },
     {
+      "key": "settings.general.hideRemoteCameras",
+      "value": "Hide Remote Cameras"
+    },
+    {
+      "key": "settings.general.hideRemoteCameras.tooltip",
+      "value": "Hide the camera pucks (and their name tags) other players are using. Only affects what you see; their cameras keep working."
+    },
+    {
       "key": "settings.general.disableVRFingerTouch",
       "value": "Disable VR Finger Touch"
     },
@@ -4367,6 +4443,26 @@
       "value": "Render Scale"
     },
     {
+      "key": "settings.graphics.dynamicResolution",
+      "value": "Dynamic Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.minimum",
+      "value": "Minimum Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.maximum",
+      "value": "Maximum Resolution"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.targetOverride",
+      "value": "Override Target Frame Rate"
+    },
+    {
+      "key": "settings.graphics.dynamicResolution.target",
+      "value": "Target Frame Rate"
+    },
+    {
       "key": "settings.graphics.hdrSupport",
       "value": "HDR Support"
     },
@@ -4595,6 +4691,30 @@
       "value": "UI Scroll Speed"
     },
     {
+      "key": "settings.controls.uiClick.title",
+      "value": "VR UI Click"
+    },
+    {
+      "key": "settings.controls.uiClick.description",
+      "value": "How far the trigger must be pulled to click on menus and world UI in VR."
+    },
+    {
+      "key": "settings.controls.uiClickPress",
+      "value": "Click Threshold"
+    },
+    {
+      "key": "settings.controls.uiClickPress.tooltip",
+      "value": "How far the trigger must be pulled before a click registers. Lower this if clicks feel hard to trigger."
+    },
+    {
+      "key": "settings.controls.uiClickRelease",
+      "value": "Release Threshold"
+    },
+    {
+      "key": "settings.controls.uiClickRelease.tooltip",
+      "value": "How far the trigger must be let go before the click releases. Keep this below the click threshold to stop clicks flickering on and off."
+    },
+    {
       "key": "settings.controls.generalDeadzone.title",
       "value": "General Deadzone"
     },
@@ -4739,6 +4859,14 @@
       "value": "Disable Animations in FBT"
     },
     {
+      "key": "settings.bodyTracking.jobLocomotion",
+      "value": "Job-Driven Locomotion"
+    },
+    {
+      "key": "settings.bodyTracking.jobLocomotion.tooltip",
+      "value": "Blend the walking animations on a background thread instead of the Unity Animator. Only applies to avatars using the standard locomotion controller; turn off if locomotion animations look wrong. Default: On"
+    },
+    {
       "key": "settings.bodyTracking.butterflyKnees",
       "value": "Butterfly Knees"
     },
@@ -4768,7 +4896,7 @@
     },
     {
       "key": "settings.bodyTracking.kneeFootFollow.title.tooltip",
-      "value": "How far the knee turns to match the foot while standing. 1 = the knee points exactly where the toe does; lower values keep it a little inboard of the foot, like a real leg. Default: 1"
+      "value": "How far the knee turns to match the foot while standing. 1 = the knee points exactly where the toe does; lower values keep it a little inboard of the foot, like a real leg. Default: 0.75"
     },
     {
       "key": "settings.bodyTracking.playspaceMover.title",
@@ -5067,30 +5195,6 @@
       "value": "How evenly the upper arm twist bone spreads the elbow's roll along the bone. 1 = even gradient; 0 = off. Default: 1.0"
     },
     {
-      "key": "settings.bodyTracking.section.spineProportion.title",
-      "value": "Spine Proportion Match"
-    },
-    {
-      "key": "settings.bodyTracking.section.spineProportion.description",
-      "value": "With a head and hips tracker, gently scales the avatar's spine so its torso length matches yours. Stops a mismatched avatar spine from crumpling (avatar torso too long) or over-stretching (too short). Measured once at calibration; only you see the change."
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.enabled.title",
-      "value": "Match Spine To My Torso"
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.enabled.description",
-      "value": "Uniformly stretches or shrinks the avatar's spine a small amount so it spans your real head-to-hips distance. Does nothing without a hips tracker, or when the avatar already matches you."
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.maxScale.title",
-      "value": "Max Spine Scaling"
-    },
-    {
-      "key": "settings.bodyTracking.spineProportion.maxScale.tooltip",
-      "value": "The largest length change allowed, as a fraction (0.12 = up to 12% longer or shorter). Bigger corrects larger mismatches but can visibly change your torso length. Default: 0.12"
-    },
-    {
       "key": "settings.bodyTracking.section.anatomy.title",
       "value": "Anatomy"
     },
@@ -5215,6 +5319,14 @@
       "value": "Allow body collision to push the elbow even when an elbow tracker is driving it. Off lets the tracker fully control a tracked elbow."
     },
     {
+      "key": "settings.bodyTracking.wristAxialBound.title",
+      "value": "Wrist Twist Limit"
+    },
+    {
+      "key": "settings.bodyTracking.wristAxialBound.description",
+      "value": "Caps how far the hand can twist against the forearm by rolling the hand off the controller's rotation. Off keeps hands exactly on their rotation targets."
+    },
+    {
       "key": "settings.bodyTracking.elbowDrag.title",
       "value": "Elbow Drag"
     },
@@ -5293,6 +5405,14 @@
     {
       "key": "settings.bodyTracking.shoulderShrug.description",
       "value": "Detects a shrug from the hands or elbow trackers while your arms hang at your sides and raises the shoulders to match. Default: on"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderRetraction.title",
+      "value": "Shoulder Retraction"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderRetraction.description",
+      "value": "Pulls the shoulder blade back when you reach behind your body, so the shoulder and upper arm do not absorb the whole rotation. Default: on"
     },
     {
       "key": "settings.bodyTracking.shoulderElevation.title",
@@ -5460,7 +5580,7 @@
     },
     {
       "key": "settings.bodyTracking.moveBodyBackWhenCrouching.description",
-      "value": "Shifts the hips back as the head drops, so a squat or forward bow sits over the feet instead of folding straight down. Multiplies the head's drop distance; 0 disables. Default: 1"
+      "value": "Sits the hips back and leans the trunk as you crouch, following measured human squat motion, instead of folding straight down onto the knees. 1 matches the human average, 0 disables. Default: 1"
     },
     {
       "key": "settings.bodyTracking.trunkCounterbalance.title",
@@ -6523,6 +6643,10 @@
       "value": "Player Bandwidth"
     },
     {
+      "key": "settings.developer.networkAdditionalInfo",
+      "value": "Network Additional Info"
+    },
+    {
       "key": "settings.developer.audioLevels.description",
       "value": "Per-speaker loudness meter on the voice-direction arrow: a bright fill rises to how loud they actually are, coloured green-to-red by how much of it survives to reach you, under a fixed dim headroom up to full scale. With Gizmo Labels on, a readout breaks down every factor reducing the voice — your per-player volume, distance rolloff, directivity (their facing), occlusion, the listener cone, and the global main volume."
     },
@@ -6581,6 +6705,38 @@
     {
       "key": "settings.highPlayerCap.prompt.no",
       "value": "Not Now"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.bodyPreConnect",
+      "value": "This server reports over {0} people online. Turn on High Player Cap Performance Mode before joining to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.enableConnect",
+      "value": "Enable & Connect"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.connectWithout",
+      "value": "Connect Without It"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.dontAskAgain",
+      "value": "Don't Ask Again"
+    },
+    {
+      "key": "settings.highPlayerCap.disabled.title",
+      "value": "Performance Suggestions Off"
+    },
+    {
+      "key": "settings.highPlayerCap.disabled.body",
+      "value": "High player count performance suggestions won't be shown anymore. You can turn them back on anytime in Settings → Graphics → High Player Count Suggestions."
+    },
+    {
+      "key": "settings.graphics.highPlayerCapSuggestions",
+      "value": "High Player Count Suggestions"
+    },
+    {
+      "key": "settings.graphics.highPlayerCapSuggestions.tooltip",
+      "value": "Offer to turn on High Player Cap Performance Mode when connecting to or being in an instance with over 250 people. The offer's Don't Ask Again button turns this off."
     },
     {
       "key": "settings.developer.gizmoLabels.description",
@@ -6801,6 +6957,10 @@
     {
       "key": "settings.developer.logLevelFilter.description",
       "value": "Lowest severity that is allowed through BasisDebug. All emits logs, warnings, and errors. Warnings & Errors hides plain logs. Errors Only hides logs and warnings."
+    },
+    {
+      "key": "settings.developer.contentPoliceLogging",
+      "value": "Content Police Logging"
     },
     {
       "key": "settings.developer.options.title",
@@ -7649,6 +7809,22 @@
     {
       "key": "settings.perf.jiggleDistanceCull.slider",
       "value": "Max Collision Distance"
+    },
+    {
+      "key": "settings.perf.jiggleCullExpansion",
+      "value": "Off-Screen Collision Margin"
+    },
+    {
+      "key": "settings.perf.jiggleCullNearKeep",
+      "value": "Always-On Collision Radius"
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize",
+      "value": "Collision Grid Cell Size"
+    },
+    {
+      "key": "settings.perf.jiggleBroadPhaseCellSize.restart",
+      "value": "Collision Grid Cell Size (restart to apply)"
     },
     {
       "key": "settings.perf.jiggleColliderLod.toggle",

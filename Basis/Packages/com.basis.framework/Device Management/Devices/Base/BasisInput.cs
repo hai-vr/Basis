@@ -787,6 +787,7 @@ namespace Basis.Scripts.Device_Management.Devices
         public void HideTrackedVisual()
         {
             BasisDebug.Log("HideTrackedVisual", BasisDebug.LogTag.Input);
+            BasisTrackerMarkerGizmos.Hide(this);
             if (BasisVisualTracker != null)
             {
                 BasisDebug.Log("Found and removing  HideTrackedVisual", BasisDebug.LogTag.Input);
@@ -869,6 +870,13 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="key">Addressables key for the model prefab.</param>
         public void LoadModelWithKey(string key)
         {
+            // The generic marker ball is drawn by the batched gizmo backend rather than an
+            // instantiated FallbackSphere — same material and sizing, no per-device GameObject.
+            if (key == FallbackDeviceID)
+            {
+                BasisTrackerMarkerGizmos.Show(this);
+                return;
+            }
             if (_visualModelHandle.IsValid())
             {
                 Addressables.Release(_visualModelHandle);
@@ -967,7 +975,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ShowTrackedVisualDefaultImplementation()
         {
-            if (BasisVisualTracker != null)
+            if (BasisVisualTracker != null || BasisTrackerMarkerGizmos.IsShowing(this))
             {
                 return;
             }
@@ -989,7 +997,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ShowBakedOrFallbackVisual()
         {
-            if (BasisVisualTracker != null)
+            if (BasisVisualTracker != null || BasisTrackerMarkerGizmos.IsShowing(this))
             {
                 return;
             }

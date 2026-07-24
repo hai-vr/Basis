@@ -212,11 +212,35 @@ public partial class BasisLocalFootDriver
     private JobHandle _jobHandle;
     private bool _jobScheduled;
 
+    private const int k_ProbeRays = 4;
+    private const int k_ProbeMaxHits = 8;
+    private NativeArray<RaycastCommand> _probeCommands;
+    private NativeArray<RaycastHit> _probeResults;
+    private JobHandle _probeHandle;
+    private bool _probePending;
+    private int _probeNextFoot;
+    private float _probeElapsedLeft, _probeElapsedRight;
+
+    private struct BasisFootProbePlan
+    {
+        public int foot;
+        public Vector3 up, fwd, right;
+        public float heelD, ballD, toeD, halfW;
+        public float hipsUpComp;
+    }
+    private BasisFootProbePlan _probePlan;
+
     // Params are almost entirely calibration/inspector values; rebuild only when they change.
     private BasisFootSimParams _cachedParams;
     private bool _paramsDirty = true;
 
     public static float SplayWhenCrouchedPercentage = 1f;
+
+    /// <summary>plantedTime for a foot that is standing rather than freshly landed, so the
+    /// double-support gate is already satisfied. Any value past the largest reachable
+    /// doubleSupportSec (stepDurSlow * k_DoubleSupportSlow, ~0.75 s on a giant) works.</summary>
+    internal const float SettledPlantedTime = 10f;
+
     public bool IsInitialized { get; private set; }
 
     /// <summary>
@@ -229,12 +253,19 @@ public partial class BasisLocalFootDriver
     /// </summary>
     public void NotifyReEngaging()
     {
+        DiscardPendingProbes();
         var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
         left.currentPos = left.plantedPos = lf.position;
         left.phase = BasisFootPhase.Planted;
         var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
         right.currentPos = right.plantedPos = rf.position;
         right.phase = BasisFootPhase.Planted;
+
+        // These feet were picked up from the animation, which had them STANDING -- they did not
+        // just land, so they are already settled and must not owe a double-support window. Seeding
+        // 0 (which is what the missing round-trip field silently did) froze BOTH feet for a full
+        // doubleSupportSec -- 561 ms on an adult -- every single time foot IK re-engaged.
+        left.plantedTime = right.plantedTime = SettledPlantedTime;
 
         // Seed the rotation from the actual FOOT BONE, not from the bone CONTROL.
         //
@@ -285,6 +316,7 @@ public partial class BasisLocalFootDriver
             _jobHandle.Complete();
             _jobScheduled = false;
         }
+        DiscardPendingProbes();
 
         ShiftFoot(left, delta);
         ShiftFoot(right, delta);
@@ -408,11 +440,17 @@ public partial class BasisLocalFootDriver
         _nativeSimState = new NativeArray<BasisFootSimState>(1, Allocator.Persistent);
         _nativeInput = new NativeArray<BasisFootSimInput>(1, Allocator.Persistent);
         _nativeOutput = new NativeArray<BasisFootSimOutput>(1, Allocator.Persistent);
+        _probeCommands = new NativeArray<RaycastCommand>(k_ProbeRays, Allocator.Persistent);
+        _probeResults = new NativeArray<RaycastHit>(k_ProbeRays * k_ProbeMaxHits, Allocator.Persistent);
+        _probePending = false;
+        _probeNextFoot = 0;
+        _probeElapsedLeft = _probeElapsedRight = 0f;
 
+        prevHeadYaw = HeadYaw();
         _nativeSimState[0] = new BasisFootSimState
         {
             prevHeadPos = headPos,
-            prevHeadYaw = HeadYaw(),
+            prevHeadYaw = prevHeadYaw,
             smoothedVelocity = float3.zero,
             smoothedBodyFwd = bodyFwd,
             smoothedBodyRight = bodyRight,
@@ -433,16 +471,29 @@ public partial class BasisLocalFootDriver
             _jobHandle.Complete();
             _jobScheduled = false;
         }
+        DiscardPendingProbes();
         DisposeNativeArrays();
         IsInitialized = false;
     }
 
+    private void DiscardPendingProbes()
+    {
+        if (_probePending)
+        {
+            _probeHandle.Complete();
+            _probePending = false;
+        }
+    }
+
     private void DisposeNativeArrays()
     {
+        DiscardPendingProbes();
         if (_nativeFeet.IsCreated) _nativeFeet.Dispose();
         if (_nativeSimState.IsCreated) _nativeSimState.Dispose();
         if (_nativeInput.IsCreated) _nativeInput.Dispose();
         if (_nativeOutput.IsCreated) _nativeOutput.Dispose();
+        if (_probeCommands.IsCreated) _probeCommands.Dispose();
+        if (_probeResults.IsCreated) _probeResults.Dispose();
     }
 
     private static BasisFootNativeState FootStateToNative(BasisFootState f)
@@ -462,6 +513,7 @@ public partial class BasisLocalFootDriver
             stepStartRot = f.stepStartRot,
             stepTimer = f.stepTimer,
             stepDur = f.stepDur,
+            plantedTime = f.plantedTime,
             idealPos = f.idealPos,
             filteredNormal = f.filteredNormal,
             currentPos = f.currentPos,
@@ -480,6 +532,7 @@ public partial class BasisLocalFootDriver
         f.stepStartRot = n.stepStartRot;
         f.stepTimer = n.stepTimer;
         f.stepDur = n.stepDur;
+        f.plantedTime = n.plantedTime;
         f.idealPos = n.idealPos;
         f.filteredNormal = n.filteredNormal;
         f.currentPos = n.currentPos;
@@ -772,19 +825,40 @@ public partial class BasisLocalFootDriver
         baseUpperLegToFootVertical = upperLegToFootVertical;
     }
 
+    public void RefreshBodyFitScale()
+    {
+        if (!IsInitialized)
+        {
+            return;
+        }
+        ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
+    }
+
+    private static float BodyFitLegScale()
+    {
+        var fit = BasisLocalRigDriver.AppliedBodyFit;
+        if (!fit.HasBodyFit)
+        {
+            return 1f;
+        }
+        float legScale = fit.LegScale;
+        return legScale > 0f && !float.IsNaN(legScale) && !float.IsInfinity(legScale) ? legScale : 1f;
+    }
+
     private void ApplyScaleToMeasurements(float scale)
     {
+        float legScale = scale * BodyFitLegScale();
         stanceWidth = baseStanceWidth * scale;
-        hipToFoot = baseHipToFoot * scale;
-        leftThighLen = baseLeftThighLen * scale;
-        leftShinLen = baseLeftShinLen * scale;
-        leftLegLen = baseLeftLegLen * scale;
-        rightThighLen = baseRightThighLen * scale;
-        rightShinLen = baseRightShinLen * scale;
-        rightLegLen = baseRightLegLen * scale;
+        hipToFoot = baseHipToFoot * legScale;
+        leftThighLen = baseLeftThighLen * legScale;
+        leftShinLen = baseLeftShinLen * legScale;
+        leftLegLen = baseLeftLegLen * legScale;
+        rightThighLen = baseRightThighLen * legScale;
+        rightShinLen = baseRightShinLen * legScale;
+        rightLegLen = baseRightLegLen * legScale;
         footLength = baseFootLength * scale;
         ankleHeight = baseAnkleHeight * scale;
-        upperLegToFootVertical = baseUpperLegToFootVertical * scale;
+        upperLegToFootVertical = baseUpperLegToFootVertical * legScale;
 
         DeriveStepParameters();
         left.thighLen = leftThighLen;
@@ -813,6 +887,7 @@ public partial class BasisLocalFootDriver
             return;
         }
 
+        DiscardPendingProbes();
         ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
 
         // Re-snap planted feet to ground with the now-correct footHeightOffset.
@@ -849,6 +924,7 @@ public partial class BasisLocalFootDriver
     {
         ScheduleSimulate(dt);
         CompleteSimulate();
+        ScheduleSurfaceProbes();
     }
 
     /// <summary>
@@ -873,16 +949,13 @@ public partial class BasisLocalFootDriver
         LastGroundUp = groundHit ? Vector3.Dot(ch.point, cachedPlayerUp) : float.NaN;
         HipsUp = Vector3.Dot(hips.position, cachedPlayerUp);
 
-        // ── 1b. Surface conformance probes (main thread; the Burst sim job cannot raycast) ──
-        // Runs BEFORE the job so the normal it consumes is fresh this frame rather than a frame stale. Uses the
-        // feet's positions as of last frame, which is the same one-frame relationship the ground cast above has.
-        // Planted feet only, so the usual cost is 4 rays (one foot planted mid-walk) to 8 (both planted).
+        // ── 1b. Surface conformance probes (the Burst sim job cannot raycast) ──
+        // Consumes the batch scheduled at the END of last frame, so the rays themselves cost the main thread
+        // nothing. Uses the feet's positions as of last frame, which is the same one-frame relationship the
+        // ground cast above has and exactly what the synchronous version sampled. One foot per frame.
         if (SurfaceProbesEnabled)
         {
-            ref BasisFootNativeState leftProbe = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 0);
-            ref BasisFootNativeState rightProbe = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1);
-            ProbeFootSurface(ref leftProbe, dt);
-            ProbeFootSurface(ref rightProbe, dt);
+            ApplySurfaceProbes(dt);
         }
 
         // ── 2. Pack input (write in place; no job is in flight here) ──
@@ -954,7 +1027,6 @@ public partial class BasisLocalFootDriver
 
         ref readonly BasisFootSimState simOut = ref UnsafeUtility.AsRef<BasisFootSimState>(_nativeSimState.GetUnsafeReadOnlyPtr());
         smoothedVelocity = simOut.smoothedVelocity;
-        prevHeadYaw = simOut.prevHeadYaw;
     }
 
     /// <summary>Returns true if CompleteSimulate has yet to be called for the currently scheduled job.</summary>
@@ -966,13 +1038,13 @@ public partial class BasisLocalFootDriver
         float3 velFlat = (float3)ProjectHorizontal(sim.smoothedVelocity);
         float speed = math.length(velFlat);
         float fastYawRef = Mathf.Max(1f, 0.5f * maxPlantedYawDegrees / Mathf.Max(0.01f, stepDurFast));
-        // MUST mirror BasisFootSimulateJob's urgencyT/yawUrgency -- the job derives the same values to pace the
-        // trigger, and this commits the step. Yaw contributes on the URGENCY reference (k_YawUrgencyRefMul = 5),
-        // not the pacing one, so an ordinary turn no longer forces a minimum-duration flick of a step.
         float absYawRate = Mathf.Abs(sim.smoothedYawRateDeg);
         float yawPacing = Mathf.Clamp01(absYawRate / fastYawRef);
-        float yawUrgency = Mathf.Clamp01(absYawRate / (fastYawRef * BasisFootSimulateJob.YawUrgencyRefMul));
-        float urgencyT = Mathf.Max(Mathf.Clamp01(speed / fastSpeedRef), yawUrgency);
+        // urgencyT is no longer re-derived here. The job publishes f.stepUrgency at the instant it requests the
+        // step, and only the job can see the per-foot drift term -- how far past its own trigger THIS foot is --
+        // which is what makes a big recovery commit and a small adjustment stay gentle. Re-deriving it from sim
+        // state would silently drop that and re-create the mirror this used to be.
+        float urgencyT = Mathf.Clamp01(f.stepUrgency);
 
         f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;
@@ -1052,9 +1124,9 @@ public partial class BasisLocalFootDriver
             RaycastHit h = s_groundHits[Index];
             // distance 0 == the sweep began already overlapping this collider; point/normal are unusable.
             if (h.distance <= 0f) continue;
-            if (IsSelfCollider(h.collider)) continue;
-            if (Vector3.Dot(h.point, cachedPlayerUp) > maxUpComponent) continue;
             if (h.distance >= bestDist) continue;   // NonAlloc does not sort
+            if (Vector3.Dot(h.point, cachedPlayerUp) > maxUpComponent) continue;
+            if (IsSelfCollider(h.collider)) continue;
             bestDist = h.distance;
             best = h;
             found = true;
@@ -1095,15 +1167,18 @@ public partial class BasisLocalFootDriver
     /// allowed to articulate, so including it would let a rise under the toe tilt the whole rigid foot instead
     /// of bending the joint that exists for it.
     /// </summary>
-    private void ProbeFootSurface(ref BasisFootNativeState f, float dt)
+    public unsafe void ScheduleSurfaceProbes()
     {
+        if (!IsInitialized || !SurfaceProbesEnabled || !_probeCommands.IsCreated) return;
+        DiscardPendingProbes();
+
+        int foot = _probeNextFoot;
+        _probeNextFoot ^= 1;
+
+        ref BasisFootNativeState f = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), foot);
         // Only planted feet conform. A swinging foot's landing normal already comes from FinalizeStep's
         // spherecast at the step target; probing under a foot in mid-air samples whatever it is passing over.
-        if (f.phase != 0 || footLength <= 0f)
-        {
-            f.toeBendDeg = Mathf.MoveTowards(f.toeBendDeg, 0f, k_ToeMaxDorsiDeg * dt * 4f);
-            return;
-        }
+        if (f.phase != 0 || footLength <= 0f) return;
 
         // Foot frame from the BODY, never from the foot bone. A humanoid foot bone's local axes are
         // rig-dependent -- that is precisely what silently disabled the yaw trigger (it compared against the
@@ -1116,17 +1191,83 @@ public partial class BasisLocalFootDriver
         if (right.sqrMagnitude < 1e-6f) return;
         right.Normalize();
 
-        Vector3 c = (Vector3)f.currentPos;
-        float hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp);
-        float heelD = footLength * k_HeelProbeFrac;
-        float ballD = footLength * k_BallProbeFrac;
-        float toeD = footLength * k_ToeProbeFrac;
-        float halfW = footLength * k_FootHalfWidthFrac;
+        _probePlan = new BasisFootProbePlan
+        {
+            foot = foot,
+            up = cachedPlayerUp,
+            fwd = fwd,
+            right = right,
+            heelD = footLength * k_HeelProbeFrac,
+            ballD = footLength * k_BallProbeFrac,
+            toeD = footLength * k_ToeProbeFrac,
+            halfW = footLength * k_FootHalfWidthFrac,
+            hipsUpComp = Vector3.Dot(hips.position, cachedPlayerUp),
+        };
 
-        bool okHeel = ProbeGroundHeight(c - fwd * heelD, hipsUpComp, out float heelH);
-        bool okA = ProbeGroundHeight(c + fwd * ballD + right * halfW, hipsUpComp, out float ballAH);
-        bool okB = ProbeGroundHeight(c + fwd * ballD - right * halfW, hipsUpComp, out float ballBH);
-        bool okToe = ProbeGroundHeight(c + fwd * toeD, hipsUpComp, out float toeH);
+        // Same origin convention as FinalizeStep: start half the ray range above so a step riser cannot be
+        // stepped over.
+        Vector3 c = (Vector3)f.currentPos;
+        Vector3 lift = cachedPlayerUp * (rayCastRange * 0.5f);
+        Vector3 down = -cachedPlayerUp;
+        QueryParameters query = new QueryParameters(groundLayers, hitMultipleFaces: false, hitTriggers: QueryTriggerInteraction.Ignore, hitBackfaces: false);
+
+        _probeCommands[0] = new RaycastCommand(c - fwd * _probePlan.heelD + lift, down, query, rayCastRange);
+        _probeCommands[1] = new RaycastCommand(c + fwd * _probePlan.ballD + right * _probePlan.halfW + lift, down, query, rayCastRange);
+        _probeCommands[2] = new RaycastCommand(c + fwd * _probePlan.ballD - right * _probePlan.halfW + lift, down, query, rayCastRange);
+        _probeCommands[3] = new RaycastCommand(c + fwd * _probePlan.toeD + lift, down, query, rayCastRange);
+
+        // ScheduleBatch only guarantees a null-collider terminator after the hits it found; anything past that
+        // is whatever the PREVIOUS foot's batch left there. ResolveProbeHeight identifies unfilled slots by
+        // distance 0, so the buffer has to start zeroed or one foot's heel hit leaks into the other's toe slot.
+        UnsafeUtility.MemClear(_probeResults.GetUnsafePtr(), (long)_probeResults.Length * UnsafeUtility.SizeOf<RaycastHit>());
+
+        _probeHandle = RaycastCommand.ScheduleBatch(_probeCommands, _probeResults, k_ProbeRays, k_ProbeMaxHits);
+        _probePending = true;
+    }
+
+    private unsafe void ApplySurfaceProbes(float dt)
+    {
+        _probeElapsedLeft += dt;
+        _probeElapsedRight += dt;
+
+        // The airborne toe relaxes every frame for BOTH feet regardless of whose turn it is to probe --
+        // that path is pure math and costs no rays.
+        ref BasisFootNativeState leftF = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 0);
+        ref BasisFootNativeState rightF = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), 1);
+        if (leftF.phase != 0) leftF.toeBendDeg = Mathf.MoveTowards(leftF.toeBendDeg, 0f, k_ToeMaxDorsiDeg * dt * 4f);
+        if (rightF.phase != 0) rightF.toeBendDeg = Mathf.MoveTowards(rightF.toeBendDeg, 0f, k_ToeMaxDorsiDeg * dt * 4f);
+
+        if (!_probePending) return;
+        _probeHandle.Complete();
+        _probePending = false;
+
+        int foot = _probePlan.foot;
+        // Elapsed since THIS foot was last fitted, not frame dt: interleaving halves each foot's sample rate
+        // and the exponential filters below would otherwise smooth at half their authored rate.
+        float elapsed = foot == 0 ? _probeElapsedLeft : _probeElapsedRight;
+        if (foot == 0) _probeElapsedLeft = 0f; else _probeElapsedRight = 0f;
+
+        ref BasisFootNativeState f = ref UnsafeUtility.ArrayElementAsRef<BasisFootNativeState>(_nativeFeet.GetUnsafePtr(), foot);
+        // Took off between scheduling and now, so these rays describe ground it has already left.
+        if (f.phase != 0) return;
+
+        FitFootSurface(ref f, Mathf.Min(elapsed, 0.25f));
+    }
+
+    private void FitFootSurface(ref BasisFootNativeState f, float dt)
+    {
+        Vector3 fwd = _probePlan.fwd;
+        Vector3 right = _probePlan.right;
+        Vector3 up = _probePlan.up;
+        float heelD = _probePlan.heelD;
+        float ballD = _probePlan.ballD;
+        float toeD = _probePlan.toeD;
+        float halfW = _probePlan.halfW;
+
+        bool okHeel = ResolveProbeHeight(0, out float heelH);
+        bool okA = ResolveProbeHeight(1, out float ballAH);
+        bool okB = ResolveProbeHeight(2, out float ballBH);
+        bool okToe = ResolveProbeHeight(3, out float toeH);
 
         // ── Plane -> normal ──
         if (okHeel && okA && okB)
@@ -1134,19 +1275,19 @@ public partial class BasisLocalFootDriver
             float ballH = (ballAH + ballBH) * 0.5f;
             // Tangents along the two foot axes, following the sampled ground. cross(fwd, right) is +up for a
             // flat surface in Unity's left-handed frame; the dot guard covers a degenerate/inverted fit.
-            Vector3 tFwd = fwd * (heelD + ballD) + cachedPlayerUp * (ballH - heelH);
-            Vector3 tRight = right * (2f * halfW) + cachedPlayerUp * (ballAH - ballBH);
+            Vector3 tFwd = fwd * (heelD + ballD) + up * (ballH - heelH);
+            Vector3 tRight = right * (2f * halfW) + up * (ballAH - ballBH);
             Vector3 n = Vector3.Cross(tFwd, tRight);
             if (n.sqrMagnitude > 1e-8f)
             {
                 n.Normalize();
-                if (Vector3.Dot(n, cachedPlayerUp) < 0f) n = -n;
+                if (Vector3.Dot(n, up) < 0f) n = -n;
                 // A WORLD-SPACE exponential filter is CORRECT here, unlike the body-forward and knee-swivel
                 // filters this codebase has twice had to fix. Those smoothed quantities that rotate rigidly with
                 // the player root, so a deliberate turn registered as filter error. A ground normal does not
                 // rotate with the body at all -- it is a property of the world -- so there is nothing to carry.
                 Vector3 prev = (Vector3)f.filteredNormal;
-                if (prev.sqrMagnitude < 1e-6f) prev = cachedPlayerUp;
+                if (prev.sqrMagnitude < 1e-6f) prev = up;
                 f.filteredNormal = Vector3.Slerp(prev, n, 1f - Mathf.Exp(-k_SurfaceNormalRate * dt)).normalized;
             }
 
@@ -1183,20 +1324,31 @@ public partial class BasisLocalFootDriver
         }
     }
 
-    /// <summary>One downward surface probe. Returns the hit's height along the player's up axis.</summary>
-    private bool ProbeGroundHeight(Vector3 at, float hipsUpComp, out float height)
+    /// <summary>Resolves one batched probe ray to a ground height along the player's up axis. Applies the same
+    /// rejection rules as GroundCast: the distance==0 overlap sentinel, self colliders, and above-the-pelvis
+    /// hits.</summary>
+    private bool ResolveProbeHeight(int slot, out float height)
     {
-        // Same origin convention as FinalizeStep: start half the ray range above so a step riser cannot be
-        // stepped over, and reuse GroundCast so self-colliders, the distance==0 overlap sentinel and
-        // above-the-pelvis hits are all rejected identically.
-        Vector3 origin = at + cachedPlayerUp * (rayCastRange * 0.5f);
-        if (GroundCast(origin, -cachedPlayerUp, rayCastRange, 0f, hipsUpComp, out RaycastHit hit))
-        {
-            height = Vector3.Dot(hit.point, cachedPlayerUp);
-            return true;
-        }
+        int baseIndex = slot * k_ProbeMaxHits;
+        float bestDist = float.MaxValue;
+        bool found = false;
         height = 0f;
-        return false;
+        for (int Index = 0; Index < k_ProbeMaxHits; Index++)
+        {
+            RaycastHit h = _probeResults[baseIndex + Index];
+            // With maxHits > 1 each command's hits are packed contiguously and the unused tail is zeroed, so
+            // a terminator slot reads as distance 0 and is rejected by the same test that rejects a sweep
+            // which began already overlapping. Not a break: a genuine overlap hit can precede real hits.
+            if (h.distance <= 0f) continue;
+            if (h.distance >= bestDist) continue;   // ScheduleBatch does not sort
+            float up = Vector3.Dot(h.point, _probePlan.up);
+            if (up > _probePlan.hipsUpComp) continue;
+            if (IsSelfCollider(h.collider)) continue;
+            bestDist = h.distance;
+            height = up;
+            found = true;
+        }
+        return found;
     }
 
     /// <summary>Projects a vector onto the player's horizontal plane (removes up component).</summary>

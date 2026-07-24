@@ -385,6 +385,7 @@ namespace HVR.Basis.Comms
             private readonly List<ushort> L_onesNetworkIds = new(); // is field due to PR guidelines
             private readonly List<int> L_otherAddressIds = new(); // is field due to PR guidelines
             private readonly List<ushort> L_tempListSerializedImmediately = new List<ushort>(); // is field due to PR guidelines
+            private readonly List<HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue> L_tempOtherSerializedImmediately = new(); // is field due to PR guidelines
             private byte[] BuildUpdatedVariablesPacketOrNull(Dictionary<int, object> addressIdsToValueToTransmit, float deltaTimeSinceLastTick)
             {
                 var deltaLocalIntToSeconds = (int)(deltaTimeSinceLastTick / DeltaLocalIntToSeconds);
@@ -439,16 +440,22 @@ namespace HVR.Basis.Comms
                     L_tempListSerializedImmediately.Clear();
                     L_tempListSerializedImmediately.AddRange(L_zeroesNetworkIds);
                     L_tempListSerializedImmediately.AddRange(L_onesNetworkIds);
+                    L_tempOtherSerializedImmediately.Clear();
+                    for (var i = 0; i < L_otherAddressIds.Count; i++)
+                    {
+                        var addressId = L_otherAddressIds[i];
+                        L_tempOtherSerializedImmediately.Add(new HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue
+                        {
+                            networkId = _addressIdToHolder[addressId].networkId,
+                            value = addressIdsToValueToTransmit[addressId]
+                        });
+                    }
                     return new HVRPacket_UpdatedVariables_Mixed
                     {
                         timingSteps = timingSteps,
                         numberOfZeroes = (ushort)L_zeroesNetworkIds.Count,
                         networkIds = L_tempListSerializedImmediately,
-                        other = L_otherAddressIds.Select(addressId => new HVRPacket_UpdatedVariables_Mixed.Inner_UpdatedValue
-                        {
-                            networkId = _addressIdToHolder[addressId].networkId,
-                            value = addressIdsToValueToTransmit[addressId]
-                        }).ToList()
+                        other = L_tempOtherSerializedImmediately
                     }.Serialize(_needsUshortAddresses);
                 }
 
@@ -480,16 +487,13 @@ namespace HVR.Basis.Comms
 
             private byte[] BuildNewVariablesPacket(List<int> newVariablesAddressIds)
             {
-                var allHolders = newVariablesAddressIds
-                    .Select(addressId => _addressIdToHolder[addressId])
-                    .ToList();
-
                 var other = new List<HVRPacket_NewVariables.Inner_NewVariable>();
                 var zeroes = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>();
                 var ones = new List<HVRPacket_NewVariables.Inner_NewQuickVariable>();
 
-                foreach (var holder in allHolders)
+                for (var i = 0; i < newVariablesAddressIds.Count; i++)
                 {
+                    var holder = _addressIdToHolder[newVariablesAddressIds[i]];
                     var isFloat = holder.variable.variableTypeCode == HVRVariableTypeCode.Float;
                     if (isFloat
                         && (Mathf.Approximately((float)holder.currentValue, 0f)
@@ -613,6 +617,7 @@ namespace HVR.Basis.Comms
 
             private void WhenDataReceived_BypassInterpolationTape(int addressId, float currentValue)
             {
+                _submitGates.Remove(addressId);
                 _state.comms.VariableStore.Submit(addressId, currentValue);
             }
 
@@ -632,10 +637,33 @@ namespace HVR.Basis.Comms
                 }
             }
 
+            private struct SubmitGate
+            {
+                public float LastValue;
+                public float Epsilon;
+            }
+
+            private readonly Dictionary<int, SubmitGate> _submitGates = new();
+
             private void SubmitToVariableStore(Dictionary<int, float> advance)
             {
                 foreach (var (addressId, value) in advance)
                 {
+                    if (_submitGates.TryGetValue(addressId, out var gate))
+                    {
+                        if (Mathf.Abs(value - gate.LastValue) <= gate.Epsilon) continue;
+                        gate.LastValue = value;
+                        _submitGates[addressId] = gate;
+                    }
+                    else
+                    {
+                        var epsilon = 0f;
+                        if (_addressIdToHolder.TryGetValue(addressId, out var holder) && holder.variable != null)
+                        {
+                            epsilon = Mathf.Abs(holder.variable.max - holder.variable.min) * (0.5f / FullRange);
+                        }
+                        _submitGates[addressId] = new SubmitGate { LastValue = value, Epsilon = epsilon };
+                    }
                     _state.comms.VariableStore.Submit(addressId, value);
                 }
             }
@@ -847,6 +875,7 @@ namespace HVR.Basis.Comms
 
                             _addressIdToHolder[addressId].variable.min = highFrequency.min;
                             _addressIdToHolder[addressId].variable.max = highFrequency.max;
+                            _submitGates.Remove(addressId);
                         }
                         foreach (var highFrequency in newlyAdded)
                         {

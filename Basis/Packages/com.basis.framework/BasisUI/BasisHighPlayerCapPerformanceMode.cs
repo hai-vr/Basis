@@ -55,41 +55,93 @@ namespace Basis.BasisUI
                 return;
             }
 
-            int count = BasisNetworkPlayer.GetPlayerCount();
+            if (!BasisSettingsDefaults.HighPlayerCapSuggestions.RawValue)
+            {
+                return;
+            }
 
-            // Act on the highest tier whose threshold is crossed; a tighter prompt supersedes the
-            // lighter ones below it.
+            int count = BasisNetworkPlayer.GetPlayerCount();
+            int tier = HighestUnaskedTier(count);
+            if (tier < 0)
+            {
+                return;
+            }
+
+            MarkAskedThrough(tier);
+            ShowPrompt(Thresholds[tier], PoseLodByTier[tier]);
+        }
+
+        /// <summary>
+        /// Offer the performance preset before a connection to a server whose probe reported a
+        /// crowd. <paramref name="prospectiveOccupants"/> is the reported online count plus the
+        /// joining local player, matching the occupant semantics of the post-join watcher.
+        /// Returns true when a prompt was shown and the connection is deferred — every choice in
+        /// the prompt (including closing it unanswered) then runs <paramref name="continueConnect"/>,
+        /// so the click on Connect is never silently swallowed. Returns false when nothing needs
+        /// asking and the caller should just connect.
+        /// </summary>
+        public static bool TryOfferBeforeConnect(int prospectiveOccupants, Action continueConnect)
+        {
+            if (continueConnect == null)
+            {
+                return false;
+            }
+
+            if (!BasisSettingsDefaults.HighPlayerCapSuggestions.RawValue)
+            {
+                return false;
+            }
+
+            // Do-not-disturb → never block a connection on a popup; the post-join watcher will
+            // park the same suggestion in the notification list instead.
+            if (BasisNotificationCenter.RouteToNotifications)
+            {
+                return false;
+            }
+
+            int tier = HighestUnaskedTier(prospectiveOccupants);
+            if (tier < 0)
+            {
+                return false;
+            }
+
+            MarkAskedThrough(tier);
+            ShowPrompt(Thresholds[tier], PoseLodByTier[tier], forceShow: true, continueConnect: continueConnect);
+            return true;
+        }
+
+        // Highest crossed tier that is still unasked; -1 when nothing (new) is crossed. A crossed
+        // tier that was already asked returns -1 too — lower tiers were marked at the same time,
+        // so there is nothing left to offer.
+        private static int HighestUnaskedTier(int occupantCount)
+        {
             for (int i = Thresholds.Length - 1; i >= 0; i--)
             {
-                if (count <= Thresholds[i])
+                if (occupantCount <= Thresholds[i])
                 {
                     continue;
                 }
+                return _tierAsked[i] ? -1 : i;
+            }
+            return -1;
+        }
 
-                if (_tierAsked[i])
-                {
-                    // The highest crossed tier was already asked; lower tiers were marked asked at
-                    // the same time, so there is nothing left to offer.
-                    return;
-                }
-
-                // Mark this tier and every lower tier asked up front: ask once per app run, and
-                // never fire a lighter prompt after a tighter one has been shown.
-                for (int j = 0; j <= i; j++)
-                {
-                    _tierAsked[j] = true;
-                }
-
-                ShowPrompt(Thresholds[i], PoseLodByTier[i]);
-                return;
+        // Mark this tier and every lower tier asked up front: ask once per app run, and never
+        // fire a lighter prompt after a tighter one has been shown.
+        private static void MarkAskedThrough(int tier)
+        {
+            for (int j = 0; j <= tier; j++)
+            {
+                _tierAsked[j] = true;
             }
         }
 
-        private static void ShowPrompt(int threshold, float poseLodBias, bool forceShow = false)
+        private static void ShowPrompt(int threshold, float poseLodBias, bool forceShow = false, Action continueConnect = null)
         {
+            bool preConnect = continueConnect != null;
             string title = BasisLocalization.Get("settings.highPlayerCap.prompt.title");
             string body = BasisLocalization.Get(
-                "settings.highPlayerCap.prompt.body",
+                preConnect ? "settings.highPlayerCap.prompt.bodyPreConnect" : "settings.highPlayerCap.prompt.body",
                 threshold,
                 AvatarVisibilityRangeMeters,
                 MaxVisibleAvatarCount,
@@ -112,6 +164,7 @@ namespace Basis.BasisUI
             BasisMainMenu.Open();
             if (!BasisMainMenu.Instance)
             {
+                continueConnect?.Invoke();
                 return;
             }
 
@@ -141,25 +194,49 @@ namespace Basis.BasisUI
                     ApplyPreset(poseLodBias);
                 }
                 panel.ReleaseInstance();
+                continueConnect?.Invoke();
+            }
+
+            void DisableFuturePrompts()
+            {
+                if (answered) return;
+                answered = true;
+                BasisSettingsDefaults.HighPlayerCapSuggestions.SetValue(false);
+                panel.ReleaseInstance();
+                ShowDisabledHint(continueConnect);
             }
 
             PanelTabGroup actionGroup = PanelTabGroup.CreateNew(root, LayoutDirection.HorizontalNoBackground);
             actionGroup.Descriptor.SetHeight(80);
 
             PanelButton enableButton = PanelButton.CreateNew(PanelButton.ButtonStyles.AcceptButton, actionGroup.TabButtonParent);
-            enableButton.Descriptor.SetTitle(BasisLocalization.Get("settings.highPlayerCap.prompt.enable"));
+            enableButton.Descriptor.SetTitle(BasisLocalization.Get(preConnect
+                ? "settings.highPlayerCap.prompt.enableConnect"
+                : "settings.highPlayerCap.prompt.enable"));
             enableButton.OnClicked += () => Decide(true);
 
             PanelButton noButton = PanelButton.CreateNew(PanelButton.ButtonStyles.CancelButton, actionGroup.TabButtonParent);
-            noButton.Descriptor.SetTitle(BasisLocalization.Get("settings.highPlayerCap.prompt.no"));
+            noButton.Descriptor.SetTitle(BasisLocalization.Get(preConnect
+                ? "settings.highPlayerCap.prompt.connectWithout"
+                : "settings.highPlayerCap.prompt.no"));
             noButton.OnClicked += () => Decide(false);
 
-            // Closed without choosing (menu closed, tab switched) → recover from the bell. The tier is
-            // already marked asked, so the tick won't bring it back on its own.
+            PanelButton dontAskButton = PanelButton.CreateNew(PanelButton.ButtonStyles.StandardButton, actionGroup.TabButtonParent);
+            dontAskButton.Descriptor.SetTitle(BasisLocalization.Get("settings.highPlayerCap.prompt.dontAskAgain"));
+            dontAskButton.OnClicked += DisableFuturePrompts;
+
+            // Closed without choosing (menu closed, tab switched): post-join → recover from the bell
+            // (the tier is already marked asked, so the tick won't bring it back on its own);
+            // pre-connect → the user asked to connect, so the connection still proceeds.
             panel.OnInstanceReleased += () =>
             {
                 if (answered) return;
                 answered = true;
+                if (preConnect)
+                {
+                    continueConnect.Invoke();
+                    return;
+                }
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Information,
                     reopen: () => ShowPrompt(threshold, poseLodBias, true),
                     onDismiss: () => { });
@@ -167,6 +244,24 @@ namespace Basis.BasisUI
 
             panel.Descriptor.ForceRebuild();
             UIAnimations.PopIn(panel);
+        }
+
+        // Confirms the opt-out and points at the exact setting that turns the prompts back on;
+        // in the pre-connect flow the pending connection resumes once the dialogue is closed.
+        private static void ShowDisabledHint(Action continueConnect)
+        {
+            if (BasisMainMenu.Instance != null)
+            {
+                BasisMainMenu.Instance.OpenDialogue(
+                    BasisLocalization.Get("settings.highPlayerCap.disabled.title"),
+                    BasisLocalization.Get("settings.highPlayerCap.disabled.body"),
+                    BasisLocalization.Get("ui.ok"),
+                    _ => continueConnect?.Invoke());
+            }
+            else
+            {
+                continueConnect?.Invoke();
+            }
         }
 
         private static void ApplyPreset(float poseLodBias)

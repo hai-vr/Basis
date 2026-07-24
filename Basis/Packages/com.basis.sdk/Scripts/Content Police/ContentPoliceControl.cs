@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Constraints;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
@@ -14,6 +15,7 @@ public static class ContentPoliceControl
     // Independent of MaterialCorrection: swaps materials matching the user's
     // shader-name/keyword blocklist (BasisShaderFallback.SetBlocklist) to the fallback.
     public static bool ShaderBlocklistEnabled = false;
+    public static bool VerboseLogging = false;
 
     // Reused renderer buffer for the no-content-removal path when no harvest is
     // supplied. Main-thread only; consumed synchronously by prewarm/correction.
@@ -70,7 +72,10 @@ public static class ContentPoliceControl
             SearchAndDestroy = GameObject.Instantiate(SearchAndDestroy, Position, Rotation, DisabledGameobject.transform);
             if (ModifyScale)
             {
-                BasisDebug.Log($"Overriding Default scale is now {Scale} for GameObject {SearchAndDestroy.name}");
+                if (VerboseLogging)
+                {
+                    BasisDebug.Log($"Overriding Default scale is now {Scale} for GameObject {SearchAndDestroy.name}");
+                }
                 SearchAndDestroy.transform.localScale = Scale;
             }
             state.Clone = SearchAndDestroy;
@@ -163,6 +168,7 @@ public static class ContentPoliceControl
                 // doesn't need a second GetComponentsInChildren pass at calibration. Harvest
                 // is appended only when the caller passed a non-null collector — that way the
                 // data flows back through the call chain rather than living on BasisAvatar.
+                BasisConstraintConversion.Report constraintReport = default;
                 for (int Index = 0; Index < count; Index++)
                 {
                     Component component = components[Index];
@@ -208,11 +214,23 @@ public static class ContentPoliceControl
                                 StripEventsFromLegacyAnimation(legacyAnimation);
                             }
                             break;
+                        // Rewrite Unity and Animation Rigging constraints onto the batched Basis
+                        // solver, then drop the original. Done here rather than in a pass of its own
+                        // because this walk already has every component in hand, and done before the
+                        // content is activated so the originals never evaluate even once.
+                        case Component convertible when BasisConstraintConversion.TryConvert(
+                            convertible, ref constraintReport):
+                            GameObject.DestroyImmediate(convertible);
+                            kinds[Index] = BasisComponentKind.Removed;
+                            continue;
                         case Collider collider:
 
                             if (ChecksRequired.RemoveColliders)
                             {
-                                BasisDebug.Log("Remove Collider ", BasisDebug.LogTag.Avatar);
+                                if (VerboseLogging)
+                                {
+                                    BasisDebug.Log("Remove Collider ", BasisDebug.LogTag.Avatar);
+                                }
                                 GameObject.Destroy(collider);
                                 kinds[Index] = BasisComponentKind.Removed;
                             }
@@ -220,7 +238,10 @@ public static class ContentPoliceControl
                             {
                                 if (ChecksRequired.ChangeCollidersToCorrectLayer)
                                 {
-                                    BasisDebug.Log("Changing Collider To Correct Layer", BasisDebug.LogTag.Avatar);
+                                    if (VerboseLogging)
+                                    {
+                                        BasisDebug.Log("Changing Collider To Correct Layer", BasisDebug.LogTag.Avatar);
+                                    }
                                     collider.gameObject.layer = colliderlayer;
                                 }
                             }
@@ -290,6 +311,13 @@ public static class ContentPoliceControl
                 }
 
                 bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
+                // One line per load, never per component: a busy instance converts hundreds of these
+                // at once and the notifier fans logging out to disk and the network.
+                if (VerboseLogging && constraintReport.DidAnything)
+                {
+                    BasisDebug.Log($"Content Police converted constraints: {constraintReport}");
+                }
+
                 if (MaterialCorrectionEnabled || blockShaders)
                 {
                     BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader, MaterialCorrectionEnabled, blockShaders);
@@ -375,6 +403,7 @@ public static class ContentPoliceControl
         // lists are reused across roots so the scrub allocates only these once.
         List<Renderer> renderersForPrewarm = new List<Renderer>();
         List<Component> components = new List<Component>();
+        BasisConstraintConversion.Report constraintReport = default;
         for (int RootIndex = 0; RootIndex < roots.Count; RootIndex++)
         {
             roots[RootIndex].transform.GetComponentsInChildren(includeInactive, components);
@@ -403,6 +432,12 @@ public static class ContentPoliceControl
                             StripEventsFromLegacyAnimation(legacyAnimation);
                         }
                         break;
+                    // See the GameObject overload: constraints are rewritten onto the batched
+                    // Basis solver from inside this walk rather than a pass of its own.
+                    case Component convertible when BasisConstraintConversion.TryConvert(
+                        convertible, ref constraintReport):
+                        GameObject.DestroyImmediate(convertible);
+                        continue;
                     case AudioListener audioListener:
                         GameObject.DestroyImmediate(audioListener);
                         continue;
@@ -458,6 +493,13 @@ public static class ContentPoliceControl
         // fallback material instead of the magenta InternalErrorShader. Scene scrub is only
         // ever called for World content, so no avatar-skip gate is needed here.
         bool blockShaders = ShaderBlocklistEnabled && BasisShaderFallback.HasBlocklist;
+        // One line per load, never per component: a busy instance converts hundreds of these
+        // at once and the notifier fans logging out to disk and the network.
+        if (VerboseLogging && constraintReport.DidAnything)
+        {
+            BasisDebug.Log($"Content Police converted constraints: {constraintReport}");
+        }
+
         if (MaterialCorrectionEnabled || blockShaders)
         {
             BasisShaderFallback.MaterialCorrection(renderersForPrewarm, BundledContentHolder.Instance.UrpShader, MaterialCorrectionEnabled, blockShaders);
@@ -846,7 +888,10 @@ public static class ContentPoliceControl
             string methodName = evt.GetPersistentMethodName(i);
             if (IsDangerousListener(target, methodName, approved))
             {
-                BasisDebug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
+                if (VerboseLogging)
+                {
+                    BasisDebug.LogWarning($"[ContentPolice] Disabling persistent UnityEvent listener -> {(target != null ? target.GetType().FullName : "<static>")}.{methodName}");
+                }
                 evt.SetPersistentListenerState(i, UnityEventCallState.Off);
             }
         }
@@ -945,7 +990,10 @@ public static class ContentPoliceControl
         if (clip == null) return;
         AnimationEvent[] existing = clip.events;
         if (existing == null || existing.Length == 0) return;
-        BasisDebug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        if (VerboseLogging)
+        {
+            BasisDebug.LogWarning($"[ContentPolice] Stripping {existing.Length} AnimationEvent(s) from clip '{clip.name}'");
+        }
         clip.events = EmptyAnimationEvents;
     }
 

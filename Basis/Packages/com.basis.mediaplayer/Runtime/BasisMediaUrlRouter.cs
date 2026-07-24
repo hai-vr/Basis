@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 
 /// <summary>
 /// A URL resolver registered with <see cref="BasisMediaUrlRouter"/>. Several resolvers
@@ -175,10 +176,63 @@ public static class BasisMediaUrlRouter
         return withoutQuery;
     }
 
+    // Delimiters that end the authority portion of a scheme-less URL, hoisted so
+    // SchemeFor doesn't allocate a char[] per call.
+    private static readonly char[] AuthorityEnd = { '/', '?', '#' };
+
+    /// <summary>
+    /// The scheme to default a scheme-less <paramref name="authority"/> ("host[:port][/path…]")
+    /// to: "http" when the host is an IP literal or a local name — localhost, a single-label
+    /// host, or a .localhost/.local/.lan/.internal/.home.arpa suffix — and "https" otherwise.
+    /// Those targets are LAN boxes and dev servers that rarely serve TLS, whereas a public
+    /// domain name should never be defaulted down to cleartext.
+    /// </summary>
+    public static string SchemeFor(string authority)
+    {
+        if (string.IsNullOrEmpty(authority)) return "https";
+        string host = authority;
+
+        int cut = host.IndexOfAny(AuthorityEnd);
+        if (cut >= 0) host = host.Substring(0, cut);
+
+        int at = host.LastIndexOf('@');                                   // strip userinfo (user:pass@host)
+        if (at >= 0) host = host.Substring(at + 1);
+
+        if (host.StartsWith("[", StringComparison.Ordinal))               // bracketed IPv6 literal
+        {
+            int close = host.IndexOf(']');
+            host = close > 1 ? host.Substring(1, close - 1) : host.Trim('[', ']');
+        }
+        else
+        {
+            int colon = host.IndexOf(':');
+            if (colon >= 0) host = host.Substring(0, colon);              // drop :port
+        }
+
+        if (host.Length == 0) return "https";
+
+        // Guarded on a '.' or ':' being present because IPAddress.TryParse accepts partial
+        // forms ("1" → 0.0.0.1) on some runtimes, which would misread a single-label host.
+        if ((host.IndexOf('.') >= 0 || host.IndexOf(':') >= 0) && IPAddress.TryParse(host, out _)) return "http";
+
+        string lower = host.ToLowerInvariant();
+        if (lower == "localhost") return "http";
+        if (lower.IndexOf('.') < 0) return "http";                        // single-label host can't be a public domain
+        if (lower.EndsWith(".localhost", StringComparison.Ordinal) ||
+            lower.EndsWith(".local", StringComparison.Ordinal) ||
+            lower.EndsWith(".lan", StringComparison.Ordinal) ||
+            lower.EndsWith(".internal", StringComparison.Ordinal) ||
+            lower.EndsWith(".home.arpa", StringComparison.Ordinal)) return "http";
+
+        return "https";
+    }
+
     /// <summary>
     /// Guarantees <paramref name="url"/> carries a scheme so it can route and load as an
     /// absolute URL. A bare web URL with no scheme (e.g. "www.youtube.com/watch?v=…") gets
-    /// "https://" prepended, and a protocol-relative URL ("//host/…") gets "https:"; anything
+    /// "https://" prepended and a protocol-relative URL ("//host/…") gets "https:", except
+    /// when <see cref="SchemeFor"/> classifies the host as local (an IP literal or a local
+    /// name), which take "http://" / "http:" instead; anything
     /// that already has a scheme (http(s)/rtsp/rtmp/rist/file/…) or is a local path (a single
     /// leading slash, a backslash UNC path like \\server\share, or a drive letter like C:\) is
     /// returned trimmed but otherwise unchanged. Because "//host/…" is read as a protocol-relative
@@ -191,9 +245,9 @@ public static class BasisMediaUrlRouter
         string trimmed = url.Trim();
         if (trimmed.Contains("://")) return trimmed;                      // already has a scheme
         if (trimmed.StartsWith("//", StringComparison.Ordinal))          // protocol-relative ("//host/…")
-            return "https:" + trimmed;
+            return SchemeFor(trimmed.Substring(2)) + ":" + trimmed;
         if (trimmed[0] == '/' || trimmed[0] == '\\') return trimmed;      // unix / UNC / rooted path
         if (trimmed.Length >= 2 && char.IsLetter(trimmed[0]) && trimmed[1] == ':') return trimmed; // windows drive path (C:\, C:/) — letter-prefixed so "[::1]/…" isn't caught
-        return "https://" + trimmed;
+        return SchemeFor(trimmed) + "://" + trimmed;
     }
 }

@@ -31,6 +31,44 @@ public struct PoseData {
     }
 }
 
+public struct JiggleRigidTeleport {
+    public quaternion rotation;
+    public float3 translation;
+
+    public static JiggleRigidTeleport FromTranslation(float3 deltaPosition) {
+        return new JiggleRigidTeleport {
+            rotation = quaternion.identity,
+            translation = deltaPosition
+        };
+    }
+
+    public static JiggleRigidTeleport FromRigid(quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        return new JiggleRigidTeleport {
+            rotation = deltaRotation,
+            translation = pivot - math.mul(deltaRotation, pivot) + deltaPosition
+        };
+    }
+
+    public JiggleRigidTeleport Then(JiggleRigidTeleport next) {
+        return new JiggleRigidTeleport {
+            rotation = math.normalize(math.mul(next.rotation, rotation)),
+            translation = math.mul(next.rotation, translation) + next.translation
+        };
+    }
+
+    public float3 Apply(float3 point) {
+        return math.mul(rotation, point) + translation;
+    }
+
+    public quaternion Apply(quaternion rot) {
+        return math.mul(rotation, rot);
+    }
+
+    public float3 ApplyDirection(float3 direction) {
+        return math.mul(rotation, direction);
+    }
+}
+
 public class JiggleMemoryBus {
     // : IContainer<JiggleTreeStruct> {
     public int treeCapacity { get; private set; }
@@ -65,6 +103,8 @@ public class JiggleMemoryBus {
 
     public NativeArray<JiggleCollider> sceneColliders;
 
+    public NativeArray<JiggleColliderBroadPhaseEntry> broadPhaseEntries;
+
     private List<Transform> transformAccessList;
     private List<Transform> transformRootAccessList;
     private List<Transform> personalColliderTransformAccessList;
@@ -91,7 +131,7 @@ public class JiggleMemoryBus {
     private List<AddRemoveCommand> pendingCommands;
     private List<JiggleTree> pendingRemoveTrees;
     private List<JiggleTree> pendingAddTrees;
-    private Dictionary<int, float3> pendingTeleports;
+    private Dictionary<int, JiggleRigidTeleport> pendingTeleports;
     // rootID -> index into jiggleTreeStructs[0..treeCount]. Makes tree lookups
     // (PreRemoveTree/RemoveTree/ApplyTeleport) O(1) instead of a linear scan, and lets
     // RemoveTree swap-with-last instead of Array.Copy-compacting. Safe because tree array
@@ -144,8 +184,28 @@ public class JiggleMemoryBus {
     // Per-tick cap on TransformAccessArray (un)registrations during a Commit. This is the
     // per-frame work bound for the sliced rebuild: lower it to shrink per-frame Commit cost
     // (more frames to finish a structural change), raise it to converge faster per frame.
+    //
+    // There is no optimum to find here. Total rebuild cost is flat at roughly 0.09ms per 1000
+    // transforms whatever the batch: spike height scales with the batch, frames to converge scale
+    // inversely, and the product does not move. Measured over 8192 transforms, batch 64 took 129
+    // calls of 0.010ms and batch 8192 took 2 calls of 0.733ms, for the same 0.73ms of work. So this
+    // is a frame budget rather than a tuning dial, and it can be derived instead of guessed:
+    //
+    //     batch ~= budgetMilliseconds * 11000
+    //
+    // 512 encodes about 0.06ms per frame, roughly 0.4% of a 60Hz frame. Raise it if structural
+    // changes need to land sooner and the budget allows, lower it if Commit shows up in frame spikes.
     private static int transformAccessBatchSize = 512;
     public static void SetTransformAccessBatchSize(int value) => transformAccessBatchSize = Mathf.Max(1, value);
+
+    // Tree regeneration is capped per flush, but a commit rebuilds the whole transform list — so
+    // committing each partial batch turns M dirty trees into M/budget full rebuilds. Holding the
+    // commit while the backlog drains coalesces them into one; the cap keeps a source that
+    // re-dirties forever from stalling the commit indefinitely.
+    private bool treeBacklogRemains;
+    private int deferredTreeCommits;
+    private const int MaxDeferredTreeCommits = 8;
+    public void SetTreeBacklog(bool backlogRemains) => treeBacklogRemains = backlogRemains;
 
     private static List<Transform> dummyTransforms;
 
@@ -204,8 +264,12 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
     public static Transform GetDummyTransform(int index) {
         while (dummyTransforms.Count <= index) {
-            Transform dummyTransform = new GameObject($"JigglePhysicsDummyTransform{index}").transform;
-            Object.DontDestroyOnLoad(dummyTransform.gameObject);
+            Transform dummyTransform = new GameObject($"JigglePhysicsDummyTransform{dummyTransforms.Count}").transform;
+            // Throws outside play mode, which is enough to fail any edit mode test that reaches the
+            // bus. HideAndDontSave already survives scene loads, so this only matters while playing.
+            if (Application.isPlaying) {
+                Object.DontDestroyOnLoad(dummyTransform.gameObject);
+            }
             dummyTransform.gameObject.hideFlags = HideFlags.HideAndDontSave;
             dummyTransforms.Add(dummyTransform);
         }
@@ -237,6 +301,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             sceneColliders.Dispose();
         }
         sceneColliders = new NativeArray<JiggleCollider>(sceneColliderArray, Allocator.Persistent);
+        if (broadPhaseEntries.IsCreated) {
+            broadPhaseEntries.Dispose();
+        }
+        broadPhaseEntries = new NativeArray<JiggleColliderBroadPhaseEntry>(newColliderCapacity, Allocator.Persistent);
         sceneColliderCapacity = newColliderCapacity;
     }
 
@@ -347,10 +415,10 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         personalColliderTransformAccessList = new List<Transform>();
         sceneColliderTransformAccessList = new List<Transform>();
         sceneColliderTransformToIndex = new Dictionary<Transform, int>();
-        doubleBufferTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferTransformRootAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferPersonalColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
-        doubleBufferSceneColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128);
+        doubleBufferTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "Transforms");
+        doubleBufferTransformRootAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "Roots");
+        doubleBufferPersonalColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "PersonalColliders");
+        doubleBufferSceneColliderTransformAccessArray = new JiggleDoubleBufferTransformAccessArray(128, "SceneColliders");
 
         transformCount = 0;
         treeCount = 0;
@@ -534,6 +602,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
         
         jiggleTreeStructs[treeCount] = jiggleTreeJobData;
+        if (rootIDToTreeIndex.ContainsKey(jiggleTreeJobData.rootID)) {
+            Debug.LogError($"JigglePhysics: Duplicate jiggle tree rootID {jiggleTreeJobData.rootID}. Tree tracking will leak a slot and removal will target the wrong tree.");
+        }
         rootIDToTreeIndex[jiggleTreeJobData.rootID] = treeCount;
         var root = jiggleTree.bones[0];
         if (!root) {
@@ -595,7 +666,16 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             if (sceneColliderCount + pendingAddSceneColliderCount >= sceneColliderCapacity) {
                 ResizeSceneColliderCapacity(Mathf.NextPowerOfTwo(sceneColliderCount+pendingAddSceneColliderCount+1));
             }
-            
+
+            // In-place fast path: slots are index-stable (removes dummy-swap, adds refill holes or
+            // append), so as long as the front access array still mirrors the list — no out-of-band
+            // transform death shrank it — every pending change can be written straight into the
+            // front array and the full sliced rebuild (the whole ProcessingTransformAccess pass)
+            // skipped. Legal because commits run after Simulate joined the previous chain, so no
+            // job holds the array. The collider-LOD tier trickle lands here every time; only a
+            // desync (destroyed transform Unity auto-dropped) takes the rebuild path below.
+            bool inPlace = doubleBufferSceneColliderTransformAccessArray.FrontLength == sceneColliderTransformAccessList.Count;
+
             for (int i = 0; i < pendingRemoveSceneColliderCount; i++) {
                 var collider = pendingSceneColliderRemove[i];
                 if (sceneColliderTransformToIndex.TryGetValue(collider.transform, out var id)) {
@@ -603,7 +683,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                     var sceneCollider = sceneColliderArray[id];
                     sceneCollider.enabled = false;
                     sceneColliderArray[id] = sceneCollider;
-                    sceneColliderTransformAccessList[id] = GetDummyTransform(id);
+                    var dummy = GetDummyTransform(id);
+                    sceneColliderTransformAccessList[id] = dummy;
+                    if (inPlace) {
+                        doubleBufferSceneColliderTransformAccessArray.SetFront(id, dummy);
+                    }
                     sceneColliderTransformToIndex.Remove(collider.transform);
                 }
             }
@@ -623,13 +707,20 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
                 var found = sceneColliderMemoryFragmenter.TryAllocate(1, out var index);
                 if (!found) {
-                    throw new UnityException( "Ran out of scene collider memory, this is a bug please report it! (It should've been allocated in advance");
+                    Debug.LogError("JigglePhysics: Ran out of scene collider memory, this is a bug please report it! (It should've been allocated in advance)");
+                    continue;
                 }
 
                 while (sceneColliderTransformAccessList.Count < index+1) {
                     sceneColliderTransformAccessList.Add(collider.transform);
+                    if (inPlace) {
+                        doubleBufferSceneColliderTransformAccessArray.AddToFront(collider.transform);
+                    }
                 }
                 sceneColliderTransformAccessList[index] = collider.transform;
+                if (inPlace) {
+                    doubleBufferSceneColliderTransformAccessArray.SetFront(index, collider.transform);
+                }
                 sceneColliderTransformToIndex[collider.transform] = index;
                 sceneColliderArray[index] = collider.collider;
                 sceneColliderCount = math.max(index+1, sceneColliderCount);
@@ -637,24 +728,36 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
             pendingSceneColliderAdd.Clear();
             pendingSceneColliderAddSet.Clear();
+
+            if (inPlace) {
+                RetireDeadSceneColliderSlots();
+                NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
+                return;
+            }
+
             currentSceneColliderTransformAccessIndex = 0;
             commitSceneColliderState = CommitState.ProcessingTransformAccess;
         } else if (commitSceneColliderState == CommitState.ProcessingTransformAccess) {
             doubleBufferSceneColliderTransformAccessArray.GenerateNewAccessArrays(ref currentSceneColliderTransformAccessIndex, out var hasFinishedSceneColliders, sceneColliderTransformAccessList, transformAccessBatchSize);
             if (!hasFinishedSceneColliders) return;
-            // The managed mirror is the writer for scene colliders, so it has to retire slots whose
-            // transform died without a matching remove — otherwise this copy resurrects them, undoing
-            // the read job's isValid self-heal, and the collider keeps colliding from wherever it was.
-            for (int i = 0; i < sceneColliderCount; i++) {
-                if (!sceneColliderArray[i].enabled) continue;
-                if (i < sceneColliderTransformAccessList.Count && sceneColliderTransformAccessList[i]) continue;
-                var deadCollider = sceneColliderArray[i];
-                deadCollider.enabled = false;
-                sceneColliderArray[i] = deadCollider;
-            }
+            RetireDeadSceneColliderSlots();
             NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
             doubleBufferSceneColliderTransformAccessArray.Flip();
             commitSceneColliderState = CommitState.Idle;
+        }
+    }
+
+    // The managed mirror is the writer for scene colliders, so it has to retire slots whose
+    // transform died without a matching remove — otherwise the copy back to the native array
+    // resurrects them, undoing the read job's isValid self-heal, and the collider keeps
+    // colliding from wherever it was.
+    private void RetireDeadSceneColliderSlots() {
+        for (int i = 0; i < sceneColliderCount; i++) {
+            if (!sceneColliderArray[i].enabled) continue;
+            if (i < sceneColliderTransformAccessList.Count && sceneColliderTransformAccessList[i]) continue;
+            var deadCollider = sceneColliderArray[i];
+            deadCollider.enabled = false;
+            sceneColliderArray[i] = deadCollider;
         }
     }
 
@@ -666,8 +769,15 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
             var commandCount = pendingCommands.Count;
             if (commandCount == 0) {
+                deferredTreeCommits = 0;
                 return;
             }
+
+            if (treeBacklogRemains && deferredTreeCommits < MaxDeferredTreeCommits) {
+                deferredTreeCommits++;
+                return;
+            }
+            deferredTreeCommits = 0;
 
             int newTransforms = 0;
             int newTrees = 0;
@@ -934,11 +1044,27 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         deferredFlipFrees.Clear();
     }
 
-    public void ScheduleTeleport(int rootID, float3 deltaPosition) {
+    public void ScheduleTeleport(JiggleTree tree, float3 deltaPosition) {
+        ScheduleTeleport(tree, JiggleRigidTeleport.FromTranslation(deltaPosition));
+    }
+
+    public void ScheduleTeleport(JiggleTree tree, quaternion deltaRotation, float3 pivot, float3 deltaPosition) {
+        ScheduleTeleport(tree, JiggleRigidTeleport.FromRigid(deltaRotation, pivot, deltaPosition));
+    }
+
+    private void ScheduleTeleport(JiggleTree tree, JiggleRigidTeleport teleport) {
+        if (tree == null) {
+            return;
+        }
+        var rootID = tree.rootID;
+        if (!rootIDToTreeIndex.ContainsKey(rootID)) {
+            tree.TransformRigid(teleport.rotation, teleport.translation);
+            return;
+        }
         if (pendingTeleports.TryGetValue(rootID, out var existing)) {
-            pendingTeleports[rootID] = existing + deltaPosition;
+            pendingTeleports[rootID] = existing.Then(teleport);
         } else {
-            pendingTeleports[rootID] = deltaPosition;
+            pendingTeleports[rootID] = teleport;
         }
     }
 
@@ -950,7 +1076,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingTeleports.Clear();
     }
 
-    private void ApplyTeleport(int rootID, float3 deltaPosition) {
+    private void ApplyTeleport(int rootID, JiggleRigidTeleport teleport) {
         if (transformCount == 0) return;
         if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
 
@@ -961,41 +1087,50 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
 
         for (int i = start; i < end; i++) {
             var inputPrev = inputPosesPrevious[i];
-            inputPrev.position += deltaPosition;
+            inputPrev.position = teleport.Apply(inputPrev.position);
+            inputPrev.rotation = teleport.Apply(inputPrev.rotation);
             inputPosesPrevious[i] = inputPrev;
 
             var inputCurr = inputPosesCurrent[i];
-            inputCurr.position += deltaPosition;
+            inputCurr.position = teleport.Apply(inputCurr.position);
+            inputCurr.rotation = teleport.Apply(inputCurr.rotation);
             inputPosesCurrent[i] = inputCurr;
 
             var simInput = simulateInputPoses[i];
-            simInput.position += deltaPosition;
+            simInput.position = teleport.Apply(simInput.position);
+            simInput.rotation = teleport.Apply(simInput.rotation);
             simulateInputPoses[i] = simInput;
 
             var interpOut = interpolationOutputPoses[i];
-            interpOut.position += deltaPosition;
+            interpOut.position = teleport.Apply(interpOut.position);
+            interpOut.rotation = teleport.Apply(interpOut.rotation);
             interpolationOutputPoses[i] = interpOut;
 
-            var rootOut = rootOutputPositions[i] + deltaPosition;
-            rootOutputPositions[i] = rootOut;
+            rootOutputPositions[i] = teleport.Apply(rootOutputPositions[i]);
 
             var simPose = simulationOutputPoseData[i];
-            simPose.pose.position += deltaPosition;
-            simPose.rootPosition += deltaPosition;
+            simPose.pose.position = teleport.Apply(simPose.pose.position);
+            simPose.pose.rotation = teleport.Apply(simPose.pose.rotation);
+            simPose.rootPosition = teleport.Apply(simPose.rootPosition);
+            simPose.rootOffset = teleport.ApplyDirection(simPose.rootOffset);
             simulationOutputPoseData[i] = simPose;
 
             var interpCurr = interpolationCurrentPoseData[i];
-            interpCurr.pose.position += deltaPosition;
-            interpCurr.rootPosition += deltaPosition;
+            interpCurr.pose.position = teleport.Apply(interpCurr.pose.position);
+            interpCurr.pose.rotation = teleport.Apply(interpCurr.pose.rotation);
+            interpCurr.rootPosition = teleport.Apply(interpCurr.rootPosition);
+            interpCurr.rootOffset = teleport.ApplyDirection(interpCurr.rootOffset);
             interpolationCurrentPoseData[i] = interpCurr;
 
             var interpPrev = interpolationPreviousPoseData[i];
-            interpPrev.pose.position += deltaPosition;
-            interpPrev.rootPosition += deltaPosition;
+            interpPrev.pose.position = teleport.Apply(interpPrev.pose.position);
+            interpPrev.pose.rotation = teleport.Apply(interpPrev.pose.rotation);
+            interpPrev.rootPosition = teleport.Apply(interpPrev.rootPosition);
+            interpPrev.rootOffset = teleport.ApplyDirection(interpPrev.rootOffset);
             interpolationPreviousPoseData[i] = interpPrev;
         }
 
-        tree.Translate(deltaPosition);
+        tree.TransformRigid(teleport.rotation, teleport.translation);
     }
 
     public void ScheduleAdd(JiggleTree jiggleTree) {
@@ -1026,6 +1161,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             interpolationPreviousPoseData.Dispose();
             personalColliders.Dispose();
             sceneColliders.Dispose();
+            if (broadPhaseEntries.IsCreated) {
+                broadPhaseEntries.Dispose();
+            }
             inputPosesCurrent.Dispose();
             inputPosesPrevious.Dispose();
         }

@@ -1,3 +1,4 @@
+using Basis.IK;
 using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Collections;
@@ -49,7 +50,7 @@ namespace Basis.Tests.IK
         static float3[] RunSpine(float dt, int frames, System.Func<int, float3> headAt, bool bothFeetTracked)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
-            var solve = new NativeArray<BasisLocalVirtualSpineDriver.SpineSolveState>(1, Allocator.Temp);
+            var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
             try
             {
                 for (int i = 0; i < BoneCount; i++)
@@ -62,7 +63,7 @@ namespace Basis.Tests.IK
                     float3 head = headAt(i);
                     var p = MakeParams(dt, head, bothFeetTracked);
 
-                    new BasisLocalVirtualSpineDriver.BasisVirtualSpineSolveJob
+                    new BasisVirtualSpineCore.BasisVirtualSpineSolveJob
                     {
                         States = states,
                         State = solve,
@@ -85,15 +86,18 @@ namespace Basis.Tests.IK
             }
         }
 
-        static BasisLocalVirtualSpineDriver.SpineSolveParams MakeParams(float dt, float3 head, bool bothFeetTracked)
+        static BasisVirtualSpineCore.SpineSolveParams MakeParams(float dt, float3 head, bool bothFeetTracked)
         {
-            return new BasisLocalVirtualSpineDriver.SpineSolveParams
+            return new BasisVirtualSpineCore.SpineSolveParams
             {
                 Dt = dt,
                 Scale = 1f,
                 ParentMatrix = float4x4.identity,
                 ParentRotation = quaternion.identity,
                 EyeRot = quaternion.identity,
+                EyePos = head,
+                HipsAnchorOffsetLocal = float3.zero,
+                HeadRestFromEyeLocal = float3.zero,
 
                 HeadTargetPos = head,
                 HeadTargetRot = quaternion.identity,
@@ -399,6 +403,80 @@ namespace Basis.Tests.IK
             Assert.Greater(movedX, oldIsotropic + 0.04f,
                 $"the shipped hips ({movedX * 100f:F2} cm) are no better than the old isotropic 0.25 follow "
                 + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
+        }
+
+        /// <summary>Runs the real job with an explicit pelvis setback + avatar scale, returns settled hips XZ.</summary>
+        static float3 SettledHipsWithSetback(float setbackM, bool bothFeetTracked, float scale = 1f)
+        {
+            const float dt = 1f / 90f;
+            const int frames = 120;   // long enough for the leash to settle on the still head
+            var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
+            var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
+            try
+            {
+                for (int i = 0; i < BoneCount; i++)
+                    states[i] = new BasisBoneSimState { OutgoingRotation = quaternion.identity, LastRunRotation = quaternion.identity };
+                solve[0] = default;
+
+                float3 head = new float3(0f, StandingHeadY, 0f);
+                float3 last = default;
+                for (int i = 0; i < frames; i++)
+                {
+                    var p = MakeParams(dt, head, bothFeetTracked);
+                    p.HipsSetbackMeters = setbackM;
+                    p.Scale = scale;
+                    p.HipsForwardBias = 0f;   // isolate the setback from the sibling bias, which also rides Scale
+                    new BasisVirtualSpineCore.BasisVirtualSpineSolveJob
+                    {
+                        States = states, State = solve, P = p,
+                        IdxHead = Head, IdxNeck = Neck, IdxChest = Chest, IdxSpine = Spine, IdxHips = Hips,
+                    }.Execute();
+                    last = states[Hips].OutgoingPosition;
+                }
+                return last;
+            }
+            finally { states.Dispose(); solve.Dispose(); }
+        }
+
+        [Test]
+        public void ThePelvisSetback_DrawsTheStandingHipsBack_ByExactlyItsAmount_AndOnlyWithoutFeet()
+        {
+            const float setback = 0.03f;   // 3 cm, torso facing +Z at rest so this is a clean -Z shift
+
+            float3 baseHips = SettledHipsWithSetback(0f, bothFeetTracked: false);
+            float3 setHips = SettledHipsWithSetback(setback, bothFeetTracked: false);
+
+            // Pulled straight back along forward (+Z), by exactly the amount, with no lateral or vertical leak.
+            Assert.AreEqual(setback, baseHips.z - setHips.z, 1e-4f,
+                $"the setback moved the hips {(baseHips.z - setHips.z) * 100f:F2} cm along forward, not the {setback * 100f:F2} cm asked for.");
+            Assert.AreEqual(baseHips.x, setHips.x, 1e-4f, "the setback leaked sideways -- it must be forward-only.");
+            Assert.AreEqual(baseHips.y, setHips.y, 1e-4f, "the setback changed pelvis height -- it is an XZ term.");
+
+            // 0 is the exact identity: the authored placement is untouched when the knob is off.
+            float3 zeroHips = SettledHipsWithSetback(0f, bothFeetTracked: false);
+            Assert.AreEqual(baseHips.z, zeroHips.z, 1e-6f, "setback 0 is not bit-identical to the authored placement.");
+
+            // With BOTH feet tracked the pendulum base owns the pelvis and the setback must not touch it.
+            float3 feetBase = SettledHipsWithSetback(0f, bothFeetTracked: true);
+            float3 feetSet = SettledHipsWithSetback(setback, bothFeetTracked: true);
+            Assert.AreEqual(feetBase.z, feetSet.z, 1e-6f,
+                "the setback moved the hips even with both feet tracked -- a real tracker must own the pelvis.");
+        }
+
+        [Test]
+        public void ThePelvisSetback_ScalesWithTheAvatar_LikeItsBodyDimension()
+        {
+            const float setback = 0.02f;
+
+            // The setback is metres-at-default-height x Scale, so a 2x avatar is pulled back 2x. A fixed metre
+            // would over-correct a child and under-correct a giant -- the whole reason it rides Scale.
+            float pullX1 = SettledHipsWithSetback(0f, false, scale: 1f).z - SettledHipsWithSetback(setback, false, scale: 1f).z;
+            float pullX2 = SettledHipsWithSetback(0f, false, scale: 2f).z - SettledHipsWithSetback(setback, false, scale: 2f).z;
+            float pullHalf = SettledHipsWithSetback(0f, false, scale: 0.5f).z - SettledHipsWithSetback(setback, false, scale: 0.5f).z;
+
+            Assert.AreEqual(setback, pullX1, 1e-4f, $"at scale 1 the pull was {pullX1 * 100f:F2} cm, not {setback * 100f:F2}.");
+            Assert.AreEqual(2f * setback, pullX2, 1e-4f, $"at scale 2 the pull was {pullX2 * 100f:F2} cm, not {2f * setback * 100f:F2} -- it does not track scale.");
+            Assert.AreEqual(0.5f * setback, pullHalf, 1e-4f, $"at scale 0.5 the pull was {pullHalf * 100f:F2} cm, not {0.5f * setback * 100f:F2}.");
         }
     }
 }

@@ -34,5 +34,6 @@
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="BasisServerTests" />
+		<InternalsVisibleTo Include="BasisRestApi.Tests" />
 	</ItemGroup>
 </Project>

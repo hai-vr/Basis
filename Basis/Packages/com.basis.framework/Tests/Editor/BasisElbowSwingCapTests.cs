@@ -76,8 +76,11 @@ namespace Basis.Tests.IK
                 float rot = Vector3.Angle((Vector3)tp, (Vector3)capped[i]);
                 worstGain = Mathf.Max(worstGain, rot / dHand);
             }
-            Assert.LessOrEqual(worstGain, k_MaxGain + 0.05f,
-                $"the capped bend rotated {worstGain:F1}x the hand through the core -- the cap ({k_MaxGain}x) " +
+            // 2% relative, not a fixed 0.05: the cap is applied about the PREVIOUS frame's axis and this
+            // check re-measures after transporting onto the NEW one, so a second-order excess of a few
+            // hundredths is the measurement, not the snap. The snap this guards against is ~140x.
+            Assert.LessOrEqual(worstGain, k_MaxGain * 1.02f,
+                $"the capped bend rotated {worstGain:F3}x the hand through the core -- the cap ({k_MaxGain}x) " +
                 "did not bind. That is the reach-behind snap leaking through.");
         }
 

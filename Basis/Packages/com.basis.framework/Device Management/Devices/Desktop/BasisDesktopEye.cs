@@ -54,11 +54,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         private readonly BasisLocks.LockContext LookRotationLock = BasisLocks.GetContext(BasisLocks.LookRotation);
 
         /// <summary>
-        /// Local virtual spine driver for applying pose adjustments in desktop mode.
-        /// </summary>
-        public BasisLocalVirtualSpineDriver BasisVirtualSpine = new BasisLocalVirtualSpineDriver();
-
-        /// <summary>
         /// Tracks whether eye-related event subscriptions are active.
         /// </summary>
         public bool HasEyeEvents = false;
@@ -122,7 +117,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 {
                     BasisPointRaycaster.UseWorldPosition = false;
                 }
-                BasisVirtualSpine.Initialize();
                 BasisLocalPlayer.AfterSimulateOnRender.AddAction(100, DoRenderRaycast);
                 HasEyeEvents = true;
             }
@@ -169,7 +163,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         }
 
         /// <summary>
-        /// Cleans up event subscriptions and deinitializes the virtual spine when destroyed.
+        /// Cleans up event subscriptions when destroyed.
         /// </summary>
         public new void OnDestroy()
         {
@@ -179,7 +173,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 BasisCursorManagement.OnCursorStateChange -= OnCursorStateChange;
                 BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(100, DoRenderRaycast);
                 HasEyeEvents = false;
-                BasisVirtualSpine.DeInitialize();
                 LookRotationLock.Remove(nameof(BasisCursorManagement));
             }
             // Reticle quad is parented under the camera (which outlives this GO),

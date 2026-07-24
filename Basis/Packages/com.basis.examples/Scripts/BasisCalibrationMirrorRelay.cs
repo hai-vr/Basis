@@ -11,13 +11,15 @@ using UnityEngine;
 /// 1. Tracker visuals — the "calibration balls" (FallbackSphere / real device models) BasisInput
 ///    spawns per tracked device, shown by VisibleTrackers during calibration. These are what
 ///    players line their pucks up with.
-/// 2. BasisGizmoManager renderers — the lock-in proximity spheres and tracker link lines,
-///    instantiated under the runtime "Parent Of Debug Data" container.
+/// 2. BasisGizmoManager visuals — the lock-in proximity spheres and tracker link lines are
+///    batched draws submitted on BasisGizmoManager.RenderLayer, and text labels are objects
+///    under the runtime "Parent Of Debug Data" container.
 ///
 /// Widening the reflection mask to Default would drag the entire opaque world into the see-through
-/// cutout; instead this relayers ONLY those objects onto LocalPlayerAvatar. The main camera renders
-/// that layer anyway (it's how you see your own body), so nothing disappears from the world view.
-/// Lives on the mirror instance and restores every touched object's original layer on teardown.
+/// cutout; instead this relayers ONLY those objects onto LocalPlayerAvatar (and points the gizmo
+/// RenderLayer at it). The main camera renders that layer anyway (it's how you see your own body),
+/// so nothing disappears from the world view. Lives on the mirror instance and restores every
+/// touched object's original layer on teardown.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class BasisCalibrationMirrorRelay : MonoBehaviour
@@ -63,6 +65,8 @@ public sealed class BasisCalibrationMirrorRelay : MonoBehaviour
             // Leave the empty container itself alone; relayer its children.
             RelayerSubtree(gizmoParent.transform, includeRoot: false);
         }
+
+        BasisGizmoManager.RenderLayer = _avatarLayer;
     }
 
     /// <summary>Move a subtree onto LocalPlayerAvatar, remembering each object's original layer
@@ -96,5 +100,6 @@ public sealed class BasisCalibrationMirrorRelay : MonoBehaviour
             if (moved != null) moved.gameObject.layer = pair.Value;
         }
         _relayered.Clear();
+        if (BasisGizmoManager.RenderLayer == _avatarLayer) BasisGizmoManager.RenderLayer = 0;
     }
 }

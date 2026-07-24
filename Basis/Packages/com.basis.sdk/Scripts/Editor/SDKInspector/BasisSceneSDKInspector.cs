@@ -124,6 +124,11 @@ public class BasisSceneSDKInspector : Editor
             Debug.LogError("VisualTree is null. Make sure the UXML file is assigned correctly.");
         }
 
+            // Surface what the load-time pass will strip or rewrite, while the author can
+            // still do something about it — enforcement itself is runtime-only.
+            rootElement.Add(BasisContentPolicePreflight.CreateSection(
+                BasisScene != null ? BasisScene.gameObject : null,
+                BundledContentHolder.Selector.World));
         return rootElement;
     }
 

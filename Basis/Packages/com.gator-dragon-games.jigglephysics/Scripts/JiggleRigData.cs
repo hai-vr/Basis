@@ -92,14 +92,24 @@ public struct JiggleRigData {
 
     public void RegenerateCacheLookup() {
         var count = transformCachedData.Length;
-        transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>(count);
+        // Clear-and-reuse: this runs on every rig init, twice per avatar load on remotes, so a
+        // fresh dictionary per call was steady allocation churn at lobby scale.
+        if (transformToCachedDataMap == null) {
+            transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>(count);
+        } else {
+            transformToCachedDataMap.Clear();
+        }
         for (int i = 0; i < count; i++) {
             var cachedData = transformCachedData[i];
             transformToCachedDataMap[cachedData.bone] = cachedData;
         }
         if (excludedTransforms != null && excludedTransforms.Length > 0) {
             var excludedCount = excludedTransforms.Length;
-            excludedSet = new HashSet<Transform>(excludedCount);
+            if (excludedSet == null) {
+                excludedSet = new HashSet<Transform>(excludedCount);
+            } else {
+                excludedSet.Clear();
+            }
             for (int i = 0; i < excludedCount; i++) {
                 excludedSet.Add(excludedTransforms[i]);
             }
@@ -287,7 +297,11 @@ public struct JiggleRigData {
             var parameter = GetJiggleBoneParameter(cache.normalizedDistanceFromRoot);
             // Mirror the pinned override CreateJiggleTree's Visit assigns, otherwise every
             // animated-parameter push unpins an excluded root and the whole chain sways.
-            if ((excludeRoot && bone == rootBone) || GetIsExcluded(bone)) {
+            // Slot 0 is exempt: it is the back projected virtual root, which only borrows the root
+            // bone's transform to keep the bone and point arrays aligned. Visit never sees it, so
+            // CreateJiggleTree leaves it on the authored parameters — overriding it here instead
+            // zeroed the gravity the first real bone integrates against.
+            if (i != 0 && ((excludeRoot && bone == rootBone) || GetIsExcluded(bone))) {
                 parameter = new JigglePointParameters() {
                     angleElasticity = 1f,
                     lengthElasticity = 1f,

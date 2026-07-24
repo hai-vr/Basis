@@ -28,6 +28,24 @@ public static class SettingsProviderControllerConfig
             dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left });
             dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
 
+            PanelDropdown dropdownDesktopInputInVR = PanelDropdown.CreateNewEntry(group);
+            dropdownDesktopInputInVR.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.desktopInputInVR"));
+            dropdownDesktopInputInVR.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.desktopInputInVR.tooltip"));
+            dropdownDesktopInputInVR.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisSettingsDefaults.DesktopInputInVR_Adaptive,
+                    BasisSettingsDefaults.DesktopInputInVR_AlwaysOn,
+                    BasisSettingsDefaults.DesktopInputInVR_Off,
+                },
+                new List<string>
+                {
+                    "settings.controls.desktopInputInVR.adaptive",
+                    "settings.controls.desktopInputInVR.alwaysOn",
+                    "settings.controls.desktopInputInVR.off",
+                });
+            dropdownDesktopInputInVR.AssignBinding(BasisSettingsDefaults.DesktopInputInVR);
+
             PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(group);
             toggleInvertMouse.Descriptor.SetTitle(BasisLocalization.Get("settings.controls.invertMouse"));
             toggleInvertMouse.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.invertMouse.tooltip"));
@@ -202,6 +220,38 @@ public static class SettingsProviderControllerConfig
 
         ApplyFingerTouchTuningVisibility();
 
+        // VR UI Click
+        SettingsProviderKeyboardBindings.CreateCollapsibleSection(
+            container, BasisLocalization.Get("settings.controls.uiClick.title"),
+            BasisLocalization.Get("settings.controls.uiClick.description"), group =>
+        {
+            PanelSlider clickPressSlider = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.uiClickPress"), 0.05f, 1f, false, 2, ValueDisplayMode.percentageFromZero),
+                BasisSettingsDefaults.UIClickPressThreshold);
+            clickPressSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.uiClickPress.tooltip"));
+
+            PanelSlider clickReleaseSlider = PanelSlider.CreateEntryAndBind(
+                group,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.controls.uiClickRelease"), 0.05f, 1f, false, 2, ValueDisplayMode.percentageFromZero),
+                BasisSettingsDefaults.UIClickReleaseThreshold);
+            clickReleaseSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.controls.uiClickRelease.tooltip"));
+
+            void ClampReleaseToPress()
+            {
+                float press = BasisSettingsDefaults.UIClickPressThreshold.RawValue;
+                if (BasisSettingsDefaults.UIClickReleaseThreshold.RawValue <= press)
+                {
+                    return;
+                }
+                BasisSettingsDefaults.UIClickReleaseThreshold.SetValue(press);
+                clickReleaseSlider.SetValueWithoutNotify(press);
+            }
+
+            clickPressSlider.OnValueChanged += _ => ClampReleaseToPress();
+            clickReleaseSlider.OnValueChanged += _ => ClampReleaseToPress();
+        });
+
         // Deadzone - General
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(
             container, BasisLocalization.Get("settings.controls.generalDeadzone.title"), BasisLocalization.Get("settings.controls.generalDeadzone.description"), group =>
@@ -287,6 +337,7 @@ public static class SettingsProviderControllerConfig
     private static void ResetControlsDefaults()
     {
         BasisSettingsDefaults.DominantHand.ResetToDefault();
+        BasisSettingsDefaults.DesktopInputInVR.ResetToDefault();
         BasisSettingsDefaults.InvertMouse.ResetToDefault();
         BasisSettingsDefaults.mousesensitivty.ResetToDefault();
         BasisSettingsDefaults.usesnapturn.ResetToDefault();
@@ -309,6 +360,8 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.FingerTouchReleaseDistance.ResetToDefault();
         BasisSettingsDefaults.FingerTouchScrollSensitivity.ResetToDefault();
         BasisSettingsDefaults.FingerTouchHaptics.ResetToDefault();
+        BasisSettingsDefaults.UIClickPressThreshold.ResetToDefault();
+        BasisSettingsDefaults.UIClickReleaseThreshold.ResetToDefault();
     }
 
     private static void BuildBindingsUI(RectTransform container)

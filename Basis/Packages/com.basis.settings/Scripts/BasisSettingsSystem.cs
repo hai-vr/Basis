@@ -73,6 +73,12 @@ public static class BasisSettingsSystem
     /// Start hook) only saw defaults and must re-load after the store is populated.
     /// </summary>
     public static bool SettingsLoaded => _settingsLoaded;
+    private static bool _freshSettingsFile;
+    /// <summary>
+    /// True when no settings file existed on disk at load — the app has never run on this
+    /// machine before. A corrupt-but-present file does not count as fresh.
+    /// </summary>
+    public static bool FreshSettingsFile => _freshSettingsFile;
 
     /// <summary>
     /// UniqueName, OptionValue
@@ -217,7 +223,8 @@ public static class BasisSettingsSystem
         // Default blank (will fill from file or remain empty)
         settingsData.RebuildDictionary();
 
-        if (!File.Exists(filePath))
+        _freshSettingsFile = !File.Exists(filePath);
+        if (_freshSettingsFile)
         {
             // First run: no file yet. Just create an empty file at current version.
             BasisDebug.LogError("Settings file not found, creating new settings file.");

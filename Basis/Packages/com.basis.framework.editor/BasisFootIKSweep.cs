@@ -683,6 +683,19 @@ namespace Basis.IK.Debugging
                 Mk("turn-fast", "rotation", BasisFootGroundKind.Flat, t => B(float3.zero, face: (t / dur) * 720f)),
                 Mk("spin", "rotation", BasisFootGroundKind.Flat, t => B(float3.zero, face: (t / dur) * 1080f)),
                 Mk("circle-strafe", "rotation", BasisFootGroundKind.Flat, t => { float wv = math.radians(60f) * t; float rad = 1.2f; return B(new float3(rad * Mathf.Cos(wv) - rad, 0f, rad * Mathf.Sin(wv)), face: math.degrees(wv)); }),
+
+                // ── yaw REVERSALS (mouse-look snap-back) ──
+                // Every rotation scenario above holds ONE direction for its whole run, so nothing here ever
+                // exercised a direction change. That is the regime where a signed, smoothed yaw rate is most
+                // wrong: for ~tau after the flip the filter still reports the OLD direction, and the signed
+                // step prediction aims the foot backwards. See k_YawReversalGain in BasisFootSimulateJob.
+                // turn-reversal: one clean hard snap-back at the midpoint (+120 deg/s -> -120 deg/s).
+                Mk("turn-reversal", "rotation", BasisFootGroundKind.Flat, t => { float half = dur * 0.5f; float f = t < half ? (t / half) * 360f : 360f - ((t - half) / half) * 360f; return B(float3.zero, face: f); }),
+                // mouse-flick: repeated flicks, +/-90 deg at ~0.8 Hz => peak ~450 deg/s reversing every ~0.63 s,
+                // so the filter spends a large fraction of every half-cycle with the wrong sign.
+                Mk("mouse-flick", "rotation", BasisFootGroundKind.Flat, t => B(float3.zero, face: 90f * Mathf.Sin(t * 5f))),
+                // ...and the same flick while walking, where a mis-aimed step target also strands the foot.
+                Mk("mouse-flick-walk", "rotation", BasisFootGroundKind.Flat, t => B(Forward(0f) * (vn * t), face: 90f * Mathf.Sin(t * 5f))),
                 Mk("strafe-and-turn", "rotation", BasisFootGroundKind.Flat, t => B(Forward(90f) * (vs * t), face: (t / dur) * 360f)),
 
                 // ── head-only look (must NOT spin or pitch the feet) ──

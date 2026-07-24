@@ -111,6 +111,25 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
             BasisJiggleColliderLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleColliderLOD.ApplyFromSettings;
+            ApplyDesktopInputInVR();
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyDesktopInputInVR;
+        }
+
+        private static void ApplyDesktopInputInVR()
+        {
+            string mode = BasisSettingsDefaults.DesktopInputInVR.RawValue;
+            if (string.Equals(mode, BasisSettingsDefaults.DesktopInputInVR_AlwaysOn, StringComparison.Ordinal))
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.AllInputs;
+            }
+            else if (string.Equals(mode, BasisSettingsDefaults.DesktopInputInVR_Off, StringComparison.Ordinal))
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.VRDesktopInputOff;
+            }
+            else
+            {
+                BasisInputSystemPump.Mode = BasisInputPumpMode.Adaptive;
+            }
         }
 
         private static void ApplyOpenLipSyncMaxSlots()
@@ -122,11 +141,26 @@ namespace Basis.BasisUI
 
         private static void ApplyJiggleCollisionCulling()
         {
+            JiggleSettings.CullFrustumExpansion = BasisSettingsDefaults.JiggleCullFrustumExpansion.RawValue;
+            JiggleSettings.CullNearKeepRadius = BasisSettingsDefaults.JiggleCullNearKeepRadius.RawValue;
             JigglePhysics.SetCollisionCulling(
                 BasisSettingsDefaults.UseJiggleCollisionFrustumCull.RawValue,
                 BasisSettingsDefaults.UseJiggleCollisionDistanceCull.RawValue,
                 Mathf.Max(0f, BasisSettingsDefaults.JiggleCollisionCullDistance.RawValue));
         }
+
+        private static float appliedJiggleBroadPhaseCellSize = float.NaN;
+
+        public static void ApplyJiggleStartupSettings()
+        {
+            JiggleSettings.BroadPhaseCellSize = BasisSettingsDefaults.JiggleBroadPhaseCellSize.RawValue;
+            appliedJiggleBroadPhaseCellSize = JiggleSettings.BroadPhaseCellSize;
+        }
+
+        public static bool JiggleBroadPhaseCellSizeNeedsRestart =>
+            !float.IsNaN(appliedJiggleBroadPhaseCellSize)
+            && !Mathf.Approximately(appliedJiggleBroadPhaseCellSize,
+                Mathf.Max(0.01f, BasisSettingsDefaults.JiggleBroadPhaseCellSize.RawValue));
 
         public const string StaticTitleKey = "settings.title";
         public static string StaticTitle => BasisLocalization.Get(StaticTitleKey);
@@ -465,6 +499,11 @@ namespace Basis.BasisUI
                 toggleUIHaptics.AssignBinding(BasisSettingsDefaults.UIHaptics);
                 toggleUIHaptics.Descriptor.SetTitle(BasisLocalization.Get("settings.general.uiHaptics"));
                 toggleUIHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.uiHaptics.tooltip"));
+
+                PanelToggle toggleHideRemoteCameras = PanelToggle.CreateNewEntry(container);
+                toggleHideRemoteCameras.AssignBinding(BasisSettingsDefaults.HideRemoteCameraPucks);
+                toggleHideRemoteCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.general.hideRemoteCameras"));
+                toggleHideRemoteCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.hideRemoteCameras.tooltip"));
             }, false, _ => descriptor.ForceRebuild());
 
             // HUD overlays — heads-up display elements rendered over the scene.
@@ -726,6 +765,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
+            BasisSettingsDefaults.HideRemoteCameraPucks.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
             BasisSettingsDefaults.EnableThirdPersonCamera.ResetToDefault();
@@ -1467,6 +1507,11 @@ namespace Basis.BasisUI
                 qualityGroup.ForceRebuild();
             };
 
+            PanelToggle togglePerfSuggestions = PanelToggle.CreateNewEntry(qualityGroup);
+            togglePerfSuggestions.AssignBinding(BasisSettingsDefaults.HighPlayerCapSuggestions);
+            togglePerfSuggestions.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions"));
+            togglePerfSuggestions.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.highPlayerCapSuggestions.tooltip"));
+
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.qualityLevel"));
             dropdownQualityLevel.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.qualityLevel.tooltip"));
@@ -1754,9 +1799,43 @@ namespace Basis.BasisUI
 
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 container,
-                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.renderScale"), "", 0, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
+                new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.renderScale"), "", 0.5f, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
                 BasisSettingsDefaults.RenderResolution);
             sliderRenderResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.renderScale.tooltip"));
+
+            // PanelToggle toggleDynamicResolution = PanelToggle.CreateNewEntry(container);
+            // toggleDynamicResolution.AssignBinding(BasisSettingsDefaults.DynamicResolutionEnabled);
+            // toggleDynamicResolution.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution"));
+            // toggleDynamicResolution.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.tooltip"));
+
+            // PanelSlider sliderDynamicMinimum = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum"),
+            //         "",
+            //         0.25f, 1f, false, 3, ValueDisplayMode.Percentage),
+            //     BasisSettingsDefaults.DynamicResolutionMinimumScale);
+            // sliderDynamicMinimum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.minimum.tooltip"));
+
+            // PanelSlider sliderDynamicMaximum = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum"),
+            //         "",
+            //         0.5f, 1.5f, false, 3, ValueDisplayMode.Percentage),
+            //     BasisSettingsDefaults.DynamicResolutionMaximumScale);
+            // sliderDynamicMaximum.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.maximum.tooltip"));
+
+            // PanelToggle toggleDynamicTargetOverride = PanelToggle.CreateNewEntry(container);
+            // toggleDynamicTargetOverride.AssignBinding(BasisSettingsDefaults.DynamicResolutionTargetOverride);
+            // toggleDynamicTargetOverride.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride"));
+            // toggleDynamicTargetOverride.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.targetOverride.tooltip"));
+
+            // PanelSlider sliderDynamicTarget = PanelSlider.CreateEntryAndBind(
+            //     container,
+            //     new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.dynamicResolution.target"),
+            //         "",
+            //         30, 240, true, 0, ValueDisplayMode.Hz),
+            //     BasisSettingsDefaults.DynamicResolutionTargetFrameRate);
+            // sliderDynamicTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.dynamicResolution.target.tooltip"));
 
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(container);
             dropdownHDR.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.hdrSupport"));
@@ -1805,11 +1884,27 @@ namespace Basis.BasisUI
 
             void ApplyAdvancedPlatformVisibility()
             {
-                sliderRenderResolution.Descriptor.SetActive(BasisDeviceManagement.IsUserInDesktop());
+                // bool dynamicEnabled = toggleDynamicResolution.Value;
+                // sliderDynamicMinimum.Descriptor.SetActive(dynamicEnabled);
+                // sliderDynamicMaximum.Descriptor.SetActive(dynamicEnabled);
+                // toggleDynamicTargetOverride.Descriptor.SetActive(dynamicEnabled);
+                // sliderDynamicTarget.Descriptor.SetActive(dynamicEnabled && toggleDynamicTargetOverride.Value);
 #if !UNITY_ANDROID
                 sliderFoveatedRendering.Descriptor.SetActive(false);
 #endif
             }
+
+            // toggleDynamicResolution.OnValueChanged += (val) =>
+            // {
+            //     ApplyAdvancedPlatformVisibility();
+            //     descriptor.ForceRebuild();
+            // };
+            // toggleDynamicTargetOverride.OnValueChanged += (val) =>
+            // {
+            //     ApplyAdvancedPlatformVisibility();
+            //     descriptor.ForceRebuild();
+            // };
+
             ApplyAdvancedPlatformVisibility();
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(toggleAdvanced, container, advancedStart, false, visible =>
@@ -1842,6 +1937,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
+            BasisSettingsDefaults.HighPlayerCapSuggestions.ResetToDefault();
 
             BasisSettingsDefaults.QualityLevel.ResetToDefault();
             BasisSettingsDefaults.ShadowQuality.ResetToDefault();
@@ -1856,6 +1952,11 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.HDRSupport.ResetToDefault();
             BasisSettingsDefaults.MemoryAllocation.ResetToDefault();
             BasisSettingsDefaults.RenderResolution.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionEnabled.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionMinimumScale.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionMaximumScale.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionTargetOverride.ResetToDefault();
+            BasisSettingsDefaults.DynamicResolutionTargetFrameRate.ResetToDefault();
 
             BasisSettingsDefaults.FoveatedRendering.ResetToDefault();
             BasisSettingsDefaults.FieldOfView.ResetToDefault();
@@ -2321,6 +2422,11 @@ namespace Basis.BasisUI
             toggleNetworkPlayersBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayersBandwidth.tooltip"));
             toggleNetworkPlayersBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayersBandwidth);
 
+            PanelToggle toggleNetworkAdditionalInfo = PanelToggle.CreateNewEntry(container);
+            toggleNetworkAdditionalInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkAdditionalInfo"));
+            toggleNetworkAdditionalInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkAdditionalInfo.tooltip"));
+            toggleNetworkAdditionalInfo.AssignBinding(BasisSettingsDefaults.GizmoNetworkAdditionalInfo);
+
             PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(container);
             toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
             toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
@@ -2523,6 +2629,11 @@ namespace Basis.BasisUI
                 },
                 new List<string> { "settings.developer.logLevel.all", "settings.developer.logLevel.warningsErrors", "settings.developer.logLevel.errorsOnly" });
             dropdownLogLevelFilter.AssignBinding(BasisSettingsDefaults.DebugLogLevelFilter);
+
+            PanelToggle toggleContentPoliceLogging = PanelToggle.CreateNewEntry(container);
+            toggleContentPoliceLogging.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.contentPoliceLogging"));
+            toggleContentPoliceLogging.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.contentPoliceLogging.tooltip"));
+            toggleContentPoliceLogging.AssignBinding(BasisSettingsDefaults.ContentPoliceLogging);
 
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(debugToggle, container, debugStart, false, visible =>
             {
@@ -2916,6 +3027,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoNetworkSyncBandwidth.ResetToDefault();
             BasisSettingsDefaults.GizmoNetworkPlayers.ResetToDefault();
             BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
             BasisSettingsDefaults.GizmoLabels.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();
@@ -2925,6 +3037,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
             BasisSettingsDefaults.StreamingMetaPort.ResetToDefault();
             BasisSettingsDefaults.DisableLogging.ResetToDefault();
+            BasisSettingsDefaults.ContentPoliceLogging.ResetToDefault();
             BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
             BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
             BasisSettingsDefaults.DevAlwaysShowCalibration.ResetToDefault();

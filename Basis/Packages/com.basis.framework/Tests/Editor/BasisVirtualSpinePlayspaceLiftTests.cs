@@ -1,3 +1,4 @@
+using Basis.IK;
 using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using Unity.Collections;
@@ -59,14 +60,14 @@ namespace Basis.Tests.IK
         static TorsoPose RunSpineOnce(float3 headPos, float trackingLiftY)
         {
             var states = new NativeArray<BasisBoneSimState>(BoneCount, Allocator.Temp);
-            var solve = new NativeArray<BasisLocalVirtualSpineDriver.SpineSolveState>(1, Allocator.Temp);
+            var solve = new NativeArray<BasisVirtualSpineCore.SpineSolveState>(1, Allocator.Temp);
             try
             {
                 for (int i = 0; i < BoneCount; i++)
                     states[i] = new BasisBoneSimState { OutgoingRotation = quaternion.identity, LastRunRotation = quaternion.identity };
                 solve[0] = default;
 
-                new BasisLocalVirtualSpineDriver.BasisVirtualSpineSolveJob
+                new BasisVirtualSpineCore.BasisVirtualSpineSolveJob
                 {
                     States = states,
                     State = solve,
@@ -92,9 +93,9 @@ namespace Basis.Tests.IK
             }
         }
 
-        static BasisLocalVirtualSpineDriver.SpineSolveParams MakeParams(float3 headPos, float trackingLiftY)
+        static BasisVirtualSpineCore.SpineSolveParams MakeParams(float3 headPos, float trackingLiftY)
         {
-            return new BasisLocalVirtualSpineDriver.SpineSolveParams
+            return new BasisVirtualSpineCore.SpineSolveParams
             {
                 Dt = 1f / 90f,
                 Scale = 1f,

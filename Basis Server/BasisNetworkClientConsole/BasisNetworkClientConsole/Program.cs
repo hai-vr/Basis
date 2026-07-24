@@ -11,6 +11,7 @@ namespace Basis
     {
         private const double DriverTickMs = 15.0;
         private const double MovementIntervalMs = 90.0;
+        private const int MaxVoiceCatchUpFrames = 5;
         private static volatile bool _running = true;
 
         public static async Task Main(string[] args)
@@ -55,10 +56,12 @@ namespace Basis
             {
                 Console.WriteLine("Shutting down...");
                 _running = false;
+                MicrophoneCapture.Stop();
                 clientManager.StopClientsAsync().GetAwaiter().GetResult();
             };
 
             MovementSender.Initialize(clientManager.ClientCount);
+            MovementSender.VoiceSender.Initialize(clientManager.ClientCount);
 
             // Drive all clients from one worker per CPU core
             StartClientDriverLoops(clientManager.FinalClients, clientManager.FinalPeers);
@@ -86,6 +89,31 @@ namespace Basis
                     {
                         await Task.Delay(5000);
                         BNL.Log(MessageHandler.Summary());
+                    }
+                });
+            }
+
+            // Whether audio actually reaches the virtual cable is invisible otherwise: the capture
+            // runs happily on silence, so a routing mistake looks identical to a working setup.
+            if (MicrophoneCapture.Active)
+            {
+                _ = Task.Run(async () =>
+                {
+                    long lastFrames = 0, lastSpeech = 0;
+                    while (_running)
+                    {
+                        await Task.Delay(5000);
+                        long frames = Interlocked.Read(ref MicrophoneCapture.FramesCaptured);
+                        long speech = Interlocked.Read(ref MicrophoneCapture.FramesSpeech);
+                        long dF = frames - lastFrames, dS = speech - lastSpeech;
+                        lastFrames = frames; lastSpeech = speech;
+                        float peak = MicrophoneCapture.TakePeak();
+                        if (dS > 0)
+                            BNL.Log($"[Mic] {dF} frames/5s, {dS} with speech, peak {peak:F3} — transmitting.");
+                        else if (peak <= 0f)
+                            BNL.Log($"[Mic] {dF} frames/5s, peak 0.000 (digital silence) — nothing is routed into CABLE Input.");
+                        else
+                            BNL.Log($"[Mic] {dF} frames/5s, peak {peak:F4} but under the transmit threshold — signal is arriving, just too quiet.");
                     }
                 });
             }
@@ -135,6 +163,8 @@ namespace Basis
             var sw = Stopwatch.StartNew();
             double lastTickMs = 0;
             double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
+            double lastVoiceMs = 0;
+
 
             while (_running)
             {
@@ -160,6 +190,56 @@ namespace Basis
                         var peer = Volatile.Read(ref peers[i]);
                         if (peer != null && (peer.Tag as ConsoleClientIdentity)?.Authenticated == true)
                             MovementSender.ProcessSingle(peer, i);
+                    }
+                }
+
+                if (Basis.Config.ConfigManager.SimulateVoice)
+                {
+                    double voiceFrameMs = Basis.Config.ConfigManager.VoiceFrameMs;
+                    if (voiceFrameMs <= 0) voiceFrameMs = 20;
+
+                    int dueFrames = (int)((nowMs - lastVoiceMs) / voiceFrameMs);
+                    if (dueFrames > MaxVoiceCatchUpFrames)
+                    {
+                        dueFrames = MaxVoiceCatchUpFrames;
+                        lastVoiceMs = nowMs;
+                    }
+                    else if (dueFrames > 0)
+                    {
+                        lastVoiceMs += dueFrames * voiceFrameMs;
+                    }
+
+                    for (int i = start; i < end && dueFrames > 0; i++)
+                    {
+                        var peer = Volatile.Read(ref peers[i]);
+                        if (peer == null || (peer.Tag as ConsoleClientIdentity)?.Authenticated != true) continue;
+
+                        // Republished on a cadence rather than built once, so players who join or move
+                        // into range — including real ones — start being sent voice.
+                        bool ready = MovementSender.VoiceSender.RefreshRecipients(peer, peers, i, nowMs);
+                        if (ready)
+                        {
+                            bool talking = MovementSender.VoiceSender.IsTalking(i, nowMs);
+                            bool mic = MovementSender.VoiceSender.IsMicClient(i);
+
+                            if (talking && mic)
+                            {
+                                MovementSender.VoiceSender.SendMicFrames(peer, i, dueFrames);
+                            }
+                            else if (talking)
+                            {
+                                for (int f = 0; f < dueFrames; f++)
+                                    MovementSender.VoiceSender.SendFrame(peer, i);
+                            }
+                            else
+                            {
+                                // Idle mic clients track the live edge, so a burst opens on current
+                                // audio instead of replaying whatever was buffered when they went quiet.
+                                if (mic) MovementSender.VoiceSender.SyncMicCursor(i);
+                                for (int f = 0; f < dueFrames; f++)
+                                    MovementSender.VoiceSender.NoteSilence(i);
+                            }
+                        }
                     }
                 }
 

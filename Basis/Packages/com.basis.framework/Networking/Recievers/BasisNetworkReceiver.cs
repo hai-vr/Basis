@@ -162,12 +162,17 @@ namespace Basis.Scripts.Networking.Receivers
 
         // Received bytes-on-wire metering for the per-player network gizmos. Accumulated off the
         // main thread in AccountReceivedBytes (Interlocked) and windowed into a rate in ComputeData.
+        // Voice runs as its own pair so the gizmos can break the channels apart.
         private const double BandwidthWindow = 0.5;
         private long _bwBytes;
         private long _bwPackets;
+        private long _voiceBwBytes;
+        private long _voiceBwPackets;
         private double _bwTime;
         private float _bytesPerSecond;
         private float _packetsPerSecond;
+        private float _voiceBytesPerSecond;
+        private float _voicePacketsPerSecond;
 
         /// <summary>
         /// Sets the adaptive jitter depth parameters from a single user-facing "target depth"
@@ -217,6 +222,8 @@ namespace Basis.Scripts.Networking.Receivers
         public float CachedHumanScaleDebug => CachedHumanScale;
         public float BytesPerSecond => _bytesPerSecond;
         public float PacketsPerSecond => _packetsPerSecond;
+        public float VoiceBytesPerSecond => _voiceBytesPerSecond;
+        public float VoicePacketsPerSecond => _voicePacketsPerSecond;
 
         /// <summary>When true, effectors the sender marked anchored (mask on the wire) are two-bone-IK'd
         /// to their sent world targets after skeleton FK. On by default; a server admin can disable it
@@ -258,6 +265,13 @@ namespace Basis.Scripts.Networking.Receivers
         {
             System.Threading.Interlocked.Add(ref _bwBytes, bytes);
             System.Threading.Interlocked.Increment(ref _bwPackets);
+        }
+
+        /// <summary>Records received voice bytes-on-wire for this player (call from the voice handler; thread-safe).</summary>
+        public void AccountReceivedVoiceBytes(int bytes)
+        {
+            System.Threading.Interlocked.Add(ref _voiceBwBytes, bytes);
+            System.Threading.Interlocked.Increment(ref _voiceBwPackets);
         }
 
         public bool hasRequiredData = false;
@@ -321,9 +335,13 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 long b = System.Threading.Interlocked.Exchange(ref _bwBytes, 0);
                 long p = System.Threading.Interlocked.Exchange(ref _bwPackets, 0);
+                long vb = System.Threading.Interlocked.Exchange(ref _voiceBwBytes, 0);
+                long vp = System.Threading.Interlocked.Exchange(ref _voiceBwPackets, 0);
                 float inv = (float)(1.0 / _bwTime);
                 _bytesPerSecond = b * inv;
                 _packetsPerSecond = p * inv;
+                _voiceBytesPerSecond = vb * inv;
+                _voicePacketsPerSecond = vp * inv;
                 _bwTime = 0.0;
             }
 

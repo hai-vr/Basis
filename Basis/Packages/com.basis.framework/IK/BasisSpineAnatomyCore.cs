@@ -212,8 +212,8 @@ namespace Basis.IK
 
             // ---- the swing: an elliptical cone, evaluated on the SWING as a whole ----
             // q is the squared ellipse radius the current swing sits at. q <= 1 is inside.
-            float fN = flexLim > k_Epsilon ? flexDeg / flexLim : 0f;
-            float lN = latLim > k_Epsilon ? latDeg / latLim : 0f;
+            float fN = flexDeg / Mathf.Max(flexLim, k_Epsilon);
+            float lN = latDeg / Mathf.Max(latLim, k_Epsilon);
             float q = fN * fN + lN * lN;
 
             float swingScale = 1f;
@@ -231,7 +231,7 @@ namespace Basis.IK
             // ---- the twist: a flat per-segment limit ----
             float axialGuard = axialDeg;
             float axialAbs = axialDeg < 0f ? -axialDeg : axialDeg;
-            if (axialAbs > axialLim && axialLim > k_Epsilon)
+            if (axialAbs > axialLim)
             {
                 float mag = Saturate(axialAbs, axialLim, axialLim * OvershootAsymptote);
                 axialGuard = axialDeg < 0f ? -mag : mag;

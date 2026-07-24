@@ -441,6 +441,11 @@ public static class BasisRemoteNetworkDriver
         int num = BasisNetworkPlayers.LargestNetworkReceiverID + 1;
         num = math.clamp(num, 0, FixedCapacity);
 
+        // Same adaptive batch as BasisRemoteBoneDriver: a fixed 128 packs any lobby under
+        // 128 players into a single chunk, so one worker ran the lot.
+        int workerCount = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+        int playerBatch = math.max(1, math.min(128, (num + workerCount - 1) / workerCount));
+
         // 1) Cubic (Catmull-Rom) interpolation of pos/rot; linear scale/hipsDelta/hipsRotDelta
         var avatarJob = new UpdateAllAvatarsJob
         {
@@ -466,7 +471,7 @@ public static class BasisRemoteNetworkDriver
             OutputRotations = _outRotations,
             OutputHipsDelta = _outHipsDelta,
             OutputHipsRotDelta = _outHipsRotDelta
-        }.Schedule(num, 128);
+        }.Schedule(num, playerBatch);
 
         // 2) Pose filtering (position + rotation) per player
         JobHandle poseFilterJob = new FilterPoseOneEuroJob
@@ -486,7 +491,7 @@ public static class BasisRemoteNetworkDriver
             MinCutoff = PoseMinCutoff,
             Beta = PoseBeta,
             DerivativeCutoff = PoseDerivativeCutoff
-        }.Schedule(num, 128, avatarJob);
+        }.Schedule(num, playerBatch, avatarJob);
 
         // 3) Scaled body position
         var scaledBodyJob = new ComputeScaledBodyJob
@@ -495,7 +500,7 @@ public static class BasisRemoteNetworkDriver
             OutputScales = _outScales,
             HumanScales = _humanScales,
             ScaledBodyPositions = _scaledBodyPositions
-        }.Schedule(num, 128, poseFilterJob);
+        }.Schedule(num, playerBatch, poseFilterJob);
 
         // 4) Bone rotation interpolation — Catmull-Rom per bone over 4 control points.
         //    Replaces the old linear nlerp + heavy 1€ bone filter (the wobble source);
@@ -514,9 +519,10 @@ public static class BasisRemoteNetworkDriver
             HeadFilterMinCutoffHz = HeadBoneFilterMinCutoffHz,
             FilterBeta = BoneFilterBeta,
             BoneCountPerAvatar = BoneCount
-        }.Schedule(num * BoneCount, 128, avatarJob);
+        }.Schedule(num * BoneCount, 128);
 
         oneEuroJob = JobHandle.CombineDependencies(boneInterpJob, scaledBodyJob);
+        JobHandle.ScheduleBatchedJobs();
     }
 
     /// <summary>Complete scheduled jobs for the current frame.</summary>

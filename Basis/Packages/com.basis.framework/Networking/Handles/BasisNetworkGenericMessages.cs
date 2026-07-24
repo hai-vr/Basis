@@ -185,13 +185,17 @@ public static class BasisNetworkGenericMessages
             BasisDebug.LogError("NO Local PLayer ID Found");
         }
     }
-    // Handler for server avatar data messages
+    // Handler for server avatar data messages.
+    // Persistent envelope so RemoteAvatarDataMessage's exact-size payload reuse path actually
+    // engages — a fresh envelope arrived with payload null and allocated every message. Safe
+    // because both call sites run on the polled connection's thread, every dispatch consumes the
+    // payload synchronously, and the deferred branch below clones before storing.
+    private static ServerAvatarDataMessage sServerAvatarData;
     public static void HandleServerAvatarDataMessage(NetPacketReader reader, DeliveryMethod Method, bool direct = false)
     {
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, reader.AvailableBytes);
-        ServerAvatarDataMessage SADM = new ServerAvatarDataMessage();
-        SADM.Deserialize(reader);
-        DispatchAvatarData(SADM, Method, direct);
+        sServerAvatarData.Deserialize(reader);
+        DispatchAvatarData(sServerAvatarData, Method, direct);
     }
 
     public static void HandleDirectP2PAvatarMessage(ushort senderPlayerId, byte messageIndex, byte avatarLinkIndex, byte[] payload, DeliveryMethod Method)
@@ -246,11 +250,18 @@ public static class BasisNetworkGenericMessages
                         if (withinNextFour)
                         {
                             System.Threading.Interlocked.Increment(ref Basis.Scripts.Networking.NetworkedAvatar.BasisAdditionalDataDiagnostics.ReceiverAvatarChannelDeferred);
-                            // Store the message for delayed playback
+                            // Store the message for delayed playback. The reused envelope's payload
+                            // buffer is overwritten by the next deserialize, so the stored copy has
+                            // to own its bytes.
+                            ServerAvatarDataMessage stored = SADM;
+                            if (stored.avatarDataMessage.payload != null)
+                            {
+                                stored.avatarDataMessage.payload = (byte[])stored.avatarDataMessage.payload.Clone();
+                            }
                             player.NextMessages[output.messageIndex] = new BasisNetworkPlayer.ServerAvatarDataMessageQueue()
                             {
                                 Method = Method,
-                                ServerAvatarDataMessage = SADM,
+                                ServerAvatarDataMessage = stored,
                                 Direct = direct
                             };
                         }

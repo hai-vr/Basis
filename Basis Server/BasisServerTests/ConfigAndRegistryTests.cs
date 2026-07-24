@@ -87,6 +87,7 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal("localhost", cfg.HealthCheckHost);
         Assert.Equal(10666, cfg.HealthCheckPort);
         Assert.Equal("/health", cfg.HealthPath);
+        Assert.False(cfg.HealthIncludeBSRProfiling);
         Assert.False(cfg.OverrideAutoDiscoveryOfIpv);
         Assert.Equal("0.0.0.0", cfg.IPv4Address);
         Assert.Equal("::", cfg.IPv6Address);
@@ -310,7 +311,7 @@ public class TransportConfigStoreTests
     public void LnlTransportConfig_Defaults()
     {
         var cfg = new LNLTransportConfig();
-        Assert.Equal(1, LNLTransportConfig.CurrentConfigVersion);
+        Assert.Equal(2, LNLTransportConfig.CurrentConfigVersion);
         Assert.Equal(0, cfg.ConfigVersion);
         Assert.True(cfg.UseNativeSockets);
         Assert.True(cfg.NatPunchEnabled);
@@ -332,6 +333,10 @@ public class TransportConfigStoreTests
         Assert.False(cfg.DisconnectOnUnreachable);
         Assert.True(cfg.AllowPeerAddressChange);
         Assert.Equal(1, cfg.MultiSocketCount);
+        // Packet pool scales with peer count rather than sitting at a fixed ceiling; the floor
+        // stays PacketPoolSize, so small servers behave exactly as before.
+        Assert.Equal(48, cfg.PacketPoolSizePerPeer);
+        Assert.Equal(262144, cfg.PacketPoolSizeMax);
     }
 
     [Fact]

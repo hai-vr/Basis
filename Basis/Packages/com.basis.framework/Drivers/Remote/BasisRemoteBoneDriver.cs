@@ -589,6 +589,10 @@ public static class RemoteBoneJobSystem
     static NativeArray<int> sKeyArray;
     /// <summary>Pending job handle chain.</summary>
     static JobHandle sPending;
+    static JobHandle sGatherRoot;
+    static JobHandle sGatherHead;
+    static JobHandle sGatherHips;
+    static bool sGathersScheduled;
     /// <summary>Initialization flag.</summary>
     static bool sInitialized;
 
@@ -676,6 +680,7 @@ public static class RemoteBoneJobSystem
     public static void Dispose()
     {
         CompletePending();
+        sGathersScheduled = false;
 
         if (sAuthoring.IsCreated) sAuthoring.Dispose();
         if (sScale.IsCreated) sScale.Dispose();
@@ -899,6 +904,7 @@ public static class RemoteBoneJobSystem
     {
         if (!sInitialized) return false;
         CompletePending();
+        sGathersScheduled = false;
         RemovePendingAdd(key);
         return RemoveRemotePlayerInternal(key);
     }
@@ -1128,6 +1134,65 @@ public static class RemoteBoneJobSystem
     }
 
     /// <summary>
+    /// Schedules and kicks the root/head/hips gather jobs ahead of <see cref="Schedule"/>, which
+    /// consumes the handles the same frame. The gathers read only last-frame transforms — never
+    /// the interpolation output or the hips overrides — and use read-only transform scheduling
+    /// (no hierarchy sort, no exclusive ownership, main-thread reads stay legal), so they can
+    /// overlap the transmit / remote-apply / receiver work that runs between the two calls.
+    /// </summary>
+    public static void ScheduleGathers()
+    {
+        if (!sInitialized)
+        {
+            return;
+        }
+
+        // Complete the previous frame's jobs before mutating containers or rescheduling: the
+        // safety system would otherwise see the old ApplyMouthJob (reader of sOut) conflict
+        // with the new BasisRemoteBoneJob (writer of sOut).
+        CompletePending();
+
+        // Safe point for queued registrations — the sync above means no job is reading the
+        // containers, so committing avatar-load adds here costs no extra stall.
+        DrainPendingAdds();
+
+        sGathersScheduled = false;
+        if (AuthoringLength == 0)
+        {
+            return;
+        }
+
+        EnsureTempBuffers(AuthoringLength);
+
+        int workerCount = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+        int gatherBatch = math.max(1, (AuthoringLength + workerCount - 1) / workerCount);
+
+        // Gather root/head/hips
+        sGatherRoot = new GatherRootJob
+        {
+            rootPos = sTmpRootPos,
+            rootScale = sTmpRootScale
+        }.ScheduleReadOnly(sRoots, gatherBatch);
+
+        sGatherHead = new GatherHeadJob
+        {
+            headPos = sTmpHeadPos,
+            headRot = sTmpHeadRot
+        }.ScheduleReadOnly(sHeads, gatherBatch);
+
+        sGatherHips = new GatherHipsJob
+        {
+            hipsPos = sTmpHipsPos,
+            hipsRot = sTmpHipsRot
+        }.ScheduleReadOnly(sHips, gatherBatch);
+
+        sPending = JobHandle.CombineDependencies(sGatherRoot, sGatherHead, sGatherHips);
+        sGathersScheduled = true;
+
+        JobHandle.ScheduleBatchedJobs();
+    }
+
+    /// <summary>
     /// Schedules the entire simulation pipeline for the current set of avatars:
     /// gather → simulate → apply (nameplate/mouth/hips/skeleton).
     /// </summary>
@@ -1144,45 +1209,23 @@ public static class RemoteBoneJobSystem
             return default;
         }
 
-        // Complete the previous frame's jobs before mutating containers or rescheduling: the
-        // safety system would otherwise see the old ApplyMouthJob (reader of sOut) conflict
-        // with the new BasisRemoteBoneJob (writer of sOut).
-        CompletePending();
-
-        // Safe point for queued registrations — the sync above means no job is reading the
-        // containers, so committing avatar-load adds here costs no extra stall.
-        DrainPendingAdds();
-
-        if (AuthoringLength == 0)
+        if (!sGathersScheduled)
+        {
+            ScheduleGathers();
+        }
+        if (!sGathersScheduled)
         {
             return default;
         }
+        sGathersScheduled = false;
 
         // sKeyArray is maintained directly by Add/RemoveRemotePlayer, so no per-frame snapshot
         // is needed. The previous code copied each entry out of a managed List<int> via
         // List<T>.get_Item, which was the dominant cost of Schedule().
 
-        EnsureTempBuffers(AuthoringLength);
-
-        // Gather root/head/hips
-        var hRoot = new GatherRootJob
-        {
-            rootPos = sTmpRootPos,
-            rootScale = sTmpRootScale
-        }.Schedule(sRoots);
-
-        var hHead = new GatherHeadJob
-        {
-            headPos = sTmpHeadPos,
-            headRot = sTmpHeadRot
-        }.Schedule(sHeads);
-
-        var hHips = new GatherHipsJob
-        {
-            hipsPos = sTmpHipsPos,
-            hipsRot = sTmpHipsRot
-        }.Schedule(sHips);
-
+        var hRoot = sGatherRoot;
+        var hHead = sGatherHead;
+        var hHips = sGatherHips;
         var gathers = JobHandle.CombineDependencies(hRoot, hHead, hHips);
 
         // Adaptive batch size — the whole point is to actually use multiple cores.
@@ -1230,6 +1273,8 @@ public static class RemoteBoneJobSystem
             sTmpHipsWorldPos, sTmpHipsWorldRot,
             sTmpAvatarScales, sTmpScaleChanged,
             sTmpRootDerivedPos, sTmpRootDerivedRot);
+
+        JobHandle.ScheduleBatchedJobs();
 
         // Apply pass — parallel branches.
         //
@@ -1362,7 +1407,9 @@ public static class RemoteBoneJobSystem
                 OverrideMask = sIkOverrideMask,
                 BoneCount = BasisBoneRotationCompression.SyncBoneCount,
                 CapacityFixed = BasisRemoteNetworkDriver.FixedCapacity,
-            }.Schedule(sSkeletonBones, JobHandle.CombineDependencies(hipsWorldJob, skeletonJob));
+            }.ScheduleReadOnly(sSkeletonBones,
+                math.max(1, math.min(maxBatchSize, (totalBones + workerCount - 1) / workerCount)),
+                JobHandle.CombineDependencies(hipsWorldJob, skeletonJob));
 
             int ikBatch = math.max(1, math.min(maxBatchSize, (AuthoringLength + workerCount - 1) / workerCount));
             var ikComputeJob = BasisRemoteNetworkDriver.ScheduleComputeEffectorIK(

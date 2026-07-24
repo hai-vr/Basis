@@ -1,3 +1,4 @@
+using Basis.IK;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -6,7 +7,7 @@ namespace Basis.Tests.IK
 {
     /// <summary>
     /// "Look down at my chest, turn my head left and right across the middle, and the body SNAPS"
-    /// regression tests for the torso heading -- <see cref="BasisLocalVirtualSpineDriver.ExtractYawBurst"/>.
+    /// regression tests for the torso heading -- <see cref="BasisVirtualSpineCore.ExtractYawBurst"/>.
     ///
     /// That function is the single source of the torso's facing direction: its output becomes
     /// torsoYawTarget, which aims the hips, the hips' forward bias, and the chest/spine yaw targets.
@@ -48,8 +49,8 @@ namespace Basis.Tests.IK
 
         static float TorsoYawDeg(quaternion head)
         {
-            BasisLocalVirtualSpineDriver.ExtractYawBurst(head, out quaternion yawOnly);
-            BasisLocalVirtualSpineDriver.YawDegrees(yawOnly, out float deg);
+            BasisVirtualSpineCore.ExtractYawBurst(head, out quaternion yawOnly);
+            BasisVirtualSpineCore.YawDegrees(yawOnly, out float deg);
             return deg;
         }
 
@@ -192,14 +193,14 @@ namespace Basis.Tests.IK
                     (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0),
                     (float)(rng.NextDouble() * 2.0 - 1.0), (float)(rng.NextDouble() * 2.0 - 1.0)));
 
-                BasisLocalVirtualSpineDriver.ExtractYawBurst(q, out quaternion y1);
-                BasisLocalVirtualSpineDriver.ExtractYawBurst(y1, out quaternion y2);
+                BasisVirtualSpineCore.ExtractYawBurst(q, out quaternion y1);
+                BasisVirtualSpineCore.ExtractYawBurst(y1, out quaternion y2);
 
                 float tilt = Mathf.Abs(math.mul(y1, new float3(0f, 0f, 1f)).y);
                 Assert.That(tilt, Is.LessThan(1e-4f), "extracted heading was not a pure yaw (its forward left the horizontal plane).");
 
-                BasisLocalVirtualSpineDriver.YawDegrees(y1, out float d1);
-                BasisLocalVirtualSpineDriver.YawDegrees(y2, out float d2);
+                BasisVirtualSpineCore.YawDegrees(y1, out float d1);
+                BasisVirtualSpineCore.YawDegrees(y2, out float d2);
                 Assert.That(Mathf.Abs(Mathf.DeltaAngle(d1, d2)), Is.LessThan(0.01f), "extracting the heading twice did not return the same heading.");
             }
         }

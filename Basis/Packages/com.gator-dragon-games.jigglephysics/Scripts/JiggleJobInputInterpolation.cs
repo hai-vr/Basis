@@ -17,10 +17,8 @@ public struct JiggleJobInputInterpolation : IJobFor {
     public double currentTime;
 
     public NativeArray<JiggleTransform> outputInterpolatedPoses;
-    private float timeCorrection;
 
     public JiggleJobInputInterpolation(JiggleMemoryBus bus, double time, float fixedDeltaTime) {
-        timeCorrection = fixedDeltaTime;
         timeStamp = time - fixedDeltaTime;
         previousTimeStamp = timeStamp - fixedDeltaTime;
         currentTime = timeStamp;
@@ -34,10 +32,6 @@ public struct JiggleJobInputInterpolation : IJobFor {
         currentInputs = bus.inputPosesCurrent;
         outputInterpolatedPoses = bus.simulateInputPoses;
     }
-    
-    public void SetFixedDeltaTime(float fixedDeltaTime) {
-        timeCorrection = fixedDeltaTime;
-    }
 
     public void Execute(int index) {
         var prevPose = previousInputs[index];
@@ -49,10 +43,7 @@ public struct JiggleJobInputInterpolation : IJobFor {
             return;
         }
 
-        // Saturate like the output interpolation: an unclamped t goes negative at high frame
-        // rates and extrapolates the sim's target poses beyond the previous sample, feeding
-        // frame-cadence jitter into the springs.
-        var t = math.saturate((currentTime - timeCorrection - previousTimeStamp) / diff);
+        var t = math.saturate((currentTime - previousTimeStamp) / diff);
         var inter= JiggleTransform.Lerp(prevPose, newPose, (float)t);
 
         outputInterpolatedPoses[index] = inter;

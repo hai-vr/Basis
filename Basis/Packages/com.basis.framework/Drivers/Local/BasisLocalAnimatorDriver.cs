@@ -196,6 +196,24 @@ namespace Basis.Scripts.Animator_Driver
                 basisAnimatorVariableApply.StopAll();
             }
         }
+
+        /// <summary>
+        /// Snapshot of the animator variables in locomotion-sim form. Read at the top of Simulate, so
+        /// like the Animator itself the sim consumes the values written by the previous frame.
+        /// </summary>
+        public BasisLocoParams GetLocoParams()
+        {
+            var variables = basisAnimatorVariableApply.BasisAnimatorVariables;
+            return new BasisLocoParams
+            {
+                VelocityX = variables.Velocity.x,
+                VelocityZ = variables.Velocity.z,
+                CurrentSpeed = variables.AnimationsCurrentSpeed,
+                CrouchedState = variables.IsCrouching,
+                IsFalling = variables.IsFalling,
+                IsJumping = variables.IsJumping,
+            };
+        }
         /// <summary>
         /// Samples motion and state, applies smoothing, updates animator variables, and pushes values into the animator.
         /// </summary>
@@ -318,6 +336,7 @@ namespace Basis.Scripts.Animator_Driver
                 return;
             }
             basisAnimatorVariableApply.UpdateIsLandingState();
+            LocalPlayer.LocalRigDriver.LocomotionPose.NotifyLanding();
         }
 
         /// <summary>

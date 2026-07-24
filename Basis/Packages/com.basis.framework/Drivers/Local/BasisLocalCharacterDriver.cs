@@ -210,6 +210,7 @@ namespace Basis.Scripts.BasisCharacterController
                 BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPlayerTransform.lossyScale);
                 return;
             }
+            BasisScriptedPlayerInput.ApplyLocomotion(this);
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();
             // Two-phase landing impact: ease into dip, then ease back up

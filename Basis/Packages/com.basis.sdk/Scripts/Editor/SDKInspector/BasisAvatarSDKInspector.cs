@@ -141,6 +141,11 @@ public partial class BasisAvatarSDKInspector : Editor
 #if !BASIS_FRAMEWORK_EXISTS
             rootElement.Add(Basis.Scripts.BasisSdk.Players.Editor.BasisEditorPreviewParametersFoldout.Create());
 #endif
+            // Surface what the load-time pass will strip or rewrite, while the author can
+            // still do something about it — enforcement itself is runtime-only.
+            rootElement.Add(BasisContentPolicePreflight.CreateSection(
+                Avatar != null ? Avatar.gameObject : null,
+                BundledContentHolder.Selector.Avatar));
             InspectorGuiCreated?.Invoke(this);
         }
         else

@@ -80,7 +80,7 @@ namespace Basis.Scripts.Drivers
             // framerate and clamped to 1 (no smoothing at all) at and below 40 fps.
             float posLerpFactor = InstantSnap != 0
                 ? 1f
-                : BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(BasisLocalBoneControl.PositionLerpAmount, DeltaTime);
+                : BasisSmoothingProfiles.FramerateIndependentAlpha(BasisLocalBoneControl.PositionLerpAmount, DeltaTime);
             for (int k = 0; k < len; k++)
             {
                 int i = ChainIndices[k];
@@ -142,7 +142,7 @@ namespace Basis.Scripts.Drivers
 
             float timing = math.min(angle / BasisLocalBoneControl.AngleBeforeSpeedup, 1f);
             float lerpAmount = BasisLocalBoneControl.QuaternionLerp + (BasisLocalBoneControl.QuaternionLerpFastMovement - BasisLocalBoneControl.QuaternionLerp) * timing;
-            float lerpFactor = BasisLocalVirtualSpineDriver.FramerateIndependentAlpha(lerpAmount, DeltaTime);
+            float lerpFactor = BasisSmoothingProfiles.FramerateIndependentAlpha(lerpAmount, DeltaTime);
 
             return math.slerp(current, future, lerpFactor);
         }

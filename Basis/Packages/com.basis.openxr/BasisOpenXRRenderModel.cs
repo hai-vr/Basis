@@ -18,6 +18,9 @@ using UnityEngine.XR.OpenXR;
 public class BasisOpenXRRenderModel : MonoBehaviour
 {
 #if UNITY_GLTFAST
+    private const float RenderModelCheckInterval = 0.25f;
+    private const float RenderModelWaitTimeout = 10f;
+
     private BasisInput owner;
     private ValveRenderModelFeature feature;
     private Coroutine loadRoutine;
@@ -66,6 +69,18 @@ public class BasisOpenXRRenderModel : MonoBehaviour
 
     private IEnumerator LoadRoutine(bool isLeftHand)
     {
+        float waited = 0f;
+        while (!feature.IsRenderModelAvailable(isLeftHand))
+        {
+            if (waited >= RenderModelWaitTimeout)
+            {
+                Fallback();
+                yield break;
+            }
+            yield return new WaitForSecondsRealtime(RenderModelCheckInterval);
+            waited += RenderModelCheckInterval;
+        }
+
         if (!TryGetAssetData(isLeftHand, out ulong renderModelAssetHandle, out byte[] gltfBytes)
             || gltfBytes == null || gltfBytes.Length == 0)
         {

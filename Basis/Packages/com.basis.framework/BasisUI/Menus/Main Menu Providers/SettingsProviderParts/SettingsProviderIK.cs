@@ -248,6 +248,11 @@ public static class SettingsProviderIK
             disableAnimInFBTToggle.AssignBinding(BasisSettingsDefaults.DisableAnimationsInFBT);
             disableAnimInFBTToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt.tooltip"));
 
+            var jobLocomotionToggle = PanelToggle.CreateNewEntry(trackingParent);
+            jobLocomotionToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.jobLocomotion"));
+            jobLocomotionToggle.AssignBinding(BasisSettingsDefaults.FBIKJobLocomotion);
+            jobLocomotionToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.jobLocomotion.tooltip"));
+
             var butterflyKneesToggle = PanelToggle.CreateNewEntry(trackingParent);
             butterflyKneesToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.butterflyKnees"));
             butterflyKneesToggle.AssignBinding(BasisSettingsDefaults.FBIKButterflyKnees);
@@ -278,6 +283,11 @@ public static class SettingsProviderIK
             collideTrackedElbowToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title"));
             collideTrackedElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKCollideTrackedElbow);
             collideTrackedElbowToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.collideTrackedElbow.title.tooltip"));
+
+            var wristAxialBoundToggle = PanelToggle.CreateNewEntry(collisionParent);
+            wristAxialBoundToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.wristAxialBound.title"));
+            wristAxialBoundToggle.AssignBinding(BasisSettingsDefaults.FBIKWristAxialBound);
+            wristAxialBoundToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.wristAxialBound.title.tooltip"));
 
             // Elbow drag (no elbow tracker only). How heavy this should feel is subjective and cannot be
             // settled offline, so the corner frequency is exposed rather than baked. The slider's minimum is
@@ -354,6 +364,11 @@ public static class SettingsProviderIK
             shoulderShrugToggle.AssignBinding(BasisSettingsDefaults.FBIKShoulderShrug);
             shoulderShrugToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.shoulderShrug.title.tooltip"));
 
+            var shoulderRetractionToggle = PanelToggle.CreateNewEntry(shoulderParent);
+            shoulderRetractionToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.shoulderRetraction.title"));
+            shoulderRetractionToggle.AssignBinding(BasisSettingsDefaults.FBIKShoulderRetraction);
+            shoulderRetractionToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.shoulderRetraction.title.tooltip"));
+
             // var shoulderElevSlider = PanelSlider.CreateAndBind(
             //     shoulderParent,
             //     PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.shoulderElevation.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
@@ -415,22 +430,6 @@ public static class SettingsProviderIK
                 maxDeviation.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.bodyFit.maxDeviation.tooltip"));
             }
         });
-
-        // ============== Spine: Proportion Match (DISABLED 2026-07-18, revisit later) ==============
-        // CreateCollapsibleSection(tabDesc, colliderGroup,
-        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.title"),
-        //     BasisLocalization.Get("settings.bodyTracking.section.spineProportion.description"), false, propParent =>
-        // {
-        //     AddAnatomyToggle(propParent, BasisSettingsDefaults.FBIKSpineProportionMatch,
-        //         "settings.bodyTracking.spineProportion.enabled.title",
-        //         "settings.bodyTracking.spineProportion.enabled.description");
-        //
-        //     var maxScale = PanelSlider.CreateAndBind(
-        //         propParent,
-        //         PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.title"), 0f, 0.25f, false, 2, ValueDisplayMode.Raw),
-        //         BasisSettingsDefaults.FBIKSpineProportionMaxScale);
-        //     maxScale?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.spineProportion.maxScale.tooltip"));
-        // });
 
         // ============== Anatomy ==============
         // CreateCollapsibleSection(tabDesc, colliderGroup,
@@ -1424,8 +1423,10 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
+        BasisSettingsDefaults.FBIKJobLocomotion.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKCollideTrackedElbow.ResetToDefault();
+        BasisSettingsDefaults.FBIKWristAxialBound.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowDrag.ResetToDefault();
         BasisSettingsDefaults.FBIKElbowDragHz.ResetToDefault();
         BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();
@@ -1434,6 +1435,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKHandSkin.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderSolveEnabled.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderShrug.ResetToDefault();
+        BasisSettingsDefaults.FBIKShoulderRetraction.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderElevation.ResetToDefault();
         BasisSettingsDefaults.FBIKShoulderProtraction.ResetToDefault();
         BasisSettingsDefaults.FBIKMaxBendDeg.ResetToDefault();
@@ -1505,8 +1507,6 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKChestIKTarget.ResetToDefault();
         BasisSettingsDefaults.FBIKLegSwivelSmoothing.ResetToDefault();
         BasisSettingsDefaults.FBIKTrackerBendNormal.ResetToDefault();
-        BasisSettingsDefaults.FBIKSpineProportionMatch.ResetToDefault();
-        BasisSettingsDefaults.FBIKSpineProportionMaxScale.ResetToDefault();
         BasisSettingsDefaults.FBIKBodyFit.ResetToDefault();
         BasisSettingsDefaults.FBIKBodyFitMaxDeviation.ResetToDefault();
 

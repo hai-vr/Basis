@@ -590,13 +590,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             if (sJobArraysReady && sBoneTransformAccess.isCreated)
             {
-                // Batch-read bone local rotations via job system
+                // Batch-read bone local rotations. RunReadOnly executes the Burst job on this
+                // thread — the old Schedule().Complete() dispatched to a worker and blocked on
+                // it in the same statement, paying the fence for zero overlap on ~51 bones.
                 var readJob = new ReadBoneLocalRotationsJob
                 {
                     SlotRemap = sSlotRemap,
                     CurrentLocalRotations = sCurrentLocalRotations,
                 };
-                readJob.Schedule(sBoneTransformAccess).Complete();
+                readJob.RunReadOnly(sBoneTransformAccess);
             }
             else
             {

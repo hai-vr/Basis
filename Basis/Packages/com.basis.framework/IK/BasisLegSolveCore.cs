@@ -76,7 +76,7 @@ namespace Basis.IK
     {
         const float k_Epsilon = 1e-5f;
         const float k_SqrEpsilon = 1e-8f;
-        const float k_PoleColinearSin = 0.5f; // sin(30deg): a hint nearer the leg axis than this is unreliable
+        const float k_PoleColinearSin = 0.10f; // ~sin(5.7deg): a hint nearer the leg axis than this is unreliable
 
         public const float MinKneeInteriorDeg = 20f; // max human knee flexion ~160deg; folding past this drives the calf through the thigh
 
@@ -509,7 +509,9 @@ namespace Basis.IK
                     // pole crosses -bendPole, so the interpolated result jumps. Measured on this solver, sweeping
                     // a lower-leg tracker around the leg axis: 610x knee gain (610 deg of knee per degree of hint)
                     // at hint azimuth 180, and it is REACHABLE -- a shin tracker on a standing leg sits at
-                    // poleSin ~0.34, well inside the k_PoleColinearSin band where the ease runs.
+                    // poleSin ~0.34. That is outside today's k_PoleColinearSin (0.10) but was inside the 0.5 the
+                    // band used to be, and the band is a tuning constant while this ordering is a correctness
+                    // property: keep guarding first regardless of where the band sits.
                     //
                     // There is no way to interpolate a direction toward a fixed direction continuously; it is a
                     // degree argument, not a numerical one (the identity map has degree 1, the constant map 0, and

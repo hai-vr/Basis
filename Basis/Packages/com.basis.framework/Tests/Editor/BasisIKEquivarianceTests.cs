@@ -210,13 +210,17 @@ namespace Basis.Tests.IK
         {
             BasisCrouchOffsetInput baseIn = default;
             baseIn.HeadTargetPos = new Vector3(0f, 1.35f, 0.05f);
-            baseIn.HipsPos = new Vector3(0f, 0.95f, 0f);
+            baseIn.HipsPos = new Vector3(0f, 0.73f, 0.05f);
             baseIn.HipsRot = Quaternion.Euler(0f, 15f, 0f);
             baseIn.PlayerUp = Vector3.up;
             baseIn.Factor = 1f;
             baseIn.RestDist = 0.62f;
+            baseIn.CrouchDepth = 0.35f;       // scalars: invariant under a rigid world move
+            baseIn.StandingHeadHeight = 1.70f;
+            baseIn.Fade = 1f;
 
             BasisCrouchOffsetCore.Solve(baseIn, out BasisCrouchOffsetResult base_);
+            Assert.That(base_.Applied, Is.True, "base crouch did not fire -- test would be vacuous.");
 
             foreach (Rigid t in Transforms)
             {
@@ -229,7 +233,8 @@ namespace Basis.Tests.IK
                 BasisCrouchOffsetCore.Solve(i, out BasisCrouchOffsetResult r);
 
                 SamePoint(t.Point(base_.HipsPos), r.HipsPos, t, "crouch HipsPos");
-                SameScalar(base_.Crouch, r.Crouch, t, "crouch depth");
+                SameScalar(base_.SetbackMeters, r.SetbackMeters, t, "crouch setback");
+                SameScalar(base_.LeanDeg, r.LeanDeg, t, "crouch lean");
                 Assert.That(r.Applied, Is.EqualTo(base_.Applied),
                     $"[{t.Name}] crouch engaged differently depending on world placement");
             }

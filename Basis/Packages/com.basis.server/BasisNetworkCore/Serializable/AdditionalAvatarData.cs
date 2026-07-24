@@ -26,6 +26,9 @@ public static partial class SerializableBasis
                     if (PayloadSize > reader.AvailableBytes)
                     {
                         BNL.LogError("AdditionalAvatarData payload exceeds available data!");
+                        // Deserialized in place over a retained slot — drop the stale buffer so a
+                        // corrupt entry can never be dispatched or re-serialized as valid data.
+                        array = null;
                         return;
                     }
                     if (array == null || array.Length != PayloadSize)
@@ -37,11 +40,13 @@ public static partial class SerializableBasis
                 else
                 {
                     BNL.LogError("trying to write data that does not exist! messageIndex");
+                    array = null;
                 }
             }
             else
             {
                 BNL.LogError("trying to write data that does not exist! PayloadSize");
+                array = null;
             }
         }
         public void Serialize(NetDataWriter writer)

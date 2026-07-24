@@ -584,7 +584,14 @@ public class BasisDisconnectLifecycleTests
         (_, FakeNetPeer b) = Connected(witnessB);
         NetworkServer.RebuildPeerSnapshot();
 
+        // The broadcaster's queues are process-wide, so drop anything another test left pending;
+        // otherwise a stale id rides along in this test's packet and is read as the leaver.
+        BasisServerHandleEvents.JoinBroadcast.Stop();
+
         BasisServerHandleEvents.HandlePeerDisconnected(leaving, Info());
+        // Departures are coalesced now, so the notice goes out on the next flush rather than inline.
+        // The invariant below is unchanged — only when it is observable moved.
+        BasisServerHandleEvents.JoinBroadcast.Flush();
 
         // Both remaining peers get one disconnect notice carrying the leaver's ushort id.
         foreach (FakeNetPeer witness in new[] { a, b })

@@ -31,6 +31,25 @@ namespace Basis.IK
         // the front-back half-depth is a fraction of it (see k_ChestDepthRatio). Zero (the struct default) falls
         // back to deriving the axis from the shoulder's own offset, so old callers that never set it still work.
         public Vector3 BodyRight;
+
+        /// <summary>Search the WHOLE swivel circle rather than only the natural->outDir arc. False -- the
+        /// struct default -- keeps the original one-sided sweep bit for bit, so every existing caller, test
+        /// and sweep is unchanged.</summary>
+        public bool FullCircle;
+
+        /// <summary>Last frame's chosen swivel for this slot, signed degrees about the shoulder->hand axis
+        /// measured from the natural pole. Only read when <see cref="HasPrevSwivel"/> is set.</summary>
+        public float PrevSwivelDeg;
+
+        /// <summary>There IS an established previous choice to stay near. ⚠️ THIS IS NOT "the caller has a
+        /// slot to store one in" -- it must be false on the first engaging frame and after any disengage,
+        /// because an anchor seeded at zero is not neutral, it is a PULL TOWARD THE NATURAL POLE. At
+        /// k_TemporalAnchorPerDeg a 90 deg swing would be priced at 45 mm of clearance, more than a swing
+        /// can ever buy, so a zero-seeded anchor suppresses exactly the large swings the full circle exists
+        /// to reach. Measured on the 354k-point sweep: conflating the two took the cleared fraction the
+        /// WRONG WAY, 0.3606 -> 0.3552, with mean swing falling 12.68 -> 11.70 deg. The domain and the
+        /// anchor are independent knobs and must stay that way.</summary>
+        public bool HasPrevSwivel;
     }
 
     public struct BasisElbowProtectResult
@@ -45,6 +64,10 @@ namespace Basis.IK
         public float ElbowRadius;
         public Vector3 ElbowCenter;
         public float ResidualClearance; // signed torso clearance at DesiredElbow (>=0 cleared, <0 still penetrating)
+        /// <summary>Signed swivel actually applied, degrees from the natural pole. Feed back as
+        /// <see cref="BasisElbowProtectInput.PrevSwivelDeg"/> next frame to keep the full-circle search on the
+        /// arc it is already sitting on. Zero when the protect did not engage.</summary>
+        public float ChosenSwivelDeg;
     }
 
     // Stream-free torso-collision elbow push shared by BasisFullIKConstraintJob.SolveHand and the
@@ -104,6 +127,19 @@ namespace Basis.IK
         // orders BELOW anything the protect would be right to do.
         // =============================================================================================
         const float k_SwingPreferenceRatio = 0.0125f;
+
+        // Below this the natural pole already sits essentially ON outDir: the swing plane is ill-conditioned
+        // and a signed angle measured in it is noise, so there is nothing for a temporal anchor to hold.
+        // Fall back to the legacy one-sided sweep, which handles that case through flipCommit.
+        const float k_FullCircleMinThetaOutDeg = 1f;
+
+        // Price, in metres of clearance, per degree of travel away from last frame's swivel. It has to
+        // DOMINATE the swing preference (~1 mm spread over the whole 180 deg) or the disconnected-component
+        // hop the full circle introduces comes straight back -- measured at 145 deg per frame without it.
+        // It also has to stay finite, or a far arc holds the elbow after a smaller swing has reopened.
+        // 0.5 mm per degree: 10 deg of travel costs 5 mm of clearance, so the search will cross a gap for a
+        // materially better pose and will not cross one for noise.
+        const float k_TemporalAnchorPerDeg = 0.0005f;
 
         // =============================================================================================
         // THE BARRIER HAS TO START BEFORE THE SURFACE, THE WAY A REAL CONTACT DOES.
@@ -350,6 +386,9 @@ namespace Basis.IK
             }
 
             float chosenT = cleared ? firstClearT : bestClearT;
+            // Angle form of the legacy answer. Everything below works in DEGREES from the natural pole
+            // rather than in fractions of thetaOut, because the full-circle branch has no thetaOut to be a
+            // fraction of. For the legacy path this is algebraically the same number the old code applied.
             // Near anti-parallel (|thetaOut|~180) the partial clear-swing direction is ambiguous and
             // snaps sides on smooth motion (the pole flip). Commit toward fully-out (chosenT->1, the
             // stable max-clear pose == outDir exactly) as the natural pole nears anti-parallel to out, so
@@ -361,28 +400,65 @@ namespace Basis.IK
             float flipCommit = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Mathf.Abs(thetaOut) - 100f) / 80f));
             chosenT += (1f - chosenT) * flipCommit;
 
+            float chosenAngleDeg = thetaOut * chosenT;
+
+            // =============================================================================================
+            // FULL-CIRCLE SEARCH. The one-sided natural->outDir sweep is not a resolution problem, it is a
+            // DOMAIN problem: measured against the live arm solve over 11 759 reachable hand targets, 39.1%
+            // of the poses this gives up on have a clearing elbow sitting on the SAME circle, just outside
+            // the arc that gets sampled -- 68.4% past outDir and 31.6% on the inward side that is never
+            // looked at. Widening the domain takes the cleared fraction 0.6708 -> 0.7995 at the SAME sample
+            // count; 45 samples over 360 deg (8 deg spacing, COARSER than the shipped 7.5) already finds
+            // 100% of them, because the feasible arcs are wide -- median widest arc 67 deg, only 0.6%
+            // narrower than the old spacing.
+            //
+            // ⚠️ THE DOMAIN AND THE SELECTION RULE HAVE TO CHANGE TOGETHER. Full circle with the old
+            // "smallest swing wins" rule is a REGRESSION: measured over 30 hand slides it pops 145 deg in a
+            // frame, 25 times, against 54 deg / 4 times for the shipped one-sided sweep. The reason is that
+            // a wider domain makes the feasible set genuinely disconnected, and a stateless argmax hops
+            // between components as they open and close. Anchoring on last frame's answer instead takes the
+            // worst jump to the measurement floor (1 deg at 1 deg sampling, 0 jumps over 10 deg) while
+            // keeping the full 0.7995. Hence PrevSwivelDeg: without it this branch does not run at all.
+            //
+            // The swing-preference term stays, at a much smaller weight than the temporal term, so a far arc
+            // cannot hold the elbow once a smaller swing reopens -- the stickiness failure of any
+            // path-following rule. Continuity across ENGAGE/DISENGAGE is still owned by the authority and
+            // contact-margin ramps below, which drive the angle to exactly zero at both edges.
+            // =============================================================================================
+            if (i.FullCircle && Mathf.Abs(thetaOut) > k_FullCircleMinThetaOutDeg)
+            {
+                chosenAngleDeg = SearchFullCircle(i, thetaOut, acDir, currentDir, elbowCenter, elbowRadius,
+                    shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd, swingPreference,
+                    i.PrevSwivelDeg, i.HasPrevSwivel, out cleared);
+            }
+
             // Bones do not stretch, so the FK chain gives the arm's true length whatever pose it is in.
             float totalLen = (elbowPos - shoulderPos).magnitude + (handPos - elbowPos).magnitude;
             float reach = totalLen > k_Epsilon ? Mathf.Sqrt(acSqr) / totalLen : 1f;
             float authority = 1f - Mathf.SmoothStep(0f, 1f,
                 Mathf.Clamp01((reach - k_AuthorityFadeStart) / (k_AuthorityFadeEnd - k_AuthorityFadeStart)));
             chosenT *= authority;
+            chosenAngleDeg *= authority;
 
             // The speculative contact ramp (see k_ContactMargin). Applied LAST, after flipCommit, because
             // flipCommit is the term that can hand a full swing to outDir the moment contact is detected --
             // it is precisely what has to be eased in rather than switched on.
             float approach = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(natClear / contactMargin));
             chosenT *= approach;
+            chosenAngleDeg *= approach;
 
             // At zero authority OR at the outer edge of the contact margin chosenT is exactly 0, so `dir` is
             // exactly `currentDir` and DesiredElbow is exactly the elbow we were handed. SwingElbowAroundAC
             // then sees v1 == v2 and applies the identity. The no-op is structural, not a tolerance -- there
             // is no residual roll to leak.
-            Vector3 dir = Quaternion.AngleAxis(thetaOut * chosenT, acDir) * currentDir;
+            Vector3 dir = Quaternion.AngleAxis(chosenAngleDeg, acDir) * currentDir;
 
             r.DesiredElbow = elbowCenter + dir * elbowRadius;
-            r.SwingAngleDeg = Mathf.Abs(thetaOut * chosenT);
-            r.BlendUsed = chosenT;
+            r.SwingAngleDeg = Mathf.Abs(chosenAngleDeg);
+            // Still reported as a fraction of thetaOut so the existing sweeps and gates read the same scale.
+            // On the full-circle branch it can exceed 1 or go negative -- that is the domain widening, not a bug.
+            r.BlendUsed = Mathf.Abs(thetaOut) > k_Epsilon ? chosenAngleDeg / thetaOut : 0f;
+            r.ChosenSwivelDeg = chosenAngleDeg;
             // Reported state stays keyed to ACTUAL penetration, not to the margin: SolveHand feeds this to
             // BasisSwingContinuityCore, which rate-limits on a state CHANGE, and that tag should still flip
             // where the surfaces really meet rather than where the soft ramp begins.
@@ -441,8 +517,67 @@ namespace Basis.IK
             Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
             float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd)
         {
-            Vector3 d = Quaternion.AngleAxis(thetaOut * t, acDir) * currentDir;
+            // Same multiply as before, so the legacy sweep is bit-identical; the angle form below is what
+            // the full-circle search needs (it has no thetaOut to express its candidates as a fraction of).
+            return SwivelClearanceAtAngle(i, thetaOut * t, acDir, currentDir, elbowCenter, elbowRadius,
+                shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+        }
+
+        static float SwivelClearanceAtAngle(in BasisElbowProtectInput i, float angleDeg, Vector3 acDir,
+            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
+            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd)
+        {
+            Vector3 d = Quaternion.AngleAxis(angleDeg, acDir) * currentDir;
             return MinTorsoClearance(i, shoulderPos, elbowCenter + d * elbowRadius, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+        }
+
+        // Sweep the WHOLE swivel circle and take the best-scoring candidate, where "best" is clearance less
+        // a price on moving away from last frame's answer less a much smaller price on the swing itself.
+        // The temporal term is what makes a wider domain safe -- see the block at the call site.
+        static float SearchFullCircle(in BasisElbowProtectInput i, float thetaOut, Vector3 acDir,
+            Vector3 currentDir, Vector3 elbowCenter, float elbowRadius, Vector3 shoulderPos,
+            float upperArmR, float chestR, float spineR, float hipsR, Vector3 bodyLat, Vector3 bodyFwd,
+            float swingPreference, float prevSwivelDeg, bool hasPrev, out bool cleared)
+        {
+            float bestScore = float.NegativeInfinity;
+            float bestAngle = 0f;
+            bool bestCleared = false;
+
+            for (int k = 0; k < k_SwivelSteps; k++)
+            {
+                float ang = k * (360f / k_SwivelSteps);
+                if (ang > 180f) ang -= 360f;
+
+                float c = SwivelClearanceAtAngle(i, ang, acDir, currentDir, elbowCenter, elbowRadius,
+                    shoulderPos, upperArmR, chestR, spineR, hipsR, bodyLat, bodyFwd);
+
+                // No established previous choice => NO anchor term. Anchoring on a default of zero is a pull
+                // toward the natural pole, not a neutral start, and it prices away the very swings this
+                // search exists to find.
+                float fromPrev = 0f;
+                if (hasPrev)
+                {
+                    fromPrev = ang - prevSwivelDeg;
+                    if (fromPrev < 0f) fromPrev = -fromPrev;
+                    if (fromPrev > 180f) fromPrev = 360f - fromPrev;
+                }
+
+                float absAng = ang < 0f ? -ang : ang;
+
+                // No feasibility CLIFF in the score. A `cleared ? bigConstant : ...` term is a step, and a
+                // step in the objective is a step in the argmax -- the same defect class as the flat-topped
+                // plateau this file already fixed once. Clearance is continuous and does the job on its own.
+                float score = c - fromPrev * k_TemporalAnchorPerDeg - swingPreference * (absAng / 180f);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestAngle = ang;
+                    bestCleared = c >= k_ClearMargin;
+                }
+            }
+
+            cleared = bestCleared;
+            return bestAngle;
         }
 
         // Signed worst-case clearance (gap > 0, penetration < 0) of the upper-arm capsule against the
