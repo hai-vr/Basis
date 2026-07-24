@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Basis.BasisUI;
-using Basis.Scripts.Device_Management;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,14 +15,9 @@ using UnityEngine.UI;
 public partial class BasisHandHeldCameraUI
 {
     public Button TakePhotoButton;
-    public Button ResetButton;
     public Button CloseButton;
     public Button Timer;
-    public Button Nameplates;
-    public Button OverrideDesktopOutput;
     public Button Selfie;
-    public Button AutoLevelButton;
-    public Button VRStabilizationButton;
     public Button OpenCameraPanelButton;
 
     [Space(10)]
@@ -33,9 +27,6 @@ public partial class BasisHandHeldCameraUI
     public Button DepthModeManualButton;
 
     [Space(10)]
-    // Optional dynamic button layout
-    public Transform DynamicButtonRoot;
-    public Button ButtonPrefab;
     public BasisCameraButtonDescriptor[] ScriptableButtons;
 
     public enum DepthMode { Auto, Manual }
@@ -52,7 +43,6 @@ public partial class BasisHandHeldCameraUI
     public GameObject[] ResolutionSprites; // 4 resolution sprites
     private int currentResolutionIndex = 0;
 
-    public Toggle Format;
     public bool useEXR => FormatIndex == FORMAT_EXR;
 
     public const int FORMAT_PNG = 0;
@@ -67,27 +57,13 @@ public partial class BasisHandHeldCameraUI
 
         if (HHC != null)
             HHC.captureFormat = isEXR ? "EXR" : "PNG";
-
-        if (Format != null)
-            Format.SetIsOnWithoutNotify(isEXR);
-
-        if (PngSprite != null) PngSprite.SetActive(!isEXR);
-        if (ExrSprite != null) ExrSprite.SetActive(isEXR);
     }
-
-    public GameObject PngSprite;
-    public GameObject ExrSprite;
 
     public GameObject DoFAutoSprite;
     public GameObject DoFManualSprite;
 
-    public Toggle Capture360Toggle;
-
     [Space(10)]
     public Slider ExposureSlider;
-
-    [Space(10)]
-    public Slider volumetricDensitySlider;
 
     private static readonly float[] ExposureStops =
     {
@@ -116,21 +92,12 @@ public partial class BasisHandHeldCameraUI
     [Space(10)]
     public TextMeshProUGUI DOFFocusOutput;
     public TextMeshProUGUI DepthApertureOutput;
-    public TextMeshProUGUI BloomIntensityOutput;
-    public TextMeshProUGUI BloomThreshholdOutput;
-    public TextMeshProUGUI ContrastOutput;
-    public TextMeshProUGUI SaturationOutput;
     public TextMeshProUGUI FOVOutput;
-    public TextMeshProUGUI VolFogOutput;
 
     [Space(10)]
     public Slider FOVSlider;
     public Slider DepthFocusDistanceSlider;
     public Slider DepthApertureSlider;
-    public Slider BloomIntensitySlider;
-    public Slider BloomThresholdSlider;
-    public Slider ContrastSlider;
-    public Slider SaturationSlider;
 
     [Space(10)]
     // Keep your existing fields so you don't have to redo prefab references.
@@ -170,26 +137,6 @@ public partial class BasisHandHeldCameraUI
         UpdateResolutionSprites();
         SetCapture360State(HHC != null && HHC.capture360Enabled);
         RefreshAllToggleIndicators();
-        RefreshDesktopOutputButtonVisibility();
-        HideRelocatedPropButtons();
-    }
-
-    /// <summary>
-    /// Hides the prop buttons whose controls now live only in the Camera Settings panel
-    /// (Nameplates, Auto Level, VR Stabilization). They are also no longer bound to any action,
-    /// so hiding them just removes dead buttons from the prop rather than changing behaviour.
-    /// </summary>
-    private void HideRelocatedPropButtons()
-    {
-        if (Nameplates != null) Nameplates.gameObject.SetActive(false);
-        if (AutoLevelButton != null) AutoLevelButton.gameObject.SetActive(false);
-        if (VRStabilizationButton != null) VRStabilizationButton.gameObject.SetActive(false);
-    }
-
-    public void RefreshDesktopOutputButtonVisibility()
-    {
-        if (OverrideDesktopOutput != null)
-            OverrideDesktopOutput.gameObject.SetActive(BasisDeviceManagement.IsCurrentModeVR());
     }
 
     private void CachePostProcessingReferences()
@@ -231,18 +178,9 @@ public partial class BasisHandHeldCameraUI
         var list = new List<BasisCameraButtonDescriptor>();
 
         AddIf(list, "TakePhoto", TakePhotoButton, BasisCameraButtonAction.TakePhoto);
-        AddIf(list, "Reset", ResetButton, BasisCameraButtonAction.ResetSettings);
         AddIf(list, "Close", CloseButton, BasisCameraButtonAction.CloseUI);
         AddIf(list, "Timer", Timer, BasisCameraButtonAction.Timer);
-
-        // Optional buttons (may be removed in your project)
-        // Nameplates, Auto Level and VR Stabilization moved to the Camera Settings panel only —
-        // buttons hidden on the prop (see HideRelocatedPropButtons) and no longer bound here.
-        // AddIf(list, "Nameplates", Nameplates, BasisCameraButtonAction.ToggleNameplates);
-        AddIf(list, "OverrideDesktopOutput", OverrideDesktopOutput, BasisCameraButtonAction.ToggleDesktopOutput);
         AddIf(list, "Selfie", Selfie, BasisCameraButtonAction.ToggleSelfie);
-        // AddIf(list, "AutoLevel", AutoLevelButton, BasisCameraButtonAction.ToggleAutoLevel);
-        // AddIf(list, "VRStabilization", VRStabilizationButton, BasisCameraButtonAction.ToggleVRHandheldSmoothing);
 
         AddIf(list, "DepthAuto", DepthModeAutoButton, BasisCameraButtonAction.DepthModeAuto);
         AddIf(list, "DepthManual", DepthModeManualButton, BasisCameraButtonAction.DepthModeManual);
@@ -268,13 +206,6 @@ public partial class BasisHandHeldCameraUI
                 continue;
 
             var button = descriptor.button;
-
-            // Create dynamically if allowed
-            if (button == null && ButtonPrefab != null && DynamicButtonRoot != null)
-            {
-                button = UnityEngine.Object.Instantiate(ButtonPrefab, DynamicButtonRoot, false);
-                descriptor.button = button;
-            }
 
             if (button == null)
                 continue;
@@ -317,24 +248,8 @@ public partial class BasisHandHeldCameraUI
                 button.onClick.AddListener(HHC.Timer);
                 break;
 
-            case BasisCameraButtonAction.ToggleNameplates:
-                button.onClick.AddListener(HHC.Nameplates);
-                break;
-
-            case BasisCameraButtonAction.ToggleDesktopOutput:
-                button.onClick.AddListener(HHC.OnOverrideDesktopOutputButtonPress);
-                break;
-
             case BasisCameraButtonAction.ToggleSelfie:
                 button.onClick.AddListener(SelfieToggle);
-                break;
-
-            case BasisCameraButtonAction.ToggleAutoLevel:
-                button.onClick.AddListener(ToggleAutoLevel);
-                break;
-
-            case BasisCameraButtonAction.ToggleVRHandheldSmoothing:
-                button.onClick.AddListener(ToggleVRHandheldSmoothing);
                 break;
 
             case BasisCameraButtonAction.DepthModeAuto:
@@ -363,27 +278,10 @@ public partial class BasisHandHeldCameraUI
             Resolution.onValueChanged.AddListener(_ => CycleResolutionPreset());
         }
 
-        if (Format != null)
-        {
-            Format.onValueChanged.RemoveAllListeners();
-            Format.onValueChanged.AddListener(OnFormatToggleChanged);
-        }
-
-        if (Capture360Toggle != null)
-        {
-            Capture360Toggle.onValueChanged.RemoveAllListeners();
-            Capture360Toggle.onValueChanged.AddListener(SetCapture360State);
-        }
-
         HookSlider(FOVSlider, ChangeFOV);
         HookSlider(ExposureSlider, ChangeExposureCompensation);
         HookSlider(DepthApertureSlider, ChangeAperture);
         HookSlider(DepthFocusDistanceSlider, DepthChangeFocusDistance);
-        HookSlider(BloomIntensitySlider, ChangeBloomIntensity);
-        HookSlider(BloomThresholdSlider, ChangeBloomThreshold);
-        HookSlider(ContrastSlider, ChangeContrast);
-        HookSlider(SaturationSlider, ChangeSaturation);
-        HookSlider(volumetricDensitySlider, ChangeVolumetricDensity);
     }
 
     private static void HookSlider(Slider slider, Action<float> handler)
@@ -400,10 +298,6 @@ public partial class BasisHandHeldCameraUI
         if (DepthApertureSlider != null) { DepthApertureSlider.minValue = 0f; DepthApertureSlider.maxValue = 32f; }
         if (FOVSlider != null) { FOVSlider.minValue = 20f; FOVSlider.maxValue = 120f; }
         if (DepthFocusDistanceSlider != null) { DepthFocusDistanceSlider.minValue = 0.1f; DepthFocusDistanceSlider.maxValue = 100f; }
-        if (BloomIntensitySlider != null) { BloomIntensitySlider.minValue = 0f; BloomIntensitySlider.maxValue = 5f; }
-        if (BloomThresholdSlider != null) { BloomThresholdSlider.minValue = 0.1f; BloomThresholdSlider.maxValue = 2f; }
-        if (ContrastSlider != null) { ContrastSlider.minValue = -100f; ContrastSlider.maxValue = 100f; }
-        if (SaturationSlider != null) { SaturationSlider.minValue = -100f; SaturationSlider.maxValue = 100f; }
 
         if (HHC != null && HHC.captureCamera != null && FOVSlider != null)
             FOVSlider.SetValueWithoutNotify(HHC.captureCamera.fieldOfView);
@@ -539,30 +433,10 @@ public partial class BasisHandHeldCameraUI
         }
     }
     
-    private void ToggleAutoLevel()
-    {
-        if (HHC == null)
-            return;
-
-        HHC.useAutoLeveling = !HHC.useAutoLeveling;
-        BasisDebug.Log($"[AutoLevel] Auto leveling is now {(HHC.useAutoLeveling ? "ON" : "OFF")}");
-    }
-    private void ToggleVRHandheldSmoothing()
-    {
-        if (HHC == null)
-            return;
-
-        HHC.useVRHandheldSmoothing = !HHC.useVRHandheldSmoothing;
-        BasisDebug.Log($"[VRStabilization] VR handheld smoothing is now {(HHC.useVRHandheldSmoothing ? "ON" : "OFF")}");
-    }
-
     public void SetCapture360State(bool enabled)
     {
         if (HHC != null)
             HHC.capture360Enabled = enabled;
-
-        if (Capture360Toggle != null)
-            Capture360Toggle.SetIsOnWithoutNotify(enabled);
 
         BasisDebug.Log($"[360] Capture mode is now {(enabled ? "ON" : "OFF")}");
     }
@@ -595,12 +469,6 @@ public partial class BasisHandHeldCameraUI
         int i = Mathf.Clamp((int)index, 0, ExposureStops.Length - 1);
         ExposureIndex = i;
         HHC.MetaData.colorAdjustments.postExposure.value = ExposureStops[i];
-    }
-
-    private void OnFormatToggleChanged(bool state)
-    {
-        BasisDebug.Log($"[Format] Changed to {(state ? "EXR" : "PNG")}");
-        SetFormat(state ? FORMAT_EXR : FORMAT_PNG);
     }
 
     private void CycleResolutionPreset()
@@ -699,16 +567,19 @@ public partial class BasisHandHeldCameraUI
 
     private CameraSettings CreateCurrentCameraSettings()
     {
-        return new CameraSettings
+        var bloom = HHC != null ? HHC.MetaData.bloom : null;
+        var colorAdjustments = HHC != null ? HHC.MetaData.colorAdjustments : null;
+
+        var settings = new CameraSettings
         {
             resolutionIndex = currentResolutionIndex,
             formatIndex = GetFormatIndex(),
             msaaSamples = HHC != null ? HHC.msaaSamples : 2,
             fov = FOVSlider != null ? FOVSlider.value : 40f,
-            bloomIntensity = BloomIntensitySlider != null ? BloomIntensitySlider.value : 0.5f,
-            bloomThreshold = BloomThresholdSlider != null ? BloomThresholdSlider.value : 0.5f,
-            contrast = ContrastSlider != null ? ContrastSlider.value : 1f,
-            saturation = SaturationSlider != null ? SaturationSlider.value : 1f,
+            bloomIntensity = bloom != null ? bloom.intensity.value : 0.5f,
+            bloomThreshold = bloom != null ? bloom.threshold.value : 0.5f,
+            contrast = colorAdjustments != null ? colorAdjustments.contrast.value : 1f,
+            saturation = colorAdjustments != null ? colorAdjustments.saturation.value : 1f,
             depthAperture = DepthApertureSlider != null ? DepthApertureSlider.value : 1f,
             depthFocusDistance = DepthFocusDistanceSlider != null ? DepthFocusDistanceSlider.value : 10f,
             // depthIsActive owns whether DoF is on, so it has to be captured from the live effect.
@@ -722,7 +593,7 @@ public partial class BasisHandHeldCameraUI
             dofBladeCount = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.bladeCount.value : 5,
             exposureIndex = Mathf.Clamp((int)(ExposureSlider != null ? ExposureSlider.value : 6), 0, ExposureStops.Length - 1),
             showExposureOnCamera = ShowExposureOnCamera,
-            VolumetricFogVolumedensity = volumetricDensitySlider != null ? volumetricDensitySlider.value : 0.01f,
+            VolumetricFogVolumedensity = 0.01f,
             VolumetricFogenableAPVContribution = true,
             VolumetricFogenableMainLightContribution = true,
             hueShift = HHC != null && HHC.MetaData.colorAdjustments != null ? HHC.MetaData.colorAdjustments.hueShift.value : 0f,
@@ -742,6 +613,13 @@ public partial class BasisHandHeldCameraUI
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
         };
+
+#if Basis_VOLUMETRIC_SUPPORTED
+        if (HHC != null && HHC.MetaData.VolumetricFogVolume != null)
+            settings.VolumetricFogVolumedensity = HHC.MetaData.VolumetricFogVolume.density.value;
+#endif
+
+        return settings;
     }
 
     private async Task SaveDefaultSettings()
@@ -865,14 +743,9 @@ public partial class BasisHandHeldCameraUI
 
             // Sliders and toggles (no notify)
             SetSliderValue(FOVSlider, settings.fov);
-            SetSliderValue(BloomIntensitySlider, settings.bloomIntensity);
-            SetSliderValue(BloomThresholdSlider, settings.bloomThreshold);
-            SetSliderValue(ContrastSlider, settings.contrast);
-            SetSliderValue(SaturationSlider, settings.saturation);
             SetSliderValue(DepthApertureSlider, settings.depthAperture);
             SetSliderValue(DepthFocusDistanceSlider, settings.depthFocusDistance);
             SetSliderValue(ExposureSlider, settings.exposureIndex);
-            SetSliderValue(volumetricDensitySlider, settings.VolumetricFogVolumedensity);
             SetExposureOnCameraVisible(settings.showExposureOnCamera);
 
             SetFormat(settings.formatIndex);
@@ -1039,15 +912,8 @@ public partial class BasisHandHeldCameraUI
     private void RefreshAllReadouts()
     {
         if (FOVOutput != null && FOVSlider != null) FOVOutput.text = FOVSlider.value.ToString();
-        if (BloomIntensityOutput != null && BloomIntensitySlider != null) BloomIntensityOutput.text = BloomIntensitySlider.value.ToString();
-        if (BloomThreshholdOutput != null && BloomThresholdSlider != null) BloomThreshholdOutput.text = BloomThresholdSlider.value.ToString();
-        if (ContrastOutput != null && ContrastSlider != null) ContrastOutput.text = ContrastSlider.value.ToString();
-        if (SaturationOutput != null && SaturationSlider != null) SaturationOutput.text = SaturationSlider.value.ToString();
         if (DepthApertureOutput != null && DepthApertureSlider != null) DepthApertureOutput.text = DepthApertureSlider.value.ToString();
         if (DOFFocusOutput != null && DepthFocusDistanceSlider != null) DOFFocusOutput.text = DepthFocusDistanceSlider.value.ToString();
-#if Basis_VOLUMETRIC_SUPPORTED
-        if (VolFogOutput != null && volumetricDensitySlider != null) VolFogOutput.text = volumetricDensitySlider.value.ToString("F1");
-#endif
     }
     public void DepthChangeFocusDistance(float value)
     {
@@ -1120,7 +986,6 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.bloom != null)
         {
             HHC.MetaData.bloom.intensity.value = value;
-            if (BloomIntensityOutput != null) BloomIntensityOutput.text = value.ToString();
         }
     }
 
@@ -1129,7 +994,6 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.bloom != null)
         {
             HHC.MetaData.bloom.threshold.value = value;
-            if (BloomThreshholdOutput != null) BloomThreshholdOutput.text = value.ToString();
         }
     }
 
@@ -1138,7 +1002,6 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.colorAdjustments != null)
         {
             HHC.MetaData.colorAdjustments.contrast.value = value;
-            if (ContrastOutput != null) ContrastOutput.text = value.ToString();
         }
     }
 
@@ -1147,7 +1010,6 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.colorAdjustments != null)
         {
             HHC.MetaData.colorAdjustments.saturation.value = value;
-            if (SaturationOutput != null) SaturationOutput.text = value.ToString();
         }
     }
 
@@ -1272,7 +1134,6 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.VolumetricFogVolume != null)
         {
             HHC.MetaData.VolumetricFogVolume.density.value = value;
-            if (VolFogOutput != null) VolFogOutput.text = value.ToString("F1");
         }
 #endif
     }

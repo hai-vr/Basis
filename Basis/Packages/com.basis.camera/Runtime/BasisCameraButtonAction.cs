@@ -5,11 +5,7 @@ public enum BasisCameraButtonAction
     ResetSettings,
     CloseUI,
     Timer,
-    ToggleNameplates,
-    ToggleDesktopOutput,
     ToggleSelfie,
-    ToggleAutoLevel,
-    ToggleVRHandheldSmoothing,
     DepthModeAuto,
     DepthModeManual,
     OpenCameraPanel

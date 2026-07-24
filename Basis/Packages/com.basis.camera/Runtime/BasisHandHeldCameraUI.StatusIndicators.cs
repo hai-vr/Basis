@@ -17,20 +17,8 @@ public partial class BasisHandHeldCameraUI
 
         switch (action)
         {
-            case BasisCameraButtonAction.ToggleAutoLevel:
-                isOn = HHC.useAutoLeveling;
-                return true;
-            case BasisCameraButtonAction.ToggleVRHandheldSmoothing:
-                isOn = HHC.useVRHandheldSmoothing;
-                return true;
             case BasisCameraButtonAction.ToggleSelfie:
                 isOn = selfieBool;
-                return true;
-            case BasisCameraButtonAction.ToggleNameplates:
-                isOn = HHC.ShowUIInCapture;
-                return true;
-            case BasisCameraButtonAction.ToggleDesktopOutput:
-                isOn = HHC.enableRecordingView;
                 return true;
             default:
                 return false;

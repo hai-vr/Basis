@@ -4,11 +4,22 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
+/// <summary>How the detached camera is marked while it is off in the world.</summary>
+public enum BasisCameraDetachedMarker
+{
+    /// <summary>No marker.</summary>
+    Off = 0,
+    /// <summary>A solid puck model — the same one remote players see, and it's grabbable as a selfie stick.</summary>
+    Puck = 1,
+    /// <summary>A lightweight wireframe camera gizmo; cheaper and non-interactive.</summary>
+    Gizmo = 2,
+}
+
 /// <summary>
-/// A local marker puck shown whenever the camera has left your hand — following, flying, or
-/// world/playspace pinned — the same model remote players see for a networked camera
-/// (<c>BasisCameraRemotePip</c>). It marks where the camera has gone, and keeps marking it even
-/// when the camera body itself is hidden, so a detached camera is always locatable.
+/// A local marker shown whenever the camera has left your hand — following, flying, or
+/// world/playspace pinned — so you can see where it has gone, even when the camera body itself
+/// is hidden. Either a solid puck (the model remote players see, grabbable as a selfie stick) or
+/// a lightweight wireframe gizmo.
 /// </summary>
 public partial class BasisHandHeldCamera
 {
@@ -16,8 +27,8 @@ public partial class BasisHandHeldCamera
     // (see BasisNetworkPIPCameraDriver), and the prefab must stay in com.basis.sdk for it.
     private const string FollowPipPrefabAddress = "Packages/com.basis.sdk/Prefabs/UI/Camera Prefab/BasisCameraRemotePip.prefab";
 
-    /// <summary>Whether to drop the follow marker puck while following. On by default.</summary>
-    public bool showFollowPip = true;
+    /// <summary>Which marker to show while the camera is detached. Puck by default.</summary>
+    public BasisCameraDetachedMarker detachedMarker = BasisCameraDetachedMarker.Puck;
 
     private GameObject followPipInstance;
     private AsyncOperationHandle<GameObject> followPipHandle;
@@ -41,24 +52,45 @@ public partial class BasisHandHeldCamera
         return false;
     }
 
-    /// <summary>Toggles the follow marker puck, despawning it immediately when turned off.</summary>
-    public void SetShowFollowPip(bool show)
+    /// <summary>Sets the detached-marker mode, tearing down whatever the previous mode had spawned.</summary>
+    public void SetDetachedMarker(BasisCameraDetachedMarker mode)
     {
-        showFollowPip = show;
-        if (!show) DespawnFollowPip();
+        if (detachedMarker == mode) return;
+        detachedMarker = mode;
+        // Drop the visuals the old mode owned; the next tick rebuilds for the new one.
+        if (mode != BasisCameraDetachedMarker.Puck) DespawnFollowPip();
+        if (mode != BasisCameraDetachedMarker.Gizmo) HideDetachedGizmo();
     }
 
-    /// <summary>Per-frame: spawn the puck while the camera is off in the world and keep it on the camera, else drop it.</summary>
+    /// <summary>Per-frame: show the chosen marker while the camera is off in the world, else clear both.</summary>
     private void UpdateFollowPip()
     {
-        bool shouldShow = showFollowPip && IsDetachedFromHand;
+        bool detached = IsDetachedFromHand;
 
-        if (!shouldShow)
+        if (!detached || detachedMarker != BasisCameraDetachedMarker.Puck)
         {
             DespawnFollowPip();
-            return;
+        }
+        if (!detached || detachedMarker != BasisCameraDetachedMarker.Gizmo)
+        {
+            HideDetachedGizmo();
         }
 
+        if (!detached) return;
+
+        switch (detachedMarker)
+        {
+            case BasisCameraDetachedMarker.Puck:
+                UpdateFollowPuck();
+                break;
+            case BasisCameraDetachedMarker.Gizmo:
+                UpdateDetachedGizmo();
+                break;
+        }
+    }
+
+    private void UpdateFollowPuck()
+    {
         if (followPipInstance == null)
         {
             SpawnFollowPip();
@@ -84,8 +116,8 @@ public partial class BasisHandHeldCamera
         {
             followPipLoading = false;
 
-            // Follow may have ended, or the camera been destroyed, while the load ran.
-            if (this == null || !showFollowPip || !IsDetachedFromHand || captureCamera == null)
+            // Follow may have ended, the mode changed, or the camera been destroyed while loading.
+            if (this == null || detachedMarker != BasisCameraDetachedMarker.Puck || !IsDetachedFromHand || captureCamera == null)
             {
                 if (handle.IsValid()) Addressables.Release(handle);
                 return;
@@ -169,5 +201,78 @@ public partial class BasisHandHeldCamera
         {
             Addressables.Release(followPipHandle);
         }
+    }
+
+    // ---- Gizmo marker ---------------------------------------------------------------
+    // A wireframe camera drawn through BasisGizmoManager: a small lens quad in front of the
+    // camera plus four cone lines back to it. Rendered whenever active regardless of the debug
+    // gizmo master toggle (BasisGizmoManager.Render is not gated on it), so it works as a marker.
+
+    private const float DetachedGizmoDepth = 0.18f;
+    private const float DetachedGizmoHalfSize = 0.10f;
+    private static readonly Color DetachedGizmoColor = new Color(0.2f, 0.9f, 1f, 1f);
+
+    private int _gizmoQuadId;
+    private int[] _gizmoConeIds;
+    private bool _gizmoCreated;
+    private readonly Vector3[] _gizmoQuad = new Vector3[4];
+
+    private void UpdateDetachedGizmo()
+    {
+        if (captureCamera == null) { HideDetachedGizmo(); return; }
+
+        captureCamera.transform.GetPositionAndRotation(out Vector3 apex, out Quaternion rot);
+        float scale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
+        float depth = DetachedGizmoDepth * scale;
+        float half = DetachedGizmoHalfSize * scale;
+
+        // Lens quad corners, in camera space, one plane in front.
+        _gizmoQuad[0] = apex + rot * new Vector3(-half, -half, depth);
+        _gizmoQuad[1] = apex + rot * new Vector3(half, -half, depth);
+        _gizmoQuad[2] = apex + rot * new Vector3(half, half, depth);
+        _gizmoQuad[3] = apex + rot * new Vector3(-half, half, depth);
+
+        if (!_gizmoCreated)
+        {
+            BasisGizmoManager.CreateLineGizmo("CameraDetachedGizmo", out _gizmoQuadId, _gizmoQuad, 0.004f, DetachedGizmoColor, loop: true);
+            _gizmoConeIds = new int[4];
+            for (int Index = 0; Index < 4; Index++)
+            {
+                BasisGizmoManager.CreateLineGizmo("CameraDetachedGizmo", out _gizmoConeIds[Index], apex, _gizmoQuad[Index], 0.003f, DetachedGizmoColor);
+            }
+            _gizmoCreated = true;
+            return;
+        }
+
+        BasisGizmoManager.SetGizmoActive(_gizmoQuadId, true);
+        BasisGizmoManager.UpdateLineGizmo(_gizmoQuadId, _gizmoQuad);
+        for (int Index = 0; Index < 4; Index++)
+        {
+            BasisGizmoManager.SetGizmoActive(_gizmoConeIds[Index], true);
+            BasisGizmoManager.UpdateLineGizmo(_gizmoConeIds[Index], apex, _gizmoQuad[Index]);
+        }
+    }
+
+    /// <summary>Parks the gizmo lines (kept for reuse). Idempotent.</summary>
+    private void HideDetachedGizmo()
+    {
+        if (!_gizmoCreated) return;
+        BasisGizmoManager.SetGizmoActive(_gizmoQuadId, false);
+        for (int Index = 0; Index < _gizmoConeIds.Length; Index++)
+        {
+            BasisGizmoManager.SetGizmoActive(_gizmoConeIds[Index], false);
+        }
+    }
+
+    /// <summary>Destroys the gizmo lines outright. Called from teardown.</summary>
+    private void DestroyDetachedGizmo()
+    {
+        if (!_gizmoCreated) return;
+        BasisGizmoManager.DestroyGizmo(_gizmoQuadId);
+        for (int Index = 0; Index < _gizmoConeIds.Length; Index++)
+        {
+            BasisGizmoManager.DestroyGizmo(_gizmoConeIds[Index]);
+        }
+        _gizmoCreated = false;
     }
 }

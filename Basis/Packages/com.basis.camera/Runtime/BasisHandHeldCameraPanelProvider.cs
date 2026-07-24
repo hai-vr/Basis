@@ -82,7 +82,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private PanelElementDescriptor _followGroup;
         private PanelToggle _autoFollowToggle;
-        private PanelToggle _followPipToggle;
+        private PanelDropdown _followMarkerDropdown;
         private PanelDropdown _followTargetDropdown;
         private readonly List<ushort> _followTargetIds = new List<ushort>();
         private int _lastFollowTargetCount = -1;
@@ -391,7 +391,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _gizmoSection = null;
             _gizmoToggles.Clear();
             _autoFollowToggle = null;
-            _followPipToggle = null;
+            _followMarkerDropdown = null;
             _followPlayspaceToggle = null;
             _followLookAtHeightSlider = null;
             _followSideSlider = null;
@@ -571,15 +571,14 @@ namespace Basis.BasisUI.HandHeldCamera
             _autoFocusToggle = PanelToggle.CreateNewEntry(content);
             _autoFocusToggle.Descriptor.SetTitle("Focus On Subject");
             _autoFocusToggle.Descriptor.SetDescription("Continuously focus depth of field on whoever the camera is following. Turns depth of field on.");
-            _autoFocusToggle.OnValueChanged = v =>
-            {
-                if (_activeCamera == null) return;
-                _activeCamera.autoFocusFollowSubject = v;
-                // Auto-focus only moves the focus plane; it can't show anything without DoF on.
-                // Enable it through the DoF handler so the prop's own toggle stays in sync,
-                // rather than silently forcing it every frame the way the old code did.
-                if (v) _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
-            };
+            _autoFocusToggle.OnValueChanged = v => SetFocusFollowsSubject(v);
+
+            _manualFocusToggle = PanelToggle.CreateNewEntry(content);
+            _manualFocusToggle.Descriptor.SetTitle("Manual Focus");
+            _manualFocusToggle.Descriptor.SetDescription("Set focus distance by hand. Off follows the subject's depth automatically.");
+            // Manual Focus is the exact inverse of Focus On Subject — you either set the distance
+            // yourself or let it track the subject — so both drive the one state and mirror each other.
+            _manualFocusToggle.OnValueChanged = v => SetFocusFollowsSubject(!v);
 
             _hueSlider = PanelSlider.CreateNew(content);
             _hueSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
@@ -806,12 +805,15 @@ namespace Basis.BasisUI.HandHeldCamera
             teleportButton.Descriptor.SetDescription("Bring the camera in front of you, where it would spawn, to retrieve it.");
             teleportButton.OnClicked += () => _activeCamera?.TeleportInFrontOfPlayer();
 
-            _followPipToggle = PanelToggle.CreateNewEntry(content);
-            _followPipToggle.Descriptor.SetTitle("Detached Marker");
-            _followPipToggle.Descriptor.SetDescription("Show a marker puck at the camera whenever it leaves your hand — following, flying or pinned — so you can see where it is even when the body is hidden.");
-            _followPipToggle.OnValueChanged = v =>
+            _followMarkerDropdown = PanelDropdown.CreateNewEntry(content);
+            _followMarkerDropdown.Descriptor.SetTitle("Detached Marker");
+            _followMarkerDropdown.Descriptor.SetDescription("What marks the camera when it leaves your hand — a grabbable puck, a lightweight wireframe gizmo, or nothing.");
+            _followMarkerDropdown.AssignEntries(new List<string> { "Off", "Puck", "Gizmo" });
+            _followMarkerDropdown.OnValueChanged = _ =>
             {
-                if (_activeCamera != null) _activeCamera.SetShowFollowPip(v);
+                if (_activeCamera == null || _followMarkerDropdown == null) return;
+                int index = _followMarkerDropdown.Index;
+                if (index >= 0) _activeCamera.SetDetachedMarker((BasisCameraDetachedMarker)index);
             };
 
             _followTargetDropdown = PanelDropdown.CreateNewEntry(content);
@@ -935,13 +937,14 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (index >= 0) _activeCamera.HandHeld.SetFormat(index);
             };
 
-            _nameplateToggle = PanelToggle.CreateNewEntry(content);
-            _nameplateToggle.Descriptor.SetTitle("Show Nameplates");
-            _nameplateToggle.OnValueChanged = v =>
-            {
-                if (_activeCamera == null) return;
-                if (_activeCamera.ShowUIInCapture != v) _activeCamera.Nameplates();
-            };
+            // Moved to the Render Layers section as the "Nameplates" (UI layer) toggle.
+            // _nameplateToggle = PanelToggle.CreateNewEntry(content);
+            // _nameplateToggle.Descriptor.SetTitle("Show Nameplates");
+            // _nameplateToggle.OnValueChanged = v =>
+            // {
+            //     if (_activeCamera == null) return;
+            //     if (_activeCamera.ShowUIInCapture != v) _activeCamera.Nameplates();
+            // };
 
             _capture360Toggle = PanelToggle.CreateNewEntry(content);
             _capture360Toggle.Descriptor.SetTitle("360 Capture");
@@ -972,16 +975,6 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (_activeCamera != null) _activeCamera.useVRHandheldSmoothing = v;
             };
 
-            _manualFocusToggle = PanelToggle.CreateNewEntry(content);
-            _manualFocusToggle.Descriptor.SetTitle("Manual Focus");
-            _manualFocusToggle.Descriptor.SetDescription("Set focus distance by hand instead of auto-focusing.");
-            _manualFocusToggle.OnValueChanged = v =>
-            {
-                _activeCamera?.HandHeld.SetDepthMode(v
-                    ? BasisHandHeldCameraUI.DepthMode.Manual
-                    : BasisHandHeldCameraUI.DepthMode.Auto);
-            };
-
             // Desktop only: there is a real file browser to open, and the shot lands in a
             // browsable Pictures folder rather than the app's sandboxed data path.
             if (BasisHandHeldCamera.CanOpenPhotosFolder)
@@ -996,7 +989,8 @@ namespace Basis.BasisUI.HandHeldCamera
         /// <summary>
         /// One toggle per named, user-togglable layer, controlling whether the capture camera
         /// draws it. Built once from the project's layers; the camera refuses the ones it
-        /// manages itself (UI, OverlayUI), so those never appear here.
+        /// manages itself (OverlayUI, the prop HUD), so those never appear here. The UI layer
+        /// (players' nameplates) is exposed here as its own toggle.
         /// </summary>
         private void BuildLayersGroup(RectTransform parent)
         {
@@ -1314,16 +1308,22 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_audioListenerToggle, _activeCamera.IsAudioListener, ref _lastAudioListener);
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
             SyncToggle(_closeHidesToggle, _activeCamera.HandHeld.CloseHidesCamera, ref _lastCloseHides);
-            _nameplateToggle?.SetValueWithoutNotify(_activeCamera.ShowUIInCapture);
+            // _nameplateToggle?.SetValueWithoutNotify(_activeCamera.ShowUIInCapture);
             _autoLevelToggle?.SetValueWithoutNotify(_activeCamera.useAutoLeveling);
             _vrStabToggle?.SetValueWithoutNotify(_activeCamera.useVRHandheldSmoothing);
-            _manualFocusToggle?.SetValueWithoutNotify(_activeCamera.HandHeld.currentDepthMode == BasisHandHeldCameraUI.DepthMode.Manual);
+            // Manual Focus is the inverse of Focus On Subject; seed both from the one state.
+            _manualFocusToggle?.SetValueWithoutNotify(!_activeCamera.autoFocusFollowSubject);
             _capture360Toggle?.SetValueWithoutNotify(_activeCamera.capture360Enabled);
             _formatDropdown?.SetValueWithoutNotify(
                 _activeCamera.HandHeld.FormatIndex == BasisHandHeldCameraUI.FORMAT_EXR ? "EXR" : "PNG");
 
             SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
-            _followPipToggle?.SetValueWithoutNotify(_activeCamera.showFollowPip);
+            if (_followMarkerDropdown != null)
+            {
+                string[] markerLabels = { "Off", "Puck", "Gizmo" };
+                int markerIndex = Mathf.Clamp((int)_activeCamera.detachedMarker, 0, markerLabels.Length - 1);
+                _followMarkerDropdown.SetValueWithoutNotify(markerLabels[markerIndex]);
+            }
             _followPlayspaceToggle?.SetValueWithoutNotify(_activeCamera.autoFollowPlayspace);
             _followLookAtHeightSlider?.SetValueWithoutNotify(_activeCamera.autoFollowLookAtHeightOffset);
             _followSideSlider?.SetValueWithoutNotify(_activeCamera.autoFollowPositionOffset.x);
@@ -1535,7 +1535,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
 
             SyncToggle(_selfieToggle, _activeCamera.HandHeld.IsSelfieMode, ref _lastSelfie);
-            SyncToggle(_nameplateToggle, _activeCamera.ShowUIInCapture, ref _lastNameplate);
+            // SyncToggle(_nameplateToggle, _activeCamera.ShowUIInCapture, ref _lastNameplate);
             SyncToggle(_autoLevelToggle, _activeCamera.useAutoLeveling, ref _lastAutoLevel);
             SyncToggle(_vrStabToggle, _activeCamera.useVRHandheldSmoothing, ref _lastVrStab);
 
@@ -1589,6 +1589,23 @@ namespace Basis.BasisUI.HandHeldCamera
 
         // Aperture / focal length / blades only affect Bokeh; hide them in Off/Gaussian so the
         // section only offers controls that do something. Focus distance applies to both blur modes.
+        // Single owner of the focus mode. Auto = the depth of field tracks the subject's distance
+        // every frame (UpdateAutoFocus); manual = the focus-distance slider. Auto needs DoF on to
+        // show anything. Keeps both toggles (they are inverses) mirrored so they can't contradict.
+        private void SetFocusFollowsSubject(bool follows)
+        {
+            if (_activeCamera == null) return;
+
+            _activeCamera.autoFocusFollowSubject = follows;
+            _activeCamera.HandHeld.SetDepthMode(follows
+                ? BasisHandHeldCameraUI.DepthMode.Auto
+                : BasisHandHeldCameraUI.DepthMode.Manual);
+            if (follows) _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
+
+            _autoFocusToggle?.SetValueWithoutNotify(follows);
+            _manualFocusToggle?.SetValueWithoutNotify(!follows);
+        }
+
         private void RefreshDoFModeVisibility()
         {
             if (_activeCamera == null) return;

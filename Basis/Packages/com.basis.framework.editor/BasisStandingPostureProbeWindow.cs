@@ -100,6 +100,19 @@ namespace Basis.IK.Debugging
             Vector3 dzOff = head.TposeLocalScaled.position - eye.TposeLocalScaled.position;
             sb.AppendLine($"head-minus-eye tpose offset  x {dzOff.x:+0.000} y {dzOff.y:+0.000} z {dzOff.z:+0.000}  (head.ScaledOffset z {head.ScaledOffset.z:+0.000})");
 
+            // THE quantity the no-hips-tracker anchor actually consumes: BasisLocalVirtualSpineDriver's
+            // _hipsFromEyeTposeXZ, hung off the leashed eye as desiredHipsXZ += rotate(torsoYaw, this).
+            // Printed derived rather than left to be subtracted by hand, because its SIGN is the whole
+            // diagnosis: z must be NEGATIVE (pelvis behind the viewpoint) by roughly the eye-forward
+            // distance. Near zero means AvatarEyePosition is authored at the head bone rather than at the
+            // eyes, and the pelvis then stands under the HMD -- which reads as "hips too far forward".
+            Vector3 hipsArm = hips.TposeLocalScaled.position - eye.TposeLocalScaled.position;
+            sb.AppendLine($"hips-minus-eye tpose offset  x {hipsArm.x:+0.000} z {hipsArm.z:+0.000}  <- the anchor arm (z should be negative)");
+            Vector3 hipsFromFeet = lf != null && rf != null
+                ? hips.TposeLocalScaled.position - 0.5f * (lf.TposeLocalScaled.position + rf.TposeLocalScaled.position)
+                : Vector3.zero;
+            sb.AppendLine($"hips-minus-feet tpose offset  x {hipsFromFeet.x:+0.000} z {hipsFromFeet.z:+0.000}  <- how far forward THIS avatar authors its own pelvis");
+
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
             if (rig != null && rig.IKDataReady)
             {

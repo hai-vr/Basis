@@ -135,11 +135,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Folder where screenshots are written (platform-dependent).</summary>
     private string picturesFolder;
 
-    /// <summary>Whether the UI/nameplates are currently visible in the capture.</summary>
-    private bool showUI = false;
-
-    /// <summary>Read-only view of <see cref="showUI"/> for UI status indicators.</summary>
-    public bool ShowUIInCapture => showUI;
+    /// <summary>
+    /// Whether the UI (nameplate) layer is in the capture. Derived from the capture camera's own
+    /// culling mask so it is the single source of truth — the Render Layers "Nameplates" toggle
+    /// and this can never disagree.
+    /// </summary>
+    public bool ShowUIInCapture => captureCamera != null && uiLayerMask != 0 && (captureCamera.cullingMask & uiLayerMask) != 0;
 
     /// <summary>Last visibility state reported by the mesh renderer check.</summary>
     public bool LastVisibilityState = false;
@@ -299,6 +300,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         StopVideoOutput();
         SetAudioListener(false);
         DespawnFollowPip();
+        DestroyDetachedGizmo();
         DespawnDirectToScreenOverlay();
 
         DebugGizmos.Shutdown();
@@ -518,11 +520,12 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     }
 
     /// <summary>
-    /// Layers the render-layers UI must not expose, because the camera manages them itself:
-    /// UI carries the nameplate toggle, OverlayUI is the prop's own HUD. Letting the user
-    /// flip these by hand would fight <see cref="Nameplates"/> and show the HUD in captures.
+    /// Layers the render-layers UI must not expose, because the camera manages them itself.
+    /// OverlayUI is the prop's own HUD — showing it would leak the viewfinder into every shot.
+    /// The UI layer (players' nameplates) is exposed there as its own toggle, so there is no
+    /// separate "Show Nameplates" control.
     /// </summary>
-    private static readonly string[] ManagedCaptureLayers = { "UI", "OverlayUI" };
+    private static readonly string[] ManagedCaptureLayers = { "OverlayUI" };
 
     /// <summary>Whether a given layer is one the user may toggle for this camera's captures.</summary>
     public static bool IsCaptureLayerUserTogglable(int layer)
@@ -931,12 +934,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
 
-        showUI = !showUI;
-
-        if (showUI)
-            captureCamera.cullingMask |= uiLayerMask;
-        else
+        if ((captureCamera.cullingMask & uiLayerMask) != 0)
             captureCamera.cullingMask &= ~uiLayerMask;
+        else
+            captureCamera.cullingMask |= uiLayerMask;
     }
 
     /// <summary>Immediate photo capture using the current format choice (EXR/PNG).</summary>
@@ -1115,7 +1116,6 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     private new void OnBootModeChanged(string obj)
     {
         OverrideDesktopOutput();
-        HandHeld.RefreshDesktopOutputButtonVisibility();
         // base.OnBootModeChanged(obj);
     }
 
