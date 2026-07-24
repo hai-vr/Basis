@@ -276,6 +276,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.trackerobjects": {
+      "version": "file:com.basis.trackerobjects",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.basis.vehicles": {
       "version": "file:com.basis.vehicles",
       "depth": 0,
