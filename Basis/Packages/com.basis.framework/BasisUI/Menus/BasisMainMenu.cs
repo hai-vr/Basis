@@ -44,7 +44,14 @@ namespace Basis.BasisUI
             HotbarMenu = BasisMenuPanel.CreateNew(BasisMenuPanel.PanelData.Toolbar(MenuTitle), MenuObjectInstance.PanelRoot);
 
             HorizontalLayout = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewHorizontal, HotbarMenu.Descriptor.ContentParent);
-
+            if(HorizontalLayout.ContentParent.TryGetComponent(out BasisHorizontalLayout Layout))
+            {
+                Layout.spacing = 0;
+            }
+            else
+            {
+                BasisDebug.LogError("Unable to find Horizontal Spacing!");
+            }
             BindProvidersToButtons();
             CreateTooltipArea();
             AnimateMenuEntrance();
