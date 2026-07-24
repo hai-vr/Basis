@@ -19,6 +19,7 @@ Bridges `com.basis.trackerobjects` into the Basis library menu. When a prop has 
   - Trackers already bound to another prop (`BasisTrackerObjectManager.IsTrackerBound`). One tracker drives at most one prop; unbind it there first.
   - Trackers out of interaction range of the prop (`BasisTrackerObjectManager.IsWithinBindRange` — the same reach rule as grabbing it). If spare trackers exist but none are in reach, the dialog says so rather than showing the generic empty message.
 - Clicking the Unlink icon calls `BasisTrackerObjectManager.TryRemoveBinding` directly — no confirmation dialog. Unbinding isn't destructive; the binding just lifts.
+- The row icon follows `OnBindingCreated`/`OnBindingRemoved`, so it stays correct while the menu is open even when a binding dissolves externally (ownership steal, static lock, tracker loss).
 
 ## Compile guards
 

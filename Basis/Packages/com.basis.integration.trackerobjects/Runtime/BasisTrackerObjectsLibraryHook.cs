@@ -18,11 +18,40 @@ namespace Basis.Integration.TrackerObjects
         private static readonly Vector2 RowSize = new Vector2(80, 80);
         private static readonly Vector2 PickerRowSize = new Vector2(700, 60);
 
+        // Latest row button per netID, so a binding dissolving externally (steal,
+        // static lock, tracker loss) can update the open menu's icon. Rows are
+        // transient; entries go stale when the tab rebuilds and are pruned on use.
+        private static readonly Dictionary<string, PanelButton> _rowButtons = new Dictionary<string, PanelButton>();
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Subscribe()
         {
             LibraryProvider.OnInstanceRowCreated -= OnRowCreated;
             LibraryProvider.OnInstanceRowCreated += OnRowCreated;
+            BasisTrackerObjectManager.OnBindingCreated -= OnBindingCreated;
+            BasisTrackerObjectManager.OnBindingCreated += OnBindingCreated;
+            BasisTrackerObjectManager.OnBindingRemoved -= OnBindingRemoved;
+            BasisTrackerObjectManager.OnBindingRemoved += OnBindingRemoved;
+        }
+
+        private static void OnBindingCreated(BasisTrackerBinding binding) => RefreshRowButton(binding.LoadedNetID, bound: true);
+
+        private static void OnBindingRemoved(BasisTrackerBinding binding) => RefreshRowButton(binding.LoadedNetID, bound: false);
+
+        private static void RefreshRowButton(string netID, bool bound)
+        {
+            if (string.IsNullOrEmpty(netID)) return;
+            if (!_rowButtons.TryGetValue(netID, out PanelButton button)) return;
+            if (button == null)
+            {
+                // The menu closed or the tab rebuilt since this row was recorded.
+                _rowButtons.Remove(netID);
+                return;
+            }
+            button.SetIcon(bound ? AddressableAssets.Sprites.Unlink : AddressableAssets.Sprites.Link);
+            button.Descriptor.SetTooltip(BasisLocalization.Get(bound
+                ? "library.instantiated.unbindTracker.tooltip"
+                : "library.instantiated.assignTracker.tooltip"));
         }
 
         private static void OnRowCreated(RectTransform parent, BasisRuntimeSpawnRegistry.SpawnInstance instance)
@@ -52,14 +81,15 @@ namespace Basis.Integration.TrackerObjects
             button.Descriptor.SetTooltip(BasisLocalization.Get(hasBinding
                 ? "library.instantiated.unbindTracker.tooltip"
                 : "library.instantiated.assignTracker.tooltip"));
+            _rowButtons[netID] = button;
 
+            // Icon and tooltip updates flow from OnBindingCreated/OnBindingRemoved
+            // (via RefreshRowButton), so the click handler only drives the manager.
             button.OnClicked += async () =>
             {
                 if (BasisTrackerObjectManager.TryGetBindingByLoadedNetID(netID, out BasisTrackerBinding existing))
                 {
                     BasisTrackerObjectManager.TryRemoveBinding(existing.Id);
-                    button.SetIcon(AddressableAssets.Sprites.Link);
-                    button.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.assignTracker.tooltip"));
                     return;
                 }
 
@@ -77,12 +107,7 @@ namespace Basis.Integration.TrackerObjects
                 // duplicate-binding races are re-checked inside the manager.
                 if (!BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(netID, out go) || go == null) return;
 
-                BasisTrackerBinding created = await BasisTrackerObjectManager.TryCreateBindingAsync(chosen, go.transform, netID);
-                if (created != null && button != null)
-                {
-                    button.SetIcon(AddressableAssets.Sprites.Unlink);
-                    button.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.unbindTracker.tooltip"));
-                }
+                await BasisTrackerObjectManager.TryCreateBindingAsync(chosen, go.transform, netID);
             };
         }
 
