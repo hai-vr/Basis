@@ -43,6 +43,8 @@ uint64_t basis_decoder_get_frame_counter(basis_decoder_t* d) { (void)d; return 0
 int      basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) { (void)d;(void)w;(void)h; return -1; }
 int      basis_decoder_get_frame_origin(basis_decoder_t* d) { (void)d; return 0; }
 int64_t  basis_decoder_get_position_us(basis_decoder_t* d) { (void)d; return -1; }
+void     basis_decoder_notify_end_of_stream(basis_decoder_t* d) { (void)d; }
+int      basis_decoder_presentation_pending(basis_decoder_t* d) { (void)d; return 0; }
 int      basis_decoder_get_audio_format(basis_decoder_t* d, int* r, int* c) { (void)d;(void)r;(void)c; return -1; }
 int      basis_decoder_read_audio(basis_decoder_t* d, float* o, int m) { (void)d;(void)o;(void)m; return 0; }
 int      basis_decoder_get_debug(basis_decoder_t* d, char* buf, int size) { (void)d; if (buf && size > 0) buf[0] = 0; return 0; }

@@ -180,6 +180,18 @@ int      basis_decoder_get_video_size(basis_decoder_t* dec, int* out_w, int* out
  * video processor can't mirror on this GPU; Vulkan always normalizes to 0. */
 int      basis_decoder_get_frame_origin(basis_decoder_t* dec);
 int64_t  basis_decoder_get_position_us(basis_decoder_t* dec);
+/* Delivery has ended: flush the video decoder's reorder tail into the frame
+ * ring (nothing else ever tells it the stream is over, and the retained
+ * frames are the last seconds of the file — large at low frame rates).
+ * Video only: the audio decoder's latency is a single frame and a split
+ * source's audio leg may still be submitting. Call on the video-submit
+ * (demux) thread under the engine's submit lock. */
+void     basis_decoder_notify_end_of_stream(basis_decoder_t* dec);
+/* Non-zero while decoded frames are still banked for presentation or decoded
+ * audio is still unserved — the end-of-stream drain waits on this rather than
+ * inferring quiescence from a position stall (which a variable-frame-rate
+ * tail can legitimately hold flat for seconds). */
+int      basis_decoder_presentation_pending(basis_decoder_t* dec);
 int      basis_decoder_get_audio_format(basis_decoder_t* dec, int* out_rate, int* out_channels);
 int      basis_decoder_read_audio(basis_decoder_t* dec, float* out, int max_floats); /* audio thread */
 int      basis_decoder_get_debug(basis_decoder_t* dec, char* buf, int size); /* diagnostics */

@@ -338,6 +338,18 @@ static void sink_video_format(void* user, basis_codec_t codec, const uint8_t* ed
 static void sink_video_au(void* user, const uint8_t* au, int len, int64_t pts, int64_t dts, int key) {
     basis_media_engine_t* e = (basis_media_engine_t*)user;
     if (!e->running) return;
+    /* Drop video a demuxer emits after a seek is posted but before the main leg
+     * takes it (the same read-buffer-granularity window the audio drop gate
+     * covers). These tail AUs are mid-GOP leftovers that post-date the decoder's
+     * seek flush: they can't decode correctly without their references, some
+     * hardware decoders emit them anyway against stale reference memory (a
+     * flash of the pre-seek picture), and — because their PTS can sit past the
+     * seek target — the first of them would end the decoder's preroll run-up
+     * early and let the whole run-up render. Video always rides the main leg
+     * (a split source's audio leg never submits video). HLS is excluded for
+     * the same reason as audio: it repositions at the BASIS_READ_REPOSITION
+     * boundary and seek_taken is not its signal. */
+    if (!e->active_hls && e->seek_seq != e->seek_taken_main) return;
     /* Pace on the decode timestamp: gating on pts would sleep out a composition
      * offset the decoder still needs the AU inside of, and starve the other
      * track's earlier samples queued behind this one on the demux thread. */
@@ -395,6 +407,14 @@ static void sink_audio_frame(void* user, const uint8_t* data, int len, int64_t p
     if (e->url_audio[0] || !e->video_format_seen)
         pace_gate(e, pts);          /* paced mode: hold until ~real time; no-op otherwise */
     if (!e->running) return;
+    /* Re-check the pre-seek drop after the pace hold: pace_gate parks this thread
+     * for up to the pace lead, so a seek posted while this frame slept would
+     * otherwise let it through with its pre-seek PTS. Submitted, it would trigger
+     * the decoder's seek flush early — the post-flush timeline re-anchor would
+     * measure against its stale PTS — and it would sit in the flushed ring as a
+     * stale front chunk. */
+    taken = e->url_audio[0] ? e->seek_taken_audio : e->seek_taken_main;
+    if (!e->active_hls && e->seek_seq != taken) return;
     e->audio_frame_count++;
     mutex_lock(&e->submit_lock);
     basis_decoder_submit_audio(e->decoder, data, len, pts);
@@ -426,7 +446,14 @@ static void sink_transport(void* user, const char* t) {
     e->transport[sizeof(e->transport) - 1] = 0;
     mutex_unlock(&e->lock);
 }
-static void sink_eos(void* user) { basis_engine_set_state((basis_media_engine_t*)user, BASIS_MEDIA_STATE_ENDED); }
+/* Live end-of-stream ends now. A paced (VOD) source's delivery runs ahead of
+ * presentation — the pace lead, the audio serve cushion, and any post-seek
+ * settle skew are all still banked when the demuxer finishes — so its ENDED
+ * is raised by demux_body after the presentation drain, not here. */
+static void sink_eos(void* user) {
+    basis_media_engine_t* e = (basis_media_engine_t*)user;
+    if (!e->paced) basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+}
 static void sink_duration(void* user, int64_t us) { basis_media_engine_t* e = (basis_media_engine_t*)user; if (us > 0) e->duration_us = us; }
 /* A raised error is fatal to the current demux run: the reconnect loop already
  * treats an error state as non-retryable, so stopping here makes the protocol
@@ -441,12 +468,20 @@ static int take_seek_common(basis_media_engine_t* e, volatile long* taken, int64
     mutex_lock(&e->lock);
     long seq = e->seek_seq;
     int64_t us = e->seek_target_us;
-    /* Re-anchor delivery pacing: only post-seek samples flow on this leg from
-     * here, and against the old anchor they'd read as far-future (a forward
-     * seek stalls the demux thread for the jump distance) or as late (a
-     * backward seek floods through unpaced and fast-forwards back). The next
-     * paced sample re-establishes base/wall from its own timestamp. */
-    if (*taken != seq) e->pace_started = 0;
+    /* Re-anchor delivery pacing at the seek TARGET, not at whatever sample
+     * arrives next. A container seek repositions to the sync point at or
+     * before the target — with a sparse-keyframe file that can be tens of
+     * seconds of run-up — and anchoring on the first delivered sample would
+     * pace that whole preroll at 1x (a silent, position-pinned crawl to the
+     * target). Against a target anchor the preroll reads as late and flows at
+     * decode speed while everything from the target onwards paces at 1x. The
+     * decoders drop decoded video frames short of the target (they exist only
+     * as references), so the preroll is never shown. */
+    if (*taken != seq) {
+        e->pace_wall0_us = now_us();
+        e->pace_base_pts = us;
+        e->pace_started = 1;
+    }
     mutex_unlock(&e->lock);
     if (*taken == seq) return 0;
     *taken = seq;
@@ -1073,8 +1108,45 @@ static void demux_body(basis_media_engine_t* e) {
         /* Paced (VOD) sources are finite and play once: a clean run end is EOF, not
          * a live drop to reconnect through. Looping would replay from PTS 0 while the
          * paced clock is at the old edge — every frame would read "behind" the clock
-         * and flood in ungated (fast-forward). Stop instead. */
-        if (e->paced) { basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED); break; }
+         * and flood in ungated (fast-forward). Stop instead — but let presentation
+         * drain first: delivery runs ahead by the pace lead plus the audio serve
+         * cushion (and any post-seek settle skew), so several seconds can still be
+         * banked when the demuxer finishes. ENDED fires once the reported position
+         * has stopped advancing for a beat; paused time doesn't count as idle. */
+        if (e->paced) {
+            /* Flush the video decoder's reorder tail into the ring first —
+             * nothing else ever tells it the stream is over, and what it
+             * retains is the end of the file (seconds, at low frame rates). */
+            if (e->decoder) {
+                mutex_lock(&e->submit_lock);
+                basis_decoder_notify_end_of_stream(e->decoder);
+                mutex_unlock(&e->submit_lock);
+            }
+            /* Presentation is drained when the decoder holds nothing more to
+             * show or serve AND the reported position has settled — a stall
+             * alone is not enough, since a variable-frame-rate tail can hold
+             * the position flat for seconds with frames still queued. The
+             * absolute cap is the escape hatch for a consumer that never
+             * presents (a headless probe) or a wedged renderer. Paused time
+             * counts toward neither clock. */
+            int64_t last_pos = -1;
+            int idle_ms = 0, waited_ms = 0;
+            while (e->running) {
+                if (e->paused) { idle_ms = 0; sleep_interruptible(e, 50); continue; }
+                int pending = e->decoder ? basis_decoder_presentation_pending(e->decoder) : 0;
+                int64_t pos = e->decoder ? basis_decoder_get_position_us(e->decoder) : -1;
+                if (pos != last_pos) { last_pos = pos; idle_ms = 0; }
+                else idle_ms += 50;
+                if (!pending && idle_ms >= 700) break;
+                waited_ms += 50;
+                if (waited_ms >= 10000) break;
+                sleep_interruptible(e, 50);
+            }
+            /* A stop/close that cleared `running` mid-drain must not read as the
+             * content finishing: ENDED reaches OnEnded consumers (playlists). */
+            if (e->running) basis_engine_set_state(e, BASIS_MEDIA_STATE_ENDED);
+            break;
+        }
 
         long au_after = e->video_au_count + e->audio_frame_count;
         long delta = au_after - au_before;

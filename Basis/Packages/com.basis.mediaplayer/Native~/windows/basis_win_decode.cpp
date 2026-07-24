@@ -380,6 +380,32 @@ struct basis_decoder {
                                      * vdec + dropped pre-seek frames; the render leg
                                      * holds until it matches so it neither anchors to a
                                      * stale frame nor races the producer's ring clear */
+    int64_t vPrerollCutUs = INT64_MIN; /* video-submit thread only: after a seek, decoded
+                                        * frames short of this are the keyframe run-up to
+                                        * the target — reference-only, never banked. Set
+                                        * from seekTargetUs at the seek flush, cleared by
+                                        * the first frame at or past it. */
+    int vAwaitKey = 0;                 /* video-submit thread only: set at the seek flush,
+                                        * cleared by the first OUTPUT of the first keyframe
+                                        * submitted after it (matched by PTS via
+                                        * vAwaitKeyPts). Output produced before that is
+                                        * post-flush mid-GOP input decoded against stale
+                                        * references (the HLS path can still emit a pre-seek
+                                        * tail AU the engine's seek_taken gate doesn't
+                                        * cover) — never banked, and it must not end the
+                                        * preroll run-up either. Clearing at the keyframe's
+                                        * SUBMISSION is not enough: the MFT's reorder
+                                        * pipeline can emit a tail AU's garbage frame after
+                                        * it, with a pre-seek PTS past the target. */
+    int64_t vAwaitKeyPts = INT64_MIN;  /* video-submit thread only: PTS of that keyframe;
+                                        * INT64_MIN until it is submitted */
+    int vAwaitDrained = 0;             /* video-submit thread only: outputs drained since
+                                        * the seek flush; bounds the wait so a dropped or
+                                        * re-stamped keyframe output — or a run whose
+                                        * post-seek AUs are never flagged as keyframes,
+                                        * which would otherwise never latch vAwaitKeyPts —
+                                        * can't hold the gate (and video) shut until the
+                                        * next seek */
 };
 
 /* ---- D3D / MF helpers --------------------------------------------------- */
@@ -966,7 +992,31 @@ static void drain_video(basis_decoder* d) {
                     UINT subIndex = 0;
                     dxgi->GetResource(__uuidof(ID3D11Texture2D), (void**)&tex);
                     dxgi->GetSubresourceIndex(&subIndex);
-                    if (tex) { video_process_to_shared(d, tex, subIndex, d->lastPtsUs); tex->Release(); }
+                    if (tex) {
+                        /* Post-seek preroll (keyframe run-up short of the target):
+                         * decoded so later frames have their references, never shown.
+                         * Output is display-order, so the first frame at or past the
+                         * target ends the run-up for good — but only once the
+                         * post-flush keyframe's own output has emerged: output before
+                         * that is post-flush mid-GOP garbage whose PTS may sit past
+                         * the target, and it must neither show nor end the run-up.
+                         * The PTS match is the designed clear; the drain bound is a
+                         * backstop, set well past any plausible garbage-tail length,
+                         * so a dropped or re-stamped keyframe output degrades to at
+                         * worst one stale frame instead of wedging video. */
+                        if (d->vAwaitKey &&
+                            ((d->vAwaitKeyPts != INT64_MIN && d->lastPtsUs == d->vAwaitKeyPts) ||
+                             ++d->vAwaitDrained > 16))
+                            d->vAwaitKey = 0;
+                        if (d->vAwaitKey ||
+                            (d->vPrerollCutUs != INT64_MIN && d->lastPtsUs < d->vPrerollCutUs)) {
+                            /* skip banking */
+                        } else {
+                            d->vPrerollCutUs = INT64_MIN;
+                            video_process_to_shared(d, tex, subIndex, d->lastPtsUs);
+                        }
+                        tex->Release();
+                    }
                     dxgi->Release();
                 } else {
                     /* Only DXGI-backed samples reach the video processor. A
@@ -1492,7 +1542,6 @@ static IMFSample* make_input_sample(const uint8_t* data, int len, int64_t pts_us
  * each output under its own lock. Keep video-path and audio-path state disjoint to preserve
  * this; if that ever changes, serialise submission through a decoder mutex. */
 extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int len, int64_t pts_us, int key) {
-    (void)key;
     /* Bound len here, before the AV1 configOBU concatenation below adds to it — so
      * the total can't overflow int or drive an oversized allocation. */
     if (!d || !d->vdec || !annexb || len <= 0 || len > BASIS_MAX_INPUT_SAMPLE) return -1;
@@ -1506,12 +1555,17 @@ extern "C" int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* ann
         d->videoSeekGen = svg;
         d->vdec->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
         for (int i = 0; i < basis_decoder::RING; ++i) d->ringPts[i] = INT64_MIN;
+        d->vPrerollCutUs = InterlockedCompareExchange64(&d->seekTargetUs, 0, 0);
+        d->vAwaitKey = 1;
+        d->vAwaitKeyPts = INT64_MIN;
+        d->vAwaitDrained = 0;
         /* The ring is this (demux) thread's to clear — do it here only, then publish
          * the generation so the render leg knows the pre-seek frames are gone. That
          * keeps a single writer of the ring on seek and stops the render leg from
          * clearing frames this thread may already have repopulated. */
         InterlockedExchange(&d->videoSeekAck, svg);
     }
+    if (key && d->vAwaitKey && d->vAwaitKeyPts == INT64_MIN) d->vAwaitKeyPts = pts_us;
     IMFSample* s;
     bool carried_config = false;
     if (d->vConfigObusLen > 0) {
@@ -2092,6 +2146,44 @@ extern "C" int basis_decoder_get_video_size(basis_decoder_t* d, int* w, int* h) 
 }
 extern "C" int basis_decoder_get_frame_origin(basis_decoder_t* d) { return d ? (int)d->frameTopLeft : 0; }
 
+extern "C" void basis_decoder_notify_end_of_stream(basis_decoder_t* d) {
+    if (!d || !d->vdec) return;
+    /* Caller is the video-submit (demux) thread, which owns vdec and the ring —
+     * same ownership as submit_video, so drain_video is safe here. The MFT is
+     * synchronous: after DRAIN, ProcessOutput hands over every retained frame,
+     * and drain_video's until-NEED_MORE_INPUT loop is that documented pattern.
+     * Best-effort by design: if either message fails, the tail stays inside
+     * the MFT, presentation_pending never sees it, and the core's drain-wait
+     * ends on its idle cap — the frames are unrecoverable either way, so
+     * there is nothing a propagated HRESULT could change. */
+    d->vdec->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+    d->vdec->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+    drain_video(d);
+}
+
+extern "C" int basis_decoder_presentation_pending(basis_decoder_t* d) {
+    if (!d) return 0;
+    int pending = 0;
+    EnterCriticalSection(&d->presentLock);
+    /* Compare against lastPresentedPts, not presentedPosUs: a seek snaps the
+     * latter to the target before anything presents, so a banked frame whose
+     * PTS lands exactly on the target would read as already shown and the
+     * EOS drain could raise ENDED without it. lastPresentedPts stays
+     * INT64_MIN until a frame genuinely presents, and the final frame's
+     * lingering ring slot equals it (not >), so a finished play-out still
+     * reads as drained. */
+    int64_t presented = d->lastPresentedPts;
+    for (int i = 0; i < basis_decoder::RING; ++i)
+        if (d->ringPts[i] != INT64_MIN && d->ringPts[i] > presented) { pending = 1; break; }
+    LeaveCriticalSection(&d->presentLock);
+    if (!pending) {
+        EnterCriticalSection(&d->pcm.cs);
+        pending = d->pcm.fill() > 0;
+        LeaveCriticalSection(&d->pcm.cs);
+    }
+    return pending;
+}
+
 extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
     if (!d) return;
     /* Record the pre-seek audio front before the flush clears it, so the audio-only
@@ -2107,6 +2199,15 @@ extern "C" void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
      * safe from this (caller) thread; the codec-state reset stays on the submit
      * thread where the MFT/Opus decoder is owned. */
     d->pcm.flush();
+    /* Invalidate the audio serve clock: it re-derives from presents, and until the
+     * first post-seek frame presents it still describes the pre-seek timeline. On a
+     * backward seek that stale (higher) clock reads freshly banked post-target audio
+     * as long-stale and the serve trims it away — eating the first second of audio
+     * after video resumes. INT64_MIN is the serve's hold state (a stream with video
+     * holds audio until the clock exists), so post-seek audio banks through the
+     * settle and releases in sync with the first presented frame. Audio-only stays
+     * ungated: its offset never leaves INT64_MIN in the first place. */
+    InterlockedExchange64(&d->audClockOffsetUs, INT64_MIN);
     /* Latch target before bumping the generation so any leg that observes the new
      * generation reads the matching target. */
     InterlockedExchange64(&d->seekTargetUs, target_us);

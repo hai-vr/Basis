@@ -224,15 +224,28 @@ different URL mid-play. No stale frames, no orphaned audio, position resets corr
 seek-then-pause shows the sought frame. The byte-source ranged refetch that backs a seek now
 runs on **Android** too (JNI `HttpsURLConnection`), not just Windows — run the same slider
 checks on a Quest against a range/`206` VOD host (`https://`), watching `adb logcat` for a clean
-reposition (no decoder error, playback resumes at the target).
+reposition (no decoder error, playback resumes at the target). A container seek repositions to
+the sync point at or before the target and the run-up from there is decoded but never shown, so
+playback lands **at the requested position** — never visibly replaying from the keyframe, and
+never crawling the gap at 1x. The adversarial case is a **sparse-keyframe file** (tens of
+seconds per GOP, e.g. a low-motion screen capture): a mid-GOP seek there should recover after a
+short silent pause that scales with decode speed, not with the distance seeked.
 
 **Seek (HLS-TS VOD)** — on the Mux master (`https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`),
 seek both directions and confirm playback resumes **paced at 1x from the target**: a forward
 seek must not freeze for the jump distance, and a backward seek must not fast-forward through
-the intervening segments back to the pre-seek position. The segment producer repositions and
-the demux leg re-anchors delivery pacing at the flushed boundary, so a mis-anchored pace clock
-(stall forward / flood backward) is the failure to watch for. Shared clock, so check both the
-Editor (Windows) and Quest.
+the intervening segments back to the pre-seek position. The segment producer repositions at
+segment granularity but the landing is **target-exact**: the run-up from the segment boundary
+to the target is decoded and discarded, so playback must resume at the requested position, not
+the start of the containing segment. A mis-anchored pace clock (stall forward / flood backward)
+is the failure to watch for. Also seek **from the tail**: once the fetcher has downloaded every
+remaining segment (the last buffer's worth of the stream, so roughly the final ten seconds of a
+short VOD) it parks rather than exits, and a backward seek from there must still reposition —
+a bar that flashes the target and snaps forward means the parked-fetcher revival broke. Playing
+through to the end must present the tail before ENDED is raised: the position walks all the way
+to the true duration and the final content is actually shown and heard — ENDED firing early
+while banked audio or video is discarded is the failure. Shared clock, so check both the Editor
+(Windows) and Quest.
 
 **Seek (integrated fMP4)** — on a self-contained fragmented MP4 (moof/mdat fragments indexed by a
 top-level `sidx`) served from a range/`206` host. Produce one from a CC clip:

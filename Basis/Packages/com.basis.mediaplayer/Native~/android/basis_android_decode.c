@@ -282,12 +282,52 @@ struct basis_decoder {
     int64_t seekTargetUs;     /* atomic */
     int64_t seekFromUs;       /* pre-seek audio front, for the audio-only settle (main thread only) */
     int audioSeekGen;         /* audio-submit (demux) thread only */
+    int64_t aOutPtsBiasUs;    /* audio-submit thread only: correction added to codec
+                               * output PTS before it banks into the ring. The MP3
+                               * software decoder stamps outputs from an internal
+                               * first-input anchor plus a sample accumulator and
+                               * ignores later input-PTS jumps — the anchor survives
+                               * a flush — so post-seek outputs keep pre-seek time
+                               * (frozen position bar; backward seeks overrun the
+                               * duration). Measured per seek as first post-flush
+                               * input PTS minus first post-flush output PTS; ~0 for
+                               * decoders that pass input PTS through. */
+    int64_t aResyncInPts;     /* audio-submit thread only: first post-flush input
+                               * PTS, awaiting its output to measure the bias;
+                               * INT64_MIN = no measurement pending */
+    int     aResyncPending;   /* audio-submit thread only: seek flush done, latch
+                               * aResyncInPts from the next queued input */
     int videoSeekGen;         /* video-submit (demux) thread only */
     int renderSeekGen;        /* render thread only */
     int videoSeekAck;         /* atomic: demux publishes seekGen once it has flushed the
                                * codec + released pre-seek frames; the render leg holds
                                * until it matches so it neither anchors to nor deletes a
                                * post-seek frame the producer has already enqueued */
+    int64_t vPrerollCutUs;    /* video-submit thread only: after a seek, decoded frames
+                               * short of this are the keyframe run-up to the target —
+                               * reference-only, released unrendered. Set from
+                               * seekTargetUs at the seek flush, cleared by the first
+                               * frame at or past it. */
+    int vAwaitKey;            /* video-submit thread only: set at the seek flush, cleared
+                               * by the first OUTPUT of the first keyframe submitted after
+                               * it (matched by PTS via vAwaitKeyPts). Output before that
+                               * is post-flush mid-GOP input decoded against stale
+                               * reference memory (Adreno emits it as a visible pre-seek
+                               * flash; the HLS path can still hand over a pre-seek tail
+                               * AU the engine's seek_taken gate doesn't cover) — released
+                               * unrendered, and it must not end the preroll run-up.
+                               * Clearing at the keyframe's SUBMISSION is not enough: a
+                               * tail AU queued just before it can still emit its garbage
+                               * frame afterwards, and with a pre-seek PTS past the target
+                               * that frame would both show and end the run-up. */
+    int64_t vAwaitKeyPts;     /* video-submit thread only: PTS of that keyframe;
+                               * INT64_MIN until it is submitted */
+    int vAwaitDrained;        /* video-submit thread only: outputs drained since the
+                               * seek flush; bounds the wait so a dropped or
+                               * re-stamped keyframe output — or a run whose post-seek
+                               * AUs are never flagged as keyframes, which would
+                               * otherwise never latch vAwaitKeyPts — can't hold the
+                               * gate (and video) shut until the next seek */
 
     /* debug counters */
     long dbg_render, dbg_nodue, dbg_acqfail, dbg_drop, dbg_lagms;
@@ -319,6 +359,14 @@ static void on_image(void* ctx, AImageReader* reader) {
 
         int64_t ts_ns = 0;
         AImage_getTimestamp(img, &ts_ns);       /* MediaCodec propagates the input PTS (ns) */
+        /* Seek-generation tag (sub-microsecond digits, written at release):
+         * a mismatch means this frame crossed a seek flush in flight — showing
+         * it would anchor the present clock at the pre-seek position. */
+        {
+            int tag = (int)(((ts_ns % 1000) + 1000) % 1000);
+            int gen = ((__atomic_load_n(&d->seekGen, __ATOMIC_ACQUIRE) % 1000) + 1000) % 1000;
+            if (tag != gen) { AImage_delete(img); continue; }
+        }
         int64_t pts = ts_ns / 1000;
         int32_t aw = 0, ah = 0;
         AImage_getWidth(img, &aw); AImage_getHeight(img, &ah);
@@ -419,15 +467,57 @@ static int ensure_reader(basis_decoder_t* d, int w, int h) {
 
 /* ---- output draining (push decoded frames to the Surface) --------------- */
 
-static void drain_video_output(basis_decoder_t* d) {
-    if (!d->vcodec) return;
+/* Returns 1 once the codec has emitted its end-of-stream output (only after
+ * basis_decoder_notify_end_of_stream queued the EOS input); 0 otherwise. */
+static int drain_video_output(basis_decoder_t* d) {
+    if (!d->vcodec) return 0;
+    int eos = 0;
     for (;;) {
         AMediaCodecBufferInfo info;
         ssize_t oi = AMediaCodec_dequeueOutputBuffer(d->vcodec, &info, 0);
         if (oi >= 0) {
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) eos = 1;
             d->lastPtsUs = info.presentationTimeUs;
-            /* render=true pushes the frame onto the AImageReader Surface */
-            AMediaCodec_releaseOutputBuffer(d->vcodec, oi, info.size != 0);
+            /* render=true pushes the frame onto the AImageReader Surface. Post-seek
+             * preroll (keyframe run-up short of the target) is decoded so later
+             * frames have their references but released unrendered; output is
+             * display-order, so the first frame at or past the target ends the
+             * run-up for good — but only once the post-flush keyframe's own
+             * output has emerged: output before that is post-flush mid-GOP
+             * garbage whose PTS may sit past the target, and it must neither
+             * show nor end the run-up. */
+            int render = info.size != 0;
+            /* The PTS match is the designed clear (the keyframe's own output; the
+             * cut below gates it). The drain bound is a backstop, set well past any
+             * plausible garbage-tail length: past it the cut still suppresses the
+             * run-up, so the worst case is one stale frame — degraded, not wedged. */
+            if (d->vAwaitKey &&
+                ((d->vAwaitKeyPts != INT64_MIN && info.presentationTimeUs == d->vAwaitKeyPts) ||
+                 ++d->vAwaitDrained > 16))
+                d->vAwaitKey = 0;
+            if (d->vAwaitKey) {
+                render = 0;
+            } else if (d->vPrerollCutUs != INT64_MIN) {
+                if (info.presentationTimeUs < d->vPrerollCutUs) render = 0;
+                else d->vPrerollCutUs = INT64_MIN;
+            }
+            if (render) {
+                /* Tag the frame with the seek generation in the sub-microsecond
+                 * digits of the surface timestamp (the PTS rides in whole
+                 * microseconds, so on_image's ts/1000 is untouched). A frame
+                 * still in flight through the AImageReader listener when a seek
+                 * flushes carries the old tag and dies at on_image instead of
+                 * presenting its pre-seek PTS and mis-anchoring the clock.
+                 * The tag is this thread's videoSeekGen, which advances only in
+                 * the seek-flush block: a pre-seek frame drained after the seek
+                 * posts but before the flush runs still carries the old tag,
+                 * where the live seekGen would stamp it as post-seek content. */
+                int64_t tag = (int64_t)(((d->videoSeekGen % 1000) + 1000) % 1000);
+                AMediaCodec_releaseOutputBufferAtTime(d->vcodec, oi,
+                                                      info.presentationTimeUs * 1000 + tag);
+            } else {
+                AMediaCodec_releaseOutputBuffer(d->vcodec, oi, 0);
+            }
         } else if (oi == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
             AMediaFormat* f = AMediaCodec_getOutputFormat(d->vcodec);
             int32_t w = 0, h = 0;
@@ -451,6 +541,42 @@ static void drain_video_output(basis_decoder_t* d) {
             break; /* try again later / no buffer */
         }
     }
+    return eos;
+}
+
+void basis_decoder_notify_end_of_stream(basis_decoder_t* d) {
+    if (!d || !d->vcodec) return;
+    /* Caller is the video-submit (demux) thread, which owns vcodec — same
+     * ownership as submit_video. MediaCodec flushes asynchronously after the
+     * EOS input, so pump the output side (bounded) until the EOS-flagged
+     * buffer emerges rather than trusting a single drain pass.
+     * TRY_AGAIN_LATER from dequeueInputBuffer is routine while the codec is
+     * busy, so retry to a short deadline (draining outputs frees input slots).
+     * If the EOS input still can't be queued, the retained tail stays in the
+     * codec, presentation_pending never sees it, and the core's drain-wait
+     * ends on its idle cap — degraded, not wedged. */
+    ssize_t ii = -1;
+    for (int i = 0; i < 50 && ii < 0; ++i) {   /* ~500ms deadline */
+        ii = AMediaCodec_dequeueInputBuffer(d->vcodec, 10000);
+        if (ii < 0) drain_video_output(d);
+    }
+    if (ii < 0) return;
+    if (AMediaCodec_queueInputBuffer(d->vcodec, ii, 0, 0, 0,
+                                     AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) != AMEDIA_OK) return;
+    for (int i = 0; i < 100; ++i) {   /* ~1s cap */
+        if (drain_video_output(d)) return;
+        usleep(10000);
+    }
+}
+
+int basis_decoder_presentation_pending(basis_decoder_t* d) {
+    if (!d) return 0;
+    int pending = 0;
+    pthread_mutex_lock(&d->vm);
+    for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { pending = 1; break; }
+    pthread_mutex_unlock(&d->vm);
+    if (!pending) pending = ring_fill_ms(&d->pcm) > 0;
+    return pending;
 }
 
 static void drain_audio_output(basis_decoder_t* d) {
@@ -462,7 +588,14 @@ static void drain_audio_output(basis_decoder_t* d) {
             size_t cap = 0;
             uint8_t* buf = AMediaCodec_getOutputBuffer(d->acodec, oi, &cap);
             if (buf && info.size >= 2) {
-                int64_t pts = info.presentationTimeUs;
+                /* First output after a seek flush: its input PTS is known, so any
+                 * difference is the decoder's own timeline drifting from the demux
+                 * timeline — cancel it for the rest of this seek generation. */
+                if (d->aResyncInPts != INT64_MIN) {
+                    d->aOutPtsBiasUs = d->aResyncInPts - info.presentationTimeUs;
+                    d->aResyncInPts = INT64_MIN;
+                }
+                int64_t pts = info.presentationTimeUs + d->aOutPtsBiasUs;
                 int frame = d->ach > 0 ? d->ach : (d->pcm.frame > 0 ? d->pcm.frame : 2);
                 int srr = d->asr > 0 ? d->asr : 48000;
                 if (d->apcm_float) {
@@ -554,6 +687,10 @@ static void* url_worker(void* arg) {
     basis_engine_set_state(d->engine, BASIS_MEDIA_STATE_PLAYING);
     while (basis_engine_is_running(d->engine)) {
         if (basis_engine_is_paused(d->engine)) { usleep(10000); continue; }
+        /* No seek support on this path (no seekTo, no flush), but the drain's
+         * frame tag reads videoSeekGen — keep it tracking seekGen so a seek
+         * request can't leave every subsequent frame tagged stale. */
+        d->videoSeekGen = __atomic_load_n(&d->seekGen, __ATOMIC_ACQUIRE);
 
         int track = AMediaExtractor_getSampleTrackIndex(d->extractor);
         if (track == d->video_track && d->vcodec) feed_extractor_sample(d, d->vcodec, track);
@@ -608,7 +745,12 @@ basis_decoder_t* basis_decoder_create(basis_media_engine_t* engine) {
     pthread_mutex_init(&d->vm, NULL);
     d->lastPresentedPts = INT64_MIN;
     d->presentedPosUs = -1;
+    d->vPrerollCutUs = INT64_MIN;
+    d->vAwaitKey = 0;
+    d->vAwaitKeyPts = INT64_MIN;
+    d->vAwaitDrained = 0;
     d->prevWritePts = INT64_MIN;
+    d->aResyncInPts = INT64_MIN;
     d->audClockOffsetUs = INT64_MIN;
     d->bufferUs = 120000;
     d->bufferMode = 1;
@@ -888,7 +1030,6 @@ int basis_decoder_set_audio_format(basis_decoder_t* d, basis_codec_t codec,
 }
 
 int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int len, int64_t pts_us, int key) {
-    (void)key;
     if (!d || !d->vcodec || !annexb || len <= 0) return -1;
     /* First video AU after a seek: flush the codec and release the pre-seek frames
      * in the ring so they can't present ahead of the post-seek content. Demux thread
@@ -898,14 +1039,23 @@ int basis_decoder_submit_video(basis_decoder_t* d, const uint8_t* annexb, int le
     if (svg != d->videoSeekGen) {
         d->videoSeekGen = svg;
         AMediaCodec_flush(d->vcodec);
+        d->vPrerollCutUs = __atomic_load_n(&d->seekTargetUs, __ATOMIC_ACQUIRE);
+        d->vAwaitKey = 1;
+        d->vAwaitKeyPts = INT64_MIN;
+        d->vAwaitDrained = 0;
         pthread_mutex_lock(&d->vm);
         for (int i = 0; i < VRING; ++i) if (d->vimg[i]) { AImage_delete(d->vimg[i]); d->vimg[i] = NULL; }
         pthread_mutex_unlock(&d->vm);
+        /* Frames released to the Surface before the flush can still be in flight
+         * through the AImageReader listener and would land after the clear
+         * above; on_image drops them by their seek-generation timestamp tag,
+         * so no quiescence wait is needed here. */
         /* Publish the generation so the render leg knows the pre-seek frames are gone
          * and it can re-anchor. Releasing frames on this (owning) thread only stops
          * the render leg from deleting post-seek frames drain_video_output re-enqueues. */
         __atomic_store_n(&d->videoSeekAck, svg, __ATOMIC_RELEASE);
     }
+    if (key && d->vAwaitKey && d->vAwaitKeyPts == INT64_MIN) d->vAwaitKeyPts = pts_us;
     int rc = -1;
     ssize_t ii = AMediaCodec_dequeueInputBuffer(d->vcodec, 2000);
     if (ii >= 0) {
@@ -987,6 +1137,8 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
         d->audioSeekGen = sg;
         ring_flush(&d->pcm);
         if (d->acodec) AMediaCodec_flush(d->acodec);
+        d->aResyncPending = 1;
+        d->aResyncInPts = INT64_MIN;
     }
     if (d->ac == BASIS_CODEC_LPCM) { submit_lpcm(d, data, len, pts_us); return 0; }
     if (!d->acodec) return -1;
@@ -998,6 +1150,7 @@ int basis_decoder_submit_audio(basis_decoder_t* d, const uint8_t* data, int len,
         if (buf && (size_t)len <= cap) {
             memcpy(buf, data, (size_t)len);
             rc = (AMediaCodec_queueInputBuffer(d->acodec, ii, 0, len, pts_us, 0) == AMEDIA_OK) ? 0 : -1;
+            if (rc == 0 && d->aResyncPending) { d->aResyncPending = 0; d->aResyncInPts = pts_us; }
         } else {
             /* Never feed a partial frame — it decodes to an error + silence.
              * max-input-size should prevent this; return the buffer empty if not. */
@@ -1268,6 +1421,15 @@ void basis_decoder_seek(basis_decoder_t* d, int64_t target_us) {
      * mutex, safe from this (caller) thread; the codec reset stays on the submit
      * thread where the decoder is owned. */
     ring_flush(&d->pcm);
+    /* Invalidate the audio serve clock: it re-derives from presents, and until the
+     * first post-seek frame presents it still describes the pre-seek timeline. On a
+     * backward seek that stale (higher) clock reads freshly banked post-target audio
+     * as long-stale and the serve trims it away — eating the first second of audio
+     * after video resumes. INT64_MIN is the serve's hold state (a stream with video
+     * holds audio until the clock exists), so post-seek audio banks through the
+     * settle and releases in sync with the first presented frame. Audio-only stays
+     * ungated: its offset never leaves INT64_MIN in the first place. */
+    __atomic_store_n(&d->audClockOffsetUs, INT64_MIN, __ATOMIC_RELAXED);
     /* Latch the target before bumping the generation so any leg that sees the new
      * generation reads the matching target. */
     __atomic_store_n(&d->seekTargetUs, target_us, __ATOMIC_RELEASE);
