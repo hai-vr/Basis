@@ -88,6 +88,14 @@ namespace Basis.BasisUI
         private static protected bool IsProtected = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;
 
+        /// <summary>
+        /// Fires per instantiated-object row right after the Select button is built,
+        /// before Teleport/Static/Remove. Does not fire for embedded rows — those carry
+        /// no action buttons at all. Subscribers can append buttons to the supplied
+        /// row container — they land between Select and Teleport.
+        /// </summary>
+        public static event Action<RectTransform, BasisRuntimeSpawnRegistry.SpawnInstance> OnInstanceRowCreated;
+
         // The library panel can be released mid-refresh (user closes the menu) while we await
         // key/metadata loads; its controls are destroyed with it, so bail before touching them.
         private static bool PanelAlive => panel != null && !panel.IsReleased;
@@ -2499,6 +2507,23 @@ namespace Basis.BasisUI
                     }
                 },
             });
+
+            if (OnInstanceRowCreated != null)
+            {
+                // Subscribers are external integrations; one throwing must not leave the
+                // row half-built or abort the rest of the tab rebuild.
+                foreach (Action<RectTransform, BasisRuntimeSpawnRegistry.SpawnInstance> subscriber in OnInstanceRowCreated.GetInvocationList())
+                {
+                    try
+                    {
+                        subscriber(itemListPanel.TabButtonParent, itemKey);
+                    }
+                    catch (Exception e)
+                    {
+                        BasisDebug.LogError($"OnInstanceRowCreated subscriber {subscriber.Method.DeclaringType?.FullName}.{subscriber.Method.Name} threw: {e}");
+                    }
+                }
+            }
 
             BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
             {

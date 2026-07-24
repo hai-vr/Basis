@@ -1,0 +1,164 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Basis.BasisUI;
+using Basis.Scripts.Avatar;
+using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Device_Management.Devices.Pairing;
+using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.TrackerObjects;
+using UnityEngine;
+
+namespace Basis.Integration.TrackerObjects
+{
+    internal static class BasisTrackerObjectsLibraryHook
+    {
+        private static readonly Vector2 PickerSize = new Vector2(900, 720);
+        private static readonly Vector2 RowSize = new Vector2(80, 80);
+        private static readonly Vector2 PickerRowSize = new Vector2(700, 60);
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Subscribe()
+        {
+            LibraryProvider.OnInstanceRowCreated -= OnRowCreated;
+            LibraryProvider.OnInstanceRowCreated += OnRowCreated;
+        }
+
+        private static void OnRowCreated(RectTransform parent, BasisRuntimeSpawnRegistry.SpawnInstance instance)
+        {
+            if (instance == null) return;
+            string netID = instance.LoadedNetID;
+            if (string.IsNullOrEmpty(netID)) return;
+
+            // Only GameObject-mode (prop) instances can host a tracker binding — scenes
+            // and avatars have no pickup/rigid surface to drive, and embedded items
+            // aren't user-owned spawns. Skip adding the button at all rather than
+            // disabling it — a dead extra button just pushes the row over.
+            if (instance.SpawnMode != BasisRuntimeSpawnRegistry.SpawnMode.GameObject) return;
+            if (instance.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded) return;
+            // Static-locked props are frozen server-side; the row rebuilds on the
+            // Modified broadcast, so the button reappears when the lock clears.
+            if (instance.Static) return;
+
+            bool hasBinding = BasisTrackerObjectManager.TryGetBindingByLoadedNetID(netID, out _);
+            PanelButton button = PanelButton.CreateNew(PanelButton.ButtonStyles.StandardButton, parent);
+            button.Descriptor.SetTitle(string.Empty);
+            button.SetIcon(hasBinding ? AddressableAssets.Sprites.Unlink : AddressableAssets.Sprites.Link);
+            button.SetSize(RowSize);
+            // Inset the icon so its strokes stay clear of the bevel — matches the row's
+            // other action buttons.
+            button.Descriptor.IconImage.rectTransform.sizeDelta = new Vector2(-30, -30);
+            button.Descriptor.SetTooltip(BasisLocalization.Get(hasBinding
+                ? "library.instantiated.unbindTracker.tooltip"
+                : "library.instantiated.assignTracker.tooltip"));
+
+            button.OnClicked += async () =>
+            {
+                if (BasisTrackerObjectManager.TryGetBindingByLoadedNetID(netID, out BasisTrackerBinding existing))
+                {
+                    BasisTrackerObjectManager.TryRemoveBinding(existing.Id);
+                    button.SetIcon(AddressableAssets.Sprites.Link);
+                    button.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.assignTracker.tooltip"));
+                    return;
+                }
+
+                if (!BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(netID, out GameObject go) || go == null)
+                {
+                    BasisDebug.LogWarning($"AssignTracker: spawn instance {netID} has no resolved GameObject", BasisDebug.LogTag.TrackerObjects);
+                    return;
+                }
+
+                BasisInput chosen = await OpenPickerAsync(go.transform);
+                if (chosen == null) return;
+
+                // The spawn can be removed or swapped while the picker is open, so
+                // re-resolve rather than binding through the stale capture. Static and
+                // duplicate-binding races are re-checked inside the manager.
+                if (!BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(netID, out go) || go == null) return;
+
+                BasisTrackerBinding created = await BasisTrackerObjectManager.TryCreateBindingAsync(chosen, go.transform, netID);
+                if (created != null && button != null)
+                {
+                    button.SetIcon(AddressableAssets.Sprites.Unlink);
+                    button.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.unbindTracker.tooltip"));
+                }
+            };
+        }
+
+        private static async Task<BasisInput> OpenPickerAsync(Transform target)
+        {
+            DialogBox<BasisInput> picker = DialogBox<BasisInput>.Create(
+                LibraryProvider.panel,
+                PickerSize,
+                BasisLocalization.Get("library.trackerPicker.title"),
+                description: null,
+                icon: AddressableAssets.Sprites.Information);
+
+            PanelButton cancel = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, picker.Descriptor.Header);
+            cancel.Descriptor.SetTitle(BasisLocalization.Get("library.trackerPicker.cancel"));
+            cancel.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+            cancel.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+            cancel.OnClicked += () => picker.Cancel(null);
+
+            List<BasisInput> candidates = CollectBindableTrackers();
+            // Same reach rule as grabbing the prop, so the picker never offers a
+            // tracker the bind gate would refuse. The distances are a snapshot at
+            // open; the manager re-checks range when the choice lands.
+            BasisPickupInteractable pickup = BasisTrackerObjectManager.ResolvePickup(target);
+            int eligible = candidates.Count;
+            candidates.RemoveAll(t => !BasisTrackerObjectManager.IsWithinBindRange(t.transform.position, target, pickup));
+            if (candidates.Count == 0)
+            {
+                PanelTextField empty = PanelTextField.CreateNew(PanelTextField.TextFieldStyles.Entry, picker.Descriptor.ContentParent);
+                empty._inputField.gameObject.SetActive(false);
+                empty.Descriptor.SetTitle(BasisLocalization.Get(eligible > 0
+                    ? "library.trackerPicker.outOfRange"
+                    : "library.trackerPicker.empty"));
+            }
+            else
+            {
+                for (int index = 0; index < candidates.Count; index++)
+                {
+                    BasisInput tracker = candidates[index];
+                    string roleLabel = tracker.TryGetRole(out BasisBoneTrackedRole role)
+                        ? role.ToString()
+                        : "Tracker";
+                    PanelButton row = PanelButton.CreateNew(PanelButton.ButtonStyles.StandardButton, picker.Descriptor.ContentParent);
+                    row.Descriptor.SetTitle($"{roleLabel} — {tracker.UniqueDeviceIdentifier}");
+                    row.SetSize(PickerRowSize);
+                    row.OnClicked += () => picker.CloseWithResult(tracker);
+                }
+            }
+
+            return await picker.WaitAsync();
+        }
+
+        private static List<BasisInput> CollectBindableTrackers()
+        {
+            List<BasisInput> result = new List<BasisInput>();
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance?.AllInputDevices;
+            if (devices == null) return result;
+
+            for (int i = 0; i < devices.Count; i++)
+            {
+                BasisInput input = devices[i];
+                if (input == null) continue;
+                if (string.IsNullOrEmpty(input.UniqueDeviceIdentifier)) continue;
+                if (input is BasisVirtualMidpointInput) continue;
+                if (input.IsLinked) continue;
+                if (BasisTrackerRoleOverride.TryGetOverride(input.UniqueDeviceIdentifier, out _)) continue;
+                if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;
+                // A tracker already driving a body bone (post-calibration) is excluded so
+                // calibration and prop binding can't fight over the same device. To reuse
+                // a calibrated tracker, decalibrate first.
+                if (input.TryGetRole(out _)) continue;
+                // One tracker drives at most one prop; unbind it there first.
+                if (BasisTrackerObjectManager.IsTrackerBound(input)) continue;
+
+                result.Add(input);
+            }
+            return result;
+        }
+    }
+}
