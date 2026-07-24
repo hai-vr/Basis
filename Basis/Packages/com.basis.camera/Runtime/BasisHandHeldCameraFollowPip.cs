@@ -134,6 +134,12 @@ public partial class BasisHandHeldCamera
             followPipInstance = Instantiate(handle.Result, pos, rot);
             followPipInstance.name = "FollowCameraPip";
 
+            // Keep the marker out of the shot. The puck sits at the camera position, so the
+            // capture camera would otherwise film it. OverlayUI is the layer the capture camera
+            // already excludes (same one the preview screen uses), and the player still sees it.
+            int overlayUi = LayerMask.NameToLayer("OverlayUI");
+            if (overlayUi >= 0) SetLayerRecursively(followPipInstance, overlayUi);
+
             // Local-only marker: strip the networked-camera identity so nothing treats it as a
             // real remote PIP. Its own colliders stay off; grabbing goes through the box below.
             if (followPipInstance.TryGetComponent(out BasisCameraRemotePip remotePip)) Destroy(remotePip);
@@ -167,6 +173,16 @@ public partial class BasisHandHeldCamera
         followPipPickup = pip.AddComponent<BasisPickupInteractable>();
         followPipPickup.OnInteractStartEvent.AddListener(_ => followPipGrabbed = true);
         followPipPickup.OnInteractEndEvent.AddListener(_ => followPipGrabbed = false);
+    }
+
+    private static void SetLayerRecursively(GameObject root, int layer)
+    {
+        root.layer = layer;
+        Transform t = root.transform;
+        for (int Index = 0; Index < t.childCount; Index++)
+        {
+            SetLayerRecursively(t.GetChild(Index).gameObject, layer);
+        }
     }
 
     private static bool TryGetLocalRendererBounds(GameObject root, out Vector3 center, out Vector3 size)
@@ -226,11 +242,14 @@ public partial class BasisHandHeldCamera
         float depth = DetachedGizmoDepth * scale;
         float half = DetachedGizmoHalfSize * scale;
 
-        // Lens quad corners, in camera space, one plane in front.
-        _gizmoQuad[0] = apex + rot * new Vector3(-half, -half, depth);
-        _gizmoQuad[1] = apex + rot * new Vector3(half, -half, depth);
-        _gizmoQuad[2] = apex + rot * new Vector3(half, half, depth);
-        _gizmoQuad[3] = apex + rot * new Vector3(-half, half, depth);
+        // Draw the gizmo BEHIND the lens (negative Z in camera space). The capture frustum only
+        // extends forward from the near plane, so anything at or behind the camera origin is
+        // outside it and never rendered into the shot — while the player's camera still sees it.
+        // Reads naturally too: a small camera icon opening back toward the viewer.
+        _gizmoQuad[0] = apex + rot * new Vector3(-half, -half, -depth);
+        _gizmoQuad[1] = apex + rot * new Vector3(half, -half, -depth);
+        _gizmoQuad[2] = apex + rot * new Vector3(half, half, -depth);
+        _gizmoQuad[3] = apex + rot * new Vector3(-half, half, -depth);
 
         if (!_gizmoCreated)
         {
