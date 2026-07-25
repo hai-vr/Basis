@@ -38,6 +38,21 @@ namespace Basis.TrackerObjects
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Initialize()
         {
+            // Statics survive Play sessions when domain reload is disabled, and scene
+            // reload can be disabled independently, so a carried-over binding's objects
+            // may or may not still exist. Run the normal unbind path for each: its
+            // Unity-null checks no-op on destroyed objects, and any survivor gets its
+            // pickup predicates, kinematic state and send rate restored. Snapshot and
+            // remove by ID so a subscriber mutating the list reentrantly can't get a
+            // freshly created binding swept up by a stale index.
+            if (_bindings.Count > 0)
+            {
+                BasisTrackerBinding[] carriedOver = _bindings.ToArray();
+                for (int index = 0; index < carriedOver.Length; index++)
+                {
+                    TryRemoveBinding(carriedOver[index].Id);
+                }
+            }
             if (_subscribed)
             {
                 return;
@@ -206,8 +221,9 @@ namespace Basis.TrackerObjects
             {
                 return;
             }
-            foreach (Action<BasisTrackerBinding> handler in handlers.GetInvocationList())
+            foreach (Delegate subscriber in handlers.GetInvocationList())
             {
+                Action<BasisTrackerBinding> handler = (Action<BasisTrackerBinding>)subscriber;
                 try
                 {
                     handler(binding);
@@ -401,19 +417,17 @@ namespace Basis.TrackerObjects
                     }
                     break;
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedAll:
-                    for (int index = _bindings.Count - 1; index >= 0; index--)
+                {
+                    // Snapshot and remove by ID: OnBindingRemoved subscribers can mutate
+                    // the list reentrantly, and index-based removal could sweep up a
+                    // binding created mid-clear. Rare event, so the allocation is fine.
+                    BasisTrackerBinding[] cleared = _bindings.ToArray();
+                    for (int index = 0; index < cleared.Length; index++)
                     {
-                        // An OnBindingRemoved subscriber may mutate the list reentrantly;
-                        // skip stale indices instead of throwing. A countdown (not a
-                        // while-drain) so a subscriber re-binding mid-clear can't spin
-                        // this forever.
-                        if (index >= _bindings.Count)
-                        {
-                            continue;
-                        }
-                        RemoveAt(index);
+                        TryRemoveBinding(cleared[index].Id);
                     }
                     break;
+                }
             }
         }
     }
