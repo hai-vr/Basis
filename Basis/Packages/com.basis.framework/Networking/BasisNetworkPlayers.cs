@@ -170,8 +170,7 @@ namespace Basis.Scripts.Networking
             return removed;
         }
 
-        public static bool GetPlayerById(ushort playerId, out BasisNetworkPlayer player) =>
-            Players.TryGetValue(playerId, out player);
+        public static bool GetPlayerById(ushort playerId, out BasisNetworkPlayer player) => Players.TryGetValue(playerId, out player);
 
         // --- Conversions (Avatar/Player) -----------------------------------
         public static bool AvatarToPlayer(BasisAvatar avatar, out IBasisPlayer basisPlayer, out BasisNetworkPlayer networkedPlayer)
@@ -252,6 +251,54 @@ namespace Basis.Scripts.Networking
                     return true;
                 }
             }
+            return false;
+        }
+        public static bool TryGetPlayerByUUID(string uuid, out BasisNetworkPlayer player)
+        {
+            player = null;
+
+            if (string.IsNullOrEmpty(uuid))
+                return false;
+
+            foreach (var entry in Players)
+            {
+                var networkPlayer = entry.Value;
+                if (networkPlayer?.Player == null)
+                    continue;
+
+                if (string.Equals(networkPlayer.Player.UUID, uuid, StringComparison.Ordinal))
+                {
+                    player = networkPlayer;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        public static bool TryGetPlayerByUUID(string uuid, out IBasisPlayer player)
+        {
+            player = null;
+
+            if (string.IsNullOrEmpty(uuid))
+            {
+                return false;
+            }
+
+            foreach (var entry in Players)
+            {
+                var basisPlayer = entry.Value?.Player;
+                if (basisPlayer == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(basisPlayer.UUID, uuid, StringComparison.Ordinal))
+                {
+                    player = basisPlayer;
+                    return true;
+                }
+            }
+
             return false;
         }
     }
