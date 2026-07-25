@@ -10,6 +10,7 @@ Bridges `com.basis.trackerobjects` into the Basis library menu. When a prop has 
 
 - A `[RuntimeInitializeOnLoadMethod(SubsystemRegistration)]` subscriber on `LibraryProvider.OnInstanceRowCreated`. For every instantiated-object row that `LibraryProvider` builds, this appends a `StandardButton` between the existing Select and Teleport buttons.
 - The button only appears on `SpawnMode.GameObject` (prop) rows — scenes and avatars are skipped, as are `SpawnMethod.Embedded` and static-locked items. Static rows rebuild on the server's Modified broadcast, so the button reappears when the lock clears.
+- The button also hides when no spare bindable tracker is connected, and reappears live when one turns up (the hook watches `AllInputDevices` and the binding events). A bound prop's row always keeps its button so Unlink stays reachable. Eligibility changes that don't touch the device list (e.g. calibrating a tracker to a body bone) are picked up on the next device or binding change, or menu rebuild.
 - Clicking the Link icon opens a `DialogBox<BasisInput>` modal listing the currently-connected trackers eligible for prop binding. Confirming a row calls `BasisTrackerObjectManager.TryCreateBindingAsync` with the spawn instance's `LoadedNetID` and `GameObject` transform; the manager takes network ownership of the prop before the binding is created. The picker excludes:
   - `BasisVirtualMidpointInput` instances (the virtual half of an active pair).
   - Trackers with `BasisInput.IsLinked == true` (one half of an active pair).

@@ -23,9 +23,26 @@ namespace Basis.Integration.TrackerObjects
         // transient; entries go stale when the tab rebuilds and are pruned on use.
         private static readonly Dictionary<string, PanelButton> _rowButtons = new Dictionary<string, PanelButton>();
 
+        // The device list this hook is watching for spare-tracker availability.
+        // Subscribed lazily from OnRowCreated because BasisDeviceManagement.Instance
+        // doesn't exist yet at SubsystemRegistration, and re-checked there in case
+        // the singleton was reassigned.
+        private static BasisObservableList<BasisInput> _watchedDevices;
+        private static readonly List<string> _staleRowKeys = new List<string>();
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Subscribe()
         {
+            // Statics survive Play sessions when domain reload is disabled; drop the
+            // dead session's device watch and row cache before re-registering.
+            if (_watchedDevices != null)
+            {
+                _watchedDevices.OnListChanged -= RefreshAllButtonVisibility;
+                _watchedDevices = null;
+            }
+            _rowButtons.Clear();
+            _staleRowKeys.Clear();
+
             LibraryProvider.OnInstanceRowCreated -= OnRowCreated;
             LibraryProvider.OnInstanceRowCreated += OnRowCreated;
             BasisTrackerObjectManager.OnBindingCreated -= OnBindingCreated;
@@ -34,9 +51,19 @@ namespace Basis.Integration.TrackerObjects
             BasisTrackerObjectManager.OnBindingRemoved += OnBindingRemoved;
         }
 
-        private static void OnBindingCreated(BasisTrackerBinding binding) => RefreshRowButton(binding.LoadedNetID, bound: true);
+        private static void OnBindingCreated(BasisTrackerBinding binding)
+        {
+            RefreshRowButton(binding.LoadedNetID, bound: true);
+            // Binding a tracker can consume the last spare; unbound rows lose their button.
+            RefreshAllButtonVisibility();
+        }
 
-        private static void OnBindingRemoved(BasisTrackerBinding binding) => RefreshRowButton(binding.LoadedNetID, bound: false);
+        private static void OnBindingRemoved(BasisTrackerBinding binding)
+        {
+            RefreshRowButton(binding.LoadedNetID, bound: false);
+            // Unbinding frees a tracker back into the spare pool; hidden buttons return.
+            RefreshAllButtonVisibility();
+        }
 
         private static void RefreshRowButton(string netID, bool bound)
         {
@@ -52,6 +79,47 @@ namespace Basis.Integration.TrackerObjects
             button.Descriptor.SetTooltip(BasisLocalization.Get(bound
                 ? "library.instantiated.unbindTracker.tooltip"
                 : "library.instantiated.assignTracker.tooltip"));
+        }
+
+        private static void WatchDeviceList()
+        {
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance?.AllInputDevices;
+            if (devices == null || ReferenceEquals(devices, _watchedDevices)) return;
+            if (_watchedDevices != null)
+            {
+                _watchedDevices.OnListChanged -= RefreshAllButtonVisibility;
+            }
+            devices.OnListChanged += RefreshAllButtonVisibility;
+            _watchedDevices = devices;
+        }
+
+        /// <summary>
+        /// A row's button shows when a spare bindable tracker exists, or when its prop
+        /// is already bound (the Unlink action must stay reachable regardless).
+        /// </summary>
+        private static bool ShouldShowButton(string netID, bool anySpare)
+        {
+            return anySpare || BasisTrackerObjectManager.TryGetBindingByLoadedNetID(netID, out _);
+        }
+
+        private static void RefreshAllButtonVisibility()
+        {
+            bool anySpare = HasSpareTracker();
+            _staleRowKeys.Clear();
+            foreach (KeyValuePair<string, PanelButton> pair in _rowButtons)
+            {
+                if (pair.Value == null)
+                {
+                    _staleRowKeys.Add(pair.Key);
+                    continue;
+                }
+                pair.Value.Descriptor.SetActive(ShouldShowButton(pair.Key, anySpare));
+            }
+            int staleCount = _staleRowKeys.Count;
+            for (int index = 0; index < staleCount; index++)
+            {
+                _rowButtons.Remove(_staleRowKeys[index]);
+            }
         }
 
         private static void OnRowCreated(RectTransform parent, BasisRuntimeSpawnRegistry.SpawnInstance instance)
@@ -70,6 +138,8 @@ namespace Basis.Integration.TrackerObjects
             // Modified broadcast, so the button reappears when the lock clears.
             if (instance.Static) return;
 
+            WatchDeviceList();
+
             bool hasBinding = BasisTrackerObjectManager.TryGetBindingByLoadedNetID(netID, out _);
             PanelButton button = PanelButton.CreateNew(PanelButton.ButtonStyles.StandardButton, parent);
             button.Descriptor.SetTitle(string.Empty);
@@ -82,6 +152,12 @@ namespace Basis.Integration.TrackerObjects
                 ? "library.instantiated.unbindTracker.tooltip"
                 : "library.instantiated.assignTracker.tooltip"));
             _rowButtons[netID] = button;
+            // Built hidden when no spare tracker exists (and this prop isn't bound);
+            // the device-list and binding subscriptions bring it back live.
+            if (!hasBinding && !HasSpareTracker())
+            {
+                button.Descriptor.SetActive(false);
+            }
 
             // Icon and tooltip updates flow from OnBindingCreated/OnBindingRemoved
             // (via RefreshRowButton), so the click handler only drives the manager.
@@ -159,29 +235,49 @@ namespace Basis.Integration.TrackerObjects
             return await picker.WaitAsync();
         }
 
+        private static bool IsBindableSpareTracker(BasisInput input)
+        {
+            if (input == null) return false;
+            if (string.IsNullOrEmpty(input.UniqueDeviceIdentifier)) return false;
+            if (input is BasisVirtualMidpointInput) return false;
+            if (input.IsLinked) return false;
+            if (BasisTrackerRoleOverride.TryGetOverride(input.UniqueDeviceIdentifier, out _)) return false;
+            if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) return false;
+            // A tracker already driving a body bone (post-calibration) is excluded so
+            // calibration and prop binding can't fight over the same device. To reuse
+            // a calibrated tracker, decalibrate first.
+            if (input.TryGetRole(out _)) return false;
+            // One tracker drives at most one prop; unbind it there first.
+            if (BasisTrackerObjectManager.IsTrackerBound(input)) return false;
+            return true;
+        }
+
+        private static bool HasSpareTracker()
+        {
+            BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance?.AllInputDevices;
+            if (devices == null) return false;
+            int count = devices.Count;
+            for (int i = 0; i < count; i++)
+            {
+                if (IsBindableSpareTracker(devices[i])) return true;
+            }
+            return false;
+        }
+
         private static List<BasisInput> CollectBindableTrackers()
         {
             List<BasisInput> result = new List<BasisInput>();
             BasisObservableList<BasisInput> devices = BasisDeviceManagement.Instance?.AllInputDevices;
             if (devices == null) return result;
 
-            for (int i = 0; i < devices.Count; i++)
+            int count = devices.Count;
+            for (int i = 0; i < count; i++)
             {
                 BasisInput input = devices[i];
-                if (input == null) continue;
-                if (string.IsNullOrEmpty(input.UniqueDeviceIdentifier)) continue;
-                if (input is BasisVirtualMidpointInput) continue;
-                if (input.IsLinked) continue;
-                if (BasisTrackerRoleOverride.TryGetOverride(input.UniqueDeviceIdentifier, out _)) continue;
-                if (input.DeviceMatchSettings != null && input.DeviceMatchSettings.HasTrackedRole) continue;
-                // A tracker already driving a body bone (post-calibration) is excluded so
-                // calibration and prop binding can't fight over the same device. To reuse
-                // a calibrated tracker, decalibrate first.
-                if (input.TryGetRole(out _)) continue;
-                // One tracker drives at most one prop; unbind it there first.
-                if (BasisTrackerObjectManager.IsTrackerBound(input)) continue;
-
-                result.Add(input);
+                if (IsBindableSpareTracker(input))
+                {
+                    result.Add(input);
+                }
             }
             return result;
         }
