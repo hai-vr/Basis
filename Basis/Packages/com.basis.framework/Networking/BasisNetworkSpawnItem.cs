@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using static BasisNetworkContentBase;
 using static BundledContentHolder;
 using static SerializableBasis;
 public static class BasisNetworkSpawnItem
@@ -217,10 +218,36 @@ public static class BasisNetworkSpawnItem
             BasisScene BasisScene = root.GetComponentInChildren<BasisScene>();
             if (BasisScene != null)
             {
-                BasisScene.AssignNetworkGUIDIdentifier(localLoadResource.LoadedNetID);
+                BasisScene.AssignContentIdentifier(Generator(localLoadResource));
                 return;
             }
         }
+    }
+    public static BasisContentInformation Generator(LocalLoadResource LoadResource)
+    {
+        BasisContentInformation Information = new BasisContentInformation()
+        {
+            IsAdminLocked = LoadResource.IsAdminLocked,
+            LoadedNetID = LoadResource.LoadedNetID,
+            LoadStrategy = LoadResource.LoadStrategy,
+            Mode = LoadResource.Mode,
+            ModifyScale = LoadResource.ModifyScale,
+            Persist = LoadResource.Persist,
+            PositionX = LoadResource.PositionX,
+            PositionY = LoadResource.PositionY,
+            PositionZ = LoadResource.PositionZ,
+            QuaternionW = LoadResource.QuaternionW,
+            QuaternionX = LoadResource.QuaternionX,
+            QuaternionY = LoadResource.QuaternionY,
+            QuaternionZ = LoadResource.QuaternionZ,
+            ScaleX = LoadResource.ScaleX,
+            ScaleY = LoadResource.ScaleY,
+            ScaleZ = LoadResource.ScaleZ,
+            Static = LoadResource.Static,
+            StaticAdminLocked = LoadResource.StaticAdminLocked,
+            UUIDOfCreator = LoadResource.UUIDOfCreator,
+        };
+        return Information;
     }
     public static async Task<GameObject> SpawnGameObject(LocalLoadResource localLoadResource, Selector Selector)
     {
@@ -268,7 +295,7 @@ public static class BasisNetworkSpawnItem
             reference.name = localLoadResource.LoadedNetID;
             if (reference.TryGetComponent<BasisNetworkContentBase>(out BasisNetworkContentBase BasisContentBase))
             {
-                BasisContentBase.AssignNetworkGUIDIdentifier(localLoadResource.LoadedNetID);
+                BasisContentBase.AssignContentIdentifier(Generator(localLoadResource));
             }
             else
             {

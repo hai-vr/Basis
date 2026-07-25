@@ -77,14 +77,17 @@ namespace Basis
         {
             if (BasisNetworkConnection.LocalPlayerIsConnected)
             {
-                bool wassuccesful = TryGetNetworkGUIDIdentifier(out string NetworkGuidID);
+                bool wassuccesful = TryGetIdentifier(out var ContentInformation);
                 if (wassuccesful == false)//this will happen to anything that has not got a GUID from the server
                 {
                     //so if we dont get a GUID from the server lets make one!
                     string FileNamePath = LowLevelGetHierarchyPath(this);
-                    AssignNetworkGUIDIdentifier(FileNamePath);
+                    BasisContentInformation Content = new BasisContentInformation();
+                    Content.LoadedNetID = FileNamePath;
+                    //FileNamePath
+                    AssignContentIdentifier(Content);
 
-                    wassuccesful = TryGetNetworkGUIDIdentifier(out NetworkGuidID);
+                    wassuccesful = TryGetIdentifier(out ContentInformation);
                 }
                 if (!wassuccesful)
                 {
@@ -95,8 +98,8 @@ namespace Basis
                 BasisNetworkPlayer.OnOwnershipReleased += LowLevelOwnershipReleased;
                 BasisNetworkPlayer.OnPlayerJoined += LowLevelResolvePendingOwner;
 
-                Task<BasisIdResolutionResult> IDResolverAsync = BasisNetworkIdResolver.ResolveAsync(NetworkGuidID);
-                Task<BasisOwnershipResult> output = BasisNetworkOwnership.RequestCurrentOwnershipAsync(NetworkGuidID);
+                Task<BasisIdResolutionResult> IDResolverAsync = BasisNetworkIdResolver.ResolveAsync(ContentInformation.LoadedNetID);
+                Task<BasisOwnershipResult> output = BasisNetworkOwnership.RequestCurrentOwnershipAsync(ContentInformation.LoadedNetID);
                 Task[] tasks = new Task[] { IDResolverAsync, output };
 
                 await Task.WhenAll(tasks);

@@ -15,6 +15,7 @@ using HVR.Basis.Comms.OSC.Lyuma;
 using NUnit.Framework;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using static BasisNetworkContentBase;
 
 namespace HVR.Basis.Comms.Tests
 {
@@ -1009,11 +1010,16 @@ namespace HVR.Basis.Comms.Tests
             try
             {
                 BasisProp propA = goA.AddComponent<BasisProp>();
-                propA.AssignNetworkGUIDIdentifier("prop-one");
+
+                BasisContentInformation InforA = default;//"prop-two"
+                InforA.LoadedNetID = "prop-one";
+                propA.AssignContentIdentifier(InforA);
                 BasisOsc shimA = goA.AddComponent<BasisOsc>();
 
                 BasisProp propB = goB.AddComponent<BasisProp>();
-                propB.AssignNetworkGUIDIdentifier("prop-two");
+                BasisContentInformation InforB = default;//"prop-two"
+                InforB.LoadedNetID = "prop-two";
+                propB.AssignContentIdentifier(InforB);
                 BasisOsc shimB = goB.AddComponent<BasisOsc>();
 
                 shimA.PublishValue("Status", OscData.String("alpha"));
@@ -1048,7 +1054,10 @@ namespace HVR.Basis.Comms.Tests
                 avatar.IsOwnedLocally = false;
 
                 BasisProp prop = propChild.AddComponent<BasisProp>();
-                prop.AssignNetworkGUIDIdentifier("prop-under-remote-avatar");
+                BasisContentInformation InforB = default;//"prop-two"
+                InforB.LoadedNetID = "prop-under-remote-avatar";
+
+                prop.AssignContentIdentifier(InforB);
 
                 BasisOsc shim = propChild.AddComponent<BasisOsc>();
                 shim.PublishValue("Status", OscData.String("held"));
@@ -1138,7 +1147,9 @@ namespace HVR.Basis.Comms.Tests
             try
             {
                 BasisProp prop = go.AddComponent<BasisProp>();
-                prop.AssignNetworkGUIDIdentifier("prop-one");
+                BasisContentInformation InforB = default;
+                InforB.LoadedNetID = "prop-one";
+                prop.AssignContentIdentifier(InforB);
 
                 BasisOsc shim = go.AddComponent<BasisOsc>();
                 MethodInfo resolvePublishAddress = typeof(BasisOsc).GetMethod("ResolvePublishAddress", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -1163,7 +1174,9 @@ namespace HVR.Basis.Comms.Tests
             try
             {
                 BasisScene scene = go.AddComponent<BasisScene>();
-                scene.AssignNetworkGUIDIdentifier("scene-one");
+                BasisContentInformation InforB = default;
+                InforB.LoadedNetID = "scene-one";
+                scene.AssignContentIdentifier(InforB);
                 BasisOsc shim = go.AddComponent<BasisOsc>();
 
                 shim.PublishValue("Environment/Ambient", OscData.String("night"));
