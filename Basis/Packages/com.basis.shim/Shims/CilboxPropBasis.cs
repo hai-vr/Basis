@@ -92,6 +92,7 @@ namespace Cilbox
 			"UnityEngine.JointSpring.*",
 			"UnityEngine.SoftJointLimit.*",
 			"UnityEngine.SoftJointLimitSpring.*",
+			"BasisNetworkContentBase+BasisContentInformation.*",
 		};
 
 		static readonly Dictionary<Type, HashSet<string>> extraMethodWhitelist = new Dictionary<Type, HashSet<string>>()
@@ -117,6 +118,24 @@ namespace Cilbox
 				"ToByte", "ToSByte", "ToBoolean", "ToChar", "ToSingle", "ToDouble",
 				"ToString", "ToBase64String", "FromBase64String",
 				"ToDateTime", "ToDecimal" } },
+			{
+				typeof(Basis.Scripts.Networking.BasisNetworkConnection),
+				new HashSet<string>
+				{
+					"get_LocalPlayerIsConnected",
+				}
+			},
+			{
+				typeof(BasisNetworkContentBase),
+				new HashSet<string>
+				{
+					"TryGetIdentifier",
+				}
+			},
+			{
+				typeof(Basis.Scripts.BasisSdk.Players.IBasisPlayer),
+				new HashSet<string>()
+			},
 		};
 
 		protected override HashSet<string> ExtraWhiteListType => extraWhiteListType;

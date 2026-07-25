@@ -281,7 +281,12 @@ namespace Cilbox
 			"UnityEngine.EventSystems.PointerEventData",
 			"UnityEngine.EventSystems.PointerEventData+InputButton",
 			"UnityEngine.EventSystems.RaycastResult",
-		};
+
+            "BasisNetworkContentBase",
+"BasisNetworkContentBase+BasisContentInformation",
+"Basis.Scripts.BasisSdk.Players.IBasisPlayer",
+"Basis.Scripts.Networking.BasisNetworkConnection",
+        };
 
 		protected static readonly HashSet<string> commonWhiteListFields = new HashSet<string>(){
 			// Unity Vector / Quaternion math fields
