@@ -137,7 +137,7 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.BasisNetworkPlayers),
 				new HashSet<string>
 				{
-        "TryGetPlayerByUUID",
+					"TryGetPlayerByUUID",
 				}
 			},
 			{
@@ -145,6 +145,7 @@ namespace Cilbox
 				new HashSet<string>
 				{
 					"get_IsLocal",
+					"TryGetPlayer",
 				}
 			},
             {
