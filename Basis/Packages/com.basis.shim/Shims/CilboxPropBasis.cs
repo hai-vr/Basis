@@ -12,6 +12,7 @@ namespace Cilbox
 			"Basis.Shims.*",
 			"Basis.BasisImageDownloader",
 			"Basis.IBasisImageDownload",
+            "Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
 
 			// System IO
 			"System.IO.BinaryReader",
@@ -132,7 +133,21 @@ namespace Cilbox
 					"TryGetIdentifier",
 				}
 			},
+            {
+				typeof(Basis.Scripts.Networking.BasisNetworkPlayers),
+				new HashSet<string>
+				{
+        "TryGetPlayerByUUID",
+				}
+			},
 			{
+				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer),
+				new HashSet<string>
+				{
+					"get_IsLocal",
+				}
+			},
+            {
 				typeof(Basis.Scripts.BasisSdk.Players.IBasisPlayer),
 				new HashSet<string>()
 			},
