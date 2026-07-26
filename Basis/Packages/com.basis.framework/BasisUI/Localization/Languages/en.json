@@ -8617,6 +8617,30 @@
     {
       "key": "settings.bodyTracking.headSwing.backward.tooltip",
       "value": "How far the camera pulls back when you look UP, as a fraction of the look-down carry. Looking up is not the mirror of looking down - your upper back takes most of it, so your skull does not slide backward nearly as far. 1.0 would treat them the same."
+    },
+    {
+      "key": "library.instantiated.assignTracker.tooltip",
+      "value": "Bind this item to a spare tracker"
+    },
+    {
+      "key": "library.instantiated.unbindTracker.tooltip",
+      "value": "Release this item from its tracker"
+    },
+    {
+      "key": "library.trackerPicker.title",
+      "value": "Choose Tracker"
+    },
+    {
+      "key": "library.trackerPicker.empty",
+      "value": "No spare trackers are currently connected."
+    },
+    {
+      "key": "library.trackerPicker.outOfRange",
+      "value": "No spare trackers are within reach of this item. Bring a tracker to the item to bind it."
+    },
+    {
+      "key": "library.trackerPicker.cancel",
+      "value": "Cancel"
     }
   ]
 }

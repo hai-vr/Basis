@@ -136,6 +136,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.basis.integration.trackerobjects": {
+      "version": "file:com.basis.integration.trackerobjects",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.ugui": "2.0.0"
+      }
+    },
     "com.basis.integration.ytdlp": {
       "version": "file:com.basis.integration.ytdlp",
       "depth": 0,
@@ -272,6 +280,12 @@
     },
     "com.basis.textmeshpro": {
       "version": "file:com.basis.textmeshpro",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "com.basis.trackerobjects": {
+      "version": "file:com.basis.trackerobjects",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}

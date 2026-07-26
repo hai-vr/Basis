@@ -223,6 +223,7 @@ public static class BasisDebug
             LogTag.LocalNetwork => "#ff0055",
             LogTag.AuthoredMotion => "#BA55D3", // Medium Orchid
             LogTag.Rendering => "#ADFF2F",    // Green Yellow
+            LogTag.TrackerObjects => "#F4A460", // Sandy Brown
             _ => "#FFFFFF"                    // Default White
         };
     }
@@ -274,6 +275,7 @@ public static class BasisDebug
         LocalNetwork,
         AuthoredMotion,
         Rendering,
+        TrackerObjects,
     }
 
     public enum MessageType
