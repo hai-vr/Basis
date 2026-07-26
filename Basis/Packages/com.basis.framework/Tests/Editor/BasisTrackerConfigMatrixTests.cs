@@ -354,7 +354,7 @@ namespace Basis.Tests.IK
             public NativeArray<BasisBoneHandle> Chain;
             public NativeArray<BasisSpineRestFrame> RestFrames;
             public NativeArray<BasisSpineRom> Roms;
-            public BasisFullIKConstraintJob Job;
+            public BasisEerieMovement Job;
             public int[] MeasuredStreamIndex;         // parallel to k_Measured
             public Quaternion RestGaze;
             public Quaternion RestChest;              // the subject's own rest chest frame; chest feed is a delta off this
@@ -438,7 +438,7 @@ namespace Basis.Tests.IK
 
             BuildSpineAnatomy(rig, clip, restFrame);
 
-            rig.Job = new BasisFullIKConstraintJob
+            rig.Job = new BasisEerieMovement
             {
                 ChainHeadToSpine = rig.Chain,
                 HandleHips = rig.Skeleton.Bind(rig.Bones[0]),

@@ -7,7 +7,7 @@ namespace Basis.Tests.IK
 {
     /// <summary>
     /// "The head/neck jitters when I stand looking almost straight ahead" regression tests for the spine
-    /// CCD -- <see cref="BasisFullIKConstraintJob.SolveSequentialSpineIK"/>.
+    /// CCD -- <see cref="BasisEerieMovement.SolveSequentialSpineIK"/>.
     ///
     /// Standing upright, the virtual spine places the hips a full chain length below the head, which parks
     /// the CCD at the chain's full-extension singularity. A small head pitch then commands a mm-scale
@@ -83,7 +83,7 @@ namespace Basis.Tests.IK
         NativeArray<BasisBoneHandle> _chain;
         NativeArray<BasisSpineRestFrame> _restFrames;
         NativeArray<BasisSpineRom> _roms;
-        BasisFullIKConstraintJob _job;
+        BasisEerieMovement _job;
         int _neckStreamIndex;
         int _chestStreamIndex;
 
@@ -131,7 +131,7 @@ namespace Basis.Tests.IK
             // Shipped defaults for every field this solve path reads, including the two that used to be
             // wrong. The chest IK target stays off (its default): it is a separate feature with its own
             // weight, not part of the singularity this file characterises.
-            _job = new BasisFullIKConstraintJob
+            _job = new BasisEerieMovement
             {
                 ChainHeadToSpine = _chain,
                 ChainSpineRestFrames = _restFrames,

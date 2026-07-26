@@ -8,7 +8,7 @@ namespace Basis.Tests.IK
 {
     /// <summary>
     /// "Legs twist when I stand very still and straight" gate for the leg knee-swivel smoothing
-    /// (<see cref="BasisFullIKConstraintJob"/>.SmoothKneeSwivel + <see cref="BasisSwivelFilterCore"/>),
+    /// (<see cref="BasisEerieMovement"/>.SmoothKneeSwivel + <see cref="BasisSwivelFilterCore"/>),
     /// the leg analog of the arm's SmoothElbowSwivel.
     ///
     /// Mechanism: with no foot trackers the foot is a position-only plant (rotation preserved) and the leg

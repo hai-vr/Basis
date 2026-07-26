@@ -6,7 +6,7 @@ namespace Basis.Tests.IK
 {
     /// <summary>
     /// Reference-frame gate for <see cref="BasisSwivelSmootherCore"/> (the shared body of
-    /// <see cref="BasisFullIKConstraintJob"/>.SmoothElbowSwivel and SmoothKneeSwivel).
+    /// <see cref="BasisEerieMovement"/>.SmoothElbowSwivel and SmoothKneeSwivel).
     ///
     /// A swivel angle is only meaningful relative to a reference direction. Both smoothers used a WORLD
     /// constant for that reference -- the elbow world-down, the knee world-forward -- while the pole they

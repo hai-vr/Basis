@@ -310,7 +310,7 @@ namespace Basis.Scripts.Avatar
         {
             var rig = BasisLocalPlayer.Instance.LocalRigDriver;
             if (rig == null || !rig.IKDataReady) return;
-            ref BasisFullIKConstraintJob data = ref rig.IKJob;
+            ref BasisEerieMovement data = ref rig.IKJob;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
 
             LogFbikRole("Head", data.offsetRotationHead, BasisLocalBoneDriver.HeadControl, Mapping.head);
@@ -488,7 +488,7 @@ namespace Basis.Scripts.Avatar
             if (!HasCalibrationReference) return;
             var rig = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalRigDriver : null;
             if (rig == null || !rig.IKDataReady) return;
-            ref BasisFullIKConstraintJob data = ref rig.IKJob;
+            ref BasisEerieMovement data = ref rig.IKJob;
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
             Quaternion rootInv = Mapping.HasAnimatorRoot ? Quaternion.Inverse(Mapping.AnimatorRoot.rotation) : Quaternion.identity;
 

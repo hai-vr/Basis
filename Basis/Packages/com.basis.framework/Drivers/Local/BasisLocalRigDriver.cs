@@ -1,4 +1,4 @@
-﻿using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -54,7 +54,7 @@ namespace Basis.Scripts.Drivers
         [System.NonSerialized] public PlayableGraph PlayableGraph;
         [System.NonSerialized] public readonly BasisPoseSkeleton PoseSkeleton = new BasisPoseSkeleton();
         [System.NonSerialized] public readonly BasisLocomotionPoseSystem LocomotionPose = new BasisLocomotionPoseSystem();
-        [System.NonSerialized] public BasisFullIKConstraintJob IKJob;
+        [System.NonSerialized] public BasisEerieMovement IKJob;
         [System.NonSerialized] public bool IKJobCreated;
         public bool RigLayerActive = true;
         [System.NonSerialized] public bool IKDataReady;
@@ -818,7 +818,7 @@ namespace Basis.Scripts.Drivers
 
             // ── 8. Scatter filter outputs into BasisFullIKConstraintJob ──
             sMarkerIKDestBuildTargets.Begin();
-            ref BasisFullIKConstraintJob data = ref IKJob;
+            ref BasisEerieMovement data = ref IKJob;
 
             // Pull out pointers once; avoids per-slot safety-handle checks on each indexer read.
             Vector3 hipsPos;
@@ -1418,10 +1418,10 @@ namespace Basis.Scripts.Drivers
         }
         private void OnPlayersHeightChangedNextFrame(HeightModeChange HeightModeChange)
         {
-            ref BasisFullIKConstraintJob Data = ref IKJob;
+            ref BasisEerieMovement Data = ref IKJob;
             SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
         }
-        public static void SetHandCollisionScale(ref BasisFullIKConstraintJob BodyData, float Scale)
+        public static void SetHandCollisionScale(ref BasisEerieMovement BodyData, float Scale)
         {
             // Pull the live slider values so a height change keeps tuning consistent with
             // ApplyTuningSettings (which does the same per-frame).
@@ -1471,33 +1471,33 @@ namespace Basis.Scripts.Drivers
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChangedNextFrame;
             OnPlayersHeightChangedNextFrame( HeightModeChange.OnTpose);
 
-            ref BasisFullIKConstraintJob data = ref IKJob;
+            ref BasisEerieMovement data = ref IKJob;
 
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
             };
             data.enabledLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
             };
             data.enabledRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
 
             BasisLocalBoneDriver.LeftLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.hintWeightLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
             };
             data.hintWeightLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
 
             BasisLocalBoneDriver.RightLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.hintWeightRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
             };
             data.hintWeightRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
@@ -1505,14 +1505,14 @@ namespace Basis.Scripts.Drivers
             // Toes
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.leftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
             };
             data.leftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
 
             BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
             };
             data.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
@@ -1520,14 +1520,14 @@ namespace Basis.Scripts.Drivers
             // Hands
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
             };
             data.enabledLeftHand = HandRigWeight(BasisLocalBoneDriver.LeftHandControl);
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
             };
             data.enabledRightHand = HandRigWeight(BasisLocalBoneDriver.RightHandControl);
@@ -1535,14 +1535,14 @@ namespace Basis.Scripts.Drivers
             // Lower arms (hand hints)
             BasisLocalBoneDriver.LeftLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.hintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
             };
             data.hintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
 
             BasisLocalBoneDriver.RightLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.hintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
             };
             data.hintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
@@ -1550,7 +1550,7 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.ChestControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.HasChestTracker = HasRigLayer(BasisLocalBoneDriver.ChestControl);
             };
             data.HasChestTracker = HasRigLayer(BasisLocalBoneDriver.ChestControl);
@@ -1558,7 +1558,7 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
             };
             data.enabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
@@ -1566,7 +1566,7 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.RightShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                ref BasisFullIKConstraintJob d = ref IKJob;
+                ref BasisEerieMovement d = ref IKJob;
                 d.enabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
             };
             data.enabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
@@ -1574,7 +1574,7 @@ namespace Basis.Scripts.Drivers
             // Initialize offsets and weights per override slot. Slots are HumanBodyBones values:
             // 0..20 plus UpperChest (54) — NOT a contiguous 0..Count range, which would touch
             // LeftEye (21, silently ignored) and skip UpperChest entirely.
-            for (int i = 0; i < BasisFullIKConstraintJob.Count; i++)
+            for (int i = 0; i < BasisEerieMovement.Count; i++)
             {
                 int slot = i <= (int)HumanBodyBones.RightToes ? i : (int)HumanBodyBones.UpperChest;
                 var bone = (HumanBodyBones)slot;
@@ -1610,7 +1610,7 @@ namespace Basis.Scripts.Drivers
         public static Quaternion RecalibratedLeftToe, RecalibratedRightToe;
         public static Quaternion RecalibratedLeftShoulder, RecalibratedRightShoulder;
 
-        private static void ApplyTuningSettings(ref BasisFullIKConstraintJob data)
+        private static void ApplyTuningSettings(ref BasisEerieMovement data)
         {
             // The IK job reads PlayerUp for the hip hinge, crouch offset, arm solve and elbow protect.
             // Nothing ever assigned it, so it sat at the SetDefaultValues world up while the foot driver
@@ -1718,7 +1718,7 @@ namespace Basis.Scripts.Drivers
         {
             if (IKDataReady)
             {
-                ref BasisFullIKConstraintJob data = ref IKJob;
+                ref BasisEerieMovement data = ref IKJob;
                 data.enabledLeftLowerLeg = 0f;
                 data.enabledRightLowerLeg = 0f;
                 data.hintWeightLeftLowerLeg = 0f;
@@ -1770,7 +1770,7 @@ namespace Basis.Scripts.Drivers
         {
             if (IKDataReady)
             {
-                ref BasisFullIKConstraintJob data = ref IKJob;
+                ref BasisEerieMovement data = ref IKJob;
                 data.enabledLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
                 data.enabledRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
                 data.hintWeightLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
@@ -2053,14 +2053,14 @@ namespace Basis.Scripts.Drivers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
-            ref BasisFullIKConstraintJob data = ref IKJob;
+            ref BasisEerieMovement data = ref IKJob;
             data.SetWeight((int)bone, enabled);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
-            ref BasisFullIKConstraintJob data = ref IKJob;
+            ref BasisEerieMovement data = ref IKJob;
             data.SetTargetPosition((int)bone, position);
             data.SetTargetRotation((int)bone, rotation);
         }

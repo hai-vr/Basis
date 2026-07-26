@@ -61,7 +61,7 @@ namespace Basis.Scripts.Debugging
         private static bool _visible;
         private static bool _registered;
 
-        public static void Tick(bool shouldShow, BasisTransformMapping bones, in BasisFullIKConstraintJob job, bool showLabels, Vector3 cameraPos)
+        public static void Tick(bool shouldShow, BasisTransformMapping bones, in BasisEerieMovement job, bool showLabels, Vector3 cameraPos)
         {
             EnsureMasterToggleHook();
 
@@ -138,7 +138,7 @@ namespace Basis.Scripts.Debugging
             _visible = true;
         }
 
-        private static void UpdateLabels(bool showLabels, Vector3 cameraPos, BasisTransformMapping bones, in BasisFullIKConstraintJob job)
+        private static void UpdateLabels(bool showLabels, Vector3 cameraPos, BasisTransformMapping bones, in BasisEerieMovement job)
         {
             // Match the avatar's current height scale so labels grow/shrink with the body
             // (consistent with the skeleton/tracker labels).
@@ -170,7 +170,7 @@ namespace Basis.Scripts.Debugging
             return idx < 5 ? HandColor : UpperArmColor;
         }
 
-        private static bool TryCapsuleMidpoint(BasisTransformMapping bones, in BasisFullIKConstraintJob job, int idx, out Vector3 mid)
+        private static bool TryCapsuleMidpoint(BasisTransformMapping bones, in BasisEerieMovement job, int idx, out Vector3 mid)
         {
             Transform a = null, b = null;
             switch (idx)

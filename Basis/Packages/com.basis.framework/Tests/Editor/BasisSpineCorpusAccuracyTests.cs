@@ -213,7 +213,7 @@ namespace Basis.Tests.IK
             // IsCreated check and spineAnatomicalRom = true would be decorative.
             public NativeArray<BasisSpineRestFrame> RestFrames;
             public NativeArray<BasisSpineRom> Roms;
-            public BasisFullIKConstraintJob Job;
+            public BasisEerieMovement Job;
             public int[] MeasuredStreamIndex;   // parallel to k_Measured
             public Quaternion RestGaze;
 
@@ -265,7 +265,7 @@ namespace Basis.Tests.IK
 
             BuildSpineAnatomy(rig, clip, restFrame);
 
-            rig.Job = new BasisFullIKConstraintJob
+            rig.Job = new BasisEerieMovement
             {
                 ChainHeadToSpine = rig.Chain,
                 ChainSpineRestFrames = rig.RestFrames,
@@ -343,7 +343,7 @@ namespace Basis.Tests.IK
             }
         }
 
-        static void ApplyConfig(ref BasisFullIKConstraintJob job, in SpineConfig cfg)
+        static void ApplyConfig(ref BasisEerieMovement job, in SpineConfig cfg)
         {
             job.spineCCDRelax = cfg.Relax;
             job.spineTwistKeep = cfg.TwistKeep;

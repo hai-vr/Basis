@@ -37,7 +37,7 @@ public static class BasisAnimationRiggingHelper
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisFullIKConstraintJob job)
+    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisEerieMovement job)
     {
         job.SetDefaultValues();
         // Head

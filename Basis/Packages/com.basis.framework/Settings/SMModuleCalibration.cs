@@ -604,59 +604,59 @@ public class SMModuleCalibration : BasisSettingsBase
 
             // ---------- IK COLLIDER & TUNING ----------
             case var s when s == K_FBIK_COLLISIONS_ENABLED:
-                if (bool.TryParse(optionValue, out var colEn)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.collisionsEnabled = colEn);
+                if (bool.TryParse(optionValue, out var colEn)) ApplyIKDataBool((ref BasisEerieMovement d) => d.collisionsEnabled = colEn);
                 break;
 
             case var s when s == K_FBIK_PROTECT_ELBOW:
-                if (bool.TryParse(optionValue, out var peVal)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.protectElbow = peVal);
+                if (bool.TryParse(optionValue, out var peVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.protectElbow = peVal);
                 break;
 
             case var s when s == K_FBIK_COLLIDE_TRACKED_ELBOW:
-                if (bool.TryParse(optionValue, out var cteVal)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.collideTrackedElbow = cteVal);
+                if (bool.TryParse(optionValue, out var cteVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.collideTrackedElbow = cteVal);
                 break;
 
             case var s when s == K_FBIK_CHEST_RADIUS:
-                if (SliderReadOption(optionValue, out var crVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.chestRadius = crVal);
+                if (SliderReadOption(optionValue, out var crVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.chestRadius = crVal);
                 break;
 
             case var s when s == K_FBIK_COLLISION_SKIN:
-                if (SliderReadOption(optionValue, out var csVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.collisionSkin = csVal);
+                if (SliderReadOption(optionValue, out var csVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.collisionSkin = csVal);
                 break;
 
             case var s when s == K_FBIK_HAND_RADIUS:
-                if (SliderReadOption(optionValue, out var hrVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.handRadius = hrVal);
+                if (SliderReadOption(optionValue, out var hrVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.handRadius = hrVal);
                 break;
 
             case var s when s == K_FBIK_HAND_SKIN:
-                if (SliderReadOption(optionValue, out var hsVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.handSkin = hsVal);
+                if (SliderReadOption(optionValue, out var hsVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.handSkin = hsVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_SOLVE:
-                if (bool.TryParse(optionValue, out var ssVal)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.shoulderSolveEnabled = ssVal);
+                if (bool.TryParse(optionValue, out var ssVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.shoulderSolveEnabled = ssVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_SHRUG:
-                if (bool.TryParse(optionValue, out var shrugVal)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.shoulderShrugEnabled = shrugVal);
+                if (bool.TryParse(optionValue, out var shrugVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.shoulderShrugEnabled = shrugVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_RETRACTION:
-                if (bool.TryParse(optionValue, out var retractVal)) ApplyIKDataBool((ref BasisFullIKConstraintJob d) => d.shoulderRetractionEnabled = retractVal);
+                if (bool.TryParse(optionValue, out var retractVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.shoulderRetractionEnabled = retractVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_ELEVATION:
-                if (SliderReadOption(optionValue, out var seVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.shoulderElevationFactor = seVal);
+                if (SliderReadOption(optionValue, out var seVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.shoulderElevationFactor = seVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_PROTRACTION:
-                if (SliderReadOption(optionValue, out var spVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.shoulderProtractionFactor = spVal);
+                if (SliderReadOption(optionValue, out var spVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.shoulderProtractionFactor = spVal);
                 break;
 
             case var s when s == K_FBIK_MAX_BEND_DEG:
-                if (SliderReadOption(optionValue, out var mbVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.maxBendDeg = mbVal);
+                if (SliderReadOption(optionValue, out var mbVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.maxBendDeg = mbVal);
                 break;
 
             case var s when s == K_FBIK_MAX_CHEST_DELTA:
-                if (SliderReadOption(optionValue, out var mcdVal)) ApplyIKDataFloat((ref BasisFullIKConstraintJob d) => d.MaxChestDeltaProperty = mcdVal);
+                if (SliderReadOption(optionValue, out var mcdVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.MaxChestDeltaProperty = mcdVal);
                 break;
 
             // ---------- CALIBRATION SPHERE SCALE ----------
@@ -720,7 +720,7 @@ public class SMModuleCalibration : BasisSettingsBase
         rig.IKJob.ikLockMode = (float)CurrentIKLockMode;
     }
 
-    private delegate void IKDataAction(ref BasisFullIKConstraintJob data);
+    private delegate void IKDataAction(ref BasisEerieMovement data);
 
     private static void ApplyIKDataBool(IKDataAction action)
     {

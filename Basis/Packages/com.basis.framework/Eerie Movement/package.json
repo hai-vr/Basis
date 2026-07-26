@@ -1,0 +1,12 @@
+{
+  "name": "org.basisvr.eeriemovement",
+  "version": "1.0.0",
+  "displayName": "Eerie Movement",
+  "description": "Eerie movement is a fullbody IK solution for unity",
+  "documentationUrl": "",
+  "publishConfig": {
+    "registry": ""
+  },
+  "repository": "",
+  "license": "MIT"
+}

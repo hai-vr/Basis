@@ -13,7 +13,7 @@ namespace Basis.Tests.IK
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
 
     /// <summary>
-    /// "THE HEAD DRAGS MY CHEST AROUND." Gates <see cref="BasisFullIKConstraintJob.ReassertTrackedChest"/>.
+    /// "THE HEAD DRAGS MY CHEST AROUND." Gates <see cref="BasisEerieMovement.ReassertTrackedChest"/>.
     ///
     /// A chest tracker is a MEASUREMENT. SolveSpine wrote it to the chest bone ONCE, before the solve, and
     /// then every stage after it overwrote it while chasing the HEAD: DistributeSpineBend writes the Spine
@@ -217,7 +217,7 @@ namespace Basis.Tests.IK
             public NativeArray<BasisBoneHandle> Chain;
             public NativeArray<BasisSpineRestFrame> RestFrames;
             public NativeArray<BasisSpineRom> Roms;
-            public BasisFullIKConstraintJob Job;
+            public BasisEerieMovement Job;
             public BasisBoneHandle ChestHandle;
             public BasisBoneHandle HeadHandle;
             public Quaternion RestGaze;
@@ -295,7 +295,7 @@ namespace Basis.Tests.IK
             // the allocated buffer is. Verified by construction -- with the buffer absent this sweep returns
             // 0.402 deg/deg and 11.38 deg, bit-identical to deleting the call outright.
 
-            rig.Job = new BasisFullIKConstraintJob
+            rig.Job = new BasisEerieMovement
             {
                 ChainHeadToSpine = rig.Chain,
                 HandleHips = rig.Skeleton.Bind(rig.Bones[0]),

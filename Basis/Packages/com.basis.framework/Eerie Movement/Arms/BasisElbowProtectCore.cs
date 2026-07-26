@@ -254,7 +254,7 @@ namespace Basis.IK
             {
                 // Old caller (no shoulder-to-shoulder axis): derive lateral from the shoulder's own offset off
                 // the chest axis. Slightly forward-tilted vs the true lateral, but keeps every caller working.
-                Vector3 chestClosest = BasisFullIKConstraintJob.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
+                Vector3 chestClosest = BasisEerieMovement.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
                 Vector3 off = shoulderPos - chestClosest;
                 bodyLat = off - upN * Vector3.Dot(off, upN);
             }
@@ -285,7 +285,7 @@ namespace Basis.IK
             }
 
             // Anatomical "out" direction (shoulder's own side of the body), in the swing plane.
-            Vector3 shoulderClosest = BasisFullIKConstraintJob.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
+            Vector3 shoulderClosest = BasisEerieMovement.ClosestPointOnSegment(shoulderPos, i.ChestPos, i.NeckPos);
             Vector3 shoulderOut = shoulderPos - shoulderClosest;
             Vector3 shoulderPerp = shoulderOut - acDir * Vector3.Dot(shoulderOut, acDir);
             float shoulderPerpSqr = shoulderPerp.sqrMagnitude;
@@ -612,7 +612,7 @@ namespace Basis.IK
         static float SegmentClearance(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2,
             float latR0, float latR1, Vector3 bodyLat, Vector3 bodyFwd)
         {
-            BasisFullIKConstraintJob.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out float segT, out Vector3 c1, out Vector3 c2);
+           BasisEerieArms.SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out float segT, out Vector3 c1, out Vector3 c2);
             Vector3 sep = c1 - c2;
             float sepLen = sep.magnitude;
 
