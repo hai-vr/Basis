@@ -36,7 +36,7 @@ namespace Basis.Tests.IK
     /// </summary>
     public class BasisElbowSwingCapRadialTests
     {
-        const float k_MaxGain = BasisElbowSwingCapCore.MaxGain;
+        const float k_MaxGain = BasisEerieArms.MaxGain;
         const float k_ArmLen = 0.60f;
         static readonly Vector3 k_Shoulder = new Vector3(0.17f, 1.40f, 0f);
 
@@ -74,11 +74,11 @@ namespace Basis.Tests.IK
             switch (m)
             {
                 case Mode.RotationOnly:                                   // the pre-fix 5-arg overload
-                    return BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
+                    return BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
                 case Mode.GateDefeated:                                   // control: conditioning pinned high
-                    return BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, 1f);
+                    return BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, 1f);
                 default:
-                    return BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, conditioning);
+                    return BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, conditioning);
             }
         }
 
@@ -288,10 +288,10 @@ namespace Basis.Tests.IK
                     continue;
                 }
 
-                float3 five = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
-                float3 sevenZero = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0f, 0f);
+                float3 five = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
+                float3 sevenZero = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0f, 0f);
                 // a real reach change but zero conditioning: the gate must still refuse the budget
-                float3 sevenUngated = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0.05f, 0f);
+                float3 sevenUngated = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0.05f, 0f);
 
                 Assert.IsTrue(five.Equals(sevenZero),
                     $"the 7-arg overload with zeros differed from the 5-arg one ({five} vs {sevenZero}) -- the new " +
@@ -314,25 +314,25 @@ namespace Basis.Tests.IK
             float3 prevAxis = math.normalize(new float3(0.25f, -0.28f, 0.9f));
             float3 prevBend = math.normalize(math.cross(prevAxis, new float3(0f, 1f, 0f)));
             float3 rawBend = math.normalize(math.cross(curAxis, new float3(1f, 0.2f, 0f)));
-            float3 expect = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
+            float3 expect = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain);
 
             foreach (float bad in new[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity })
             {
-                float3 a = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, bad, 0.3f);
-                float3 b = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0.01f, bad);
+                float3 a = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, bad, 0.3f);
+                float3 b = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, 0.01f, bad);
                 Assert.IsTrue(math.all(math.isfinite(a)), $"dReach={bad} produced a non-finite pole {a}");
                 Assert.IsTrue(math.all(math.isfinite(b)), $"conditioning={bad} produced a non-finite pole {b}");
                 Assert.AreEqual(0f, Vector3.Angle((Vector3)expect, (Vector3)a), 1e-3f,
                     $"dReach={bad} must decline to the rotation-only cap");
             }
 
-            Assert.AreEqual(0f, BasisElbowSwingCapCore.ReachTrust(float.NaN), 0f,
+            Assert.AreEqual(0f, BasisEerieArms.ReachTrust(float.NaN), 0f,
                 "NaN conditioning must earn zero radial trust");
-            Assert.AreEqual(0f, BasisElbowSwingCapCore.ReachTrust(-1f), 0f,
+            Assert.AreEqual(0f, BasisEerieArms.ReachTrust(-1f), 0f,
                 "negative conditioning must earn zero radial trust");
-            Assert.AreEqual(0f, BasisElbowSwingCapCore.ReachTrust(BasisElbowSwingCapCore.ReachTrustLo), 0f,
+            Assert.AreEqual(0f, BasisEerieArms.ReachTrust(BasisEerieArms.ReachTrustLo), 0f,
                 "trust must be exactly 0 at the low edge, so the gate opens continuously");
-            Assert.AreEqual(1f, BasisElbowSwingCapCore.ReachTrust(BasisElbowSwingCapCore.ReachTrustHi), 1e-6f,
+            Assert.AreEqual(1f, BasisEerieArms.ReachTrust(BasisEerieArms.ReachTrustHi), 1e-6f,
                 "trust must be exactly 1 at the high edge");
         }
 
@@ -398,7 +398,7 @@ namespace Basis.Tests.IK
                 float dReach = (float)(rng.NextDouble() * 0.08 - 0.04);
                 float cond = (float)(rng.NextDouble() * 0.5);
 
-                float3 b = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, cond);
+                float3 b = BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, cond);
                 Assert.IsTrue(math.all(math.isfinite(b)), $"cap went non-finite at axis {curAxis}");
                 Assert.AreEqual(1f, math.length(b), 3e-3f, "capped bend must be unit");
                 Assert.AreEqual(0f, math.dot(curAxis, b), 3e-3f, "capped bend must be perpendicular to the arm");
@@ -428,9 +428,9 @@ namespace Basis.Tests.IK
                 float cond = (float)(rng.NextDouble() * 0.4);
 
                 float oldErr = Vector3.Angle((Vector3)rawBend,
-                    (Vector3)BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain));
+                    (Vector3)BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain));
                 float newErr = Vector3.Angle((Vector3)rawBend,
-                    (Vector3)BasisElbowSwingCapCore.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, cond));
+                    (Vector3)BasisEerieArms.Apply(prevBend, prevAxis, curAxis, rawBend, k_MaxGain, dReach, cond));
 
                 Assert.LessOrEqual(newErr, oldErr + 1e-2f,
                     $"the radial budget moved the pole FURTHER from the field ({newErr:F3} vs {oldErr:F3} deg) -- " +

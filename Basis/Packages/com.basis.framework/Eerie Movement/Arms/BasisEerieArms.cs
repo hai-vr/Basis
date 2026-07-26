@@ -1,5 +1,8 @@
 using Basis.IK;
+using Unity.Burst;
+using Unity.Mathematics;
 using UnityEngine;
+[BurstCompile]
 public struct BasisEerieArms
 {
     const float threshold = 30f;
@@ -7,9 +10,13 @@ public struct BasisEerieArms
     const float fraction = 0.4f;
     public const float k_ShoulderCoupleRatio = 0.4f;
     public const float k_ShoulderMaxDeg = 25f;
+    public const float MaxGain = 5f;
+    public const float ReachGain = 3f;
+    public const float ReachTrustLo = 0.06f;
+    public const float ReachTrustHi = 0.10f;
     public static void SolveArms(ref BasisEerieMovement Self, BasisPoseStream stream)
     {
-        // 2) Shoulder pre-solve: elevate/protract based on hand targets before arm IK
+        //2) Shoulder pre-solve: elevate/protract based on hand targets before arm IK
         if (Self.shoulderSolveEnabled)
         {
             BasisEerieArms.SolveShoulder(ref Self, stream, Self.HandleLeftShoulder, Self.enabledLeftShoulder, Self.targetPositionLeftHand, Self.hintPositionLeftHand, Self.hintWeightLeftHand, Self.TposeLeftShoulderLocalDir, Self.TposeLeftShoulderRot, Self.TposeChestRot, Self.TposeShoulderToHandLeft, Self.TposeClavicleLenLeft, Self.TposeShoulderToElbowLeft, true);
@@ -17,7 +24,7 @@ public struct BasisEerieArms
         }
         else
         {
-           BasisEerieMovement.ApplyRotation(stream, Self.enabledLeftShoulder, Self.HandleLeftShoulder, Self.TargetRotationLeftShoulder, Self.targetOffsetLeftShoulder);
+            BasisEerieMovement.ApplyRotation(stream, Self.enabledLeftShoulder, Self.HandleLeftShoulder, Self.TargetRotationLeftShoulder, Self.targetOffsetLeftShoulder);
             BasisEerieMovement.ApplyRotation(stream, Self.enabledRightShoulder, Self.HandleRightShoulder, Self.TargetRotationRightShoulder, Self.targetOffsetRightShoulder);
         }
         if (Self.anatShoulderSlide)
@@ -99,7 +106,7 @@ public struct BasisEerieArms
                     Vector3 rawBend = rawBendV / rbLen;
                     bool seeded = self.swingHintInit[swingSlot] != 0;
                     float curReach = axLen / armLen;
-                    Vector3 cappedBend = seeded ? (Vector3)BasisElbowSwingCapCore.Apply(self.swingHintBend[swingSlot], self.swingHintAxis[swingSlot], curAxis, rawBend, BasisElbowSwingCapCore.MaxGain, curReach - self.swingHintReach[swingSlot], poleConditioning) : rawBend;
+                    Vector3 cappedBend = seeded ? (Vector3)Apply(self.swingHintBend[swingSlot], self.swingHintAxis[swingSlot], curAxis, rawBend, MaxGain, curReach - self.swingHintReach[swingSlot], poleConditioning) : rawBend;
                     self.swingHintBend[swingSlot] = cappedBend;
                     self.swingHintAxis[swingSlot] = curAxis;
                     self.swingHintReach[swingSlot] = curReach;
@@ -134,6 +141,7 @@ public struct BasisEerieArms
         float elbowSwivelDeg = float.NaN;   // NaN == no established choice to anchor on next frame
         bool doCollisions = collisionsEnabled && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
         bool elbowTrackerForced = hasHint && !usedModel;
+        //elbow tracking is in a good spot
         if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
         {
             BasisElbowProtectInput epi = default;
@@ -191,6 +199,83 @@ public struct BasisEerieArms
             mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), weight));
             tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), weight));
         }
+    }
+    public static float ReachTrust(float conditioning)
+    {
+        if (!(conditioning > ReachTrustLo))
+        {
+            return 0f;
+        }
+        float t = math.saturate((conditioning - ReachTrustLo) / (ReachTrustHi - ReachTrustLo));
+        return t * t * (3f - 2f * t);
+    }
+
+    /// <summary>
+    /// Rotation-only overload: the pre-2026-07-22 behaviour, bit-for-bit. Every caller that cannot say
+    /// how far the hand moved ALONG the arm keeps exactly what it had.
+    /// </summary>
+    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain) => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f);
+
+    /// <summary>
+    /// Cap the bend's swivel about the shoulder->hand axis to <paramref name="maxGain"/> times the hand's
+    /// own motion since last frame -- the axis's rotation PLUS its gated radial travel. All vectors WORLD
+    /// space, unit; rawBend and the result are perpendicular to curAxis.
+    ///
+    /// prevBend / prevAxis are last frame's CAPPED bend and shoulder->hand axis (the caller's per-arm
+    /// state). Away from a core the field turns slower than the cap and rawBend is returned unchanged,
+    /// bit-for-bit -- so this is a true no-op on ordinary motion.
+    ///
+    /// <paramref name="dReach"/> is the change in |hand - shoulder| / armLength since prevAxis was
+    /// stored -- the component of the hand's motion the axis rotation cannot see, and the one a punch is
+    /// made of. Sign is ignored. Pass 0 and this is the rotation-only cap exactly.
+    ///
+    /// <paramref name="conditioning"/> is the field's own lever arm for this pose (ArmHint's out
+    /// parameter, BendDirection's `conditioning`). It gates the radial term ONLY -- see ReachTrust and
+    /// the file header. Pass 0 and the radial term is off whatever dReach says.
+    /// </summary>
+    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning)
+    {
+        // Transport prevBend onto the plane perpendicular to curAxis: the axis itself rotates frame to
+        // frame (body turns, hand moves) and the bend must follow that for free -- only the residual
+        // SWIVEL about the axis is what a core spins, and what this caps.
+        float3 tp = prevBend - curAxis * math.dot(prevBend, curAxis);
+        float tpLen = math.length(tp);
+        if (tpLen < 1e-4f)
+        {
+            return rawBend;   // degenerate transport (axis flipped ~180) -> just take the field
+        }
+        tp /= tpLen;
+
+        float3 cross = math.cross(curAxis, tp);              // completes the tangent frame; rawBend = tp*cos+cross*sin
+        float ang = math.atan2(math.dot(rawBend, cross), math.dot(rawBend, tp));
+
+        // atan2(|cross|, dot), not acos(dot): acos is ill-conditioned near 1 (a barely-moved hand has
+        // dot ~ 1, and float32 acos there loses most of its digits), which would make the cap jitter on
+        // slow motion. This form is accurate for every angle.
+        float dHand = math.atan2(math.length(math.cross(prevAxis, curAxis)), math.dot(prevAxis, curAxis));
+
+        // The radial half of the hand's motion, which dHand is blind to by construction (see the header).
+        // Fails CLOSED to the rotation-only budget on a degenerate input, and the finiteness test is
+        // load-bearing in BOTH directions: NaN is rejected by `> 0`, but an INFINITE dReach would sail
+        // through that and make cap infinite, which does not clamp harder -- it disables the cap
+        // altogether and hands a core an unbounded frame. Reject it here rather than downstream.
+        float dRadial = 0f;
+        float absReach = math.abs(dReach);
+        if (absReach > 0f && math.isfinite(absReach))
+        {
+            dRadial = ReachGain * ReachTrust(conditioning) * absReach;
+        }
+
+        float cap = maxGain * (dHand + dRadial);
+        float capped = math.clamp(ang, -cap, cap);
+        if (capped == ang)
+        {
+            return rawBend;   // cap not binding -> exact field, no drift on ordinary reaching
+        }
+
+        float3 outb = tp * math.cos(capped) + cross * math.sin(capped);
+        outb = outb - curAxis * math.dot(outb, curAxis);
+        return math.normalizesafe(outb, rawBend);
     }
     public static void SolveTwoBoneIKArms(ref BasisEerieMovement self, BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot = -1, Vector3 bodyRight = default)
     {
