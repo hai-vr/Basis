@@ -697,3 +697,32 @@ namespace Basis.IK
         #endregion
     }
 }
+/*
+ * ere's my take: To make a 2-bone arm solver behave like a true human arm, standard length and angle limits aren't enough. Human arms aren't mechanical links—they rely on joint coupling, muscle elasticity, soft-tissue deformation, and anatomical offsets.
+
+Below is a breakdown of the critical parameters missing from your current float list, structured by the physiological systems they model, followed by how to integrate them into your C# code.
+
+1. Primary Missing Parameters
+A. Shoulder Complex (Scapulohumeral Rhythm & Offsets)
+The shoulder isn't a fixed ball-and-socket; the clavicle and scapula elevate, retract, and rotate as the arm reaches overhead.
+
+ScapularElevationWeight (float, range: 0.0–0.5): How much the shoulder joint moves upward as the reach ratio approaches 1.0.
+
+ShoulderOffsetDegrees (float, typical: 15°–20°): The humerus does not sit straight out from the torso; it sits in the Glenoid Fossa at a forward tilt (scaption plane).
+
+SternoclavicularPivotOffset (Vector3): The true mechanical pivot of the arm isn't the shoulder joint—it's near the breastbone.
+
+B. Elbow Kinematics (Carrying Angle & Soft Tissue)
+CarryingAngleDeg (float, range: 5°–15°): When the arm is fully extended, the forearm angles outward away from the body to keep the hips clear when walking.
+
+HyperExtensionLimitDeg (float, typical: -5° to -15°): Many humans can extend their elbow beyond 0° (straight line).
+
+SoftTissueCompressionDeg (float, typical: 135°–145°): Biceps collision prevents the elbow from reaching a absolute geometric 180° flexion without soft-tissue resistance ramping up.
+
+C. Muscle Elasticity & Joint Resistance
+Anatomy doesn't hit a hard limit and stop; it uses non-linear springs (tendons and ligaments).
+
+JointStiffness (float, range: 0.0–1.0): Resistance against bending near extreme angles.
+
+DampingCoefficient (float): Prevents high-frequency VR tracker jitter or mechanical snapping during fast movements.
+ */
