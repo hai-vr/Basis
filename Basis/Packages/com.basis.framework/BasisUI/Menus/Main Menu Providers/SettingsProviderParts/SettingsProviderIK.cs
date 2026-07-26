@@ -238,10 +238,10 @@ public static class SettingsProviderIK
             footIKToggle.AssignBinding(BasisSettingsDefaults.FootIKEnabled);
             footIKToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.footIk.tooltip"));
 
-            var neuralPoleToggle = PanelToggle.CreateNewEntry(trackingParent);
-            neuralPoleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.neuralPole"));
-            neuralPoleToggle.AssignBinding(BasisSettingsDefaults.FBIKNeuralPole);
-            neuralPoleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neuralPole.tooltip"));
+           // var neuralPoleToggle = PanelToggle.CreateNewEntry(trackingParent);
+          //  neuralPoleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.neuralPole"));
+           // neuralPoleToggle.AssignBinding(BasisSettingsDefaults.FBIKNeuralPole);
+          //  neuralPoleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neuralPole.tooltip"));
 
             var disableAnimInFBTToggle = PanelToggle.CreateNewEntry(trackingParent);
             disableAnimInFBTToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt"));
@@ -1444,7 +1444,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKButterflyKneeMaxOpenDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKKneeFollowsFoot.ResetToDefault();
         BasisSettingsDefaults.FBIKKneeFootFollowUpright.ResetToDefault();
-        BasisSettingsDefaults.FBIKNeuralPole.ResetToDefault();
+       // BasisSettingsDefaults.FBIKNeuralPole.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendPitch.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendYaw.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineBendRoll.ResetToDefault();

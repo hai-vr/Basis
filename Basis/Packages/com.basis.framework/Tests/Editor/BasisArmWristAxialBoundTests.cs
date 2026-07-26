@@ -11,34 +11,6 @@ namespace Basis.Tests.IK
 {
     // ⚠ Alias inside the namespace -- com.basis.sdk declares an unrelated global BasisMotionClip.
     using BasisMotionClip = Basis.IK.Mocap.BasisMotionClip;
-
-    /// <summary>
-    /// THE WRIST BOUND: THE LAST UNBOUNDED DEGREE OF FREEDOM IN THE ARM.
-    ///
-    /// ================================================================================================
-    /// WHAT THIS GUARDS. BasisArmSolveCore used to end `r.TipRotation = TargetRotation * TargetOffset`
-    /// and the runtime does `tip.SetRotation(TipRotation)` -- the controller's rotation, verbatim, with
-    /// nothing relating it to the forearm it hangs off. Every degree of roll the forearm and the humerus
-    /// did not absorb therefore landed in the radiocarpal joint, which has NO ACTIVE AXIAL RANGE AT ALL.
-    /// Measured on the envelope sweep before the bound: 75.7 deg (no-tracker) and 179.8 deg (elbow
-    /// tracker), against a gripped-carpus envelope of 15.
-    ///
-    /// ⭐ THE DESIGN QUESTION THIS FILE PINS THE ANSWER TO. When the roll genuinely exceeds what the
-    /// forearm and humerus can take, the residual has to go somewhere: recruit more of them, or drop it
-    /// and let the hand deviate from the controller. It is DROPPED, and that was a measurement and not a
-    /// preference -- over every sweep pose whose wrist breaches 15 deg, the forearm is ALREADY past its
-    /// flexion-dependent human ceiling on 93.1% of tracker poses (mean 60.9 deg past) and 40.6% of
-    /// no-tracker ones. The absorbers are not idle when the wrist breaches, they are over-committed, so
-    /// recruiting would buy a smaller wrist error by deepening a forearm breach. <see
-    /// cref="TheAbsorbersAreAlreadyOverCommitted_WhenTheWristBreaches"/> is that measurement, pinned, so
-    /// that "just recruit more forearm" is refuted by a number rather than re-argued.
-    ///
-    /// ⚠️ AND THE RESIDUAL CANNOT MOVE ANYWHERE ELSE. Relocating a discontinuity is this repo's documented
-    /// way of not fixing one, so the bound is arranged to make relocation IMPOSSIBLE rather than merely
-    /// unobserved: it writes r.TipRotation and nothing else. <see cref="TheBound_WritesNothingButTheHand"/>
-    /// is the gate on that, and it is written so it dies the moment any other output field is touched.
-    /// ================================================================================================
-    /// </summary>
     public sealed class BasisArmWristAxialBoundTests
     {
         const float Envelope = BasisArmSolveCore.WristAxialHardDeg;   // 15

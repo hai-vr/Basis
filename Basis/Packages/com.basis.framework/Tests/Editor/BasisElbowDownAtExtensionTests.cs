@@ -55,7 +55,7 @@ namespace Basis.Tests.IK
             Vector3 target = Shoulder + LateralDir * (armLen * reach);
 
             bool hasHint = BasisSwivelHintCore.ArmHint(Frame(), Shoulder, target, armLen, isLeft: true,
-                                                      out Vector3 hint, out float conf, useNeural: false);
+                                                      out Vector3 hint, out float conf);
 
             BasisArmSolveInput i = default;
             i.Shoulder = Shoulder; i.Elbow = elbow; i.Hand = hand;
@@ -84,7 +84,7 @@ namespace Basis.Tests.IK
             Vector3 target = Shoulder + LateralDir * (armLen * 0.98f);
 
             Assert.That(BasisSwivelHintCore.ArmHint(Frame(), Shoulder, target, armLen, isLeft: true,
-                                                    out Vector3 hint, out float conf, useNeural: false), Is.True);
+                                                    out Vector3 hint, out float conf), Is.True);
 
             Vector3 ac = (target - Shoulder).normalized;
             Vector3 perp = (hint - Shoulder) - ac * Vector3.Dot(hint - Shoulder, ac);

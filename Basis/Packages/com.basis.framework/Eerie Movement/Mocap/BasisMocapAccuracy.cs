@@ -642,8 +642,8 @@ namespace Basis.IK.Mocap
                         clip.Get(f, BasisMocapJoint.Chest).Position,
                         clip.Get(f, BasisMocapJoint.Neck).Position);
                     if (BasisSwivelHintCore.ArmHint(sf, shoulder, truthHand, armLen, isLeft,
-                                                    out Vector3 fieldHint, out _,
-                                                    hint == BasisMocapHintSource.NeuralField))
+                                                    out Vector3 fieldHint, out _
+                                                   ))// hint == BasisMocapHintSource.NeuralField))
                     {
                         i.HintPosition = fieldHint;
                         i.HintWeight = true;

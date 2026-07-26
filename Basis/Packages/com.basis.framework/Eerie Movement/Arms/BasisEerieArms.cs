@@ -82,10 +82,10 @@ public struct BasisEerieArms
 
         var target = new BasisAffineTransform(tgtPos, tgtRot);
         var hint = new BasisAffineTransform(hintPos, hintRot);
-        bool hasHint = hintWeightProp;
+        bool hintWeight = hintWeightProp;
         bool usedModel = false;
 
-        if (!hasHint)
+        if (!hintWeight)
         {
             BasisSwivelFrame frame = self.BuildArmFrame(stream);
 
@@ -94,7 +94,7 @@ public struct BasisEerieArms
             float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
             float armLen = upperLen + lowerLen;
             bool isLeft = swingSlot == BasisEerieMovement.k_SwingLeftElbow;
-            if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft, out Vector3 modelHint, out float poleConditioning, self.useNeuralPole))
+            if (BasisSwivelHintCore.ArmHint(frame, shoulderPos, tgtPos, armLen, isLeft, out Vector3 modelHint, out float poleConditioning))
             {
                 Vector3 curAxisV = tgtPos - shoulderPos;
                 Vector3 rawBendV = modelHint - shoulderPos;
@@ -128,7 +128,7 @@ public struct BasisEerieArms
                 }
 
                 hint = new BasisAffineTransform(modelHint, hintRot);
-                hasHint = true;
+                hintWeight = true;
                 usedModel = true;
             }
         }
@@ -136,157 +136,17 @@ public struct BasisEerieArms
         {
             self.swingHintInit[swingSlot] = 0;
         }
-        SolveTwoBoneIKArms(ref self, stream, root, mid, tip, target, hint, hasHint, hasHint && !usedModel, targetOffset, swingSlot, bodyRight);
-        int collisionState = 0;
-        float elbowSwivelDeg = float.NaN;   // NaN == no established choice to anchor on next frame
-        bool doCollisions = collisionsEnabled && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
-        bool elbowTrackerForced = hasHint && !usedModel;
-        //elbow tracking is in a good spot
-        if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
-        {
-            BasisElbowProtectInput epi = default;
-            epi.Shoulder = root.GetPosition(stream);
-            epi.Elbow = mid.GetPosition(stream);
-            epi.Hand = tip.GetPosition(stream);
-            epi.HasHips = self.HandleHips.IsValid(stream);
-            epi.HasSpine = self.HandleSpine.IsValid(stream);
-            epi.HipsPos = epi.HasHips ? self.HandleHips.GetPosition(stream) : Vector3.zero;
-            epi.SpinePos = epi.HasSpine ? self.HandleSpine.GetPosition(stream) : Vector3.zero;
-            epi.ChestPos = chestStart.GetPosition(stream);
-            epi.NeckPos = chestEnd.GetPosition(stream);
-            epi.ChestRadiusBase = chestRadius;
-            epi.CollisionSkin = collisionSkin;
-            epi.HandRadius = handRadius;
-            epi.HandSkin = handSkin;
-            epi.PlayerUp = self.playerUp;
-            epi.BodyRight = bodyRight;
-            epi.FullCircle = false;
-            if (self.swingSwivelDeg.IsCreated)
-            {
-                float prev = self.swingSwivelDeg[swingSlot];
-                if (!float.IsNaN(prev))
-                {
-                    epi.PrevSwivelDeg = prev;
-                    epi.HasPrevSwivel = true;
-                }
-            }
-
-            BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
-            if (epr.Engaged)
-            {
-                tip.GetPositionAndRotation(stream, out Vector3 preservedHandPos, out Quaternion preservedHandRot);
-                BasisEerieMovement.SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
-                tip.SetPosition(stream, preservedHandPos);
-                tip.SetRotation(stream, preservedHandRot);
-                self.ReGuardElbowAnatomy(stream, root, mid, tip, swingSlot, bodyRight);
-            }
-            collisionState = epr.CollisionState;
-            elbowSwivelDeg = epr.Engaged ? epr.ChosenSwivelDeg : float.NaN;
-        }
-
-        if (self.swingCollided.IsCreated)
-        {
-            self.swingCollided[swingSlot] = collisionState;
-        }
-        if (self.swingSwivelDeg.IsCreated)
-        {
-            self.swingSwivelDeg[swingSlot] = elbowSwivelDeg;
-        }
-
-        if (weight < 1f)
-        {
-            root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), weight));
-            mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), weight));
-            tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), weight));
-        }
-    }
-    public static float ReachTrust(float conditioning)
-    {
-        if (!(conditioning > ReachTrustLo))
-        {
-            return 0f;
-        }
-        float t = math.saturate((conditioning - ReachTrustLo) / (ReachTrustHi - ReachTrustLo));
-        return t * t * (3f - 2f * t);
-    }
-
-    /// <summary>
-    /// Rotation-only overload: the pre-2026-07-22 behaviour, bit-for-bit. Every caller that cannot say
-    /// how far the hand moved ALONG the arm keeps exactly what it had.
-    /// </summary>
-    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain) => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f);
-
-    /// <summary>
-    /// Cap the bend's swivel about the shoulder->hand axis to <paramref name="maxGain"/> times the hand's
-    /// own motion since last frame -- the axis's rotation PLUS its gated radial travel. All vectors WORLD
-    /// space, unit; rawBend and the result are perpendicular to curAxis.
-    ///
-    /// prevBend / prevAxis are last frame's CAPPED bend and shoulder->hand axis (the caller's per-arm
-    /// state). Away from a core the field turns slower than the cap and rawBend is returned unchanged,
-    /// bit-for-bit -- so this is a true no-op on ordinary motion.
-    ///
-    /// <paramref name="dReach"/> is the change in |hand - shoulder| / armLength since prevAxis was
-    /// stored -- the component of the hand's motion the axis rotation cannot see, and the one a punch is
-    /// made of. Sign is ignored. Pass 0 and this is the rotation-only cap exactly.
-    ///
-    /// <paramref name="conditioning"/> is the field's own lever arm for this pose (ArmHint's out
-    /// parameter, BendDirection's `conditioning`). It gates the radial term ONLY -- see ReachTrust and
-    /// the file header. Pass 0 and the radial term is off whatever dReach says.
-    /// </summary>
-    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning)
-    {
-        // Transport prevBend onto the plane perpendicular to curAxis: the axis itself rotates frame to
-        // frame (body turns, hand moves) and the bend must follow that for free -- only the residual
-        // SWIVEL about the axis is what a core spins, and what this caps.
-        float3 tp = prevBend - curAxis * math.dot(prevBend, curAxis);
-        float tpLen = math.length(tp);
-        if (tpLen < 1e-4f)
-        {
-            return rawBend;   // degenerate transport (axis flipped ~180) -> just take the field
-        }
-        tp /= tpLen;
-
-        float3 cross = math.cross(curAxis, tp);              // completes the tangent frame; rawBend = tp*cos+cross*sin
-        float ang = math.atan2(math.dot(rawBend, cross), math.dot(rawBend, tp));
-
-        // atan2(|cross|, dot), not acos(dot): acos is ill-conditioned near 1 (a barely-moved hand has
-        // dot ~ 1, and float32 acos there loses most of its digits), which would make the cap jitter on
-        // slow motion. This form is accurate for every angle.
-        float dHand = math.atan2(math.length(math.cross(prevAxis, curAxis)), math.dot(prevAxis, curAxis));
-
-        // The radial half of the hand's motion, which dHand is blind to by construction (see the header).
-        // Fails CLOSED to the rotation-only budget on a degenerate input, and the finiteness test is
-        // load-bearing in BOTH directions: NaN is rejected by `> 0`, but an INFINITE dReach would sail
-        // through that and make cap infinite, which does not clamp harder -- it disables the cap
-        // altogether and hands a core an unbounded frame. Reject it here rather than downstream.
-        float dRadial = 0f;
-        float absReach = math.abs(dReach);
-        if (absReach > 0f && math.isfinite(absReach))
-        {
-            dRadial = ReachGain * ReachTrust(conditioning) * absReach;
-        }
-
-        float cap = maxGain * (dHand + dRadial);
-        float capped = math.clamp(ang, -cap, cap);
-        if (capped == ang)
-        {
-            return rawBend;   // cap not binding -> exact field, no drift on ordinary reaching
-        }
-
-        float3 outb = tp * math.cos(capped) + cross * math.sin(capped);
-        outb = outb - curAxis * math.dot(outb, curAxis);
-        return math.normalizesafe(outb, rawBend);
-    }
-    public static void SolveTwoBoneIKArms(ref BasisEerieMovement self, BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, BasisAffineTransform target, BasisAffineTransform hint, bool hintWeight, bool hintIsTracker, Quaternion targetOffset, int swingSlot = -1, Vector3 bodyRight = default)
-    {
+        bool hintIsTracker = hintWeight && !usedModel;
         // Geometry lives in BasisArmSolveCore so the offline sweep harness solves the
         // exact same elbow math. The core returns incremental deltas; apply them through
         // the stream in the original order (identity steps are exact no-ops).
         BasisArmSolveInput input = default;
-        root.GetPositionAndRotation(stream, out Vector3 shoulderPos, out Quaternion shoulderRot);
+
+        root.GetPositionAndRotation(stream, out Vector3 ReadshoulderPos, out Quaternion shoulderRot);
         mid.GetPositionAndRotation(stream, out Vector3 elbowPos, out Quaternion elbowRot);
         tip.GetPositionAndRotation(stream, out Vector3 handPos, out Quaternion handRot);
-        input.Shoulder = shoulderPos;
+
+        input.Shoulder = ReadshoulderPos;
         input.Elbow = elbowPos;
         input.Hand = handPos;
         input.RootRotation = shoulderRot;
@@ -374,6 +234,111 @@ public struct BasisEerieArms
         root.SetRotation(stream, result.HintDelta * root.GetRotation(stream));
         mid.SetRotation(stream, result.MidPostRoll * mid.GetRotation(stream));
         tip.SetRotation(stream, result.TipRotation);
+
+
+        int collisionState = 0;
+        float elbowSwivelDeg = float.NaN;   // NaN == no established choice to anchor on next frame
+        bool doCollisions = collisionsEnabled && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
+        bool elbowTrackerForced = hintWeight && !usedModel;
+        //elbow tracking is in a good spot
+        if (doCollisions && protectElbow && (!elbowTrackerForced || collideTrackedElbow))
+        {
+            BasisElbowProtectInput epi = default;
+            epi.Shoulder = root.GetPosition(stream);
+            epi.Elbow = mid.GetPosition(stream);
+            epi.Hand = tip.GetPosition(stream);
+            epi.HasHips = self.HandleHips.IsValid(stream);
+            epi.HasSpine = self.HandleSpine.IsValid(stream);
+            epi.HipsPos = epi.HasHips ? self.HandleHips.GetPosition(stream) : Vector3.zero;
+            epi.SpinePos = epi.HasSpine ? self.HandleSpine.GetPosition(stream) : Vector3.zero;
+            epi.ChestPos = chestStart.GetPosition(stream);
+            epi.NeckPos = chestEnd.GetPosition(stream);
+            epi.ChestRadiusBase = chestRadius;
+            epi.CollisionSkin = collisionSkin;
+            epi.HandRadius = handRadius;
+            epi.HandSkin = handSkin;
+            epi.PlayerUp = self.playerUp;
+            epi.BodyRight = bodyRight;
+            epi.FullCircle = false;
+            if (self.swingSwivelDeg.IsCreated)
+            {
+                float prev = self.swingSwivelDeg[swingSlot];
+                if (!float.IsNaN(prev))
+                {
+                    epi.PrevSwivelDeg = prev;
+                    epi.HasPrevSwivel = true;
+                }
+            }
+
+            BasisElbowProtectCore.Solve(epi, out BasisElbowProtectResult epr);
+            if (epr.Engaged)
+            {
+                tip.GetPositionAndRotation(stream, out Vector3 preservedHandPos, out Quaternion preservedHandRot);
+                BasisEerieMovement.SwingElbowAroundAC(stream, root, mid, tip, epr.DesiredElbow);
+                tip.SetPosition(stream, preservedHandPos);
+                tip.SetRotation(stream, preservedHandRot);
+                self.ReGuardElbowAnatomy(stream, root, mid, tip, swingSlot, bodyRight);
+            }
+            collisionState = epr.CollisionState;
+            elbowSwivelDeg = epr.Engaged ? epr.ChosenSwivelDeg : float.NaN;
+        }
+
+        if (self.swingCollided.IsCreated)
+        {
+            self.swingCollided[swingSlot] = collisionState;
+        }
+        if (self.swingSwivelDeg.IsCreated)
+        {
+            self.swingSwivelDeg[swingSlot] = elbowSwivelDeg;
+        }
+
+        if (weight < 1f)
+        {
+            root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), weight));
+            mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), weight));
+            tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), weight));
+        }
+    }
+    public static float ReachTrust(float conditioning)
+    {
+        if (!(conditioning > ReachTrustLo))
+        {
+            return 0f;
+        }
+        float t = math.saturate((conditioning - ReachTrustLo) / (ReachTrustHi - ReachTrustLo));
+        return t * t * (3f - 2f * t);
+    }
+    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain) => Apply(prevBend, prevAxis, curAxis, rawBend, maxGain, 0f, 0f);
+    public static float3 Apply(float3 prevBend, float3 prevAxis, float3 curAxis, float3 rawBend, float maxGain, float dReach, float conditioning)
+    {
+        float3 tp = prevBend - curAxis * math.dot(prevBend, curAxis);
+        float tpLen = math.length(tp);
+        if (tpLen < 1e-4f)
+        {
+            return rawBend;   // degenerate transport (axis flipped ~180) -> just take the field
+        }
+        tp /= tpLen;
+
+        float3 cross = math.cross(curAxis, tp);              // completes the tangent frame; rawBend = tp*cos+cross*sin
+        float ang = math.atan2(math.dot(rawBend, cross), math.dot(rawBend, tp));
+        float dHand = math.atan2(math.length(math.cross(prevAxis, curAxis)), math.dot(prevAxis, curAxis));
+        float dRadial = 0f;
+        float absReach = math.abs(dReach);
+        if (absReach > 0f && math.isfinite(absReach))
+        {
+            dRadial = ReachGain * ReachTrust(conditioning) * absReach;
+        }
+
+        float cap = maxGain * (dHand + dRadial);
+        float capped = math.clamp(ang, -cap, cap);
+        if (capped == ang)
+        {
+            return rawBend;   // cap not binding -> exact field, no drift on ordinary reaching
+        }
+
+        float3 outb = tp * math.cos(capped) + cross * math.sin(capped);
+        outb = outb - curAxis * math.dot(outb, curAxis);
+        return math.normalizesafe(outb, rawBend);
     }
     public static void ApplySwingContinuity(ref BasisEerieMovement self, BasisPoseStream stream, int slot, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, Vector3 targetPos, float rateDegPerSec, float dt, Vector3 bodyRight)
     {

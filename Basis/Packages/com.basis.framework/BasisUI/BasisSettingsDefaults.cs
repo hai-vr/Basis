@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
@@ -1353,10 +1353,6 @@ namespace Basis.BasisUI
         // the foot's toe lines up with the leg, handing off to the butterfly splay.
         public static BasisSettingsBinding<bool> FBIKKneeFollowsFoot = new("fbikkneefollowsfoot", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKKneeFootFollowUpright = new("fbikkneefootfollowupright", new BasisPlatformDefault<float>(0.75f));
-        // Neural pole (elbow/knee): drive the no-tracker elbow and knee from small fitted MLPs instead of the
-        // polynomial/field. DEFAULT OFF -- on CMU mocap it measures a wash-to-marginal vs the tuned polys; this is
-        // an in-headset A/B toggle, since the feel/naturalness is the real test the mocap metric cannot see.
-        public static BasisSettingsBinding<bool> FBIKNeuralPole = new("fbikneuralpole", new BasisPlatformDefault<bool>(false));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -2215,7 +2211,7 @@ namespace Basis.BasisUI
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
             FBIKKneeFollowsFoot.LoadBindingValue();
             FBIKKneeFootFollowUpright.LoadBindingValue();
-            FBIKNeuralPole.LoadBindingValue();
+         //   FBIKNeuralPole.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
             FBIKBodyFit.LoadBindingValue();

@@ -242,9 +242,7 @@ namespace Basis.IK
         /// Returns false on a degenerate/NaN frame: the caller then leaves `hasHint` false and the two-bone core
         /// falls back to its own internal pole, which is what it did before any of this existed.
         /// </summary>
-        public static bool ArmHint(in BasisSwivelFrame frameNow, Vector3 shoulder, Vector3 handPos,
-                                   float armLen, bool isLeft, out Vector3 hintPos, out float confidence,
-                                   bool useNeural = false)
+        public static bool ArmHint(in BasisSwivelFrame frameNow, Vector3 shoulder, Vector3 handPos,float armLen, bool isLeft, out Vector3 hintPos, out float confidence)
         {
             hintPos = default;
             confidence = 0f;
@@ -263,11 +261,7 @@ namespace Basis.IK
             {
                 return false;
             }
-
-            // BasisElbowStereoModel eliminates this field's reach-behind topological core (it carries a
-            // single index-2 zero, parked in the torso, so the whole reachable workspace is zero-free).
-            // BasisElbowFieldModel stays as the A/B baseline and the source of the anatomical Elbow() prior.
-            float3 bend;
+            /*
             if (useNeural)
             {
                 // A/B (opt-in per call): the neural POSITION model, a drop-in for BasisElbowFieldModel.Elbow. It
@@ -286,6 +280,12 @@ namespace Basis.IK
                 float3 elbowLocal = BasisElbowFieldModel.Elbow(tipLocal);
                 bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
             }
+            */
+            float3 elbowLocal = BasisArmElbowNeuralFieldModel.Elbow(tipLocal);
+            // BasisElbowStereoModel eliminates this field's reach-behind topological core (it carries a
+            // single index-2 zero, parked in the torso, so the whole reachable workspace is zero-free).
+            // BasisElbowFieldModel stays as the A/B baseline and the source of the anatomical Elbow() prior.
+            float3 bend = BasisElbowFieldModel.BendDirection(tipLocal, elbowLocal, out confidence);
 
             if (!IsFinite(bend))
             {
@@ -334,9 +334,7 @@ namespace Basis.IK
         ///     swinging between two unrelated poles over a few frames IS a pop. Measured: the fade took the knee
         ///     from 70 pops to 65. It relocated the discontinuity, it did not remove it.
         /// </summary>
-        public static bool LegHint(in BasisSwivelFrame frameNow, Vector3 hip, Vector3 footPos,
-                                   float legLen, bool isLeft, out Vector3 hintPos, out float confidence,
-                                   bool useNeural = false)
+        public static bool LegHint(in BasisSwivelFrame frameNow, Vector3 hip, Vector3 footPos, float legLen, bool isLeft, out Vector3 hintPos, out float confidence)
         {
             hintPos = default;
             confidence = 0f;
@@ -355,9 +353,7 @@ namespace Basis.IK
 
             // NeuralSwivel A/B (opt-in per call): the neural knee is a clean drop-in -- LegHint is already an
             // ANGLE path, same (sin,cos) convention, same un-mirror + BendDirection below, so only weights change.
-            float swivel = useNeural
-                ? BasisLegSwivelNeuralModel.SwivelRad(tipLocal, out confidence)
-                : BasisLegSwivelModel.SwivelRad(tipLocal, out confidence);
+            float swivel = false ? BasisLegSwivelNeuralModel.SwivelRad(tipLocal, out confidence) : BasisLegSwivelModel.SwivelRad(tipLocal, out confidence);
 
             // Domain guard: under the hip at fractional reach the model's own confidence recovers inside
             // its garbage zone (see LegDomainReachLo). Applied to BOTH models -- the neural one shares the

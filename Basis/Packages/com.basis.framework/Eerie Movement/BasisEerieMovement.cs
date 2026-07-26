@@ -11,7 +11,7 @@ namespace Basis.IK
     [Unity.Burst.BurstCompile]
     public struct BasisEerieMovement : Unity.Jobs.IJob
     {
-       public const float k_Epsilon = 1e-5f; // or 0.00001f
+        public const float k_Epsilon = 1e-5f; // or 0.00001f
         public const float k_MinMag = 1e-6f;// or 0.000001f
         public const float k_SqrEpsilon = 1e-8f;// or 0.00000001f
 
@@ -61,7 +61,7 @@ HasChestTracker, hasHipsTracker, enabledSpineIK,
 leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand,
 hintWeightRightHand,
-protectElbow, collideTrackedElbow, useNeuralPole,
+protectElbow, collideTrackedElbow,
 elbowDragEnabled,
 wristAxialBound,
 collisionsEnabled;
@@ -320,7 +320,7 @@ collisionsEnabled;
                 Quaternion headRot = targetRotationHead;
 
                 DistributeSpineBend(stream, headPos);
-                BasisEerieArms.ApplyArmSwingChestFollow(ref this,stream);
+                BasisEerieArms.ApplyArmSwingChestFollow(ref this, stream);
                 GuardSpineChain(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
@@ -409,7 +409,7 @@ collisionsEnabled;
         // One CCD step aiming the head tip from joint `i` -- the exact body of the Phase A loop, extracted so
         // Phase B's head-restore reuses it verbatim (a copy would drift). Shapes the reach (twist graded root
         // -> tip, mid-thoracic stiffened), relaxes, applies the cones, then the anatomy guard LAST.
-        public void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chainLen,float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax, float neckCone, float chestCone)
+        public void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax, float neckCone, float chestCone)
         {
             const int tipIdx = 0;
             Vector3 jointPos = ChainHeadToSpine[i].GetPosition(stream);
@@ -502,7 +502,7 @@ collisionsEnabled;
                 }
             }
         }
-        public void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax, float neckCone, float chestCone)
+        public void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint, int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax, float neckCone, float chestCone)
         {
             if (!chestIkTarget || !HasChestTracker)
                 return;
@@ -1085,7 +1085,7 @@ collisionsEnabled;
                 handle.SetRotation(stream, targetRotProp * RotationOffset);
             }
         }
-       public BasisSwivelFrame BuildArmFrame(BasisPoseStream stream)
+        public BasisSwivelFrame BuildArmFrame(BasisPoseStream stream)
         {
             if (!HandleLeftUpperArm.IsValid(stream) || !HandleRightUpperArm.IsValid(stream)
                 || !HandleChest.IsValid(stream) || !HandleNeck.IsValid(stream))
@@ -1121,7 +1121,7 @@ collisionsEnabled;
             float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / abSqr);
             return a + ab * t;
         }
-       public  void ReGuardElbowAnatomy(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int swingSlot, Vector3 bodyRight)
+        public void ReGuardElbowAnatomy(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int swingSlot, Vector3 bodyRight)
         {
             if (!root.IsValid(stream) || !mid.IsValid(stream) || !tip.IsValid(stream))
             {
@@ -1287,8 +1287,7 @@ collisionsEnabled;
                 // The confidence is used as POLE distrust, never as a fade of hintW -- hintW is discontinuous
                 // at zero, and that jump is the pop the earlier weight-fade attempt measured (70 -> 65) and
                 // wrongly blamed on the idea rather than the mechanism. See BasisSwivelHintCore.LegModelTrust.
-                if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft,
-                                                out Vector3 modelHint, out float conf, useNeuralPole))
+                if (BasisSwivelHintCore.LegHint(frame, hipPos, target.translation, legLen, isLeft, out Vector3 modelHint, out float conf))
                 {
                     hint = modelHint;
                     hintW = 1f;
@@ -1796,7 +1795,7 @@ collisionsEnabled;
         }
         public void GenerateHeadToSpine(BasisPoseSkeleton skeleton, BasisTransformMapping Mapping)
         {
-            var HeadToSpine = Mapping.Upperchest != null ? new Transform[] { Mapping.head, Mapping.neck, Mapping.Upperchest, Mapping.chest, Mapping.spine, Mapping.Hips }  : new Transform[] { Mapping.head, Mapping.neck, Mapping.chest, Mapping.spine, Mapping.Hips };
+            var HeadToSpine = Mapping.Upperchest != null ? new Transform[] { Mapping.head, Mapping.neck, Mapping.Upperchest, Mapping.chest, Mapping.spine, Mapping.Hips } : new Transform[] { Mapping.head, Mapping.neck, Mapping.chest, Mapping.spine, Mapping.Hips };
             int SpineToHeadLength = HeadToSpine.Length;
             ChainHeadToSpine = new NativeArray<BasisBoneHandle>(SpineToHeadLength, Allocator.Persistent);
             BuildSpineAnatomy(HeadToSpine, Mapping);
