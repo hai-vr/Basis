@@ -99,7 +99,7 @@ namespace Basis.IK
 
         // --- Biomechanically Corrected Parameters ---
         public const float MinElbowAngleDeg = 0.0f;          // AAOS standard extension
-        public const float MaxElbowAngleDeg = 145.0f;        // AAOS active flexion limit (prevents mesh clipping)
+        public const float MaxElbowAngleDeg = 180;//angle the elbow is allowed to get to, 180
         public const float TrackerPoleAnchorFrac = 0.05f;    // 5% offset along humerus vector
         public const float TrackerPoleTrustFrac = 0.25f;     // Damping factor for VR noise
         public const float WristRollRampStartDeg = 15.0f;    // Neutral comfort boundary (ISO 11226)
