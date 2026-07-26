@@ -85,36 +85,66 @@ namespace Basis
                     string FileNamePath = LowLevelGetHierarchyPath(this);
 
                     this.transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                  Vector3 Scale =    this.transform.localScale;
+                    Vector3 Scale = this.transform.localScale;
 
                     byte Type = 0;
                     if (this.GetType() != typeof(BasisScene))
                     {
                         Type = 1;
                     }
-                    BasisContentInformation Content = new BasisContentInformation
+                    BasisContentInformation Content;
+                    if (LocalPlayer == null)
                     {
-                        LoadedNetID = FileNamePath,
-                        UUIDOfCreator = LocalPlayer.UUID,
-                        IsAdminLocked = false,
-                        LoadStrategy = 0,
-                        PositionX = Position.x,
-                        PositionY = Position.y,
-                        PositionZ = Position.z,
-                        QuaternionW = Rotation.w,
-                        QuaternionX = Rotation.x,
-                        QuaternionY = Rotation.y,
-                        QuaternionZ = Rotation.z,
-                        ModifyScale = true,
-                        ScaleX = Scale.x,
-                        ScaleY = Scale.y,
-                        ScaleZ = Scale.z,
-                        Mode = Type,
-                        Persist = true,
-                        Static = false,
-                        StaticAdminLocked = false,
+                        Content = new BasisContentInformation
+                        {
+                            LoadedNetID = FileNamePath,
+                            UUIDOfCreator = string.Empty,
+                            IsAdminLocked = false,
+                            LoadStrategy = 0,
+                            PositionX = Position.x,
+                            PositionY = Position.y,
+                            PositionZ = Position.z,
+                            QuaternionW = Rotation.w,
+                            QuaternionX = Rotation.x,
+                            QuaternionY = Rotation.y,
+                            QuaternionZ = Rotation.z,
+                            ModifyScale = true,
+                            ScaleX = Scale.x,
+                            ScaleY = Scale.y,
+                            ScaleZ = Scale.z,
+                            Mode = Type,
+                            Persist = true,
+                            Static = false,
+                            StaticAdminLocked = false,
 
-                    };
+                        };
+                    }
+                    else
+                    {
+                        Content = new BasisContentInformation
+                        {
+                            LoadedNetID = FileNamePath,
+                            UUIDOfCreator = LocalPlayer.UUID,
+                            IsAdminLocked = false,
+                            LoadStrategy = 0,
+                            PositionX = Position.x,
+                            PositionY = Position.y,
+                            PositionZ = Position.z,
+                            QuaternionW = Rotation.w,
+                            QuaternionX = Rotation.x,
+                            QuaternionY = Rotation.y,
+                            QuaternionZ = Rotation.z,
+                            ModifyScale = true,
+                            ScaleX = Scale.x,
+                            ScaleY = Scale.y,
+                            ScaleZ = Scale.z,
+                            Mode = Type,
+                            Persist = true,
+                            Static = false,
+                            StaticAdminLocked = false,
+
+                        };
+                    }
                     //FileNamePath
                     AssignContentIdentifier(Content);
 
