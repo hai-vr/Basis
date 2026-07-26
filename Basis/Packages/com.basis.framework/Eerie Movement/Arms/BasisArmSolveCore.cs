@@ -97,25 +97,25 @@ namespace Basis.IK
         private const float k_Epsilon = 1e-5f;
         private const float k_SqrEpsilon = 1e-10f;
 
-        // --- Tuning Parameters ---
-        public const float MinElbowAngleDeg = 0.5f;
-        public const float MaxElbowAngleDeg = 179.5f;
-        public const float TrackerPoleAnchorFrac = 0.05f;
-        public const float TrackerPoleTrustFrac = 0.25f;
-        public const float WristRollRampStartDeg = 15f;
-        public const float WristRollComfortDeg = 45f;
-        public const float WristRollMaxReliefDeg = 60f;
-        public const float TwistSwingFadeStartDeg = 60f;
-        public const float TwistSwingFadeEndDeg = 120f;
-        public const float HumeralTwistSoftDeg = 30f;
-        public const float HumeralTwistHardDeg = 75f;
-        public const float TrackerForearmRollSoftDeg = 45f;
-        public const float TrackerForearmRollMaxDeg = 85f;
-        public const float TrackerRollHandBlend = 0.5f;
-        public const float k_WristWrapFadeStartDeg = 60f;
-        public const float k_WristWrapFadeEndDeg = 120f;
-        public const float WristAxialSoftDeg = 40f;
-        public const float WristAxialHardDeg = 80f;
+        // --- Biomechanically Corrected Parameters ---
+        public const float MinElbowAngleDeg = 0.0f;          // AAOS standard extension
+        public const float MaxElbowAngleDeg = 145.0f;        // AAOS active flexion limit (prevents mesh clipping)
+        public const float TrackerPoleAnchorFrac = 0.05f;    // 5% offset along humerus vector
+        public const float TrackerPoleTrustFrac = 0.25f;     // Damping factor for VR noise
+        public const float WristRollRampStartDeg = 15.0f;    // Neutral comfort boundary (ISO 11226)
+        public const float WristRollComfortDeg = 45.0f;      // Ergonomic functional threshold
+        public const float WristRollMaxReliefDeg = 60.0f;     // Max anatomical strain compensation
+        public const float TwistSwingFadeStartDeg = 60.0f;   // Start of non-linear muscle resistance
+        public const float TwistSwingFadeEndDeg = 165.0f;     // Total anatomical arc endpoint
+        public const float HumeralTwistSoftDeg = 30.0f;      // Shoulder damping threshold
+        public const float HumeralTwistHardDeg = 170.0f;     // Clinical total shoulder rotation arc
+        public const float TrackerForearmRollSoftDeg = 45.0f;
+        public const float TrackerForearmRollMaxDeg = 165.0f;  // Combined pronation (80°) + supination (85°)
+        public const float TrackerRollHandBlend = 0.5f;       // 50/50 radius-ulna twist distribution
+        public const float k_WristWrapFadeStartDeg = 60.0f;
+        public const float k_WristWrapFadeEndDeg = 165.0f;
+        public const float WristAxialSoftDeg = 40.0f;
+        public const float WristAxialHardDeg = 165.0f;
         /// <summary>
         /// Executes the full 2-bone arm analytic IK solver with pole vector, twist relief, and joint guards.
         /// </summary>
