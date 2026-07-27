@@ -20,4 +20,4 @@ MonoBehaviour:
     - com.meta.openxr.featureset.metaxr
     - com.valvesoftware.openxr.utils.featureset
   m_vulkanAdditionalGraphicsQueue: 0
-  m_vulkanOffscreenSwapchainNoMainDisplay: 1
+  m_vulkanOffscreenSwapchainNoMainDisplay: 0

@@ -52,6 +52,7 @@ namespace Basis.BasisUI.MediaPlayer
         private PanelToggle _advancedToggle;
         private PanelToggle _adminOnlyToggle;
         private PanelToggle _allowAnyoneToggle;
+        private PanelToggle _anyoneCanControlToggle;
         private PanelSlider _driftSlider;
         private BasisMediaPlayer _activePlayer;
         private BasisMediaPlayerNetworking _activeNetworking;
@@ -99,6 +100,12 @@ namespace Basis.BasisUI.MediaPlayer
             if (!BasisNetworkConnection.LocalPlayerIsConnected) return true;
             var perms = BasisNetworkManagement.LocalPermissions;
             return perms != null && (perms.Contains(Perm_Control) || perms.Contains("*"));
+        }
+
+        private bool CanControlActivePlayer()
+        {
+            if (HasControlPermission()) return true;
+            return _activeNetworking != null && _activeNetworking.ControlOpenToEveryone;
         }
 
         public static bool IsAdmin()
@@ -207,6 +214,7 @@ namespace Basis.BasisUI.MediaPlayer
             _advancedToggle = null;
             _adminOnlyToggle = null;
             _allowAnyoneToggle = null;
+            _anyoneCanControlToggle = null;
             _driftSlider = null;
             _activePlayer = null;
             _activeNetworking = null;
@@ -219,7 +227,7 @@ namespace Basis.BasisUI.MediaPlayer
         {
             _controlGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
             _controlGroup.SetTitle("Playback");
-            _controlGroup.SetDescription("Requires the basis.mediaplayer.control permission.");
+            _controlGroup.SetDescription("Requires the basis.mediaplayer.control permission, or Anyone Can Control on this player.");
             RectTransform content = _controlGroup.ContentParent;
 
             _urlField = PanelTextField.CreateNewEntry(content);
@@ -477,15 +485,16 @@ namespace Basis.BasisUI.MediaPlayer
         {
             _seekPendingAt = -1f;   /* a drag on the previous player dies with it */
             _seekAwaitUntil = -1f;
-            bool canControl = HasControlPermission();
-            _controlGroup?.SetActive(canControl);
-            _userGroup?.SetActive(true);
 
             _activeNetworking = null;
             if (_activePlayer != null)
             {
                 _activePlayer.TryGetComponent(out _activeNetworking);
             }
+
+            bool canControl = CanControlActivePlayer();
+            _controlGroup?.SetActive(canControl);
+            _userGroup?.SetActive(true);
 
             bool showAdmin = IsAdmin() && _activeNetworking != null;
             if (_adminGroup != null && _adminGroup.gameObject.activeSelf != showAdmin)
@@ -499,18 +508,13 @@ namespace Basis.BasisUI.MediaPlayer
             {
                 _adminOnlyToggle?.SetValueWithoutNotify(_activeNetworking.AdminOnly);
                 _allowAnyoneToggle?.SetValueWithoutNotify(_activeNetworking.AllowAnyoneToTakeControl);
+                _anyoneCanControlToggle?.SetValueWithoutNotify(_activeNetworking.AnyoneCanControl);
                 _driftSlider?.SetValueWithoutNotify(_activeNetworking.DriftSeekThresholdSeconds);
             }
 
             if (_activePlayer == null) return;
 
-            if (canControl && _urlField != null)
-            {
-                string current = _activeNetworking != null
-                    ? _activeNetworking.SyncedUrl
-                    : (_activePlayer.ActiveMediaSource != null ? _activePlayer.ActiveMediaSource.Uri : string.Empty);
-                _urlField.SetValueWithoutNotify(current ?? string.Empty);
-            }
+            if (canControl) SyncUrlFieldToActivePlayer();
 
             _volumeSlider?.SetValueWithoutNotify(_activePlayer.Mute ? 0f : Mathf.Clamp01(_activePlayer.Volume) * 100f);
             _captionsToggle?.SetValueWithoutNotify(_activePlayer.CaptionsEnabled);
@@ -586,9 +590,32 @@ namespace Basis.BasisUI.MediaPlayer
             ApplySubtitleDropdownVisibility(_activePlayer.CaptionsEnabled);
         }
 
+        private void SyncUrlFieldToActivePlayer()
+        {
+            if (_urlField == null || _activePlayer == null) return;
+            string current = _activeNetworking != null
+                ? _activeNetworking.SyncedUrl
+                : (_activePlayer.ActiveMediaSource != null ? _activePlayer.ActiveMediaSource.Uri : string.Empty);
+            _urlField.SetValueWithoutNotify(current ?? string.Empty);
+        }
+
+        // Anyone Can Control is network-synced policy, so the gate can flip while
+        // the panel is open — repaint the group instead of waiting for a reopen.
+        private void RefreshControlGating()
+        {
+            if (_controlGroup == null || _activePlayer == null) return;
+
+            bool canControl = CanControlActivePlayer();
+            if (_controlGroup.gameObject.activeSelf == canControl) return;
+
+            _controlGroup.SetActive(canControl);
+            if (canControl) SyncUrlFieldToActivePlayer();
+            _panel?.Descriptor?.ForceRebuild();
+        }
+
         private void SetGroupsActive(bool active)
         {
-            _controlGroup?.SetActive(active && HasControlPermission());
+            _controlGroup?.SetActive(active && CanControlActivePlayer());
             _userGroup?.SetActive(active);
 
             bool showAdmin = active && IsAdmin() && _activeNetworking != null;
@@ -633,6 +660,20 @@ namespace Basis.BasisUI.MediaPlayer
                 }
 
                 _ = _activeNetworking.SetAllowAnyoneToTakeControl(v);
+            };
+
+            _anyoneCanControlToggle = PanelToggle.CreateNewEntry(content);
+            _anyoneCanControlToggle.Descriptor.SetTitle("Anyone Can Control");
+            _anyoneCanControlToggle.Descriptor.SetDescription("Lets clients without the control permission load URLs and drive playback.");
+            _anyoneCanControlToggle.SetValueWithoutNotify(false);
+            _anyoneCanControlToggle.OnValueChanged = v =>
+            {
+                if (_activeNetworking == null)
+                {
+                    return;
+                }
+
+                _ = _activeNetworking.SetAnyoneCanControl(v);
             };
 
             _driftSlider = PanelSlider.CreateNew(content);
@@ -736,6 +777,7 @@ namespace Basis.BasisUI.MediaPlayer
         private void OnPanelTick()
         {
             RefreshStatus();
+            RefreshControlGating();
             RefreshSeekBar();
             if (_debugMode) RefreshDebugInfo();
         }
@@ -747,7 +789,7 @@ namespace Basis.BasisUI.MediaPlayer
             if (_seekSlider == null || _activePlayer == null) return;
 
             double durS = _activePlayer.Duration.TotalSeconds;
-            bool seekable = durS > 0.5 && HasControlPermission();
+            bool seekable = durS > 0.5 && CanControlActivePlayer();
             if (_seekSlider.gameObject.activeSelf != seekable)
             {
                 _seekSlider.gameObject.SetActive(seekable);

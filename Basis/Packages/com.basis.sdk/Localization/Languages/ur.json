@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "براہ کرم درج ذیل مسائل حل کریں، یا دستاویزات سے مدد لیں۔ \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "آنکھ کی پوزیشن Gizmo {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "منہ کی پوزیشن Gizmo {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "آنکھ کی پوزیشن" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "منہ کی پوزیشن" },
+    { "key": "sdk.avatar.position.height", "value": "اونچائی" },
+    { "key": "sdk.avatar.position.forward", "value": "آگے" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "ماڈل دوبارہ درآمد کر رہا ہے (Mesh LOD)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

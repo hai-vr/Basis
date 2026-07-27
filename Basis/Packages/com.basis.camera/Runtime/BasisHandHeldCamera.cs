@@ -731,10 +731,76 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (!autoFocusFollowSubject || MetaData.depthOfField == null || captureCamera == null) return;
         if (!MetaData.depthOfField.active) return;
+        if (!CanAutoFocusOnFollowSubject) return;
         if (!TryGetFollowFocusPoint(out Vector3 point)) return;
+        if (!TryGetFocusDepth(point, out float depth)) return;
 
-        float distance = Vector3.Distance(captureCamera.transform.position, point);
-        MetaData.depthOfField.focusDistance.value = Mathf.Max(0.1f, distance);
+        float current = MetaData.depthOfField.focusDistance.value;
+        float focus = Mathf.Abs(depth - current) > AutoFocusSnapDistance
+            ? depth
+            : Mathf.Lerp(current, depth, 1f - Mathf.Exp(-AutoFocusPullRate * Time.deltaTime));
+
+        ApplyFocusDistance(focus);
+    }
+
+    private const float FocusFocalLengthMargin = 1.15f;
+    private const float AutoFocusPullRate = 8f;
+    private const float AutoFocusSnapDistance = 8f;
+    private const float GaussianFalloffRatio = 2.5f;
+
+    /// <summary>
+    /// True when the follow subject is somewhere the camera could actually be pointed. Follow
+    /// resolves to the local player whenever no remote is targeted, and while the camera is in
+    /// hand that point sits behind the lens, so focusing on it blurs the whole shot.
+    /// </summary>
+    public bool CanAutoFocusOnFollowSubject => IsAutoFollowing || IsFollowingRemotePlayer;
+
+    /// <summary>
+    /// Shortest focus distance the blur solver can take, in metres. Its circle of confusion is
+    /// <c>(f/N · f)/(P − f)</c>, so a focus distance at or inside the lens focal length divides by
+    /// zero and then inverts, swapping near and far blur.
+    /// </summary>
+    public float MinimumFocusDistance =>
+        MetaData != null && MetaData.depthOfField != null
+            ? Mathf.Max(0.1f, MetaData.depthOfField.focalLength.value * 0.001f * FocusFocalLengthMargin)
+            : 0.1f;
+
+    /// <summary>
+    /// Depth of a world point along the capture camera's view axis, which is what the blur solver
+    /// compares the focus distance against. Fails when the point is behind the lens or inside
+    /// <see cref="MinimumFocusDistance"/>, in which case focus should be left where it is.
+    /// </summary>
+    public bool TryGetFocusDepth(Vector3 worldPoint, out float depth)
+    {
+        depth = 0f;
+        if (captureCamera == null) return false;
+
+        captureCamera.transform.GetPositionAndRotation(out Vector3 eye, out Quaternion rotation);
+        depth = Vector3.Dot(worldPoint - eye, rotation * Vector3.forward);
+        return depth > MinimumFocusDistance;
+    }
+
+    /// <summary>
+    /// The one place a focus distance reaches the effect. Clamps clear of the lens focal length,
+    /// and in Gaussian mode — which has no focus distance of its own, only a far-blur ramp — places
+    /// that ramp to begin at the focus plane so the control still does something.
+    /// </summary>
+    public void ApplyFocusDistance(float metres)
+    {
+        if (MetaData == null || MetaData.depthOfField == null) return;
+
+        float focus = Mathf.Max(MinimumFocusDistance, metres);
+
+        MetaData.depthOfField.focusDistance.overrideState = true;
+        MetaData.depthOfField.focusDistance.value = focus;
+
+        if (MetaData.depthOfField.mode.value == DepthOfFieldMode.Gaussian)
+        {
+            MetaData.depthOfField.gaussianStart.overrideState = true;
+            MetaData.depthOfField.gaussianStart.value = focus;
+            MetaData.depthOfField.gaussianEnd.overrideState = true;
+            MetaData.depthOfField.gaussianEnd.value = focus * GaussianFalloffRatio;
+        }
     }
 
     /// <summary>Clamps an arbitrary sample count to a value the GPU accepts (1/2/4/8).</summary>

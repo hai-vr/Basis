@@ -329,7 +329,7 @@ namespace Basis.BasisUI
             _autoConnectToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.servers.autoConnect.description"));
             _autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(_advancedToggle, container, advancedStart, false, null);
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(_advancedToggle, container, advancedStart, false, null);
         }
 
         private void PopulateHostStackDropdown()

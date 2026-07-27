@@ -295,7 +295,7 @@ public partial class BasisHandHeldCameraUI
 
     private void SetupSliderRanges()
     {
-        if (DepthApertureSlider != null) { DepthApertureSlider.minValue = 0f; DepthApertureSlider.maxValue = 32f; }
+        if (DepthApertureSlider != null) { DepthApertureSlider.minValue = MinAperture; DepthApertureSlider.maxValue = MaxAperture; }
         if (FOVSlider != null) { FOVSlider.minValue = 20f; FOVSlider.maxValue = 120f; }
         if (DepthFocusDistanceSlider != null) { DepthFocusDistanceSlider.minValue = 0.1f; DepthFocusDistanceSlider.maxValue = 100f; }
 
@@ -441,6 +441,13 @@ public partial class BasisHandHeldCameraUI
         BasisDebug.Log($"[360] Capture mode is now {(enabled ? "ON" : "OFF")}");
     }
 
+    /// <summary>
+    /// True when Auto is selected and auto-focus will actually drive the focus distance. Auto with
+    /// nothing to track leaves the slider as the only way to focus, so it has to stay reachable.
+    /// </summary>
+    public bool AutoFocusIsDriving =>
+        currentDepthMode == DepthMode.Auto && HHC != null && HHC.autoFocusFollowSubject && HHC.CanAutoFocusOnFollowSubject;
+
     public void SetDepthMode(DepthMode mode)
     {
         currentDepthMode = mode;
@@ -451,10 +458,10 @@ public partial class BasisHandHeldCameraUI
         focusCursor?.SetActive(dofIsActive);
 
         if (DepthApertureSlider != null)
-            DepthApertureSlider.gameObject.SetActive(dofIsActive);
+            DepthApertureSlider.gameObject.SetActive(dofIsActive && DoFMode == 2);
 
         if (DepthFocusDistanceSlider != null)
-            DepthFocusDistanceSlider.gameObject.SetActive(dofIsActive && !useAuto);
+            DepthFocusDistanceSlider.gameObject.SetActive(dofIsActive && !AutoFocusIsDriving);
 
         if (DoFAutoSprite != null) DoFAutoSprite.SetActive(dofIsActive && useAuto);
         if (DoFManualSprite != null) DoFManualSprite.SetActive(dofIsActive && !useAuto);
@@ -712,6 +719,15 @@ public partial class BasisHandHeldCameraUI
             settings.depthIsActive = settings.dofMode != 0;
         }
 
+        if (settings.settingsVersion < 5)
+        {
+            // f/1 on a 125mm lens is a depth of field about 3cm deep at portrait range, so no
+            // subject was ever usefully in focus. Take everyone to the portrait-sane defaults.
+            var defaults = new CameraSettings();
+            settings.depthAperture = defaults.depthAperture;
+            settings.dofFocalLength = defaults.dofFocalLength;
+        }
+
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
@@ -835,13 +851,14 @@ public partial class BasisHandHeldCameraUI
 
         if (HHC.MetaData.depthOfField != null)
         {
-            HHC.MetaData.depthOfField.aperture.value = settings.depthAperture;
-            HHC.MetaData.depthOfField.focusDistance.value = settings.depthFocusDistance;
+            HHC.MetaData.depthOfField.aperture.value = Mathf.Clamp(settings.depthAperture, MinAperture, MaxAperture);
+            // Focal length before focus: the minimum focus distance is derived from it.
+            ChangeDoFFocalLength(settings.dofFocalLength);
             // Style first, then the on/off — ApplyDoFModeOnly deliberately does not touch active,
             // so depthIsActive stays the single owner of whether DoF is enabled.
             ApplyDoFModeOnly(settings.dofMode);
             HHC.MetaData.depthOfField.active = settings.depthIsActive;
-            ChangeDoFFocalLength(settings.dofFocalLength);
+            HHC.ApplyFocusDistance(settings.depthFocusDistance);
             ChangeDoFBladeCount(settings.dofBladeCount);
         }
 
@@ -916,21 +933,24 @@ public partial class BasisHandHeldCameraUI
         if (DepthApertureOutput != null && DepthApertureSlider != null) DepthApertureOutput.text = DepthApertureSlider.value.ToString();
         if (DOFFocusOutput != null && DepthFocusDistanceSlider != null) DOFFocusOutput.text = DepthFocusDistanceSlider.value.ToString();
     }
+    /// <summary>Range URP clamps <c>DepthOfField.aperture</c> to; anything outside it is dead slider travel.</summary>
+    public const float MinAperture = 1f;
+    public const float MaxAperture = 32f;
+
     public void DepthChangeFocusDistance(float value)
     {
-        if (HHC.MetaData.depthOfField != null)
-        {
-            HHC.MetaData.depthOfField.focusDistance.value = value;
-            if (DOFFocusOutput != null) DOFFocusOutput.text = value.ToString();
-        }
+        if (HHC == null || HHC.MetaData.depthOfField == null) return;
+
+        HHC.ApplyFocusDistance(value);
+        if (DOFFocusOutput != null) DOFFocusOutput.text = HHC.MetaData.depthOfField.focusDistance.value.ToString();
     }
 
     public void ChangeAperture(float value)
     {
         if (HHC.MetaData.depthOfField != null)
         {
-            HHC.MetaData.depthOfField.aperture.value = value;
-            if (DepthApertureOutput != null) DepthApertureOutput.text = value.ToString();
+            HHC.MetaData.depthOfField.aperture.value = Mathf.Clamp(value, MinAperture, MaxAperture);
+            if (DepthApertureOutput != null) DepthApertureOutput.text = HHC.MetaData.depthOfField.aperture.value.ToString();
         }
     }
 
@@ -948,6 +968,7 @@ public partial class BasisHandHeldCameraUI
         if (HHC.MetaData.depthOfField == null) return;
         int clamped = ApplyDoFModeOnly(mode);
         HHC.MetaData.depthOfField.active = clamped != 0;
+        SetDepthMode(currentDepthMode);
     }
 
     /// <summary>
@@ -961,6 +982,7 @@ public partial class BasisHandHeldCameraUI
         int clamped = Mathf.Clamp(mode, 0, 2);
         HHC.MetaData.depthOfField.mode.overrideState = true;
         HHC.MetaData.depthOfField.mode.value = (UnityEngine.Rendering.Universal.DepthOfFieldMode)clamped;
+        HHC.ApplyFocusDistance(HHC.MetaData.depthOfField.focusDistance.value);
         return clamped;
     }
 
@@ -970,6 +992,7 @@ public partial class BasisHandHeldCameraUI
         {
             HHC.MetaData.depthOfField.focalLength.overrideState = true;
             HHC.MetaData.depthOfField.focalLength.value = value;
+            HHC.ApplyFocusDistance(HHC.MetaData.depthOfField.focusDistance.value);
         }
     }
 

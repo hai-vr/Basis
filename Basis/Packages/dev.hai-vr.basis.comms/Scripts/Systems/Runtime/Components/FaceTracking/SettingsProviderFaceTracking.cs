@@ -154,8 +154,9 @@ namespace HVR.Basis.Comms
             var menuItems = avatar.GetComponentsInChildren<HVRVixxyMenuItem>(true);
             if (menuItems.Length <= 0) return;
 
-            var menuGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            menuGroup.SetTitle("Vixxy");
+            var sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+            var menuGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                sectionToggle, container, "Vixxy");
             menuGroup.SetDescription("Trigger effects on this avatar.");
 
             var resetters = new List<Action>();
@@ -181,13 +182,15 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            var resetButton = PanelButton.CreateNew(container);
+            var resetButton = PanelButton.CreateNew(menuGroup.ContentParent);
             resetButton.Descriptor.SetTitle("Reset to Default");
             resetButton.Descriptor.SetDescription("Restore all customization on this avatar to its defaults.");
             resetButton.OnClicked += () =>
             {
                 foreach (var reset in resetters) reset();
             };
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, menuGroup, true);
         }
 
         private static void InitializeEyeTrackingPanel(RectTransform container)
@@ -199,8 +202,9 @@ namespace HVR.Basis.Comms
             var eyeActuation = avatar.GetComponentInChildren<EyeTrackingBoneActuation>(true);
             if (eyeActuation == null) return;
 
-            var eyeGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            eyeGroup.SetTitle("Eye Tracking");
+            var sectionToggle = PanelSectionToggle.CreateNewEntry(container);
+            var eyeGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                sectionToggle, container, "Eye Tracking");
             eyeGroup.SetDescription("Limit and scale eye tracking rotation on this avatar.");
 
             var overrideToggle = PanelToggle.CreateNewEntry(eyeGroup.ContentParent);
@@ -241,7 +245,7 @@ namespace HVR.Basis.Comms
                 ApplySliderVisibility(value);
             };
 
-            var resetButton = PanelButton.CreateNew(container);
+            var resetButton = PanelButton.CreateNew(eyeGroup.ContentParent);
             resetButton.Descriptor.SetTitle("Reset Eye Tracking");
             resetButton.Descriptor.SetDescription("Turn off the override and restore the values baked into this avatar.");
             resetButton.OnClicked += () =>
@@ -251,6 +255,15 @@ namespace HVR.Basis.Comms
                 foreach (var reset in resetters) reset();
                 ApplySliderVisibility(false);
             };
+
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(sectionToggle, eyeGroup, true,
+                visible =>
+                {
+                    if (visible)
+                    {
+                        ApplySliderVisibility(eyeActuation.RuntimeOverrideEnabled);
+                    }
+                });
         }
 
         private static Action BuildOverrideSlider(PanelElementDescriptor group, List<PanelSlider> sliders, string title, string description,

@@ -346,7 +346,18 @@ namespace Cilbox
 			"Basis.BasisNetworkBehaviour.IsOwnedLocallyOnServer",
 			"Basis.BasisNetworkBehaviour.HasNetworkID",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.playerId",
-			
+
+			// Sync shim configuration. These are plain fields rather than { get; set; } pairs, so
+			// unlike a property they need naming here — field access is default-deny, methods are
+			// default-allow. The const selectors alongside them (ChannelPose, SpaceWorld, Phase*,
+			// Max*) need no entry: the compiler inlines a const to ldc.i4, so no field token is
+			// ever emitted for them.
+			"Basis.Shims.BasisTransformSyncShim.Channels",
+			"Basis.Shims.BasisTransformSyncShim.Space",
+			"Basis.Shims.BasisTransformSyncShim.Enabled",
+			"Basis.Shims.BasisBlendShapeSyncShim.Epsilon",
+			"Basis.Shims.BasisBlendShapeSyncShim.Enabled",
+
 			// Unity Event Systems fields
 			"UnityEngine.EventSystems.EventTrigger+Entry.eventID",
 			"UnityEngine.EventSystems.PointerEventData.hovered",

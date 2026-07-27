@@ -135,6 +135,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         internal MeshRenderer[] HighlightRenderers;
 
         /// <summary>
+        /// Source collider each generated <see cref="HighlightClone"/> renderer was built from,
+        /// index-matched to <see cref="HighlightRenderers"/>. Null when the highlight uses the
+        /// object's own MeshRenderers instead of generated collider meshes.
+        /// </summary>
+        private Collider[] _highlightCloneSources;
+
+        /// <summary>
         /// Stores the previous kinematic state when toggling during interaction.
         /// </summary>
         public bool _previousKinematicValue = true;
@@ -378,9 +385,26 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
+            if (!highlight)
+            {
+                foreach (MeshRenderer r in HighlightRenderers)
+                {
+                    BasisHighlightManager.Unhighlight(r);
+                }
+                return;
+            }
+
+            if (_highlightCloneSources != null)
+            {
+                SyncCloneActiveState();
+            }
+
             foreach (MeshRenderer r in HighlightRenderers)
             {
-                BasisHighlightManager.SetHighlight(r, highlight);
+                if (r != null && r.gameObject.activeInHierarchy)
+                {
+                    BasisHighlightManager.Highlight(r);
+                }
             }
         }
 
@@ -1269,8 +1293,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
             float bestDistSq = float.MaxValue;
             for (int i = 0; i < colliders.Length; i++)
             {
-                if (colliders[i] == null) continue;
-                Vector3 point = colliders[i].ClosestPoint(inPos);
+                Collider col = colliders[i];
+                if (col == null || !col.enabled || !col.gameObject.activeInHierarchy) continue;
+                Vector3 point = col.ClosestPoint(inPos);
                 float distSq = (point - inPos).sqrMagnitude;
                 if (distSq < bestDistSq)
                 {
@@ -1281,6 +1306,31 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return Quaternion.Inverse(handRot) * (objectPos - bestPoint);
         }
 
+        /// <summary>
+        /// Mirrors each generated highlight clone's active state onto its source collider, so a
+        /// child toggled off after <see cref="Start"/> stops contributing to the outline.
+        /// </summary>
+        private void SyncCloneActiveState()
+        {
+            int count = Mathf.Min(HighlightRenderers.Length, _highlightCloneSources.Length);
+            for (int i = 0; i < count; i++)
+            {
+                MeshRenderer r = HighlightRenderers[i];
+                if (r == null)
+                {
+                    continue;
+                }
+
+                Collider source = _highlightCloneSources[i];
+                bool wanted = source != null && source.enabled && source.gameObject.activeInHierarchy;
+                GameObject clone = r.gameObject;
+                if (clone.activeSelf != wanted)
+                {
+                    clone.SetActive(wanted);
+                }
+            }
+        }
+
         protected void CalculateHighlightRenderers()
         {
             HighlightObject(false);
@@ -1289,7 +1339,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 DestroyImmediate(HighlightClone);
             }
 
-            HighlightRenderers = this.GetComponentsInChildren<MeshRenderer>();
+            _highlightCloneSources = null;
+            HighlightRenderers = this.GetComponentsInChildren<MeshRenderer>(true);
 
             // If no MeshRenderer was found and GenerateColliderMesh is true
             if (GenerateColliderMesh && (HighlightRenderers == null || HighlightRenderers.Length == 0))
@@ -1300,6 +1351,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     HighlightClone = new GameObject(k_CloneName);
                     Transform parent = HighlightClone.transform;
                     parent.SetParent(transform, false);
+
+                    List<MeshRenderer> cloneRenderers = new(colliders.Length);
+                    List<Collider> cloneSources = new(colliders.Length);
                     foreach (Collider col in colliders)
                     {
                         if (col == null)
@@ -1308,15 +1362,24 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         }
 
                         GameObject newClone = BasisColliderClone.CloneColliderMesh(col, col.name);
+                        if (newClone == null)
+                        {
+                            continue;
+                        }
+
                         newClone.SetActive(true);
                         newClone.transform.SetParent(parent, true);
+
+                        foreach (MeshRenderer r in newClone.GetComponentsInChildren<MeshRenderer>(true))
+                        {
+                            r.enabled = false; // renderer does not be enabled for highlight feature
+                            cloneRenderers.Add(r);
+                            cloneSources.Add(col);
+                        }
                     }
 
-                    HighlightRenderers = HighlightClone.GetComponentsInChildren<MeshRenderer>();
-                    foreach (MeshRenderer r in HighlightRenderers)
-                    {
-                        r.enabled = false; // renderer does not be enabled for highlight feature
-                    }
+                    HighlightRenderers = cloneRenderers.ToArray();
+                    _highlightCloneSources = cloneSources.ToArray();
 
                     HighlightClone.SetActive(false);
                 }

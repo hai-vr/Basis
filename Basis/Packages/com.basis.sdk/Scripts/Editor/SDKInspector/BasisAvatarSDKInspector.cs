@@ -209,15 +209,15 @@ public partial class BasisAvatarSDKInspector : Editor
     }
     private void OnMouthHeightValueChanged(ChangeEvent<Vector2> evt)
     {
-        Undo.RecordObject(Avatar, "Change Mouth Height");
-        Avatar.AvatarMouthPosition = new Vector3(evt.newValue.x, evt.newValue.y, 0);
+        Undo.RecordObject(Avatar, "Change Mouth Position");
+        Avatar.AvatarMouthPosition = evt.newValue;
         EditorUtility.SetDirty(Avatar);
         ValueChanged?.Invoke();
     }
     private void OnEyeHeightValueChanged(ChangeEvent<Vector2> evt)
     {
-        Undo.RecordObject(Avatar, "Change Eye Height");
-        Avatar.AvatarEyePosition = new Vector3(evt.newValue.x, evt.newValue.y, 0);
+        Undo.RecordObject(Avatar, "Change Eye Position");
+        Avatar.AvatarEyePosition = evt.newValue;
         EditorUtility.SetDirty(Avatar);
         ValueChanged?.Invoke();
     }
@@ -290,6 +290,11 @@ public partial class BasisAvatarSDKInspector : Editor
         // Initialize Event Callbacks for Vector2 fields (for Avatar Eye and Mouth Position)
         BasisHelpersGizmo.CallBackVector2Field(uiElementsRoot, BasisSDKConstants.avatarEyePositionField, Avatar.AvatarEyePosition, OnEyeHeightValueChanged);
         BasisHelpersGizmo.CallBackVector2Field(uiElementsRoot, BasisSDKConstants.avatarMouthPositionField, Avatar.AvatarMouthPosition, OnMouthHeightValueChanged);
+
+        string heightLabel = BasisEditorLocalization.Get("sdk.avatar.position.height");
+        string forwardLabel = BasisEditorLocalization.Get("sdk.avatar.position.forward");
+        BasisHelpersGizmo.LabelVector2Field(uiElementsRoot, BasisSDKConstants.avatarEyePositionField, BasisEditorLocalization.Get("sdk.avatar.eyePosition.label"), heightLabel, forwardLabel);
+        BasisHelpersGizmo.LabelVector2Field(uiElementsRoot, BasisSDKConstants.avatarMouthPositionField, BasisEditorLocalization.Get("sdk.avatar.mouthPosition.label"), heightLabel, forwardLabel);
 
         // Eye Personality sliders
         Slider livelinessSlider = uiElementsRoot.Q<Slider>(BasisSDKConstants.EyeLivelinessField);

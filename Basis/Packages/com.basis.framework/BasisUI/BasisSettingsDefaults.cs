@@ -49,6 +49,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> RememberMenuState = new("remembermenustate", new BasisPlatformDefault<bool>(true));
 
+        public static BasisSettingsBinding<bool> ShowDeveloperTab = new("showdevelopertab", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> CustomScale = new("customscale", new BasisPlatformDefault<bool>(false));
 
         // Key bumped to _v2: BasisSettingsSystem.LoadString persists a default the first time it is read, so
@@ -107,6 +109,26 @@ namespace Basis.BasisUI
         /// to turn on High Player Cap Performance Mode. Disable to never see those prompts.
         /// </summary>
         public static BasisSettingsBinding<bool> HighPlayerCapSuggestions = new("highplayercapsuggestions", new BasisPlatformDefault<bool>(true));
+
+        /// <summary>
+        /// Active Performance Mode level: "Off", "Light", "Balanced" or "Aggressive".
+        /// See <see cref="BasisPerformanceMode"/> — the level owns a table of graphics,
+        /// crowd and avatar-cost settings and restores the player's own values when
+        /// it returns to "Off".
+        /// </summary>
+        public static BasisSettingsBinding<string> PerformanceModeLevel = new("performancemodelevel", new BasisPlatformDefault<string>(BasisPerformanceMode.LevelOff));
+
+        /// <summary>
+        /// When enabled, the Performance Mode level follows the instance population
+        /// (over 250 / 500 / 1000 occupants) instead of waiting for a prompt.
+        /// </summary>
+        public static BasisSettingsBinding<bool> PerformanceModeAuto = new("performancemodeauto", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Serialized snapshot of every Performance Mode controlled setting as it was
+        /// before the mode was switched on. Empty while the mode is off.
+        /// </summary>
+        public static BasisSettingsBinding<string> PerformanceModeBaseline = new("performancemodebaseline", new BasisPlatformDefault<string>(string.Empty));
 
         /// <summary>
         /// Maximum number of remote players allowed to have active audio sources at once.
@@ -639,6 +661,16 @@ namespace Basis.BasisUI
             linux = 0.05f,
             other = 0.05f
         });
+
+        // Skins remote avatars with fewer bone influences per vertex as they drop through the mesh
+        // LOD levels (4 / 2 / 1 influences). Distant avatars are left on the full influence set
+        // otherwise, which is invisible past a few metres and pays for itself on every skinned vertex.
+        public static BasisSettingsBinding<bool> UseAvatarSkinLod = new("useavatarskinlod", new BasisPlatformDefault<bool>(true));
+
+        // Stops remote avatars casting shadows once they drop past the two near mesh LOD levels.
+        // Nothing wrote shadowCastingMode on a remote renderer before this, so a distant crowd was
+        // paying a full extra skinned draw per shadow cascade each.
+        public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<float> GlobalMeshLOD = new("globalmeshlod", new BasisPlatformDefault<float>
         {
@@ -1340,6 +1372,14 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> FBIKShoulderRetraction = new("fbikshoulderretraction", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKShoulderElevation = new("fbikshoulderelevation", new BasisPlatformDefault<float>(0.4f));
         public static BasisSettingsBinding<float> FBIKShoulderProtraction = new("fbikshoulderprotraction", new BasisPlatformDefault<float>(0.3f));
+        // Scapulohumeral coupling: how much of the humeral swing the girdle takes, and the clamp on the result.
+        public static BasisSettingsBinding<float> FBIKShoulderCoupleRatio = new("fbikshouldercoupleratio", new BasisPlatformDefault<float>(0.4f));
+        public static BasisSettingsBinding<float> FBIKShoulderMaxDeg = new("fbikshouldermaxdeg", new BasisPlatformDefault<float>(25f));
+        // Anatomical shoulder slide (Anatomy > Shoulder Slide): past Start degrees of chest yaw the girdle
+        // counter-rotates by Fraction of the excess, capped at Max.
+        public static BasisSettingsBinding<float> FBIKShoulderSlideStartDeg = new("fbikshoulderslidestartdeg", new BasisPlatformDefault<float>(30f));
+        public static BasisSettingsBinding<float> FBIKShoulderSlideMaxDeg = new("fbikshoulderslidemaxdeg", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> FBIKShoulderSlideFraction = new("fbikshoulderslidefraction", new BasisPlatformDefault<float>(0.4f));
         public static BasisSettingsBinding<float> FBIKMaxBendDeg = new("fbikmaxbenddeg", new BasisPlatformDefault<float>(90f));
         public static BasisSettingsBinding<float> FBIKMaxChestDelta = new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
         // Butterfly knees: with foot trackers (no knee tracker), tilting the feet outward and pulling them in lets
@@ -1353,6 +1393,11 @@ namespace Basis.BasisUI
         // the foot's toe lines up with the leg, handing off to the butterfly splay.
         public static BasisSettingsBinding<bool> FBIKKneeFollowsFoot = new("fbikkneefollowsfoot", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> FBIKKneeFootFollowUpright = new("fbikkneefootfollowupright", new BasisPlatformDefault<float>(0.75f));
+        // Knee-swivel damping on the FOOT-DERIVED pole only (foot tracker, no knee tracker, no model hint). A knee
+        // HINT tracker always gets the hold and never the low-pass; these two only widen that treatment to the
+        // invented pole. Off by default = the shipped behaviour.
+        public static BasisSettingsBinding<bool> FBIKKneeFootPoleHold = new("fbikkneefootpolehold", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKKneeFootPoleConditioning = new("fbikkneefootpoleconditioning", new BasisPlatformDefault<bool>(false));
 
         // Spine relax: per-axis bend distribution onto lumbar (spine) and thoracic (upperChest)
         public static BasisSettingsBinding<float> FBIKSpineBendPitch = new("fbikspinebendpitch", new BasisPlatformDefault<float>(0.45f));
@@ -1403,6 +1448,35 @@ namespace Basis.BasisUI
         // head reach bends instead of corkscrewing. Key bumped to _v2 to re-default the grading on existing installs.
         public static BasisSettingsBinding<float> FBIKSpineTwistKeep = new("fbikspinetwistkeep_v2", new BasisPlatformDefault<float>(0.25f));
         public static BasisSettingsBinding<float> FBIKSpineNeckTwistKeep = new("fbikspinenecktwistkeep", new BasisPlatformDefault<float>(0.9f));
+        // Mid-thoracic bend stiffness: scales down the swing of the middle spine joints (ends unaffected) so a
+        // lean curves at the flexible lumbar + cervical instead of kinking at one joint. 0 = uniform.
+        public static BasisSettingsBinding<float> FBIKThoracicBendStiffen = new("fbikthoracicbendstiffen", new BasisPlatformDefault<float>(0.3f));
+        // Width of the spine CCD's taut band as a fraction of hips->head length. Must exceed the sub-millimetre
+        // compressions an upright head commands through the neck-pivot lever, or the solver sits on its
+        // full-extension singularity.
+        public static BasisSettingsBinding<float> FBIKSpineTautBandFrac = new("fbikspinetautbandfrac", new BasisPlatformDefault<float>(0.015f));
+        // Lateral bend -> a little same-side axial rotation, so a sustained lean reads as a spinal coupling
+        // rather than a pure hinge.
+        public static BasisSettingsBinding<float> FBIKBendTwistCoupling = new("fbikbendtwistcoupling", new BasisPlatformDefault<float>(0.15f));
+        // Cap on how far the neck may lead a gaze ahead of the spine chain.
+        public static BasisSettingsBinding<float> FBIKNeckGazeFollowMaxDeg = new("fbikneckgazefollowmaxdeg", new BasisPlatformDefault<float>(18f));
+        // Ceiling on the posterior pelvic shift, as a fraction of T-pose spine length.
+        public static BasisSettingsBinding<float> FBIKTrunkCounterbalanceMaxFrac = new("fbiktrunkcounterbalancemaxfrac", new BasisPlatformDefault<float>(0.45f));
+        // Chest-as-secondary-IK-target (Anatomy > Chest IK Target): pull weight, iterations, head-restore sweeps
+        // per iteration, the cap on the spine's positional pull, and the distance past which a chest target is
+        // treated as a glitching tracker and ignored.
+        public static BasisSettingsBinding<float> FBIKChestIkWeight = new("fbikchestikweight", new BasisPlatformDefault<float>(0.5f));
+        public static BasisSettingsBinding<float> FBIKChestIkIterations = new("fbikchestikiterations", new BasisPlatformDefault<float>(8f));
+        public static BasisSettingsBinding<float> FBIKChestIkHeadRestoreSweeps = new("fbikchestikheadrestoresweeps", new BasisPlatformDefault<float>(2f));
+        public static BasisSettingsBinding<float> FBIKChestPosPullMaxDeg = new("fbikchestpospullmaxdeg", new BasisPlatformDefault<float>(20f));
+        public static BasisSettingsBinding<float> FBIKChestPullMaxDist = new("fbikchestpullmaxdist", new BasisPlatformDefault<float>(0.5f));
+        // Chest share of the arm-swing torso follow; the upper chest takes the remainder.
+        public static BasisSettingsBinding<float> FBIKChestFollowChestShare = new("fbikchestfollowchestshare", new BasisPlatformDefault<float>(0.6f));
+        // One Euro parameters for a knee whose pole comes from a tracker: a higher floor than the standing path,
+        // and 4x the beta so real shin motion isn't lagged.
+        public static BasisSettingsBinding<float> FBIKTrackedKneeSwivelMinCutoffHz = new("fbiktrackedkneeswivelmincutoffhz", new BasisPlatformDefault<float>(1.5f));
+        public static BasisSettingsBinding<float> FBIKTrackedKneeSwivelBeta = new("fbiktrackedkneeswivelbeta", new BasisPlatformDefault<float>(0.20f));
+        public static BasisSettingsBinding<float> FBIKTrackedKneeSwivelDerivCutoffHz = new("fbiktrackedkneeswivelderivcutoffhz", new BasisPlatformDefault<float>(1.0f));
         // Spine relax: arm-swing chest follow (only when no chest tracker)
         public static BasisSettingsBinding<float> FBIKChestArmSwingFactor = new("fbikchestarmswingfactor", new BasisPlatformDefault<float>(0.3f));
         public static BasisSettingsBinding<float> FBIKChestArmSwingMaxDeg = new("fbikchestarmswingmaxdeg", new BasisPlatformDefault<float>(15f));
@@ -1572,11 +1646,6 @@ namespace Basis.BasisUI
         // ("vive_tracker_waist", ...). Off by default: most people never set those roles (or
         // leave stale ones), and a wrong announced role is forced with no geometric check.
         public static BasisSettingsBinding<bool> TrustSteamVRRoles = new("trackerlinking_truststeamvrroles", new BasisPlatformDefault<bool>(false));
-        // Standing-idle continuous FBT refresh (BasisContinuousCalibration): slowly absorbs
-        // small strap slips into the calibration snapshots while the player stands in their
-        // calibration pose. Off by default — it rewrites calibration data at runtime, so
-        // users opt in explicitly.
-        public static BasisSettingsBinding<bool> ContinuousCalibration = new("trackerlinking_continuouscalibration", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1644,13 +1713,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> DenoiseWet = new("denoisewet", new BasisPlatformDefault<float>(1f)); // 0..1
 
 
-        public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrms", new BasisPlatformDefault<float>(0.1f)); // ~ -24 dBFS
+        // Target loudness is fixed in BasisMicrophoneAgc.DefaultTargetRms — it only equalises
+        // people if everyone agrees on it, so it is not user-tunable.
+        // public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrmsv2", new BasisPlatformDefault<float>(0.1f)); // ~ -20 dBFS
 
-        public static BasisSettingsBinding<float> AgcMaxGainDb = new("agcdbgainmax", new BasisPlatformDefault<float>(8f));
+        public static BasisSettingsBinding<float> AgcMaxGainDb = new("agcdbgainmaxv2", new BasisPlatformDefault<float>(24f));
 
-        public static BasisSettingsBinding<float> AgcAttack = new("agcattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
+        public static BasisSettingsBinding<float> AgcAttack = new("agcattackv2", new BasisPlatformDefault<float>(0.75f)); // 0..1
 
-        public static BasisSettingsBinding<float> AgcRelease = new("agcrelease", new BasisPlatformDefault<float>(0.01f)); // 0..1
+        public static BasisSettingsBinding<float> AgcRelease = new("agcreleasev2", new BasisPlatformDefault<float>(0.85f)); // 0..1
 
         // ---------------- UI STYLE PALETTE ----------------
         public static BasisSettingsBinding<string> UIPaletteBG1 = new("ui_palette_bg1", new BasisPlatformDefault<string>(""));
@@ -1672,6 +1743,22 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> UIPaletteScrollbar = new("ui_palette_scrollbar", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<bool> MenuEdgeWhite = new("menu_edge_white", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- MENU BACKGROUND ----------------
+        public static BasisSettingsBinding<float> MenuBGAccentAmount = new("menubg_accentamount", new BasisPlatformDefault<float>(0.2f));
+        public static BasisSettingsBinding<float> MenuBGAccentFeather = new("menubg_accentfeather", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGAccentSoftness = new("menubg_accentsoftness", new BasisPlatformDefault<float>(1.75f));
+        public static BasisSettingsBinding<float> MenuBGBrandGradient = new("menubg_brandgradient", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGGradientCycle = new("menubg_gradientcycle", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> MenuBGAnimationSpeed = new("menubg_animationspeed", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGSheen = new("menubg_sheen", new BasisPlatformDefault<float>(0.135f));
+        public static BasisSettingsBinding<string> MenuBGCursorGlowColor = new("menubg_cursorglowcolor", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<float> MenuBGCursorGlow = new("menubg_cursorglow", new BasisPlatformDefault<float>(0.18f));
+        public static BasisSettingsBinding<float> MenuBGCursorGlowRadius = new("menubg_cursorglowradius", new BasisPlatformDefault<float>(0.3f));
+        public static BasisSettingsBinding<float> MenuBGVignette = new("menubg_vignette", new BasisPlatformDefault<float>(0.4f));
+        public static BasisSettingsBinding<float> MenuBGExposure = new("menubg_exposure", new BasisPlatformDefault<float>(0.84f));
+        public static BasisSettingsBinding<float> MenuBGGrain = new("menubg_grain", new BasisPlatformDefault<float>(3f));
+        public static BasisSettingsBinding<float> MenuBGGrainScale = new("menubg_grainscale", new BasisPlatformDefault<float>(900f));
+
         // ---------------- MIRROR ----------------
         public static BasisSettingsBinding<bool> UseMirrorQualityOverride = new("usemirrorqualityoverride", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<string> MirrorQuality = new("mirrorquality", new BasisPlatformDefault<string>("2048"));
@@ -1683,6 +1770,7 @@ namespace Basis.BasisUI
 
         // Noise Gate
         public static BasisSettingsBinding<bool> UseNoiseGate = new("usenoisegate", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> AutoNoiseGate = new("autonoisegate", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> NoiseGateThreshold = new("noisegatethreshold", new BasisPlatformDefault<float>(0.01f)); // RMS threshold
         public static BasisSettingsBinding<float> NoiseGateAttack = new("noisegateattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
         public static BasisSettingsBinding<float> NoiseGateRelease = new("noisegaterelease", new BasisPlatformDefault<float>(0.05f)); // 0..1
@@ -1727,11 +1815,12 @@ namespace Basis.BasisUI
             UseAutomaticGain.LoadBindingValue();
             DenoiseMakeupDb.LoadBindingValue();
             DenoiseWet.LoadBindingValue();
-            AgcTargetRms.LoadBindingValue();
+            // AgcTargetRms.LoadBindingValue();
             AgcMaxGainDb.LoadBindingValue();
             AgcAttack.LoadBindingValue();
             AgcRelease.LoadBindingValue();
             UseNoiseGate.LoadBindingValue();
+            AutoNoiseGate.LoadBindingValue();
             NoiseGateThreshold.LoadBindingValue();
             NoiseGateAttack.LoadBindingValue();
             NoiseGateRelease.LoadBindingValue();
@@ -1770,6 +1859,9 @@ namespace Basis.BasisUI
             UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
             HighPlayerCapSuggestions.LoadBindingValue();
+            PerformanceModeLevel.LoadBindingValue();
+            PerformanceModeAuto.LoadBindingValue();
+            PerformanceModeBaseline.LoadBindingValue();
             UseMaxAudioSources.LoadBindingValue();
             MaxAudioSources.LoadBindingValue();
             UseOpenLipSyncLimit.LoadBindingValue();
@@ -1923,6 +2015,8 @@ namespace Basis.BasisUI
             MaxConcurrentAvatarAddressables.LoadBindingValue();
             CacheMaxSizeGB.LoadBindingValue();
             AvatarMeshLOD.LoadBindingValue();
+            UseAvatarSkinLod.LoadBindingValue();
+            UseAvatarShadowLod.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
 
             // Performance Limits
@@ -1990,6 +2084,7 @@ namespace Basis.BasisUI
 
             // UI
             RememberMenuState.LoadBindingValue();
+            ShowDeveloperTab.LoadBindingValue();
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
             CameraHud.LoadBindingValue();
@@ -2211,6 +2306,27 @@ namespace Basis.BasisUI
             FBIKButterflyKneeMaxOpenDeg.LoadBindingValue();
             FBIKKneeFollowsFoot.LoadBindingValue();
             FBIKKneeFootFollowUpright.LoadBindingValue();
+            FBIKKneeFootPoleHold.LoadBindingValue();
+            FBIKKneeFootPoleConditioning.LoadBindingValue();
+            FBIKTrackedKneeSwivelMinCutoffHz.LoadBindingValue();
+            FBIKTrackedKneeSwivelBeta.LoadBindingValue();
+            FBIKTrackedKneeSwivelDerivCutoffHz.LoadBindingValue();
+            FBIKShoulderCoupleRatio.LoadBindingValue();
+            FBIKShoulderMaxDeg.LoadBindingValue();
+            FBIKShoulderSlideStartDeg.LoadBindingValue();
+            FBIKShoulderSlideMaxDeg.LoadBindingValue();
+            FBIKShoulderSlideFraction.LoadBindingValue();
+            FBIKThoracicBendStiffen.LoadBindingValue();
+            FBIKSpineTautBandFrac.LoadBindingValue();
+            FBIKBendTwistCoupling.LoadBindingValue();
+            FBIKNeckGazeFollowMaxDeg.LoadBindingValue();
+            FBIKTrunkCounterbalanceMaxFrac.LoadBindingValue();
+            FBIKChestIkWeight.LoadBindingValue();
+            FBIKChestIkIterations.LoadBindingValue();
+            FBIKChestIkHeadRestoreSweeps.LoadBindingValue();
+            FBIKChestPosPullMaxDeg.LoadBindingValue();
+            FBIKChestPullMaxDist.LoadBindingValue();
+            FBIKChestFollowChestShare.LoadBindingValue();
          //   FBIKNeuralPole.LoadBindingValue();
             FBIKSpineAnatomicalRom.LoadBindingValue();
             FBIKChestIKTarget.LoadBindingValue();
@@ -2290,7 +2406,6 @@ namespace Basis.BasisUI
             TrackerLinkingAdvancedVisible.LoadBindingValue();
             TrackerLinkingConnectorVisible.LoadBindingValue();
             TrustSteamVRRoles.LoadBindingValue();
-            ContinuousCalibration.LoadBindingValue();
             PairingSurprisePenalty.LoadBindingValue();
             PairingSurpriseClamp.LoadBindingValue();
             PairingEmaFloor.LoadBindingValue();
@@ -2375,6 +2490,22 @@ namespace Basis.BasisUI
             UIPaletteDanger.LoadBindingValue();
             UIPaletteScrollbar.LoadBindingValue();
             MenuEdgeWhite.LoadBindingValue();
+
+            // Menu Background
+            MenuBGAccentAmount.LoadBindingValue();
+            MenuBGAccentFeather.LoadBindingValue();
+            MenuBGAccentSoftness.LoadBindingValue();
+            MenuBGBrandGradient.LoadBindingValue();
+            MenuBGGradientCycle.LoadBindingValue();
+            MenuBGAnimationSpeed.LoadBindingValue();
+            MenuBGSheen.LoadBindingValue();
+            MenuBGCursorGlowColor.LoadBindingValue();
+            MenuBGCursorGlow.LoadBindingValue();
+            MenuBGCursorGlowRadius.LoadBindingValue();
+            MenuBGVignette.LoadBindingValue();
+            MenuBGExposure.LoadBindingValue();
+            MenuBGGrain.LoadBindingValue();
+            MenuBGGrainScale.LoadBindingValue();
 
             RaycastLineWidth.LoadBindingValue();
             RaycastLineColor.LoadBindingValue();

@@ -60,6 +60,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSectionToggle _gizmoSection;
         private readonly Dictionary<BasisCameraGizmoLayers, PanelToggle> _gizmoToggles =
             new Dictionary<BasisCameraGizmoLayers, PanelToggle>();
+        private PanelElementDescriptor _performanceGroup;
+        private PanelSectionToggle _performanceSection;
+        private PanelToggle _limitRenderRateToggle;
+        private PanelSlider _renderRateSlider;
         private PanelButton _resetPageButton;
         private PanelButton _timerButton;
         private int _lastCountdownShown = -1;
@@ -96,7 +100,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _followMarkerDropdown;
         private PanelDropdown _followTargetDropdown;
         private readonly List<ushort> _followTargetIds = new List<ushort>();
-        private int _lastFollowTargetCount = -1;
         private PanelDropdown _focusModeDropdown;
         private PanelToggle _followPlayspaceToggle;
         // private PanelToggle _followLookAtToggle;  // "Look At Me" removed — follow always aims at the player.
@@ -257,6 +260,9 @@ namespace Basis.BasisUI.HandHeldCamera
             BuildLayersGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, false, OnSectionExpanded);
 
+            BuildPerformanceGroup(_scrollContent);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
+
             BuildGizmoGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gizmoSection, _gizmoGroup, false, OnSectionExpanded);
 
@@ -372,6 +378,8 @@ namespace Basis.BasisUI.HandHeldCamera
                         if (!confirmed || camera == null) return;
 
                         camera.HandHeld.ResetSettings();
+                        BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
+                        BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
                         BasisMainMenu.Close();
                         BasisMainMenu.OpenWithProvider(StaticTitle);
                     });
@@ -436,7 +444,6 @@ namespace Basis.BasisUI.HandHeldCamera
             _focusModeDropdown = null;
             _followTargetDropdown = null;
             _followTargetIds.Clear();
-            _lastFollowTargetCount = -1;
             _msaaDropdown = null;
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider = null;
@@ -460,6 +467,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _gizmoGroup = null;
             _gizmoSection = null;
             _gizmoToggles.Clear();
+            _performanceGroup = null;
+            _performanceSection = null;
+            _limitRenderRateToggle = null;
+            _renderRateSlider = null;
             _autoFollowToggle = null;
             _followMarkerDropdown = null;
             _followPlayspaceToggle = null;
@@ -595,7 +606,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _focusModeDropdown = PanelDropdown.CreateNewEntry(content);
             _focusModeDropdown.Descriptor.SetTitle("Focus");
-            _focusModeDropdown.Descriptor.SetDescription("Follow Subject keeps depth of field on whoever the camera follows (turns it on); Manual sets the focus distance by hand.");
+            _focusModeDropdown.Descriptor.SetDescription("Follow Subject keeps depth of field on whoever the camera follows (turns it on), and needs Auto Follow on or a Follow Target picked; Manual sets the focus distance by hand.");
             _focusModeDropdown.AssignEntries(new List<string>(FocusModeLabels));
             _focusModeDropdown.OnValueChanged = _ =>
             {
@@ -610,7 +621,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _apertureSlider = PanelSlider.CreateNew(content);
             _apertureSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Aperture", 0.05f, 32f, false, 2, ValueDisplayMode.Raw));
+                "Aperture", BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture, false, 2, ValueDisplayMode.Raw));
             _apertureSlider.Descriptor.SetDescription("Lower is a shallower focus with more blur (Bokeh).");
             _apertureSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeAperture(v);
 
@@ -880,7 +891,13 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _autoFollowToggle = PanelToggle.CreateNewEntry(content);
             _autoFollowToggle.Descriptor.SetTitle("Auto Follow");
-            _autoFollowToggle.OnValueChanged = v => _activeCamera?.SetAutoFollowEnabled(v);
+            _autoFollowToggle.OnValueChanged = v =>
+            {
+                if (_activeCamera == null) return;
+                _activeCamera.SetAutoFollowEnabled(v);
+                // Auto Follow is half of what decides whether Follow Subject focus can drive.
+                RefreshDoFModeVisibility();
+            };
 
             RectTransform teleportRow = PanelElementDescriptor.BuildActionRow(content, "CameraTeleportRow");
             PanelButton teleportButton = PanelButton.CreateNew(teleportRow);
@@ -1087,6 +1104,35 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         /// <summary>
+        /// Render-rate cap for the capture camera, moved here from the developer settings page.
+        /// These are application settings shared by every handheld camera rather than per-camera
+        /// state, so they bind straight to the settings system instead of going through
+        /// _activeCamera — which also means they need no seeding in ApplyActiveCameraToControls.
+        /// </summary>
+        private void BuildPerformanceGroup(RectTransform parent)
+        {
+            _performanceSection = PanelSectionToggle.CreateNewEntry(parent);
+            _performanceGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                _performanceSection, parent, "Performance", false);
+            RectTransform content = _performanceGroup.ContentParent;
+
+            _limitRenderRateToggle = PanelToggle.CreateNewEntry(content);
+            _limitRenderRateToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.handheldCameraRate.limit"));
+            _limitRenderRateToggle.Descriptor.SetDescription("Applies to every handheld camera, not just this one.");
+            _limitRenderRateToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.limit.tooltip"));
+            _limitRenderRateToggle.AssignBinding(BasisSettingsDefaults.LimitHandHeldCameraRate);
+
+            _renderRateSlider = PanelSlider.CreateEntryAndBind(
+                content,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.handheldCameraRate"),
+                    BasisLocalization.Get("settings.developer.handheldCameraRate.description"),
+                    1, 120, true, 0, ValueDisplayMode.Hz),
+                BasisSettingsDefaults.HandHeldCameraRenderHz);
+            _renderRateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handheldCameraRate.tooltip"));
+        }
+
+        /// <summary>
         /// World-space debug representations of the selected camera. Each toggle drives one layer
         /// on that camera's own visualiser, so the drawing keeps running once the panel is closed
         /// and two open cameras can be inspected independently.
@@ -1282,6 +1328,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_followSection, _followGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
             SetSectionActive(_layersSection, _layersGroup, active);
+            SetSectionActive(_performanceSection, _performanceGroup, active);
             SetSectionActive(_gizmoSection, _gizmoGroup, active);
             if (_resetPageButton != null) _resetPageButton.gameObject.SetActive(active);
 
@@ -1615,17 +1662,21 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         // The instance's roster changes without any panel event, so the target list is rebuilt on
-        // the tick — but only when the player count actually moves, to avoid rebuilding a dropdown
-        // (and fighting an open one) every frame.
+        // the tick — but only when the roster actually moves, to avoid rebuilding a dropdown (and
+        // fighting an open one) every frame. A same-tick join+leave holds the count still, so the
+        // listed ids are checked as well as the count.
         private void RefreshFollowTargets()
         {
             if (_followTargetDropdown == null || _activeCamera == null) return;
 
             var remotes = Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers;
-            if (remotes.Count == _lastFollowTargetCount) return;
-            _lastFollowTargetCount = remotes.Count;
+            if (!FollowTargetRosterChanged(remotes)) return;
 
             _followTargetIds.Clear();
+            // Entries are the net ids, not the names: PanelDropdown resolves its selection by
+            // string-matching the entry, so two players sharing a display name (or one named "Me")
+            // would both resolve to the first match and follow the wrong player.
+            var keys = new List<string> { "0" };
             var labels = new List<string> { "Me" };
             _followTargetIds.Add(0);
 
@@ -1633,16 +1684,30 @@ namespace Basis.BasisUI.HandHeldCamera
             {
                 if (pair.Value == null) continue;
                 _followTargetIds.Add(pair.Key);
+                keys.Add(pair.Key.ToString());
                 string name = !string.IsNullOrEmpty(pair.Value.SafeDisplayName) ? pair.Value.SafeDisplayName : $"Player {pair.Key}";
                 labels.Add(name);
             }
 
-            _followTargetDropdown.AssignEntries(labels);
+            _followTargetDropdown.AssignEntries(keys, labels);
 
             int selected = _followTargetIds.IndexOf(_activeCamera.followTargetPlayerId);
             if (selected < 0) selected = 0;
-            _followTargetDropdown.SetValueWithoutNotify(labels[selected]);
+            _followTargetDropdown.SetValueWithoutNotify(keys[selected]);
             ForceLayoutRebuild(_followGroup);
+        }
+
+        private bool FollowTargetRosterChanged(
+            System.Collections.Concurrent.ConcurrentDictionary<ushort, Basis.Scripts.BasisSdk.Players.BasisRemotePlayer> remotes)
+        {
+            if (remotes.Count + 1 != _followTargetIds.Count) return true;
+
+            for (int index = 1; index < _followTargetIds.Count; index++)
+            {
+                if (!remotes.ContainsKey(_followTargetIds[index])) return true;
+            }
+
+            return false;
         }
 
         private void RefreshTimerLabel()
@@ -1660,7 +1725,8 @@ namespace Basis.BasisUI.HandHeldCamera
         }
 
         // Aperture / focal length / blades only affect Bokeh; hide them in Off/Gaussian so the
-        // section only offers controls that do something. Focus distance applies to both blur modes.
+        // section only offers controls that do something. Gaussian has no focus distance of its
+        // own, so ApplyFocusDistance maps it onto the far-blur ramp and the slider works in both.
         // Single owner of the focus mode. Follow = the depth of field tracks the subject's distance
         // every frame (UpdateAutoFocus); Manual = the focus-distance slider. Follow needs DoF on to
         // show anything, so it forces it on.
@@ -1675,6 +1741,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (follows) _activeCamera.BasisDOFInteractionHandler?.SetDoFState(true);
 
             _focusModeDropdown?.SetValueWithoutNotify(FocusModeLabels[follows ? 0 : 1]);
+            RefreshDoFModeVisibility();
         }
 
         private void RefreshDoFModeVisibility()
@@ -1684,7 +1751,9 @@ namespace Basis.BasisUI.HandHeldCamera
             bool bokeh = mode == 2;
             bool anyBlur = mode != 0;
 
-            _focusSlider?.gameObject.SetActive(anyBlur);
+            // Follow Subject only drives the focus while there is something to track; without that
+            // the slider is the only way to focus, so it has to stay reachable.
+            _focusSlider?.gameObject.SetActive(anyBlur && !_activeCamera.HandHeld.AutoFocusIsDriving);
             _apertureSlider?.gameObject.SetActive(bokeh);
             _dofFocalLengthSlider?.gameObject.SetActive(bokeh);
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);

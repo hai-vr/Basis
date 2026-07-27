@@ -196,7 +196,7 @@ namespace Basis.IK.Debugging
             dist = 0f; didOverlap = false; paramErr = 0f; fixedErr = 0f; kkt = 0f;
             sym = 0f; depthErr = 0f; residMm = 0f; deepResidMm = 0f; deepOverlap = false; pushMm = 0f; hadNaN = false;
 
-            BasisEerieArms.SegmentSegmentClosestPoints(p1, q1, p2, q2, out float s, out float t, out Vector3 c1, out Vector3 c2);
+            BasisEerieMovement.SegmentSegmentClosestPoints(p1, q1, p2, q2, out float s, out float t, out Vector3 c1, out Vector3 c2);
             if (!Finite(c1) || !Finite(c2) || !Finite(s) || !Finite(t))
             {
                 hadNaN = true;
@@ -234,14 +234,14 @@ namespace Basis.IK.Debugging
             }
 
             // Symmetry: swapping the two capsules must not change the separation.
-            BasisEerieArms.SegmentSegmentClosestPoints(p2, q2, p1, q1, out _, out _, out Vector3 c1b, out Vector3 c2b);
+            BasisEerieMovement.SegmentSegmentClosestPoints(p2, q2, p1, q1, out _, out _, out Vector3 c1b, out Vector3 c2b);
             if (Finite(c1b) && Finite(c2b)) sym = Mathf.Abs(dist - (c1b - c2b).magnitude);
             else hadNaN = true;
 
             // Penetration round-trip: the reported push depth must equal the overlap, and translating
             // capsule 1 by it must separate the pair.
             float rSum = r1 + r2;
-            Vector3 push = BasisEerieArms.CapsuleCapsuleResolve(p1, q1, r1, p2, q2, r2, Vector3.up);
+            Vector3 push = BasisEerieMovement.CapsuleCapsuleResolve(p1, q1, r1, p2, q2, r2, Vector3.up);
             if (!Finite(push)) { hadNaN = true; }
             else if (dist >= rSum)
             {
@@ -254,7 +254,7 @@ namespace Basis.IK.Debugging
                 depthErr = Mathf.Abs(push.magnitude - overlapDepth);
                 if (overlapDepth > k_Eps)
                 {
-                    BasisEerieArms.SegmentSegmentClosestPoints(p1 + push, q1 + push, p2, q2, out _, out _, out Vector3 nc1, out Vector3 nc2);
+                    BasisEerieMovement.SegmentSegmentClosestPoints(p1 + push, q1 + push, p2, q2, out _, out _, out Vector3 nc1, out Vector3 nc2);
                     if (Finite(nc1) && Finite(nc2))
                     {
                         float resid = rSum - (nc1 - nc2).magnitude;

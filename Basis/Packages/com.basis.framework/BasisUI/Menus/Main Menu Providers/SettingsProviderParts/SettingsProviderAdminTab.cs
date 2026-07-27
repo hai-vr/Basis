@@ -45,7 +45,7 @@ namespace Basis.BasisUI
             shoutOnMenuBarToggle.Descriptor.SetDescription("Adds the Shout option to the mic-mode button on your main menu bar. Off by default, so the button stays hidden until you enable it here.");
             shoutOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.ShoutShowOnMenuBar);
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(shoutToggle, container, shoutStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(shoutToggle, container, shoutStart, false, _ => descriptor.ForceRebuild());
 
             // --- Global lock group ---
             PanelSectionToggle lockToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -245,7 +245,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
             };
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(lockToggle, container, lockStart, false, visible =>
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(lockToggle, container, lockStart, false, visible =>
             {
                 if (visible)
                 {
@@ -295,7 +295,7 @@ namespace Basis.BasisUI
             controller.MaxDatabasePayloadEntriesField = maxDatabasePayloadEntriesField;
             controller.MaxContentSpheresField = maxContentSpheresField;
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
 
             // --- Avatar reduction (BSR) tuning; persisted to config.xml, re-applied live ---
             PanelSectionToggle reductionToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -389,7 +389,7 @@ namespace Basis.BasisUI
             controller.ReductionBundleMinBytesField = reductionBundleMinBytesField;
             controller.ReductionProfilingToggle = reductionProfilingToggle;
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
 
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelSectionToggle cameraPolicyToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -458,7 +458,7 @@ namespace Basis.BasisUI
 
             controller.ApplyCameraMask = ApplyCameraMask;
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(cameraPolicyToggle, container, cameraPolicyStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(cameraPolicyToggle, container, cameraPolicyStart, false, _ => descriptor.ForceRebuild());
 
             // --- Server configuration (persisted to config.xml on every change) ---
             PanelSectionToggle serverToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -564,7 +564,7 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.RemoveAllowlist(uuid);
             };
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(serverToggle, container, serverStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(serverToggle, container, serverStart, false, _ => descriptor.ForceRebuild());
 
             // --- Server logs (admin pulls logs/ + CrashReports/ to disk) ---
             PanelSectionToggle logsToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -588,7 +588,7 @@ namespace Basis.BasisUI
                 "Cancel",
                 () => BasisNetworkModeration.DeleteAllLogs());
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(logsToggle, container, logsStart, false, _ => descriptor.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(logsToggle, container, logsStart, false, _ => descriptor.ForceRebuild());
 
             // --- Default Library (saved to disk on the server, broadcast to all clients) ---
             BuildDefaultLibrarySection(container, descriptor);
@@ -744,7 +744,7 @@ namespace Basis.BasisUI
                     () => BasisNetworkModeration.RemoveDefaultLibraryItem(url));
             };
 
-            PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(libraryToggle, container, libraryStart, false, _ => tabDescriptor?.ForceRebuild());
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(libraryToggle, container, libraryStart, false, _ => tabDescriptor?.ForceRebuild());
         }
 
         private static byte ModeNameToByte(string name)

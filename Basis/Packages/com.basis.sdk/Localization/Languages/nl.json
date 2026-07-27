@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "Los de volgende problemen op of raadpleeg de documentatie. \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "Gizmo oogpositie {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "Gizmo mondpositie {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "Oogpositie" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "Mondpositie" },
+    { "key": "sdk.avatar.position.height", "value": "Hoogte" },
+    { "key": "sdk.avatar.position.forward", "value": "Voorwaarts" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "Modellen opnieuw importeren (Mesh LOD's)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 
@@ -149,7 +153,7 @@
     { "key": "sdk.sceneValidator.missingScripts.passed", "value": "Geen ontbrekende scripts." },
     { "key": "sdk.sceneValidator.password.empty", "value": "Het aangepaste wachtwoord mag niet leeg zijn." },
 
-    { "key": "sdk.bulkBuild.window.title", "value": "Basis Bulk Build" },
+    { "key": "sdk.bulkBuild.window.title", "value": "Basis bulkbuild" },
     { "key": "sdk.bulkBuild.building.help", "value": "Bezig met bouwen... controleer de voortgangsbalk en de console-uitvoer." },
     { "key": "sdk.bulkBuild.scanPrefabs.header", "value": "Prefabs scannen" },
     { "key": "sdk.bulkBuild.folder.label", "value": "Map (optioneel)" },
@@ -168,7 +172,7 @@
     { "key": "sdk.bulkBuild.build.button", "value": "Geselecteerde bouwen ({0})" },
     { "key": "sdk.bulkBuild.clearConsole", "value": "Console wissen" },
     { "key": "sdk.bulkBuild.help", "value": "Gebruikt BasisAssetBundleObject.selectedTargets en dezelfde wachtwoordinstellingen als je inspectors.\nAvatars/Props bouwen via GameObjectBundleBuild. Scenes bouwen via SceneBundleBuild." },
-    { "key": "sdk.bulkBuild.progress.title", "value": "Basis Bulk Build" },
+    { "key": "sdk.bulkBuild.progress.title", "value": "Basis bulkbuild" },
     { "key": "sdk.bulkBuild.progress.body", "value": "{0}/{1} — {2}: {3}" },
 
     { "key": "sdk.parameterDriver.localOnly.label", "value": "Alleen lokaal" },
@@ -267,7 +271,7 @@
     { "key": "sdk.authoredMotion.field.sequenceSpeed.label", "value": "Snelheid" },
     { "key": "sdk.authoredMotion.field.sequenceSpeed.tooltip", "value": "Vermenigvuldiger voor de afspeelsnelheid van de gebakken clip. 1 speelt op de gemaakte snelheid, 2 twee keer zo snel, 0,5 halve snelheid; negatieve waarden spelen achteruit." },
 
-    { "key": "sdk.buildReport.window.title", "value": "Basis Build Report Viewer" },
+    { "key": "sdk.buildReport.window.title", "value": "Basis Build Report-viewer" },
     { "key": "sdk.buildReport.window.tabTitle", "value": "Basis Bundle-rapport" },
     { "key": "sdk.buildReport.noDirectory", "value": "Geen build-rapportenmap gevonden." },
     { "key": "sdk.buildReport.noReports", "value": "Geen build-rapporten gevonden." },
@@ -345,7 +349,7 @@
     { "key": "projectSetup.header.title", "value": "Basis Project-wizard" },
     { "key": "projectSetup.header.subtitle", "value": "Maker-Eerst • Creatieve Vrijheid\nOpen-Source (MIT) • Netwerk • Invoer • Aanwezigheid" },
     { "key": "projectSetup.tab.welcome", "value": "Welkom" },
-    { "key": "projectSetup.tab.buildModules", "value": "Build & Modules" },
+    { "key": "projectSetup.tab.buildModules", "value": "Build & modules" },
     { "key": "projectSetup.tab.platformQuality", "value": "Platform & Kwaliteit" },
     { "key": "projectSetup.tab.playXR", "value": "Spelen & XR" },
     { "key": "projectSetup.tab.docs", "value": "Docs" },

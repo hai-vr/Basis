@@ -354,6 +354,10 @@ namespace Basis.Scripts.Drivers
             for (int i = 0; i < VisemeCount; i++)
             {
                 if (!_hasViseme[i]) continue;
+                // Already driven to rest by a previous zeroing — skip the write. Re-writing a
+                // weight that is already 0 still dirties the skinned mesh, which is the whole cost
+                // we are trying to avoid; reading _lastApplied does not.
+                if (_lastApplied[i] == 0f) continue;
                 int bsIndex = _visemeToBlendShape[i];
                 if (bsIndex < 0 || bsIndex >= blendShapeCount) continue;
                 _meshRenderer.SetBlendShapeWeight(bsIndex, 0f);

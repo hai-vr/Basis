@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "कृपया निम्नलिखित समस्याओं को हल करें, या दस्तावेज़ देखें। \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "आँख स्थिति Gizmo {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "मुँह स्थिति Gizmo {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "आँख की स्थिति" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "मुँह की स्थिति" },
+    { "key": "sdk.avatar.position.height", "value": "ऊँचाई" },
+    { "key": "sdk.avatar.position.forward", "value": "आगे" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "मॉडल पुनः आयात (Mesh LOD)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

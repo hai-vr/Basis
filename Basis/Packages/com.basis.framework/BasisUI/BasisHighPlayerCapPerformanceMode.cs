@@ -7,36 +7,27 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Watches the instance population and, once per app run for each population tier, offers to
-    /// switch on a "High Player Cap Performance Mode" preset that trades avatar fidelity for frame
-    /// rate in large instances. Pumped from the central tick; no MonoBehaviour.
+    /// switch <see cref="BasisPerformanceMode"/> on at the level that tier warrants. Pumped from
+    /// the central tick; no MonoBehaviour.
     ///
     /// Each tier asks at most once per app lifetime — the static "asked" flags reset on restart,
     /// so the offer comes back the next time the app is launched into a crowded instance. Crossing
     /// a higher tier supersedes the lower ones (their flags are marked asked at the same time), so
     /// joining an already-huge instance shows a single prompt instead of stacking several.
     ///
-    /// Only the pose-update LOD bias tightens between tiers; every other value in the preset is the
-    /// same at every tier. The dialogue lists the exact values it will apply, sourced from the same
-    /// constants used to apply them, so the text can never drift from the effect.
+    /// The dialogue lists the values the level will actually resolve to, read back from the mode
+    /// itself, so the text can never drift from the effect. Nothing here is asked when the player
+    /// has already turned the mode on to at least that level, or has it following the population
+    /// automatically.
     /// </summary>
     public static class BasisHighPlayerCapPerformanceMode
     {
         // Population tiers in ascending order. A tier arms when the occupant count exceeds its
         // threshold. The count includes the local player, so "over 250 people" means 251 occupants.
-        private static readonly int[] Thresholds = { 250, 500, 1000 };
-
-        // Per-tier pose-update LOD bias (0..5; higher = distant avatars skip more pose updates).
-        // This is the only preset value that changes between tiers.
-        private static readonly float[] PoseLodByTier = { 2f, 3f, 5f };
+        private static readonly int[] Thresholds = BasisPerformanceMode.PopulationThresholds;
 
         // Whether each tier's prompt has already been offered this app run.
         private static readonly bool[] _tierAsked = new bool[Thresholds.Length];
-
-        // Shared preset values (everything except pose LOD, which is per-tier).
-        private const float AvatarVisibilityRangeMeters = 50f;
-        private const float MaxVisibleAvatarCount = 100f;
-        private const float AvatarMeshLodFraction = 0.03f; // slider is 0..1, surfaced as a percentage (3%)
-        private const float ViewConeDegrees = 180f;
 
         // Cheap throttle so the player-count read isn't taken every single frame in a known-heavy
         // instance. ~ every 32 frames is plenty responsive for a one-off suggestion.
@@ -55,7 +46,7 @@ namespace Basis.BasisUI
                 return;
             }
 
-            if (!BasisSettingsDefaults.HighPlayerCapSuggestions.RawValue)
+            if (!ShouldOffer())
             {
                 return;
             }
@@ -68,8 +59,22 @@ namespace Basis.BasisUI
             }
 
             MarkAskedThrough(tier);
-            ShowPrompt(Thresholds[tier], PoseLodByTier[tier]);
+            ShowPrompt(Thresholds[tier], LevelForTier(tier));
         }
+
+        // The mode already covers this crowd, or the player asked it to track the population on its
+        // own — either way there is nothing to offer.
+        private static bool ShouldOffer()
+        {
+            if (!BasisSettingsDefaults.HighPlayerCapSuggestions.RawValue)
+            {
+                return false;
+            }
+
+            return !BasisSettingsDefaults.PerformanceModeAuto.RawValue;
+        }
+
+        private static BasisPerformanceLevel LevelForTier(int tier) => (BasisPerformanceLevel)(tier + 1);
 
         /// <summary>
         /// Offer the performance preset before a connection to a server whose probe reported a
@@ -87,7 +92,7 @@ namespace Basis.BasisUI
                 return false;
             }
 
-            if (!BasisSettingsDefaults.HighPlayerCapSuggestions.RawValue)
+            if (!ShouldOffer())
             {
                 return false;
             }
@@ -106,7 +111,7 @@ namespace Basis.BasisUI
             }
 
             MarkAskedThrough(tier);
-            ShowPrompt(Thresholds[tier], PoseLodByTier[tier], forceShow: true, continueConnect: continueConnect);
+            ShowPrompt(Thresholds[tier], LevelForTier(tier), forceShow: true, continueConnect: continueConnect);
             return true;
         }
 
@@ -121,7 +126,11 @@ namespace Basis.BasisUI
                 {
                     continue;
                 }
-                return _tierAsked[i] ? -1 : i;
+                if (_tierAsked[i])
+                {
+                    return -1;
+                }
+                return BasisPerformanceMode.ActiveLevel >= LevelForTier(i) ? -1 : i;
             }
             return -1;
         }
@@ -136,25 +145,32 @@ namespace Basis.BasisUI
             }
         }
 
-        private static void ShowPrompt(int threshold, float poseLodBias, bool forceShow = false, Action continueConnect = null)
+        private static void ShowPrompt(int threshold, BasisPerformanceLevel level, bool forceShow = false, Action continueConnect = null)
         {
             bool preConnect = continueConnect != null;
+            BasisPerformanceMode.DescribeLevel(level,
+                out float avatarRange, out float maxVisibleAvatars, out float poseLodBias,
+                out float avatarMeshLodPercent, out float viewConeAngle);
+
             string title = BasisLocalization.Get("settings.highPlayerCap.prompt.title");
             string body = BasisLocalization.Get(
                 preConnect ? "settings.highPlayerCap.prompt.bodyPreConnect" : "settings.highPlayerCap.prompt.body",
                 threshold,
-                AvatarVisibilityRangeMeters,
-                MaxVisibleAvatarCount,
+                avatarRange,
+                maxVisibleAvatars,
                 poseLodBias,
-                AvatarMeshLodFraction * 100f,
-                ViewConeDegrees);
+                avatarMeshLodPercent,
+                viewConeAngle);
+
+            string levelLine = BasisLocalization.Get("settings.highPlayerCap.prompt.levelLine",
+                BasisPerformanceMode.DisplayName(level));
 
             // Do-not-disturb / admin panel open → park it in the notification list, recoverable from
             // the bell. forceShow bypasses this when re-opened from that list so it actually shows.
             if (!forceShow && BasisNotificationCenter.RouteToNotifications)
             {
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Information,
-                    reopen: () => ShowPrompt(threshold, poseLodBias, true),
+                    reopen: () => ShowPrompt(threshold, level, true),
                     onDismiss: () => { });
                 return;
             }
@@ -182,6 +198,7 @@ namespace Basis.BasisUI
 
             PanelElementDescriptor info = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, root);
+            info.SetTitle(levelLine);
             info.SetDescription(body);
 
             bool answered = false;
@@ -191,7 +208,7 @@ namespace Basis.BasisUI
                 answered = true;
                 if (enable)
                 {
-                    ApplyPreset(poseLodBias);
+                    BasisPerformanceMode.SetLevel(level);
                 }
                 panel.ReleaseInstance();
                 continueConnect?.Invoke();
@@ -238,7 +255,7 @@ namespace Basis.BasisUI
                     return;
                 }
                 BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Information,
-                    reopen: () => ShowPrompt(threshold, poseLodBias, true),
+                    reopen: () => ShowPrompt(threshold, level, true),
                     onDismiss: () => { });
             };
 
@@ -262,20 +279,6 @@ namespace Basis.BasisUI
             {
                 continueConnect?.Invoke();
             }
-        }
-
-        private static void ApplyPreset(float poseLodBias)
-        {
-            // SetValue persists to disk and raises OnSettingChanged, which the live reduction module
-            // (SMModuleDistanceBasedReductions) consumes — so each of these applies immediately as
-            // well as surviving a restart.
-            BasisSettingsDefaults.AvatarRange.SetValue(AvatarVisibilityRangeMeters);
-            BasisSettingsDefaults.UseMaxVisibleAvatars.SetValue(true);
-            BasisSettingsDefaults.MaxVisibleAvatars.SetValue(MaxVisibleAvatarCount);
-            BasisSettingsDefaults.PoseLOD.SetValue(poseLodBias);
-            BasisSettingsDefaults.AvatarMeshLOD.SetValue(AvatarMeshLodFraction);
-            BasisSettingsDefaults.UseViewConeAvatars.SetValue(true);
-            BasisSettingsDefaults.ViewConeAngle.SetValue(ViewConeDegrees);
         }
     }
 }

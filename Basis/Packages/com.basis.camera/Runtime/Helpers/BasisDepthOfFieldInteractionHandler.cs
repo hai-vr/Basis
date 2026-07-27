@@ -33,6 +33,12 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     public float maxRaycastDistance = 1000f;
 
     /// <summary>
+    /// Layers the focus ray is allowed to land on. Defaults to Unity's DefaultRaycastLayers —
+    /// everything but Ignore Raycast — which is what the untargeted overload used.
+    /// </summary>
+    public LayerMask focusLayers = ~(1 << 2);
+
+    /// <summary>
     /// Validates references and wires up the DoF toggle listener.
     /// </summary>
     private void Awake()
@@ -101,7 +107,9 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
     /// <param name="ray">Ray from the preview/camera pixel into the world.</param>
     public void ApplyFocusFromRay(Ray ray)
     {
-        if (!Physics.Raycast(ray, out RaycastHit hit, maxRaycastDistance))
+        if (cameraController == null) return;
+
+        if (!Physics.Raycast(ray, out RaycastHit hit, maxRaycastDistance, focusLayers, QueryTriggerInteraction.Ignore))
         {
             BasisDebug.Log("[DOF] Raycast missed");
             return;
@@ -113,16 +121,28 @@ public class BasisDepthOfFieldInteractionHandler : MonoBehaviour
             return;
         }
 
-        float distance = Vector3.Distance(ray.origin, hit.point);
-        cameraController.MetaData.depthOfField.focusDistance.value = distance;
+        if (!cameraController.TryGetFocusDepth(hit.point, out float depth))
+        {
+            BasisDebug.Log("[DOF] Hit is behind or inside the minimum focus distance — skipping");
+            return;
+        }
+
+        cameraController.ApplyFocusDistance(depth);
+
+        float applied = cameraController.MetaData.depthOfField != null
+            ? cameraController.MetaData.depthOfField.focusDistance.value
+            : depth;
 
         // Reflect value into handheld UI (without feedback loops)
-        cameraController.HandHeld.DepthFocusDistanceSlider.SetValueWithoutNotify(distance);
-        cameraController.HandHeld.DOFFocusOutput.SetText(distance.ToString("F2"));
+        if (cameraController.HandHeld != null)
+        {
+            cameraController.HandHeld.DepthFocusDistanceSlider?.SetValueWithoutNotify(applied);
+            cameraController.HandHeld.DOFFocusOutput?.SetText(applied.ToString("F2"));
+        }
 
-        if (!focusCursor.gameObject.activeSelf)
+        if (focusCursor != null && !focusCursor.gameObject.activeSelf)
             focusCursor.gameObject.SetActive(true);
 
-        BasisDebug.Log($"[DOF] Focus distance set to {distance:F2} units (hit {hit.collider.name})");
+        BasisDebug.Log($"[DOF] Focus distance set to {applied:F2} units (hit {hit.collider.name})");
     }
 }

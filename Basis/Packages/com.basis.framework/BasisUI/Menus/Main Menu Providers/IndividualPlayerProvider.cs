@@ -46,6 +46,11 @@ namespace Basis.BasisUI
         // so unmute can restore the prior level instead of guessing 1.0.
         // Session-only — block/unblock and persisted volume already handle long-term state.
         private static readonly Dictionary<string, float> s_volumeBeforeMute = new Dictionary<string, float>();
+
+        // Volume slider runs 0..1.5. Past 1.0 the player is being amplified beyond their own
+        // level; past 1.25 it is heavy enough to warrant the hotter accent.
+        private const float VolumeBoostTintThreshold = 1f;
+        private const float VolumeBoostTintHotThreshold = 1.25f;
         private const float UnmuteFallbackVolume = 1.0f;
 
         // ===== Shared player action helpers (used by this panel and UserListProvider rows) =====
@@ -436,6 +441,7 @@ namespace Basis.BasisUI
 
             var root = tab.Descriptor.ContentParent;
             var infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            infoGroup.SetBackgroundVisible(false);
             infoGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.player"));
             infoGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.player.description"));
 
@@ -478,6 +484,26 @@ namespace Basis.BasisUI
             volumeSlider.UseFillColorGradient = true;
 
             volumeSlider.SetValueWithoutNotify(settings.VolumeLevel);
+
+            // Boosting a player past their natural loudness is worth seeing at a glance, so the
+            // row itself picks up the same accent tinting the Graphics page uses.
+            BasisPanelTint.Handle boostTint = BasisPanelTint.Capture(volumeSlider.Descriptor);
+
+            void RefreshBoostTint(float level, bool animate)
+            {
+                if (level <= VolumeBoostTintThreshold)
+                {
+                    BasisPanelTint.Clear(boostTint, animate);
+                    return;
+                }
+
+                BasisPanelTint.Apply(boostTint,
+                    level > VolumeBoostTintHotThreshold ? BasisPanelTint.Hot : BasisPanelTint.Caution,
+                    animate);
+            }
+
+            RefreshBoostTint(settings.VolumeLevel, false);
+            volumeSlider.OnValueChanged += level => RefreshBoostTint(level, true);
 
             // ---- Create meter UI (Addressables sprite) ----
             MeterRefs meter = await CreateVolumeMeterUIAsync(audioGroup.ContentParent);
@@ -546,6 +572,25 @@ namespace Basis.BasisUI
                 }
             };
 
+            // ---- Loudness normalisation (receive-side, per player) ----
+            PanelToggle normalizeToggle = PanelToggle.CreateNewEntry(audioGroup.ContentParent);
+            normalizeToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.normalizeLoudness"));
+            normalizeToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.normalizeLoudness.description"));
+            normalizeToggle.SetValueWithoutNotify(settings.NormalizeLoudness);
+
+            normalizeToggle.OnValueChanged += async enabled =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.NormalizeLoudness = enabled;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                if (remotePlayer != null && remotePlayer.NetworkReceiver != null &&
+                    remotePlayer.NetworkReceiver.AudioReceiverModule != null)
+                {
+                    remotePlayer.NetworkReceiver.AudioReceiverModule.NormalizeLoudness = enabled;
+                }
+            };
+
             // ---- Mute toggle (audio-only, separate from full block) ----
             PanelButton muteBtn = PanelButton.CreateNew(audioGroup.ContentParent);
             muteBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.VolumeLevel <= 0f ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
@@ -559,6 +604,7 @@ namespace Basis.BasisUI
                 // Pull the resolved volume back so the slider mirrors the helper's restore-from-snapshot logic.
                 var refreshed = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
                 volumeSlider.SetValueWithoutNotify(refreshed.VolumeLevel);
+                RefreshBoostTint(refreshed.VolumeLevel, true);
             };
 
             // ---- Voice recording (consent-gated capture / re-route) ----
@@ -669,6 +715,7 @@ namespace Basis.BasisUI
 
             // ---- Direct Connection (P2P) controls ----
             var p2pGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            p2pGroup.SetBackgroundVisible(false);
             p2pGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection"));
             p2pGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.description"));
 
@@ -887,6 +934,7 @@ namespace Basis.BasisUI
             };
 
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            avatarGroup.SetBackgroundVisible(false);
             avatarGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatar"));
             avatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatar.description"));
 
@@ -1084,6 +1132,7 @@ namespace Basis.BasisUI
 
             // ---- Network metadata group ----
             var networkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            networkGroup.SetBackgroundVisible(false);
             networkGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.network"));
             networkGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.network.description"));
 
@@ -1123,6 +1172,7 @@ namespace Basis.BasisUI
                 string targetUUID = remotePlayer.UUID;
 
                 var adminGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+                adminGroup.SetBackgroundVisible(false);
                 adminGroup.SetTitle(BasisLocalization.Get("settings.tab.admin"));
                 adminGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.admin.description"));
 
@@ -1321,6 +1371,7 @@ namespace Basis.BasisUI
             }
 
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            debugGroup.SetBackgroundVisible(false);
             debugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.debug"));
             debugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.debug.description"));
 
@@ -1332,6 +1383,7 @@ namespace Basis.BasisUI
 
             // ---- Audio Debug Section ----
             var audioDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            audioDebugGroup.SetBackgroundVisible(false);
             audioDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug"));
             audioDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audioDebug.description"));
 
@@ -1447,6 +1499,7 @@ namespace Basis.BasisUI
 
             // ---- Avatar Data Debug Section ----
             var avatarDataDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            avatarDataDebugGroup.SetBackgroundVisible(false);
             avatarDataDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug"));
             avatarDataDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.description"));
 

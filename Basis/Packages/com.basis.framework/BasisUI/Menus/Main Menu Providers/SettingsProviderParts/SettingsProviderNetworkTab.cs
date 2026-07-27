@@ -35,6 +35,7 @@ namespace Basis.BasisUI
         public static void BuildNetworkStatsGroup(RectTransform container, out NetworkStatsPanelUpdater updater)
         {
             var netGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            netGroup.SetBackgroundVisible(false);
             netGroup.SetTitle(BasisLocalization.Get("settings.developer.netStats"));
 
             // Connection status

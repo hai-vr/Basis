@@ -438,7 +438,8 @@ public static class BasisAudioGizmos
                 if (g.LevelLabel <= 0 || netPct != g.LastNetPct || g.LevelText == null)
                 {
                     g.LastNetPct = netPct;
-                    g.LevelText = BuildLevelText(receiver.displayName, source, net, slider, dist, dir, occ, cone, main);
+                    g.LevelText = BuildLevelText(receiver.displayName, source, net, slider, dist, dir, occ, cone, main,
+                        audio.NormalizeLoudness, audio.NormalizerGainDb);
                 }
             }
             // Anchor at the bar's fixed full-scale top, not the live sourceTop, so the
@@ -483,7 +484,7 @@ public static class BasisAudioGizmos
         }
     }
 
-    private static string BuildLevelText(string name, float source, float net, float slider, float dist, float dir, float occ, float cone, float main)
+    private static string BuildLevelText(string name, float source, float net, float slider, float dist, float dir, float occ, float cone, float main, bool normalizing, float normalizerGainDb)
     {
         _levelText.Clear();
         if (!string.IsNullOrEmpty(name))
@@ -500,6 +501,10 @@ public static class BasisAudioGizmos
 #endif
         AppendFactor("Cone", cone);
         AppendFactor("Main", main);
+        if (normalizing)
+        {
+            _levelText.Append("Norm ").Append(normalizerGainDb.ToString("+0.0;-0.0;0.0")).Append(" dB\n");
+        }
         return _levelText.ToString();
     }
 

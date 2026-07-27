@@ -248,10 +248,12 @@ namespace Basis.Scripts.Networking
                 }
                 Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput.Instance?.StopMovement();
 #endif
+                BasisNetworkConnectionWatchdog.NotifyDisconnected(disconnectInfo);
                 BasisNetworkAvatarCompressor.Dispose();
                 BasisP2PManager.Shutdown();
                 BasisAvatarRateRegistry.Reset();
                 await BasisNetworkLifeCycle.RebootManagement(true, peer, disconnectInfo);
+                BasisNetworkConnectionWatchdog.NotifyRebootComplete();
 #if UNITY_SERVER
                 if (!HeadlessReconnectSuppressed)
                 {

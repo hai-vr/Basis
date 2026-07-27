@@ -180,17 +180,17 @@ public static class SettingsProviderPerformanceLimits
             sliderTooltip: BasisLocalization.Get("settings.perf.jiggleDistanceCull.slider.tooltip"));
 
         PanelSlider jiggleCullExpansion = PanelSlider.CreateEntryAndBind(physics.ContentParent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleCullExpansion", 1f, 2f, false, 2, ValueDisplayMode.Raw),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleCullExpansion"), 1f, 2f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.JiggleCullFrustumExpansion);
         if (jiggleCullExpansion != null) jiggleCullExpansion.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleCullExpansion.tooltip"));
 
         PanelSlider jiggleCullNearKeep = PanelSlider.CreateEntryAndBind(physics.ContentParent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleCullNearKeep", 0f, 15f, false, 1, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleCullNearKeep"), 0f, 15f, false, 1, ValueDisplayMode.Meters),
             BasisSettingsDefaults.JiggleCullNearKeepRadius);
         if (jiggleCullNearKeep != null) jiggleCullNearKeep.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleCullNearKeep.tooltip"));
 
         PanelSlider jiggleCellSize = PanelSlider.CreateEntryAndBind(physics.ContentParent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleBroadPhaseCellSize", 0.25f, 2f, false, 2, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleBroadPhaseCellSize"), 0.25f, 2f, false, 2, ValueDisplayMode.Meters),
             BasisSettingsDefaults.JiggleBroadPhaseCellSize);
         if (jiggleCellSize != null)
         {
@@ -338,13 +338,13 @@ public static class SettingsProviderPerformanceLimits
         toggle.AssignBinding(BasisSettingsDefaults.UseJiggleColliderDistanceLod);
 
         PanelSlider near = PanelSlider.CreateEntryAndBind(parent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.near", 5f, 100f, false, 0, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleColliderLod.near"), 5f, 100f, false, 0, ValueDisplayMode.Meters),
             BasisSettingsDefaults.JiggleColliderLodNearDistance);
         PanelSlider mid = PanelSlider.CreateEntryAndBind(parent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.mid", 10f, 150f, false, 0, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleColliderLod.mid"), 10f, 150f, false, 0, ValueDisplayMode.Meters),
             BasisSettingsDefaults.JiggleColliderLodMidDistance);
         PanelSlider far = PanelSlider.CreateEntryAndBind(parent,
-            PanelSlider.SliderSettings.Advanced("settings.perf.jiggleColliderLod.far", 20f, 250f, false, 0, ValueDisplayMode.Meters),
+            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.perf.jiggleColliderLod.far"), 20f, 250f, false, 0, ValueDisplayMode.Meters),
             BasisSettingsDefaults.JiggleColliderLodFarDistance);
 
         if (near != null) near.Descriptor.SetTooltip(BasisLocalization.Get("settings.perf.jiggleColliderLod.near.tooltip"));

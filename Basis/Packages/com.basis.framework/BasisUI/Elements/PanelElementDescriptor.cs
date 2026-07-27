@@ -313,6 +313,18 @@ namespace Basis.BasisUI
             gameObject.SetActive(value);
         }
 
+        /// <summary>
+        /// Shows or hides this element's card background. Turn it off on a group that only wraps
+        /// other cards, so the translucent panel fill is not composited twice.
+        /// </summary>
+        public void SetBackgroundVisible(bool value)
+        {
+            if (ElementBaseImage != null)
+            {
+                ElementBaseImage.enabled = value;
+            }
+        }
+
         public void SetAnchorPosition(Vector2 pos)
         {
             rectTransform.anchoredPosition = pos;

@@ -1,13 +1,9 @@
 using System;
 using System.Globalization;
 using Basis.BTween;
-using Basis.Scripts.Device_Management;
-using Basis.Scripts.Device_Management.Devices;
-using Basis.Scripts.TransformBinders.BoneControl;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace Basis.BasisUI
@@ -30,7 +26,7 @@ namespace Basis.BasisUI
         Hz
     }
 
-    public class PanelSlider : PanelDataComponent<float>, IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler
+    public class PanelSlider : PanelDataComponent<float>, IPointerDownHandler, IPointerUpHandler
     {
 
         [Serializable]
@@ -139,32 +135,7 @@ namespace Basis.BasisUI
         private TweenScale _labelPunchTween;
         private bool _isDragging;
 
-        // ---- Reset to default ----------------------------------------------------------------
-        // While hovering a slider, a right-click (desktop) or a thumbstick click (VR) asks to reset
-        // it to its default. Both are polled here rather than handled as pointer buttons: the UI
-        // raycaster reports every click as Left, and a thumbstick click is not a pointer button at
-        // all. Bound sliders take the default from their settings binding; callback sliders take it
-        // from an explicit ResetDefault.
-
-        /// <summary>Explicit default for sliders with no settings binding. Null leaves reset disabled.</summary>
-        private float? _resetDefault;
-
-        /// <summary>True while a pointer is hovering this slider, so a reset input can target it.</summary>
-        private bool _hovered;
-
-        /// <summary>Previous frame's reset-input state, for rising-edge detection while hovered.</summary>
-        private bool _resetInputWasDown;
-
-        /// <summary>Sets the value a reset returns to, for sliders driven by callbacks rather than a binding.</summary>
-        public void SetResetDefault(float value) => _resetDefault = value;
-
-        /// <summary>True when a default is known (a binding, or an explicit ResetDefault) so reset is offered.</summary>
-        public bool HasResetDefault => SettingsBinding != null || _resetDefault.HasValue;
-
-        private float ResetDefaultValue => SettingsBinding != null
-            ? SettingsBinding.DefaultValue.GetDefault()
-            : (_resetDefault ?? Value);
-
+        protected override bool SupportsResetGesture => true;
 
         public static PanelSlider CreateNew(Component parent)
             => CreateNew<PanelSlider>(SliderStyles.Default, parent);
@@ -230,8 +201,8 @@ namespace Basis.BasisUI
         {
             if (!Application.isPlaying) return;
 
-            // Some input paths do report a real right button; honour it. The desktop UI raycaster
-            // does not (it reports Left), so the hovered poll in Update is the actual desktop path.
+            // Some input paths do report a real right button; honour it. BasisUIInput never fills
+            // its right-button state, so the hovered poll is the actual desktop path.
             if (eventData.button == PointerEventData.InputButton.Right)
             {
                 RequestReset();
@@ -245,100 +216,6 @@ namespace Basis.BasisUI
         {
             if (!Application.isPlaying) return;
             EndDragVisual();
-        }
-
-        public void OnPointerEnter(PointerEventData eventData)
-        {
-            if (!Application.isPlaying) return;
-            _hovered = true;
-            // Seed the edge state so a button already held on hover doesn't instantly fire;
-            // only a fresh press after pointing at the slider counts.
-            _resetInputWasDown = ResetInputDown();
-        }
-
-        public void OnPointerExit(PointerEventData eventData)
-        {
-            if (!Application.isPlaying) return;
-            _hovered = false;
-        }
-
-        private void Update()
-        {
-            // Reset input while pointing at the slider: right mouse (desktop) or a thumbstick click
-            // (VR). Polled and edge-detected against the hover, because the raycaster reports all
-            // clicks as Left and a thumbstick click is not a pointer button.
-            if (!_hovered || !HasResetDefault) return;
-
-            bool down = ResetInputDown();
-            if (down && !_resetInputWasDown) RequestReset();
-            _resetInputWasDown = down;
-        }
-
-        /// <summary>True this frame if a reset gesture is held: right mouse button, or a hand thumbstick/trackpad click.</summary>
-        private static bool ResetInputDown()
-        {
-            if (Mouse.current != null && Mouse.current.rightButton.isPressed) return true;
-            return AnyHandThumbstickClick();
-        }
-
-        /// <summary>True if either hand controller has its thumbstick (or trackpad) pressed in this frame.</summary>
-        private static bool AnyHandThumbstickClick()
-        {
-            BasisDeviceManagement device = BasisDeviceManagement.Instance;
-            if (device == null) return false;
-
-            BasisObservableList<BasisInput> inputs = device.AllInputDevices;
-            for (int Index = 0; Index < inputs.Count; Index++)
-            {
-                BasisInput input = inputs[Index];
-                if (input == null || !input.TryGetRole(out BasisBoneTrackedRole role)) continue;
-                if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) continue;
-                if (input.CurrentInputState.Primary2DAxisClick || input.CurrentInputState.Secondary2DAxisClick) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Asks, via a confirmation dialogue, whether to reset the slider to its default. Confirming
-        /// writes the default through the normal value path so bindings and callbacks both update.
-        /// </summary>
-        public void RequestReset()
-        {
-            if (!HasResetDefault) return;
-
-            float target = ResetDefaultValue;
-            string label = string.IsNullOrEmpty(Settings.Title) ? "this value" : Settings.Title;
-
-            BasisMenuBase<BasisMainMenu> menu = BasisMenuBase<BasisMainMenu>.Instance;
-            if (menu == null)
-            {
-                // No menu to host a dialogue — reset without asking rather than doing nothing.
-                ApplyReset(target);
-                return;
-            }
-
-            menu.OpenDialogue(
-                "Reset",
-                $"Reset {label} to its default?",
-                BasisLocalization.Get("ui.reset"),
-                BasisLocalization.Get("ui.cancel"),
-                confirmed =>
-                {
-                    if (confirmed) ApplyReset(target);
-                });
-        }
-
-        /// <summary>
-        /// Moves the handle to the value and applies it. SetValue alone leaves the handle where it
-        /// was — it never writes the underlying Slider — so the default would apply without the
-        /// slider visibly moving. SetValueWithoutNotify moves the handle without re-firing the
-        /// per-frame live-drag listener; the binding and callback are then invoked explicitly.
-        /// </summary>
-        private void ApplyReset(float target)
-        {
-            SetValueWithoutNotify(target);
-            SettingsBinding?.SetValue(target);
-            OnValueChanged?.Invoke(target);
         }
 
         // Scale up handle on grab

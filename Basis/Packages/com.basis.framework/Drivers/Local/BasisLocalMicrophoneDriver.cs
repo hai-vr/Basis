@@ -89,12 +89,36 @@ public static class BasisLocalMicrophoneDriver
 
     private static int warmupSamples = 0;
     private static bool inWarmup = false;
-    private static float agcGainDb = 0f;
 
     public const int ProcessFrameSize = 960;  // 20ms at 48kHz
     public const int DenoiserFrameSize = 480; // 10ms at 48kHz
 
-    private static float _agcHoldTimer = 0f;
+    private static readonly BasisMicrophoneAgc _agc = new BasisMicrophoneAgc();
+    private static BasisMicrophoneAgc.Settings _agcSettings;
+    private static float _prevAgcAmp = 1f;
+
+    private static float AgcFrameSeconds => ProcessFrameSize / (float)LocalOpusSettings.MicrophoneSampleRate;
+
+    /// <summary>Live AGC gain in dB, for the audio debug readout. 0 when AGC is off.</summary>
+    public static float AgcGainDb => SMDMicrophone.Current.UseAGC ? _agc.GainDb : 0f;
+
+    /// <summary>Live estimate of the talker's speech level, for the audio debug readout.</summary>
+    public static float AgcSpeechLevel => _agc.SpeechLevel;
+
+    /// <summary>Whether the AGC currently believes it has heard this talker speak.</summary>
+    public static bool AgcHasSpeech => _agc.HasSpeechEstimate;
+
+    /// <summary>The noise floor the gate is currently working against.</summary>
+    public static float GateNoiseFloor => _gateNoiseFloor.NoiseFloor;
+
+    /// <summary>The threshold the gate last used, whether auto-derived or manual.</summary>
+    public static float GateThreshold => _lastGateThreshold;
+
+    private const float AutoGateOverNoise = 2.5f;
+
+    private static readonly BasisNoiseFloorTracker _gateNoiseFloor = new BasisNoiseFloorTracker();
+    private static float _lastGateThreshold;
+
     private static float _noiseGateGain = 0f; // 0 = closed, 1 = open
 
     private static float[] _denoiseDry;
@@ -269,7 +293,11 @@ public static class BasisLocalMicrophoneDriver
         lock (processingLock)
         {
             // AGC internal state reset when disabled
-            if (!s.UseAGC) agcGainDb = 0f;
+            if (!s.UseAGC)
+            {
+                _agc.Reset();
+                _prevAgcAmp = 1f;
+            }
         }
 
         // 3) Device switch
@@ -474,6 +502,11 @@ public static class BasisLocalMicrophoneDriver
         }
 
         _noiseGateGain = 0f;
+
+        _agc.Reset();
+        _gateNoiseFloor.Reset();
+        _lastGateThreshold = 0f;
+        _prevAgcAmp = 1f;
 
         if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
 
@@ -846,22 +879,7 @@ public static class BasisLocalMicrophoneDriver
         // This assumes SMDMicrophone.Current changes on main thread; the lock makes it coherent with ApplyMicSettings.
         var s = SMDMicrophone.Current;
 
-        // --- Optional AGC ---
-        if (s.UseAGC)
-        {
-            float thisRms = GetRMS();
-            UpdateAgc(thisRms, s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, s.AgcRelease);
-
-            float agcAmp = DbToAmp(agcGainDb);
-            if (!Mathf.Approximately(agcAmp, 1f))
-            {
-                for (int i = 0; i < ProcessFrameSize; i++)
-                    processBufferArray[i] *= agcAmp;
-            }
-        }
-
-        // --- User gain + limiter in Burst job ---
-        AdjustVolume(s);
+        ApplyUserGain();
 
         if (s.UseDenoiser)
         {
@@ -872,6 +890,17 @@ public static class BasisLocalMicrophoneDriver
         {
             ApplyNoiseGate(s);
         }
+
+        if (s.UseAGC)
+        {
+            ApplyAgc(s);
+        }
+        else
+        {
+            _prevAgcAmp = 1f;
+        }
+
+        ApplyLimiter(s);
 
         RollingRMS();
 
@@ -891,6 +920,12 @@ public static class BasisLocalMicrophoneDriver
 
     public static void AdjustVolume(SMDMicrophone.MicSettings s)
     {
+        ApplyUserGain();
+        ApplyLimiter(s);
+    }
+
+    public static void ApplyUserGain()
+    {
         float[] buffer = processBufferArray;
         int frameLength = buffer.Length;
 
@@ -901,18 +936,68 @@ public static class BasisLocalMicrophoneDriver
         float volumeEnd = Volume;
         _prevVolume = volumeEnd;
 
-        float limitT = Mathf.Clamp01(s.LimitThreshold);
-        float limitK = Mathf.Max(1e-6f, Mathf.Clamp01(s.LimitKnee));
-        float capped = limitT + limitK;
+        if (Mathf.Approximately(volumeStart, 1f) && Mathf.Approximately(volumeEnd, 1f))
+        {
+            return;
+        }
 
-        // Inline on this (microphone) thread. The former Burst job cost a full copy into
-        // a NativeArray, a cross-thread dispatch, a blocking fence and a copy back out,
-        // every 20 ms audio frame — for one multiply and a clamp per sample.
         float rampStep = frameLength > 1 ? 1f / (frameLength - 1) : 0f;
         for (int index = 0; index < frameLength; index++)
         {
             float gain = frameLength > 1 ? Mathf.Lerp(volumeStart, volumeEnd, index * rampStep) : volumeEnd;
-            float x = buffer[index] * gain;
+            buffer[index] *= gain;
+        }
+    }
+
+    private static void ApplyAgc(SMDMicrophone.MicSettings s)
+    {
+        float[] buffer = processBufferArray;
+
+        double sumSq = 0.0;
+        float peak = 0f;
+        for (int i = 0; i < ProcessFrameSize; i++)
+        {
+            float v = buffer[i];
+            sumSq += (double)v * v;
+            float magnitude = v < 0f ? -v : v;
+            if (magnitude > peak) peak = magnitude;
+        }
+        float frameRms = Mathf.Sqrt((float)(sumSq / ProcessFrameSize));
+
+        _agcSettings.TargetRms = s.AgcTargetRms;
+        _agcSettings.MaxBoostDb = s.AgcMaxGainDb;
+        _agcSettings.Attack01 = s.AgcAttack;
+        _agcSettings.Release01 = s.AgcRelease;
+        _agcSettings.Headroom = Mathf.Clamp01(s.LimitThreshold);
+
+        float ampEnd = _agc.Process(frameRms, peak, _agcSettings, AgcFrameSeconds);
+        float ampStart = _prevAgcAmp;
+        _prevAgcAmp = ampEnd;
+
+        if (Mathf.Approximately(ampStart, 1f) && Mathf.Approximately(ampEnd, 1f))
+        {
+            return;
+        }
+
+        float rampStep = ProcessFrameSize > 1 ? 1f / (ProcessFrameSize - 1) : 0f;
+        for (int i = 0; i < ProcessFrameSize; i++)
+        {
+            buffer[i] *= ProcessFrameSize > 1 ? Mathf.Lerp(ampStart, ampEnd, i * rampStep) : ampEnd;
+        }
+    }
+
+    public static void ApplyLimiter(SMDMicrophone.MicSettings s)
+    {
+        float[] buffer = processBufferArray;
+        int frameLength = buffer.Length;
+
+        float limitT = Mathf.Clamp01(s.LimitThreshold);
+        float limitK = Mathf.Max(1e-6f, Mathf.Clamp01(s.LimitKnee));
+        float capped = limitT + limitK;
+
+        for (int index = 0; index < frameLength; index++)
+        {
+            float x = buffer[index];
 
             // Soft limiter: passthrough below the threshold, smooth cubic knee within
             // [threshold, threshold + knee], hard cap above.
@@ -925,6 +1010,10 @@ public static class BasisLocalMicrophoneDriver
             {
                 float t = (ax - limitT) / limitK;
                 x = Mathf.Sign(x) * (limitT + limitK * (1f - Mathf.Pow(1f - t, 3f)));
+            }
+            else
+            {
+                continue;
             }
 
             buffer[index] = x;
@@ -1009,11 +1098,18 @@ public static class BasisLocalMicrophoneDriver
         }
         float frameRms = Mathf.Sqrt((float)(sum / ProcessFrameSize));
 
+        float gateFloor = _gateNoiseFloor.Update(frameRms, AgcFrameSeconds);
+        float threshold = s.AutoNoiseGate
+            ? Mathf.Max(BasisNoiseFloorTracker.MinNoiseFloor, gateFloor * AutoGateOverNoise)
+            : s.NoiseGateThreshold;
+
+        _lastGateThreshold = threshold;
+
         // Smoothing coefficients per frame (20ms frames)
         float attackCoeff = Mathf.Clamp01(s.NoiseGateAttack);
         float releaseCoeff = Mathf.Clamp01(s.NoiseGateRelease);
 
-        if (frameRms > s.NoiseGateThreshold)
+        if (frameRms > threshold)
         {
             // Open gate
             _noiseGateGain = Mathf.Lerp(_noiseGateGain, 1f, attackCoeff);
@@ -1061,44 +1157,6 @@ public static class BasisLocalMicrophoneDriver
     }
 
     private static float DbToAmp(float db) => Mathf.Pow(10f, db / 20f);
-
-    private static void UpdateAgc(float frameRms, float targetRms, float maxGainDb, float attack, float release)
-    {
-        const float agcDecaySpeed = 0.020f; // ProcessFrameSize / 48000;
-        const float agcHoldTime   = 0.400f;
-
-        if (frameRms <= 1e-6f) frameRms = 1e-6f;
-
-        if (_agcHoldTimer > 0f) _agcHoldTimer -= agcDecaySpeed;
-
-        // When input is very quiet (silence/pause), release gain back toward 0 dB
-        // so the user isn't stuck at a reduced level when they start speaking again.
-        if (frameRms < 0.003f)
-        {
-            if (agcGainDb < 0f)
-            {
-                agcGainDb = Mathf.Lerp(agcGainDb, 0f, Mathf.Clamp01(release));
-            }
-            return;
-        }
-
-        float neededDb = 20f * Mathf.Log10(Mathf.Max(1e-6f, targetRms) / frameRms);
-        neededDb = Mathf.Clamp(neededDb, -maxGainDb, maxGainDb);
-
-        // The timer provides a cooldown period when the audio hits a new peak volume before applying additional correction.
-        if (neededDb < agcGainDb)
-        {
-            agcGainDb = Mathf.Lerp(agcGainDb, neededDb, Mathf.Clamp01(attack));
-            _agcHoldTimer = agcHoldTime;
-        }
-        else
-        {
-            if (_agcHoldTimer <= 0f)
-            {
-                agcGainDb = Mathf.Lerp(agcGainDb, neededDb, Mathf.Clamp01(release));
-            }
-        }
-    }
 
     private static void CreateOrResizeArray(int length, ref float[] arr)
     {

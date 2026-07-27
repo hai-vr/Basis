@@ -751,6 +751,7 @@ namespace Basis.BasisUI
                 break;
                 case BundledContentHolder.Mode.World:
                     int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+                    buttonPanel.ButtonStyling.SetIndicatorStyle(Styling.UiStyleButton.SpawnedIndicatorStyle);
                     buttonPanel.ButtonStyling.ShowIndicator(spawnItemCount > 0);
                 break;
             }

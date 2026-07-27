@@ -5,6 +5,8 @@
         "BasisCamera",
         "Basis Framework",
         "BasisGizmos",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
         "UnityEngine.TestRunner"
     ],
     "includePlatforms": [

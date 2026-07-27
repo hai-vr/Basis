@@ -11,7 +11,7 @@ public partial class BasisHandHeldCameraUI
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
         /// v2 added the auto-follow config, capture toggles and MSAA.
         /// </summary>
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
@@ -25,7 +25,7 @@ public partial class BasisHandHeldCameraUI
             autoFollowLookAtHeightOffset = 0f;
 
             dofMode = 2;          // Bokeh, matching the authored profile
-            dofFocalLength = 125f;
+            dofFocalLength = 50f;
             dofBladeCount = 5;
 
             resolutionIndex = 1;
@@ -41,7 +41,7 @@ public partial class BasisHandHeldCameraUI
             bloomThreshold = 0.5f;
             contrast = 1f;
             saturation = 1f;
-            depthAperture = 1f;
+            depthAperture = 2.8f;
             depthFocusDistance = 10f;
             depthIsActive = false;
             useManualFocus = true;

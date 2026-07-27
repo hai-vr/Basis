@@ -121,6 +121,11 @@ public class BasisDepthOfFieldInteractorDesktop : MonoBehaviour
             // Convert local point to UV in the preview rect
             Vector2 uv = CalculateUV(localPos, previewRect);
 
+            // Selfie mirrors the displayed image, but the hit-test rect is a sibling of the object
+            // carrying that flip, so the UV is still in un-mirrored render texture space.
+            if (cameraController.HandHeld != null && cameraController.HandHeld.IsSelfieMode)
+                uv.x = 1f - uv.x;
+
             // Map UV to pixels in the capture camera's render texture
             RenderTexture rt = cameraController.captureCamera.targetTexture;
             if (rt == null)

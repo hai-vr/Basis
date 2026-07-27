@@ -891,6 +891,11 @@ public static class BasisNetworkEvents
             BasisDebug.Log($"Disconnected locally [{disconnectInfo.Reason}]", BasisDebug.LogTag.Networking);
             return;
         }
+        if (BasisNetworkConnectionWatchdog.SuppressDisconnectDialogue)
+        {
+            BasisDebug.Log($"Disconnected [{disconnectInfo.Reason}]; the connection watchdog owns the notification.", BasisDebug.LogTag.Networking);
+            return;
+        }
 #if UNITY_SERVER
         bool canShowMenu = !UnityEngine.Application.isBatchMode;
 #endif

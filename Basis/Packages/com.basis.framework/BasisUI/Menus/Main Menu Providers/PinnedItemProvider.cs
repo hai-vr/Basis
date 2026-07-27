@@ -38,6 +38,7 @@ namespace Basis.BasisUI
         private void RefreshIndicator()
         {
             if (_boundButton == null || _boundButton.ButtonStyling == null) return;
+            _boundButton.ButtonStyling.SetIndicatorStyle(Styling.UiStyleButton.SpawnedIndicatorStyle);
             _boundButton.ButtonStyling.ShowIndicator(IsSpawned);
         }
 

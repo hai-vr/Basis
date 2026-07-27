@@ -53,6 +53,12 @@
         "com.unity.ugui": "2.0.0"
       }
     },
+    "com.basis.eeriemovement": {
+      "version": "file:com.basis.eeriemovement",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.basis.eventdriver": {
       "version": "file:com.basis.eventdriver",
       "depth": 0,
