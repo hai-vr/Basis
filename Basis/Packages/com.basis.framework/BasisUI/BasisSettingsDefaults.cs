@@ -1644,11 +1644,6 @@ namespace Basis.BasisUI
         // ("vive_tracker_waist", ...). Off by default: most people never set those roles (or
         // leave stale ones), and a wrong announced role is forced with no geometric check.
         public static BasisSettingsBinding<bool> TrustSteamVRRoles = new("trackerlinking_truststeamvrroles", new BasisPlatformDefault<bool>(false));
-        // Standing-idle continuous FBT refresh (BasisContinuousCalibration): slowly absorbs
-        // small strap slips into the calibration snapshots while the player stands in their
-        // calibration pose. Off by default — it rewrites calibration data at runtime, so
-        // users opt in explicitly.
-        public static BasisSettingsBinding<bool> ContinuousCalibration = new("trackerlinking_continuouscalibration", new BasisPlatformDefault<bool>(false));
         // Confidence falloff for a tracker that's spiking relative to its own
         // recent baseline. weight = 1 / (1 + max(surprise - 1, 0)^2 * penalty).
         // Higher = more aggressive shift to the steadier half on a glitch.
@@ -1716,13 +1711,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> DenoiseWet = new("denoisewet", new BasisPlatformDefault<float>(1f)); // 0..1
 
 
-        public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrms", new BasisPlatformDefault<float>(0.1f)); // ~ -24 dBFS
+        public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrmsv2", new BasisPlatformDefault<float>(0.1f)); // ~ -20 dBFS
 
-        public static BasisSettingsBinding<float> AgcMaxGainDb = new("agcdbgainmax", new BasisPlatformDefault<float>(8f));
+        public static BasisSettingsBinding<float> AgcMaxGainDb = new("agcdbgainmaxv2", new BasisPlatformDefault<float>(24f));
 
-        public static BasisSettingsBinding<float> AgcAttack = new("agcattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
+        public static BasisSettingsBinding<float> AgcAttack = new("agcattackv2", new BasisPlatformDefault<float>(0.75f)); // 0..1
 
-        public static BasisSettingsBinding<float> AgcRelease = new("agcrelease", new BasisPlatformDefault<float>(0.01f)); // 0..1
+        public static BasisSettingsBinding<float> AgcRelease = new("agcreleasev2", new BasisPlatformDefault<float>(0.85f)); // 0..1
 
         // ---------------- UI STYLE PALETTE ----------------
         public static BasisSettingsBinding<string> UIPaletteBG1 = new("ui_palette_bg1", new BasisPlatformDefault<string>(""));
@@ -2388,7 +2383,6 @@ namespace Basis.BasisUI
             TrackerLinkingAdvancedVisible.LoadBindingValue();
             TrackerLinkingConnectorVisible.LoadBindingValue();
             TrustSteamVRRoles.LoadBindingValue();
-            ContinuousCalibration.LoadBindingValue();
             PairingSurprisePenalty.LoadBindingValue();
             PairingSurpriseClamp.LoadBindingValue();
             PairingEmaFloor.LoadBindingValue();

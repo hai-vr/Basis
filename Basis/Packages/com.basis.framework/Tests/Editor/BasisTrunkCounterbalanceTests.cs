@@ -186,7 +186,7 @@ namespace Basis.Tests.IK
             Vector3 neck = new Vector3(0f, 1.4f, 0.15f);
             Vector3 headRest = new Vector3(0f, 1.65f, 0.05f);
             Quaternion headRestRot = Quaternion.identity;
-            // TposeHeadToNeckLocal == inv(headRot) * (neck - head), captured at rest.
+            // tposeHeadToNeckLocal == inv(headRot) * (neck - head), captured at rest.
             Vector3 headToNeckLocal = Quaternion.Inverse(headRestRot) * (neck - headRest);
 
             Vector3 baseline = Vector3.zero;

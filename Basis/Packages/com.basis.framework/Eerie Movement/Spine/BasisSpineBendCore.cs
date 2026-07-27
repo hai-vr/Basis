@@ -22,7 +22,7 @@ namespace Basis.IK
         public float BendTwistCoupling;  // lateral bend -> a little same-side axial rotation (organic spinal coupling)
 
         public float SquishBoost;
-        public float RestLen;            // TposeLengthHeadToHips.magnitude
+        public float RestLen;            // tposeLengthHeadToHips.magnitude
 
         public bool HasSpine;
         public bool HasUpper;

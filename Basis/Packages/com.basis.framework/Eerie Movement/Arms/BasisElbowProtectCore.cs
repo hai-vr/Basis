@@ -9,7 +9,7 @@ namespace Basis.IK
         public Vector3 Hand;
 
         // Torso capsule segments. Hips->Spine and Spine->Chest are only checked when the
-        // matching flag is set (mirrors the live job's HandleHips/HandleSpine validity gating).
+        // matching flag is set (mirrors the live job's handleHips/handleSpine validity gating).
         public Vector3 HipsPos;
         public Vector3 SpinePos;
         public Vector3 ChestPos;   // chest segment start; also seeds the shoulder-out direction

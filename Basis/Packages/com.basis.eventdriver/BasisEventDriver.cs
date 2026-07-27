@@ -271,6 +271,10 @@ namespace Basis.EventDriver
             {
                 BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
             }
+            using (Prof.ConnectionWatchdog.Auto())
+            {
+                BasisNetworkConnectionWatchdog.Tick(unscaledDeltaTime);
+            }
             if (!IsHeadlessClient)
             {
                 using (Prof.InputSystemUpdate.Auto())

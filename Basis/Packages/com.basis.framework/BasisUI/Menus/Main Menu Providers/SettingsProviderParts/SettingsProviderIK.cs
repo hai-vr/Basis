@@ -53,43 +53,44 @@ public static class SettingsProviderIK
         tabDesc.SetTitle(BasisLocalization.Get("settings.tab.bodytracking"));
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
 
-        // --- Collapsible section: "Body Tracking" (default closed) ---
-        var ikSectionToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
-        var ikGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
-            ikSectionToggle, tabDesc.ContentParent, BasisLocalization.Get("settings.tab.bodytracking"), false);
-
-        var ikParent = ikGroup.ContentParent;
-
-        // --- Custom scale toggle ---
-        var customScaleToggle = PanelToggle.CreateNewEntry(ikParent);
-        customScaleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.customScale"));
-        customScaleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.customScale.tooltip"));
-        customScaleToggle.AssignBinding(BasisSettingsDefaults.CustomScale);
-
-        // --- Avatar scale slider ---
-        var avatarScaleSlider = PanelSlider.CreateAndBind(
-            ikParent,
-            PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
-            BasisSettingsDefaults.SelectedScale);
-        _avatarScaleSlider = avatarScaleSlider;
-
-        if (avatarScaleSlider != null)
+        // ------------------
+        // Custom Scale
+        // ------------------
+        CreateCollapsibleSection(tabDesc, tabDesc,
+            BasisLocalization.Get("settings.bodyTracking.customScale"),
+            BasisLocalization.Get("settings.bodyTracking.customScale.description"), false, scaleParent =>
         {
-            avatarScaleSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale.tooltip"));
+            var customScaleToggle = PanelToggle.CreateNewEntry(scaleParent);
+            customScaleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.customScale"));
+            customScaleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.customScale.tooltip"));
+            customScaleToggle.AssignBinding(BasisSettingsDefaults.CustomScale);
 
-            avatarScaleSlider.gameObject.SetActive(BasisSettingsDefaults.CustomScale.RawValue);
-            customScaleToggle.OnValueChanged += visible =>
+            var avatarScaleSlider = PanelSlider.CreateAndBind(
+                scaleParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale"), 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.SelectedScale);
+            _avatarScaleSlider = avatarScaleSlider;
+
+            if (avatarScaleSlider != null)
             {
-                avatarScaleSlider.gameObject.SetActive(visible);
-                RebuildLayout(ikGroup);
-                RebuildLayout(tabDesc);
-            };
-        }
+                avatarScaleSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.avatarHeightScale.tooltip"));
+
+                avatarScaleSlider.gameObject.SetActive(BasisSettingsDefaults.CustomScale.RawValue);
+                customScaleToggle.OnValueChanged += visible =>
+                {
+                    avatarScaleSlider.gameObject.SetActive(visible);
+                    RebuildLayoutChain(scaleParent, tabDesc);
+                };
+            }
+        });
 
         _trackerLerpToggleUIs.Clear();
         _euroToggleUIs.Clear();
 
-        CreateCollapsibleSection(tabDesc, ikGroup,
+        // ------------------
+        // Per-Bone Settings
+        // ------------------
+        CreateCollapsibleSection(tabDesc, tabDesc,
             BasisLocalization.Get("settings.bodyTracking.section.perBone.title"),
             BasisLocalization.Get("settings.bodyTracking.section.perBone.description"), false,
             AddFBIKTogglesCompact);
@@ -99,7 +100,7 @@ public static class SettingsProviderIK
         // ------------------
         // Playspace Mover
         // ------------------
-        CreateCollapsibleSection(tabDesc, ikGroup,
+        CreateCollapsibleSection(tabDesc, tabDesc,
             BasisLocalization.Get("settings.bodyTracking.playspaceMover.title"),
             BasisLocalization.Get("settings.bodyTracking.playspaceMover.description"), false, moverParent =>
         {
@@ -173,25 +174,9 @@ public static class SettingsProviderIK
         });
 
         // ------------------
-        // Advanced IK toggle
+        // Tracking & Input
         // ------------------
-        var advancedToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
-        advancedToggle.SetTitle(BasisLocalization.Get("settings.bodyTracking.advanced"));
-        advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.advanced.tooltip"));
-        advancedToggle.BindToToggle(BasisSettingsDefaults.FBIKAdvancedVisible);
-
-        var colliderGroup = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group,
-            tabDesc.ContentParent);
-
-        colliderGroup.SetTitle(BasisLocalization.Get("settings.bodyTracking.colliders.title"));
-        colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
-        advancedToggle.RegisterContentContainer(colliderGroup);
-
-        var colliderParent = colliderGroup.ContentParent;
-
-        // ============== Tracking & Input ==============
-        CreateCollapsibleSection(tabDesc, colliderGroup,
+        CreateCollapsibleSection(tabDesc, tabDesc,
             BasisLocalization.Get("settings.bodyTracking.section.tracking.title"),
             BasisLocalization.Get("settings.bodyTracking.section.tracking.description"), true, trackingParent =>
         {
@@ -263,6 +248,25 @@ public static class SettingsProviderIK
             kneeFollowsFootToggle.AssignBinding(BasisSettingsDefaults.FBIKKneeFollowsFoot);
             kneeFollowsFootToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.kneeFollowsFoot.tooltip"));
         });
+
+        // ------------------
+        // Advanced IK toggle
+        // ------------------
+        var advancedToggle = PanelSectionToggle.CreateNewEntry(tabDesc.ContentParent);
+        advancedToggle.SetTitle(BasisLocalization.Get("settings.bodyTracking.advanced"));
+        advancedToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.advanced.tooltip"));
+        advancedToggle.BindToToggle(BasisSettingsDefaults.FBIKAdvancedVisible);
+
+        var colliderGroup = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            tabDesc.ContentParent);
+
+        colliderGroup.SetTitle(BasisLocalization.Get("settings.bodyTracking.colliders.title"));
+        colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        colliderGroup.SetBackgroundVisible(false);
+        advancedToggle.RegisterContentContainer(colliderGroup);
+
+        var colliderParent = colliderGroup.ContentParent;
 
         // ============== Body Collision ==============
         CreateCollapsibleSection(tabDesc, colliderGroup,
@@ -1249,12 +1253,6 @@ public static class SettingsProviderIK
             RebuildLayout(tabDesc);
         };
 
-        PanelSectionToggleHelpers.FinalizeCollapsibleGroup(ikSectionToggle, ikGroup, false, _ =>
-        {
-            RebuildLayout(ikGroup);
-            RebuildLayout(tabDesc);
-        });
-
         // ------------------
         // Debug Section
         // ------------------
@@ -1296,6 +1294,7 @@ public static class SettingsProviderIK
 
         debugGroup.SetTitle(BasisLocalization.Get("settings.bodyTracking.heightDebug.title"));
         debugGroup.SetIcon(AddressableAssets.Sprites.Settings);
+        debugGroup.SetBackgroundVisible(false);
         debugToggle.RegisterContentContainer(debugGroup);
 
         var debugParent = debugGroup.ContentParent;

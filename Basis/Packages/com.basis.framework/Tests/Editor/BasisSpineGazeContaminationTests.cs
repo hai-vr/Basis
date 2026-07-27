@@ -289,7 +289,7 @@ namespace Basis.Tests.IK
             {
                 GazeDown(gaze, out Vector3 headPos, out Quaternion headRot);
 
-                // The rig's line, verbatim: neckCue = headTargetPos + headWorldRot * TposeHeadToNeckLocal.
+                // The rig's line, verbatim: neckCue = headTargetPos + headWorldRot * tposeHeadToNeckLocal.
                 Vector3 neckCue = headPos + headRot * tposeHeadToNeckLocal;
 
                 // It must reconstruct the neck EXACTLY -- that is the whole mechanism.

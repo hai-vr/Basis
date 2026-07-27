@@ -416,6 +416,7 @@ MonoBehaviour:
   CurrentOwnerId: 0
   AdminOnly: 0
   AllowAnyoneToTakeControl: 1
+  AnyoneCanControl: 0
   DriftSeekThresholdSeconds: 0
   PositionHeartbeatSeconds: 5
   VerboseLogging: 0

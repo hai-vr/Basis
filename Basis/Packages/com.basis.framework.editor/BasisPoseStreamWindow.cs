@@ -97,7 +97,7 @@ public class BasisPoseStreamWindow : EditorWindow
         calib.AppendLine($"  LeftFoot  live={Fmt(d.offsetRotationLeftFoot.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedLeftFoot.eulerAngles)}   |q|={QLen(d.offsetRotationLeftFoot):F4}");
         calib.AppendLine($"  RightFoot live={Fmt(d.offsetRotationRightFoot.eulerAngles)}   static={Fmt(BasisLocalRigDriver.RecalibratedRightFoot.eulerAngles)}   |q|={QLen(d.offsetRotationRightFoot):F4}");
         calib.AppendLine($"  boneSim   L={Fmt(BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation.eulerAngles)}   R={Fmt(BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation.eulerAngles)}");
-        calib.AppendLine($"SOLVE-W leg L={d.enabledLeftLowerLeg:F2} R={d.enabledRightLowerLeg:F2}   HINT-W knee L={d.hintWeightLeftLowerLeg:F2} R={d.hintWeightRightLowerLeg:F2}   toe L={d.leftToeEnabled} R={d.RightToeEnabled}   (hint>0 = foot-driver pole, 0 = swivel model)");
+        calib.AppendLine($"SOLVE-W leg L={d.enabledLeftLowerLeg:F2} R={d.enabledRightLowerLeg:F2}   HINT-W knee L={d.hintWeightLeftLowerLeg:F2} R={d.hintWeightRightLowerLeg:F2}   toe L={d.leftToeEnabled} R={d.rightToeEnabled}   (hint>0 = foot-driver pole, 0 = swivel model)");
         calib.Append($"HasRigLayer  LFoot={BasisLocalBoneDriver.LeftFootControl.HasRigLayer} RFoot={BasisLocalBoneDriver.RightFootControl.HasRigLayer}" +
                      $"  LLowerLeg={BasisLocalBoneDriver.LeftLowerLegControl.HasRigLayer} RLowerLeg={BasisLocalBoneDriver.RightLowerLegControl.HasRigLayer}");
         for (int leg = 0; leg < 2; leg++)

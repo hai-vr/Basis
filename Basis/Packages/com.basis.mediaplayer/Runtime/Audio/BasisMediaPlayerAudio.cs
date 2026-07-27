@@ -45,6 +45,8 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
     [Tooltip("If true, decoded samples are zeroed before write. Mutes without stopping the AudioSources.")]
     public bool Mute = false;
 
+    public float EffectiveVolumeGain => Mute ? 0f : Mathf.Clamp(VolumeGain, 0f, 2f) * Mathf.Clamp01(SMModuleAudio.ActiveMainVolume);
+
     // Native-engine path only: this component is fed by the OS-codec engine's
     // PCM ring. The engine owns the media clock (BasisMediaPlayer syncs off its
     // PositionUs), so this clock source stays inert.
@@ -255,7 +257,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             // the DSP at 24kHz against 48kHz sources; desktop is typically 1:1).
             int dspRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : rate;
             tap.Bind(splitter, taps, spreadMonoAcrossChannels: outChannels == 1,
-                     gain: () => Mute ? 0f : Mathf.Clamp(VolumeGain, 0f, 2f),
+                     gain: () => EffectiveVolumeGain,
                      metrics: primary ? (Action<float[], int>)TrackPrimaryMetrics : null,
                      sourceFramesPerOutputFrame: (double)rate / dspRate);
             built.Add(b);

@@ -315,6 +315,40 @@ public static class SettingsProviderControllerConfig
             BuildBindingsUI(group.ContentParent);
         });
 
+        // Grid Snap (placement snapping for held objects)
+        SettingsProviderKeyboardBindings.CreateCollapsibleSection(
+            container, BasisLocalization.Get("settings.developer.gridSnap.title"),
+            BasisLocalization.Get("settings.developer.gridSnap.description"), group =>
+        {
+            PanelToggle toggleForceGridSnap = PanelToggle.CreateNewEntry(group);
+            toggleForceGridSnap.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gridSnap.force"));
+            toggleForceGridSnap.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.force.tooltip"));
+            toggleForceGridSnap.AssignBinding(BasisSettingsDefaults.ForceGridSnap);
+
+            PanelSlider sliderGridSnapSize = PanelSlider.CreateEntryAndBind(
+                group,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.gridSnap.size"),
+                    BasisLocalization.Get("settings.developer.gridSnap.size.description"),
+                    0.05f, 5f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.GridSnapSize);
+            sliderGridSnapSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.size.tooltip"));
+
+            PanelToggle toggleForceRotationSnap = PanelToggle.CreateNewEntry(group);
+            toggleForceRotationSnap.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gridSnap.forceRotation"));
+            toggleForceRotationSnap.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.forceRotation.tooltip"));
+            toggleForceRotationSnap.AssignBinding(BasisSettingsDefaults.ForceRotationSnap);
+
+            PanelSlider sliderRotationSnapDegrees = PanelSlider.CreateEntryAndBind(
+                group,
+                new PanelSlider.SliderSettings(
+                    BasisLocalization.Get("settings.developer.gridSnap.rotation"),
+                    BasisLocalization.Get("settings.developer.gridSnap.rotation.description"),
+                    1f, 90f, false, 1, ValueDisplayMode.Degrees),
+                BasisSettingsDefaults.RotationSnapDegrees);
+            sliderRotationSnapDegrees.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.rotation.tooltip"));
+        });
+
         SettingsProvider.AddResetPageButton(container, "settings.tab.controls", () =>
         {
             ResetControlsDefaults();
@@ -336,6 +370,10 @@ public static class SettingsProviderControllerConfig
 
     private static void ResetControlsDefaults()
     {
+        BasisSettingsDefaults.ForceGridSnap.ResetToDefault();
+        BasisSettingsDefaults.GridSnapSize.ResetToDefault();
+        BasisSettingsDefaults.ForceRotationSnap.ResetToDefault();
+        BasisSettingsDefaults.RotationSnapDegrees.ResetToDefault();
         BasisSettingsDefaults.DominantHand.ResetToDefault();
         BasisSettingsDefaults.DesktopInputInVR.ResetToDefault();
         BasisSettingsDefaults.InvertMouse.ResetToDefault();

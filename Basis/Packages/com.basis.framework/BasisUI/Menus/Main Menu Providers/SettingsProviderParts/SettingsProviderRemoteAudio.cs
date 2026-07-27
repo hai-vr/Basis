@@ -88,9 +88,12 @@ namespace Basis.BasisUI
             void RebuildLayout() => LayoutRebuilder.ForceRebuildLayoutImmediate(layoutRoot);
 
             // ─────────────── LISTENER DIRECTIONAL DAMPENING (always visible) ───────────────
-            PanelElementDescriptor listenerDampenGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            listenerDampenGroup.SetTitle(BasisLocalization.Get("settings.remoteAudio.remotePlayers"));
+            PanelSectionToggle remotePlayersToggle = PanelSectionToggle.CreateNewEntry(container);
+            PanelElementDescriptor listenerDampenGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
+                remotePlayersToggle,
+                container,
+                BasisLocalization.Get("settings.remoteAudio.remotePlayers"),
+                showGroupTitle: false);
 
             // Hearing Range (relocated from General). Lives here because it
             // governs at what distance any remote player becomes audible.
@@ -128,6 +131,9 @@ namespace Basis.BasisUI
                 RebuildLayout();
             };
 
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(remotePlayersToggle, listenerDampenGroup, true,
+                _ => RebuildLayout());
+
             // ─────────────── ADVANCED ───────────────
             PanelSectionToggle advancedToggle = PanelSectionToggle.CreateNewEntry(container);
             PanelElementDescriptor advancedGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup(
@@ -135,7 +141,7 @@ namespace Basis.BasisUI
             container = advancedGroup.ContentParent;
 
             // ─────────────── INTERFACE SOUNDS (advanced) ───────────────
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.audio.sounds.title"), () =>
             {
                 PanelToggle toggleSoundHover = PanelToggle.CreateNewEntry(container);
@@ -173,7 +179,7 @@ namespace Basis.BasisUI
             // Frames-of-audio buffered ahead of playback. Lower = less latency,
             // higher = more resilience to packet jitter / loss before underrun.
             // Buffer is 20 ms per frame, so 1 ≈ 20 ms.
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.ra.title.voiceBuffer"), () =>
             {
                 PanelSlider sliderJitterDepth = PanelSlider.CreateEntryAndBind(
@@ -202,7 +208,7 @@ namespace Basis.BasisUI
             PanelSlider sliderCurvePoint25 = null;
             PanelSlider sliderCurvePoint50 = null;
             PanelSlider sliderCurvePoint75 = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.audioSource"), () =>
             {
                 PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(container);
@@ -331,7 +337,7 @@ namespace Basis.BasisUI
             // ─────────────── STEAM AUDIO - HRTF (advanced) ───────────────
             PanelDropdown dropdownInterpolation = null;
             PanelDropdown dropdownHrtfProfile = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.hrtf"), () =>
             {
                 PanelToggle toggleDirectBinaural = PanelToggle.CreateNewEntry(container);
@@ -387,7 +393,7 @@ namespace Basis.BasisUI
             PanelSlider sliderAirAbsorptionLow = null;
             PanelSlider sliderAirAbsorptionMid = null;
             PanelSlider sliderAirAbsorptionHigh = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.propagation"), () =>
             {
                 PanelToggle toggleDistanceAttenuation = PanelToggle.CreateNewEntry(container);
@@ -488,7 +494,7 @@ namespace Basis.BasisUI
             // ─────────────── STEAM AUDIO - DIRECTIVITY (advanced) ───────────────
             PanelSlider sliderDipoleWeight = null;
             PanelSlider sliderDipolePower = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.directivity"), () =>
             {
                 PanelToggle toggleDirectivity = PanelToggle.CreateNewEntry(container);
@@ -533,7 +539,7 @@ namespace Basis.BasisUI
             PanelDropdown dropdownOcclusionType = null;
             PanelSlider sliderOcclusionRadius = null;
             PanelSlider sliderOcclusionSamples = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.occlusion"), () =>
             {
                 PanelToggle toggleOcclusion = PanelToggle.CreateNewEntry(container);
@@ -588,7 +594,7 @@ namespace Basis.BasisUI
             // ─────────────── STEAM AUDIO - TRANSMISSION (advanced) ───────────────
             PanelDropdown dropdownTransmissionType = null;
             PanelSlider sliderMaxTransmissionSurfaces = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.transmission"), () =>
             {
                 PanelToggle toggleTransmission = PanelToggle.CreateNewEntry(container);
@@ -675,7 +681,7 @@ namespace Basis.BasisUI
 
             // ─────────────── LIP SYNC (advanced) ───────────────
             PanelSlider sliderLipSyncSlots = null;
-            PanelSectionToggleHelpers.CreateCollapsibleFlatSection(container,
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.remoteAudio.lipSync"), () =>
             {
                 PanelToggle toggleLimitLipSync = PanelToggle.CreateNewEntry(container);

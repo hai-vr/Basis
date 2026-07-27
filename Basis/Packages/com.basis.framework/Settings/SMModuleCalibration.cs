@@ -656,7 +656,7 @@ public class SMModuleCalibration : BasisSettingsBase
                 break;
 
             case var s when s == K_FBIK_MAX_CHEST_DELTA:
-                if (SliderReadOption(optionValue, out var mcdVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.MaxChestDeltaProperty = mcdVal);
+                if (SliderReadOption(optionValue, out var mcdVal)) ApplyIKDataFloat((ref BasisEerieMovement d) => d.maxChestDeltaDeg = mcdVal);
                 break;
 
             // ---------- CALIBRATION SPHERE SCALE ----------
@@ -717,7 +717,7 @@ public class SMModuleCalibration : BasisSettingsBase
         if (!rig.IKDataReady)
             return;
 
-        rig.IKJob.ikLockMode = (float)CurrentIKLockMode;
+        rig.IKJob.ikLockMode = CurrentIKLockMode;
     }
 
     private delegate void IKDataAction(ref BasisEerieMovement data);

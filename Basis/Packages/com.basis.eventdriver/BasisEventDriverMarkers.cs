@@ -21,6 +21,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker VisemeSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.VisemeSimulate");
         public static readonly ProfilerMarker MainThreadActions = new ProfilerMarker("BasisDriver.MainThreadActions");
         public static readonly ProfilerMarker LifecycleQueue = new ProfilerMarker("BasisDriver.Network.LifecycleQueue");
+        public static readonly ProfilerMarker ConnectionWatchdog = new ProfilerMarker("BasisDriver.Network.ConnectionWatchdog");
         public static readonly ProfilerMarker InputSystemUpdate = new ProfilerMarker("BasisDriver.Input.InputSystemUpdate");
         public static readonly ProfilerMarker OscAcquisition = new ProfilerMarker("BasisDriver.OSC.Acquisition");
         public static readonly ProfilerMarker PerformanceLimits = new ProfilerMarker("BasisDriver.PerfLimits.AvatarLimits");

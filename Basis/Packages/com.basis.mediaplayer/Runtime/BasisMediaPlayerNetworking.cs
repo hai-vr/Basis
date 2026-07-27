@@ -36,6 +36,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         None = 0,
         AdminOnly = 1 << 0,
         AllowAnyoneToTakeControl = 1 << 1,
+        AnyoneCanControl = 1 << 2,
     }
 
     // Matches the panel's Perm_Control constant; admins (perm "*") also satisfy it.
@@ -48,6 +49,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
 
     [Tooltip("If true, any client may take ownership and control playback. If false, only the current owner can call SetUrl/Play/Stop/Pause/Resume/Seek. Ignored when AdminOnly is true.")]
     public bool AllowAnyoneToTakeControl = true;
+
+    [Tooltip("If true, clients WITHOUT the basis.mediaplayer.control (or *) permission may also load URLs and drive playback on this player, and the menu shows them the playback controls. Ignored when AdminOnly is true.")]
+    public bool AnyoneCanControl = false;
 
     [Header("Sync")]
     [Tooltip("Remote clients seek to catch up when their position drifts more than this many seconds from the owner's last-broadcast position. Set to 0 to disable drift correction.")]
@@ -133,9 +137,12 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
                 return false;
             }
 
-            return AllowAnyoneToTakeControl;
+            return AllowAnyoneToTakeControl || AnyoneCanControl;
         }
     }
+
+    /// <summary>True when this player's controls are open to clients that hold no control permission.</summary>
+    public bool ControlOpenToEveryone => AnyoneCanControl && !AdminOnly;
 
     public static bool IsLocalAdmin()
     {
@@ -364,6 +371,22 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         BroadcastSettings();
     }
 
+    public async Task SetAnyoneCanControl(bool value)
+    {
+        if (AnyoneCanControl == value)
+        {
+            return;
+        }
+
+        if (!await AcquireControlAsync())
+        {
+            return;
+        }
+
+        AnyoneCanControl = value;
+        BroadcastSettings();
+    }
+
     public async Task SetDriftSeekThresholdSeconds(float value)
     {
         float clamped = Mathf.Max(0f, value);
@@ -405,11 +428,11 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
                 return false;
             }
 
-            if (!AllowAnyoneToTakeControl)
+            if (!AllowAnyoneToTakeControl && !AnyoneCanControl)
             {
                 if (VerboseLogging)
                 {
-                    BasisDebug.LogWarning($"{nameof(BasisMediaPlayerNetworking)} control rejected: AllowAnyoneToTakeControl is false and this client is not the owner.", BasisDebug.LogTag.Video);
+                    BasisDebug.LogWarning($"{nameof(BasisMediaPlayerNetworking)} control rejected: AllowAnyoneToTakeControl and AnyoneCanControl are both false and this client is not the owner.", BasisDebug.LogTag.Video);
                 }
 
                 return false;
@@ -1050,6 +1073,11 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
             flags |= SettingsFlags.AllowAnyoneToTakeControl;
         }
 
+        if (AnyoneCanControl)
+        {
+            flags |= SettingsFlags.AnyoneCanControl;
+        }
+
         buf[offset] = (byte)flags;
         WriteFloat(buf, offset + 1, DriftSeekThresholdSeconds);
     }
@@ -1059,6 +1087,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         var flags = (SettingsFlags)buf[offset];
         AdminOnly = (flags & SettingsFlags.AdminOnly) != 0;
         AllowAnyoneToTakeControl = (flags & SettingsFlags.AllowAnyoneToTakeControl) != 0;
+        AnyoneCanControl = (flags & SettingsFlags.AnyoneCanControl) != 0;
         float drift = ReadFloat(buf, offset + 1);
         if (drift < 0f || float.IsNaN(drift) || float.IsInfinity(drift))
         {
@@ -1073,7 +1102,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour
         ReadSettingsBlock(buffer, offset);
         if (VerboseLogging)
         {
-            BasisDebug.Log($"{nameof(BasisMediaPlayerNetworking)} applied remote settings: AdminOnly={AdminOnly}, AllowAnyoneToTakeControl={AllowAnyoneToTakeControl}, DriftSeekThresholdSeconds={DriftSeekThresholdSeconds}.", BasisDebug.LogTag.Video);
+            BasisDebug.Log($"{nameof(BasisMediaPlayerNetworking)} applied remote settings: AdminOnly={AdminOnly}, AllowAnyoneToTakeControl={AllowAnyoneToTakeControl}, AnyoneCanControl={AnyoneCanControl}, DriftSeekThresholdSeconds={DriftSeekThresholdSeconds}.", BasisDebug.LogTag.Video);
         }
     }
 

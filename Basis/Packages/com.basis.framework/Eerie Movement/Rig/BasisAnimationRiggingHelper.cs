@@ -129,8 +129,8 @@ public static class BasisAnimationRiggingHelper
         job.hintRotationRightHand = TrackerImpliedBoneRotation(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.rotation);
 
         // --- Shoulders ---
-        job.TargetRotationLeftShoulder = leftShoulder.rotation;
-        job.TargetRotationRightShoulder = rightShoulder.rotation;
+        job.targetRotationLeftShoulder = leftShoulder.rotation;
+        job.targetRotationRightShoulder = rightShoulder.rotation;
 
         // --- Legs ---
         job.hintPositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
@@ -140,9 +140,9 @@ public static class BasisAnimationRiggingHelper
 
         // --- Chest ---
         // Raw (un-hinted) chest for the chest IK target; the hinted one below is a head-solve hint.
-        job.TargetChestPositionRaw = chest.position;
-        job.TargetChestPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
-        job.targetChestRotation = chest.rotation;
+        job.targetPositionChestRaw = chest.position;
+        job.targetPositionChest = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
+        job.targetRotationChest = chest.rotation;
 
         // Developer diagnostics: dump the calibrated offsets, the runtime targets, and the avatar root.
         if (BasisCalibrationDebugRecorder.Enabled)
@@ -187,7 +187,7 @@ public static class BasisAnimationRiggingHelper
         job.elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
         job.elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
         job.enabledSpineIK = true;
-        job.ikLockMode = (float)SMModuleCalibration.CurrentIKLockMode;
+        job.ikLockMode = SMModuleCalibration.CurrentIKLockMode;
 
         // Shoulder pre-solve defaults
         job.shoulderSolveEnabled = true;

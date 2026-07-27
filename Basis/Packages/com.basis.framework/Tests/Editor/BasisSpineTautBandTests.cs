@@ -84,15 +84,15 @@ namespace Basis.Tests.IK
             // left off (their defaults) so the test isolates the CCD itself.
             _job = new BasisEerieMovement
             {
-                ChainHeadToSpine = _chain,
-                HandleHips = _skeleton.Bind(_bones[0]),
+                chainHeadToSpine = _chain,
+                handleHips = _skeleton.Bind(_bones[0]),
                 spineMaxIterations = 20,
                 spineTolerance = 0.001f,
                 spineCCDRelax = 1.0f,
                 spineTwistKeep = 0.25f,
                 spineNeckTwistKeep = 0.9f,
                 neckMaxConeDeg = 45f,
-                MaxChestDeltaProperty = 30f,
+                maxChestDeltaDeg = 30f,
                 thoracicBendStiffen = 0.3f,
                 spineTautBandFrac = 0.015f,
                 bendTwistCoupling = 0.15f,
@@ -353,12 +353,12 @@ namespace Basis.Tests.IK
             _job.lordosisMaxHeadPitchDeg = 80f;
             _job.lordosisExtremeStartDeg = 50f;
             _job.lordosisExtremeFullDeg = 80f;
-            _job.HandleNeck = _skeleton.Bind(_bones[4]);
-            _job.HandleHead = _skeleton.Bind(_bones[5]);
-            _job.HandleChest = _skeleton.Bind(_bones[2]);
-            _job.HandleUpperChest = _skeleton.Bind(_bones[3]);
-            _job.HandleSpine = _skeleton.Bind(_bones[1]);
-            _job.HandleHips = _skeleton.Bind(_bones[0]);
+            _job.handleNeck = _skeleton.Bind(_bones[4]);
+            _job.handleHead = _skeleton.Bind(_bones[5]);
+            _job.handleChest = _skeleton.Bind(_bones[2]);
+            _job.handleUpperChest = _skeleton.Bind(_bones[3]);
+            _job.handleSpine = _skeleton.Bind(_bones[1]);
+            _job.handleHips = _skeleton.Bind(_bones[0]);
             _job.offsetRotationHead = Quaternion.identity;
 
             foreach (float pitchDeg in new[] { 0.02f, 2f })   // early-out side / full-path side of 0.01 deg

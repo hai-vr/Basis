@@ -12,32 +12,32 @@ namespace Basis.IK
         // Two-bone leg IK with bend-normal preference, per leg.
         void SolveLegPass(BasisPoseStream stream)
         {
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
+            SolveLegs(stream, enabledLeftLowerLeg, handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, kneeBendPrefLeft, hintIsTrackerLeftLowerLeg, footIsTrackerLeftLeg, 0);
+            SolveLegs(stream, enabledRightLowerLeg, handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, kneeBendPrefRight, hintIsTrackerRightLowerLeg, footIsTrackerRightLeg, 1);
         }
 
         // A toe TRACKER wins outright; otherwise the procedural surface bend from the foot driver
         // articulates the toe over stair noses, kerbs and ramps.
         void SolveToePass(BasisPoseStream stream)
         {
-            if (leftToeEnabled) ApplyRotation(stream, true, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
-            else ApplyToeSurfaceBend(stream, HandleLeftToe, leftToeBendDeg, leftToeBendAxis);
+            if (leftToeEnabled) ApplyRotation(stream, true, handleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
+            else ApplyToeSurfaceBend(stream, handleLeftToe, leftToeBendDeg, leftToeBendAxis);
 
-            if (RightToeEnabled) ApplyRotation(stream, true, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
-            else ApplyToeSurfaceBend(stream, HandleRightToe, rightToeBendDeg, rightToeBendAxis);
+            if (rightToeEnabled) ApplyRotation(stream, true, handleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
+            else ApplyToeSurfaceBend(stream, handleRightToe, rightToeBendDeg, rightToeBendAxis);
         }
 
         BasisSwivelFrame BuildLegFrame(BasisPoseStream stream)
         {
-            if (!HandleLeftUpperLeg.IsValid(stream) || !HandleRightUpperLeg.IsValid(stream)
-                || !HandleHips.IsValid(stream) || !HandleChest.IsValid(stream))
+            if (!handleLeftUpperLeg.IsValid(stream) || !handleRightUpperLeg.IsValid(stream)
+                || !handleHips.IsValid(stream) || !handleChest.IsValid(stream))
             {
                 return default;
             }
 
             return BasisSwivelHintCore.BuildFrame(
-                HandleLeftUpperLeg.GetPosition(stream), HandleRightUpperLeg.GetPosition(stream),
-                HandleHips.GetPosition(stream), HandleChest.GetPosition(stream));
+                handleLeftUpperLeg.GetPosition(stream), handleRightUpperLeg.GetPosition(stream),
+                handleHips.GetPosition(stream), handleChest.GetPosition(stream));
         }
         /// <summary>
         /// Evaluates the Two-Bone IK algorithm.
@@ -151,7 +151,7 @@ namespace Basis.IK
                     hintDistrust = 1f - BasisSwivelHintCore.LegModelTrust(conf);
                 }
             }
-            Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp, KneeAnteriorRef);
+            Quaternion shinRoll = SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal, hintDistrust, legSlot,hintIsTrackerProp ? hintRotProp : default, hintIsTrackerProp, kneeAnteriorRef);
             if (posWeight < 1f)
             {
                 root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), posWeight));
@@ -185,7 +185,7 @@ namespace Basis.IK
         }
         void RecordHipDiagnostics(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, int slot)
         {
-            if (!legDiagnostics.IsCreated || slot < 0 || slot >= legDiagnostics.Length || !HandleHips.IsValid(stream))
+            if (!legDiagnostics.IsCreated || slot < 0 || slot >= legDiagnostics.Length || !handleHips.IsValid(stream))
             {
                 return;
             }
@@ -196,7 +196,7 @@ namespace Basis.IK
                 return;
             }
 
-            Quaternion hipsRot = HandleHips.GetRotation(stream);
+            Quaternion hipsRot = handleHips.GetRotation(stream);
             Quaternion hipsInv = Quaternion.Inverse(hipsRot);
             Vector3 femurLocal = (hipsInv * femur).normalized;
 
@@ -209,7 +209,7 @@ namespace Basis.IK
         }
         void SmoothKneeSwivel(BasisPoseStream stream, BasisBoneHandle root, BasisBoneHandle mid, BasisBoneHandle tip, int slot, float dt, float minCutoffHz, float beta, float derivCutoffHz, bool conditionOnPole, bool holdWhenSingular)
         {
-            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !HandleHips.IsValid(stream))
+            if (!legSwivelInit.IsCreated || slot < 0 || slot >= legSwivelInit.Length || !handleHips.IsValid(stream))
             {
                 return;
             }
@@ -217,7 +217,7 @@ namespace Basis.IK
             input.Root = root.GetPosition(stream);
             input.Mid = mid.GetPosition(stream);
             input.Tip = tip.GetPosition(stream);
-            input.BodyRotation = HandleHips.GetRotation(stream);
+            input.BodyRotation = handleHips.GetRotation(stream);
             input.ReferenceLocal = Vector3.forward;
             input.FallbackLocal = Vector3.right;
             input.TransportHomeLocal = Vector3.down;

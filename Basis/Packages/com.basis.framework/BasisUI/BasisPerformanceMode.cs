@@ -153,6 +153,31 @@ namespace Basis.BasisUI
             => BasisLocalization.Get(LocalizationKeyFor(level));
 
         /// <summary>
+        /// Occupant count that arms <paramref name="level"/> — the tier the crowd prompt offers it
+        /// at, and the count Follow Player Count switches to it on. 0 for <see cref="BasisPerformanceLevel.Off"/>.
+        /// </summary>
+        public static int ThresholdFor(BasisPerformanceLevel level)
+        {
+            int index = (int)level - 1;
+            return index >= 0 && index < PopulationThresholds.Length ? PopulationThresholds[index] : 0;
+        }
+
+        /// <summary>
+        /// Level name carrying its activation point, e.g. "Light (250+)". Off has no threshold and
+        /// comes back as the plain name.
+        /// </summary>
+        public static string DisplayNameWithThreshold(BasisPerformanceLevel level)
+        {
+            if (level == BasisPerformanceLevel.Off)
+            {
+                return DisplayName(level);
+            }
+
+            return BasisLocalization.Get("settings.performanceMode.level.withThreshold",
+                DisplayName(level), ThresholdFor(level));
+        }
+
+        /// <summary>
         /// Applies <paramref name="level"/>, snapshotting the player's own values on the way
         /// in and restoring them when the level lands on <see cref="BasisPerformanceLevel.Off"/>.
         /// </summary>
@@ -178,9 +203,9 @@ namespace Basis.BasisUI
         {
             switch (level)
             {
-                case BasisPerformanceLevel.Light: return new Color(0.45f, 0.82f, 0.55f, 1f);
-                case BasisPerformanceLevel.Balanced: return new Color(1f, 0.78f, 0.35f, 1f);
-                case BasisPerformanceLevel.Aggressive: return new Color(1f, 0.48f, 0.35f, 1f);
+                case BasisPerformanceLevel.Light: return BasisPanelTint.Calm;
+                case BasisPerformanceLevel.Balanced: return BasisPanelTint.Caution;
+                case BasisPerformanceLevel.Aggressive: return BasisPanelTint.Hot;
                 default: return Color.white;
             }
         }

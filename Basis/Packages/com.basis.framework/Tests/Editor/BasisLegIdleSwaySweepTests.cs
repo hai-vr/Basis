@@ -26,7 +26,7 @@ namespace Basis.Tests.IK
     /// The sweeps drive the solver the way BasisLocalRigDriver does for the no-tracker standing case:
     ///   Root/Mid/Tip = the rest-pose leg translated by the body offset (rigid pre-IK pose),
     ///   TargetPosition = the fixed plant, HintWeight = the foot-IK blend (~1), HintPosition forward of
-    ///   the knee, BendNormal = the hip's right axis (KneeBendPrefLeft = hipsRot * right), so the knee
+    ///   the knee, BendNormal = the hip's right axis (kneeBendPrefLeft = hipsRot * right), so the knee
     ///   bends in the sagittal plane -- the same plane the body sways in.
     ///
     /// Knee/foot OUTPUT POSITIONS depend only on the input POSITIONS + the bend axis, never on the input

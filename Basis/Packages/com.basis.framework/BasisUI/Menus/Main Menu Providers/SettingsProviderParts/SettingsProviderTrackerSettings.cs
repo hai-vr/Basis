@@ -136,11 +136,6 @@ namespace Basis.BasisUI
             trustSteamVRToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.trustSteamVRRoles.tooltip"));
             trustSteamVRToggle.AssignBinding(BasisSettingsDefaults.TrustSteamVRRoles);
 
-            PanelToggle continuousCalibrationToggle = PanelToggle.CreateNewEntry(tabRoot);
-            continuousCalibrationToggle.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.continuousCalibration"));
-            continuousCalibrationToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.continuousCalibration.tooltip"));
-            continuousCalibrationToggle.AssignBinding(BasisSettingsDefaults.ContinuousCalibration);
-
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as
@@ -940,7 +935,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
             BasisSettingsDefaults.TrackerLinkingConnectorVisible.ResetToDefault();
             BasisSettingsDefaults.TrustSteamVRRoles.ResetToDefault();
-            BasisSettingsDefaults.ContinuousCalibration.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();

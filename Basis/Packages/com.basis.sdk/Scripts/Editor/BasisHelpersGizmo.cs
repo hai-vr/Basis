@@ -82,8 +82,20 @@ namespace Basis.Scripts.BasisSdk.Helpers.Editor
 
             label.style.minWidth = StyleKeyword.Auto;
             label.style.width = StyleKeyword.Auto;
+            label.style.maxWidth = StyleKeyword.None;
+            label.style.flexBasis = StyleKeyword.Auto;
+            label.style.flexGrow = 0f;
             label.style.flexShrink = 0f;
+            label.style.overflow = Overflow.Visible;
+            label.style.textOverflow = TextOverflow.Clip;
+            label.style.whiteSpace = WhiteSpace.NoWrap;
             label.style.marginRight = 3f;
+
+            VisualElement input = component.Q(className: BaseField<float>.inputUssClassName);
+            if (input != null)
+            {
+                input.style.minWidth = 28f;
+            }
         }
 
         public static void SetValueVector2Field(VisualElement visualElement, string fieldNameIdentifier, Vector2 Value)

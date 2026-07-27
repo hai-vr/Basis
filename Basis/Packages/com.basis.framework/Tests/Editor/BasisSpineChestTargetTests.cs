@@ -30,7 +30,7 @@ namespace Basis.Tests.IK
         const int ChestIters = 8;         // the job's k_ChestIkIters
         const int RestoreSweeps = 2;      // the job's k_ChestIkHeadRestoreSweeps
 
-        // TIP -> ROOT, exactly the job's ChainHeadToSpine convention: index 0 = head (tip), index N-1 = hips
+        // TIP -> ROOT, exactly the job's chainHeadToSpine convention: index 0 = head (tip), index N-1 = hips
         // (root, fixed). The parent of joint i is i+1. Offset[i] is the local vector from that parent to i.
         sealed class Chain
         {

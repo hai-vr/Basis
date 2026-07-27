@@ -2091,14 +2091,6 @@
       "value": "Also bind trackers using the body-part roles assigned by hand in SteamVR settings. Only enable this if you actually set those roles yourself."
     },
     {
-      "key": "trackerLinking.continuousCalibration",
-      "value": "Continuous Calibration"
-    },
-    {
-      "key": "trackerLinking.continuousCalibration.tooltip",
-      "value": "While you stand still in your calibration pose, small tracker strap slips are slowly absorbed into the current calibration (position only, capped at 5 cm). Large drift is never auto-corrected — recalibrate instead."
-    },
-    {
       "key": "trackerLinking.connectorTrackers",
       "value": "Show Connector Trackers"
     },
@@ -2307,6 +2299,22 @@
       "value": "Loading Asset Bundle..."
     },
     {
+      "key": "menu.servers.status.awaitingResponse",
+      "value": "Waiting for the server to respond... {0}s left"
+    },
+    {
+      "key": "menu.servers.status.connectionLost",
+      "value": "Connection lost - waiting for the server... {0}s left"
+    },
+    {
+      "key": "menu.servers.status.reconnectingIn",
+      "value": "Reconnecting in {0}s - attempt {1} of {2}"
+    },
+    {
+      "key": "menu.servers.status.reconnectAttempt",
+      "value": "Reconnecting to the server... attempt {0} of {1}"
+    },
+    {
       "key": "menu.servers.error.emptyName",
       "value": "Display Name Was Empty"
     },
@@ -2321,6 +2329,10 @@
     {
       "key": "menu.servers.error.connectFailed",
       "value": "Connection failed."
+    },
+    {
+      "key": "menu.servers.error.reconnectFailed",
+      "value": "Lost connection to the server and could not reconnect after {0} attempts."
     },
     {
       "key": "menu.servers.list.default",
@@ -6972,7 +6984,7 @@
     },
     {
       "key": "settings.performanceMode.description",
-      "value": "Trades avatar and world fidelity for frame rate in busy instances. Each level snapshots your own settings first and puts them straight back when you turn it off, and it never makes anything more expensive than you already had it. Population tiers: over {0}, {1} and {2} people."
+      "value": "Trades avatar and world fidelity for frame rate in busy instances. The number on each level is the occupant count it is meant for — the point the crowd prompt offers it, and the point Follow Player Count switches to it. Your own settings are snapshotted first and put straight back when you turn the mode off, and no level ever makes anything more expensive than you already had it."
     },
     {
       "key": "settings.performanceMode.level",
@@ -6985,6 +6997,10 @@
     {
       "key": "settings.performanceMode.level.off",
       "value": "Off"
+    },
+    {
+      "key": "settings.performanceMode.level.withThreshold",
+      "value": "{0} ({1}+)"
     },
     {
       "key": "settings.performanceMode.level.light",

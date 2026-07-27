@@ -257,6 +257,7 @@ namespace Basis.MediaPipe
 
             PanelElementDescriptor diagnostics = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
+            diagnostics.SetBackgroundVisible(false);
             diagnostics.SetTitle("Diagnostics");
             diagnostics.SetDescription("Live webcam tracking state.");
 

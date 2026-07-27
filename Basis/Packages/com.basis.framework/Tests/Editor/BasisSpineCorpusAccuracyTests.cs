@@ -176,23 +176,23 @@ namespace Basis.Tests.IK
 
             rig.Job = new BasisEerieMovement
             {
-                ChainHeadToSpine = rig.Chain,
-                HandleHips = rig.Skeleton.Bind(rig.Bones[0]),
-                HandleSpine = rig.Skeleton.Bind(rig.Bones[1]),
-                HandleChest = rig.Skeleton.Bind(rig.Bones[2]),
-                HandleUpperChest = rig.Skeleton.Bind(rig.Bones[3]),
-                HandleNeck = rig.Skeleton.Bind(rig.Bones[4]),
-                HandleHead = rig.Skeleton.Bind(rig.Bones[5]),
+                chainHeadToSpine = rig.Chain,
+                handleHips = rig.Skeleton.Bind(rig.Bones[0]),
+                handleSpine = rig.Skeleton.Bind(rig.Bones[1]),
+                handleChest = rig.Skeleton.Bind(rig.Bones[2]),
+                handleUpperChest = rig.Skeleton.Bind(rig.Bones[3]),
+                handleNeck = rig.Skeleton.Bind(rig.Bones[4]),
+                handleHead = rig.Skeleton.Bind(rig.Bones[5]),
                 targetOffsetHead = Quaternion.identity,
                 offsetRotationHips = Quaternion.identity,
                 playerUp = Vector3.up,
                 chestIkTarget = false,
                 spineAnatomicalRom = false,
-                HasChestTracker = false,
+                hasChestTracker = false,
                 // Rest anatomy for the pre-bend's neck cue and rest length.
-                TposeHeadToNeckLocal = Quaternion.Inverse(rig.RestGaze)
+                tposeHeadToNeckLocal = Quaternion.Inverse(rig.RestGaze)
                     * (clip.Get(restFrame, BasisMocapJoint.Neck).Position - clip.Get(restFrame, BasisMocapJoint.Head).Position),
-                TposeLengthNeckToHips = clip.Get(restFrame, BasisMocapJoint.Neck).Position
+                tposeLengthNeckToHips = clip.Get(restFrame, BasisMocapJoint.Neck).Position
                     - clip.Get(restFrame, BasisMocapJoint.Hips).Position,
                 // Production bend weights / limits (BasisFullIKConstraintJob.SetDefaults).
                 spineBendPitch = 0.45f, spineBendYaw = 0.10f, spineBendRoll = 0.35f,
