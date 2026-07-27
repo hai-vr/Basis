@@ -212,6 +212,33 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void UpgradingAPreV5File_ReplacesTheUnusableOptics()
+        {
+            // f/1 on a 125mm lens is a depth of field about 3cm deep at portrait range, so nobody
+            // could ever be usefully in focus. Old files have to be taken off it, not just new ones.
+            string legacy =
+                "{\"settingsVersion\":4,\"depthAperture\":1,\"dofFocalLength\":125}";
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(legacy);
+
+            BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
+
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+            Assert.That(loaded.depthAperture, Is.EqualTo(defaults.depthAperture).Within(1e-4f));
+            Assert.That(loaded.dofFocalLength, Is.EqualTo(defaults.dofFocalLength).Within(1e-4f));
+            Assert.That(loaded.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion));
+        }
+
+        [Test]
+        public void ShippedApertureDefault_IsInsideTheRangeURPWillAccept()
+        {
+            // URP clamps DepthOfField.aperture to [1, 32]; a default outside it is silently ignored
+            // and the slider below it is dead travel.
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+
+            Assert.That(defaults.depthAperture, Is.InRange(BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture));
+        }
+
+        [Test]
         public void DepthOfFieldStyleAndEnabledState_AreIndependent()
         {
             // dofMode is the blur style, depthIsActive is the on/off. A default camera keeps a

@@ -1,3 +1,5 @@
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking;
 using NUnit.Framework;
 using UnityEngine;
 using CameraPinSpace = BasisHandHeldCameraInteractable.CameraPinSpace;
@@ -198,6 +200,65 @@ namespace Basis.Tests.Camera
 
             Assert.That(_camera.followTargetPlayerId, Is.Zero,
                 "An unresolvable remote target must reset to 0 (local) on the next resolve.");
+        }
+
+        [Test]
+        public void FollowingAConnectedRemote_ResolvesToThatRemote()
+        {
+            const ushort netId = 7;
+            GameObject root = new GameObject("RemoteRootUnderTest");
+            GameObject head = new GameObject("RemoteHeadUnderTest");
+            root.transform.position = new Vector3(12f, 0f, -4f);
+            head.transform.position = new Vector3(12f, 1.7f, -4f);
+
+            BasisNetworkPlayers.RemotePlayers[netId] = new BasisRemotePlayer
+            {
+                AvatarAnimatorTransform = root.transform,
+                MouthTransform = head.transform,
+            };
+
+            try
+            {
+                _camera.SetFollowTargetPlayer(netId);
+                _camera.SetAutoFollowEnabled(true);
+
+                Assert.That(_camera.TryGetFollowFocusPoint(out Vector3 point), Is.True);
+                Assert.That(_camera.followTargetPlayerId, Is.EqualTo(netId),
+                    "A connected remote must survive the resolve. PlayerSelf is only ever assigned " +
+                    "for the local player, so gating the remote path on it reset the target every frame.");
+                Assert.That(point.x, Is.EqualTo(12f).Within(0.001f));
+                Assert.That(point.y, Is.EqualTo(1.7f).Within(0.001f), "Aim point is the remote's head.");
+                Assert.That(point.z, Is.EqualTo(-4f).Within(0.001f));
+            }
+            finally
+            {
+                BasisNetworkPlayers.RemotePlayers.TryRemove(netId, out _);
+                Object.DestroyImmediate(head);
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void FollowingARemoteWithNoAvatarYet_KeepsTheTarget()
+        {
+            const ushort netId = 8;
+            BasisNetworkPlayers.RemotePlayers[netId] = new BasisRemotePlayer();
+
+            try
+            {
+                _camera.SetFollowTargetPlayer(netId);
+                _camera.SetAutoFollowEnabled(true);
+
+                _camera.TryGetFollowFocusPoint(out _);
+
+                Assert.That(_camera.followTargetPlayerId, Is.EqualTo(netId),
+                    "A remote between avatars has nothing to read yet but is still connected, so " +
+                    "the selection must survive the gap rather than snapping back to the local player.");
+            }
+            finally
+            {
+                BasisNetworkPlayers.RemotePlayers.TryRemove(netId, out _);
+            }
         }
 
         [Test]

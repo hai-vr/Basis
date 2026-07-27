@@ -6677,6 +6677,9 @@ MonoBehaviour:
   focusCursor: {fileID: 5031476817167857582}
   depthOfFieldToggle: {fileID: 3523609784769922076}
   maxRaycastDistance: 1000
+  focusLayers:
+    serializedVersion: 2
+    m_Bits: 4294967291
 --- !u!114 &888522258817766430
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -358,14 +358,22 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// </summary>
     private FollowSubject ResolveFollowSubject()
     {
-        if (followTargetPlayerId != 0 &&
-            Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(followTargetPlayerId, out var remote) &&
-            remote != null && remote.PlayerSelf != null)
+        if (followTargetPlayerId != 0)
         {
-            return ResolveRemoteSubject(remote);
+            if (Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(followTargetPlayerId, out var remote) &&
+                remote != null && !remote.IsDestroyed)
+            {
+                if (TryResolveRemoteSubject(remote, out FollowSubject remoteSubject))
+                {
+                    return remoteSubject;
+                }
+            }
+            else
+            {
+                followTargetPlayerId = 0;
+            }
         }
 
-        followTargetPlayerId = 0;
         return ResolveLocalSubject();
     }
 
@@ -411,17 +419,50 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         };
     }
 
-    private FollowSubject ResolveRemoteSubject(BasisRemotePlayer remote)
+    /// <summary>Nominal root-to-head height used only while a remote has no avatar root to read.</summary>
+    private const float RemoteFallbackHeadHeight = 1.5f;
+
+    /// <summary>
+    /// Resolves a remote's world pose, or false while it has no transforms to read yet — still
+    /// joining, or between avatars — so the caller holds the target instead of dropping it.
+    /// </summary>
+    /// <remarks>
+    /// A remote has no player root object: <c>PlayerSelf</c> is only ever assigned for the local
+    /// player. The root here is the avatar's animator transform, which the remote bone jobs write
+    /// a full world pose to every frame. Its yaw is body facing; the mouth marker's is head
+    /// facing, which would swing the camera every time the subject glanced sideways.
+    /// </remarks>
+    private bool TryResolveRemoteSubject(BasisRemotePlayer remote, out FollowSubject subject)
     {
-        // Remotes are network-interpolated, so PlayerSelf is already smooth — no IK shake to dodge,
+        subject = default;
+
+        Transform root = remote.AvatarAnimatorTransform;
+        Transform headTransform = remote.MouthTransform;
+        if (root == null && headTransform == null)
+        {
+            return false;
+        }
+
+        // Remotes are network-interpolated, so these are already smooth — no IK shake to dodge,
         // and no local T-pose to read, so height comes from the synced head transform when present.
-        remote.PlayerSelf.GetPositionAndRotation(out Vector3 rootPos, out Quaternion rootRot);
+        Vector3 rootPos;
+        Quaternion rootRot;
+        if (root != null)
+        {
+            root.GetPositionAndRotation(out rootPos, out rootRot);
+        }
+        else
+        {
+            headTransform.GetPositionAndRotation(out rootPos, out rootRot);
+            rootPos -= Vector3.up * RemoteFallbackHeadHeight;
+        }
+
         Quaternion yaw = Quaternion.Euler(0f, rootRot.eulerAngles.y, 0f);
+        Vector3 lookPoint = headTransform != null
+            ? headTransform.position
+            : rootPos + Vector3.up * RemoteFallbackHeadHeight;
 
-        Transform headTransform = remote.MouthTransform != null ? remote.MouthTransform : remote.AvatarAnimatorTransform;
-        Vector3 lookPoint = headTransform != null ? headTransform.position : rootPos + Vector3.up * 1.5f;
-
-        return new FollowSubject
+        subject = new FollowSubject
         {
             Valid = true,
             AnchorPos = new Vector3(rootPos.x, lookPoint.y, rootPos.z),
@@ -432,6 +473,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             // Remote avatar scale is not locally known; the default-metre offsets read best at 1.
             Scale = 1f,
         };
+        return true;
     }
 
     /// <summary>Focus point (world head-height of the follow subject) for the DoF auto-focus, or null.</summary>
