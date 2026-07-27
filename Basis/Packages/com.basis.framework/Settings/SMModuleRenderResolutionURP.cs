@@ -75,16 +75,16 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
 
         RenderScale = option;
 
-        BasisDynamicResolution.SetUserRenderScale(option);
+      //  BasisDynamicResolution.SetUserRenderScale(option);
     }
 
     private void HandleDynamicResolution()
     {
-        BasisDynamicResolution.Configure(
-            BasisSettingsDefaults.DynamicResolutionEnabled.RawValue,
-            BasisSettingsDefaults.DynamicResolutionMinimumScale.RawValue,
-            BasisSettingsDefaults.DynamicResolutionMaximumScale.RawValue,
-            BasisSettingsDefaults.DynamicResolutionTargetOverride.RawValue ? BasisSettingsDefaults.DynamicResolutionTargetFrameRate.RawValue : 0f);
+      //  BasisDynamicResolution.Configure(
+       ///     BasisSettingsDefaults.DynamicResolutionEnabled.RawValue,
+        //    BasisSettingsDefaults.DynamicResolutionMinimumScale.RawValue,
+        ////    BasisSettingsDefaults.DynamicResolutionMaximumScale.RawValue,
+        //    BasisSettingsDefaults.DynamicResolutionTargetOverride.RawValue ? BasisSettingsDefaults.DynamicResolutionTargetFrameRate.RawValue : 0f);
     }
 
     private void HandleFoveatedRendering(float value)

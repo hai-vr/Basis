@@ -236,11 +236,6 @@ namespace Basis.EventDriver
                 BasisFrameClock.Tick(unscaledDeltaTime);
             }
 
-            using (Prof.DynamicResolution.Auto())
-            {
-                Basis.Scripts.Rendering.BasisDynamicResolution.Tick();
-            }
-
             if (BasisLocalPlayer.PlayerReady)
             {
                 using (Prof.VisemeSimulate.Auto())

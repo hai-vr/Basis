@@ -52,8 +52,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// arrive without a settings event, such as SteamVR's own automatic resolution adjustment
         /// and external tools writing the per-application resolution directly.
         /// </summary>
-        public static float ResolutionPollInterval = 0.5f;
-        private float ResolutionPollTimer;
+       // public static float ResolutionPollInterval = 0.5f;
+        //private float ResolutionPollTimer;
         private void OnDeviceConnected(uint deviceIndex, bool deviceConnected)
         {
             StartCoroutine(DelayedOnDeviceConnectedCoroutine(deviceIndex, deviceConnected));
@@ -442,9 +442,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             // Reset the persistent eye-texture multiplier so a subsequent OpenXR/Desktop
             // session doesn't inherit OpenVR's headset-native scaling.
             XRSettings.eyeTextureResolutionScale = 1f;
-            BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
-            BasisDynamicResolution.ExternalAllocationOwner = false;
-            BasisDynamicResolution.ResetAppliedState();
+          //  BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
+           // BasisDynamicResolution.ExternalAllocationOwner = false;
+           // BasisDynamicResolution.ResetAppliedState();
             SteamVR.SafeDispose();
 
             if (SteamVR_BehaviourGameobject != null)
@@ -500,9 +500,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             if (State)
             {
                 BasisDebug.Log("SteamVR SDK started successfully.");
-                BasisDynamicResolution.ExternalAllocationOwner = true;
-                BasisDynamicResolution.OnAllocationScaleChanged += OnAllocationScaleChanged;
-                ApplyRecommendedRenderResolution();
+             //   BasisDynamicResolution.ExternalAllocationOwner = true;
+             //   BasisDynamicResolution.OnAllocationScaleChanged += OnAllocationScaleChanged;
+               // ApplyRecommendedRenderResolution();
                 if (CutUnityXRInputSubsystems)
                 {
                     StopUnityXRInputSubsystems();
@@ -515,6 +515,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
               await  BasisDeviceManagement.Instance.SwitchSetModeToDefault();
             }
         }
+        /*
         /// <summary>
         /// Pulls SteamVR's grown recommended render target (which factors in the lens
         /// distortion overlap between eyes) and bakes it into XRSettings.eyeTextureResolutionScale.
@@ -565,16 +566,16 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             XRSettings.eyeTextureResolutionScale = scale;
             BasisDebug.Log($"OpenVR resolution: eye texture scaled {scale:F3}× to {targetMax:F0} (compositor {recommendedMax:F0}, allocation {BasisDynamicResolution.AllocationScale:F2}, was {currentMax:F0})", BasisDebug.LogTag.Device);
         }
-
+        */
         private void PollRecommendedRenderResolution()
         {
-            ResolutionPollTimer += Time.unscaledDeltaTime;
-            if (ResolutionPollTimer < ResolutionPollInterval)
-            {
-                return;
-            }
-            ResolutionPollTimer = 0f;
-            ApplyRecommendedRenderResolution();
+          //  ResolutionPollTimer += Time.unscaledDeltaTime;
+          //  if (ResolutionPollTimer < ResolutionPollInterval)
+          ////  {
+          //      return;
+          //  }
+           // ResolutionPollTimer = 0f;
+         //   ApplyRecommendedRenderResolution();
         }
         /// <summary>
         /// OpenVR mode reads every pose and button straight from the OpenVR API (compositor poses,
@@ -745,7 +746,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         private void OnDestroy()
         {
-            BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
+        //    BasisDynamicResolution.OnAllocationScaleChanged -= OnAllocationScaleChanged;
             ShutdownInputThread();
         }
 
@@ -788,12 +789,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// </summary>
         private void OnResolutionSettingChanged(VREvent_t vrEvent)
         {
-            ResolutionPollTimer = ResolutionPollInterval;
+           // ResolutionPollTimer = ResolutionPollInterval;
         }
 
         private void OnAllocationScaleChanged()
         {
-            ResolutionPollTimer = ResolutionPollInterval;
+           // ResolutionPollTimer = ResolutionPollInterval;
         }
 
         /// <summary>

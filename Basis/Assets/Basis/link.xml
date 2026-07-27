@@ -6,9 +6,11 @@
     <assembly fullname="Basis.Addon.SnapControls" preserve="all" />
     <assembly fullname="Basis.Developer.Exceptions" preserve="all" />
     <assembly fullname="Basis.Developer.Recorder" preserve="all" />
+    <assembly fullname="Basis.Eerie.Movement" preserve="all" />
     <assembly fullname="Basis.ImagePickup" preserve="all" />
     <assembly fullname="Basis.Integration.AudioLink" preserve="all" />
     <assembly fullname="Basis.Integration.SlimeVR" preserve="all" />
+    <assembly fullname="Basis.Integration.TrackerObjects" preserve="all" />
     <assembly fullname="Basis.OpenLipSync.Runtime" preserve="all" />
     <assembly fullname="Basis.Shims.Samples" preserve="all" />
     <assembly fullname="BasisBundleManagement" preserve="all" />
@@ -36,6 +38,7 @@
     <assembly fullname="BasisServersProvider" preserve="all" />
     <assembly fullname="BasisSettings" preserve="all" />
     <assembly fullname="BasisShims" preserve="all" />
+    <assembly fullname="BasisTrackerObjects" preserve="all" />
     <assembly fullname="BasisVehicles" preserve="all" />
     <assembly fullname="BasisVehiclesNetwork" preserve="all" />
     <assembly fullname="BouncyCastle.Cryptography" preserve="all" />
