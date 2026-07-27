@@ -41,7 +41,7 @@ from the front page, plus a recent VOD from the same channel.
 | --- | --- |
 | YouTube VOD, >360p | Resolves to a **split stream** (capability-selected H.264/VP9/AV1 video-only + AAC or Opus-fallback audio-only), plays paced as on-demand, A/V locked |
 | YouTube VOD, ≤360p (or format-forced) | Single muxed stream, delivery auto-detected |
-| YouTube live | Single HLS playlist, plays as live |
+| YouTube live | Single HLS playlist, joining near the live edge. Worth re-running after any HLS change: unlike Twitch, the media playlist lists the entire DVR window — thousands of segments, several MB of text, segment URIs past 1 KB — so it is the lane that exercises the parser's size limits |
 | Twitch live | HLS live; join near the live edge |
 | Twitch VOD | HLS VOD |
 | Format selection, VP9-capable platform without AV1 decode | A 4K upload resolves to the **VP9 video-only rung up to 2160p** (WebM or MP4 carriage) + `mp4a` audio as a split stream; a 1080p-max upload still resolves to `avc1` (avc1 wins at equal height) |
