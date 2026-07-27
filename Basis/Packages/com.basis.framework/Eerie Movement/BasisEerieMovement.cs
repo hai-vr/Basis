@@ -78,8 +78,6 @@ collisionsEnabled;
         public float elbowDragHz;
         public float leftToeBendDeg, rightToeBendDeg;
         public Vector3 leftToeBendAxis, rightToeBendAxis;
-
-        // Per-bone override slots, indexed identically to BasisFullIKConstraintJob.
         public FixedList512Bytes<Vector3> slotPositions;
         public FixedList512Bytes<Quaternion> slotRotations;
         public FixedList512Bytes<Quaternion> slotOffsets;
@@ -88,7 +86,6 @@ collisionsEnabled;
         public NativeArray<BasisBoneHandle> ChainHeadToSpine;
         public NativeArray<BasisSpineRestFrame> ChainSpineRestFrames;
         public NativeArray<BasisSpineRom> ChainSpineRoms;
-        // optional tuning (can be constants or properties)
         public int spineMaxIterations;
         public float spineTolerance;
         public Vector3 TposeLengthHeadToHips;
@@ -126,8 +123,6 @@ collisionsEnabled;
         public float lordosisExtremeHipsDownMax, lordosisExtremeChestDownMax;
         public float lordosisExtremeHipsDownLookUp, lordosisExtremeChestDownLookUp;
         public float spineCCDRelax, neckMaxConeDeg, spineTwistKeep, spineNeckTwistKeep;
-        // Persistent state for the chest follow spring. [0]=smoothed pos, [1]=velocity. Allocated
-        // in CreateJob, disposed in Destroy. Initialised lazily on first frame to avoid spring kick.
         public NativeArray<Vector3> chestSpringState;
         public NativeArray<int> chestSpringInit;
         public const int k_SwingLeftElbow = 0, k_SwingRightElbow = 1, k_SwingLeftKnee = 2, k_SwingRightKnee = 3, k_SwingCount = 4;
@@ -135,19 +130,11 @@ collisionsEnabled;
         public NativeArray<Vector3> swingLastAxis;
         public NativeArray<Vector3> swingLastTarget;
         public NativeArray<int> swingContinuityInit;
-        // Per-arm torso-collision tag written by SolveHand each frame: 0 = no push, 1 = pushed to the
-        // natural side, 2 = wrong-side full snap. The swing limiter only engages when this changes.
         public NativeArray<int> swingCollided;
-        // Limiter latch per slot: -1 while a collision pop is still easing in, else the last settled tag.
         public NativeArray<int> swingSmoothState;
-        // Per-arm gain-cap state (BasisElbowSwingCapCore): last frame's capped bend + shoulder->hand axis,
-        // and an init flag reset whenever the no-tracker model did not drive the elbow (so it re-seeds).
         public NativeArray<Vector3> swingHintBend;
         public NativeArray<Vector3> swingHintAxis;
-        /// <summary>Last DRAGGED pole per arm — the drag's own state, deliberately not the cap's. See SolveHand.</summary>
         public NativeArray<Vector3> swingHintDrag;
-        /// <summary>Body (hips) rotation when swingHintDrag was stored, so a pure turn can be carried out of
-        /// the drag instead of damped. See BasisElbowDragCore.</summary>
         public NativeArray<Quaternion> swingHintBodyRot;
         public NativeArray<int> swingHintInit;
         public NativeArray<Vector3> legSwivelRaw;
@@ -309,19 +296,7 @@ collisionsEnabled;
                     hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor, up);
                     break;
             }
-
-            // The gaze-invariant trunk cue, shared by everything below that reads torso POSTURE. The HMD sits
-            // forward of the neck pivot, so a pure look-down swings headTargetPos forward and any consumer
-            // that mistakes it for the torso reads a lean that never happened. DistributeSpineBend was fixed
-            // to use this cue; the pelvis stages below were still on the raw head.
             Vector3 neckCue = ComputeNeckCue(headTargetPos);
-
-            // Postural counterbalance: the pelvis travels BACK as the trunk folds forward, so the fold happens
-            // at the hip instead of driving the torso down into itself. Runs before the crouch sit-back and
-            // reports how much of the pose is a forward fold, so the crouch term -- which is driven by head
-            // HEIGHT and therefore cannot tell a squat from a waist-bend -- is faded out by the complement
-            // rather than stacking on top. Gated on the HIPS tracker alone (deliberately narrower than the
-            // crouch gate): a chest tracker measures lean, but the pelvis POSITION is still synthesised here.
             float crouchFade = 1f;
             if (!hasHipsTracker)
             {
@@ -330,13 +305,6 @@ collisionsEnabled;
             }
             hipsTargetPos = ApplyCrouchBodyOffset(stream, headTargetPos, hipsTargetPos, hipDesired, up, crouchFade);
             targetPositionHips = hipsTargetPos;
-
-            // The hinge SYNTHESISES an anterior pelvis pitch on a deep lean so the spine does not swallow the
-            // whole reach -- but only when there is no hip tracker. With one, the pelvis rotation is the
-            // user's OWN, measured, and must feed straight to IK "how we used to" (the hip-tilt-stabilization
-            // that reshaped a tracked pelvis was built and deliberately removed for exactly this reason). The
-            // hip-bob/sway synthesis in BasisLocalRigDriver is gated on the same flag, for the same reason:
-            // do not invent pelvis motion on top of a tracker.
             if (!hasHipsTracker)
             {
                 hipDesired = ApplyHipHinge(stream, neckCue, hipsTargetPos, hipDesired, up);
@@ -382,11 +350,6 @@ collisionsEnabled;
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
         }
-        // CCD root→tip aim across the hips→head chain. Hips is the fixed anchor (the hip pre-pass
-        // already placed it); we rotate spine, chest, neck so the head bone slides onto its target,
-        // then pin the head's rotation to the tracker. Rotation-only — bone lengths are preserved
-        // implicitly because each joint is rotated in place. Convergence parameters live in
-        // spineCache (iterations + squared-position tolerance).
         public void SolveSequentialSpineIK(BasisPoseStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 3)
@@ -406,28 +369,6 @@ collisionsEnabled;
             int maxIters = Mathf.Max(1, spineMaxIterations);
             float tolerance = Mathf.Max(0f, spineTolerance);
             float tolSqr = tolerance * tolerance;
-
-            // ==========================================================================================
-            // THE TAUT BAND. Standing upright, the virtual spine places the hips a full chain length
-            // below the head, so the CCD runs AT the chain's full-extension singularity — and the
-            // mm-scale distance between target and full extension flickers across zero with tracker
-            // noise. BOTH sides of that point stall the loop for all 20 iterations, chasing a point the
-            // chain cannot land on, and every futile sweep re-aims into the frame's noise:
-            //   • target INSIDE reach: a straight chain cannot shorten by aiming; only a bow can, the
-            //     required bow angle goes as sqrt(compression), and nothing constrains its plane — the
-            //     noise picks it, a different plane every frame.
-            //   • target BEYOND reach: the chain pulls straight and the tolerance can never be met, so
-            //     the sweeps churn on, tilting the whole chain into the noise azimuth of the frame.
-            // Measured: a sustained 0.25-0.39 deg/frame neck/chest buzz on either side of the band,
-            // 0.000-0.003 outside it with identical noise — the "head jitters when I stand looking
-            // almost straight ahead" report. Regularize the commanded DISTANCE, keep the direction:
-            // compression is softened through a C1 hinge, so noise-scale compressions leave the chain
-            // taut (where the shipped solve already stalled — measured tip error unchanged to 0.1 mm)
-            // while real compressions pass through with an error that decays as band^2/compression; a
-            // beyond-reach target is brought onto the reach sphere, which is exactly the pose the stall
-            // was already converging to (tip error unchanged), minus the churn. The band scales with
-            // the avatar's own chain. Gated by BasisSpineTautBandTests.
-            // ==========================================================================================
             {
                 Vector3 rootPos = ChainHeadToSpine[chainLen - 1].GetPosition(stream);
                 float chainReach = 0f;
@@ -2308,14 +2249,11 @@ collisionsEnabled;
         }
         public void RescaleTposeScalars(float newScale)
         {
-            if (float.IsNaN(newScale) || float.IsInfinity(newScale) || newScale <= 0f)
+            if (float.IsNaN(newScale) || float.IsInfinity(newScale) || newScale <= 0f || TposeBakeScale <= 0f)
             {
                 return;
             }
-            if (TposeBakeScale <= 0f)
-            {
-                return;
-            }
+
             float k = newScale / TposeBakeScale;
             if (Mathf.Abs(k - 1f) < 1e-6f)
             {
