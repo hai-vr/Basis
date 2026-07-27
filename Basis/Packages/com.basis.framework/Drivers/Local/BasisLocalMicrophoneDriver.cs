@@ -99,6 +99,26 @@ public static class BasisLocalMicrophoneDriver
 
     private static float AgcFrameSeconds => ProcessFrameSize / (float)LocalOpusSettings.MicrophoneSampleRate;
 
+    /// <summary>Live AGC gain in dB, for the audio debug readout. 0 when AGC is off.</summary>
+    public static float AgcGainDb => SMDMicrophone.Current.UseAGC ? _agc.GainDb : 0f;
+
+    /// <summary>Live estimate of the talker's speech level, for the audio debug readout.</summary>
+    public static float AgcSpeechLevel => _agc.SpeechLevel;
+
+    /// <summary>Whether the AGC currently believes it has heard this talker speak.</summary>
+    public static bool AgcHasSpeech => _agc.HasSpeechEstimate;
+
+    /// <summary>The noise floor the gate is currently working against.</summary>
+    public static float GateNoiseFloor => _gateNoiseFloor.NoiseFloor;
+
+    /// <summary>The threshold the gate last used, whether auto-derived or manual.</summary>
+    public static float GateThreshold => _lastGateThreshold;
+
+    private const float AutoGateOverNoise = 2.5f;
+
+    private static readonly BasisNoiseFloorTracker _gateNoiseFloor = new BasisNoiseFloorTracker();
+    private static float _lastGateThreshold;
+
     private static float _noiseGateGain = 0f; // 0 = closed, 1 = open
 
     private static float[] _denoiseDry;
@@ -484,6 +504,8 @@ public static class BasisLocalMicrophoneDriver
         _noiseGateGain = 0f;
 
         _agc.Reset();
+        _gateNoiseFloor.Reset();
+        _lastGateThreshold = 0f;
         _prevAgcAmp = 1f;
 
         if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
@@ -1076,11 +1098,18 @@ public static class BasisLocalMicrophoneDriver
         }
         float frameRms = Mathf.Sqrt((float)(sum / ProcessFrameSize));
 
+        float gateFloor = _gateNoiseFloor.Update(frameRms, AgcFrameSeconds);
+        float threshold = s.AutoNoiseGate
+            ? Mathf.Max(BasisNoiseFloorTracker.MinNoiseFloor, gateFloor * AutoGateOverNoise)
+            : s.NoiseGateThreshold;
+
+        _lastGateThreshold = threshold;
+
         // Smoothing coefficients per frame (20ms frames)
         float attackCoeff = Mathf.Clamp01(s.NoiseGateAttack);
         float releaseCoeff = Mathf.Clamp01(s.NoiseGateRelease);
 
-        if (frameRms > s.NoiseGateThreshold)
+        if (frameRms > threshold)
         {
             // Open gate
             _noiseGateGain = Mathf.Lerp(_noiseGateGain, 1f, attackCoeff);

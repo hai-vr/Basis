@@ -270,7 +270,10 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "settings.tab.trackerlinking", () => SettingsProviderTrackerSettings.TrackerSettingsTab(tabGroup));
             AddLazyTab(tabGroup, "settings.tab.downloadsurls", () => SettingsProviderStorage.DownloadsUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "settings.tab.uistyle", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
-            AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
+            {
+                AddLazyTab(tabGroup, "settings.tab.developer", () => DeveloperTab(tabGroup));
+            }
             if (SettingsProvider.LicensesBuilder != null)
             {
                 AddLazyTab(tabGroup, "settings.tab.thirdpartylicenses", () =>
@@ -601,6 +604,20 @@ namespace Basis.BasisUI
 
             BuildNetworkingSection(container, descriptor);
 
+            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
+                BasisLocalization.Get("settings.general.developer.title"), () =>
+            {
+                PanelToggle toggleShowDeveloperTab = PanelToggle.CreateNewEntry(container);
+                toggleShowDeveloperTab.AssignBinding(BasisSettingsDefaults.ShowDeveloperTab);
+                toggleShowDeveloperTab.Descriptor.SetTitle(BasisLocalization.Get("settings.general.showDeveloperTab"));
+                toggleShowDeveloperTab.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.showDeveloperTab.tooltip"));
+                toggleShowDeveloperTab.OnValueChanged += _ =>
+                {
+                    BasisMainMenu.Close();
+                    OpenToTab("settings.tab.general");
+                };
+            }, false, _ => descriptor.ForceRebuild());
+
             // One reset button for this whole page
             AddResetPageButton(container, "settings.tab.general", ResetGeneralDefaults);
             descriptor.ForceRebuild();
@@ -778,6 +795,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.P2PVoiceBitrateOverride.ResetToDefault();
             BasisSettingsDefaults.P2PVoiceBitrate.ResetToDefault();
             BasisSettingsDefaults.RememberMenuState.ResetToDefault();
+            BasisSettingsDefaults.ShowDeveloperTab.ResetToDefault();
         }
 
         private static PanelSlider _avatarRateSlider;
@@ -1212,12 +1230,13 @@ namespace Basis.BasisUI
             toggleAGC.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.tooltip"));
             toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
 
-            sliderAgcTarget = PanelSlider.CreateEntryAndBind(
-               agcGroup,
-               PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.targetRms"), 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
-               BasisSettingsDefaults.AgcTargetRms);
-            sliderAgcTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.targetRms.tooltip"));
-            sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
+            // Target loudness is fixed in BasisMicrophoneAgc.DefaultTargetRms — see the binding.
+            // sliderAgcTarget = PanelSlider.CreateEntryAndBind(
+            //    agcGroup,
+            //    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.microphone.agc.targetRms"), 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
+            //    BasisSettingsDefaults.AgcTargetRms);
+            // sliderAgcTarget.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.targetRms.tooltip"));
+            // sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
             sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
                agcGroup,
@@ -1240,14 +1259,14 @@ namespace Basis.BasisUI
             sliderAgcRelease.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.agc.release.tooltip"));
             sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
 
-            void AgcTargetChanged(float v)
-            {
-                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
-                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-
-                var s = SMDMicrophone.Current;
-                SMDMicrophone.SetAgcParams(v, s.AgcMaxGainDb, s.AgcAttack, s.AgcRelease);
-            }
+            // void AgcTargetChanged(float v)
+            // {
+            //     if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+            //         SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+            //
+            //     var s = SMDMicrophone.Current;
+            //     SMDMicrophone.SetAgcParams(v, s.AgcMaxGainDb, s.AgcAttack, s.AgcRelease);
+            // }
             void AgcMaxGainChanged(float v)
             {
                 if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
@@ -1273,7 +1292,14 @@ namespace Basis.BasisUI
                 SMDMicrophone.SetAgcParams(s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, v);
             }
 
-            sliderAgcTarget.OnValueChanged += AgcTargetChanged;
+            PanelElementDescriptor agcDebugField =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, agcGroup.ContentParent);
+            agcDebugField.SetTitle(BasisLocalization.Get("settings.microphone.agc.debug"));
+            agcDebugField.SetDescription(BasisLocalization.Get("settings.microphone.agc.debug.listening"));
+            var agcDebugUpdater = agcDebugField.gameObject.AddComponent<Basis.Scripts.UI.UI_Panels.BasisMicAgcDebugUpdater>();
+            agcDebugUpdater.Field = agcDebugField;
+
+            // sliderAgcTarget.OnValueChanged += AgcTargetChanged;
             sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
             sliderAgcAttack.OnValueChanged += AgcAttackChanged;
             sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
@@ -1287,6 +1313,11 @@ namespace Basis.BasisUI
             toggleNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.enable"));
             toggleNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.enable.tooltip"));
             toggleNoiseGate.AssignBinding(BasisSettingsDefaults.UseNoiseGate);
+
+            PanelToggle toggleAutoNoiseGate = PanelToggle.CreateNewEntry(noiseGateGroup);
+            toggleAutoNoiseGate.Descriptor.SetTitle(BasisLocalization.Get("settings.microphone.noiseGate.auto"));
+            toggleAutoNoiseGate.Descriptor.SetTooltip(BasisLocalization.Get("settings.microphone.noiseGate.auto.tooltip"));
+            toggleAutoNoiseGate.AssignBinding(BasisSettingsDefaults.AutoNoiseGate);
 
             sliderNoiseGateThreshold = PanelSlider.CreateEntryAndBind(
                noiseGateGroup,
@@ -1380,11 +1411,12 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.LimitKnee.ResetToDefault();
             BasisSettingsDefaults.DenoiseWet.ResetToDefault();
             BasisSettingsDefaults.DenoiseMakeupDb.ResetToDefault();
-            BasisSettingsDefaults.AgcTargetRms.ResetToDefault();
+            // BasisSettingsDefaults.AgcTargetRms.ResetToDefault();
             BasisSettingsDefaults.AgcMaxGainDb.ResetToDefault();
             BasisSettingsDefaults.AgcAttack.ResetToDefault();
             BasisSettingsDefaults.AgcRelease.ResetToDefault();
             BasisSettingsDefaults.UseNoiseGate.ResetToDefault();
+            BasisSettingsDefaults.AutoNoiseGate.ResetToDefault();
             BasisSettingsDefaults.NoiseGateThreshold.ResetToDefault();
             BasisSettingsDefaults.NoiseGateAttack.ResetToDefault();
             BasisSettingsDefaults.NoiseGateRelease.ResetToDefault();
@@ -1439,8 +1471,8 @@ namespace Basis.BasisUI
                 if (sliderDenoiseMakeup != null)
                     sliderDenoiseMakeup.SetValueWithoutNotify(s.DenoiseMakeupDb);
 
-                if (sliderAgcTarget != null)
-                    sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
+                // if (sliderAgcTarget != null)
+                //     sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
 
                 if (sliderAgcMaxGain != null)
                     sliderAgcMaxGain.SetValueWithoutNotify(s.AgcMaxGainDb);
@@ -2377,8 +2409,74 @@ namespace Basis.BasisUI
             toggleWhiteEdge.AssignBinding(BasisSettingsDefaults.MenuEdgeWhite);
             toggleWhiteEdge.OnValueChanged += (val) => SettingsProviderUIStyle.ApplyEdgeColor(val);
 
+            BuildMenuBackgroundContent(content);
+
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(menuStylesToggle, container, menuStylesStart, false,
                 _ => tabDescriptor?.ForceRebuild());
+        }
+
+        private static void BuildMenuBackgroundContent(RectTransform content)
+        {
+            PanelElementDescriptor backgroundGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, content);
+            backgroundGroup.SetTitle(BasisLocalization.Get("settings.chat.menuBackground.title"));
+
+            AddMenuBackgroundSlider(backgroundGroup, "accentAmount", 0f, 1f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGAccentAmount, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewAccentAmount);
+            AddMenuBackgroundSlider(backgroundGroup, "accentFeather", 0f, 1f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGAccentFeather, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewAccentFeather);
+            AddMenuBackgroundSlider(backgroundGroup, "accentSoftness", 0.25f, 4f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGAccentSoftness, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewAccentSoftness);
+            AddMenuBackgroundSlider(backgroundGroup, "brandGradient", 0f, 1f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGBrandGradient, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewBrandGradient);
+            AddMenuBackgroundSlider(backgroundGroup, "gradientCycle", 2f, 60f, false, 1, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGGradientCycle, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewGradientCycle);
+            AddMenuBackgroundSlider(backgroundGroup, "animationSpeed", 0f, 4f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGAnimationSpeed, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewAnimationSpeed);
+            AddMenuBackgroundSlider(backgroundGroup, "sheen", 0f, 1f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGSheen, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewSheen);
+
+            Color cursorGlowColorInit = Basis.Scripts.UI.BasisUIBackgroundCustomization.ParseColor(BasisSettingsDefaults.MenuBGCursorGlowColor.RawValue)
+                ?? Basis.Scripts.UI.BasisUIBackgroundCustomization.DefaultCursorGlowSwatch;
+            SettingsProviderUIStyle.AddBindingColorPicker(content,
+                BasisLocalization.Get("settings.chat.menuBackground.cursorGlowColor"),
+                BasisSettingsDefaults.MenuBGCursorGlowColor, cursorGlowColorInit,
+                c => Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewCursorGlowColor(c));
+
+            PanelElementDescriptor pointerGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, content);
+            pointerGroup.SetTitle(BasisLocalization.Get("settings.chat.menuBackground.pointer.title"));
+
+            AddMenuBackgroundSlider(pointerGroup, "cursorGlow", 0f, 2f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGCursorGlow, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewCursorGlow);
+            AddMenuBackgroundSlider(pointerGroup, "cursorGlowRadius", 0.02f, 2f, false, 2, ValueDisplayMode.Meters,
+                BasisSettingsDefaults.MenuBGCursorGlowRadius, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewCursorGlowRadius);
+
+            PanelElementDescriptor finishGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, content);
+            finishGroup.SetTitle(BasisLocalization.Get("settings.chat.menuBackground.finish.title"));
+
+            AddMenuBackgroundSlider(finishGroup, "vignette", 0f, 1f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGVignette, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewVignette);
+            AddMenuBackgroundSlider(finishGroup, "exposure", 0.25f, 3f, false, 2, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGExposure, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewExposure);
+            AddMenuBackgroundSlider(finishGroup, "grain", 0f, 16f, false, 1, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGGrain, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewGrain);
+            AddMenuBackgroundSlider(finishGroup, "grainScale", 64f, 4096f, true, 0, ValueDisplayMode.Raw,
+                BasisSettingsDefaults.MenuBGGrainScale, Basis.Scripts.UI.BasisUIBackgroundCustomization.PreviewGrainScale);
+        }
+
+        private static void AddMenuBackgroundSlider(Component parent, string key, float min, float max,
+            bool wholeNumbers, int decimalPlaces, ValueDisplayMode displayMode,
+            BasisSettingsBinding<float> binding, UnityEngine.Events.UnityAction<float> preview)
+        {
+            PanelSlider slider = PanelSlider.CreateEntryAndBind(
+                parent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.chat.menuBackground." + key),
+                    min, max, wholeNumbers, decimalPlaces, displayMode),
+                binding);
+            slider.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.menuBackground." + key + ".tooltip"));
+            slider.SliderComponent.onValueChanged.AddListener(preview);
         }
 
         private static void ResetChatDefaults()
@@ -2397,6 +2495,20 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RaycastLineColor.ResetToDefault();
             BasisSettingsDefaults.HighlightColor.ResetToDefault();
             BasisSettingsDefaults.PickupLineColor.ResetToDefault();
+            BasisSettingsDefaults.MenuBGAccentAmount.ResetToDefault();
+            BasisSettingsDefaults.MenuBGAccentFeather.ResetToDefault();
+            BasisSettingsDefaults.MenuBGAccentSoftness.ResetToDefault();
+            BasisSettingsDefaults.MenuBGBrandGradient.ResetToDefault();
+            BasisSettingsDefaults.MenuBGGradientCycle.ResetToDefault();
+            BasisSettingsDefaults.MenuBGAnimationSpeed.ResetToDefault();
+            BasisSettingsDefaults.MenuBGSheen.ResetToDefault();
+            BasisSettingsDefaults.MenuBGCursorGlowColor.ResetToDefault();
+            BasisSettingsDefaults.MenuBGCursorGlow.ResetToDefault();
+            BasisSettingsDefaults.MenuBGCursorGlowRadius.ResetToDefault();
+            BasisSettingsDefaults.MenuBGVignette.ResetToDefault();
+            BasisSettingsDefaults.MenuBGExposure.ResetToDefault();
+            BasisSettingsDefaults.MenuBGGrain.ResetToDefault();
+            BasisSettingsDefaults.MenuBGGrainScale.ResetToDefault();
             SettingsProviderUIStyle.ResetUIStyleDefaults();
             SettingsProviderNamePlate.ResetNamePlateDefaults();
         }

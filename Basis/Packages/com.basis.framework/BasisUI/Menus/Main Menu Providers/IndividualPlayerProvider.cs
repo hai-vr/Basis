@@ -572,6 +572,25 @@ namespace Basis.BasisUI
                 }
             };
 
+            // ---- Loudness normalisation (receive-side, per player) ----
+            PanelToggle normalizeToggle = PanelToggle.CreateNewEntry(audioGroup.ContentParent);
+            normalizeToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.normalizeLoudness"));
+            normalizeToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.normalizeLoudness.description"));
+            normalizeToggle.SetValueWithoutNotify(settings.NormalizeLoudness);
+
+            normalizeToggle.OnValueChanged += async enabled =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.NormalizeLoudness = enabled;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                if (remotePlayer != null && remotePlayer.NetworkReceiver != null &&
+                    remotePlayer.NetworkReceiver.AudioReceiverModule != null)
+                {
+                    remotePlayer.NetworkReceiver.AudioReceiverModule.NormalizeLoudness = enabled;
+                }
+            };
+
             // ---- Mute toggle (audio-only, separate from full block) ----
             PanelButton muteBtn = PanelButton.CreateNew(audioGroup.ContentParent);
             muteBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.VolumeLevel <= 0f ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));

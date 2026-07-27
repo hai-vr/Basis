@@ -49,6 +49,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> RememberMenuState = new("remembermenustate", new BasisPlatformDefault<bool>(true));
 
+        public static BasisSettingsBinding<bool> ShowDeveloperTab = new("showdevelopertab", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> CustomScale = new("customscale", new BasisPlatformDefault<bool>(false));
 
         // Key bumped to _v2: BasisSettingsSystem.LoadString persists a default the first time it is read, so
@@ -1711,7 +1713,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> DenoiseWet = new("denoisewet", new BasisPlatformDefault<float>(1f)); // 0..1
 
 
-        public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrmsv2", new BasisPlatformDefault<float>(0.1f)); // ~ -20 dBFS
+        // Target loudness is fixed in BasisMicrophoneAgc.DefaultTargetRms — it only equalises
+        // people if everyone agrees on it, so it is not user-tunable.
+        // public static BasisSettingsBinding<float> AgcTargetRms = new("agctargetrmsv2", new BasisPlatformDefault<float>(0.1f)); // ~ -20 dBFS
 
         public static BasisSettingsBinding<float> AgcMaxGainDb = new("agcdbgainmaxv2", new BasisPlatformDefault<float>(24f));
 
@@ -1739,6 +1743,22 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> UIPaletteScrollbar = new("ui_palette_scrollbar", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<bool> MenuEdgeWhite = new("menu_edge_white", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- MENU BACKGROUND ----------------
+        public static BasisSettingsBinding<float> MenuBGAccentAmount = new("menubg_accentamount", new BasisPlatformDefault<float>(0.2f));
+        public static BasisSettingsBinding<float> MenuBGAccentFeather = new("menubg_accentfeather", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGAccentSoftness = new("menubg_accentsoftness", new BasisPlatformDefault<float>(1.75f));
+        public static BasisSettingsBinding<float> MenuBGBrandGradient = new("menubg_brandgradient", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGGradientCycle = new("menubg_gradientcycle", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> MenuBGAnimationSpeed = new("menubg_animationspeed", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> MenuBGSheen = new("menubg_sheen", new BasisPlatformDefault<float>(0.135f));
+        public static BasisSettingsBinding<string> MenuBGCursorGlowColor = new("menubg_cursorglowcolor", new BasisPlatformDefault<string>(""));
+        public static BasisSettingsBinding<float> MenuBGCursorGlow = new("menubg_cursorglow", new BasisPlatformDefault<float>(0.18f));
+        public static BasisSettingsBinding<float> MenuBGCursorGlowRadius = new("menubg_cursorglowradius", new BasisPlatformDefault<float>(0.3f));
+        public static BasisSettingsBinding<float> MenuBGVignette = new("menubg_vignette", new BasisPlatformDefault<float>(0.4f));
+        public static BasisSettingsBinding<float> MenuBGExposure = new("menubg_exposure", new BasisPlatformDefault<float>(0.84f));
+        public static BasisSettingsBinding<float> MenuBGGrain = new("menubg_grain", new BasisPlatformDefault<float>(3f));
+        public static BasisSettingsBinding<float> MenuBGGrainScale = new("menubg_grainscale", new BasisPlatformDefault<float>(900f));
+
         // ---------------- MIRROR ----------------
         public static BasisSettingsBinding<bool> UseMirrorQualityOverride = new("usemirrorqualityoverride", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<string> MirrorQuality = new("mirrorquality", new BasisPlatformDefault<string>("2048"));
@@ -1750,6 +1770,7 @@ namespace Basis.BasisUI
 
         // Noise Gate
         public static BasisSettingsBinding<bool> UseNoiseGate = new("usenoisegate", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> AutoNoiseGate = new("autonoisegate", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> NoiseGateThreshold = new("noisegatethreshold", new BasisPlatformDefault<float>(0.01f)); // RMS threshold
         public static BasisSettingsBinding<float> NoiseGateAttack = new("noisegateattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
         public static BasisSettingsBinding<float> NoiseGateRelease = new("noisegaterelease", new BasisPlatformDefault<float>(0.05f)); // 0..1
@@ -1794,11 +1815,12 @@ namespace Basis.BasisUI
             UseAutomaticGain.LoadBindingValue();
             DenoiseMakeupDb.LoadBindingValue();
             DenoiseWet.LoadBindingValue();
-            AgcTargetRms.LoadBindingValue();
+            // AgcTargetRms.LoadBindingValue();
             AgcMaxGainDb.LoadBindingValue();
             AgcAttack.LoadBindingValue();
             AgcRelease.LoadBindingValue();
             UseNoiseGate.LoadBindingValue();
+            AutoNoiseGate.LoadBindingValue();
             NoiseGateThreshold.LoadBindingValue();
             NoiseGateAttack.LoadBindingValue();
             NoiseGateRelease.LoadBindingValue();
@@ -2062,6 +2084,7 @@ namespace Basis.BasisUI
 
             // UI
             RememberMenuState.LoadBindingValue();
+            ShowDeveloperTab.LoadBindingValue();
             AvatarPreview.LoadBindingValue();
             AvatarPreviewMirror.LoadBindingValue();
             CameraHud.LoadBindingValue();
@@ -2467,6 +2490,22 @@ namespace Basis.BasisUI
             UIPaletteDanger.LoadBindingValue();
             UIPaletteScrollbar.LoadBindingValue();
             MenuEdgeWhite.LoadBindingValue();
+
+            // Menu Background
+            MenuBGAccentAmount.LoadBindingValue();
+            MenuBGAccentFeather.LoadBindingValue();
+            MenuBGAccentSoftness.LoadBindingValue();
+            MenuBGBrandGradient.LoadBindingValue();
+            MenuBGGradientCycle.LoadBindingValue();
+            MenuBGAnimationSpeed.LoadBindingValue();
+            MenuBGSheen.LoadBindingValue();
+            MenuBGCursorGlowColor.LoadBindingValue();
+            MenuBGCursorGlow.LoadBindingValue();
+            MenuBGCursorGlowRadius.LoadBindingValue();
+            MenuBGVignette.LoadBindingValue();
+            MenuBGExposure.LoadBindingValue();
+            MenuBGGrain.LoadBindingValue();
+            MenuBGGrainScale.LoadBindingValue();
 
             RaycastLineWidth.LoadBindingValue();
             RaycastLineColor.LoadBindingValue();

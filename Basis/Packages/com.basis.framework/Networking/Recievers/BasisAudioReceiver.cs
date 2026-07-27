@@ -160,6 +160,38 @@ namespace Basis.Scripts.Networking.Receivers
         /// <summary>Current per-player volume (your slider × block/mute), 0..1. Read by the audio debug gizmos.</summary>
         public float PerPlayerVolume => _perPlayerVolume;
 
+        // Receive-side loudness normalisation. Owned and stepped ENTIRELY on the audio
+        // thread inside ApplyGainAndWrite — the main thread only ever flips the volatile
+        // enable flag, and the reset request, so nothing here needs a lock and nothing
+        // allocates. Equalises talkers whose own client has AGC off or is on an old build.
+        private readonly BasisMicrophoneAgc _normalizer = new BasisMicrophoneAgc();
+        private BasisMicrophoneAgc.Settings _normalizerSettings = new BasisMicrophoneAgc.Settings
+        {
+            TargetRms = BasisMicrophoneAgc.DefaultTargetRms,
+            MaxBoostDb = 18f,
+            Attack01 = 0.75f,
+            Release01 = 0.85f,
+            Headroom = 0.98f,
+        };
+        private volatile bool _normalizeLoudness;
+        private volatile bool _normalizerResetRequested;
+        private float _normalizerAmp = 1f;
+
+        /// <summary>Per-player: normalise this talker's incoming loudness. Set from the main thread.</summary>
+        public bool NormalizeLoudness
+        {
+            get => _normalizeLoudness;
+            set
+            {
+                if (_normalizeLoudness == value) return;
+                _normalizeLoudness = value;
+                _normalizerResetRequested = true;
+            }
+        }
+
+        /// <summary>Gain the receive-side normaliser is currently applying, in dB. Read by the audio debug gizmos.</summary>
+        public float NormalizerGainDb => _normalizeLoudness ? _normalizer.GainDb : 0f;
+
         // ==================== Packet arrival ====================
 
         public void Insert(AudioSegmentDataMessage msg)
@@ -540,6 +572,7 @@ namespace Basis.Scripts.Networking.Receivers
                 // RemotePlayer field instead of repeating `is BasisRemotePlayer`.
                 bool tempBlocked = networkedPlayer.RemotePlayer.TempBlocked;
                 bool muted = settings.IsBlocked || tempBlocked;
+                NormalizeLoudness = settings.NormalizeLoudness;
                 ChangeRemotePlayersVolumeSettings(muted ? 0f : settings.VolumeLevel);
             }
             catch (Exception ex)
@@ -1119,6 +1152,11 @@ namespace Basis.Scripts.Networking.Receivers
             float gain = _lastGain;
             float env = _fadeEnvelope;
 
+            float normStart = _normalizerAmp;
+            float normEnd = StepNormalizer(source, frames);
+            float normStep = (normEnd - normStart) / Mathf.Max(1, frames);
+            float norm = normStart;
+
             int idx = 0;
             float lastWritten = 0f;
             float blockPeak = 0f;
@@ -1132,11 +1170,12 @@ namespace Basis.Scripts.Networking.Receivers
                 float raw = source[f];
                 float absRaw = raw < 0f ? -raw : raw;
                 if (absRaw > blockPeak) blockPeak = absRaw;
-                float sample = SoftLimit(raw * gain * env);
+                float sample = SoftLimit(raw * norm * gain * env);
                 for (int c = 0; c < channels; c++)
                     data[idx++] = sample;
                 lastWritten = sample;
                 gain += gainStep;
+                norm += normStep;
             }
 
             // Peak meter: instant attack to this callback's loudest sample, otherwise
@@ -1145,8 +1184,45 @@ namespace Basis.Scripts.Networking.Receivers
             SourcePeak = blockPeak > SourcePeak ? blockPeak : SourcePeak * MeterReleaseFactor;
 
             _lastGain = targetGain;
+            _normalizerAmp = normEnd;
             _fadeEnvelope = env;
             _lastOutputSample = lastWritten;
+        }
+
+        /// <summary>
+        /// Advances the receive-side normaliser by one audio callback and returns the gain
+        /// to ramp to. Audio thread only. Measures the decoded signal BEFORE per-player
+        /// volume and distance dampening, so the estimate tracks how loud the talker
+        /// actually is rather than how loud they are to you right now.
+        /// </summary>
+        private float StepNormalizer(ReadOnlySpan<float> source, int frames)
+        {
+            if (_normalizerResetRequested)
+            {
+                _normalizerResetRequested = false;
+                _normalizer.Reset();
+                _normalizerAmp = 1f;
+            }
+
+            if (!_normalizeLoudness || frames <= 0)
+            {
+                return 1f;
+            }
+
+            double sumSq = 0.0;
+            float peak = 0f;
+            for (int f = 0; f < frames; f++)
+            {
+                float v = source[f];
+                sumSq += (double)v * v;
+                float magnitude = v < 0f ? -v : v;
+                if (magnitude > peak) peak = magnitude;
+            }
+
+            float frameRms = Mathf.Sqrt((float)(sumSq / frames));
+            int rate = outputSampleRate > 0 ? outputSampleRate : RemoteOpusSettings.NetworkSampleRate;
+
+            return _normalizer.Process(frameRms, peak, _normalizerSettings, frames / (float)rate);
         }
     }
 }

@@ -2,7 +2,7 @@
     "name": "Basis.Eerie.Movement.Editor",
     "rootNamespace": "Basis.IK",
     "references": [
-        "Basis Framework",
+        "Basis.Eerie.Movement",
         "Unity.Mathematics",
         "Unity.Collections"
     ],

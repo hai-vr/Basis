@@ -1,6 +1,85 @@
 using UnityEngine;
 
 /// <summary>
+/// Minimum-statistics noise floor: the quietest frame seen across a sliding window of
+/// blocks. Fast to fall, effectively immune to being dragged up by sustained speech.
+/// Shared by the AGC's speech gate and the microphone noise gate, which needs its own
+/// instance fed from PRE-gate audio — feeding it post-gate closes a loop where a shut
+/// gate collapses the floor, which reopens the gate.
+/// </summary>
+public sealed class BasisNoiseFloorTracker
+{
+    public const float MinNoiseFloor = 1e-5f;
+
+    private const int BlockCount = 6;
+    private const float BlockSeconds = 0.4f;
+
+    private readonly float[] _blocks = new float[BlockCount];
+    private int _blockIndex;
+    private int _blocksFilled;
+    private float _blockMin;
+    private float _blockTimer;
+
+    public float NoiseFloor { get; private set; }
+
+    public BasisNoiseFloorTracker()
+    {
+        Reset();
+    }
+
+    public void Reset()
+    {
+        for (int i = 0; i < BlockCount; i++)
+        {
+            _blocks[i] = 0f;
+        }
+
+        _blockIndex = 0;
+        _blocksFilled = 0;
+        _blockMin = float.MaxValue;
+        _blockTimer = 0f;
+        NoiseFloor = MinNoiseFloor;
+    }
+
+    public float Update(float frameRms, float frameSeconds)
+    {
+        if (frameRms < _blockMin)
+        {
+            _blockMin = frameRms;
+        }
+
+        _blockTimer += frameSeconds;
+
+        if (_blockTimer >= BlockSeconds)
+        {
+            _blockTimer = 0f;
+            _blocks[_blockIndex] = _blockMin;
+            _blockIndex = (_blockIndex + 1) % BlockCount;
+
+            if (_blocksFilled < BlockCount)
+            {
+                _blocksFilled++;
+            }
+
+            _blockMin = float.MaxValue;
+        }
+
+        float floor = _blockMin;
+
+        for (int i = 0; i < _blocksFilled; i++)
+        {
+            if (_blocks[i] < floor)
+            {
+                floor = _blocks[i];
+            }
+        }
+
+        NoiseFloor = Mathf.Max(MinNoiseFloor, floor);
+        return NoiseFloor;
+    }
+}
+
+/// <summary>
 /// Speech-level normaliser for the local microphone chain. Estimates the level of the
 /// talker's voice (not the level of the frame) and holds a gain that lands that voice on
 /// <see cref="Settings.TargetRms"/>, so two people with very different microphones and
@@ -17,13 +96,16 @@ public sealed class BasisMicrophoneAgc
         public float Headroom;
     }
 
+    /// <summary>
+    /// Target speech RMS, deliberately NOT user-tunable: it is the one number every client
+    /// has to agree on for "everyone the same loudness" to mean anything. The receive-side
+    /// normaliser uses it too.
+    /// </summary>
+    public const float DefaultTargetRms = 0.1f;
+
     public const float MaxCutDb = 24f;
     public const float SpeechOverNoise = 4f;
     public const float MinSpeechRms = 1e-4f;
-
-    private const int NoiseBlockCount = 6;
-    private const float NoiseBlockSeconds = 0.4f;
-    private const float MinNoiseFloor = 1e-5f;
 
     private const float LevelRiseSeconds = 0.08f;
     private const float LevelFallSeconds = 0.6f;
@@ -39,11 +121,7 @@ public sealed class BasisMicrophoneAgc
     private const float SettleReleaseSeconds = 0.10f;
     private const float HoldSeconds = 0.4f;
 
-    private readonly float[] _noiseBlocks = new float[NoiseBlockCount];
-    private int _noiseBlockIndex;
-    private int _noiseBlocksFilled;
-    private float _noiseBlockMin;
-    private float _noiseBlockTimer;
+    private readonly BasisNoiseFloorTracker _noiseFloor = new BasisNoiseFloorTracker();
 
     private float _gainDb;
     private float _speechLevel;
@@ -55,7 +133,7 @@ public sealed class BasisMicrophoneAgc
     public float GainDb => _gainDb;
     public float Gain => DbToAmp(_gainDb);
     public float SpeechLevel => _speechLevel;
-    public float NoiseFloor { get; private set; }
+    public float NoiseFloor => _noiseFloor.NoiseFloor;
     public bool HasSpeechEstimate => _hasSpeech;
 
     public BasisMicrophoneAgc()
@@ -69,17 +147,8 @@ public sealed class BasisMicrophoneAgc
     /// </summary>
     public void Reset()
     {
-        for (int i = 0; i < NoiseBlockCount; i++)
-        {
-            _noiseBlocks[i] = 0f;
-        }
+        _noiseFloor.Reset();
 
-        _noiseBlockIndex = 0;
-        _noiseBlocksFilled = 0;
-        _noiseBlockMin = float.MaxValue;
-        _noiseBlockTimer = 0f;
-
-        NoiseFloor = MinNoiseFloor;
         _gainDb = 0f;
         _speechLevel = 0f;
         _holdTimer = 0f;
@@ -104,7 +173,7 @@ public sealed class BasisMicrophoneAgc
         float maxBoostDb = Mathf.Max(0f, settings.MaxBoostDb);
         float headroom = settings.Headroom > 0f ? settings.Headroom : 1f;
 
-        UpdateNoiseFloor(frameRms, frameSeconds);
+        float noiseFloor = _noiseFloor.Update(frameRms, frameSeconds);
 
         if (_holdTimer > 0f)
         {
@@ -116,7 +185,7 @@ public sealed class BasisMicrophoneAgc
             _settleTimer -= frameSeconds;
         }
 
-        bool aboveNoise = frameRms > MinSpeechRms && frameRms > NoiseFloor * SpeechOverNoise;
+        bool aboveNoise = frameRms > MinSpeechRms && frameRms > noiseFloor * SpeechOverNoise;
 
         if (aboveNoise)
         {
@@ -174,42 +243,6 @@ public sealed class BasisMicrophoneAgc
         }
 
         return amp;
-    }
-
-    private void UpdateNoiseFloor(float frameRms, float frameSeconds)
-    {
-        if (frameRms < _noiseBlockMin)
-        {
-            _noiseBlockMin = frameRms;
-        }
-
-        _noiseBlockTimer += frameSeconds;
-
-        if (_noiseBlockTimer >= NoiseBlockSeconds)
-        {
-            _noiseBlockTimer = 0f;
-            _noiseBlocks[_noiseBlockIndex] = _noiseBlockMin;
-            _noiseBlockIndex = (_noiseBlockIndex + 1) % NoiseBlockCount;
-
-            if (_noiseBlocksFilled < NoiseBlockCount)
-            {
-                _noiseBlocksFilled++;
-            }
-
-            _noiseBlockMin = float.MaxValue;
-        }
-
-        float floor = _noiseBlockMin;
-
-        for (int i = 0; i < _noiseBlocksFilled; i++)
-        {
-            if (_noiseBlocks[i] < floor)
-            {
-                floor = _noiseBlocks[i];
-            }
-        }
-
-        NoiseFloor = Mathf.Max(MinNoiseFloor, floor);
     }
 
     private static float DesiredDb(float target, float level, float maxBoostDb)

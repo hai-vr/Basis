@@ -1,9 +1,8 @@
 {
-    "name": "Basis.Framework.IK.Tests",
+    "name": "Basis.Framework.Tests",
     "rootNamespace": "",
     "references": [
         "Basis Framework",
-        "Basis.Eerie.Movement.Editor",
         "BasisCommon",
         "BasisGizmos",
         "Unity.TextMeshPro",

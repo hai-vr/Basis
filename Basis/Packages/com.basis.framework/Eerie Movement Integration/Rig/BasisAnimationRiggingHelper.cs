@@ -38,7 +38,7 @@ public static class BasisAnimationRiggingHelper
     /// </summary>
     public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, BasisTransformMapping Mapping, ref BasisEerieMovement job)
     {
-        job.SetDefaultValues();
+        BasisEerieMovementSetup.SetDefaultValues(ref job);
         // Head
         Quaternion avatarRootInv = Quaternion.Inverse(player.AvatarTransform.rotation);
         job.offsetRotationHead = Mapping.Hashead ? avatarRootInv * Mapping.head.rotation : Quaternion.identity;

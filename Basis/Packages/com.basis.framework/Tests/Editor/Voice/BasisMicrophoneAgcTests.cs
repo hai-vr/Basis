@@ -285,6 +285,109 @@ namespace Basis.Tests.Voice
         }
 
         [Test]
+        public void NoiseFloorTracker_FindsTheRoomFloorAndIsNotDraggedUpBySpeech()
+        {
+            var tracker = new BasisNoiseFloorTracker();
+            var talker = new Talker(0.05f, 0.002f, 30);
+            float[] frame = new float[FrameSize];
+
+            for (int f = 0; f < 500; f++)
+            {
+                bool speaking = (f % (SpeakFrames + PauseFrames)) < SpeakFrames;
+                talker.Fill(frame, f, speaking);
+
+                double sumSq = 0.0;
+                for (int i = 0; i < FrameSize; i++) sumSq += (double)frame[i] * frame[i];
+
+                tracker.Update(Mathf.Sqrt((float)(sumSq / FrameSize)), FrameSeconds);
+            }
+
+            Assert.Less(Mathf.Abs(Db(tracker.NoiseFloor, 0.002f)), 4f,
+                $"tracked floor {tracker.NoiseFloor:F5} vs actual room noise 0.002");
+        }
+
+        [Test]
+        public void NoiseFloorTracker_RisesWhenTheRoomGetsLouder()
+        {
+            var tracker = new BasisNoiseFloorTracker();
+
+            for (int f = 0; f < 100; f++) tracker.Update(0.001f, FrameSeconds);
+            float quiet = tracker.NoiseFloor;
+
+            for (int f = 0; f < 200; f++) tracker.Update(0.02f, FrameSeconds);
+
+            Assert.Less(quiet, 0.002f);
+            Assert.Greater(tracker.NoiseFloor, 0.01f, "floor never followed the room getting louder");
+        }
+
+        [TestCase(1024, 48000)]
+        [TestCase(512, 48000)]
+        [TestCase(1024, 44100)]
+        [TestCase(256, 16000)]
+        public void ConvergesAtReceiverCallbackSizes(int callbackFrames, int sampleRate)
+        {
+            var agc = new BasisMicrophoneAgc();
+            var settings = DefaultSettings();
+            var talker = new Talker(0.02f, 0.02f * 0.02f, 40);
+
+            float callbackSeconds = callbackFrames / (float)sampleRate;
+            int totalCallbacks = Mathf.CeilToInt(15f / callbackSeconds);
+            int measureFrom = Mathf.CeilToInt(10f / callbackSeconds);
+
+            float[] frame = new float[FrameSize];
+            double measuredSumSq = 0.0;
+            long measuredCount = 0;
+
+            for (int c = 0; c < totalCallbacks; c++)
+            {
+                float t = c * callbackSeconds;
+                bool speaking = (t % 3.2f) < 2.5f;
+                talker.Fill(frame, c, speaking);
+
+                double sumSq = 0.0;
+                float peak = 0f;
+                for (int i = 0; i < FrameSize; i++)
+                {
+                    float v = frame[i];
+                    sumSq += (double)v * v;
+                    float magnitude = v < 0f ? -v : v;
+                    if (magnitude > peak) peak = magnitude;
+                }
+
+                float frameRms = Mathf.Sqrt((float)(sumSq / FrameSize));
+                float amp = agc.Process(frameRms, peak, settings, callbackSeconds);
+
+                if (speaking && c >= measureFrom)
+                {
+                    float outRms = frameRms * amp;
+                    measuredSumSq += (double)outRms * outRms;
+                    measuredCount++;
+                }
+            }
+
+            float settled = measuredCount > 0 ? Mathf.Sqrt((float)(measuredSumSq / measuredCount)) : 0f;
+            float offset = Db(settled, TargetRms);
+
+            Assert.Greater(offset, -9f, $"{callbackFrames}@{sampleRate} settled at {settled:F4}");
+            Assert.Less(offset, 2f, $"{callbackFrames}@{sampleRate} settled at {settled:F4}");
+        }
+
+        [Test]
+        public void PlayerSettingsUpgrade_TurnsNormalizationOnForOlderRecords()
+        {
+            var legacy = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = 5, NormalizeLoudness = false };
+            legacy.UpgradeSchema();
+
+            Assert.IsTrue(legacy.NormalizeLoudness, "upgraded record did not opt in to normalization");
+            Assert.AreEqual(BasisPlayerSettingsData.CurrentVersion, legacy.Version);
+
+            var current = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = BasisPlayerSettingsData.CurrentVersion, NormalizeLoudness = false };
+            current.UpgradeSchema();
+
+            Assert.IsFalse(current.NormalizeLoudness, "a current-version opt-out was overwritten");
+        }
+
+        [Test]
         public void ZeroBoostCeiling_LeavesAQuietTalkerAlone()
         {
             var agc = new BasisMicrophoneAgc();

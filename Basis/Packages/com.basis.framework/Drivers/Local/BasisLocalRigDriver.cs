@@ -244,7 +244,7 @@ namespace Basis.Scripts.Drivers
             LocomotionPose.CompleteIfPending();
             PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
-            IKJob.Create(PoseSkeleton, basisTransformMapping);
+            BasisEerieMovementSetup.Create(ref IKJob, PoseSkeleton, basisTransformMapping);
             IKJobCreated = true;
 
             ResetSmoothingState();

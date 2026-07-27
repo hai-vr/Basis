@@ -349,7 +349,7 @@
     { "key": "projectSetup.header.title", "value": "Assistant de Projet Basis" },
     { "key": "projectSetup.header.subtitle", "value": "Créateur d'Abord • Liberté Créative\nOpen-Source (MIT) • Réseau • Entrée • Présence" },
     { "key": "projectSetup.tab.welcome", "value": "Bienvenue" },
-    { "key": "projectSetup.tab.buildModules", "value": "Build & Modules" },
+    { "key": "projectSetup.tab.buildModules", "value": "Build et modules" },
     { "key": "projectSetup.tab.platformQuality", "value": "Plateforme & Qualité" },
     { "key": "projectSetup.tab.playXR", "value": "Lecture & XR" },
     { "key": "projectSetup.tab.docs", "value": "Docs" },
