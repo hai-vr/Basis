@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "Please resolve the following issues, or consult the documentation. \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "Eye Position Gizmo {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "Mouth Position Gizmo {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "Eye Position" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "Mouth Position" },
+    { "key": "sdk.avatar.position.height", "value": "Height" },
+    { "key": "sdk.avatar.position.forward", "value": "Forward" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "Reimporting Models (Mesh LODs)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "請解決以下問題，或參閱文件。\n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "眼睛位置 Gizmo {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "嘴巴位置 Gizmo {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "眼睛位置" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "嘴巴位置" },
+    { "key": "sdk.avatar.position.height", "value": "高度" },
+    { "key": "sdk.avatar.position.forward", "value": "前向" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "重新匯入模型（Mesh LOD）" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}：{2}" },
 

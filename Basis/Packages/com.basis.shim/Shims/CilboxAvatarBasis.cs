@@ -19,6 +19,12 @@ namespace Cilbox
 			"Basis.Shims.BasisPlayspaceInputShim", // Restrictive, see method whitelist.
 			"Basis.Shims.BasisPlayerInputBlend",
 			"Basis.Shims.BasisVixxyShim", // Restrictive, see method whitelist.
+			// Bulk transform / blendshape get-set-copy. The prop and scene boxes pick these up
+			// from their blanket "Basis.Shims.*"; the avatar box enumerates, so they need naming.
+			// They grant no authority a script does not already have on a Transform or a
+			// SkinnedMeshRenderer it holds — only the per-call reflection overhead changes.
+			"Basis.Shims.BasisTransformSyncShim",
+			"Basis.Shims.BasisBlendShapeSyncShim",
 
 			// HVR Vixxy
 			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.

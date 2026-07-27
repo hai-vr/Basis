@@ -176,8 +176,75 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f84144c055f881f4797d59bd2802d4a4, type: 3}
+--- !u!1 &2106441920
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2106441922}
+  - component: {fileID: 2106441921}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2106441921
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2106441920}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d50560fa4580c0743ae88a61a873ea83, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisSDK::Basis.Scripts.BasisSdk.BasisAvatar
+  BasisBundleDescription:
+    AssetBundleName: 
+    AssetBundleDescription: 
+    AssetBundleIcon: {fileID: 0}
+    Tags: []
+  Animator: {fileID: 0}
+  FaceVisemeMesh: {fileID: 0}
+  FaceBlinkMesh: {fileID: 0}
+  AvatarEyePosition: {x: 0, y: 0}
+  AvatarMouthPosition: {x: 0, y: 0}
+  EyeLiveliness: 0.5
+  EyeAttentiveness: 0.5
+  FaceVisemeMovement: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  BlinkViseme: ffffffff
+  laughterBlendTarget: -1
+  AnimatorHumanScale: {x: 1, y: 1, z: 1}
+  Renders: []
+  TransformStorage:
+    HumanoidBones: []
+  ProcessingAvatarOptions:
+    doNotAutoRenameBones: 0
+  HumanScale: 1
+--- !u!4 &2106441922
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2106441920}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.57245, y: -1.55, z: 0.86856}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1187098623}
+  - {fileID: 2106441922}

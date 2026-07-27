@@ -66,6 +66,29 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     private int _cachedHandId;
     private Transform _cachedHand;
 
+    private bool _authoredKinematic;
+    private bool _authoredKinematicLatched;
+
+    /// <summary>
+    /// The resting <see cref="Rigidbody.isKinematic"/> this prop returns to when it isn't held, remotely
+    /// driven, or <see cref="IsStatic"/>. Latched from the Rigidbody on load; set it to re-baseline a prop
+    /// whose kinematic state is decided at runtime.
+    /// </summary>
+    public bool AuthoredKinematic
+    {
+        get
+        {
+            LatchAuthoredKinematic();
+            return _authoredKinematic;
+        }
+        set
+        {
+            _authoredKinematic = value;
+            _authoredKinematicLatched = true;
+            ControlState();
+        }
+    }
+
     private void Reset()
     {
         Target = transform;
@@ -86,10 +109,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             BasisPickupInteractable.CanHoverInjected.Add(CanHover);
             BasisPickupInteractable.CanInteractInjected.Add(CanInteract);
             BasisPickupInteractable.OnInteractStartEvent.AddListener(OnInteractStartEvent);
-            if (BasisPickupInteractable.RigidRef != null)
-            {
-                BasisPickupInteractable.RigidRef.isKinematic = false;
-            }
+            LatchAuthoredKinematic();
         }
 
         if (RemoteDeadReckon && BasisPickupInteractable != null && BasisPickupInteractable.RigidRef != null)
@@ -354,6 +374,24 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
         }
     }
 
+    private void LatchAuthoredKinematic()
+    {
+        if (_authoredKinematicLatched)
+        {
+            return;
+        }
+        if (BasisPickupInteractable == null || BasisPickupInteractable.RigidRef == null)
+        {
+            return;
+        }
+        if (BasisPickupInteractable.RequiresUpdateLoop)
+        {
+            return;
+        }
+        _authoredKinematic = BasisPickupInteractable.RigidRef.isKinematic;
+        _authoredKinematicLatched = true;
+    }
+
     /// <summary>
     /// Apply or release the server-authoritative static / locked state (<see cref="IBasisStaticLockable"/>).
     /// </summary>
@@ -382,6 +420,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     public void ControlState()
     {
         if (Target == null) Target = transform;
+        LatchAuthoredKinematic();
 
         if (IsStatic)
         {
@@ -397,12 +436,12 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
         {
             if (pendingStealRequest != null)
             {
-                SetIsKinematicOnPickup(false);
+                SetIsKinematicOnPickup(_authoredKinematic);
                 if (BasisPickupInteractable != null)
                 {
                     if (BasisPickupInteractable.KinematicWhileInteracting)
                     {
-                        BasisPickupInteractable._previousKinematicValue = false;
+                        BasisPickupInteractable._previousKinematicValue = _authoredKinematic;
                     }
                     if (!BasisPickupInteractable.IsInteractingWith(pendingStealRequest))
                     {
@@ -419,7 +458,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             }
             else
             {
-                SetIsKinematicOnPickup(false);
+                SetIsKinematicOnPickup(_authoredKinematic);
             }
         }
         else
@@ -428,7 +467,7 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             {
                 BasisPickupInteractable.Drop();
             }
-            SetIsKinematicOnPickup(!RemoteDeadReckon);
+            SetIsKinematicOnPickup(_authoredKinematic || !RemoteDeadReckon);
         }
     }
 

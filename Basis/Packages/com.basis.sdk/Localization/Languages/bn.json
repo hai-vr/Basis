@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "অনুগ্রহ করে নিম্নলিখিত সমস্যাগুলি সমাধান করুন, অথবা ডকুমেন্টেশন দেখুন। \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "চোখের অবস্থান Gizmo {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "মুখের অবস্থান Gizmo {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "চোখের অবস্থান" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "মুখের অবস্থান" },
+    { "key": "sdk.avatar.position.height", "value": "উচ্চতা" },
+    { "key": "sdk.avatar.position.forward", "value": "সামনে" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "মডেল পুনরায় আমদানি করা হচ্ছে (Mesh LOD)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

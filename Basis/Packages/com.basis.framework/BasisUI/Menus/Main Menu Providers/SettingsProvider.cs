@@ -111,6 +111,10 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyJiggleCollisionCulling;
             BasisJiggleColliderLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisJiggleColliderLOD.ApplyFromSettings;
+            BasisAvatarSkinLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarSkinLOD.ApplyFromSettings;
+            BasisAvatarShadowLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarShadowLOD.ApplyFromSettings;
             ApplyDesktopInputInVR();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyDesktopInputInVR;
         }
@@ -1452,6 +1456,7 @@ namespace Basis.BasisUI
 
             RectTransform container = descriptor.ContentParent;
 
+            BuildPerformanceModeSection(container);
 
             PanelElementDescriptor qualityGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1869,6 +1874,16 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.AvatarMeshLOD);
             sliderMeshLOD.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarLod.tooltip"));
 
+            PanelToggle toggleAvatarSkinLod = PanelToggle.CreateNewEntry(container);
+            toggleAvatarSkinLod.AssignBinding(BasisSettingsDefaults.UseAvatarSkinLod);
+            toggleAvatarSkinLod.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarSkinLod"));
+            toggleAvatarSkinLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarSkinLod.tooltip"));
+
+            PanelToggle toggleAvatarShadowLod = PanelToggle.CreateNewEntry(container);
+            toggleAvatarShadowLod.AssignBinding(BasisSettingsDefaults.UseAvatarShadowLod);
+            toggleAvatarShadowLod.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarShadowLod"));
+            toggleAvatarShadowLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarShadowLod.tooltip"));
+
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 container,
                 new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.worldLod"),
@@ -1928,8 +1943,111 @@ namespace Basis.BasisUI
             return tab;
         }
 
+        /// <summary>
+        /// Performance Mode block at the head of the Graphics page: the level itself, whether it
+        /// follows the instance population on its own, and a line naming the population tiers.
+        /// The section is tinted by the active level so the page shows at a glance how hard the
+        /// mode is cutting. Changing the level rewrites the settings the rest of this page shows,
+        /// so the page is reopened afterwards the same way the reset button does it.
+        /// </summary>
+        private const float PerformanceModeTintStrength = 0.28f;
+
+        private static void BuildPerformanceModeSection(RectTransform container)
+        {
+            BasisPerformanceMode.EnsureInitialized();
+
+            PanelElementDescriptor group =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            group.SetTitle(BasisLocalization.Get("settings.performanceMode.title"));
+            group.SetDescription(BasisLocalization.Get("settings.performanceMode.description",
+                BasisPerformanceMode.PopulationThresholds[0],
+                BasisPerformanceMode.PopulationThresholds[1],
+                BasisPerformanceMode.PopulationThresholds[2]));
+
+            PanelDropdown dropdownLevel = PanelDropdown.CreateNewEntry(group.ContentParent);
+            dropdownLevel.Descriptor.SetTitle(BasisLocalization.Get("settings.performanceMode.level"));
+            dropdownLevel.Descriptor.SetTooltip(BasisLocalization.Get("settings.performanceMode.level.tooltip"));
+            dropdownLevel.AssignLocalizedEntries(
+                new List<string>
+                {
+                    BasisPerformanceMode.LevelOff,
+                    BasisPerformanceMode.LevelLight,
+                    BasisPerformanceMode.LevelBalanced,
+                    BasisPerformanceMode.LevelAggressive
+                },
+                new List<string>
+                {
+                    "settings.performanceMode.level.off",
+                    "settings.performanceMode.level.light",
+                    "settings.performanceMode.level.balanced",
+                    "settings.performanceMode.level.aggressive"
+                });
+            dropdownLevel.AssignBinding(BasisSettingsDefaults.PerformanceModeLevel);
+
+            PanelToggle toggleAuto = PanelToggle.CreateNewEntry(group.ContentParent);
+            toggleAuto.AssignBinding(BasisSettingsDefaults.PerformanceModeAuto);
+            toggleAuto.Descriptor.SetTitle(BasisLocalization.Get("settings.performanceMode.auto"));
+            toggleAuto.Descriptor.SetTooltip(BasisLocalization.Get("settings.performanceMode.auto.tooltip"));
+
+            string autoLocked = BasisLocalization.Get("settings.performanceMode.level.autoLocked");
+            dropdownLevel.SetInteractable(!toggleAuto.Value, autoLocked);
+
+            Color plainBackground = group.HasElementBaseImage ? group.ElementBaseImage.color : Color.white;
+            Color plainTitle = group.HasTitle ? group.TitleLabel.color : Color.white;
+
+            void ApplyLevelTint(BasisPerformanceLevel level)
+            {
+                bool on = level != BasisPerformanceLevel.Off;
+                Color accent = BasisPerformanceMode.AccentColor(level);
+
+                group.SetTitle(on
+                    ? BasisLocalization.Get("settings.performanceMode.title.on", BasisPerformanceMode.DisplayName(level))
+                    : BasisLocalization.Get("settings.performanceMode.title"));
+
+                if (group.HasTitle)
+                {
+                    group.TitleLabel.color = on ? accent : plainTitle;
+                }
+
+                if (group.HasElementBaseImage)
+                {
+                    Color tinted = Color.Lerp(plainBackground, accent, PerformanceModeTintStrength);
+                    tinted.a = plainBackground.a;
+                    group.ElementBaseImage.color = on ? tinted : plainBackground;
+                }
+            }
+
+            ApplyLevelTint(BasisPerformanceMode.ActiveLevel);
+            BasisPerformanceMode.OnLevelChanged += ApplyLevelTint;
+            group.OnInstanceReleased += () => BasisPerformanceMode.OnLevelChanged -= ApplyLevelTint;
+
+            dropdownLevel.OnValueChanged += _ =>
+            {
+                BasisMainMenu.Close();
+                OpenToTab("settings.tab.graphics");
+            };
+
+            toggleAuto.OnValueChanged += on =>
+            {
+                dropdownLevel.SetInteractable(!on, autoLocked);
+                if (!on)
+                {
+                    return;
+                }
+
+                BasisPerformanceMode.ApplyAutoNow();
+                BasisMainMenu.Close();
+                OpenToTab("settings.tab.graphics");
+            };
+        }
+
         private static void ResetGraphicsDefaults()
         {
+            BasisPerformanceMode.SetLevel(BasisPerformanceLevel.Off);
+            BasisSettingsDefaults.PerformanceModeAuto.ResetToDefault();
+            BasisSettingsDefaults.PerformanceModeLevel.ResetToDefault();
+            BasisSettingsDefaults.PerformanceModeBaseline.ResetToDefault();
+
             SettingsProviderPerformanceLimits.ResetPerformanceLimitDefaults();
 
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
@@ -1962,6 +2080,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.FieldOfView.ResetToDefault();
             BasisSettingsDefaults.PoseLOD.ResetToDefault();
             BasisSettingsDefaults.AvatarMeshLOD.ResetToDefault();
+            BasisSettingsDefaults.UseAvatarSkinLod.ResetToDefault();
+            BasisSettingsDefaults.UseAvatarShadowLod.ResetToDefault();
             BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();
             BasisSettingsDefaults.LocalHeadBlendShapes.ResetToDefault();
 

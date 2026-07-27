@@ -194,6 +194,13 @@ namespace Basis.Scripts.Drivers
             RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
             // Renderer perf flags
             RemoteRenderMeshSettings(BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer);
+            // Seed the skin LOD for the distance this avatar loaded at — ChangeMeshLOD is only
+            // edge-triggered on LOD boundary crossings, so a reload at a stable distance never
+            // reaches these fresh renderers.
+            BasisAvatarSkinLOD.Apply(SkinnedMeshRenderer, SkinnedMeshRendererLength, RemotePlayer.CurrentLodLevel);
+            // Snapshot the authored shadow modes before anything reduces them, then seed the tier.
+            BasisAvatarShadowLOD.Capture(RemotePlayer);
+            BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentLodLevel);
 
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;
 

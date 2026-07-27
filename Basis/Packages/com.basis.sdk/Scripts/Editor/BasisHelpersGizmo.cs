@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 
 using UnityEngine;
@@ -46,6 +47,43 @@ namespace Basis.Scripts.BasisSdk.Helpers.Editor
             {
                 return null;
             }
+        }
+
+        public static void LabelVector2Field(VisualElement visualElement, string fieldNameIdentifier, string fieldLabel, string firstComponentLabel, string secondComponentLabel)
+        {
+            Vector2Field field = visualElement.Q<Vector2Field>(fieldNameIdentifier);
+            if (field == null)
+            {
+                Debug.LogError("Vector2Field not found! " + fieldNameIdentifier);
+                return;
+            }
+
+            field.label = fieldLabel;
+
+            List<FloatField> components = field.Query<FloatField>().ToList();
+            if (components.Count < 2)
+            {
+                return;
+            }
+
+            LabelCompositeComponent(components[0], firstComponentLabel);
+            LabelCompositeComponent(components[1], secondComponentLabel);
+        }
+
+        private static void LabelCompositeComponent(FloatField component, string text)
+        {
+            component.label = text;
+
+            Label label = component.labelElement;
+            if (label == null)
+            {
+                return;
+            }
+
+            label.style.minWidth = StyleKeyword.Auto;
+            label.style.width = StyleKeyword.Auto;
+            label.style.flexShrink = 0f;
+            label.style.marginRight = 3f;
         }
 
         public static void SetValueVector2Field(VisualElement visualElement, string fieldNameIdentifier, Vector2 Value)

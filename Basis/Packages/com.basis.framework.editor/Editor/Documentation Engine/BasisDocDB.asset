@@ -27408,8 +27408,8 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.OneEuroFilter
-    MemberName: OneEuroFilter
+  - TypeFullName: Basis.Scripts.Drivers.BasisOneEuroFilter
+    MemberName: BasisOneEuroFilter
     Kind: Type
     ParamCount: 0
     ParamNames: []

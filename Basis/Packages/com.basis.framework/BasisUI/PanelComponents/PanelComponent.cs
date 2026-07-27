@@ -40,6 +40,17 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// True when this control knows a value to reset to, so the reset gesture is offered
+        /// while it is hovered. See <see cref="BasisPanelResetGesture"/>.
+        /// </summary>
+        public virtual bool HasResetDefault => false;
+
+        /// <summary>Asks to reset this control to its default. No-op unless the control supports it.</summary>
+        public virtual void RequestReset()
+        {
+        }
+
+        /// <summary>
         /// Enables or disables this control. When disabling, pass a short reason describing why —
         /// it is shown in the hover tooltip so a greyed-out control explains itself instead of
         /// looking broken. The reason is cleared automatically when the control is re-enabled.
@@ -75,12 +86,23 @@ namespace Basis.BasisUI
         {
             _pointerInside = true;
             BasisMainMenu.ShowTooltip(TooltipText);
+            BasisPanelResetGesture.SetHovered(this);
         }
 
         public virtual void OnPointerExit(PointerEventData eventData)
         {
             _pointerInside = false;
             BasisMainMenu.HideTooltip();
+            BasisPanelResetGesture.ClearHovered(this);
+        }
+
+        // A closing menu tears its elements down without a pointer exit, so drop the hover here
+        // too rather than leaving the gesture poll pointed at a dead control.
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            _pointerInside = false;
+            BasisPanelResetGesture.ClearHovered(this);
         }
 
         [UsedImplicitly]

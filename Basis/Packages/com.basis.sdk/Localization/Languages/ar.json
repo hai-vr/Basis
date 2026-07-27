@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "يرجى حل المشكلات التالية، أو الرجوع إلى التوثيق. \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "أداة موضع العين {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "أداة موضع الفم {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "موضع العين" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "موضع الفم" },
+    { "key": "sdk.avatar.position.height", "value": "الارتفاع" },
+    { "key": "sdk.avatar.position.forward", "value": "للأمام" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "إعادة استيراد النماذج (Mesh LODs)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

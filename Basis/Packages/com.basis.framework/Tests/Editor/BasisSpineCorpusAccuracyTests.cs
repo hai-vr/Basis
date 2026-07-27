@@ -199,6 +199,10 @@ namespace Basis.Tests.IK
                 upperChestBendPitch = 0.25f, upperChestBendYaw = 0.30f, upperChestBendRoll = 0.20f,
                 spineMaxForwardDeg = 60f, spineMaxBackwardDeg = 25f, spineMaxLateralDeg = 25f,
                 spineSquishBoost = 0.5f, spineGazeFollow = 0.25f,
+                thoracicBendStiffen = 0.3f, spineTautBandFrac = 0.015f, bendTwistCoupling = 0.15f,
+                chestIkWeight = 0.5f, chestIkIterations = 8, chestIkHeadRestoreSweeps = 2,
+                chestPosPullMaxDeg = 20f, chestPullMaxDist = 0.5f, chestFollowChestShare = 0.6f,
+                trunkCounterbalanceMaxSpineFrac = 0.45f, neckGazeFollowMaxDeg = 18f,
             };
             return rig;
         }

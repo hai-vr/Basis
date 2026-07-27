@@ -111,6 +111,9 @@ namespace Basis.EventDriver
             _onUpdateInvocationList = System.Array.Empty<Delegate>();
             _onLateUpdateCachedDelegate = null;
             _onLateUpdateInvocationList = System.Array.Empty<Delegate>();
+            // Same teardown semantics as the events above: nothing survives the driver going away.
+            // This is also what makes the registry's cross-instance cap safe to enforce.
+            BasisFrameSyncRegistry.Clear();
         }
 
         private static void InvokeEventCallbacks(Action callbacks, string callbackName, ref Action cachedDelegate, ref Delegate[] cachedInvocationList)
@@ -294,6 +297,7 @@ namespace Basis.EventDriver
             }
             using (Prof.HighPlayerCap.Auto())
             {
+                BasisPerformanceMode.Simulate();
                 BasisHighPlayerCapPerformanceMode.Simulate();
             }
             using (Prof.OnUpdateCallbacks.Auto())
@@ -702,6 +706,20 @@ namespace Basis.EventDriver
                 InvokeAfterAvatarChangesSafely();
             }
             ProfileEnd(PROF_NETWORK_TRANSMIT);
+
+            // ── Frame sync entries (Cilbox transform / blendshape sync shims) ──
+            // Deliberately pinned between the transmit above and the jiggle dispatch below: this
+            // is the one window in the frame where an arbitrary Transform — including an avatar
+            // bone a sandboxed script picked — is free of in-flight jobs on the main thread. IK,
+            // the local player sim and authored motion have posed; the constraint solve is fenced
+            // inside the jiggle schedule block; the remote bone jobs were joined further up; and
+            // jiggle has prepared but not yet dispatched. A read here cannot stall on a
+            // TransformAccessArray job, and a write here is picked up by JigglePhysics this frame
+            // instead of next. Every entry runs under its own catch inside the registry.
+            using (Prof.FrameSync.Auto())
+            {
+                BasisFrameSyncRegistry.Simulate();
+            }
 
             if (jiggleReady)
             {

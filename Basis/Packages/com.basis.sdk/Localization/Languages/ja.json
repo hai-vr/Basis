@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "次の問題を解決するか、ドキュメントを参照してください。\n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "目の位置のギズモ {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "口の位置のギズモ {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "目の位置" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "口の位置" },
+    { "key": "sdk.avatar.position.height", "value": "高さ" },
+    { "key": "sdk.avatar.position.forward", "value": "前方" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "モデルを再インポート中（メッシュ LOD）" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

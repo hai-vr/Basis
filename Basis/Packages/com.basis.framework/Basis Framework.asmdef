@@ -34,8 +34,7 @@
         "OpusSharp",
         "Basis.OpenLipSync.Runtime",
         "Klak.Spout.Runtime",
-        "Klak.Syphon.Runtime",
-        "Basis.Eerie.Movement"
+        "Klak.Syphon.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

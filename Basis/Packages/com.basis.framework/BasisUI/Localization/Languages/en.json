@@ -4479,6 +4479,22 @@
       "value": "Avatar LOD"
     },
     {
+      "key": "settings.graphics.avatarSkinLod",
+      "value": "Reduce Skinning At Distance"
+    },
+    {
+      "key": "settings.graphics.avatarSkinLod.tooltip",
+      "value": "Blends fewer bones per vertex on distant avatars (4, then 2, then 1) as they drop through the Avatar LOD levels. Cheaper skinning in crowds; not visible at range."
+    },
+    {
+      "key": "settings.graphics.avatarShadowLod",
+      "value": "Drop Avatar Shadows At Distance"
+    },
+    {
+      "key": "settings.graphics.avatarShadowLod.tooltip",
+      "value": "Stops distant avatars casting shadows once they pass the second Avatar LOD level. Each shadow-casting avatar costs an extra draw per shadow cascade, so this is the largest saving in a crowd."
+    },
+    {
       "key": "settings.graphics.worldLod",
       "value": "World LOD"
     },
@@ -5167,6 +5183,22 @@
       "value": "Maximum Bone Change"
     },
     {
+      "key": "settings.bodyTracking.armHeightRatio.enabled.title",
+      "value": "Override Arm Span From Height"
+    },
+    {
+      "key": "settings.bodyTracking.armHeightRatio.enabled.title.tooltip",
+      "value": "Derives your arm span from eye height instead of the measured calibration, for avatars whose arms come out stubby or overlong."
+    },
+    {
+      "key": "settings.bodyTracking.armHeightRatio.title",
+      "value": "Arm Span / Height Ratio"
+    },
+    {
+      "key": "settings.bodyTracking.armHeightRatio.title.tooltip",
+      "value": "Arm span as a multiple of eye height. About 1.05 for a typical adult; raise it for longer reach, lower it for shorter."
+    },
+    {
       "key": "settings.bodyTracking.bodyFit.maxDeviation.tooltip",
       "value": "How far a bone may stretch or collapse from its authored length. Higher values fit your body more exactly but alter the character's proportions more visibly. 0 disables the fit."
     },
@@ -5257,6 +5289,22 @@
     {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.description",
       "value": "Damps the leg's roll about the hip-to-foot axis so a still, near-straight standing leg doesn't twist with tracking jitter. Real turning still tracks without lag."
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleHold.title",
+      "value": "Foot-Pole Knee Hold"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleHold.description",
+      "value": "Extends the knee-swivel freeze to knees aimed by a foot tracker alone. A knee tracker always gets it; this widens it to the guessed pole, which stops a near-straight standing leg rolling with sway at the cost of a slower release out of the pose. Needs Leg Swivel Smoothing on."
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning.title",
+      "value": "Foot-Pole Knee Low-Pass"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning.description",
+      "value": "Runs the knee-swivel low-pass on knees aimed by a foot tracker alone. Quieter near a straight leg, but adds lag to real shin motion. Needs Leg Swivel Smoothing on."
     },
     {
       "key": "settings.bodyTracking.anat.trackerBendNormal.title",
@@ -5421,6 +5469,158 @@
     {
       "key": "settings.bodyTracking.shoulderElevation.description",
       "value": "How much the shoulder raises when the hand is above it. Default: 0.4"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderCoupleRatio.title",
+      "value": "Shoulder Coupling"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderCoupleRatio.title.tooltip",
+      "value": "How much of the arm's swing the collarbone takes with it. Higher moves the whole shoulder girdle with a reach; 0 leaves the collarbone still."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderMaxDeg.title",
+      "value": "Shoulder Coupling Limit"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderMaxDeg.title.tooltip",
+      "value": "Ceiling on the girdle rotation that coupling can produce, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideStart.title",
+      "value": "Shoulder Slide Start"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideStart.title.tooltip",
+      "value": "Chest twist, in degrees, before the shoulders start counter-rotating to keep the arms facing forward. Needs Shoulder Slide on."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideMax.title",
+      "value": "Shoulder Slide Limit"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideMax.title.tooltip",
+      "value": "Ceiling on that counter-rotation, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideFraction.title",
+      "value": "Shoulder Slide Amount"
+    },
+    {
+      "key": "settings.bodyTracking.shoulderSlideFraction.title.tooltip",
+      "value": "Fraction of the chest twist past the start angle that the shoulders give back."
+    },
+    {
+      "key": "settings.bodyTracking.neckGazeFollowMax.title",
+      "value": "Neck Gaze Follow Limit"
+    },
+    {
+      "key": "settings.bodyTracking.neckGazeFollowMax.title.tooltip",
+      "value": "Ceiling on how far the neck may lead a look ahead of the rest of the spine, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.thoracicBendStiffen.title",
+      "value": "Ribcage Stiffness"
+    },
+    {
+      "key": "settings.bodyTracking.thoracicBendStiffen.title.tooltip",
+      "value": "Stiffens the middle of the spine so a lean curves at the lower back and neck instead of kinking at one joint. 0 bends uniformly."
+    },
+    {
+      "key": "settings.bodyTracking.spineTautBand.title",
+      "value": "Spine Taut Band"
+    },
+    {
+      "key": "settings.bodyTracking.spineTautBand.title.tooltip",
+      "value": "How much slack the spine keeps as a fraction of its length, so a fully upright head doesn't sit the solver on its full-extension singularity. Too small reintroduces standing jitter."
+    },
+    {
+      "key": "settings.bodyTracking.bendTwistCoupling.title",
+      "value": "Bend/Twist Coupling"
+    },
+    {
+      "key": "settings.bodyTracking.bendTwistCoupling.title.tooltip",
+      "value": "Adds a little same-side rotation when you lean sideways, so a sustained lean reads as a spine rather than a hinge."
+    },
+    {
+      "key": "settings.bodyTracking.trunkCounterbalanceMax.title",
+      "value": "Counterbalance Limit"
+    },
+    {
+      "key": "settings.bodyTracking.trunkCounterbalanceMax.title.tooltip",
+      "value": "Ceiling on how far the pelvis travels back as the trunk folds forward, as a fraction of spine length."
+    },
+    {
+      "key": "settings.bodyTracking.chestFollowChestShare.title",
+      "value": "Chest Follow Share"
+    },
+    {
+      "key": "settings.bodyTracking.chestFollowChestShare.title.tooltip",
+      "value": "Split of the arm-swing torso follow between the chest and the upper chest. 1 puts it all on the chest."
+    },
+    {
+      "key": "settings.bodyTracking.chestIkWeight.title",
+      "value": "Chest Target Weight"
+    },
+    {
+      "key": "settings.bodyTracking.chestIkWeight.title.tooltip",
+      "value": "How hard the spine pulls the chest onto its own target. Gentler lets the head-restore keep pace; the head is never traded for the chest. Needs Chest IK Target on."
+    },
+    {
+      "key": "settings.bodyTracking.chestIkIterations.title",
+      "value": "Chest Target Iterations"
+    },
+    {
+      "key": "settings.bodyTracking.chestIkIterations.title.tooltip",
+      "value": "Solver passes spent placing the chest each frame. More is more accurate and more expensive."
+    },
+    {
+      "key": "settings.bodyTracking.chestIkSweeps.title",
+      "value": "Chest Target Head Sweeps"
+    },
+    {
+      "key": "settings.bodyTracking.chestIkSweeps.title.tooltip",
+      "value": "Head-restore passes run after each chest pass, using the joints above the chest. Lower this if the head starts drifting off the headset."
+    },
+    {
+      "key": "settings.bodyTracking.chestPosPullMax.title",
+      "value": "Chest Pull Limit"
+    },
+    {
+      "key": "settings.bodyTracking.chestPosPullMax.title.tooltip",
+      "value": "Ceiling on the rotation the lower spine may add to slide the chest toward its target, in degrees."
+    },
+    {
+      "key": "settings.bodyTracking.chestPullMaxDist.title",
+      "value": "Chest Target Reject Distance"
+    },
+    {
+      "key": "settings.bodyTracking.chestPullMaxDist.title.tooltip",
+      "value": "A chest target further than this from the solved chest is treated as a glitching tracker and ignored."
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeMinCutoff.title",
+      "value": "Tracked Knee Smoothing Floor"
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeMinCutoff.title.tooltip",
+      "value": "Lowest smoothing cutoff for a knee aimed by a tracker, in Hz. Lower is smoother when you stand still; higher is more responsive."
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeBeta.title",
+      "value": "Tracked Knee Responsiveness"
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeBeta.title.tooltip",
+      "value": "How fast the tracked-knee smoothing opens up under sustained motion, so real shin movement isn't lagged."
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeDerivCutoff.title",
+      "value": "Tracked Knee Velocity Cutoff"
+    },
+    {
+      "key": "settings.bodyTracking.trackedKneeDerivCutoff.title.tooltip",
+      "value": "Low-pass on the tracked knee's measured speed, in Hz. Rejects jitter velocity that would otherwise open the filter."
     },
     {
       "key": "settings.bodyTracking.shoulderProtraction.title",
@@ -5885,6 +6085,30 @@
     {
       "key": "settings.bodyTracking.vspineTorsoYawBlend.description",
       "value": "How quickly the torso eases into and out of following once the head crosses the play cone. Lower = softer, slower blend (removes the click at the edge); higher = snappier. Default: 8"
+    },
+    {
+      "key": "settings.bodyTracking.vspinePostureModel.title",
+      "value": "Pelvis Posture Model"
+    },
+    {
+      "key": "settings.bodyTracking.vspinePostureModel.title.tooltip",
+      "value": "Places the pelvis from a fitted posture model rather than hanging it a fixed spine length below the head. Off falls back to the older law and enables the two compression knobs below."
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsCompression.title",
+      "value": "Hips Compression"
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsCompression.title.tooltip",
+      "value": "How much the spine is allowed to shorten as you crouch or lean instead of dragging the pelvis straight down. 0 keeps the spine rigid, 1 lets it scrunch fully. Only used with the Pelvis Posture Model off."
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsMaxDrop.title",
+      "value": "Hips Max Drop"
+    },
+    {
+      "key": "settings.bodyTracking.vspineHipsMaxDrop.title.tooltip",
+      "value": "Ceiling on how far the pelvis travels down before the spine starts compressing instead. Only used with the Pelvis Posture Model off."
     },
     {
       "key": "settings.bodyTracking.vspineTorsoYawPlayInVR.title",
@@ -6696,7 +6920,7 @@
     },
     {
       "key": "settings.highPlayerCap.prompt.body",
-      "value": "This instance has over {0} people. Turn on High Player Cap Performance Mode to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+      "value": "This instance has over {0} people. Turn on Performance Mode to keep your frame rate up in the crowd?\n\nHeadline changes:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nIt also tightens audio, lip sync, jiggle and avatar cost limits. Nothing is lost — your own settings are put back the moment you turn Performance Mode off in Settings → Graphics."
     },
     {
       "key": "settings.highPlayerCap.prompt.enable",
@@ -6708,7 +6932,7 @@
     },
     {
       "key": "settings.highPlayerCap.prompt.bodyPreConnect",
-      "value": "This server reports over {0} people online. Turn on High Player Cap Performance Mode before joining to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+      "value": "This server reports over {0} people online. Turn on Performance Mode before joining to keep your frame rate up in the crowd?\n\nHeadline changes:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nIt also tightens audio, lip sync, jiggle and avatar cost limits. Nothing is lost — your own settings are put back the moment you turn Performance Mode off in Settings → Graphics."
     },
     {
       "key": "settings.highPlayerCap.prompt.enableConnect",
@@ -6736,7 +6960,59 @@
     },
     {
       "key": "settings.graphics.highPlayerCapSuggestions.tooltip",
-      "value": "Offer to turn on High Player Cap Performance Mode when connecting to or being in an instance with over 250 people. The offer's Don't Ask Again button turns this off."
+      "value": "Offer to turn on Performance Mode when connecting to or being in an instance with over 250 people. The offer's Don't Ask Again button turns this off. Ignored while Performance Mode is set to follow the player count on its own."
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.levelLine",
+      "value": "Suggested level: {0}"
+    },
+    {
+      "key": "settings.performanceMode.title",
+      "value": "Performance Mode"
+    },
+    {
+      "key": "settings.performanceMode.description",
+      "value": "Trades avatar and world fidelity for frame rate in busy instances. Each level snapshots your own settings first and puts them straight back when you turn it off, and it never makes anything more expensive than you already had it. Population tiers: over {0}, {1} and {2} people."
+    },
+    {
+      "key": "settings.performanceMode.level",
+      "value": "Level"
+    },
+    {
+      "key": "settings.performanceMode.level.tooltip",
+      "value": "Light trims avatar range, crowd caps, pose and mesh detail. Balanced tightens those further and adds audio, lip sync, jiggle and avatar cost limits. Aggressive also drops shadows, antialiasing, render scale and overall quality."
+    },
+    {
+      "key": "settings.performanceMode.level.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.performanceMode.level.light",
+      "value": "Light"
+    },
+    {
+      "key": "settings.performanceMode.level.balanced",
+      "value": "Balanced"
+    },
+    {
+      "key": "settings.performanceMode.level.aggressive",
+      "value": "Aggressive"
+    },
+    {
+      "key": "settings.performanceMode.level.autoLocked",
+      "value": "The player count is choosing the level. Turn off Follow Player Count to set it yourself."
+    },
+    {
+      "key": "settings.performanceMode.auto",
+      "value": "Follow Player Count"
+    },
+    {
+      "key": "settings.performanceMode.auto.tooltip",
+      "value": "Raise and lower the level on its own as the instance fills and empties, with no prompt. The level drops back down once the count has fallen well below the tier that raised it."
+    },
+    {
+      "key": "settings.performanceMode.title.on",
+      "value": "Performance Mode — {0}"
     },
     {
       "key": "settings.developer.gizmoLabels.description",

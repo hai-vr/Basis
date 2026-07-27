@@ -23,6 +23,10 @@
     { "key": "sdk.avatar.buildError.body", "value": "Пожалуйста, устраните следующие проблемы или обратитесь к документации. \n {0}" },
     { "key": "sdk.avatar.eyeGizmo.label", "value": "Гизмо позиции глаз {0}" },
     { "key": "sdk.avatar.mouthGizmo.label", "value": "Гизмо позиции рта {0}" },
+    { "key": "sdk.avatar.eyePosition.label", "value": "Позиция глаз" },
+    { "key": "sdk.avatar.mouthPosition.label", "value": "Позиция рта" },
+    { "key": "sdk.avatar.position.height", "value": "Высота" },
+    { "key": "sdk.avatar.position.forward", "value": "Вперёд" },
     { "key": "sdk.avatar.lod.reimport.title", "value": "Повторный импорт моделей (LOD меша)" },
     { "key": "sdk.avatar.lod.reimport.progress", "value": "{0}/{1}: {2}" },
 

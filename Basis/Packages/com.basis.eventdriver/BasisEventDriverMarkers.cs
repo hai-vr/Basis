@@ -81,6 +81,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker JiggleCompletePoseDeferred = new ProfilerMarker("BasisDriver.Jiggle.CompletePose(Deferred)");
         public static readonly ProfilerMarker JiggleRender = new ProfilerMarker("BasisDriver.Jiggle.Render");
         public static readonly ProfilerMarker AfterAvatarChanges = new ProfilerMarker("BasisDriver.Network.AfterAvatarChanges");
+        public static readonly ProfilerMarker FrameSync = new ProfilerMarker("BasisDriver.FrameSync");
         public static readonly ProfilerMarker JoinLeaveNotification = new ProfilerMarker("BasisDriver.UI.JoinLeaveNotification");
         public static readonly ProfilerMarker SimulateBeacon = new ProfilerMarker("BasisDriver.Player.SimulateBeacon");
         public static readonly ProfilerMarker NetworkBeginCompute = new ProfilerMarker("BasisDriver.Network.BeginCompute");
