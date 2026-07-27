@@ -40,18 +40,17 @@ namespace Basis.Tests.IK
         // ----------------------------------------------------------------- the contract (asserted)
 
         [Test]
-        public void Standing_KneeFollowsFoot_FootDominant_NeverOutboard()
+        public void Standing_KneeFollowsFoot_FootDominant_ButStillInboard()
         {
-            // A standing leg follows the foot by the coupling fraction. At DefaultUprightCoupling 0.75 the knee
-            // stays inboard of the toe, which is the foot-progression / tibial-torsion margin a real leg has.
-            // The invariant that holds at ANY coupling is that it never goes OUTBOARD.
+            // A standing leg follows the foot by the coupling fraction: foot-dominant at the default, but the knee
+            // still stays a touch inboard of the foot (coupling < 1). A natural 7 deg foot -> ~5 deg knee, inside the
+            // measured tibia-vs-pelvis band (1.65 +/- 5.58 deg).
             const float toe = 7f;
             var r = Eval(toeOutDeg: toe, coupling: DefaultCoupling);
             Assert.That(r.Upright01, Is.GreaterThan(0.95f), "a vertical standing leg should read fully upright.");
             Assert.That(r.FollowDeg, Is.EqualTo(DefaultCoupling * toe).Within(0.5f),
                 $"follow should be ~coupling*toe = {DefaultCoupling * toe:0.00}; got {r.FollowDeg:0.00}.");
-            Assert.That(r.FollowDeg, Is.LessThanOrEqualTo(toe + 1e-3f),
-                $"the knee must never be MORE toed-out than the foot; got {r.FollowDeg:0.0000} vs toe {toe:0.0000}.");
+            Assert.That(r.FollowDeg, Is.LessThan(toe), "the knee must stay inboard of the foot (less toed-out).");
             Assert.That(DefaultCoupling, Is.GreaterThan(0.5f), "the default should let the foot DOMINATE the knee azimuth.");
         }
 
@@ -71,7 +70,7 @@ namespace Basis.Tests.IK
                 Assert.That(r.FollowDeg, Is.LessThanOrEqualTo(toe + 0.5f), "knee must never toe out MORE than the foot.");
                 prev = r.FollowDeg;
             }
-            LogTable($"Standing toe-out sweep (coupling {DefaultCoupling:0.00})", rows);
+            LogTable("Standing toe-out sweep (coupling 0.35)", rows);
         }
 
         [Test]

@@ -295,7 +295,7 @@ namespace Basis.IK.Debugging
                 // FullCircle only. A grid sweep has no previous frame, so HasPrevSwivel stays FALSE --
                 // see its doc comment: a zero-seeded anchor is a pull toward the natural pole, not a
                 // neutral start, and it measures the wrong thing.
-                FullCircle = cfg.FullCircleSearch,
+               //FullCircle = cfg.FullCircleSearch,
                 HipsPos = new Vector3(0f, cfg.HipsHeight, 0f),
                 SpinePos = new Vector3(0f, cfg.SpineHeight, 0f),
                 ChestPos = new Vector3(0f, cfg.ChestHeight, 0f),

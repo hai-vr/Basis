@@ -640,7 +640,7 @@ public class SMModuleCalibration : BasisSettingsBase
                 break;
 
             case var s when s == K_FBIK_SHOULDER_RETRACTION:
-                if (bool.TryParse(optionValue, out var retractVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.shoulderRetractionEnabled = retractVal);
+             //   if (bool.TryParse(optionValue, out var retractVal)) ApplyIKDataBool((ref BasisEerieMovement d) => d.shoulderRetractionEnabled = retractVal);
                 break;
 
             case var s when s == K_FBIK_SHOULDER_ELEVATION:

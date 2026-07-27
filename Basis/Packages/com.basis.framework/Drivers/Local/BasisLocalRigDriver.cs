@@ -1685,12 +1685,12 @@ namespace Basis.Scripts.Drivers
             data.protectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
            // data.useNeuralPole = Basis.BasisUI.BasisSettingsDefaults.FBIKNeuralPole.RawValue;
             data.collideTrackedElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKCollideTrackedElbow.RawValue;
-            data.wristAxialBound = Basis.BasisUI.BasisSettingsDefaults.FBIKWristAxialBound.RawValue;
+          //  data.wristAxialBound = Basis.BasisUI.BasisSettingsDefaults.FBIKWristAxialBound.RawValue;
             data.elbowDragEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDrag.RawValue;
             data.elbowDragHz = Basis.BasisUI.BasisSettingsDefaults.FBIKElbowDragHz.RawValue;
             data.shoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
             data.shoulderShrugEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderShrug.RawValue;
-            data.shoulderRetractionEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderRetraction.RawValue;
+           // data.shoulderRetractionEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderRetraction.RawValue;
             data.shoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
             data.shoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
@@ -1749,17 +1749,6 @@ namespace Basis.Scripts.Drivers
             if (IKJobCreated && IKJob.legDiagnostics.IsCreated && (uint)slot < (uint)IKJob.legDiagnostics.Length)
             {
                 diagnostics = IKJob.legDiagnostics[slot];
-                return true;
-            }
-            diagnostics = default;
-            return false;
-        }
-
-        public bool TryGetArmDiagnostics(int slot, out Basis.IK.BasisArmDiagnostics diagnostics)
-        {
-            if (IKJobCreated && IKJob.armDiagnostics.IsCreated && (uint)slot < (uint)IKJob.armDiagnostics.Length)
-            {
-                diagnostics = IKJob.armDiagnostics[slot];
                 return true;
             }
             diagnostics = default;
@@ -2000,21 +1989,7 @@ namespace Basis.Scripts.Drivers
             sMarkerIKDestSolve.Begin();
             IKJob.Stream = PoseSkeleton.Stream;
             IKJob.Stream.deltaTime = deltaTime;
-            IKJob.armDiagnosticsEnabled = BasisArmSolveRecorder.Active;
             IKJob.Run();
-
-            if (BasisArmSolveRecorder.Active)
-            {
-                if (TryGetArmDiagnostics(0, out Basis.IK.BasisArmDiagnostics dal))
-                {
-                    BasisArmSolveRecorder.Record(BasisArmSolveRecorder.ArmLeft, Time.time, in dal);
-                }
-                if (TryGetArmDiagnostics(1, out Basis.IK.BasisArmDiagnostics dar))
-                {
-                    BasisArmSolveRecorder.Record(BasisArmSolveRecorder.ArmRight, Time.time, in dar);
-                }
-                BasisArmSolveRecorder.EndFrame();
-            }
             sMarkerIKDestSolve.End();
 
             // Leg diagnostics are written INSIDE the job, so read them here and not before Run().

@@ -167,18 +167,7 @@ namespace Basis.Tests.IK
                 BasisBodyFitApply.CollectBones(rig.Mapping, bones);
 
                 CollectionAssert.DoesNotContain(bones, null);
-                // Reference identity, not CollectionAssert.AllItemsAreUnique: Transform implements
-                // IEnumerable over its children, so NUnit compares two childless bones as two empty
-                // COLLECTIONS and calls them equal. Every slot reads <empty> and uniqueness always fails.
-                for (int i = 0; i < bones.Length; i++)
-                {
-                    for (int j = i + 1; j < bones.Length; j++)
-                    {
-                        Assert.IsFalse(ReferenceEquals(bones[i], bones[j]),
-                            $"bone slots {i} and {j} are the same transform ({bones[i].name}) -- the table " +
-                            "must map every fitted bone to a distinct one.");
-                    }
-                }
+                CollectionAssert.AllItemsAreUnique(bones);
             }
             finally
             {

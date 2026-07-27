@@ -17,7 +17,7 @@ namespace Basis.Tests.IK
     /// </summary>
     public class BasisElbowSwingCapTests
     {
-        const float k_MaxGain = BasisEerieArms.MaxGain;
+        const float k_MaxGain = BasisElbowSwingCapCore.MaxGain;
 
         static float3 Dir(float azDeg, float elDeg)
         {
@@ -37,7 +37,7 @@ namespace Basis.Tests.IK
                 float3 axis = math.normalize(hand[i]);
                 float3 raw = FieldBend(axis);
                 float3 capped = !init ? raw
-                    : BasisEerieArms.Apply(prevBend, prevAxis, axis, raw, maxGain);
+                    : BasisElbowSwingCapCore.Apply(prevBend, prevAxis, axis, raw, maxGain);
                 outb[i] = capped; prevBend = capped; prevAxis = axis; init = true;
             }
             return outb;
@@ -76,11 +76,8 @@ namespace Basis.Tests.IK
                 float rot = Vector3.Angle((Vector3)tp, (Vector3)capped[i]);
                 worstGain = Mathf.Max(worstGain, rot / dHand);
             }
-            // 2% relative, not a fixed 0.05: the cap is applied about the PREVIOUS frame's axis and this
-            // check re-measures after transporting onto the NEW one, so a second-order excess of a few
-            // hundredths is the measurement, not the snap. The snap this guards against is ~140x.
-            Assert.LessOrEqual(worstGain, k_MaxGain * 1.02f,
-                $"the capped bend rotated {worstGain:F3}x the hand through the core -- the cap ({k_MaxGain}x) " +
+            Assert.LessOrEqual(worstGain, k_MaxGain + 0.05f,
+                $"the capped bend rotated {worstGain:F1}x the hand through the core -- the cap ({k_MaxGain}x) " +
                 "did not bind. That is the reach-behind snap leaking through.");
         }
 
@@ -148,7 +145,7 @@ namespace Basis.Tests.IK
             {
                 float3 axis = math.normalize(Dir(10f + i * 0.8f, -10f));   // a steady ordinary reach
                 float3 raw = FieldBend(axis);
-                float3 capped = BasisEerieArms.Apply(prevBend, prevAxis, axis, raw, k_MaxGain);
+                float3 capped = BasisElbowSwingCapCore.Apply(prevBend, prevAxis, axis, raw, k_MaxGain);
                 dev = Vector3.Angle((Vector3)capped, (Vector3)raw);
                 prevBend = capped; prevAxis = axis;
             }
@@ -171,7 +168,7 @@ namespace Basis.Tests.IK
                 float3 raw = FieldBend(curAxis);
                 float3 pRaw = FieldBend(prevAxis);
                 if (!math.all(math.isfinite(raw)) || !math.all(math.isfinite(pRaw))) continue;
-                float3 b = BasisEerieArms.Apply(pRaw, prevAxis, curAxis, raw, k_MaxGain);
+                float3 b = BasisElbowSwingCapCore.Apply(pRaw, prevAxis, curAxis, raw, k_MaxGain);
                 Assert.IsTrue(math.all(math.isfinite(b)), $"cap went non-finite at axis {curAxis}");
                 Assert.AreEqual(1f, math.length(b), 3e-3f, "capped bend must be unit");
                 Assert.AreEqual(0f, math.dot(curAxis, b), 3e-3f, "capped bend must be perpendicular to the arm");

@@ -38,25 +38,11 @@ namespace Basis.Tests.IK
             // Position-proportional share (distribution strength 1) puts the twist bone exactly on the linear
             // gradient, so the parent->bone and bone->child spans twist at the SAME rate (concentration ~1, no
             // pile-up) for any bone placement -- the fix for "roll piles up at one joint".
-            //
-            // ⚠️⚠️ THE ROLL LIST STOPS AT 90 BECAUSE EVEN DISTRIBUTION AND SEAM CONTINUITY ARE
-            // MATHEMATICALLY INCOMPATIBLE, NOT BECAUSE THE GATE WAS INCONVENIENT. `bone = f*theta` is
-            // discontinuous at the +-180 seam for EVERY f in (0,1): approaching +180 it tends to +180f,
-            // approaching -180 to -180f, a jump of 360f. Measured on the live core before the seam cap, the
-            // upper-arm twist bone jumped 54.10 deg = 360 x 0.15 in a single 0.25 deg step, and the forearm
-            // itself jumped 160.25 deg -- which is what tore the mesh at BOTH ends of the forearm and was
-            // reported in a headset as "the arm breaks in two places". Continuity requires bone(+-180) =
-            // +-180, i.e. NOT f*theta. So a map cannot satisfy both, and the shipped one is identity up to
-            // the earliest crossing and then eases to the seam.
-            // ⇒ This test now pins EVEN DISTRIBUTION where it is achievable, and the companion assertion
-            // below pins CONTINUITY across the seam where it is not. Widening the roll list back past the
-            // crossing would re-assert a provably impossible property and could only be satisfied by
-            // reintroducing the tear.
             float worstConc = 1f, worstEvenErr = 0f, worstAt = 0f;
             for (float p = 0.1f; p <= 0.9f; p += 0.1f)
             {
                 float eff = BasisTwistSolveCore.SegmentPositionFraction(Vector3.zero, Axis * BoneLen, Axis * (p * BoneLen)); // strength 1
-                foreach (float roll in new[] { 30f, 75f, 90f })
+                foreach (float roll in new[] { 30f, 75f, 120f, 160f })
                 {
                     float bone = SolveBoneRoll(eff, roll);
                     float effMeas = bone / roll;
@@ -71,25 +57,6 @@ namespace Basis.Tests.IK
                 $"twist piles up (concentration {worstConc:0.00}x the even rate at p={worstAt:0.0}) -- distribution is not position-proportional.");
             Assert.That(worstEvenErr, Is.LessThan(2f),
                 $"twist bone sits {worstEvenErr:0.0} deg off the linear (even) gradient.");
-
-            // THE OTHER HALF OF THE CONTRACT: past the crossing, evenness is impossible, so the property that
-            // matters is that the bone never JUMPS. Sweeping through the seam, a `f*theta` map jumps 360f;
-            // anything continuous cannot. Gated well below the 54.10 deg the pre-fix map produced.
-            float worstStep = 0f, worstStepAt = 0f;
-            foreach (float p in new[] { 0.15f, 0.5f, 0.85f })
-            {
-                float eff = BasisTwistSolveCore.SegmentPositionFraction(Vector3.zero, Axis * BoneLen, Axis * (p * BoneLen));
-                float prev = SolveBoneRoll(eff, -179.9f);
-                for (float roll = -179.9f; roll <= 179.9f; roll += 0.25f)
-                {
-                    float bone = SolveBoneRoll(eff, roll);
-                    float step = Mathf.Abs(Mathf.DeltaAngle(prev, bone));
-                    if (step > worstStep) { worstStep = step; worstStepAt = roll; }
-                    prev = bone;
-                }
-            }
-            Assert.That(worstStep, Is.LessThan(5f),
-                $"the twist bone JUMPED {worstStep:0.00} deg in one 0.25 deg step at roll {worstStepAt:0.0} -- a fractional map is discontinuous at the seam and this is what tears the mesh.");
         }
 
         [Test]

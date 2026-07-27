@@ -249,8 +249,7 @@ namespace Basis.IK
             {
                 return;
             }
-            int count = math.min(_authoredLocalPosition.Length, target.Length);
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < _authoredLocalPosition.Length; i++)
             {
                 target[i] = _authoredLocalPosition[i] * _fitScale[i];
             }
@@ -310,33 +309,12 @@ namespace Basis.IK
                 return;
             }
             SyncAnchor();
-            if (!_access.isCreated || _access.length != _ordered.Length)
-            {
-                GatherOnMainThread();
-                return;
-            }
             new BasisPoseGatherJob
             {
                 LocalPosition = Stream.LocalPosition,
                 LocalRotation = Stream.LocalRotation,
                 LocalScale = Stream.LocalScale,
             }.RunReadOnly(_access);
-        }
-
-        void GatherOnMainThread()
-        {
-            for (int i = 0; i < _ordered.Length; i++)
-            {
-                Transform bone = _ordered[i];
-                if (bone == null)
-                {
-                    continue;
-                }
-                bone.GetLocalPositionAndRotation(out Vector3 position, out Quaternion rotation);
-                Stream.LocalPosition[i] = position;
-                Stream.LocalRotation[i] = rotation;
-                Stream.LocalScale[i] = bone.localScale;
-            }
         }
 
         /// <summary>

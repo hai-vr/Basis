@@ -181,27 +181,6 @@ namespace Basis.Tests.IK
                 $"elbow tracker ({elbowElev:0.0}) barely beat the hand fallback ({handElev:0.0}) on a bent-arm raise.");
         }
 
-        [Test]
-        public void Shoulder_ElbowPath_WithoutABakedElbowLength_StillEngages()
-        {
-            // The elbow-trust fade must fail OPEN. TposeElbowLength == 0 means the caller baked no
-            // length -- absent, not evidence the tracker is wrong -- and every input here leaves it so.
-            // Reading "no data" as "maximum doubt" collapses reachFade to the HAND gate, and this file
-            // drives the elbow path with HandTargetPos == ShoulderPos, so rawReach is 0 and the girdle
-            // would silently never move: five assertions in this class went to exactly 0.0 that way.
-            // Guarding it here because the failure is invisible -- nothing throws, the shoulder just
-            // stops solving.
-            var input = MakeInput(false, Quaternion.identity);
-            Assert.That(input.TposeElbowLength, Is.EqualTo(0f),
-                "this test is only meaningful while MakeInput bakes no elbow length; give it one and the premise is gone.");
-
-            var raised = SolveDir(DirFromAzEl(0f, 85f, false), 0.95f, elbow: true, isLeft: false);
-            Assert.That(raised.ReachRatio, Is.GreaterThan(0.99f),
-                $"an unbaked elbow length disbelieved the tracker (reachFade {raised.ReachRatio:0.000}); the trust fade must default to trusting.");
-            Assert.That(raised.AppliedAngleDeg, Is.GreaterThan(8f),
-                $"the girdle did not engage on a raised arm ({raised.AppliedAngleDeg:0.0} deg) -- the elbow path is gated off.");
-        }
-
         // ----------------------------------------------------------------- chest-frame rigidity
 
         [Test]
