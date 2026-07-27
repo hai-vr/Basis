@@ -71,7 +71,10 @@ int basis_url_parse(const char* url, basis_url_t* out) {
      * host:port. */
     if (*host_end) {
         size_t pathlen = strlen(host_end);
-        if (pathlen >= sizeof(out->path)) pathlen = sizeof(out->path) - 1;
+        /* Reject rather than truncate. Callers dispatch on what the path ends
+         * with, so a clipped path silently reroutes the URL to the wrong
+         * handler instead of failing where it can be reported. */
+        if (pathlen >= sizeof(out->path)) return -1;
         memcpy(out->path, host_end, pathlen);
         out->path[pathlen] = 0;
     } else {

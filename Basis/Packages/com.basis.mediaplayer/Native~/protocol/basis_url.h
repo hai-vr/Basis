@@ -10,7 +10,11 @@ typedef struct basis_url {
     char scheme[16];   /* lowercased: rtsp, rtspt, rtmp, rtmps, http, https, rist */
     char host[256];
     int  port;         /* defaulted per scheme when absent */
-    char path[1024];   /* everything after the host, including leading '/' and query */
+    /* Everything after the host, including leading '/' and query. Sized to hold
+     * the path of any URL the engine accepts (its url buffer is 2048), because
+     * callers route on the path's content — a CDN-signed URL that overflowed
+     * here would lose its ".m3u8" tail and be dispatched as something it isn't. */
+    char path[2048];
     char user[128];
     char pass[128];
     int  tls;          /* 1 for rtmps/https */

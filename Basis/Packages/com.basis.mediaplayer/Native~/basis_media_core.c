@@ -1271,11 +1271,16 @@ static basis_media_engine_t* open_impl(const char* url, const char* audio_url, i
     e->paced_hint = delivery_hint;
     e->paced = (delivery_hint == 2) ? 1 : 0;
     e->pace_delivery = e->paced; /* VOD paces delivery; run_hls also enables it for live HLS */
+    /* Reject an over-long URL rather than storing a prefix: e->url is what every
+     * fetch re-sends, and a clipped one is a request the origin refuses with
+     * nothing to distinguish it from a genuine authorisation failure. */
+    if (strlen(url) >= sizeof(e->url)) { free(e); return NULL; }
     strncpy(e->url, url, sizeof(e->url) - 1);
     if (basis_url_parse(url, &e->parts) != 0) { free(e); return NULL; }
 
     int has_audio = (audio_url && audio_url[0]);
     if (has_audio) {
+        if (strlen(audio_url) >= sizeof(e->url_audio)) { free(e); return NULL; }
         strncpy(e->url_audio, audio_url, sizeof(e->url_audio) - 1);
         if (basis_url_parse(audio_url, &e->parts_audio) != 0) { free(e); return NULL; }
     }
