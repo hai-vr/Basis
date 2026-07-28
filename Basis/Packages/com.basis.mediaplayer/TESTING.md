@@ -295,6 +295,30 @@ and that a late joiner receives it too. Worth a pass on a peer with
 `AutoPlayOnSourceAssigned` unticked, which is the case that relies on the owner's advertised
 state rather than local autoplay.
 
+**Audio source controls and filters** — `AudioSource.volume` and `.mute` are per output, not
+per player: with a stream playing, drag one output's `Volume` to zero and back and only that
+source's level moves, and `Mute` silences that source alone. The player-wide controls are
+`BasisMediaPlayerAudio`'s `VolumeGain` / `Mute` (what the panel slider drives), and the three
+multiply. The multichannel prefab is the row that matters here — set each of the eight outputs
+to a different level and confirm the balance holds, rather than one slider dragging the rest
+with it. Then add an `Audio Low Pass Filter` (or Reverb / Chorus) to one of the output
+GameObjects and confirm it colours that output. Unity applies filters in component order and
+the `BasisMediaPlayerAudioTap` is what generates the audio, so a filter moved **above** the tap
+is expected to do nothing; the check is that one added normally, below it, is heard. Drag a
+filter above the tap and both the tap's own inspector and the owning `BasisMediaPlayerAudio`
+should say so and offer to fix it, without either needing a reselect to notice. On a prefab
+instance the tap itself can't move, so the fix lowers the filters below it instead — with two
+filters stacked, check they keep their order relative to each other, since swapping them
+changes the chain. Only when neither move is allowed should the notice say to open the prefab.
+That notice is also what a hand-built output rig relies on, so add a bare AudioSource with a
+filter on it to `Outputs` and confirm it's flagged. A rig assembled in code can't be reordered
+at all once play starts, so build one that way (AudioSource plus a filter, added to `Outputs`
+from a script) and confirm the player logs a warning naming the filter rather than failing
+quietly. Two AudioSource controls are expected to
+misbehave and shouldn't be reported as regressions: `Pitch` does nothing, and ticking `Bypass
+Effects` or unticking `Spatialize Post Effects` drops spatialisation to flat 2D, because the
+spatialiser then runs ahead of the tap and its output is overwritten.
+
 **Panel UI** ("Media Players" panel, `Runtime/UI/BasisMediaPlayerPanelProvider.cs`) — URL
 load, transport buttons, seek slider (VOD only), volume, bitrate dropdown (HLS multi-variant),
 audio-track dropdown (multi-audio content), captions toggle + opacity sliders, subtitles

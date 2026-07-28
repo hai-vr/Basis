@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using UnityEngine;
 
 // Feeds one BasisMediaPlayer output AudioSource by mixing its channel(s) from the
@@ -18,8 +19,10 @@ using UnityEngine;
 // this output's channel taps, and a gain provider; the primary tap also reports the
 // mixed block back for the diagnostics metrics (consumed samples / peak / RMS).
 [RequireComponent(typeof(AudioSource))]
+[DisallowMultipleComponent]
 public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
 {
+    private AudioSource source;
     private BasisMultiChannelPcmSplitter splitter;
     private BasisMultiChannelPcmSplitter.Reader reader;
     private BasisMultiChannelPcmSplitter.Tap[] taps;
@@ -27,6 +30,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     private Action<float[], int> onMixedBlock;   // null unless this is the primary output
     private bool spreadMono;                      // replicate ch0 across the DSP width (positioned mono sources)
     private double sourceStep = 1.0;              // source frames per output frame (source rate / DSP rate)
+    private volatile float sourceVolume = 1f;     // this AudioSource's own volume/mute, pushed from the main thread
     private volatile bool active;
     private volatile int observedChannels;        // DSP width seen on the audio thread; read on the main thread
 
@@ -51,6 +55,63 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
         sourceStep = sourceFramesPerOutputFrame > 0 ? sourceFramesPerOutputFrame : 1.0;
         observedChannels = 0;
         active = s != null && t != null && reader != null;
+        PollSourceVolume();
+    }
+
+    // Unity applies AudioSource.volume and .mute to the clip this block overwrites,
+    // so neither reaches the mix unless it's folded into the tap's gain. Polled
+    // because neither raises a change notification, and here rather than on the
+    // owning BasisMediaPlayerAudio so it keeps tracking while that component is
+    // disabled with StopOnDisable off, which leaves this tap generating audio.
+    private void Update()
+    {
+        if (active) PollSourceVolume();
+    }
+
+    private void PollSourceVolume()
+    {
+        if (source == null && !TryGetComponent(out source)) return;
+        sourceVolume = source.mute ? 0f : Mathf.Max(0f, source.volume);
+    }
+
+    // Unity runs a source's filters in component order, and this tap generates the
+    // audio rather than processing it, so a filter above it is handed the silent
+    // keepalive clip and then overwritten. Returns the topmost filter that has ended
+    // up there, for callers to warn about or offer to reorder. Component order can't
+    // be changed at runtime, so a rig assembled in code can only be warned about.
+    public static Component FirstBypassedFilter(AudioSource source)
+    {
+        if (source == null) return null;
+
+        Component[] comps = source.GetComponents<Component>();
+        int limit = comps.Length;
+        for (int i = 0; i < comps.Length; i++)
+        {
+            if (comps[i] is BasisMediaPlayerAudioTap) { limit = i; break; }
+        }
+        for (int i = 0; i < limit; i++)
+        {
+            if (comps[i] != null && IsAudioFilter(comps[i])) return comps[i];
+        }
+        return null;
+    }
+
+    public static bool IsAudioFilter(Component c)
+    {
+        if (c is AudioLowPassFilter || c is AudioHighPassFilter || c is AudioReverbFilter ||
+            c is AudioChorusFilter || c is AudioDistortionFilter || c is AudioEchoFilter)
+        {
+            return true;
+        }
+        if (c is not MonoBehaviour) return false;
+
+        // Script filters are DSP stages too. Match Unity's callback exactly, so a
+        // same-named method of another shape isn't mistaken for one (and so an
+        // overload can't make the lookup ambiguous).
+        MethodInfo m = c.GetType().GetMethod("OnAudioFilterRead",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null, types: new[] { typeof(float[]), typeof(int) }, modifiers: null);
+        return m != null && m.ReturnType == typeof(void);
     }
 
     public void Unbind()
@@ -78,7 +139,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
 
         observedChannels = channels;
         int frames = data.Length / channels;
-        float gain = gainProvider != null ? gainProvider() : 1f;
+        float gain = (gainProvider != null ? gainProvider() : 1f) * sourceVolume;
         Array.Clear(data, 0, data.Length);
         s.ReadMixed(r, data, frames, channels, t, gain, sourceStep);
 
