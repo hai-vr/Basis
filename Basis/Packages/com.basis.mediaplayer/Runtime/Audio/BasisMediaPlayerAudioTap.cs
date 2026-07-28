@@ -20,6 +20,7 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
 {
+    private AudioSource source;
     private BasisMultiChannelPcmSplitter splitter;
     private BasisMultiChannelPcmSplitter.Reader reader;
     private BasisMultiChannelPcmSplitter.Tap[] taps;
@@ -27,6 +28,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     private Action<float[], int> onMixedBlock;   // null unless this is the primary output
     private bool spreadMono;                      // replicate ch0 across the DSP width (positioned mono sources)
     private double sourceStep = 1.0;              // source frames per output frame (source rate / DSP rate)
+    private volatile float sourceVolume = 1f;     // this AudioSource's own volume/mute, pushed from the main thread
     private volatile bool active;
     private volatile int observedChannels;        // DSP width seen on the audio thread; read on the main thread
 
@@ -51,6 +53,23 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
         sourceStep = sourceFramesPerOutputFrame > 0 ? sourceFramesPerOutputFrame : 1.0;
         observedChannels = 0;
         active = s != null && t != null && reader != null;
+        PollSourceVolume();
+    }
+
+    // Unity applies AudioSource.volume and .mute to the clip this block overwrites,
+    // so neither reaches the mix unless it's folded into the tap's gain. Polled
+    // because neither raises a change notification, and here rather than on the
+    // owning BasisMediaPlayerAudio so it keeps tracking while that component is
+    // disabled with StopOnDisable off, which leaves this tap generating audio.
+    private void Update()
+    {
+        if (active) PollSourceVolume();
+    }
+
+    private void PollSourceVolume()
+    {
+        if (source == null && !TryGetComponent(out source)) return;
+        sourceVolume = source.mute ? 0f : Mathf.Max(0f, source.volume);
     }
 
     public void Unbind()
@@ -78,7 +97,7 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
 
         observedChannels = channels;
         int frames = data.Length / channels;
-        float gain = gainProvider != null ? gainProvider() : 1f;
+        float gain = (gainProvider != null ? gainProvider() : 1f) * sourceVolume;
         Array.Clear(data, 0, data.Length);
         s.ReadMixed(r, data, frames, channels, t, gain, sourceStep);
 
