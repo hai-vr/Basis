@@ -350,7 +350,6 @@ namespace Basis.Network
                 _seq = new byte[clientCount];
                 _silentUnits = new int[clientCount];
                 _audible = new ConcurrentDictionary<ushort, long>[clientCount];
-                _nextRebuildMs = new double[clientCount];
                 for (int i = 0; i < clientCount; i++) _audible[i] = new ConcurrentDictionary<ushort, long>();
                 _built = 0;
 
@@ -451,7 +450,8 @@ namespace Basis.Network
             // Who each simulated client can currently hear, and when they were last seen. Keyed by the
             // server-assigned player id, so real players land in here exactly like simulated ones.
             private static ConcurrentDictionary<ushort, long>[] _audible;
-            private static double[] _nextRebuildMs;
+            // Per-client rebuild timers are gone: the driver sweeps the population on a fixed
+            // window instead, so the work per tick no longer scales with the client count.
 
             /// <summary>
             /// Called when avatar traffic arrives about <paramref name="playerId"/> at a quality tier
@@ -474,19 +474,33 @@ namespace Basis.Network
             /// Rebuilds the recipient list from who is currently audible and republishes it when it
             /// changes. Returns true once the client has a list to transmit against.
             /// </summary>
-            public static bool RefreshRecipients(NetPeer peer, NetPeer[] peers, int index, double nowMs)
+            /// <summary>Whether this client already has a recipient list it can transmit against.</summary>
+            public static bool HasRecipients(int index) =>
+                _recipients != null && index < _recipients.Length && _recipients[index] != null;
+
+            // Scratch reused per driver thread. The rebuild used to allocate a HashSet and a ushort[]
+            // every time; at a few hundred rebuilds a second that was pure garbage on the hot path.
+            [ThreadStatic] private static HashSet<ushort> t_near;
+            [ThreadStatic] private static ushort[] t_scratch;
+
+            /// <summary>
+            /// Rebuilds one client's recipient list unconditionally. Callers decide *when* — the
+            /// driver sweeps the population on a fixed window rather than letting every client run
+            /// its own timer, so the cost per tick is bounded by the window instead of by how many
+            /// clients a worker happens to own. See DriveSlice.
+            /// </summary>
+            public static bool RebuildRecipients(NetPeer peer, NetPeer[] peers, int index)
             {
                 if (_recipients == null || index >= _recipients.Length) return false;
 
                 bool first = _recipients[index] == null;
-                if (!first && nowMs < _nextRebuildMs[index]) return true;
-                _nextRebuildMs[index] = nowMs + Basis.Config.ConfigManager.VoiceRecipientRefreshMs;
 
                 // Seed from the simulated crowd's fixed spawn positions. Those clients are the bulk of
                 // the population and their avatar traffic may be tiered below Medium even when they are
                 // in range, since quality also drops under server load shedding.
                 float rangeSq = Basis.Config.ConfigManager.VoiceRangeMeters * Basis.Config.ConfigManager.VoiceRangeMeters;
-                HashSet<ushort> near = new HashSet<ushort>();
+                HashSet<ushort> near = t_near ??= new HashSet<ushort>();
+                near.Clear();
                 if (PlayersCurrentPosition != null && index < PlayersCurrentPosition.Length)
                 {
                     Vector3 self = PlayersCurrentPosition[index];
@@ -519,18 +533,25 @@ namespace Basis.Network
                 ushort self_id = (ushort)peer.RemoteId;
                 near.Remove(self_id);
 
-                ushort[] updated = new ushort[near.Count];
-                near.CopyTo(updated);
-                Array.Sort(updated);
+                // Build into reusable scratch and only allocate a keeper when the list actually
+                // changed — in a settled crowd it usually has not, so the common path allocates
+                // nothing at all.
+                int count = near.Count;
+                if (t_scratch == null || t_scratch.Length < count) t_scratch = new ushort[Math.Max(count, 64)];
+                ushort[] scratch = t_scratch;
+                near.CopyTo(scratch);
+                Array.Sort(scratch, 0, count);
 
                 ushort[] previous = _recipients[index];
-                if (previous != null && previous.Length == updated.Length)
+                if (previous != null && previous.Length == count)
                 {
                     bool same = true;
-                    for (int i = 0; i < updated.Length; i++) { if (previous[i] != updated[i]) { same = false; break; } }
+                    for (int i = 0; i < count; i++) { if (previous[i] != scratch[i]) { same = false; break; } }
                     if (same) return true;
                 }
 
+                ushort[] updated = new ushort[count];
+                Array.Copy(scratch, updated, count);
                 _recipients[index] = updated;
                 if (first) Interlocked.Increment(ref _built);
                 SendRecipients(peer, index);

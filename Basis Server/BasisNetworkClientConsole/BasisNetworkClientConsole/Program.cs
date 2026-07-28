@@ -14,6 +14,11 @@ namespace Basis
         private const int MaxVoiceCatchUpFrames = 5;
         private static volatile bool _running = true;
 
+        /// <summary>Driver iterations that took longer than DriverTickMs — the harness falling behind.</summary>
+        private static long DriverOverruns;
+        /// <summary>Worst driver iteration seen, in ms.</summary>
+        private static double DriverPeakMs;
+
         public static async Task Main(string[] args)
         {
             ErrorHandlers.AttachGlobalHandlers();
@@ -118,6 +123,26 @@ namespace Basis
                 });
             }
 
+            // Report whether the harness itself is keeping up. Without this a driver that cannot
+            // hit its tick looks identical to a server that cannot keep up, and every number the
+            // run produces is quietly a measurement of the load generator instead.
+            _ = Task.Run(async () =>
+            {
+                long lastOverruns = 0;
+                while (_running)
+                {
+                    await Task.Delay(10000);
+                    long overruns = Interlocked.Read(ref DriverOverruns);
+                    long delta = overruns - lastOverruns;
+                    lastOverruns = overruns;
+                    double peak = Interlocked.Exchange(ref DriverPeakMs, 0);
+                    if (delta > 0)
+                        BNL.Log($"[Driver] BEHIND: {delta} slice overruns in 10s (peak {peak:F0}ms vs {DriverTickMs}ms tick) — harness is limiting, not the server.");
+                    else
+                        BNL.Log($"[Driver] healthy: 0 overruns in 10s ({DriverTickMs}ms tick met).");
+                }
+            });
+
             // Start random reconnects
             _ = StartRandomReconnectLoop(clientManager);
 
@@ -165,6 +190,14 @@ namespace Basis
             double lastMovementMs = phaseOffsetMs - MovementIntervalMs;
             double lastVoiceMs = 0;
 
+            // Amortized voice-recipient sweep state: a cursor over this worker's slice plus the
+            // fractional number of rebuilds owed, so the sweep runs at a steady rate rather than in
+            // bursts. See the sweep in the voice block below.
+            int sliceCount = end - start;
+            int refreshCursor = start;
+            double refreshDebt = 0;
+            double lastRefreshMs = 0;
+
 
             while (_running)
             {
@@ -209,14 +242,51 @@ namespace Basis
                         lastVoiceMs += dueFrames * voiceFrameMs;
                     }
 
+                    // Amortized recipient sweep.
+                    //
+                    // Each client's audible set is an O(N) scan, and every client used to run its own
+                    // rebuild timer — so the work per tick scaled with how many clients this worker
+                    // owned, and at 4000 clients the driver could not hit its 15ms tick at all
+                    // (measured: 400-500 overruns per 10s, peaks over 200ms). Since the driver was
+                    // then polling clients late, the run stopped measuring the server and started
+                    // measuring the harness.
+                    //
+                    // Instead the whole slice is swept once per window at a steady rate: carry the
+                    // fractional debt between ticks and rebuild only the clients that come due. The
+                    // per-tick cost is set by the window, not by the population, so it stays flat as
+                    // clients are added — the window just takes proportionally longer per client.
+                    double windowMs = Basis.Config.ConfigManager.VoiceRecipientRefreshMs;
+                    if (windowMs <= 0) windowMs = 5000;
+                    refreshDebt += sliceCount * (nowMs - lastRefreshMs) / windowMs;
+                    lastRefreshMs = nowMs;
+                    int dueRebuilds = (int)refreshDebt;
+                    if (dueRebuilds > 0)
+                    {
+                        refreshDebt -= dueRebuilds;
+                        // Never let a stall turn into a burst that stalls the next tick too.
+                        if (dueRebuilds > sliceCount) dueRebuilds = sliceCount;
+                        for (int n = 0; n < dueRebuilds; n++)
+                        {
+                            int idx = refreshCursor;
+                            if (++refreshCursor >= end) refreshCursor = start;
+                            var sweepPeer = Volatile.Read(ref peers[idx]);
+                            if (sweepPeer != null && (sweepPeer.Tag as ConsoleClientIdentity)?.Authenticated == true)
+                                MovementSender.VoiceSender.RebuildRecipients(sweepPeer, peers, idx);
+                        }
+                    }
+
                     for (int i = start; i < end && dueFrames > 0; i++)
                     {
                         var peer = Volatile.Read(ref peers[i]);
                         if (peer == null || (peer.Tag as ConsoleClientIdentity)?.Authenticated != true) continue;
 
-                        // Republished on a cadence rather than built once, so players who join or move
-                        // into range — including real ones — start being sent voice.
-                        bool ready = MovementSender.VoiceSender.RefreshRecipients(peer, peers, i, nowMs);
+                        // A client that has never been swept builds once immediately, so a joiner can
+                        // transmit without waiting out a window. After that the sweep owns it.
+                        bool ready = MovementSender.VoiceSender.HasRecipients(i);
+                        if (!ready)
+                        {
+                            ready = MovementSender.VoiceSender.RebuildRecipients(peer, peers, i);
+                        }
                         if (ready)
                         {
                             bool talking = MovementSender.VoiceSender.IsTalking(i, nowMs);
@@ -243,9 +313,23 @@ namespace Basis
                     }
                 }
 
-                int sleepMs = (int)(DriverTickMs - (sw.Elapsed.TotalMilliseconds - nowMs));
+                // A slice that takes longer than the tick silently degrades the whole simulation:
+                // clients stop being polled on time, inbound packets back up in the socket buffer,
+                // and peers start timing out — which looks exactly like a server that cannot keep
+                // up. Track it so harness limits can never be mistaken for server results.
+                double iterationMs = sw.Elapsed.TotalMilliseconds - nowMs;
+                int sleepMs = (int)(DriverTickMs - iterationMs);
                 if (sleepMs > 0)
+                {
                     Thread.Sleep(sleepMs);
+                }
+                else
+                {
+                    Interlocked.Increment(ref DriverOverruns);
+                    double peak;
+                    while ((peak = Volatile.Read(ref DriverPeakMs)) < iterationMs &&
+                           Interlocked.CompareExchange(ref DriverPeakMs, iterationMs, peak) != peak) { }
+                }
             }
         }
 

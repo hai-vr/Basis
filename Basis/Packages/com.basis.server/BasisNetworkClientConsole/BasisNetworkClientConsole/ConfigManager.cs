@@ -57,7 +57,12 @@ namespace Basis.Config
         public static int VoiceChorusIntervalMaxMs = 180000;
         // How often each client re-derives who can hear it and republishes the list. Real players
         // join and move, so a list built once at connect goes stale; this is the reaction time.
-        public static int VoiceRecipientRefreshMs = 2000;
+        // The driver sweeps the whole population once per this window at a steady rate rather than
+        // letting every client run its own timer, so this sets the total range-check budget instead
+        // of a per-client one. 5s keeps a joiner audible quickly while halving the sweep cost of the
+        // old 2s cadence; the check is O(N) per client, so at high client counts this is the knob
+        // that decides whether the harness can hold its tick.
+        public static int VoiceRecipientRefreshMs = 5000;
         // Drop a player from the audible set after this long without nearby avatar traffic from them.
         public static int VoiceAudibleTimeoutMs = 6000;
         public static int VoiceFrameMs = 20;

@@ -119,11 +119,135 @@ namespace LiteNetLib
             return false;
         }
 
+        // Manual-mode native receive state. Manual mode is driven by a single caller per manager,
+        // so these are plain fields rather than per-call allocations.
+        private byte[] _manualAddrBuffer;
+        private IPEndPoint _manualTempEndPoint;
+        /// <summary>Buffer held across polls so an empty drain costs no pool traffic.</summary>
+        private NetPacket _manualReceivePacket;
+
+        /// <summary>
+        /// Decodes a native sockaddr into <paramref name="endPoint"/>.
+        ///
+        /// Deliberately a copy of the decode inside NativeReceiveLogicForSocketPair rather than a
+        /// refactor of it — that one is the server's hot receive loop and is not worth disturbing
+        /// for this. Keep the two in step if the address layout ever changes.
+        /// </summary>
+        private static void DecodeNativeAddress(byte[] address, IPEndPoint endPoint)
+        {
+            short family = (short)((address[1] << 8) | address[0]);
+            endPoint.Port = (ushort)((address[2] << 8) | address[3]);
+
+            if ((NativeSocket.UnixMode && family == NativeSocket.AF_INET6) ||
+                (!NativeSocket.UnixMode && (AddressFamily)family == AddressFamily.InterNetworkV6))
+            {
+                uint scope = unchecked((uint)(
+                    (address[27] << 24) +
+                    (address[26] << 16) +
+                    (address[25] << 8) +
+                    (address[24])));
+#if NETCOREAPP || NETSTANDARD2_1 || NETSTANDARD2_1_OR_GREATER
+                endPoint.Address = new IPAddress(new ReadOnlySpan<byte>(address, 8, 16), scope);
+#else
+                byte[] addrBuffer = new byte[16];
+                Buffer.BlockCopy(address, 8, addrBuffer, 0, 16);
+                endPoint.Address = new IPAddress(addrBuffer, scope);
+#endif
+            }
+            else //IPv4
+            {
+                long ipv4Addr = unchecked((uint)((address[4] & 0x000000FF) |
+                                                 (address[5] << 8 & 0x0000FF00) |
+                                                 (address[6] << 16 & 0x00FF0000) |
+                                                 (address[7] << 24)));
+                endPoint.Address = new IPAddress(ipv4Addr);
+            }
+        }
+
+        /// <summary>
+        /// Drains a non-blocking socket until the kernel says there is nothing left.
+        ///
+        /// The blocking path has to ask Socket.Available before every receive, because a blocking
+        /// receive on an empty socket would hang the caller — one extra syscall per datagram plus
+        /// one per poll just to find out the socket was idle. Here the receive itself reports the
+        /// end of the queue by returning WouldBlock, so a poll that reads N datagrams costs N+1
+        /// syscalls instead of 2N+1.
+        /// </summary>
+        private void ManualReceiveNative(Socket socket, int maxReceive)
+        {
+            if (_manualAddrBuffer == null) _manualAddrBuffer = new byte[NativeSocket.IPv6AddrSize];
+            if (_manualTempEndPoint == null) _manualTempEndPoint = new IPEndPoint(IPAddress.Any, 0);
+
+            IntPtr handle = socket.Handle;
+            int received = 0;
+
+            // The buffer is rented once and kept across polls, and only replaced after one has
+            // actually been handed to a consumer. Every drain ends with a receive that finds
+            // nothing, so renting per attempt would mean a pool round-trip per socket per poll —
+            // at 4000 sockets, a few hundred thousand pointless rent/recycle pairs a second.
+            if (_manualReceivePacket == null) _manualReceivePacket = PoolGetPacket(NetConstants.MaxPacketSize);
+            NetPacket packet = _manualReceivePacket;
+
+            while (true)
+            {
+                int addrSize = _manualAddrBuffer.Length;
+                int size = NativeSocket.RecvFrom(handle, packet.RawData, NetConstants.MaxPacketSize, _manualAddrBuffer, ref addrSize);
+
+                if (size <= 0)
+                {
+                    if (size == 0) return; //socket closed or empty packet
+
+                    SocketError error = NativeSocket.GetSocketError();
+                    // The expected way to end a drain, not a failure.
+                    if (error == SocketError.WouldBlock || error == SocketError.TimedOut) return;
+                    ProcessError(new SocketException((int)error));
+                    return;
+                }
+
+                packet.Size = size;
+                DecodeNativeAddress(_manualAddrBuffer, _manualTempEndPoint);
+
+                if (TryGetPeer(_manualTempEndPoint, out var peer))
+                {
+                    OnMessageReceived(packet, peer);
+                }
+                else
+                {
+                    OnMessageReceived(packet, _manualTempEndPoint);
+                    // Handed off to a consumer that may retain it — start a fresh one.
+                    _manualTempEndPoint = new IPEndPoint(IPAddress.Any, 0);
+                }
+
+                // The packet now belongs to whoever received it; take a fresh one for the next.
+                packet = PoolGetPacket(NetConstants.MaxPacketSize);
+                _manualReceivePacket = packet;
+
+                if (++received == maxReceive) return;
+            }
+        }
+
         private void ManualReceive(Socket socket, EndPoint bufferEndPoint, int maxReceive)
         {
             //Reading data
             try
             {
+                // Non-blocking (set in BindSocket for manual mode when the native path is usable):
+                // drain by receiving until WouldBlock, with no Available calls at all.
+                if (!socket.Blocking)
+                {
+                    ManualReceiveNative(socket, maxReceive);
+                    return;
+                }
+
+                // Available is checked before every receive on purpose: the socket is blocking, so
+                // receiving without a confirmed pending datagram would hang the caller. Spending a
+                // single Available reading as a multi-datagram budget was tried and rejected — it
+                // is only safe if Available reports the whole queue, and for datagram sockets some
+                // platforms report just the first datagram, which would deadlock the driver.
+                //
+                // This does make Available the dominant cost of a manual-mode client at scale
+                // (measured: 34% of a 4000-client load tester's CPU). The fix is not here — it is
+                // to stop asking per socket. See Socket.Select, which answers for a whole batch.
                 int packetsReceived = 0;
                 while (socket.Available > 0)
                 {
@@ -272,16 +396,21 @@ namespace LiteNetLib
             }
         }
 
-        private void ReceiveFrom(Socket s, ref EndPoint bufferEndPoint)
+        /// <summary>Receives one datagram and returns its size, so callers can track a drain budget.</summary>
+        private int ReceiveFrom(Socket s, ref EndPoint bufferEndPoint)
         {
             var packet = PoolGetPacket(NetConstants.MaxPacketSize);
 #if NET8_0_OR_GREATER
             var sockAddr = GetSockAddrCache(s.AddressFamily);
             packet.Size = s.ReceiveFrom(packet, SocketFlags.None, sockAddr);
+            int size = packet.Size;
             OnMessageReceived(packet, TryGetPeer(sockAddr, out var peer) ? peer : (IPEndPoint)bufferEndPoint.Create(sockAddr));
+            return size;
 #else
             packet.Size = s.ReceiveFrom(packet.RawData, 0, NetConstants.MaxPacketSize, SocketFlags.None, ref bufferEndPoint);
+            int size = packet.Size;
             OnMessageReceived(packet, (IPEndPoint)bufferEndPoint);
+            return size;
 #endif
         }
 
@@ -504,7 +633,17 @@ namespace LiteNetLib
             socket.SendTimeout = 500;
             socket.ReceiveBufferSize = NetConstants.SocketBufferSize;
             socket.SendBufferSize = NetConstants.SocketBufferSize;
-            socket.Blocking = true;
+
+            // Manual mode drains the socket from the caller's loop rather than a dedicated receive
+            // thread, so it needs a way to learn "nothing left" that does not block. A blocking
+            // socket can only answer that by being asked separately — Socket.Available, a syscall
+            // per question — and at 4000 manual-mode clients that question was 34% of the process.
+            // Non-blocking lets the receive itself say so by failing with WouldBlock, which the
+            // native path reports as a return code instead of an exception.
+            //
+            // Only when the native path is actually available: the managed ReceiveFrom throws on
+            // WouldBlock, and an exception per empty poll would be far worse than the syscall.
+            socket.Blocking = !(_manualMode && UseNativeSockets && NativeSocket.IsSupported);
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -757,6 +896,13 @@ namespace LiteNetLib
                 {
                     case SocketError.NoBufferSpaceAvailable:
                     case SocketError.Interrupted:
+                        return 0;
+                    // Manual mode runs its socket non-blocking so receives can report the end of
+                    // the queue; a full send buffer then surfaces here instead of blocking. Same
+                    // outcome as NoBufferSpaceAvailable — the datagram is dropped, which is what
+                    // unreliable delivery means. Logging it would spam under exactly the load that
+                    // causes it.
+                    case SocketError.WouldBlock:
                         return 0;
                     case SocketError.MessageSize:
                         //NetDebug.Write(NetLogLevel.Trace, $"[SRD] 10040, datalen: {length}");
