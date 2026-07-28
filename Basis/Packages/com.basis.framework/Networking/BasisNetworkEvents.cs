@@ -913,7 +913,7 @@ public static class BasisNetworkEvents
                     BasisMainMenu.Open();
                     if (BasisMainMenu.Instance != null)
                     {
-                        BasisMainMenu.Instance.OpenDialogue("Server Connection", reason, "ok", value =>
+                        BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("menu.servers.connection.title"), reason, BasisLocalization.Get("ui.ok"), value =>
                         {
                         });
                     }
@@ -934,7 +934,7 @@ public static class BasisNetworkEvents
                 BasisMainMenu.Open();
                 if (BasisMainMenu.Instance != null)
                 {
-                    BasisMainMenu.Instance.OpenDialogue("Server Connection", Reason, "ok", value =>
+                    BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("menu.servers.connection.title"), Reason, BasisLocalization.Get("ui.ok"), value =>
                     {
                     });
                 }

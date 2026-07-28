@@ -102,8 +102,8 @@ namespace Basis.BasisUI
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
             {
                 _reportGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-                _reportGroup.SetTitle("Calibration Report");
-                _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : "Calibrate to see a quality report.");
+                _reportGroup.SetTitle(BasisLocalization.Get("calibration.report.title"));
+                _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : BasisLocalization.Get("calibration.report.empty"));
             }
 
             // Calibration modes (moved here from Body Tracking settings): seated/standing, avatar scaling, spine lock.
@@ -126,16 +126,13 @@ namespace Basis.BasisUI
             // Arm To Height Ratio: scale by a percentage between the two measurements instead of a single
             // scaling mode. Overrides the Avatar Scaling Mode dropdown while enabled (VR only).
             var armToHeightToggle = PanelToggle.CreateNewEntry(container);
-            armToHeightToggle.Descriptor.SetTitle("Arm To Height Ratio");
-            armToHeightToggle.Descriptor.SetTooltip(
-                "Scale the avatar by a percentage between your two measurements instead of a single scaling mode: " +
-                "0% uses eye height, 100% uses arm distance, and values outside that range keep going in the " +
-                "same direction. Overrides Avatar Scaling Mode while enabled.");
+            armToHeightToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.calibration.armToHeightRatio"));
+            armToHeightToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.armToHeightRatio.tooltip"));
             armToHeightToggle.AssignBinding(BasisSettingsDefaults.EnableArmToHeightBlend);
 
             var armToHeightSlider = PanelSlider.CreateAndBind(
                 container,
-                PanelSlider.SliderSettings.Advanced("Arm To Height Ratio",
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.calibration.armToHeightRatio"),
                     BasisCalibrationMath.ArmToHeightBlendMin, BasisCalibrationMath.ArmToHeightBlendMax,
                     false, 2, ValueDisplayMode.percentageFromZero),
                 BasisSettingsDefaults.ArmToHeightBlend);
@@ -168,9 +165,7 @@ namespace Basis.BasisUI
 
             if (armToHeightSlider != null)
             {
-                armToHeightSlider.Descriptor.SetTooltip(
-                    "Percentage between the two measurements: 0% scales by eye height, 100% by arm distance. " +
-                    "Negative pushes past eye height, above 100% pushes past arm distance.");
+                armToHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.armToHeightRatio.slider.tooltip"));
                 armToHeightSlider.gameObject.SetActive(BasisSettingsDefaults.EnableArmToHeightBlend.RawValue);
             }
             armToHeightToggle.OnValueChanged += enabled =>

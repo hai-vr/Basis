@@ -69,7 +69,9 @@ namespace Basis.BasisUI
             URLTextField._inputField.text = url;
             URLTextField._inputField.interactable = false;
 
-            ScopeDropdown.AssignEntries(new List<string> { "URL", "Hostname", "Base Domain" });
+            ScopeDropdown.AssignLocalizedEntries(
+                new List<string> { "URL", "Hostname", "Base Domain" },
+                new List<string> { "settings.urlPrompt.scope.url", "settings.urlPrompt.scope.hostname", "settings.urlPrompt.scope.baseDomain" });
             ScopeDropdown.SetValue("URL");
             ScopeDropdown.gameObject.SetActive(false);
         }

@@ -33,6 +33,10 @@ namespace BasisPermissions
         public const string ResourceLockBypassWorld = "basis.resource.lockbypass.world";
         /// <summary>Bypass <c>ServersLocked</c> when initiating a server share.</summary>
         public const string ResourceLockBypassServer = "basis.resource.lockbypass.server";
+        /// <summary>Bypass <c>TextChatLocked</c> — keep sending text chat while the global chat lock is on.</summary>
+        public const string ChatLockBypass = "basis.chat.lockbypass";
+        /// <summary>Bypass <c>VoiceChatLocked</c> — keep transmitting voice while the global voice lock is on.</summary>
+        public const string VoiceLockBypass = "basis.voice.lockbypass";
 
         public const string OwnershipTransfer = "basis.ownership.transfer";
         public const string OwnershipRemove = "basis.ownership.remove";
@@ -800,6 +804,8 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.ResourceLockBypassProp);
                     adm.Nodes.Add(PermNodes.ResourceLockBypassWorld);
                     adm.Nodes.Add(PermNodes.ResourceLockBypassServer);
+                    adm.Nodes.Add(PermNodes.ChatLockBypass);
+                    adm.Nodes.Add(PermNodes.VoiceLockBypass);
 
                     _store.Groups["moderator"] = adm;
                 }

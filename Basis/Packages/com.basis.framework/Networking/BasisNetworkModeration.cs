@@ -241,7 +241,7 @@ public static class BasisNetworkModeration
                 BasisMainMenu.Instance.Dialogue.ReleaseInstance();
             }
 
-            BasisMainMenu.Instance.OpenDialogue("admin", message, "ok", value =>
+            BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("settings.admin.title"), message, BasisLocalization.Get("ui.ok"), value =>
             {
                 // If we opened the menu solely to show this popup, close it again on dismiss.
                 if (!menuWasAlreadyOpen)
@@ -272,7 +272,7 @@ public static class BasisNetworkModeration
             BasisMainMenu.Instance.Dialogue.ReleaseInstance();
         }
 
-        BasisMainMenu.Instance.OpenDialogue("admin", message, "open folder", "ok", accepted =>
+        BasisMainMenu.Instance.OpenDialogue(BasisLocalization.Get("settings.admin.title"), message, BasisLocalization.Get("ui.openFolder"), BasisLocalization.Get("ui.ok"), accepted =>
         {
             if (accepted) BasisFileBrowserUtility.Reveal(folderPath);
             // If we opened the menu solely to show this popup, close it again on dismiss.
@@ -782,8 +782,58 @@ public static class BasisNetworkModeration
     /// </summary>
     public static bool GlobalEndEffectorIKDisabled { get; private set; }
 
+    /// <summary>
+    /// Server-pushed lock: while true, peers without basis.chat.lockbypass can't send text chat or
+    /// typing state. Enforced server-side (chat has its own channel, so the server drops it outright);
+    /// this flag exists so the local composer can grey out instead of silently swallowing messages.
+    /// </summary>
+    public static bool GlobalTextChatLocked { get; private set; }
+
     /// <summary>Fired when the shared-image lock flag changes.</summary>
     public static event Action<bool> OnGlobalImagesLockedChanged;
+
+    /// <summary>
+    /// Server-pushed lock: while true, peers without basis.voice.lockbypass can't transmit voice.
+    /// Enforced server-side (voice has its own channels); clients also stop transmitting so a locked
+    /// user isn't burning upstream bandwidth into a stream the server discards.
+    /// </summary>
+    public static bool GlobalVoiceChatLocked { get; private set; }
+
+    /// <summary>
+    /// Server-pushed lock: while true, non-bypass clients neither load new media player URLs nor
+    /// accept inbound ones. Enforced client-side by the media player package (media state rides the
+    /// generic scene relay, so the server can't single it out). Already-playing media keeps playing.
+    /// </summary>
+    public static bool GlobalMediaPlayerLocked { get; private set; }
+
+    /// <summary>
+    /// Server-pushed lock: while true, non-bypass clients can't capture photos. Enforced client-side
+    /// — capture is entirely local, so nothing reaches the server to block. Distinct from
+    /// <see cref="GlobalCameraDisallowMask"/>, which only strips metadata from photos still taken.
+    /// </summary>
+    public static bool GlobalCameraCaptureLocked { get; private set; }
+
+    /// <summary>
+    /// Server-pushed lock: while true, non-bypass clients can't pick up or grab props. Enforced
+    /// client-side — grabbing is local interaction logic. Distinct from <see cref="GlobalPropsLocked"/>,
+    /// which blocks prop loading rather than handling already-spawned ones.
+    /// </summary>
+    public static bool GlobalPropGrabbingLocked { get; private set; }
+
+    /// <summary>Fired when the text-chat lock flag changes.</summary>
+    public static event Action<bool> OnGlobalTextChatLockedChanged;
+
+    /// <summary>Fired when the voice lock flag changes.</summary>
+    public static event Action<bool> OnGlobalVoiceChatLockedChanged;
+
+    /// <summary>Fired when the media-player lock flag changes.</summary>
+    public static event Action<bool> OnGlobalMediaPlayerLockedChanged;
+
+    /// <summary>Fired when the camera-capture lock flag changes.</summary>
+    public static event Action<bool> OnGlobalCameraCaptureLockedChanged;
+
+    /// <summary>Fired when the prop-grabbing lock flag changes.</summary>
+    public static event Action<bool> OnGlobalPropGrabbingLockedChanged;
 
     /// <summary>Fired when the remote end-effector IK disable flag changes (true = disabled).</summary>
     public static event Action<bool> OnGlobalEndEffectorIKDisabledChanged;
@@ -801,6 +851,62 @@ public static class BasisNetworkModeration
                (perms.Contains(BasisPermissions.PermNodes.All) ||
                 perms.Contains(BasisPermissions.PermNodes.ModerationGlobalLock));
     }
+
+    /// <summary>
+    /// True when the local player may still send text chat while <see cref="GlobalTextChatLocked"/>
+    /// is on. Mirrors the server's own check exactly (basis.chat.lockbypass, or the '*' wildcard) —
+    /// this gate is cosmetic, the server drops the message either way, so the two must agree or a
+    /// bypass holder would see a greyed-out composer that would in fact have worked.
+    /// </summary>
+    public static bool LocalPlayerHasChatLockBypass()
+    {
+        var perms = BasisNetworkManagement.LocalPermissions;
+        return perms != null &&
+               (perms.Contains(BasisPermissions.PermNodes.All) ||
+                perms.Contains(BasisPermissions.PermNodes.ChatLockBypass));
+    }
+
+    /// <summary>
+    /// True when the local player may still transmit voice while <see cref="GlobalVoiceChatLocked"/>
+    /// is on. Mirrors the server's own check exactly (basis.voice.lockbypass, or the '*' wildcard) —
+    /// the server drops the audio either way, so the two must agree or a bypass holder would mute
+    /// themselves locally when the server would in fact have relayed them.
+    /// </summary>
+    public static bool LocalPlayerHasVoiceLockBypass()
+    {
+        var perms = BasisNetworkManagement.LocalPermissions;
+        return perms != null &&
+               (perms.Contains(BasisPermissions.PermNodes.All) ||
+                perms.Contains(BasisPermissions.PermNodes.VoiceLockBypass));
+    }
+
+    /// <summary>
+    /// True when the local player must stop transmitting voice. The server drops it regardless —
+    /// this exists so a locked client doesn't keep encoding and uploading a discarded stream.
+    /// </summary>
+    public static bool VoiceBlockedLocally =>
+        GlobalVoiceChatLocked && !LocalPlayerHasVoiceLockBypass();
+
+    /// <summary>
+    /// True when the local player may not load media player URLs (outbound or inbound).
+    /// Client-enforced, so this IS the whole gate — admins are exempt via the global-lock bypass.
+    /// </summary>
+    public static bool MediaPlayerBlockedLocally =>
+        GlobalMediaPlayerLocked && !LocalPlayerHasGlobalLockBypass();
+
+    /// <summary>
+    /// True when the local player may not capture photos. Client-enforced, so this IS the whole
+    /// gate — admins are exempt via the global-lock bypass.
+    /// </summary>
+    public static bool CameraCaptureBlockedLocally =>
+        GlobalCameraCaptureLocked && !LocalPlayerHasGlobalLockBypass();
+
+    /// <summary>
+    /// True when the local player may not pick up props. Client-enforced, so this IS the whole
+    /// gate — admins are exempt via the global-lock bypass.
+    /// </summary>
+    public static bool PropGrabbingBlockedLocally =>
+        GlobalPropGrabbingLocked && !LocalPlayerHasGlobalLockBypass();
 
     private static void HandleGlobalLockState(NetDataReader reader)
     {
@@ -909,7 +1015,55 @@ public static class BasisNetworkModeration
                 OnGlobalEndEffectorIKDisabledChanged?.Invoke(GlobalEndEffectorIKDisabled);
             }
         }
-        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}", BasisDebug.LogTag.Networking);
+        // TextChatLocked appended after EndEffectorIKDisabled — same back-compat trick.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextTextChatLocked = reader.GetBool();
+            if (nextTextChatLocked != GlobalTextChatLocked)
+            {
+                GlobalTextChatLocked = nextTextChatLocked;
+                OnGlobalTextChatLockedChanged?.Invoke(GlobalTextChatLocked);
+            }
+        }
+        // VoiceChat/MediaPlayer/CameraCapture/PropGrabbing appended after TextChatLocked — same
+        // back-compat trick, each guarded independently so a short payload stops cleanly.
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextVoiceChatLocked = reader.GetBool();
+            if (nextVoiceChatLocked != GlobalVoiceChatLocked)
+            {
+                GlobalVoiceChatLocked = nextVoiceChatLocked;
+                OnGlobalVoiceChatLockedChanged?.Invoke(GlobalVoiceChatLocked);
+            }
+        }
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextMediaPlayerLocked = reader.GetBool();
+            if (nextMediaPlayerLocked != GlobalMediaPlayerLocked)
+            {
+                GlobalMediaPlayerLocked = nextMediaPlayerLocked;
+                OnGlobalMediaPlayerLockedChanged?.Invoke(GlobalMediaPlayerLocked);
+            }
+        }
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextCameraCaptureLocked = reader.GetBool();
+            if (nextCameraCaptureLocked != GlobalCameraCaptureLocked)
+            {
+                GlobalCameraCaptureLocked = nextCameraCaptureLocked;
+                OnGlobalCameraCaptureLockedChanged?.Invoke(GlobalCameraCaptureLocked);
+            }
+        }
+        if (reader.AvailableBytes >= 1)
+        {
+            bool nextPropGrabbingLocked = reader.GetBool();
+            if (nextPropGrabbingLocked != GlobalPropGrabbingLocked)
+            {
+                GlobalPropGrabbingLocked = nextPropGrabbingLocked;
+                OnGlobalPropGrabbingLockedChanged?.Invoke(GlobalPropGrabbingLocked);
+            }
+        }
+        BasisDebug.Log($"Global lock state updated - Avatars: {GlobalAvatarsLocked}, Props: {GlobalPropsLocked}, Worlds: {GlobalWorldsLocked}, Servers: {GlobalServersLocked}, ThirdPerson: {GlobalThirdPersonDisabled}, AdditionalAvatarData: {GlobalAdditionalAvatarDataLock}, CameraMask: {GlobalCameraDisallowMask}, Restriction: {GlobalUserRestrictionMode}, PlayspaceMover: {GlobalPlayspaceMoverLocked}, DirectConnect: {GlobalDirectConnectLocked}, Cilbox: {GlobalCilboxLocked}, Images: {GlobalImagesLocked}, EndEffectorIKDisabled: {GlobalEndEffectorIKDisabled}, TextChat: {GlobalTextChatLocked}, VoiceChat: {GlobalVoiceChatLocked}, MediaPlayer: {GlobalMediaPlayerLocked}, CameraCapture: {GlobalCameraCaptureLocked}, PropGrabbing: {GlobalPropGrabbingLocked}", BasisDebug.LogTag.Networking);
         OnGlobalLockStateChanged?.Invoke(GlobalAvatarsLocked, GlobalPropsLocked, GlobalWorldsLocked, GlobalServersLocked);
     }
 
@@ -1000,6 +1154,51 @@ public static class BasisNetworkModeration
     public static void GlobalToggleImages()
     {
         SendAdminRequest(AdminRequestMode.GlobalToggleImages);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global text-chat lock. While set the server drops chat messages and typing
+    /// state from peers without basis.chat.lockbypass, and clients grey out their chat composer.
+    /// </summary>
+    public static void GlobalToggleTextChat()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleTextChat);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global voice lock. While set the server drops normal and shout voice from
+    /// peers without basis.voice.lockbypass, and those clients stop transmitting.
+    /// </summary>
+    public static void GlobalToggleVoiceChat()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleVoiceChat);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global media-player lock. While set, non-bypass clients neither load new
+    /// media URLs nor accept inbound ones. Honored client-side by the media player package.
+    /// </summary>
+    public static void GlobalToggleMediaPlayer()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleMediaPlayer);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global camera-capture lock. While set, non-bypass clients can't take
+    /// photos. Honored client-side by the camera package.
+    /// </summary>
+    public static void GlobalToggleCameraCapture()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalToggleCameraCapture);
+    }
+
+    /// <summary>
+    /// Admin: toggle the global prop-grabbing lock. While set, non-bypass clients can't pick up
+    /// props. Honored client-side by the pickup interactables.
+    /// </summary>
+    public static void GlobalTogglePropGrabbing()
+    {
+        SendAdminRequest(AdminRequestMode.GlobalTogglePropGrabbing);
     }
 
     /// <summary>

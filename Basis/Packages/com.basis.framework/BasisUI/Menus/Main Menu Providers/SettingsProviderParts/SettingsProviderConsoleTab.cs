@@ -90,7 +90,9 @@ namespace Basis.BasisUI
             PanelDropdown filterDropdown = PanelDropdown.CreateNewEntry(controlsGroup.ContentParent);
             filterDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.console.filter"));
             filterDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.filter.tooltip"));
-            filterDropdown.AssignEntries(new List<string> { "All", "Errors", "Warnings", "Logs" });
+            filterDropdown.AssignLocalizedEntries(
+                new List<string> { "All", "Errors", "Warnings", "Logs" },
+                new List<string> { "settings.console.filter.all", "settings.console.filter.errors", "settings.console.filter.warnings", "settings.console.filter.logs" });
             filterDropdown.DropdownComponent.SetValueWithoutNotify(GetFilterIndex());
             filterDropdown.DropdownComponent.onValueChanged.AddListener(OnFilterChanged);
 
@@ -107,7 +109,7 @@ namespace Basis.BasisUI
             PanelButton copyBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             copyBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.copyLogs"));
             copyBtn.Descriptor.SetTooltip(BasisLocalization.Get("settings.console.copyLogs.tooltip"));
-            copyBtn.OnClicked += () => GUIUtility.systemCopyBuffer = BasisLogManager.GetAllLogsPlainText();
+            copyBtn.OnClicked += () => BasisClipboard.Copy(BasisLogManager.GetAllLogsPlainText(), copyBtn);
 
             PanelButton crashBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
             crashBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.console.openCrashReport"));

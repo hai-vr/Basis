@@ -6,7 +6,7 @@ namespace Basis.Network.Core
     public sealed class LNLTransportConfig
     {
         /// <summary>Bump to force existing files to be rewritten; newly-added fields are healed automatically on load.</summary>
-        public const int CurrentConfigVersion = 2;
+        public const int CurrentConfigVersion = 4;
         /// <summary>Schema version stamped into the file; 0 = pre-versioning, upgraded on load.</summary>
         public int ConfigVersion = 0;
 
@@ -32,5 +32,35 @@ namespace Basis.Network.Core
         public int MultiSocketCount = 1;
         public int PacketPoolSizePerPeer = 48;
         public int PacketPoolSizeMax = 262144;
+
+        /// <summary>
+        /// How long (ms) a partly-filled merge buffer may wait for more data before being sent.
+        ///
+        /// The logic loop used to flush every peer's merge buffer on every pass, so at a few
+        /// hundred passes a second most datagrams left less than half the MTU used and the server
+        /// paid full per-packet cost for them. Holding a partial buffer briefly lets consecutive
+        /// passes coalesce into one datagram.
+        ///
+        /// A full buffer is always sent immediately, so this only ever delays small sends, and it
+        /// is a ceiling rather than an added delay — traffic that already fills the MTU is
+        /// unaffected. 0 restores the old flush-every-pass behaviour.
+        ///
+        /// Measured at 500 players, same bytes on the wire throughout: 0 ms = 175K datagrams/s
+        /// (~670 B each, under half the MTU), 3 ms = 147K (-16%), 8 ms = 96K (-45%, ~1125 B each).
+        /// 3 is the default because it is most of the packet-rate win for a delay well under one
+        /// avatar send interval; raise it toward 8 if packet rate matters more than voice latency.
+        /// </summary>
+        public float MergeHoldMs = 3f;
+
+        /// <summary>
+        /// Worker cap for the transport's per-peer update pass. 0 = a quarter of the cores,
+        /// floored at 4 and capped at 8.
+        ///
+        /// This pass runs hundreds of times a second and does little work per peer, so letting it
+        /// spread across every core costs far more in thread wake-up and GC-poll traffic than it
+        /// saves. Profiling a 500-player server found 40 threads in this pass, three quarters of
+        /// all GC-poll time coming from the parallel machinery itself rather than the work.
+        /// </summary>
+        public int PeerUpdateParallelism = 0;
     }
 }

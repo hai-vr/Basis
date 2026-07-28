@@ -284,6 +284,14 @@ namespace Basis.Scripts.Networking.Transmitters
 #if !UNITY_SERVER
         private void EncodeAndSend(float[] pcm, int sampleCount)
         {
+            // Bail before encoding: the server drops locked voice anyway, so paying for Opus and the
+            // upload is pure waste. Also covers the P2P path below — direct connect must not become a
+            // way around the lock. Costs nothing when unlocked (the flag short-circuits).
+            if (BasisNetworkModeration.VoiceBlockedLocally)
+            {
+                return;
+            }
+
             try
             {
                 writer.Reset();

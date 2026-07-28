@@ -334,7 +334,7 @@ namespace Basis.BasisUI
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
                         fillBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.perm.title.select"));
-                        fillBtn.Descriptor.SetDescription("Fill this group name into the admin fields below.");
+                        fillBtn.Descriptor.SetDescription(BasisLocalization.Get("settings.perm.title.select.group.description"));
                         string groupName = group.Name;
                         fillBtn.OnClicked += () =>
                         {
@@ -373,7 +373,7 @@ namespace Basis.BasisUI
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
                         fillBtn.Descriptor.SetTitle(BasisLocalization.Get("settings.perm.title.select"));
-                        fillBtn.Descriptor.SetDescription("Fill this user's UUID into the admin fields below.");
+                        fillBtn.Descriptor.SetDescription(BasisLocalization.Get("settings.perm.title.select.user.description"));
                         string uuid = user.Uuid;
                         fillBtn.OnClicked += () =>
                         {

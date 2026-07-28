@@ -24,17 +24,17 @@ namespace Basis.MediaPipe
 
             // Whole webcam section collapses under one bar.
             PanelSectionToggle webcamToggle = PanelSectionToggle.CreateNewEntry(parent);
-            webcamToggle.SetTitle("Webcam Tracking");
+            webcamToggle.SetTitle(BasisLocalization.Get("settings.mediapipe.webcamTracking"));
             int webcamStart = parent.childCount;
 
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
-            group.SetDescription("Drive your avatar's face, eyes, fingers and hands from a webcam (MediaPipe). Requires the MediaPipe Unity Plugin and its models (see package README).");
+            group.SetDescription(BasisLocalization.Get("settings.mediapipe.webcamTracking.description"));
             var content = group.ContentParent;
 
             PanelToggle enableToggle = PanelToggle.CreateNewEntry(content);
-            enableToggle.Descriptor.SetTitle("Enable Webcam Tracking");
-            enableToggle.Descriptor.SetDescription("Turn webcam tracking on or off.");
+            enableToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.enableWebcamTracking"));
+            enableToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.enableWebcamTracking.description"));
             enableToggle.SetValueWithoutNotify(BasisMediaPipeSettings.Enable.RawValue);
             enableToggle.OnValueChanged += value =>
             {
@@ -49,8 +49,8 @@ namespace Basis.MediaPipe
             content = settingsGroup.ContentParent;
 
             PanelDropdown cameraDropdown = PanelDropdown.CreateNewEntry(content);
-            cameraDropdown.Descriptor.SetTitle("Camera");
-            cameraDropdown.Descriptor.SetDescription("Select which webcam to use.");
+            cameraDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.camera"));
+            cameraDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.camera.description"));
             List<string> deviceNames = BasisMediaPipeCamera.EnumerateDevices().Select(d => d.name).ToList();
             if (deviceNames.Count == 0) deviceNames.Add("(no cameras found)");
             cameraDropdown.AssignEntries(deviceNames);
@@ -68,8 +68,8 @@ namespace Basis.MediaPipe
 
             List<string> resolutions = new List<string> { "320 x 240", "640 x 480", "960 x 540", "1280 x 720" };
             PanelDropdown resolutionDropdown = PanelDropdown.CreateNewEntry(content);
-            resolutionDropdown.Descriptor.SetTitle("Camera Resolution");
-            resolutionDropdown.Descriptor.SetDescription("Higher = sharper tracking but more CPU.");
+            resolutionDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.cameraResolution"));
+            resolutionDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.cameraResolution.description"));
             resolutionDropdown.AssignEntries(resolutions);
             string currentResolution = $"{BasisMediaPipeSettings.ResolutionWidth.RawValue} x {BasisMediaPipeSettings.ResolutionHeight.RawValue}";
             if (resolutions.Contains(currentResolution)) resolutionDropdown.SetValueWithoutNotify(currentResolution);
@@ -87,8 +87,8 @@ namespace Basis.MediaPipe
 
             List<string> frameRates = new List<string> { "15", "30", "60" };
             PanelDropdown fpsDropdown = PanelDropdown.CreateNewEntry(content);
-            fpsDropdown.Descriptor.SetTitle("Camera Frame Rate");
-            fpsDropdown.Descriptor.SetDescription("Requested webcam frames per second.");
+            fpsDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.cameraFrameRate"));
+            fpsDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.cameraFrameRate.description"));
             fpsDropdown.AssignEntries(frameRates);
             string currentFrameRate = BasisMediaPipeSettings.CameraFps.RawValue.ToString();
             if (frameRates.Contains(currentFrameRate)) fpsDropdown.SetValueWithoutNotify(currentFrameRate);
@@ -134,23 +134,23 @@ namespace Basis.MediaPipe
             AddFeatureToggle("Head Rotation", "Your avatar's head turns, nods and tilts to follow your real head. The camera stays on the mouse.", BasisMediaPipeSettings.EnableHeadRotation);
             AddFeatureToggle("Head Position", "Your avatar's head shifts to follow your real head movement.", BasisMediaPipeSettings.EnableHeadPosition);
             AddFeatureToggle("Arm Tracking (experimental)", "Move your avatar's arms to match your real arms, retargeted from the pose skeleton (turns on the pose model; extra CPU).", BasisMediaPipeSettings.EnableHandTracking);
-            AddTuningToggle("Arm Elbow Pole (experimental)", "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first.", BasisMediaPipeSettings.EnableArmElbowPole);
-            AddTuningToggle("Hand Rotation", "Off keeps the wrist aligned to the forearm (position only) to avoid noisy webcam wrist rotation.", BasisMediaPipeSettings.HandRotation);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.armElbowPoleExperimental"), BasisLocalization.Get("settings.mediapipe.armElbowPoleExperimental.description"), BasisMediaPipeSettings.EnableArmElbowPole);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.handRotation"), BasisLocalization.Get("settings.mediapipe.handRotation.description"), BasisMediaPipeSettings.HandRotation);
             AddFeatureToggle("Body Lean/Twist", "Your avatar's chest leans, twists and sways with your torso. Uses the pose model (extra CPU). Set the amount with Chest Motion below.", BasisMediaPipeSettings.EnableBody);
             AddFeatureToggle("Mirror Camera", "Flip the camera horizontally (selfie view).", BasisMediaPipeSettings.Mirror);
 
             AddFeatureToggle("Swap Hands", "Fix left/right hands if they are reversed.", BasisMediaPipeSettings.SwapHands);
-            AddTuningToggle("Invert Blink", "Fix blink if the eyes close when you open them.", BasisMediaPipeSettings.InvertBlink);
-            AddTuningToggle("Invert Head Yaw", "Fix the head turn (left/right) direction.", BasisMediaPipeSettings.InvertHeadYaw);
-            AddTuningToggle("Invert Head Pitch", "Fix the head nod (up/down) direction.", BasisMediaPipeSettings.InvertHeadPitch);
-            AddTuningToggle("Invert Head Roll", "Fix the head tilt (ear-to-shoulder) direction.", BasisMediaPipeSettings.InvertHeadRoll);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.invertBlink"), BasisLocalization.Get("settings.mediapipe.invertBlink.description"), BasisMediaPipeSettings.InvertBlink);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.invertHeadYaw"), BasisLocalization.Get("settings.mediapipe.invertHeadYaw.description"), BasisMediaPipeSettings.InvertHeadYaw);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.invertHeadPitch"), BasisLocalization.Get("settings.mediapipe.invertHeadPitch.description"), BasisMediaPipeSettings.InvertHeadPitch);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.invertHeadRoll"), BasisLocalization.Get("settings.mediapipe.invertHeadRoll.description"), BasisMediaPipeSettings.InvertHeadRoll);
 
             void AddSmoothingSlider(string title, BasisSettingsBinding<float> binding)
             {
                 PanelSlider slider = PanelSlider.CreateNew(content);
                 slider.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
                 slider.Descriptor.SetTitle(title);
-                slider.Descriptor.SetDescription("Higher = smoother but more latency.");
+                slider.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.smoothing.description"));
                 slider.SetValueWithoutNotify(binding.RawValue);
                 slider.OnValueChanged += value =>
                 {
@@ -160,15 +160,15 @@ namespace Basis.MediaPipe
                 };
             }
 
-            AddSmoothingSlider("Head Smoothing", BasisMediaPipeSettings.HeadSmoothing);
-            AddSmoothingSlider("Face Smoothing", BasisMediaPipeSettings.FaceSmoothing);
-            AddSmoothingSlider("Hand Smoothing", BasisMediaPipeSettings.HandSmoothing);
-            AddSmoothingSlider("Finger Smoothing", BasisMediaPipeSettings.FingerSmoothing);
+            AddSmoothingSlider(BasisLocalization.Get("settings.mediapipe.headSmoothing"), BasisMediaPipeSettings.HeadSmoothing);
+            AddSmoothingSlider(BasisLocalization.Get("settings.mediapipe.faceSmoothing"), BasisMediaPipeSettings.FaceSmoothing);
+            AddSmoothingSlider(BasisLocalization.Get("settings.mediapipe.handSmoothing"), BasisMediaPipeSettings.HandSmoothing);
+            AddSmoothingSlider(BasisLocalization.Get("settings.mediapipe.fingerSmoothing"), BasisMediaPipeSettings.FingerSmoothing);
 
             PanelSlider chestMotion = PanelSlider.CreateNew(content);
             chestMotion.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1.5f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            chestMotion.Descriptor.SetTitle("Chest Motion");
-            chestMotion.Descriptor.SetDescription("How much your torso lean, twist and sway carries into the avatar's chest. Needs Body Lean/Twist on. Below 100% reads as a suggestion of movement rather than a copy of it.");
+            chestMotion.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.chestMotion"));
+            chestMotion.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.chestMotion.description"));
             chestMotion.SetValueWithoutNotify(BasisMediaPipeSettings.ChestMotion.RawValue);
             chestMotion.OnValueChanged += value =>
             {
@@ -179,8 +179,8 @@ namespace Basis.MediaPipe
 
             PanelSlider elbowRest = PanelSlider.CreateNew(content);
             elbowRest.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            elbowRest.Descriptor.SetTitle("Elbow Rest Bias");
-            elbowRest.Descriptor.SetDescription("Pulls the elbow toward hanging naturally. The camera guesses elbow depth badly and the error shows up as the elbow riding too high, so raise this if your elbows wing out; lower it to trust the camera.");
+            elbowRest.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.elbowRestBias"));
+            elbowRest.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.elbowRestBias.description"));
             elbowRest.SetValueWithoutNotify(BasisMediaPipeSettings.ElbowRestBias.RawValue);
             elbowRest.OnValueChanged += value =>
             {
@@ -190,8 +190,8 @@ namespace Basis.MediaPipe
 
             PanelSlider headAnchor = PanelSlider.CreateNew(content);
             headAnchor.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 1f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            headAnchor.Descriptor.SetTitle("Arm Head Anchor");
-            headAnchor.Descriptor.SetDescription("Lines a raised hand up with the avatar's head rather than just scaling by arm length. Lower it if hands sit too high when you reach up.");
+            headAnchor.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.armHeadAnchor"));
+            headAnchor.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.armHeadAnchor.description"));
             headAnchor.SetValueWithoutNotify(BasisMediaPipeSettings.ArmHeadAnchor.RawValue);
             headAnchor.OnValueChanged += value =>
             {
@@ -201,8 +201,8 @@ namespace Basis.MediaPipe
 
             PanelSlider headPosition = PanelSlider.CreateNew(content);
             headPosition.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            headPosition.Descriptor.SetTitle("Head Position Strength");
-            headPosition.Descriptor.SetDescription("How much your head movement shifts the avatar's head position.");
+            headPosition.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.headPositionStrength"));
+            headPosition.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.headPositionStrength.description"));
             headPosition.SetValueWithoutNotify(BasisMediaPipeSettings.HeadPositionStrength.RawValue);
             headPosition.OnValueChanged += value =>
             {
@@ -213,8 +213,8 @@ namespace Basis.MediaPipe
 
             PanelSlider headRotation = PanelSlider.CreateNew(content);
             headRotation.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            headRotation.Descriptor.SetTitle("Head Rotation Strength");
-            headRotation.Descriptor.SetDescription("Amplifies how far the avatar's head turns/nods relative to your real head.");
+            headRotation.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.headRotationStrength"));
+            headRotation.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.headRotationStrength.description"));
             headRotation.SetValueWithoutNotify(BasisMediaPipeSettings.HeadRotationStrength.RawValue);
             headRotation.OnValueChanged += value =>
             {
@@ -224,8 +224,8 @@ namespace Basis.MediaPipe
 
             PanelSlider headHeight = PanelSlider.CreateNew(content);
             headHeight.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = -0.25f, SliderMax = 0.25f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Meters });
-            headHeight.Descriptor.SetTitle("Head Height Trim");
-            headHeight.Descriptor.SetDescription("Fine vertical adjustment. The head is auto-fit to your avatar's eyes; nudge this only if needed.");
+            headHeight.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.headHeightTrim"));
+            headHeight.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.headHeightTrim.description"));
             headHeight.SetValueWithoutNotify(BasisMediaPipeSettings.HeadHeight.RawValue);
             headHeight.OnValueChanged += value =>
             {
@@ -233,12 +233,12 @@ namespace Basis.MediaPipe
                 BasisMediaPipeManagement.Instance.ApplyTuning();
             };
 
-            AddTuningToggle("Tongue (experimental)", "Estimate tongue-out from the mouth interior (webcam heuristic).", BasisMediaPipeSettings.EnableTongue);
+            AddTuningToggle(BasisLocalization.Get("settings.mediapipe.tongueExperimental"), BasisLocalization.Get("settings.mediapipe.tongueExperimental.description"), BasisMediaPipeSettings.EnableTongue);
 
             PanelSlider tongueStrength = PanelSlider.CreateNew(content);
             tongueStrength.SetSliderSettings(new PanelSlider.SliderSettings { SliderMin = 0f, SliderMax = 3f, DecimalPlaces = 2, DisplayMode = ValueDisplayMode.Percentage });
-            tongueStrength.Descriptor.SetTitle("Tongue Strength");
-            tongueStrength.Descriptor.SetDescription("How strongly tongue-out is detected.");
+            tongueStrength.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.tongueStrength"));
+            tongueStrength.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.tongueStrength.description"));
             tongueStrength.SetValueWithoutNotify(BasisMediaPipeSettings.TongueStrength.RawValue);
             tongueStrength.OnValueChanged += value =>
             {
@@ -247,8 +247,8 @@ namespace Basis.MediaPipe
             };
 
             PanelButton calibrate = PanelButton.CreateNew(content);
-            calibrate.Descriptor.SetTitle("Calibrate Head (look forward)");
-            calibrate.Descriptor.SetDescription("Face the screen straight on, then click to set your neutral head pose.");
+            calibrate.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.calibrateHeadLookForward"));
+            calibrate.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.calibrateHeadLookForward.description"));
             calibrate.OnClicked += () =>
             {
                 BasisMediaPipeManagement.Instance.CalibrateHead();
@@ -258,17 +258,17 @@ namespace Basis.MediaPipe
             PanelElementDescriptor diagnostics = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
             diagnostics.SetBackgroundVisible(false);
-            diagnostics.SetTitle("Diagnostics");
-            diagnostics.SetDescription("Live webcam tracking state.");
+            diagnostics.SetTitle(BasisLocalization.Get("settings.mediapipe.diagnostics"));
+            diagnostics.SetDescription(BasisLocalization.Get("settings.mediapipe.diagnostics.description"));
 
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, diagnostics.ContentParent);
-            statusField.SetTitle("Status");
-            statusField.SetDescription("(press Refresh)");
+            statusField.SetTitle(BasisLocalization.Get("settings.mediapipe.status"));
+            statusField.SetDescription(BasisLocalization.Get("settings.mediapipe.status.description"));
 
             PanelButton refresh = PanelButton.CreateNew(diagnostics.ContentParent);
-            refresh.Descriptor.SetTitle("Refresh");
-            refresh.Descriptor.SetDescription("Poll the current tracking state.");
+            refresh.Descriptor.SetTitle(BasisLocalization.Get("settings.mediapipe.refresh"));
+            refresh.Descriptor.SetDescription(BasisLocalization.Get("settings.mediapipe.refresh.description"));
 
             void RefreshStatus()
             {

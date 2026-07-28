@@ -1029,6 +1029,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Immediate photo capture using the current format choice (EXR/PNG).</summary>
     public void CapturePhoto()
     {
+        // Refused before the shutter sound so a locked capture doesn't look like it worked.
+        if (BasisNetworkModeration.CameraCaptureBlockedLocally)
+        {
+            BasisDebug.LogWarning("CapturePhoto blocked: camera capture is locked by an admin.", BasisDebug.LogTag.Camera);
+            return;
+        }
+
         TextureFormat format;
         RenderTextureFormat renderFormat;
 

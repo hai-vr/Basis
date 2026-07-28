@@ -736,7 +736,7 @@ namespace Basis.BasisUI
                     return;
 
                 case BasisVirtualKeyboardSpecialKey.IsCopyKey:
-                    GUIUtility.systemCopyBuffer = ReadCurrentText();
+                    BasisClipboard.Copy(ReadCurrentText(), entry.Button);
                     return;
 
                 case BasisVirtualKeyboardSpecialKey.IsPasteKey:

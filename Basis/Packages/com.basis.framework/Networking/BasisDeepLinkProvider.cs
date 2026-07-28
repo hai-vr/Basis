@@ -159,7 +159,7 @@ namespace Basis.Scripts.Networking
             if (!forceShow && BasisNotificationCenter.RouteToNotifications)
             {
                 BasisNotificationCenter.AddPending(
-                    "Join Server?",
+                    BasisLocalization.Get("menu.servers.deepLink.joinServer.title"),
                     serverLabel,
                     AddressableAssets.Sprites.Network,
                     reopen: () => ShowConfirmation(entry, forceShow: true),
@@ -173,7 +173,7 @@ namespace Basis.Scripts.Networking
                 BasisMainMenu.Instance.Dialogue.ReleaseInstance();
 
             BasisMainMenu.Instance.OpenDialogue(
-                "Join Server?",
+                BasisLocalization.Get("menu.servers.deepLink.joinServer.title"),
                 serverLabel,
                 BasisLocalization.Get("ui.yes"),
                 BasisLocalization.Get("ui.no"),
@@ -190,8 +190,8 @@ namespace Basis.Scripts.Networking
                         if (BasisMainMenu.Instance?.Dialogue != null)
                             BasisMainMenu.Instance.Dialogue.ReleaseInstance();
                         BasisMainMenu.Instance?.OpenDialogue(
-                            "Username Required",
-                            "Set a username before joining a server.",
+                            BasisLocalization.Get("menu.servers.deepLink.usernameRequired.title"),
+                            BasisLocalization.Get("menu.servers.deepLink.usernameRequired.body"),
                             BasisLocalization.Get("ui.ok"),
                             _ => { });
                         return;

@@ -407,6 +407,31 @@ namespace BasisNetworkServer.Security
                         HandleGlobalToggle(peer, "Remote end-effector IK", BasisGlobalLockManager.ToggleEndEffectorIK()));
                     break;
 
+                case AdminRequestMode.GlobalToggleTextChat:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Text chat", BasisGlobalLockManager.ToggleTextChat()));
+                    break;
+
+                case AdminRequestMode.GlobalToggleVoiceChat:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Voice chat", BasisGlobalLockManager.ToggleVoiceChat()));
+                    break;
+
+                case AdminRequestMode.GlobalToggleMediaPlayer:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Media player", BasisGlobalLockManager.ToggleMediaPlayer()));
+                    break;
+
+                case AdminRequestMode.GlobalToggleCameraCapture:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Camera capture", BasisGlobalLockManager.ToggleCameraCapture()));
+                    break;
+
+                case AdminRequestMode.GlobalTogglePropGrabbing:
+                    Require(peer, PermNodes.ModerationGlobalLock, () =>
+                        HandleGlobalToggle(peer, "Prop grabbing", BasisGlobalLockManager.TogglePropGrabbing()));
+                    break;
+
                 case AdminRequestMode.SetGlobalAvatarScaleLimits:
                     Require(peer, PermNodes.ModerationGlobalLock, () =>
                         HandleAvatarScaleLimitsSet(peer, reader));

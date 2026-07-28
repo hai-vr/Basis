@@ -82,8 +82,8 @@ namespace Basis.BasisUI
             }
 
             menu.OpenDialogue(
-                "Reset",
-                $"Reset {label} to its default?",
+                BasisLocalization.Get("ui.reset"),
+                string.Format(BasisLocalization.Get("ui.resetValue.confirm"), label),
                 BasisLocalization.Get("ui.reset"),
                 BasisLocalization.Get("ui.cancel"),
                 confirmed =>

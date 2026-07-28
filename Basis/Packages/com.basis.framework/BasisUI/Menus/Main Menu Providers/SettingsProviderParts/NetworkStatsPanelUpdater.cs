@@ -80,7 +80,7 @@ namespace Basis.BasisUI
             {
                 if (!connected)
                 {
-                    ConnectionField.SetDescription("Disconnected");
+                    ConnectionField.SetDescription(BasisLocalization.Get("network.stats.disconnected"));
                 }
                 else
                 {
@@ -94,7 +94,7 @@ namespace Basis.BasisUI
             {
                 if (!connected)
                 {
-                    ServerField.SetDescription("Not connected");
+                    ServerField.SetDescription(BasisLocalization.Get("network.stats.notConnected"));
                 }
                 else
                 {
@@ -193,14 +193,14 @@ namespace Basis.BasisUI
             {
                 if (!BasisNetworkManagement.IsInitialized || BasisNetworkManagement.LocalAccessTransmitter == null)
                 {
-                    TransmissionField.SetDescription("No transmitter active");
+                    TransmissionField.SetDescription(BasisLocalization.Get("network.stats.noTransmitter"));
                 }
                 else
                 {
                     var results = BasisNetworkManagement.LocalAccessTransmitter.TransmissionResults;
                     if (results == null)
                     {
-                        TransmissionField.SetDescription("No transmission data");
+                        TransmissionField.SetDescription(BasisLocalization.Get("network.stats.noTransmissionData"));
                     }
                     else
                     {

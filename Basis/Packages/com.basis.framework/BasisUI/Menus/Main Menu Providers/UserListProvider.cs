@@ -62,7 +62,9 @@ namespace Basis.BasisUI
             PanelDropdown sortDropdown = PanelDropdown.CreateNewEntry(root);
             sortDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.sortMode"));
             sortDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.sortMode.description"));
-            sortDropdown.AssignEntries(new List<string> { "Default", "Distance", "Name", "Platform", "Join Time" });
+            sortDropdown.AssignLocalizedEntries(
+                new List<string> { "Default", "Distance", "Name", "Platform", "Join Time" },
+                new List<string> { "menu.players.sortMode.default", "menu.players.sortMode.distance", "menu.players.sortMode.name", "menu.players.sortMode.platform", "menu.players.sortMode.joinTime" });
             sortDropdown.SetValueWithoutNotify("Default");
 
             // Direction filter dropdown — hide players in front / behind based on
@@ -70,7 +72,9 @@ namespace Basis.BasisUI
             PanelDropdown directionDropdown = PanelDropdown.CreateNewEntry(root);
             directionDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.directionFilter"));
             directionDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.directionFilter.description"));
-            directionDropdown.AssignEntries(new List<string> { "All", "In Front", "Behind" });
+            directionDropdown.AssignLocalizedEntries(
+                new List<string> { "All", "In Front", "Behind" },
+                new List<string> { "menu.players.directionFilter.all", "menu.players.directionFilter.inFront", "menu.players.directionFilter.behind" });
             directionDropdown.SetValueWithoutNotify("All");
 
             // Player count header

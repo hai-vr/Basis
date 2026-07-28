@@ -214,6 +214,8 @@ namespace Basis.Network.Core
                 AllowPeerAddressChange = lnl.AllowPeerAddressChange,
                 BroadcastReceiveEnabled = false,
                 UseNativeSockets = lnl.UseNativeSockets,
+                MergeHoldMs = lnl.MergeHoldMs,
+                PeerUpdateParallelism = lnl.PeerUpdateParallelism,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,
                 IPv6Enabled = lnl.IPv6Enabled,

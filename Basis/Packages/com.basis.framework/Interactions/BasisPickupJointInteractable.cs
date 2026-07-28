@@ -98,6 +98,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnInteractStart(BasisInput input)
         {
+            if (BasisNetworkModeration.PropGrabbingBlockedLocally)
+            {
+                return;
+            }
+
             input.PlaySoundEffect("grab", SMModuleAudio.ActiveMenusVolume);
             // save object distance and rotation
             anchor = input.transform;

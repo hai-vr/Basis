@@ -23,6 +23,11 @@ namespace BasisNetworkServer.Security
         private static int _directConnectLocked;
         private static int _cilboxLocked;
         private static int _imagesLocked;
+        private static int _textChatLocked;
+        private static int _voiceChatLocked;
+        private static int _mediaPlayerLocked;
+        private static int _cameraCaptureLocked;
+        private static int _propGrabbingLocked;
         // 0 = feature on (default), 1 = admin-disabled. Inverted vs the locks above — this is a default-on feature.
         private static int _endEffectorIKDisabled;
 
@@ -37,6 +42,11 @@ namespace BasisNetworkServer.Security
         public static bool DirectConnectLocked => Interlocked.CompareExchange(ref _directConnectLocked, 0, 0) == 1;
         public static bool CilboxLocked => Interlocked.CompareExchange(ref _cilboxLocked, 0, 0) == 1;
         public static bool ImagesLocked => Interlocked.CompareExchange(ref _imagesLocked, 0, 0) == 1;
+        public static bool TextChatLocked => Interlocked.CompareExchange(ref _textChatLocked, 0, 0) == 1;
+        public static bool VoiceChatLocked => Interlocked.CompareExchange(ref _voiceChatLocked, 0, 0) == 1;
+        public static bool MediaPlayerLocked => Interlocked.CompareExchange(ref _mediaPlayerLocked, 0, 0) == 1;
+        public static bool CameraCaptureLocked => Interlocked.CompareExchange(ref _cameraCaptureLocked, 0, 0) == 1;
+        public static bool PropGrabbingLocked => Interlocked.CompareExchange(ref _propGrabbingLocked, 0, 0) == 1;
         public static bool EndEffectorIKDisabled => Interlocked.CompareExchange(ref _endEffectorIKDisabled, 0, 0) == 1;
 
         /// <summary>
@@ -56,6 +66,11 @@ namespace BasisNetworkServer.Security
             Interlocked.Exchange(ref _directConnectLocked, config.DirectConnectLocked ? 1 : 0);
             Interlocked.Exchange(ref _cilboxLocked, config.CilboxLocked ? 1 : 0);
             Interlocked.Exchange(ref _imagesLocked, config.ImagesLocked ? 1 : 0);
+            Interlocked.Exchange(ref _textChatLocked, config.TextChatLocked ? 1 : 0);
+            Interlocked.Exchange(ref _voiceChatLocked, config.VoiceChatLocked ? 1 : 0);
+            Interlocked.Exchange(ref _mediaPlayerLocked, config.MediaPlayerLocked ? 1 : 0);
+            Interlocked.Exchange(ref _cameraCaptureLocked, config.CameraCaptureLocked ? 1 : 0);
+            Interlocked.Exchange(ref _propGrabbingLocked, config.PropGrabbingLocked ? 1 : 0);
             Interlocked.Exchange(ref _endEffectorIKDisabled, config.EndEffectorIKDisabled ? 1 : 0);
         }
 
@@ -114,6 +129,39 @@ namespace BasisNetworkServer.Security
         public static bool ToggleImages() => Toggle(ref _imagesLocked);
 
         /// <summary>
+        /// Toggle the global text-chat lock. Returns the new state (true = chat messages and typing
+        /// state from peers without <c>basis.chat.lockbypass</c> are dropped at the server).
+        /// </summary>
+        public static bool ToggleTextChat() => Toggle(ref _textChatLocked);
+
+        /// <summary>
+        /// Toggle the global voice lock. Returns the new state (true = normal and shout voice from
+        /// peers without <c>basis.voice.lockbypass</c> are dropped at the server).
+        /// </summary>
+        public static bool ToggleVoiceChat() => Toggle(ref _voiceChatLocked);
+
+        /// <summary>
+        /// Toggle the global media-player lock. Returns the new state (true = non-bypass clients
+        /// neither load new URLs nor accept inbound ones). Enforced client-side: media player state
+        /// rides the generic scene relay, so the server can't single it out.
+        /// </summary>
+        public static bool ToggleMediaPlayer() => Toggle(ref _mediaPlayerLocked);
+
+        /// <summary>
+        /// Toggle the global camera-capture lock. Returns the new state (true = non-bypass clients
+        /// can't take photos). Enforced client-side: capture is entirely local, nothing reaches the
+        /// server to block.
+        /// </summary>
+        public static bool ToggleCameraCapture() => Toggle(ref _cameraCaptureLocked);
+
+        /// <summary>
+        /// Toggle the global prop-grabbing lock. Returns the new state (true = non-bypass clients
+        /// can't pick up props). Enforced client-side: grabbing is local interaction logic and the
+        /// resulting motion is indistinguishable from ordinary transform sync.
+        /// </summary>
+        public static bool TogglePropGrabbing() => Toggle(ref _propGrabbingLocked);
+
+        /// <summary>
         /// Toggle the global remote end-effector IK disable. Returns the new state (true = disabled;
         /// clients fall back to pure-FK playback for remote hands/feet). Enforced client-side.
         /// </summary>
@@ -165,6 +213,13 @@ namespace BasisNetworkServer.Security
             writer.Put(ImagesLocked);
             // Appended after ImagesLocked — older clients that stop reading earlier still parse.
             writer.Put(EndEffectorIKDisabled);
+            // Appended after EndEffectorIKDisabled — older clients that stop reading earlier still parse.
+            writer.Put(TextChatLocked);
+            // Appended after TextChatLocked — older clients that stop reading earlier still parse.
+            writer.Put(VoiceChatLocked);
+            writer.Put(MediaPlayerLocked);
+            writer.Put(CameraCaptureLocked);
+            writer.Put(PropGrabbingLocked);
             NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
             NetworkServer.ReturnWriter(writer);
         }
@@ -197,6 +252,13 @@ namespace BasisNetworkServer.Security
             writer.Put(ImagesLocked);
             // Appended after ImagesLocked — older clients that stop reading earlier still parse.
             writer.Put(EndEffectorIKDisabled);
+            // Appended after EndEffectorIKDisabled — older clients that stop reading earlier still parse.
+            writer.Put(TextChatLocked);
+            // Appended after TextChatLocked — older clients that stop reading earlier still parse.
+            writer.Put(VoiceChatLocked);
+            writer.Put(MediaPlayerLocked);
+            writer.Put(CameraCaptureLocked);
+            writer.Put(PropGrabbingLocked);
             NetworkServer.BroadcastMessageToClients(
                 writer,
                 BasisNetworkCommons.AdminChannel,

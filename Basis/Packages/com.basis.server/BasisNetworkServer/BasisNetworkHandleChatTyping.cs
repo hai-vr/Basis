@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using BasisNetworkServer.BasisNetworking;
 
 namespace BasisNetworkServer
 {
@@ -21,6 +22,11 @@ namespace BasisNetworkServer
             finally
             {
                 reader.Recycle();
+            }
+
+            if (BasisNetworkChat.IsChatBlockedFor(peer))
+            {
+                return;
             }
 
             if (peer.Id < 0 || peer.Id > ushort.MaxValue)

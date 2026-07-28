@@ -163,6 +163,31 @@ namespace BasisNetworkCore.Serializable
             // admin: toggle remote end-effector IK anchoring globally. State (disabled) is appended as the
             // trailing bool in GlobalGetLockState. Default false = feature on; admins flip on to disable.
             GlobalToggleEndEffectorIK,
+
+            // admin: toggle the global text-chat lock. While set the server drops chat messages and
+            // typing state from peers without basis.chat.lockbypass, so a modified client can't talk
+            // past it. State is appended as the trailing bool in GlobalGetLockState.
+            GlobalToggleTextChat,
+
+            // admin: toggle the global voice lock. While set the server drops normal and shout voice
+            // from peers without basis.voice.lockbypass, so a modified client can't talk past it.
+            // State is appended as a trailing bool in GlobalGetLockState.
+            GlobalToggleVoiceChat,
+
+            // admin: toggle the global media-player lock. While set, non-bypass clients neither load
+            // new media URLs nor accept inbound ones. Enforced client-side — media player state rides
+            // the generic scene relay. State is appended as a trailing bool in GlobalGetLockState.
+            GlobalToggleMediaPlayer,
+
+            // admin: toggle the global camera-capture lock. While set, non-bypass clients can't take
+            // photos. Enforced client-side — capture is entirely local. Separate from
+            // SetGlobalCameraPolicy, which only strips metadata from photos still being taken.
+            GlobalToggleCameraCapture,
+
+            // admin: toggle the global prop-grabbing lock. While set, non-bypass clients can't pick up
+            // props. Enforced client-side — grabbing is local interaction logic. Separate from
+            // GlobalToggleProps, which blocks prop loading instead.
+            GlobalTogglePropGrabbing,
         }
     }
 }

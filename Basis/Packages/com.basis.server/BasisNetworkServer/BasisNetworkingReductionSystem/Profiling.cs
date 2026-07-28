@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 
@@ -33,6 +34,39 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     }
 
     /// <summary>
+    /// One worker thread's counter block. The send loop is a Parallel.For over receivers, so
+    /// every counter below used to be an Interlocked op contended by every core at once —
+    /// bundleFallbacks alone ran ~130K/s at 500 players. Each thread now accumulates into its
+    /// own block and <see cref="BSRProfiler.TryPrint"/> sums the registered blocks once per
+    /// window, so the hot path is a plain non-atomic increment.
+    ///
+    /// Padded to keep two threads' blocks off the same cache line; without it the counters are
+    /// contended by false sharing even though nothing is shared logically.
+    /// </summary>
+    public sealed class BSRThreadCounters
+    {
+#pragma warning disable CS0169 // padding fields are never read by design
+        private long _padHead0, _padHead1, _padHead2, _padHead3, _padHead4, _padHead5, _padHead6, _padHead7;
+#pragma warning restore CS0169
+
+        public long Sends;
+        public long PreSerializations;
+        public long PreSerializationsSkipped;
+        public long BundlesEmitted;
+        public long BundleMessages;
+        public long BundleRawBytes;
+        public long BundleCompressedBytes;
+        public long BundleDeflateTicks;
+        public long BundleRetries;
+        public long BundleFallbacks;
+        public long BundleTailUncompressed;
+
+#pragma warning disable CS0169
+        private long _padTail0, _padTail1, _padTail2, _padTail3, _padTail4, _padTail5, _padTail6, _padTail7;
+#pragma warning restore CS0169
+    }
+
+    /// <summary>
     /// Lock-free, low-overhead profiler for the BSR tick loop.
     /// Disabled by default — enable via EnableBSRProfiling in config.xml or env var.
     /// When disabled, all methods are no-ops (volatile bool check, no branches taken).
@@ -41,6 +75,61 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     public static class BSRProfiler
     {
         public static volatile bool Enabled;
+
+        [ThreadStatic] private static BSRThreadCounters _threadCounters;
+
+        // Every block handed out, so a window can sum them. Worker threads are pooled and
+        // long-lived, so this stabilises at roughly the core count and never grows unbounded.
+        private static readonly List<BSRThreadCounters> _allCounters = new();
+        private static readonly object _countersLock = new();
+
+        /// <summary>
+        /// This thread's counter block, created on first use. Hoist it into a local once per
+        /// receiver rather than calling this per counter — the thread-static read is cheap but
+        /// not free.
+        /// </summary>
+        public static BSRThreadCounters Local
+        {
+            get
+            {
+                var c = _threadCounters;
+                if (c == null)
+                {
+                    c = new BSRThreadCounters();
+                    _threadCounters = c;
+                    lock (_countersLock) _allCounters.Add(c);
+                }
+                return c;
+            }
+        }
+
+        /// <summary>
+        /// Drains every thread block into the static totals. Called under the window close, which
+        /// is the only reader. A worker mid-increment just lands in the next window — these are
+        /// diagnostics, and paying for exactness here would reintroduce the contention this exists
+        /// to remove.
+        /// </summary>
+        private static void DrainThreadCounters()
+        {
+            lock (_countersLock)
+            {
+                for (int i = 0; i < _allCounters.Count; i++)
+                {
+                    var c = _allCounters[i];
+                    SendCount += Interlocked.Exchange(ref c.Sends, 0);
+                    _preSerializations += Interlocked.Exchange(ref c.PreSerializations, 0);
+                    _preSerializationsSkipped += Interlocked.Exchange(ref c.PreSerializationsSkipped, 0);
+                    bundlesEmitted += Interlocked.Exchange(ref c.BundlesEmitted, 0);
+                    bundleMessages += Interlocked.Exchange(ref c.BundleMessages, 0);
+                    bundleRawBytes += Interlocked.Exchange(ref c.BundleRawBytes, 0);
+                    bundleCompressedBytes += Interlocked.Exchange(ref c.BundleCompressedBytes, 0);
+                    bundleDeflateTicks += Interlocked.Exchange(ref c.BundleDeflateTicks, 0);
+                    bundleRetries += Interlocked.Exchange(ref c.BundleRetries, 0);
+                    bundleFallbacks += Interlocked.Exchange(ref c.BundleFallbacks, 0);
+                    bundleTailUncompressed += Interlocked.Exchange(ref c.BundleTailUncompressed, 0);
+                }
+            }
+        }
 
         /// <summary>Whether a closed window is written to the log. Collection is driven by <see cref="Enabled"/> alone.</summary>
         public static volatile bool WriteToLog;
@@ -83,13 +172,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static void IncrementPreSerializations()
         {
             if (!Enabled) return;
-            Interlocked.Increment(ref _preSerializations);
+            Local.PreSerializations++;
         }
 
         public static void IncrementPreSerializationsSkipped()
         {
             if (!Enabled) return;
-            Interlocked.Increment(ref _preSerializationsSkipped);
+            Local.PreSerializationsSkipped++;
         }
 
         /// <summary>Test seam (InternalsVisibleTo): closes the current window immediately instead of waiting out the interval.</summary>
@@ -105,6 +194,24 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             Enabled = false;
             WriteToLog = false;
             _latest = null;
+            lock (_countersLock)
+            {
+                for (int i = 0; i < _allCounters.Count; i++)
+                {
+                    var c = _allCounters[i];
+                    c.Sends = 0;
+                    c.PreSerializations = 0;
+                    c.PreSerializationsSkipped = 0;
+                    c.BundlesEmitted = 0;
+                    c.BundleMessages = 0;
+                    c.BundleRawBytes = 0;
+                    c.BundleCompressedBytes = 0;
+                    c.BundleDeflateTicks = 0;
+                    c.BundleRetries = 0;
+                    c.BundleFallbacks = 0;
+                    c.BundleTailUncompressed = 0;
+                }
+            }
             tickCount = 0;
             messagesProcessed = 0;
             SendCount = 0;
@@ -132,6 +239,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             long now = Stopwatch.GetTimestamp();
             if (now - Volatile.Read(ref _lastPrintTick) < PrintIntervalTicks) return;
             Volatile.Write(ref _lastPrintTick, now);
+
+            // Fold per-thread blocks in before anything below reads the totals.
+            DrainThreadCounters();
 
             long ticks = Interlocked.Exchange(ref tickCount, 0);
             if (ticks == 0) return;

@@ -176,6 +176,8 @@ namespace LiteNetLib
         private readonly NetPacket _mergeData;
         private int _mergePos;
         private int _mergeCount;
+        /// <summary>Time the current partial merge buffer has been waiting. See MergeHoldMs.</summary>
+        private float _mergeHeldMs;
 
         //Connection
         private int _connectAttempts;
@@ -420,10 +422,40 @@ namespace LiteNetLib
                 EnqueueUnreliable(packet._packet);
         }
 
+        /// <summary>
+        /// Approximate depth of <see cref="_unreliableChannel"/>. Tracked separately because
+        /// ConcurrentQueue.Count walks the segments, which is far too expensive to consult on
+        /// every enqueue.
+        /// </summary>
+        private int _unreliableCount;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnqueueUnreliable(NetPacket packet)
         {
             _unreliableChannel.Enqueue(packet);
+
+            int limit = NetManager.MaxUnreliableQueuePerPeer;
+            if (limit <= 0) return;
+
+            int depth = Interlocked.Increment(ref _unreliableCount);
+            if (depth <= limit) return;
+
+            // Over budget: the producer is outrunning the send loop. Drop from the front until we
+            // are back inside it.
+            //
+            // This queue used to be unbounded, which turned a CPU overload into an out-of-memory:
+            // at 2000 players the send loop enqueued faster than the logic pass could drain, and
+            // the backlog reached ~40 GB before every peer timed out. Bounding it converts that
+            // into what it always should have been — dropped frames on a server that is behind.
+            //
+            // Oldest-first, because these are position updates: the newest frame supersedes
+            // everything queued behind it, so a stale one is exactly what you want to lose.
+            while (Volatile.Read(ref _unreliableCount) > limit && _unreliableChannel.TryDequeue(out var stale))
+            {
+                Interlocked.Decrement(ref _unreliableCount);
+                NetManager.NoteUnreliableDropped();
+                NetManager.PoolRecycle(stale);
+            }
         }
 
         private BaseChannel CreateChannel(byte idx)
@@ -1379,18 +1411,22 @@ namespace LiteNetLib
             if (_mergeCount == 0)
                 return;
             int bytesSent;
+            // Batchable: this is bulk payload traffic and nothing reads the result beyond stats.
+            // Outside a batching window this is exactly the old direct send.
             if (_mergeCount > 1)
             {
                 //NetDebug.Write("[P]Send merged: " + _mergePos + ", count: " + _mergeCount);
-                bytesSent = NetManager.SendRaw(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
+                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
             }
             else
             {
                 //Send without length information and merging
-                bytesSent = NetManager.SendRaw(_mergeData.RawData, NetConstants.HeaderSize + 2, _mergePos - 2, this);
+                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, NetConstants.HeaderSize + 2, _mergePos - 2, this);
             }
 
-            if (NetManager.EnableStatistics)
+            // The manager already counts a batched datagram when it flushes; counting here too
+            // would double it.
+            if (NetManager.EnableStatistics && !NetManager.IsBatchingOnThisThread)
             {
                 Statistics.IncrementPacketsSent();
                 Statistics.AddBytesSent(bytesSent);
@@ -1398,6 +1434,7 @@ namespace LiteNetLib
 
             _mergePos = 0;
             _mergeCount = 0;
+            _mergeHeldMs = 0f;
         }
 
         /// <summary>
@@ -1555,11 +1592,28 @@ namespace LiteNetLib
 
             while (_unreliableChannel.TryDequeue(out var packet))
             {
+                Interlocked.Decrement(ref _unreliableCount);
                 SendUserData(packet);
                 NetManager.PoolRecycle(packet);
             }
 
-            SendMerged();
+            // Hold a partly-filled buffer briefly so consecutive passes coalesce into one
+            // datagram instead of each pass emitting its own half-empty one. SendUserData already
+            // flushes the moment a packet would overflow the MTU, so a full buffer never waits
+            // here — only small sends do, and only up to MergeHoldMs.
+            float hold = NetManager.MergeHoldMs;
+            if (hold <= 0f)
+            {
+                SendMerged();
+            }
+            else if (_mergeCount > 0)
+            {
+                _mergeHeldMs += deltaTime;
+                if (_mergeHeldMs >= hold)
+                {
+                    SendMerged();
+                }
+            }
         }
 
         //For reliable channel

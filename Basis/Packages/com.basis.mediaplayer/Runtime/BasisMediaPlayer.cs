@@ -555,6 +555,13 @@ public sealed class BasisMediaPlayer : MonoBehaviour
             BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl called with empty URL.", BasisDebug.LogTag.Video);
             return;
         }
+        // Every URL load funnels through here — the local user setting one AND a peer's synced
+        // FullState applying one — so this single gate covers both directions of the admin lock.
+        if (BasisNetworkModeration.MediaPlayerBlockedLocally)
+        {
+            BasisDebug.LogWarning("BasisMediaPlayer.LoadUrl blocked: media players are locked by an admin.", BasisDebug.LogTag.Video);
+            return;
+        }
         // Default a missing scheme (https, or http for a local/IP host) so a bare
         // "www.example.com/…" routes and loads as an absolute URL instead of being
         // mis-read as a direct/transport source.

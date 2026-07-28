@@ -526,6 +526,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
+            if (BasisNetworkModeration.PropGrabbingBlockedLocally)
+            {
+                return;
+            }
+
             // Clean up interacting ourselves (system won't do this for us) when self-steal is allowed.
             if (CanSelfStealResolved)
                 Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);

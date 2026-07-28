@@ -77,7 +77,7 @@ namespace Basis.Scripts.Networking
             if (BasisMainMenu.Instance != null)
             {
                 BasisMainMenu.Instance.OpenDialogue(
-                    "Server Error",
+                    BasisLocalization.Get("menu.servers.error.title"),
                     body,
                     BasisLocalization.Get("ui.ok"),
                     _ => { });

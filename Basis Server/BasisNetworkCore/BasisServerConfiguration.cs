@@ -104,6 +104,17 @@ public class Configuration
     public bool EnableUplinkAvatarDelta = true;
     public bool EnableBSRProfiling = false;
     /// <summary>
+    /// Worker cap for the BSR tick's parallel phases (send loop, message processing, distance
+    /// sweep). 0 = auto (a quarter of the cores, floored at 4 and capped at 8).
+    ///
+    /// More workers is not free: the tick runs ~275x/s, so each phase pays dispatch and wake cost
+    /// per tick per worker, and every extra thread adds GC poll-point traffic. Measured at 500
+    /// players on a 32-thread box: 32 workers = 11.0 cores, 16 = 8.6, 8 = 6.6, 4 = 6.4, at equal
+    /// or better throughput. Raise it if you run far more players per instance than that and the
+    /// profile shows the send loop itself saturating.
+    /// </summary>
+    public int BSRMaxDegreeOfParallelism = 0;
+    /// <summary>
     /// Opus voice frame duration pushed to every client (20 or 40 ms). 20 is the low-latency
     /// default; 40 halves the voice packet rate (25/s instead of 50/s) and with it the
     /// per-packet UDP/header overhead — roughly a third of voice wire cost — at the price of
@@ -175,6 +186,45 @@ public class Configuration
     /// broadcast to clients in GlobalGetLockState. Default off (feature on).
     /// </summary>
     public bool EndEffectorIKDisabled = false;
+    /// <summary>
+    /// When true, the server refuses to relay text chat messages and typing state from peers
+    /// lacking basis.chat.lockbypass. Enforced server-side — text chat has its own channel, so a
+    /// modified client cannot talk past the lock. Seeds BasisGlobalLockManager at boot, can be
+    /// toggled live from the admin panel, and is broadcast to clients in GlobalGetLockState so
+    /// their composers grey out. Default off.
+    /// </summary>
+    public bool TextChatLocked = false;
+    /// <summary>
+    /// When true, the server refuses to relay voice (normal and shout) from peers lacking
+    /// basis.voice.lockbypass. Enforced server-side — voice has its own channels, so a modified
+    /// client cannot talk past the lock. Seeds BasisGlobalLockManager at boot, can be toggled live
+    /// from the admin panel, and is broadcast to clients in GlobalGetLockState so they also stop
+    /// transmitting rather than burning upstream bandwidth into a dropped stream. Default off.
+    /// </summary>
+    public bool VoiceChatLocked = false;
+    /// <summary>
+    /// When true, non-bypass clients neither load new media player URLs nor accept inbound ones.
+    /// Enforced client-side — media player state rides the generic scene relay, so the server can't
+    /// single it out the way it blocks content shares. Already-playing media keeps playing until
+    /// replaced. Seeds BasisGlobalLockManager at boot and is broadcast in GlobalGetLockState.
+    /// Default off.
+    /// </summary>
+    public bool MediaPlayerLocked = false;
+    /// <summary>
+    /// When true, non-bypass clients cannot capture photos with the handheld camera. Enforced
+    /// client-side — capture is entirely local, so nothing reaches the server to block. Distinct
+    /// from CameraMetadataDisallowMask, which only strips embedded metadata from photos that are
+    /// still taken. Seeds BasisGlobalLockManager at boot and is broadcast in GlobalGetLockState.
+    /// Default off.
+    /// </summary>
+    public bool CameraCaptureLocked = false;
+    /// <summary>
+    /// When true, non-bypass clients cannot pick up or grab props. Enforced client-side — grabbing
+    /// is local interaction logic, and the resulting motion rides ordinary transform sync the server
+    /// can't distinguish from any other movement. Distinct from PropsLocked, which blocks prop
+    /// *loading* rather than handling already-spawned ones. Default off.
+    /// </summary>
+    public bool PropGrabbingLocked = false;
 
     // ── REST API ──────────────────────────────────────────────────────────────
     /// <summary>Set to true to enable the REST management API.</summary>

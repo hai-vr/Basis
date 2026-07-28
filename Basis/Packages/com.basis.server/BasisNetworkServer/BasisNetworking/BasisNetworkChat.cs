@@ -1,8 +1,11 @@
 using Basis.Network.Core;
+using BasisPermissions;
+using BasisNetworkServer.Security;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
 namespace BasisNetworkServer.BasisNetworking
@@ -138,11 +141,43 @@ namespace BasisNetworkServer.BasisNetworking
         }
 
         /// <summary>
+        /// True when the global text-chat lock is on and this peer lacks basis.chat.lockbypass.
+        /// Shared by the chat and typing-state paths so a locked peer can't leak "is typing"
+        /// activity while their messages are being dropped.
+        /// </summary>
+        public static bool IsChatBlockedFor(NetPeer peer)
+        {
+            return BasisGlobalLockManager.TextChatLocked &&
+                !PermissionIntegration.HasValidRequirement(peer, PermNodes.ChatLockBypass);
+        }
+
+        /// <summary>
+        /// UUID-keyed form of <see cref="IsChatBlockedFor(NetPeer)"/>, mirroring the two
+        /// HasValidRequirement overloads. Lets callers that already resolved the UUID skip the
+        /// peer lookup.
+        /// </summary>
+        public static bool IsChatBlockedForUuid(string uuid)
+        {
+            return BasisGlobalLockManager.TextChatLocked &&
+                !PermissionIntegration.HasValidRequirement(uuid, PermNodes.ChatLockBypass);
+        }
+
+        /// <summary>
         /// Handles an incoming chat message from a client peer.
         /// Deserializes, filters, re-serializes, and broadcasts to all other peers.
         /// </summary>
         public static void HandleChatMessage(NetPacketReader reader, NetPeer sender)
         {
+            if (IsChatBlockedFor(sender))
+            {
+                // Dropped silently: clients already grey out their composer from the broadcast lock
+                // state, so anything arriving here is an old or modified client. Chat can arrive far
+                // faster than content shares, so neither a per-message reply nor a log line is safe —
+                // both would hand a blocked peer a cheap amplification vector.
+                reader.Recycle();
+                return;
+            }
+
             ChatMessage chatMessage = new ChatMessage();
             chatMessage.Deserialize(reader);
             reader.Recycle();

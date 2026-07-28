@@ -778,8 +778,38 @@ namespace BasisServerHandle
             NetworkServer.ReturnWriter(Writer);
         }
 
+        /// <summary>
+        /// True when the global voice lock is on and this peer lacks basis.voice.lockbypass.
+        /// Shared by the normal and shout voice paths.
+        /// </summary>
+        public static bool IsVoiceBlockedFor(NetPeer peer)
+        {
+            return BasisNetworkServer.Security.BasisGlobalLockManager.VoiceChatLocked &&
+                !PermissionIntegration.HasValidRequirement(peer, PermNodes.VoiceLockBypass);
+        }
+
+        /// <summary>
+        /// UUID-keyed form of <see cref="IsVoiceBlockedFor(NetPeer)"/>, mirroring the two
+        /// HasValidRequirement overloads.
+        /// </summary>
+        public static bool IsVoiceBlockedForUuid(string uuid)
+        {
+            return BasisNetworkServer.Security.BasisGlobalLockManager.VoiceChatLocked &&
+                !PermissionIntegration.HasValidRequirement(uuid, PermNodes.VoiceLockBypass);
+        }
+
         public static void HandleVoiceMessage(NetPacketReader reader, NetPeer peer)
         {
+            if (IsVoiceBlockedFor(peer))
+            {
+                // Dropped silently — voice arrives ~50x/sec per speaker, so a reply or log line per
+                // dropped packet would be a far worse amplification vector than the traffic itself.
+                // Clients stop transmitting once they see the broadcast lock state; this is the
+                // backstop for old and modified ones.
+                reader.Recycle();
+                return;
+            }
+
             AudioSegmentDataMessage audioSegment = ThreadSafeMessagePool<AudioSegmentDataMessage>.Rent();
             audioSegment.Deserialize(reader);
             reader.Recycle();
@@ -804,6 +834,12 @@ namespace BasisServerHandle
             if (!BasisSavedState.IsInShoutMode(peer.Id))
             {
                 BNL.LogError($"Peer {peer.Id} sent shout voice but is not in shout mode. Ignoring.");
+                reader.Recycle();
+                return;
+            }
+
+            if (IsVoiceBlockedFor(peer))
+            {
                 reader.Recycle();
                 return;
             }

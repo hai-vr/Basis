@@ -383,6 +383,13 @@ namespace LiteNetLib
                 }
                 else
                 {
+                    // Windows has no SO_REUSEPORT load balancing: sockets sharing a UDP port there
+                    // do not receive a share each. The alternatives both cost more than they are
+                    // worth — several threads on one socket would let two datagrams from the same
+                    // peer be processed at once (SO_REUSEPORT avoids that only because RSS pins a
+                    // 4-tuple to one socket), and giving each peer its own port is a protocol
+                    // change. Measured at 500 players, the entire receive path — recv loop and
+                    // packet handling — is 2% of server CPU, so there is nothing here to win.
                     NetDebug.WriteError($"[NM] MultiSocketCount={MultiSocketCount} requested but SO_REUSEPORT is Linux-only; falling back to single socket");
                 }
             }
@@ -629,6 +636,75 @@ namespace LiteNetLib
             return SendRaw(packet.RawData, 0, packet.Size, remoteEndPoint);
         }
 
+        /// <summary>
+        /// The batcher owned by the calling thread, or null when this thread is not inside a
+        /// batching window. Only <see cref="UpdateLogic"/>'s parallel peer pass opens one, so
+        /// every other send path is unaffected.
+        /// </summary>
+        [ThreadStatic] private static SendBatcher t_batcher;
+
+        /// <summary>True while the calling thread is inside a batching window.</summary>
+        internal static bool IsBatchingOnThisThread => t_batcher != null;
+
+        /// <summary>
+        /// Whether opening a batch is worth it. Batching buys one syscall per batch instead of one
+        /// per datagram — but only where the kernel can actually take a vector of datagrams.
+        /// Without that the batch is a pure loss: every datagram pays an extra arena copy and the
+        /// syscall count is unchanged. Measured at 500 players on Windows, batching cost +1.3
+        /// cores for nothing, so there it stays off and the direct path is used unchanged.
+        /// </summary>
+        internal static bool BatchSendWorthwhile => NativeSocket.SupportsBatchSend;
+
+        internal static SendBatcher BeginBatch(NetManager owner)
+        {
+            if (!BatchSendWorthwhile || !owner.UseNativeSockets) return null;
+
+            var batcher = new SendBatcher { Owner = owner };
+            t_batcher = batcher;
+            return batcher;
+        }
+
+        internal static void EndBatch(SendBatcher batcher)
+        {
+            if (batcher == null) return;
+            batcher.Flush();
+            batcher.Owner = null;
+            t_batcher = null;
+            batcher.Dispose();
+        }
+
+        /// <summary>
+        /// Send that may be deferred into this thread's batch.
+        ///
+        /// Only for fire-and-forget payload traffic: the return value is optimistic (the datagram
+        /// is queued, not yet on the wire), so callers that infer anything from it — MTU probing
+        /// keys off a MessageSize failure, for instance — must keep using <see cref="SendRaw"/>.
+        /// Falls through to the direct path whenever batching does not apply, so behaviour is
+        /// identical when it is unavailable.
+        /// </summary>
+        internal int SendRawBatchable(byte[] message, int start, int length, NetPeer peer)
+        {
+            var batcher = t_batcher;
+            if (batcher != null &&
+                ReferenceEquals(batcher.Owner, this) &&
+                _isRunning &&
+                _extraPacketLayer == null &&   // CRC/encryption layers rewrite the buffer in place
+                UseNativeSockets &&
+                peer.NativeAddress != null)
+            {
+                var socket = peer.AddressFamily == AddressFamily.InterNetworkV6 && IPv6Support
+                    ? _udpSocketv6
+                    : _udpSocketv4;
+
+                if (socket != null && batcher.TryAdd(socket.Handle, message, start, length, peer.NativeAddress))
+                {
+                    return length;
+                }
+            }
+
+            return SendRaw(message, start, length, peer);
+        }
+
         internal int SendRaw(byte[] message, int start, int length, IPEndPoint remoteEndPoint)
         {
             if (!_isRunning)
@@ -830,5 +906,127 @@ namespace LiteNetLib
             _udpSocketv4 = null;
             _udpSocketv6 = null;
         }
+    }
+
+    /// <summary>
+    /// Collects outbound datagrams for one worker thread and hands them to the kernel together.
+    ///
+    /// A broadcast server's send cost is dominated by syscall count, not bytes: at 500 players the
+    /// send loop issues ~165K datagrams/s, and the per-call transition costs more than building
+    /// the packet did. Copying each datagram into an arena and flushing the arena with one
+    /// <c>sendmmsg</c> trades a ~700-byte memcpy for a syscall, which is a large win on Linux and
+    /// a small one elsewhere (the loop still costs one call per datagram, but pinning, exception
+    /// frames and endpoint dispatch are paid once per batch).
+    ///
+    /// One instance per worker thread, so no synchronisation. Memory is unmanaged: the pointers
+    /// handed to the kernel must stay put, and pinning a GC array for the lifetime of the server
+    /// would fragment the heap it lives on.
+    /// </summary>
+    internal sealed unsafe class SendBatcher : IDisposable
+    {
+        /// <summary>
+        /// Datagrams per flush. Deep enough that a tick's worth of sends for one worker usually
+        /// fits in one or two syscalls; shallow enough that the arena stays a few hundred KB and
+        /// a flush never stalls the socket for long.
+        /// </summary>
+        public const int MaxEntries = 256;
+
+        private readonly int _slotSize;
+        private readonly byte* _arena;
+        private readonly byte* _addresses;
+        private readonly NativeSocket.BatchEntry* _entries;
+        private readonly NativeSocket.MmsgHdr* _headers;
+        private readonly NativeSocket.IoVec* _iovecs;
+
+        // Largest sockaddr we can be asked to hold (sockaddr_in6).
+        private const int MaxAddressSize = NativeSocket.IPv6AddrSize;
+
+        private int _count;
+        private long _bytes;
+        private IntPtr _socket;
+        private bool _disposed;
+
+        /// <summary>The manager this batcher is bound to for the current flush window.</summary>
+        public NetManager Owner;
+
+        public int Count => _count;
+
+        public SendBatcher()
+        {
+            _slotSize = NetConstants.MaxPacketSize + NetConstants.MaxUdpHeaderSize;
+            _arena = (byte*)Marshal.AllocHGlobal(_slotSize * MaxEntries);
+            _addresses = (byte*)Marshal.AllocHGlobal(MaxAddressSize * MaxEntries);
+            _entries = (NativeSocket.BatchEntry*)Marshal.AllocHGlobal(sizeof(NativeSocket.BatchEntry) * MaxEntries);
+            _headers = (NativeSocket.MmsgHdr*)Marshal.AllocHGlobal(sizeof(NativeSocket.MmsgHdr) * MaxEntries);
+            _iovecs = (NativeSocket.IoVec*)Marshal.AllocHGlobal(sizeof(NativeSocket.IoVec) * MaxEntries);
+        }
+
+        /// <summary>
+        /// Queues one datagram. Returns false when the caller must send it itself — an oversized
+        /// payload, or an address that does not fit — so the caller always has a working path.
+        /// Flushes automatically when the batch is full or the destination socket changes.
+        /// </summary>
+        public bool TryAdd(IntPtr socketHandle, byte[] data, int start, int length, byte[] address)
+        {
+            if (length <= 0 || length > _slotSize) return false;
+            if (address == null || address.Length > MaxAddressSize) return false;
+
+            // A batch belongs to exactly one socket; a peer on the other address family forces a
+            // flush rather than being silently sent down the wrong one.
+            if (_count > 0 && socketHandle != _socket) Flush();
+            _socket = socketHandle;
+
+            byte* slot = _arena + (long)_count * _slotSize;
+            fixed (byte* src = &data[start]) Buffer.MemoryCopy(src, slot, _slotSize, length);
+
+            byte* addrSlot = _addresses + (long)_count * MaxAddressSize;
+            fixed (byte* srcAddr = address) Buffer.MemoryCopy(srcAddr, addrSlot, MaxAddressSize, address.Length);
+
+            _entries[_count].Data = slot;
+            _entries[_count].Length = length;
+            _entries[_count].Address = addrSlot;
+            _entries[_count].AddressLength = address.Length;
+            _count++;
+            _bytes += length;
+
+            if (_count >= MaxEntries) Flush();
+            return true;
+        }
+
+        /// <summary>Sends everything queued. Safe to call when empty.</summary>
+        public void Flush()
+        {
+            if (_count == 0) return;
+
+            int count = _count;
+            long bytes = _bytes;
+            _count = 0;
+            _bytes = 0;
+
+            int sent = NativeSocket.SendBatch(_socket, _entries, count, _headers, _iovecs);
+
+            var owner = Owner;
+            if (owner != null && owner.EnableStatistics && sent > 0)
+            {
+                // Whole batch in one pair of atomics rather than a pair per datagram. Bytes are
+                // prorated on a short send: the exact split is not worth a second pass over the
+                // entries for a counter that exists to be eyeballed.
+                long countedBytes = sent == count ? bytes : bytes * sent / count;
+                owner.Statistics.AddSentBatch(sent, countedBytes);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            Marshal.FreeHGlobal((IntPtr)_arena);
+            Marshal.FreeHGlobal((IntPtr)_addresses);
+            Marshal.FreeHGlobal((IntPtr)_entries);
+            Marshal.FreeHGlobal((IntPtr)_headers);
+            Marshal.FreeHGlobal((IntPtr)_iovecs);
+        }
+
+        ~SendBatcher() => Dispose();
     }
 }

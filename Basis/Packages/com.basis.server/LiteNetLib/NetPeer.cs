@@ -176,6 +176,8 @@ namespace LiteNetLib
         private readonly NetPacket _mergeData;
         private int _mergePos;
         private int _mergeCount;
+        /// <summary>Time the current partial merge buffer has been waiting. See MergeHoldMs.</summary>
+        private float _mergeHeldMs;
 
         //Connection
         private int _connectAttempts;
@@ -1379,18 +1381,22 @@ namespace LiteNetLib
             if (_mergeCount == 0)
                 return;
             int bytesSent;
+            // Batchable: this is bulk payload traffic and nothing reads the result beyond stats.
+            // Outside a batching window this is exactly the old direct send.
             if (_mergeCount > 1)
             {
                 //NetDebug.Write("[P]Send merged: " + _mergePos + ", count: " + _mergeCount);
-                bytesSent = NetManager.SendRaw(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
+                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, 0, NetConstants.HeaderSize + _mergePos, this);
             }
             else
             {
                 //Send without length information and merging
-                bytesSent = NetManager.SendRaw(_mergeData.RawData, NetConstants.HeaderSize + 2, _mergePos - 2, this);
+                bytesSent = NetManager.SendRawBatchable(_mergeData.RawData, NetConstants.HeaderSize + 2, _mergePos - 2, this);
             }
 
-            if (NetManager.EnableStatistics)
+            // The manager already counts a batched datagram when it flushes; counting here too
+            // would double it.
+            if (NetManager.EnableStatistics && !NetManager.IsBatchingOnThisThread)
             {
                 Statistics.IncrementPacketsSent();
                 Statistics.AddBytesSent(bytesSent);
@@ -1398,6 +1404,7 @@ namespace LiteNetLib
 
             _mergePos = 0;
             _mergeCount = 0;
+            _mergeHeldMs = 0f;
         }
 
         /// <summary>
@@ -1559,7 +1566,23 @@ namespace LiteNetLib
                 NetManager.PoolRecycle(packet);
             }
 
-            SendMerged();
+            // Hold a partly-filled buffer briefly so consecutive passes coalesce into one
+            // datagram instead of each pass emitting its own half-empty one. SendUserData already
+            // flushes the moment a packet would overflow the MTU, so a full buffer never waits
+            // here — only small sends do, and only up to MergeHoldMs.
+            float hold = NetManager.MergeHoldMs;
+            if (hold <= 0f)
+            {
+                SendMerged();
+            }
+            else if (_mergeCount > 0)
+            {
+                _mergeHeldMs += deltaTime;
+                if (_mergeHeldMs >= hold)
+                {
+                    SendMerged();
+                }
+            }
         }
 
         //For reliable channel

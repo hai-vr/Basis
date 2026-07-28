@@ -30,6 +30,19 @@ namespace LiteNetLib
                 [In] SocketFlags socketFlags,
                 [In] byte[] socketAddress,
                 [In] int socketAddressSize);
+
+            /// <summary>
+            /// Same call, but taking the address as a raw pointer so the batch path can send
+            /// straight out of its arena instead of marshalling a managed array per datagram.
+            /// </summary>
+            [DllImport(LibName, EntryPoint = "sendto", SetLastError = true)]
+            internal static extern int sendto_ptr(
+                IntPtr socketHandle,
+                byte* pinnedBuffer,
+                [In] int len,
+                [In] SocketFlags socketFlags,
+                byte* socketAddress,
+                [In] int socketAddressSize);
         }
 
         static unsafe class UnixSock
@@ -53,10 +66,80 @@ namespace LiteNetLib
                 [In] SocketFlags socketFlags,
                 [In] byte[] socketAddress,
                 [In] int socketAddressSize);
+
+            /// <summary>
+            /// Same call, but taking the address as a raw pointer so the batch path can send
+            /// straight out of its arena instead of marshalling a managed array per datagram.
+            /// </summary>
+            [DllImport(LibName, EntryPoint = "sendto", SetLastError = true)]
+            internal static extern int sendto_ptr(
+                IntPtr socketHandle,
+                byte* pinnedBuffer,
+                [In] int len,
+                [In] SocketFlags socketFlags,
+                byte* socketAddress,
+                [In] int socketAddressSize);
+
+            /// <summary>
+            /// Sends up to <paramref name="vlen"/> datagrams — each to its own destination — in a
+            /// single syscall. This is the whole point of the batch path: a broadcast server's
+            /// cost is dominated by syscall count, not by bytes.
+            /// Returns the number of messages sent, or -1.
+            /// </summary>
+            [DllImport(LibName, SetLastError = true)]
+            internal static extern int sendmmsg(
+                IntPtr socketHandle,
+                MmsgHdr* msgvec,
+                uint vlen,
+                int flags);
+        }
+
+        /// <summary>Linux <c>struct iovec</c>.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        internal unsafe struct IoVec
+        {
+            public byte* Base;
+            public IntPtr Length;   // size_t
+        }
+
+        /// <summary>
+        /// Linux <c>struct msghdr</c>. Field order and widths must match the platform ABI exactly;
+        /// this is the 64-bit layout (socklen_t is 32-bit and followed by 4 bytes of padding,
+        /// which <see cref="LayoutKind.Sequential"/> inserts because the next field is pointer-aligned).
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        internal unsafe struct MsgHdr
+        {
+            public byte* Name;          // sockaddr*
+            public uint NameLen;        // socklen_t
+            private uint _pad;
+            public IoVec* Iov;
+            public IntPtr IovLen;       // size_t
+            public byte* Control;
+            public IntPtr ControlLen;   // size_t
+            public int Flags;
+        }
+
+        /// <summary>Linux <c>struct mmsghdr</c>: a msghdr plus the per-message sent length.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        internal unsafe struct MmsgHdr
+        {
+            public MsgHdr Hdr;
+            public uint Len;
+            private uint _pad;
         }
 
         public static readonly bool IsSupported = false;
         public static readonly bool UnixMode = false;
+
+        /// <summary>
+        /// True when <see cref="SendBatch"/> can hand the whole batch to the kernel in one call
+        /// (Linux <c>sendmmsg</c>). Elsewhere the batch still works — it just costs one syscall per
+        /// datagram, so only the managed-side per-send overhead is saved.
+        /// Probed once at startup rather than assumed from the OS, because sendmmsg is absent on
+        /// old kernels and blocked by some seccomp sandboxes.
+        /// </summary>
+        public static readonly bool SupportsBatchSend = false;
 
         public const int IPv4AddrSize = 16;
         public const int IPv6AddrSize = 28;
@@ -165,6 +248,7 @@ namespace LiteNetLib
                 IsSupported = true;
                 UnixMode = true;
                 NativeErrorToSocketError = LinuxErrorToSocketError;
+                SupportsBatchSend = ProbeSendmmsg();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
@@ -207,6 +291,113 @@ namespace LiteNetLib
             return UnixMode
                 ? UnixSock.sendto(socketHandle, pinnedBuffer, len, 0, socketAddress, socketAddressSize)
                 : WinSock.sendto(socketHandle, pinnedBuffer, len, 0, socketAddress, socketAddressSize);
+        }
+
+        /// <summary>
+        /// Calls sendmmsg with a zero-length vector on a throwaway UDP socket. A kernel that has
+        /// the syscall returns 0; one that does not fails with ENOSYS, and a sandbox that blocks
+        /// it fails with EPERM. Doing this once at startup keeps the send path free of fallback
+        /// checks and avoids discovering the problem under load.
+        /// </summary>
+        private static unsafe bool ProbeSendmmsg()
+        {
+            Socket probe = null;
+            try
+            {
+                probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                int result = UnixSock.sendmmsg(probe.Handle, null, 0, 0);
+                if (result >= 0) return true;
+
+                int err = Marshal.GetLastWin32Error();
+                NetDebug.WriteError($"[NS] sendmmsg unavailable (errno {err}); batch send falls back to per-datagram sendto.");
+                return false;
+            }
+            catch (Exception e)
+            {
+                // EntryPointNotFoundException on a libc without the symbol, or anything else the
+                // platform throws — either way the fallback path is correct, so never fail startup.
+                NetDebug.WriteError($"[NS] sendmmsg probe failed ({e.GetType().Name}); batch send falls back to per-datagram sendto.");
+                return false;
+            }
+            finally
+            {
+                probe?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// One entry in a batch: a slice of the caller's pinned arena plus the destination address.
+        /// Pointers, not arrays, so the batch can be built once and handed straight to the kernel.
+        /// </summary>
+        internal unsafe struct BatchEntry
+        {
+            public byte* Data;
+            public int Length;
+            public byte* Address;
+            public int AddressLength;
+        }
+
+        /// <summary>
+        /// Sends every entry in <paramref name="entries"/>.
+        ///
+        /// On Linux this is one <c>sendmmsg</c> syscall for the whole batch (looping only if the
+        /// kernel accepts a partial vector). Everywhere else it is a tight <c>sendto</c> loop over
+        /// the same already-pinned memory — the syscall count is unchanged there, but the managed
+        /// per-send cost (pinning, exception frames, endpoint dispatch) is paid once for the batch
+        /// instead of once per datagram.
+        ///
+        /// Returns the number of datagrams accepted. A short return means the caller should treat
+        /// the remainder as dropped — this is unreliable UDP, and the channel layer already
+        /// handles loss.
+        /// </summary>
+        public static unsafe int SendBatch(
+            IntPtr socketHandle,
+            BatchEntry* entries,
+            int count,
+            MmsgHdr* headers,
+            IoVec* iovecs)
+        {
+            if (count <= 0) return 0;
+
+            if (SupportsBatchSend)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    iovecs[i].Base = entries[i].Data;
+                    iovecs[i].Length = (IntPtr)entries[i].Length;
+
+                    headers[i] = default;
+                    headers[i].Hdr.Name = entries[i].Address;
+                    headers[i].Hdr.NameLen = (uint)entries[i].AddressLength;
+                    headers[i].Hdr.Iov = &iovecs[i];
+                    headers[i].Hdr.IovLen = (IntPtr)1;
+                }
+
+                int sentTotal = 0;
+                while (sentTotal < count)
+                {
+                    int sent = UnixSock.sendmmsg(socketHandle, headers + sentTotal, (uint)(count - sentTotal), 0);
+                    if (sent <= 0)
+                    {
+                        // EWOULDBLOCK/ENOBUFS on a saturated socket: the rest of this batch is
+                        // dropped, exactly as an unbatched send would have been.
+                        break;
+                    }
+                    sentTotal += sent;
+                }
+                return sentTotal;
+            }
+
+            int ok = 0;
+            for (int i = 0; i < count; i++)
+            {
+                int result = UnixMode
+                    ? UnixSock.sendto_ptr(socketHandle, entries[i].Data, entries[i].Length, 0, entries[i].Address, entries[i].AddressLength)
+                    : WinSock.sendto_ptr(socketHandle, entries[i].Data, entries[i].Length, 0, entries[i].Address, entries[i].AddressLength);
+                if (result < 0) break;
+                ok++;
+            }
+            return ok;
         }
 
         public static SocketError GetSocketError()

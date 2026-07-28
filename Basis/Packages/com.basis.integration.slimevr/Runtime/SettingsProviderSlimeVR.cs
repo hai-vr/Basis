@@ -32,23 +32,23 @@ namespace Basis.Integration.SlimeVR
             PanelElementDescriptor tabDescriptor = parent.GetComponentInParent<PanelElementDescriptor>(true);
 
             PanelSectionToggle sectionToggle = PanelSectionToggle.CreateNewEntry(parent);
-            sectionToggle.SetTitle("SlimeVR");
+            sectionToggle.SetTitle(BasisLocalization.Get("settings.slimevr.title"));
             int sectionStart = parent.childCount;
 
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
-            group.SetDescription("Sets your height and arm span automatically from a running SlimeVR server.");
+            group.SetDescription(BasisLocalization.Get("settings.slimevr.title.description"));
             var content = group.ContentParent;
 
             PanelToggle enableToggle = PanelToggle.CreateNewEntry(content);
-            enableToggle.Descriptor.SetTitle("Connect To SlimeVR");
-            enableToggle.Descriptor.SetDescription("Stay connected to a local SlimeVR server.");
+            enableToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.connectToSlimevr"));
+            enableToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.connectToSlimevr.description"));
             enableToggle.SetValueWithoutNotify(BasisSlimeVRSettings.Enable.RawValue);
             enableToggle.OnValueChanged += value => BasisSlimeVRSettings.Enable.SetValue(value);
 
             PanelDropdown transportDropdown = PanelDropdown.CreateNewEntry(content);
-            transportDropdown.Descriptor.SetTitle("Connection Method");
-            transportDropdown.Descriptor.SetDescription("WebSocket suits every server; Pipe is SlimeVR's native transport.");
+            transportDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.connectionMethod"));
+            transportDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.connectionMethod.description"));
             transportDropdown.AssignEntries(
                 new List<string> { BasisSlimeVRSettings.TransportWebSocket, BasisSlimeVRSettings.TransportPipe },
                 new List<string> { "WebSocket", "Pipe" });
@@ -56,26 +56,26 @@ namespace Basis.Integration.SlimeVR
             transportDropdown.OnValueChanged += value => BasisSlimeVRSettings.Transport.SetValue(value);
 
             PanelToggle applyToggle = PanelToggle.CreateNewEntry(content);
-            applyToggle.Descriptor.SetTitle("Auto Apply Body Measurements");
-            applyToggle.Descriptor.SetDescription("Use SlimeVR's eye height and arm span as your body size.");
+            applyToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.autoApplyBodyMeasurements"));
+            applyToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.autoApplyBodyMeasurements.description"));
             applyToggle.SetValueWithoutNotify(BasisSlimeVRSettings.ApplyBodyMeasurements.RawValue);
             applyToggle.OnValueChanged += value => BasisSlimeVRSettings.ApplyBodyMeasurements.SetValue(value);
 
             PanelToggle autoBindToggle = PanelToggle.CreateNewEntry(content);
-            autoBindToggle.Descriptor.SetTitle("Auto Bind SlimeVR Trackers");
-            autoBindToggle.Descriptor.SetDescription("Bind trackers to their announced body part automatically.");
+            autoBindToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.autoBindSlimevrTrackers"));
+            autoBindToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.autoBindSlimevrTrackers.description"));
             autoBindToggle.SetValueWithoutNotify(BasisSlimeVRSettings.AutoBindSlimeVRTrackers.RawValue);
             autoBindToggle.OnValueChanged += value => BasisSlimeVRSettings.AutoBindSlimeVRTrackers.SetValue(value);
 
             PanelToggle recalToggle = PanelToggle.CreateNewEntry(content);
-            recalToggle.Descriptor.SetTitle("Recalibrate On Reset");
-            recalToggle.Descriptor.SetDescription("Re-run calibration after a SlimeVR mounting or full reset.");
+            recalToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.recalibrateOnReset"));
+            recalToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.recalibrateOnReset.description"));
             recalToggle.SetValueWithoutNotify(BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue);
             recalToggle.OnValueChanged += value => BasisSlimeVRSettings.RecalibrateOnMountingChange.SetValue(value);
 
             PanelDropdown trackerSourceDropdown = PanelDropdown.CreateNewEntry(content);
-            trackerSourceDropdown.Descriptor.SetTitle("Tracker Source (Experimental)");
-            trackerSourceDropdown.Descriptor.SetDescription("Get trackers from the SlimeVR server instead of OpenVR/OpenXR. Needs SteamVR in the background.");
+            trackerSourceDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.trackerSourceExperimental"));
+            trackerSourceDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.trackerSourceExperimental.description"));
             trackerSourceDropdown.AssignEntries(
                 new List<string> { BasisSlimeVRSettings.TrackerSourceOff, BasisSlimeVRSettings.TrackerSourceAuto, BasisSlimeVRSettings.TrackerSourceForce },
                 new List<string> { "Off", "Auto (fallback)", "Force (override)" });
@@ -105,12 +105,12 @@ namespace Basis.Integration.SlimeVR
 
             PanelElementDescriptor statusField = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, content);
-            statusField.SetTitle("Status");
+            statusField.SetTitle(BasisLocalization.Get("settings.slimevr.status"));
             statusField.SetDescription(DescribeStatus());
 
             PanelButton refresh = PanelButton.CreateNew(content);
-            refresh.Descriptor.SetTitle("Refresh");
-            refresh.Descriptor.SetDescription("Re-read measurements and status.");
+            refresh.Descriptor.SetTitle(BasisLocalization.Get("settings.slimevr.refresh"));
+            refresh.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.refresh.description"));
             refresh.OnClicked += () =>
             {
                 BasisSlimeVRBridge.RefreshBodyMeasurements();
@@ -176,7 +176,7 @@ namespace Basis.Integration.SlimeVR
                     return;
                 }
                 button.Descriptor.SetTitle($"{title} ({secondsRemaining})");
-                button.Descriptor.SetDescription("Get into pose — press again to cancel.");
+                button.Descriptor.SetDescription(BasisLocalization.Get("settings.slimevr.getIntoPose"));
             }
 
             void OnEnded(BasisSlimeVRPoseAction endedAction, bool _)

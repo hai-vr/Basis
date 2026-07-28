@@ -342,6 +342,45 @@ namespace LiteNetLib
         public bool UseNativeSockets = false;
 
         /// <summary>
+        /// How long (ms) a partly-filled merge buffer may wait for more data before being sent.
+        /// A full buffer is always sent immediately, so this only ever delays small sends — it
+        /// caps added latency rather than adding it. 0 sends every logic pass (legacy behaviour).
+        /// </summary>
+        public float MergeHoldMs = 0f;
+
+        /// <summary>
+        /// Worker cap for the per-peer update pass in <see cref="UpdateLogic"/>. 0 = a quarter of
+        /// the cores, floored at 4 and capped at 8.
+        ///
+        /// This pass used to run on an uncapped Parallel.ForEach. At a few hundred passes a second
+        /// that spread across every core the threadpool would give it — profiling a 500-player
+        /// server found 40 distinct threads in the pass, with three quarters of all GC-poll time
+        /// coming from Parallel's own worker replication rather than from updating peers. The work
+        /// per peer is small, so a handful of workers finish it just as fast without the churn.
+        /// </summary>
+        public int PeerUpdateParallelism = 0;
+
+        private ParallelOptions _peerUpdateOptions;
+
+        private ParallelOptions PeerUpdateOptions
+        {
+            get
+            {
+                int desired = PeerUpdateParallelism <= 0
+                    ? Math.Clamp(Environment.ProcessorCount / 4, 4, 8)
+                    : Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
+
+                var options = _peerUpdateOptions;
+                if (options == null || options.MaxDegreeOfParallelism != desired)
+                {
+                    options = new ParallelOptions { MaxDegreeOfParallelism = desired };
+                    _peerUpdateOptions = options;
+                }
+                return options;
+            }
+        }
+
+        /// <summary>
         /// Disconnect peers if HostUnreachable or NetworkUnreachable spawned (old behaviour 0.9.x was true)
         /// </summary>
         public bool DisconnectOnUnreachable = false;
@@ -637,18 +676,45 @@ namespace LiteNetLib
                     }
 
                     // 2. Update each peer (serial below threshold to skip Parallel.ForEach overhead on small peer lists)
+                    //
+                    // Each worker opens a send batch for the duration of its partition and flushes
+                    // it in localFinally, so a partition's worth of merged datagrams reaches the
+                    // kernel in one call instead of one per peer. Peers are only ever touched by
+                    // the worker that owns them, so per-peer send order is preserved.
                     _currentElapsed = elapsed;
                     int snapshotCount = _updateSnapshot.Count;
                     if (snapshotCount <= ParallelPeerThreshold)
                     {
-                        for (int i = 0; i < snapshotCount; i++)
+                        var batcher = BeginBatch(this);
+                        try
                         {
-                            _peerUpdateBody(_updateSnapshot[i]);
+                            for (int i = 0; i < snapshotCount; i++)
+                            {
+                                _peerUpdateBody(_updateSnapshot[i]);
+                            }
+                        }
+                        finally
+                        {
+                            EndBatch(batcher);
                         }
                     }
                     else
                     {
-                        System.Threading.Tasks.Parallel.ForEach(_updateSnapshot, _peerUpdateBody);
+                        // Each worker opens its own send batch for its partition and flushes it in
+                        // localFinally, so a partition's merged datagrams reach the kernel
+                        // together. A peer is only ever touched by the worker holding it, so
+                        // per-peer send order is preserved.
+                        //
+                        // Dedicated threads were tried here instead of Parallel.ForEach and were
+                        // measurably worse (+19% CPU per unit throughput): this pass runs a few
+                        // hundred times a second and is often trivial, and a fixed pool wakes every
+                        // worker regardless while Parallel scales down to the work available.
+                        System.Threading.Tasks.Parallel.ForEach(
+                            _updateSnapshot,
+                            PeerUpdateOptions,
+                            () => BeginBatch(this),
+                            (peer, _, batcher) => { _peerUpdateBody(peer); return batcher; },
+                            EndBatch);
                     }
 
                     // 3. Remove peers under write lock

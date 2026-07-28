@@ -123,6 +123,7 @@ public static class NetworkServer
 
     public static void InitializePulseSettings()
     {
+        BasisServerReductionSystemEvents.SetMaxDegreeOfParallelism(Configuration.BSRMaxDegreeOfParallelism);
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
         BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;

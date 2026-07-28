@@ -88,10 +88,10 @@ namespace Basis.BasisUI.MediaPlayer
             PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, parent);
             group.SetTitle(StaticTitle);
-            group.SetDescription("Open the media player panel to control playback and per-player volume.");
+            group.SetDescription(BasisLocalization.Get("mediaPlayer.title.description"));
 
             PanelButton open = PanelButton.CreateNew(group.ContentParent);
-            open.Descriptor.SetTitle("Open Media Players");
+            open.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.openMediaPlayers"));
             open.OnClicked += () => _instance?.RunAction();
         }
 
@@ -156,13 +156,13 @@ namespace Basis.BasisUI.MediaPlayer
             }
 
             _selector = PanelDropdown.CreateNewEntry(_scrollContent);
-            _selector.Descriptor.SetTitle("Player");
+            _selector.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.player"));
             _selector.OnValueChanged = _ => OnSelectionChanged();
 
             _emptyState = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, _scrollContent);
-            _emptyState.SetTitle("No Media Players");
-            _emptyState.SetDescription("Spawn or load a prop/scene that contains a Basis Media Player.");
+            _emptyState.SetTitle(BasisLocalization.Get("mediaPlayer.noMediaPlayers"));
+            _emptyState.SetDescription(BasisLocalization.Get("mediaPlayer.noMediaPlayers.description"));
 
             BuildStatusGroup(_scrollContent);
             BuildControlGroup(_scrollContent);
@@ -226,17 +226,17 @@ namespace Basis.BasisUI.MediaPlayer
         private void BuildControlGroup(RectTransform parent)
         {
             _controlGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _controlGroup.SetTitle("Playback");
-            _controlGroup.SetDescription("Requires the basis.mediaplayer.control permission, or Anyone Can Control on this player.");
+            _controlGroup.SetTitle(BasisLocalization.Get("mediaPlayer.playback"));
+            _controlGroup.SetDescription(BasisLocalization.Get("mediaPlayer.playback.description"));
             RectTransform content = _controlGroup.ContentParent;
 
             _urlField = PanelTextField.CreateNewEntry(content);
-            _urlField.Descriptor.SetTitle("URL");
+            _urlField.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.url"));
 
             RectTransform actions = PanelElementDescriptor.BuildActionRow(content, "MediaPlayerActions");
 
             PanelButton loadBtn = PanelButton.CreateNew(actions);
-            loadBtn.Descriptor.SetTitle("Load URL");
+            loadBtn.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.loadUrl"));
             loadBtn.OnClicked += () =>
             {
                 if (_activePlayer == null || _urlField == null) return;
@@ -251,7 +251,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             PanelButton playBtn = PanelButton.CreateNew(actions);
-            playBtn.Descriptor.SetTitle("Play");
+            playBtn.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.play"));
             playBtn.OnClicked += () =>
             {
                 if (_activePlayer == null) return;
@@ -260,7 +260,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             PanelButton pauseBtn = PanelButton.CreateNew(actions);
-            pauseBtn.Descriptor.SetTitle("Pause");
+            pauseBtn.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.pause"));
             pauseBtn.OnClicked += () =>
             {
                 if (_activePlayer == null) return;
@@ -269,7 +269,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             PanelButton stopBtn = PanelButton.CreateNew(actions);
-            stopBtn.Descriptor.SetTitle("Stop");
+            stopBtn.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.stop"));
             stopBtn.OnClicked += () =>
             {
                 if (_activePlayer == null) return;
@@ -286,7 +286,7 @@ namespace Basis.BasisUI.MediaPlayer
             // from the user's.
             _seekSlider = PanelSlider.CreateNew(content);
             _seekSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                "Position", 0f, 100f, false, 0, ValueDisplayMode.Percentage));
+                BasisLocalization.Get("mediaPlayer.position"), 0f, 100f, false, 0, ValueDisplayMode.Percentage));
             // uGUI's own event, not the panel Action (which only fires on
             // release): every drag move must re-arm the debounce, or the
             // per-tick playhead writes would snap the handle away mid-drag.
@@ -299,7 +299,7 @@ namespace Basis.BasisUI.MediaPlayer
             _seekSlider.gameObject.SetActive(false);
 
             _bitrateDropdown = PanelDropdown.CreateNewEntry(content);
-            _bitrateDropdown.Descriptor.SetTitle("Bitrate");
+            _bitrateDropdown.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.bitrate"));
             _bitrateDropdown.OnValueChanged = _ =>
             {
                 if (_activePlayer == null || _bitrateDropdown == null) return;
@@ -308,7 +308,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _audioTrackDropdown = PanelDropdown.CreateNewEntry(content);
-            _audioTrackDropdown.Descriptor.SetTitle("Audio Track");
+            _audioTrackDropdown.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.audioTrack"));
             _audioTrackDropdown.OnValueChanged = _ =>
             {
                 if (_activePlayer == null || _audioTrackDropdown == null) return;
@@ -320,12 +320,12 @@ namespace Basis.BasisUI.MediaPlayer
         private void BuildUserGroup(RectTransform parent)
         {
             _userGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _userGroup.SetTitle("My Settings");
-            _userGroup.SetDescription("Client-side controls — only affect your own playback.");
+            _userGroup.SetTitle(BasisLocalization.Get("mediaPlayer.mySettings"));
+            _userGroup.SetDescription(BasisLocalization.Get("mediaPlayer.mySettings.description"));
             RectTransform content = _userGroup.ContentParent;
 
             _volumeSlider = PanelSlider.CreateNew(content);
-            _volumeSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Volume"));
+            _volumeSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("mediaPlayer.volume")));
             _volumeSlider.OnValueChanged = v =>
             {
                 if (_activePlayer == null) return;
@@ -340,8 +340,8 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _captionsToggle = PanelToggle.CreateNewEntry(content);
-            _captionsToggle.Descriptor.SetTitle("Captions (CC)");
-            _captionsToggle.Descriptor.SetDescription("Show closed captions when the stream or its subtitle tracks carry them.");
+            _captionsToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.captionsCc"));
+            _captionsToggle.Descriptor.SetDescription(BasisLocalization.Get("mediaPlayer.captionsCc.description"));
             _captionsToggle.OnValueChanged = v =>
             {
                 if (_activePlayer != null) _activePlayer.CaptionsEnabled = v;
@@ -353,7 +353,7 @@ namespace Basis.BasisUI.MediaPlayer
             // panel stays clutter-free for everything else. Row 0 returns to
             // the in-band default.
             _subtitleDropdown = PanelDropdown.CreateNewEntry(content);
-            _subtitleDropdown.Descriptor.SetTitle("Subtitles");
+            _subtitleDropdown.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.subtitles"));
             _subtitleDropdown.OnValueChanged = _ =>
             {
                 if (_activePlayer == null || _subtitleDropdown == null) return;
@@ -362,14 +362,14 @@ namespace Basis.BasisUI.MediaPlayer
             _subtitleDropdown.gameObject.SetActive(false);
 
             _captionTextOpacitySlider = PanelSlider.CreateNew(content);
-            _captionTextOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Text Opacity"));
+            _captionTextOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("mediaPlayer.textOpacity")));
             _captionTextOpacitySlider.OnValueChanged = v =>
             {
                 if (_activePlayer != null) _activePlayer.CaptionTextOpacity = Mathf.Clamp01(v / 100f);
             };
 
             _captionBgOpacitySlider = PanelSlider.CreateNew(content);
-            _captionBgOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage("Background Opacity"));
+            _captionBgOpacitySlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("mediaPlayer.backgroundOpacity")));
             _captionBgOpacitySlider.OnValueChanged = v =>
             {
                 if (_activePlayer != null) _activePlayer.CaptionBackgroundOpacity = Mathf.Clamp01(v / 100f);
@@ -377,7 +377,7 @@ namespace Basis.BasisUI.MediaPlayer
 
             RectTransform actions = PanelElementDescriptor.BuildActionRow(content, "MediaPlayerActions");
             PanelButton resyncBtn = PanelButton.CreateNew(actions);
-            resyncBtn.Descriptor.SetTitle("Resync");
+            resyncBtn.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.resync"));
             resyncBtn.OnClicked += () =>
             {
                 if (_activePlayer == null) return;
@@ -385,7 +385,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _advancedToggle = PanelToggle.CreateNewEntry(content);
-            _advancedToggle.Descriptor.SetTitle("Advanced");
+            _advancedToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.advanced"));
             _advancedToggle.OnValueChanged = v =>
             {
                 ApplyAdvancedVisibility(v);
@@ -630,13 +630,13 @@ namespace Basis.BasisUI.MediaPlayer
         private void BuildAdminGroup(RectTransform parent)
         {
             _adminGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _adminGroup.SetTitle("Admin");
-            _adminGroup.SetDescription("Network-synced policy. Visible only to clients with the basis.mediaplayer.control or * permission.");
+            _adminGroup.SetTitle(BasisLocalization.Get("mediaPlayer.admin"));
+            _adminGroup.SetDescription(BasisLocalization.Get("mediaPlayer.admin.description"));
             RectTransform content = _adminGroup.ContentParent;
 
             _adminOnlyToggle = PanelToggle.CreateNewEntry(content);
-            _adminOnlyToggle.Descriptor.SetTitle("Admin Only");
-            _adminOnlyToggle.Descriptor.SetDescription("Only clients with the control permission can take ownership.");
+            _adminOnlyToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.adminOnly"));
+            _adminOnlyToggle.Descriptor.SetDescription(BasisLocalization.Get("mediaPlayer.adminOnly.description"));
             _adminOnlyToggle.SetValueWithoutNotify(false);
             _adminOnlyToggle.OnValueChanged = v =>
             {
@@ -649,8 +649,8 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _allowAnyoneToggle = PanelToggle.CreateNewEntry(content);
-            _allowAnyoneToggle.Descriptor.SetTitle("Allow Anyone To Take Control");
-            _allowAnyoneToggle.Descriptor.SetDescription("When Admin Only is off, allows non-owners to take ownership.");
+            _allowAnyoneToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.allowAnyoneToTakeControl"));
+            _allowAnyoneToggle.Descriptor.SetDescription(BasisLocalization.Get("mediaPlayer.allowAnyoneToTakeControl.description"));
             _allowAnyoneToggle.SetValueWithoutNotify(true);
             _allowAnyoneToggle.OnValueChanged = v =>
             {
@@ -663,8 +663,8 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _anyoneCanControlToggle = PanelToggle.CreateNewEntry(content);
-            _anyoneCanControlToggle.Descriptor.SetTitle("Anyone Can Control");
-            _anyoneCanControlToggle.Descriptor.SetDescription("Lets clients without the control permission load URLs and drive playback.");
+            _anyoneCanControlToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.anyoneCanControl"));
+            _anyoneCanControlToggle.Descriptor.SetDescription(BasisLocalization.Get("mediaPlayer.anyoneCanControl.description"));
             _anyoneCanControlToggle.SetValueWithoutNotify(false);
             _anyoneCanControlToggle.OnValueChanged = v =>
             {
@@ -677,7 +677,7 @@ namespace Basis.BasisUI.MediaPlayer
             };
 
             _driftSlider = PanelSlider.CreateNew(content);
-            _driftSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced("Drift Seek Threshold (s)", 0f, 10f, false, 2, ValueDisplayMode.Raw));
+            _driftSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("mediaPlayer.driftSeekThresholdS"), 0f, 10f, false, 2, ValueDisplayMode.Raw));
             _driftSlider.SetValueWithoutNotify(2f);
             _driftSlider.OnValueChanged = v =>
             {
@@ -699,19 +699,19 @@ namespace Basis.BasisUI.MediaPlayer
         private void BuildStatusGroup(RectTransform parent)
         {
             _statusGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _statusGroup.SetTitle("Status");
+            _statusGroup.SetTitle(BasisLocalization.Get("mediaPlayer.status"));
             _statusGroup.SetDescription("—");
         }
 
         private void BuildDebugGroup(RectTransform parent)
         {
             _debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, parent);
-            _debugGroup.SetTitle("Debug");
-            _debugGroup.SetDescription("Toggle to surface live pipeline counters.");
+            _debugGroup.SetTitle(BasisLocalization.Get("mediaPlayer.debug"));
+            _debugGroup.SetDescription(BasisLocalization.Get("mediaPlayer.debug.description"));
             RectTransform content = _debugGroup.ContentParent;
 
             _debugToggle = PanelToggle.CreateNewEntry(content);
-            _debugToggle.Descriptor.SetTitle("Debug Mode");
+            _debugToggle.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.debugMode"));
             _debugToggle.SetValueWithoutNotify(false);
             _debugToggle.OnValueChanged = v =>
             {
@@ -975,7 +975,7 @@ namespace Basis.BasisUI.MediaPlayer
             if (_debugGroup == null) return;
             if (_activePlayer == null)
             {
-                _debugGroup.SetDescription("No active player.");
+                _debugGroup.SetDescription(BasisLocalization.Get("mediaPlayer.noActivePlayer"));
                 return;
             }
 

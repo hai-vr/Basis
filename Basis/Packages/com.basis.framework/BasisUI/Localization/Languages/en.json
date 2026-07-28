@@ -23,6 +23,378 @@
       "value": "VR only: spawns a grabbable, resizable screen by your handheld camera showing its view, while the camera is in direct-to-screen (recording) mode."
     },
     {
+      "key": "camera.selector",
+      "value": "Camera"
+    },
+    {
+      "key": "camera.noCamerasOpen",
+      "value": "No Cameras Open"
+    },
+    {
+      "key": "camera.noCamerasOpen.description",
+      "value": "Spawn a handheld camera to adjust it here."
+    },
+    {
+      "key": "camera.preview",
+      "value": "Preview"
+    },
+    {
+      "key": "camera.lens",
+      "value": "Lens"
+    },
+    {
+      "key": "camera.fieldOfView",
+      "value": "Field Of View"
+    },
+    {
+      "key": "camera.msaa",
+      "value": "MSAA"
+    },
+    {
+      "key": "camera.msaa.description",
+      "value": "Multisample anti-aliasing on the captured image. Higher is smoother but costs more."
+    },
+    {
+      "key": "camera.depthOfField",
+      "value": "Depth Of Field"
+    },
+    {
+      "key": "camera.mode",
+      "value": "Mode"
+    },
+    {
+      "key": "camera.mode.description",
+      "value": "Off, Gaussian (cheap far blur) or Bokeh (physical, shaped highlights)."
+    },
+    {
+      "key": "camera.mode.bokeh",
+      "value": "Bokeh"
+    },
+    {
+      "key": "camera.mode.gaussian",
+      "value": "Gaussian"
+    },
+    {
+      "key": "camera.focus",
+      "value": "Focus"
+    },
+    {
+      "key": "camera.focus.description",
+      "value": "Follow Subject keeps depth of field on whoever the camera follows (turns it on), and needs Auto Follow on or a Follow Target picked; Manual sets the focus distance by hand."
+    },
+    {
+      "key": "camera.focusDistance",
+      "value": "Focus Distance"
+    },
+    {
+      "key": "camera.aperture",
+      "value": "Aperture"
+    },
+    {
+      "key": "camera.aperture.description",
+      "value": "Lower is a shallower focus with more blur (Bokeh)."
+    },
+    {
+      "key": "camera.focalLength",
+      "value": "Focal Length"
+    },
+    {
+      "key": "camera.focalLength.description",
+      "value": "Longer compresses the scene and deepens the blur (Bokeh)."
+    },
+    {
+      "key": "camera.bokehBlades",
+      "value": "Bokeh Blades"
+    },
+    {
+      "key": "camera.bokehBlades.description",
+      "value": "Number of aperture blades — the shape of out-of-focus highlights (Bokeh)."
+    },
+    {
+      "key": "camera.exposureColour",
+      "value": "Exposure & Colour"
+    },
+    {
+      "key": "camera.exposure",
+      "value": "Exposure"
+    },
+    {
+      "key": "camera.exposureOnCamera",
+      "value": "Exposure On Camera"
+    },
+    {
+      "key": "camera.exposureOnCamera.description",
+      "value": "Also show the exposure slider on the camera's own interface."
+    },
+    {
+      "key": "camera.contrast",
+      "value": "Contrast"
+    },
+    {
+      "key": "camera.saturation",
+      "value": "Saturation"
+    },
+    {
+      "key": "camera.hueShift",
+      "value": "Hue Shift"
+    },
+    {
+      "key": "camera.whiteBalanceTemp",
+      "value": "White Balance Temp"
+    },
+    {
+      "key": "camera.whiteBalanceTint",
+      "value": "White Balance Tint"
+    },
+    {
+      "key": "camera.effects",
+      "value": "Effects"
+    },
+    {
+      "key": "camera.bloomIntensity",
+      "value": "Bloom Intensity"
+    },
+    {
+      "key": "camera.bloomThreshold",
+      "value": "Bloom Threshold"
+    },
+    {
+      "key": "camera.vignette",
+      "value": "Vignette"
+    },
+    {
+      "key": "camera.chromaticAberration",
+      "value": "Chromatic Aberration"
+    },
+    {
+      "key": "camera.filmGrain",
+      "value": "Film Grain"
+    },
+    {
+      "key": "camera.lensDistortion",
+      "value": "Lens Distortion"
+    },
+    {
+      "key": "camera.volumetricFog",
+      "value": "Volumetric Fog"
+    },
+    {
+      "key": "camera.output",
+      "value": "Output"
+    },
+    {
+      "key": "camera.directToScreen",
+      "value": "Direct To Screen"
+    },
+    {
+      "key": "camera.directToScreen.description",
+      "value": "Render this camera to the main screen in place of your own view. Nothing is written to disk."
+    },
+    {
+      "key": "camera.hideCamera",
+      "value": "Hide Camera"
+    },
+    {
+      "key": "camera.hideCamera.description",
+      "value": "Hide the camera itself while it keeps running — capture, streaming and follow all continue."
+    },
+    {
+      "key": "camera.closeHidesInstead",
+      "value": "Close Hides Instead"
+    },
+    {
+      "key": "camera.closeHidesInstead.description",
+      "value": "Closing the camera hides it rather than destroying it, so bringing it back resumes the same session."
+    },
+    {
+      "key": "camera.previewScreen",
+      "value": "Preview Screen"
+    },
+    {
+      "key": "camera.previewScreen.description",
+      "value": "Spawn a grabbable, resizable screen showing this camera's feed."
+    },
+    {
+      "key": "camera.hearFromCamera",
+      "value": "Hear From Camera"
+    },
+    {
+      "key": "camera.hearFromCamera.description",
+      "value": "Move the audio listener to this camera, so a recording or stream is heard from the camera's viewpoint instead of yours. Only one camera at a time."
+    },
+    {
+      "key": "camera.transport",
+      "value": "Transport"
+    },
+    {
+      "key": "camera.liveOutput",
+      "value": "Live Output"
+    },
+    {
+      "key": "camera.streamResolution",
+      "value": "Stream Resolution"
+    },
+    {
+      "key": "camera.streamFrameRate",
+      "value": "Stream Frame Rate"
+    },
+    {
+      "key": "camera.streamQuality",
+      "value": "Stream Quality"
+    },
+    {
+      "key": "camera.streamPort",
+      "value": "Stream Port"
+    },
+    {
+      "key": "camera.openInBrowser",
+      "value": "Open In Browser"
+    },
+    {
+      "key": "camera.senderName",
+      "value": "Sender Name"
+    },
+    {
+      "key": "camera.follow",
+      "value": "Follow"
+    },
+    {
+      "key": "camera.autoFollow",
+      "value": "Auto Follow"
+    },
+    {
+      "key": "camera.teleportToMe",
+      "value": "Teleport To Me"
+    },
+    {
+      "key": "camera.teleportToMe.description",
+      "value": "Bring the camera in front of you, where it would spawn, to retrieve it."
+    },
+    {
+      "key": "camera.detachedMarker",
+      "value": "Detached Marker"
+    },
+    {
+      "key": "camera.detachedMarker.description",
+      "value": "What marks the camera when it leaves your hand — a grabbable puck, a lightweight wireframe, or nothing."
+    },
+    {
+      "key": "camera.followTarget",
+      "value": "Follow Target"
+    },
+    {
+      "key": "camera.followTarget.description",
+      "value": "Who the camera follows — you, or any player in the instance."
+    },
+    {
+      "key": "camera.followPlayspace",
+      "value": "Follow Playspace"
+    },
+    {
+      "key": "camera.followPlayspace.description",
+      "value": "Track your body's centre of mass, so walking around your room keeps you framed."
+    },
+    {
+      "key": "camera.lookAtMe",
+      "value": "Look At Me"
+    },
+    {
+      "key": "camera.lookAtMe.description",
+      "value": "Aim at you instead of matching the direction you face."
+    },
+    {
+      "key": "camera.sideOffsetX",
+      "value": "Side Offset (X)"
+    },
+    {
+      "key": "camera.lateralTrackingX",
+      "value": "Lateral Tracking (X)"
+    },
+    {
+      "key": "camera.lateralTrackingX.description",
+      "value": "How much side-to-side movement pulls the camera in to keep you framed. 0 holds the side offset."
+    },
+    {
+      "key": "camera.pitchOffsetX",
+      "value": "Pitch Offset (X)"
+    },
+    {
+      "key": "camera.heightOffsetY",
+      "value": "Height Offset (Y)"
+    },
+    {
+      "key": "camera.heightOffsetY.description",
+      "value": "Relative to your calibrated eye level. 0 films you at eyeline."
+    },
+    {
+      "key": "camera.lookAtHeightY",
+      "value": "Look At Height (Y)"
+    },
+    {
+      "key": "camera.yawOffsetY",
+      "value": "Yaw Offset (Y)"
+    },
+    {
+      "key": "camera.distanceZ",
+      "value": "Distance (Z)"
+    },
+    {
+      "key": "camera.distanceZ.description",
+      "value": "How far the camera sits from you. Larger pulls back for a wider shot; use Field Of View for lens zoom."
+    },
+    {
+      "key": "camera.capture",
+      "value": "Capture"
+    },
+    {
+      "key": "camera.photoResolution",
+      "value": "Photo Resolution"
+    },
+    {
+      "key": "camera.photoFormat",
+      "value": "Photo Format"
+    },
+    {
+      "key": "camera.n360Capture",
+      "value": "360 Capture"
+    },
+    {
+      "key": "camera.selfie",
+      "value": "Selfie"
+    },
+    {
+      "key": "camera.selfie.description",
+      "value": "Turn the camera to face you and mirror the preview."
+    },
+    {
+      "key": "camera.autoLevel",
+      "value": "Auto Level"
+    },
+    {
+      "key": "camera.autoLevel.description",
+      "value": "Keep the horizon level while flying the camera."
+    },
+    {
+      "key": "camera.vrStabilization",
+      "value": "VR Stabilization"
+    },
+    {
+      "key": "camera.vrStabilization.description",
+      "value": "Smooth out hand shake when holding the camera in VR."
+    },
+    {
+      "key": "camera.openPhotosFolder",
+      "value": "Open Photos Folder"
+    },
+    {
+      "key": "camera.renderLayers",
+      "value": "Render Layers"
+    },
+    {
+      "key": "camera.performance",
+      "value": "Performance"
+    },
+    {
       "key": "settings.general.thirdPerson.tooltip",
       "value": "View your avatar from behind with a third-person desktop camera."
     },
@@ -205,6 +577,10 @@
     {
       "key": "settings.graphics.memoryAllocation.tooltip",
       "value": "How much texture memory the renderer is allowed to use."
+    },
+    {
+      "key": "settings.graphics.memoryAllocation.dynamic",
+      "value": "Dynamic"
     },
     {
       "key": "settings.graphics.resolution.tooltip",
@@ -481,6 +857,10 @@
     {
       "key": "settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip",
       "value": "Hide audio lip sync for players who use face tracking."
+    },
+    {
+      "key": "settings.main.title.disableLipSyncForFaceTrackedPlayers.description",
+      "value": "On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined."
     },
     {
       "key": "settings.developer.audioDebug.enable.tooltip",
@@ -1503,6 +1883,22 @@
       "value": "Choose which log types to show: all, errors, warnings, or regular logs."
     },
     {
+      "key": "settings.console.filter.all",
+      "value": "All"
+    },
+    {
+      "key": "settings.console.filter.errors",
+      "value": "Errors"
+    },
+    {
+      "key": "settings.console.filter.warnings",
+      "value": "Warnings"
+    },
+    {
+      "key": "settings.console.filter.logs",
+      "value": "Logs"
+    },
+    {
       "key": "settings.console.clearLogs.tooltip",
       "value": "Erase all messages currently shown in the console."
     },
@@ -1527,76 +1923,152 @@
       "value": "Show the Shout option on your menu bar's microphone mode button."
     },
     {
+      "key": "settings.admin.title.showShoutOnMenuBar.description",
+      "value": "Adds the Shout option to the mic-mode button on your main menu bar. Off by default, so the button stays hidden until you enable it here."
+    },
+    {
       "key": "settings.admin.title.lockAvatars.tooltip",
       "value": "Stop everyone except admins from loading avatars on this server."
+    },
+    {
+      "key": "settings.admin.title.lockAvatars.description",
+      "value": "Prevents all non-admin avatar loading over the network."
     },
     {
       "key": "settings.admin.title.lockProps.tooltip",
       "value": "Stop everyone except admins from loading props on this server."
     },
     {
+      "key": "settings.admin.title.lockProps.description",
+      "value": "Prevents all non-admin prop loading over the network."
+    },
+    {
       "key": "settings.admin.title.lockWorlds.tooltip",
       "value": "Stop everyone except admins from loading worlds on this server."
+    },
+    {
+      "key": "settings.admin.title.lockWorlds.description",
+      "value": "Prevents all non-admin world loading over the network."
     },
     {
       "key": "settings.admin.title.lockServerSharing.tooltip",
       "value": "Stop non-admin players from sharing saved server entries with others."
     },
     {
+      "key": "settings.admin.title.lockServerSharing.description",
+      "value": "Prevents non-admin players from sharing saved-server entries through the content-share system."
+    },
+    {
       "key": "settings.admin.title.headlessAudioOff.tooltip",
       "value": "Mute audio coming from headless clients connected to this server."
+    },
+    {
+      "key": "settings.admin.title.headlessAudioOff.description",
+      "value": "Silences headless BasisAudioClipPlayer clients over the network."
     },
     {
       "key": "settings.admin.title.disallowHeadless.tooltip",
       "value": "Kick existing headless clients and block any new ones from joining."
     },
     {
+      "key": "settings.admin.title.disallowHeadless.description",
+      "value": "Disconnects connected headless clients and blocks new headless clients while enabled."
+    },
+    {
       "key": "settings.admin.title.disableThirdPersonCamera.tooltip",
       "value": "Turn off the desktop third-person camera for every connected player."
+    },
+    {
+      "key": "settings.admin.title.disableThirdPersonCamera.description",
+      "value": "Disables the desktop third-person camera for all connected players. Snaps anyone currently in third-person back to first-person."
     },
     {
       "key": "settings.admin.title.stripAdditionalAvatarData.tooltip",
       "value": "Remove blendshapes and custom parameters from every player's avatar sync."
     },
     {
+      "key": "settings.admin.title.stripAdditionalAvatarData.description",
+      "value": "Strips additional avatar data (blendshapes, custom-behaviour params) from every player's network broadcast. Muscle, position, and rotation still sync normally."
+    },
+    {
       "key": "settings.admin.opusFecLoss.tooltip",
       "value": "How much extra voice data is sent to recover from packet loss."
+    },
+    {
+      "key": "settings.admin.opusFecLoss.description",
+      "value": "Sets OPUS_SET_PACKET_LOSS_PERC on every client's voice encoder. Higher = more bitrate spent on redundant FEC data, better recovery under packet loss."
     },
     {
       "key": "settings.admin.maxMicrophoneRange.tooltip",
       "value": "Cap how far any player's voice can transmit, in metres."
     },
     {
+      "key": "settings.admin.maxMicrophoneRange.description",
+      "value": "Maximum microphone (voice transmit) range in metres any client may set. Each client's Microphone Range slider and effective range is clamped to this."
+    },
+    {
       "key": "settings.admin.maxHearingRange.tooltip",
       "value": "Cap how far any player can hear others, in metres."
+    },
+    {
+      "key": "settings.admin.maxHearingRange.description",
+      "value": "Maximum hearing (audio receive) range in metres any client may set. Each client's Hearing Range slider and effective range is clamped to this."
     },
     {
       "key": "settings.admin.title.disallowTaggingPeople.tooltip",
       "value": "Stop photos from embedding the names and outlines of tagged people."
     },
     {
+      "key": "settings.admin.title.disallowTaggingPeople.description",
+      "value": "Blocks embedding the names and boxes of people in photos."
+    },
+    {
       "key": "settings.admin.title.disallowPerPersonDetails.tooltip",
       "value": "Stop photos from embedding each person's name, platform, and position."
+    },
+    {
+      "key": "settings.admin.title.disallowPerPersonDetails.description",
+      "value": "Blocks embedding avatar name, UUID, platform, distance and 3D position per person."
     },
     {
       "key": "settings.admin.title.disallowCameraSettingsExif.tooltip",
       "value": "Stop photos from embedding camera settings like focal length and ISO."
     },
     {
+      "key": "settings.admin.title.disallowCameraSettingsExif.description",
+      "value": "Blocks embedding focal length, f-stop, shutter, ISO."
+    },
+    {
       "key": "settings.admin.title.disallowCaptureInfo.tooltip",
       "value": "Stop photos from embedding the app version and capture date."
+    },
+    {
+      "key": "settings.admin.title.disallowCaptureInfo.description",
+      "value": "Blocks embedding app/version and capture date."
     },
     {
       "key": "settings.admin.title.disallowPhotographer.tooltip",
       "value": "Stop photos from embedding the photographer's name and identifier."
     },
     {
+      "key": "settings.admin.title.disallowPhotographer.description",
+      "value": "Blocks embedding the photographer's name and UUID."
+    },
+    {
       "key": "settings.admin.title.disallowWorldViewpoint.tooltip",
       "value": "Stop photos from embedding the world name and camera viewpoint."
     },
     {
+      "key": "settings.admin.title.disallowWorldViewpoint.description",
+      "value": "Blocks embedding the world name and camera position/rotation."
+    },
+    {
       "key": "settings.admin.title.serverName.tooltip",
       "value": "The public server name shown to players in the server list."
+    },
+    {
+      "key": "settings.admin.title.serverName.description",
+      "value": "Public name returned to clients in the server list."
     },
     {
       "key": "settings.admin.title.applyServerName.tooltip",
@@ -1607,6 +2079,10 @@
       "value": "A short message of the day displayed next to the server name."
     },
     {
+      "key": "settings.admin.title.motd.description",
+      "value": "Short message of the day shown next to the server name. Leave blank to clear."
+    },
+    {
       "key": "settings.admin.title.applyMotd.tooltip",
       "value": "Save the typed message of the day and apply it on the server."
     },
@@ -1615,12 +2091,24 @@
       "value": "Allow only allowlisted players to connect to this server."
     },
     {
+      "key": "settings.admin.title.allowlistOnly.description",
+      "value": "When on, only UUIDs in BasisAllowList.txt may connect. Setting persists to config.xml."
+    },
+    {
       "key": "settings.admin.title.rejoinLockOnly.tooltip",
       "value": "Lock the server to the players connected now — they can rejoin, but nobody new can join. Admins can still join; clears on restart."
     },
     {
+      "key": "settings.admin.title.rejoinLockOnly.description",
+      "value": "Locks the server to the players connected right now: they can disconnect and rejoin, but nobody new can join. Admins can always join, and a server restart clears it. Turning on AllowList turns this off. Persists to config.xml."
+    },
+    {
       "key": "settings.admin.title.allowlistUuid.tooltip",
       "value": "The player identifier to add to or remove from the allowlist."
+    },
+    {
+      "key": "settings.admin.title.allowlistUuid.description",
+      "value": "Player UUID to add or remove from BasisAllowList.txt."
     },
     {
       "key": "settings.admin.title.addToAllowList.tooltip",
@@ -1635,24 +2123,48 @@
       "value": "Download the server's logs and crash reports to your device."
     },
     {
+      "key": "settings.admin.title.requestAllLogs.description",
+      "value": "Asks the server to bundle and send every log and crash report. Requires the basis.admin.logs permission."
+    },
+    {
       "key": "settings.admin.title.beeUrl.tooltip",
       "value": "The download link for the content the server will offer everyone."
+    },
+    {
+      "key": "settings.admin.title.beeUrl.description",
+      "value": "Direct URL to the .bee file the server should hand out. Pasting a url#password share string will be split automatically."
     },
     {
       "key": "settings.admin.title.password.tooltip",
       "value": "An optional password to unlock encrypted content bundles."
     },
     {
+      "key": "settings.admin.title.password.description",
+      "value": "Optional unlock password for encrypted bundles. Leave blank if none, or if the URL already carries a #password fragment."
+    },
+    {
       "key": "settings.admin.title.type.tooltip",
       "value": "Which library tab this default entry will appear under."
+    },
+    {
+      "key": "settings.admin.title.type.description",
+      "value": "Which library tab the entry will appear in. Auto-detected from the BEE metadata when possible; this dropdown is only used as a fallback for legacy bundles."
     },
     {
       "key": "settings.admin.title.addToServerDefaults.tooltip",
       "value": "Add this entry to the server's defaults offered to every player."
     },
     {
+      "key": "settings.admin.title.addToServerDefaults.description",
+      "value": "Persist this entry on the server and push it to every connected client."
+    },
+    {
       "key": "settings.admin.title.removeFromServerDefaults.tooltip",
       "value": "Remove matching entries from the server's default library for everyone."
+    },
+    {
+      "key": "settings.admin.title.removeFromServerDefaults.description",
+      "value": "Drop every default-library entry whose URL matches the BEE URL field above. Entry is deleted on disk and removed from every connected client."
     },
     {
       "key": "ui.search.label.tooltip",
@@ -2111,6 +2623,14 @@
       "value": "No body role assigned"
     },
     {
+      "key": "trackerLinking.status.driving",
+      "value": "Driving {0}"
+    },
+    {
+      "key": "trackerLinking.status.pairDriving",
+      "value": "Fused — driving {0}"
+    },
+    {
       "key": "menu.exit.dialog.title",
       "value": "Basis VR"
     },
@@ -2145,6 +2665,26 @@
     {
       "key": "calibration.pullTriggers",
       "value": "Pull Triggers to Calibrate"
+    },
+    {
+      "key": "calibration.report.title",
+      "value": "Calibration Report"
+    },
+    {
+      "key": "calibration.report.empty",
+      "value": "Calibrate to see a quality report."
+    },
+    {
+      "key": "settings.calibration.armToHeightRatio",
+      "value": "Arm To Height Ratio"
+    },
+    {
+      "key": "settings.calibration.armToHeightRatio.tooltip",
+      "value": "Scale the avatar by a percentage between your two measurements instead of a single scaling mode: 0% uses eye height, 100% uses arm distance, and values outside that range keep going in the same direction. Overrides Avatar Scaling Mode while enabled."
+    },
+    {
+      "key": "settings.calibration.armToHeightRatio.slider.tooltip",
+      "value": "Percentage between the two measurements: 0% scales by eye height, 100% by arm distance. Negative pushes past eye height, above 100% pushes past arm distance."
     },
     {
       "key": "calibration.decreaseHeight",
@@ -2223,6 +2763,22 @@
       "value": "Connecting"
     },
     {
+      "key": "menu.servers.status.awaitingResponse",
+      "value": "Waiting for the server to respond... {0}s left"
+    },
+    {
+      "key": "menu.servers.status.connectionLost",
+      "value": "Connection lost - waiting for the server... {0}s left"
+    },
+    {
+      "key": "menu.servers.status.reconnectAttempt",
+      "value": "Reconnecting to the server... attempt {0} of {1}"
+    },
+    {
+      "key": "menu.servers.status.reconnectingIn",
+      "value": "Reconnecting in {0}s - attempt {1} of {2}"
+    },
+    {
       "key": "menu.servers.status.disconnecting",
       "value": "Disconnecting..."
     },
@@ -2255,6 +2811,46 @@
       "value": "Connection failed."
     },
     {
+      "key": "menu.servers.error.reconnectFailed",
+      "value": "The connection to the server was lost and could not be restored after {0} attempts."
+    },
+    {
+      "key": "menu.servers.error.title",
+      "value": "Server Error"
+    },
+    {
+      "key": "menu.servers.connection.title",
+      "value": "Server Connection"
+    },
+    {
+      "key": "menu.servers.deepLink.joinServer.title",
+      "value": "Join Server?"
+    },
+    {
+      "key": "menu.servers.deepLink.usernameRequired.title",
+      "value": "Username Required"
+    },
+    {
+      "key": "menu.servers.deepLink.usernameRequired.body",
+      "value": "Set a username before joining a server."
+    },
+    {
+      "key": "network.stats.disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "key": "network.stats.notConnected",
+      "value": "Not connected"
+    },
+    {
+      "key": "network.stats.noTransmitter",
+      "value": "No transmitter active"
+    },
+    {
+      "key": "network.stats.noTransmissionData",
+      "value": "No transmission data"
+    },
+    {
       "key": "menu.servers.list.default",
       "value": "Default Basis Server"
     },
@@ -2271,12 +2867,60 @@
       "value": "Pinned players always appear first."
     },
     {
+      "key": "menu.players.sortMode.default",
+      "value": "Default"
+    },
+    {
+      "key": "menu.players.sortMode.distance",
+      "value": "Distance"
+    },
+    {
+      "key": "menu.players.sortMode.name",
+      "value": "Name"
+    },
+    {
+      "key": "menu.players.sortMode.platform",
+      "value": "Platform"
+    },
+    {
+      "key": "menu.players.sortMode.joinTime",
+      "value": "Join Time"
+    },
+    {
       "key": "menu.players.directionFilter",
       "value": "Direction"
     },
     {
       "key": "menu.players.directionFilter.description",
       "value": "Show only players in front of or behind you."
+    },
+    {
+      "key": "menu.players.directionFilter.all",
+      "value": "All"
+    },
+    {
+      "key": "menu.players.directionFilter.inFront",
+      "value": "In Front"
+    },
+    {
+      "key": "menu.players.directionFilter.behind",
+      "value": "Behind"
+    },
+    {
+      "key": "menu.players.panel.noData",
+      "value": "No data"
+    },
+    {
+      "key": "menu.players.panel.playerNotFound",
+      "value": "Player not found"
+    },
+    {
+      "key": "menu.players.panel.notInSnapshot",
+      "value": "Not in snapshot"
+    },
+    {
+      "key": "menu.players.panel.noReceiver",
+      "value": "No receiver"
     },
     {
       "key": "menu.players.header",
@@ -4703,6 +5347,14 @@
       "value": "Choose an action to edit its bound roles."
     },
     {
+      "key": "settings.controller.selectAction.title",
+      "value": "Select Action For {0}"
+    },
+    {
+      "key": "settings.avatarStats.deviceManagerUnavailable",
+      "value": "Device manager is not available."
+    },
+    {
       "key": "settings.controls.action",
       "value": "Action"
     },
@@ -5975,6 +6627,18 @@
       "value": "URL"
     },
     {
+      "key": "settings.urlPrompt.scope.url",
+      "value": "URL"
+    },
+    {
+      "key": "settings.urlPrompt.scope.hostname",
+      "value": "Hostname"
+    },
+    {
+      "key": "settings.urlPrompt.scope.baseDomain",
+      "value": "Base Domain"
+    },
+    {
       "key": "settings.trustedUrls.add.button",
       "value": "Add"
     },
@@ -6459,6 +7123,10 @@
       "value": "High Player Cap Performance Mode"
     },
     {
+      "key": "settings.highPlayerCap.prompt.levelLine",
+      "value": "Suggested level: {0}"
+    },
+    {
       "key": "settings.highPlayerCap.prompt.body",
       "value": "This instance has over {0} people. Turn on High Player Cap Performance Mode to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
     },
@@ -6633,6 +7301,34 @@
     {
       "key": "settings.developer.handheldCameraRate.limit",
       "value": "Limit Handheld Camera Rate"
+    },
+    {
+      "key": "settings.developer.handheldCameraRate.limit.description",
+      "value": "Applies to every handheld camera, not just this one."
+    },
+    {
+      "key": "camera.debugGizmos",
+      "value": "Debug Gizmos"
+    },
+    {
+      "key": "camera.debugGizmos.description",
+      "value": "Drawn into the world, so photos taken while these are on will show them too."
+    },
+    {
+      "key": "camera.cameraHidden",
+      "value": "Camera Hidden"
+    },
+    {
+      "key": "camera.cameraHidden.description",
+      "value": "This camera is hidden but still running. Bring it back to your hand to use it again."
+    },
+    {
+      "key": "camera.bringBackCamera",
+      "value": "Bring Back Camera"
+    },
+    {
+      "key": "camera.takePhoto",
+      "value": "Take Photo"
     },
     {
       "key": "settings.developer.handheldCameraRate.limit.tooltip",
@@ -7331,6 +8027,14 @@
       "value": "Unknown"
     },
     {
+      "key": "ui.copied",
+      "value": "Copied!"
+    },
+    {
+      "key": "avatarPedestal.title",
+      "value": "Avatar Pedestal"
+    },
+    {
       "key": "ui.resetPage.title",
       "value": "Reset {0}"
     },
@@ -7341,6 +8045,14 @@
     {
       "key": "ui.resetPage.confirm",
       "value": "Reset all {0} settings to defaults?"
+    },
+    {
+      "key": "ui.resetValue.confirm",
+      "value": "Reset {0} to its default?"
+    },
+    {
+      "key": "ui.openFolder",
+      "value": "Open Folder"
     },
     {
       "key": "notifications.title",
@@ -8335,6 +9047,14 @@
       "value": "Lean the trunk against a reach to keep your weight over your feet."
     },
     {
+      "key": "settings.bodyTracking.elbowSwingSmoothing.title",
+      "value": "Elbow Swing Smoothing"
+    },
+    {
+      "key": "settings.bodyTracking.elbowSwingSmoothing.title.tooltip",
+      "value": "Rate-limits the elbow/knee swing and how fast a torso-collision push eases in. Off = the elbow swings freely (test for over-damping)."
+    },
+    {
       "key": "settings.bodyTracking.trunkCounterbalanceMax.title",
       "value": "Counterbalance Limit"
     },
@@ -8463,12 +9183,20 @@
       "value": "Stop non-admin players from grabbing and dragging their play space. Admins are unaffected."
     },
     {
+      "key": "settings.admin.title.lockPlayspaceMover.description",
+      "value": "Stops non-admin players from grabbing/dragging/rotating/scaling their play space with the playspace mover. Admins are unaffected."
+    },
+    {
       "key": "settings.admin.title.lockDirectConnect",
       "value": "Lock Direct Connections"
     },
     {
       "key": "settings.admin.title.lockDirectConnect.tooltip",
       "value": "Stop non-admin players from opening direct peer-to-peer connections. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockDirectConnect.description",
+      "value": "Stops non-admin players from opening direct (peer-to-peer) connections; the server refuses to broker P2P for them. Admins are unaffected."
     },
     {
       "key": "settings.admin.title.lockCilbox",
@@ -8479,12 +9207,80 @@
       "value": "Strip sandboxed Cilbox code from avatars as they load so their scripts can't run. Applies to avatars loaded while this is on; anyone already loaded keeps theirs until they reload. Props and worlds are unaffected. Admins are not exempt."
     },
     {
+      "key": "settings.admin.title.lockCilbox.description",
+      "value": "Strips sandboxed Cilbox code from avatars as they load, so their scripts can't run. Applies to avatars loaded while this is on; anyone already loaded keeps theirs until they reload. Props and worlds are unaffected. Admins are not exempt."
+    },
+    {
       "key": "settings.admin.title.lockSharedImages",
       "value": "Lock Shared Images"
     },
     {
       "key": "settings.admin.title.lockSharedImages.tooltip",
       "value": "Stop non-admin players from sharing new image pickups, and from receiving images shared while this is on. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockSharedImages.description",
+      "value": "Stops non-admin players from sharing new image pickups, and from receiving images shared while this is on. Images already shared stay until removed. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockTextChat",
+      "value": "Lock Text Chat"
+    },
+    {
+      "key": "settings.admin.title.lockTextChat.tooltip",
+      "value": "Stop non-admin players from sending text chat and from showing the typing indicator. Enforced by the server. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockTextChat.description",
+      "value": "Stops non-admin players from sending text chat and from showing the typing indicator. Enforced by the server, so a modified client can't talk past it. Messages already on screen stay until they time out. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockVoiceChat",
+      "value": "Lock Voice Chat"
+    },
+    {
+      "key": "settings.admin.title.lockVoiceChat.tooltip",
+      "value": "Stop non-admin players from transmitting voice, including shout and direct connect. Enforced by the server. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockVoiceChat.description",
+      "value": "Stops non-admin players from transmitting voice, including shout and direct-connect. Enforced by the server, so a modified client can't talk past it. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockMediaPlayer",
+      "value": "Lock Media Players"
+    },
+    {
+      "key": "settings.admin.title.lockMediaPlayer.tooltip",
+      "value": "Stop non-admin players from loading new media player URLs, and from accepting ones shared while this is on. Media already playing keeps playing. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockMediaPlayer.description",
+      "value": "Stops non-admin players from loading new media player URLs, and from accepting ones shared while this is on. Media already playing keeps playing until replaced. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockCameraCapture",
+      "value": "Lock Camera Capture"
+    },
+    {
+      "key": "settings.admin.title.lockCameraCapture.tooltip",
+      "value": "Stop non-admin players from taking photos with the handheld camera. Separate from the photo metadata policy, which only strips data from photos still taken. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockCameraCapture.description",
+      "value": "Stops non-admin players from taking photos with the handheld camera. Separate from the photo metadata policy below, which only strips data from photos that are still taken. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockPropGrabbing",
+      "value": "Lock Prop Grabbing"
+    },
+    {
+      "key": "settings.admin.title.lockPropGrabbing.tooltip",
+      "value": "Stop non-admin players from picking up or grabbing props. Separate from the prop lock, which blocks loading new props instead. Admins are unaffected."
+    },
+    {
+      "key": "settings.admin.title.lockPropGrabbing.description",
+      "value": "Stops non-admin players from picking up or grabbing props. Separate from the prop lock above, which blocks loading new props rather than handling ones already spawned. Admins are unaffected."
     },
     {
       "key": "settings.admin.minAvatarHeight",
@@ -8495,6 +9291,10 @@
       "value": "Smallest avatar eye height non-admin players may scale to. 0.1 m = effectively no minimum."
     },
     {
+      "key": "settings.admin.minAvatarHeight.description",
+      "value": "Smallest avatar eye height (metres) a non-admin player may scale to; their avatar scale is clamped up to this. 0.1 = effectively no minimum. Admins bypass it."
+    },
+    {
       "key": "settings.admin.maxAvatarHeight",
       "value": "Max Avatar Height"
     },
@@ -8503,8 +9303,152 @@
       "value": "Largest avatar eye height non-admin players may scale to. 100 m = effectively no maximum."
     },
     {
+      "key": "settings.admin.maxAvatarHeight.description",
+      "value": "Largest avatar eye height (metres) a non-admin player may scale to; their avatar scale is clamped down to this. 100 = effectively no maximum. Admins bypass it."
+    },
+    {
+      "key": "settings.admin.title.resourceLimits",
+      "value": "Resource Limits"
+    },
+    {
+      "key": "settings.admin.title.maxDatabaseEntries",
+      "value": "Max Database Entries"
+    },
+    {
+      "key": "settings.admin.title.maxDatabaseEntries.description",
+      "value": "Maximum number of stored persistent-database entries across all players."
+    },
+    {
+      "key": "settings.admin.title.maxDatabaseNameLength",
+      "value": "Max Database Name Length"
+    },
+    {
+      "key": "settings.admin.title.maxDatabaseNameLength.description",
+      "value": "Maximum character length of a persistent-database entry name."
+    },
+    {
+      "key": "settings.admin.title.maxDatabasePayloadEntries",
+      "value": "Max Database Payload Entries"
+    },
+    {
+      "key": "settings.admin.title.maxDatabasePayloadEntries.description",
+      "value": "Maximum number of key/value entries in a single persistent-database payload."
+    },
+    {
+      "key": "settings.admin.title.maxContentSpheresPerPlayer",
+      "value": "Max Content Spheres Per Player"
+    },
+    {
+      "key": "settings.admin.title.maxContentSpheresPerPlayer.description",
+      "value": "Maximum active content-share spheres a single player may have at once."
+    },
+    {
+      "key": "settings.admin.title.applyResourceLimits",
+      "value": "Apply Resource Limits"
+    },
+    {
+      "key": "settings.admin.title.avatarReductionSystem",
+      "value": "Avatar Reduction System"
+    },
+    {
+      "key": "settings.admin.title.defaultSendIntervalMs",
+      "value": "Default Send Interval (ms)"
+    },
+    {
+      "key": "settings.admin.title.defaultSendIntervalMs.description",
+      "value": "Base avatar send interval in milliseconds for the closest peers. Larger = lower rate for everyone."
+    },
+    {
+      "key": "settings.admin.title.baseMultiplier",
+      "value": "Base Multiplier"
+    },
+    {
+      "key": "settings.admin.title.baseMultiplier.description",
+      "value": "Multiplier applied to the base interval before distance scaling. 1 = no extra scaling."
+    },
+    {
+      "key": "settings.admin.title.distanceIncreaseRate",
+      "value": "Distance Increase Rate"
+    },
+    {
+      "key": "settings.admin.title.distanceIncreaseRate.description",
+      "value": "How quickly the send interval grows with squared distance. Higher = distant avatars throttle faster."
+    },
+    {
+      "key": "settings.admin.title.slowestSendRateNewJoins",
+      "value": "Slowest Send Rate (new joins)"
+    },
+    {
+      "key": "settings.admin.title.slowestSendRateNewJoins.description",
+      "value": "Slowest send-rate floor handed to clients for very distant peers. Only affects clients that join after the change."
+    },
+    {
+      "key": "settings.admin.title.highQualityDistanceM",
+      "value": "High Quality Distance (m)"
+    },
+    {
+      "key": "settings.admin.title.highQualityDistanceM.description",
+      "value": "Within this many metres a receiver gets High-quality avatar data."
+    },
+    {
+      "key": "settings.admin.title.mediumQualityDistanceM",
+      "value": "Medium Quality Distance (m)"
+    },
+    {
+      "key": "settings.admin.title.mediumQualityDistanceM.description",
+      "value": "Out to this distance a receiver gets Medium-quality avatar data (beyond the High range)."
+    },
+    {
+      "key": "settings.admin.title.lowQualityDistanceM",
+      "value": "Low Quality Distance (m)"
+    },
+    {
+      "key": "settings.admin.title.lowQualityDistanceM.description",
+      "value": "Out to this distance a receiver gets Low-quality data; beyond it, VeryLow."
+    },
+    {
+      "key": "settings.admin.title.avatarBundleCompression",
+      "value": "Avatar Bundle Compression"
+    },
+    {
+      "key": "settings.admin.title.avatarBundleCompression.description",
+      "value": "Bundle and LZ4-compress per-receiver avatar messages. Clients must support the matching decoder."
+    },
+    {
+      "key": "settings.admin.title.bundleMinMessages",
+      "value": "Bundle Min Messages"
+    },
+    {
+      "key": "settings.admin.title.bundleMinMessages.description",
+      "value": "Minimum queued avatar messages to one receiver before a bundle is attempted."
+    },
+    {
+      "key": "settings.admin.title.bundleMinBytes",
+      "value": "Bundle Min Bytes"
+    },
+    {
+      "key": "settings.admin.title.bundleMinBytes.description",
+      "value": "Minimum uncompressed bundle size in bytes before LZ4 compression is attempted."
+    },
+    {
+      "key": "settings.admin.title.bsrProfiling",
+      "value": "BSR Profiling"
+    },
+    {
+      "key": "settings.admin.title.bsrProfiling.description",
+      "value": "Enables reduction-system profiling counters on the server."
+    },
+    {
+      "key": "settings.admin.title.applyReductionSettings",
+      "value": "Apply Reduction Settings"
+    },
+    {
       "key": "settings.main.title.searchMenus",
       "value": "Search Menus"
+    },
+    {
+      "key": "settings.main.title.searchMenus.description",
+      "value": "Type to find a settings menu, then click a result to open it."
     },
     {
       "key": "settings.main.title.results",
@@ -8517,6 +9461,10 @@
     {
       "key": "settings.main.title.copyBuildInfo",
       "value": "Copy Build Info"
+    },
+    {
+      "key": "settings.main.title.copyBuildInfo.description",
+      "value": "Copies all fields to clipboard."
     },
     {
       "key": "settings.admin.title.shout",
@@ -8651,6 +9599,10 @@
       "value": "Permanently delete the server's logs and crash reports."
     },
     {
+      "key": "settings.admin.title.resetAllLogs.description",
+      "value": "Permanently deletes every server log and crash report. This cannot be undone. Requires the basis.admin.logs permission."
+    },
+    {
       "key": "settings.admin.title.beeUrl",
       "value": "BEE URL"
     },
@@ -8679,12 +9631,20 @@
       "value": "Solve arms and legs for remote players instead of using the pose they send."
     },
     {
+      "key": "settings.admin.title.remoteEndEffectorIK.description",
+      "value": "Remote avatars' tracked hands and feet are two-bone-IK'd onto their sent world targets so they stop sliding. On by default; turn off to make every client fall back to pure-FK playback for remotes."
+    },
+    {
       "key": "settings.admin.opusBitrate.override",
       "value": "Override Voice Bitrate"
     },
     {
       "key": "settings.admin.opusBitrate.override.tooltip",
       "value": "Set the voice bitrate for everyone on this server instead of using the default."
+    },
+    {
+      "key": "settings.admin.opusBitrate.override.description",
+      "value": "Forces a specific Opus voice bitrate on every client's encoder. Off = clients use their default (32k). Per-user bitrate overrides still win."
     },
     {
       "key": "settings.admin.opusBitrate",
@@ -8695,8 +9655,16 @@
       "value": "Opus bitrate applied to every player on this server, in bits per second."
     },
     {
+      "key": "settings.admin.opusBitrate.description",
+      "value": "Bitrate (bits per second) every client encodes voice with while the override is on."
+    },
+    {
       "key": "settings.ik.title.perBoneSettings",
       "value": "Per-Bone Settings"
+    },
+    {
+      "key": "settings.ik.title.perBoneSettings.description",
+      "value": "Pick a bone to inspect or tune. The toggles and sliders below apply only to the bone you select here — switch bones to see each one's settings."
     },
     {
       "key": "settings.ik.title.bone",
@@ -8705,6 +9673,10 @@
     {
       "key": "settings.ik.title.calibrationSmoothing",
       "value": "Calibration & Smoothing"
+    },
+    {
+      "key": "settings.ik.title.calibrationSmoothing.description",
+      "value": "Controls for the selected bone. Use For Calibration decides whether trackers can be assigned to this role during full-body calibration; the smoothing and Euro filter toggles below shape how the bone reacts to incoming motion."
     },
     {
       "key": "settings.ik.title.useForCalibration",
@@ -8729,6 +9701,14 @@
     {
       "key": "settings.perm.title.select",
       "value": "Select"
+    },
+    {
+      "key": "settings.perm.title.select.group.description",
+      "value": "Fill this group name into the admin fields below."
+    },
+    {
+      "key": "settings.perm.title.select.user.description",
+      "value": "Fill this user's UUID into the admin fields below."
     },
     {
       "key": "settings.ra.title.voiceBuffer",
@@ -8759,6 +9739,10 @@
       "value": "Performance Mode"
     },
     {
+      "key": "settings.performanceMode.title.on",
+      "value": "Performance Mode — {0}"
+    },
+    {
       "key": "settings.performanceMode.description",
       "value": "Trades avatar detail for frame rate in busy instances."
     },
@@ -8769,6 +9753,10 @@
     {
       "key": "settings.performanceMode.level.tooltip",
       "value": "How aggressively avatars are simplified. Each entry lists the player count that arms it."
+    },
+    {
+      "key": "settings.performanceMode.level.withThreshold",
+      "value": "{0} ({1}+)"
     },
     {
       "key": "settings.performanceMode.level.autoLocked",

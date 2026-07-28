@@ -185,22 +185,59 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Grows if a player ID exceeds this.
         private const int InitialPlayerArrayCapacity = 2048;
 
+        /// <summary>
+        /// Default worker cap for the tick's parallel phases.
+        ///
+        /// This used to be <see cref="Environment.ProcessorCount"/>, which measured badly: the tick
+        /// runs ~275x/s, so each phase pays dispatch and wake cost per worker per tick, and each
+        /// extra thread adds GC poll-point traffic. Measured at 500 players on a 32-thread box,
+        /// same offered load throughout: 32 workers = 11.0 cores, 16 = 8.6, 8 = 6.6, 4 = 6.4 —
+        /// two thirds of the CPU at 32 workers was spent getting threads to the work rather than
+        /// doing it, and throughput was equal or better at the low end.
+        ///
+        /// Quarter of the cores, floored at 4 and capped at 8: the win is flat past 8, and the
+        /// floor keeps small boxes from serialising. Admins override with
+        /// BSRMaxDegreeOfParallelism when their player count or hardware wants something else.
+        /// </summary>
+        private static int DefaultDegreeOfParallelism =>
+            Math.Clamp(Environment.ProcessorCount / 4, 4, 8);
+
         private static readonly ParallelOptions parallelOptions = new()
         {
-            // Use every core. The reserved core dated from when the tick thread itself was the
-            // bottleneck; measurement says it is not — the send loop already achieves near-perfect
-            // parallelism during its phase, and the idle capacity is in the phases around it.
-            MaxDegreeOfParallelism = Environment.ProcessorCount
+            MaxDegreeOfParallelism = DefaultDegreeOfParallelism
         };
+
+        // A dedicated worker pool was tried here in place of Parallel.For and did not pay for
+        // itself: with the worker cap above already removing the oversubscription, what remained
+        // of Parallel's overhead was smaller than the cost of waking a fixed set of threads on
+        // every tick. Capping the degree is the win; replacing the scheduler is not.
+
+        /// <summary>
+        /// Applies the configured worker cap. Values &lt;= 0 select the measured default above;
+        /// anything higher than the core count is clamped, since oversubscribing only adds
+        /// context switches.
+        /// </summary>
+        public static void SetMaxDegreeOfParallelism(int configured)
+        {
+            int resolved = configured <= 0
+                ? DefaultDegreeOfParallelism
+                : Math.Min(configured, Environment.ProcessorCount);
+
+            if (resolved == parallelOptions.MaxDegreeOfParallelism) return;
+
+            parallelOptions.MaxDegreeOfParallelism = resolved;
+            BNL.Log($"[BSR] Parallel worker cap set to {resolved} (of {Environment.ProcessorCount} cores).");
+        }
 
         public static ShardedConcurrentDictionary<PlayerState> playerStates = new();
 
         // Admin-flagged full-quality broadcast ids. Authoritative across PlayerState recreation;
         // mirrored onto PlayerState.BypassReduction for the hot send loop. Cleared on disconnect.
         private static readonly ConcurrentDictionary<int, bool> _bypassReductionIds = new();
-        // Double-buffered message dictionaries: swap and clear instead of allocating per tick.
-        private static ShardedConcurrentDictionary<QueuedMessage> currentMessages = new();
-        private static ShardedConcurrentDictionary<QueuedMessage> _backMessages = new();
+        // Inbound avatar frames, keyed by sender so only the newest per peer survives to the tick.
+        // Drained (not cleared) each tick — see ShardedConcurrentDictionary.DrainInto for why the
+        // double-buffer this replaced was more expensive than the traffic it carried.
+        private static readonly ShardedConcurrentDictionary<QueuedMessage> currentMessages = new();
 
         public static float BSRBaseMultiplier = 1.0f;
         public static float BSRSIncreaseRate = 0.01f;
@@ -709,16 +746,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             long phaseTick = profiling ? Stopwatch.GetTimestamp() : 0;
 
             // Phase 1: Drain
-            // Swap to the back-buffer so inbound threads write to the cleared dictionary.
-            // No allocation per tick — just swap and drain.
-            _backMessages.Clear();
-            var batch = Interlocked.Exchange(ref currentMessages, _backMessages);
-            _backMessages = batch;
+            // Take everything queued since the last tick, removing as we go.
+            //
+            // This used to double-buffer: clear the back dictionary, swap it in, then read the
+            // old one. The swap was free but the clear was not — ConcurrentDictionary.Clear takes
+            // every bucket lock and rebuilds the table, so the cost was set by shard count rather
+            // than by how much was queued. Draining ~19 messages several hundred times a second
+            // made that the most contended thing on the tick thread. Removing exactly the keys we
+            // drain is proportional to the traffic and takes one bucket lock at a time; anything
+            // written mid-drain lands on the next tick, exactly as it did under the swap.
             _messagesSnapshot.Clear();
-            foreach (var kvp in batch)
-            {
-                _messagesSnapshot.Add(kvp.Value);
-            }
+            currentMessages.DrainInto(_messagesSnapshot);
             if (profiling) { BSRProfiler.drainTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
             // Phase 2: Process messages (static delegate avoids closure allocation per tick)
@@ -1388,10 +1426,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     FlushPendingForReceiver(stateI, peer, bundlingEnabled);
                 }
 
-                // One Interlocked.Add per receiver (not per send) — ~25 atomics/tick instead of ~32K
+                // Per-thread block, folded in once per window — no atomic at all on this path.
                 if (localSends > 0 && BSRProfiler.Enabled)
                 {
-                    Interlocked.Add(ref BSRProfiler.SendCount, localSends);
+                    BSRProfiler.Local.Sends += localSends;
                 }
             });
         }
@@ -1569,10 +1607,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // "fallback because bundling produced nothing" (cursor == 0 with bundling enabled).
             if (BSRProfiler.Enabled && tailSent > 0)
             {
-                Interlocked.Add(ref BSRProfiler.bundleTailUncompressed, tailSent);
+                var counters = BSRProfiler.Local;
+                counters.BundleTailUncompressed += tailSent;
                 if (bundlingEnabled && cursor == 0 && count >= AvatarBundleMinMessages)
                 {
-                    Interlocked.Increment(ref BSRProfiler.bundleFallbacks);
+                    counters.BundleFallbacks++;
                 }
             }
             // Clear the payload references, not just the count. PendingSends grows to the player
@@ -1662,7 +1701,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 int retryRawLen = BuildRawForRange(stateI, pending, cursor, retryEnd);
                 if (retryRawLen < AvatarBundleMinBytes) break;
 
-                if (BSRProfiler.Enabled) Interlocked.Increment(ref BSRProfiler.bundleRetries);
+                if (BSRProfiler.Enabled) BSRProfiler.Local.BundleRetries++;
                 if (!TryDeflateAndEmit(stateI, peer, cursor, retryEnd, retryRawLen, budget, ref bundleCount, ref bundleBytes, out int retryCompressed))
                 {
                     // Two failures in a row — give up on bundling for this receiver this tick;
@@ -1764,7 +1803,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 compressed.AsSpan(BundleHeaderSize, compressed.Length - BundleHeaderSize),
                 LZ4Level.L00_FAST);
 
-            if (profiling) Interlocked.Add(ref BSRProfiler.bundleDeflateTicks, Stopwatch.GetTimestamp() - deflateStart);
+            if (profiling) BSRProfiler.Local.BundleDeflateTicks += Stopwatch.GetTimestamp() - deflateStart;
 
             if (compressedLen <= 0 || compressedLen > budget)
             {
@@ -1782,10 +1821,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             if (profiling)
             {
-                Interlocked.Increment(ref BSRProfiler.bundlesEmitted);
-                Interlocked.Add(ref BSRProfiler.bundleMessages, chunkCount);
-                Interlocked.Add(ref BSRProfiler.bundleRawBytes, rawLen);
-                Interlocked.Add(ref BSRProfiler.bundleCompressedBytes, compressedLen);
+                var counters = BSRProfiler.Local;
+                counters.BundlesEmitted++;
+                counters.BundleMessages += chunkCount;
+                counters.BundleRawBytes += rawLen;
+                counters.BundleCompressedBytes += compressedLen;
             }
             return true;
         }
@@ -2746,6 +2786,35 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public void Clear()
         {
             for (int i = 0; i < _shards.Length; i++) _shards[i].Clear();
+        }
+
+        /// <summary>
+        /// Moves every value into <paramref name="destination"/> and empties the dictionary.
+        ///
+        /// Deliberately not <see cref="Clear"/>: ConcurrentDictionary.Clear takes every bucket
+        /// lock in the shard and rebuilds its table, so clearing all shards cost the same whether
+        /// it held one message or a thousand. The tick loop drains ~19 messages several hundred
+        /// times a second, and that fixed cost was the single most contended thing on the tick
+        /// thread. Removing the keys we actually drained is proportional to the data instead, and
+        /// only ever touches one bucket at a time.
+        ///
+        /// Anything written while this runs is simply picked up by the next drain, which is the
+        /// same guarantee the previous swap-and-clear gave.
+        /// </summary>
+        public void DrainInto(System.Collections.Generic.List<TValue> destination)
+        {
+            for (int i = 0; i < _shards.Length; i++)
+            {
+                var shard = _shards[i];
+                if (shard.IsEmpty) continue;
+                foreach (var kvp in shard)
+                {
+                    if (shard.TryRemove(kvp.Key, out var value))
+                    {
+                        destination.Add(value);
+                    }
+                }
+            }
         }
 
         public System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<int, TValue>> GetEnumerator()

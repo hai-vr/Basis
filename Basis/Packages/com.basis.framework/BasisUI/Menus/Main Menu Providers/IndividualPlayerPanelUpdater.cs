@@ -139,9 +139,9 @@ namespace Basis.BasisUI
             // Find this player's index in the receivers snapshot
             if (results == null || results.LengthOfArrays <= 0)
             {
-                if (DistanceField != null) DistanceField.SetDescription("No data");
-                if (LodField != null) LodField.SetDescription("No data");
-                if (RangesField != null) RangesField.SetDescription("No data");
+                if (DistanceField != null) DistanceField.SetDescription(BasisLocalization.Get("menu.players.panel.noData"));
+                if (LodField != null) LodField.SetDescription(BasisLocalization.Get("menu.players.panel.noData"));
+                if (RangesField != null) RangesField.SetDescription(BasisLocalization.Get("menu.players.panel.noData"));
                 UpdateBufferField();
                 UpdateAudioDebugFields();
                 UpdateAvatarDataDebugFields();
@@ -151,9 +151,9 @@ namespace Basis.BasisUI
             // Look up the receiver for this remote player
             if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(RemotePlayer, out var netPlayer))
             {
-                if (DistanceField != null) DistanceField.SetDescription("Player not found");
-                if (LodField != null) LodField.SetDescription("Player not found");
-                if (RangesField != null) RangesField.SetDescription("Player not found");
+                if (DistanceField != null) DistanceField.SetDescription(BasisLocalization.Get("menu.players.panel.playerNotFound"));
+                if (LodField != null) LodField.SetDescription(BasisLocalization.Get("menu.players.panel.playerNotFound"));
+                if (RangesField != null) RangesField.SetDescription(BasisLocalization.Get("menu.players.panel.playerNotFound"));
                 UpdateBufferField();
                 UpdateAudioDebugFields();
                 UpdateAvatarDataDebugFields();
@@ -176,9 +176,9 @@ namespace Basis.BasisUI
 
             if (playerIndex < 0)
             {
-                if (DistanceField != null) DistanceField.SetDescription("Not in snapshot");
-                if (LodField != null) LodField.SetDescription("Not in snapshot");
-                if (RangesField != null) RangesField.SetDescription("Not in snapshot");
+                if (DistanceField != null) DistanceField.SetDescription(BasisLocalization.Get("menu.players.panel.notInSnapshot"));
+                if (LodField != null) LodField.SetDescription(BasisLocalization.Get("menu.players.panel.notInSnapshot"));
+                if (RangesField != null) RangesField.SetDescription(BasisLocalization.Get("menu.players.panel.notInSnapshot"));
                 UpdateBufferField();
                 UpdateAudioDebugFields();
                 UpdateAvatarDataDebugFields();
@@ -286,7 +286,7 @@ namespace Basis.BasisUI
 
             if (RemotePlayer == null || RemotePlayer.NetworkReceiver == null)
             {
-                BufferField.SetDescription("No receiver");
+                BufferField.SetDescription(BasisLocalization.Get("menu.players.panel.noReceiver"));
                 return;
             }
 

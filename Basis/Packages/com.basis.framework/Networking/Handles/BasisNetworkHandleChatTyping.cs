@@ -57,6 +57,11 @@ public static void Shutdown()
             return;
         }
 
+        if (BasisNetworkHandleChat.LockedByServer)
+        {
+            return;
+        }
+
         if (hasLastSentTypingState && lastSentTypingState == isTyping)
         {
             return;

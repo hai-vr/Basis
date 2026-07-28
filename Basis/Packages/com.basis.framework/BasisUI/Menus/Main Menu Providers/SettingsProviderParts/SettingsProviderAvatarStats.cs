@@ -35,7 +35,7 @@ namespace Basis.BasisUI
             BasisDeviceManagement manager = BasisDeviceManagement.Instance;
             if (manager == null)
             {
-                group.SetDescription("Device manager is not available.");
+                group.SetDescription(BasisLocalization.Get("settings.avatarStats.deviceManagerUnavailable"));
                 return;
             }
 

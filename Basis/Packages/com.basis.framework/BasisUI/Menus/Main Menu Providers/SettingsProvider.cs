@@ -408,7 +408,7 @@ namespace Basis.BasisUI
         {
             PanelTextField searchField = PanelTextField.CreateNewEntry(container);
             searchField.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.searchMenus"));
-            searchField.Descriptor.SetDescription("Type to find a settings menu, then click a result to open it.");
+            searchField.Descriptor.SetDescription(BasisLocalization.Get("settings.main.title.searchMenus.description"));
 
             PanelElementDescriptor resultsGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, container);
@@ -1635,7 +1635,9 @@ namespace Basis.BasisUI
             PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownMemoryAllocation.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.memoryAllocation"));
             dropdownMemoryAllocation.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.memoryAllocation.tooltip"));
-            dropdownMemoryAllocation.AssignEntries(new List<string> { "Dynamic", "256", "512", "1024", "2048", "4096", "8192" });
+            dropdownMemoryAllocation.AssignLocalizedEntries(
+                new List<string> { "Dynamic", "256", "512", "1024", "2048", "4096", "8192" },
+                new List<string> { "settings.graphics.memoryAllocation.dynamic", "256", "512", "1024", "2048", "4096", "8192" });
             dropdownMemoryAllocation.AssignBinding(BasisSettingsDefaults.MemoryAllocation);
 
             dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
@@ -2242,17 +2244,22 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.ChatSize);
                 sliderChatSize.Descriptor.SetTooltip(BasisLocalization.Get("settings.chat.textSize.tooltip"));
 
-                bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue;
+                // Composer hides when the local player turned chat off OR the server locked it.
+                // Re-evaluated each time the tab is built (the menu is rebuilt on every open), so
+                // a lock flipped mid-session lands on the next open — SendChatMessage refuses in
+                // the meantime, so nothing escapes either way.
+                bool chatEnabled = !BasisSettingsDefaults.ChatDisabled.RawValue && !BasisNetworkHandleChat.LockedByServer;
                 chatTextField.Descriptor.SetActive(chatEnabled);
                 sliderChatSize.Descriptor.SetActive(chatEnabled);
                 toggleChatDisabled.OnValueChanged += (val) =>
                 {
-                    chatTextField.Descriptor.SetActive(!val);
+                    bool enabled = !val && !BasisNetworkHandleChat.LockedByServer;
+                    chatTextField.Descriptor.SetActive(enabled);
                     if (val)
                     {
                         BasisNetworkHandleChatTyping.SendTypingState(false);
                     }
-                    sliderChatSize.Descriptor.SetActive(!val);
+                    sliderChatSize.Descriptor.SetActive(enabled);
                     descriptor.ForceRebuild();
                 };
             }, false, visible =>
@@ -2260,7 +2267,7 @@ namespace Basis.BasisUI
                 // Section expand re-shows every row; re-apply the chat-disabled gate.
                 if (visible && chatTextField != null)
                 {
-                    bool chatOn = !BasisSettingsDefaults.ChatDisabled.RawValue;
+                    bool chatOn = !BasisSettingsDefaults.ChatDisabled.RawValue && !BasisNetworkHandleChat.LockedByServer;
                     chatTextField.Descriptor.SetActive(chatOn);
                     sliderChatSize.Descriptor.SetActive(chatOn);
                 }
@@ -3011,7 +3018,7 @@ namespace Basis.BasisUI
             PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(container);
             toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
             toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
-            toggleFaceTrackLipSync.Descriptor.SetDescription("On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined.");
+            toggleFaceTrackLipSync.Descriptor.SetDescription(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.description"));
             toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(developerOptionsToggle, container, developerOptionsStart, false,
@@ -3301,10 +3308,10 @@ namespace Basis.BasisUI
         {
             PanelButton copyAll = PanelButton.CreateNew(parent);
             copyAll.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.copyBuildInfo"));
-            copyAll.Descriptor.SetDescription("Copies all fields to clipboard.");
+            copyAll.Descriptor.SetDescription(BasisLocalization.Get("settings.main.title.copyBuildInfo.description"));
             copyAll.OnClicked += () =>
             {
-                GUIUtility.systemCopyBuffer = BuildInfoString();
+                BasisClipboard.Copy(BuildInfoString(), copyAll);
                 BasisDebug.Log("Copied build info to clipboard.");
             };
 

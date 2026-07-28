@@ -10,7 +10,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
 {
     const string ModeTooltip =
         "What the server tells clients to do with this entry.\n\n" +
-        "0 = Prop — loads the bee file as a GameObject and spawns it at the Position/Rotation/Scale below, checked against prop content limits.\n" +
+        "0 = Prop — loads the bee file as a GameObject and spawns it at the Position/Rotation below, checked against prop content limits. Scale only applies when the XML carries ModifyScale.\n" +
         "1 = Scene — loads the bee file as a world/scene. The transform below is ignored.\n" +
         "2 = Avatar — loads the bee file as a GameObject checked against avatar content limits. The transform below is not sent for this mode.\n\n" +
         "Any other value is rejected by the client.";
@@ -95,7 +95,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
     {
         switch (mode)
         {
-            case 0: return "Prop — spawned as a GameObject at the transform below.";
+            case 0: return "Prop — spawned as a GameObject at the position and rotation below.";
             case 1: return "Scene — loaded as a world. The transform below is ignored.";
             case 2: return "Avatar — spawned as a GameObject under avatar content limits. The transform below is not sent.";
             default: return "Unknown mode — clients reject this and load nothing.";

@@ -37,6 +37,14 @@ public static class BasisNetworkHandleChat
     private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
 
     /// <summary>
+    /// True when the server's global text-chat lock is on and the local player lacks the bypass.
+    /// The server drops these messages regardless — this exists so the composer can grey out and
+    /// say why instead of swallowing the message silently.
+    /// </summary>
+    public static bool LockedByServer =>
+        BasisNetworkModeration.GlobalTextChatLocked && !BasisNetworkModeration.LocalPlayerHasChatLockBypass();
+
+    /// <summary>
     /// Sends a chat message to all connected players via the dedicated ChatChannel.
     /// The message is sent to the server which applies word filtering before broadcasting.
     /// </summary>
@@ -48,6 +56,10 @@ public static class BasisNetworkHandleChat
             return;
         }
         if (Basis.BasisUI.BasisSettingsDefaults.ChatDisabled.RawValue)
+        {
+            return;
+        }
+        if (LockedByServer)
         {
             return;
         }

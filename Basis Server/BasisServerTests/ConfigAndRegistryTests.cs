@@ -311,8 +311,11 @@ public class TransportConfigStoreTests
     public void LnlTransportConfig_Defaults()
     {
         var cfg = new LNLTransportConfig();
-        Assert.Equal(2, LNLTransportConfig.CurrentConfigVersion);
+        // 4: added MergeHoldMs and PeerUpdateParallelism, so existing files get rewritten with them.
+        Assert.Equal(4, LNLTransportConfig.CurrentConfigVersion);
         Assert.Equal(0, cfg.ConfigVersion);
+        Assert.Equal(3f, cfg.MergeHoldMs);
+        Assert.Equal(0, cfg.PeerUpdateParallelism);
         Assert.True(cfg.UseNativeSockets);
         Assert.True(cfg.NatPunchEnabled);
         Assert.Equal(32, cfg.NatPortPredictionRange);
