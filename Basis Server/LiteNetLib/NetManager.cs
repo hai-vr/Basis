@@ -349,16 +349,27 @@ namespace LiteNetLib
         public float MergeHoldMs = 0f;
 
         /// <summary>
-        /// Worker cap for the per-peer update pass in <see cref="UpdateLogic"/>. 0 = a quarter of
-        /// the cores, floored at 4 and capped at 8.
+        /// Worker cap for the per-peer update pass in <see cref="UpdateLogic"/>. 0 = scale with the
+        /// peer count, which is what you want.
         ///
         /// This pass used to run on an uncapped Parallel.ForEach. At a few hundred passes a second
         /// that spread across every core the threadpool would give it — profiling a 500-player
         /// server found 40 distinct threads in the pass, with three quarters of all GC-poll time
-        /// coming from Parallel's own worker replication rather than from updating peers. The work
-        /// per peer is small, so a handful of workers finish it just as fast without the churn.
+        /// coming from Parallel's own worker replication rather than from updating peers.
         /// </summary>
         public int PeerUpdateParallelism = 0;
+
+        /// <summary>
+        /// Peers per worker when <see cref="PeerUpdateParallelism"/> is auto.
+        ///
+        /// A fixed cap is wrong at one end or the other. Capping at 8 regardless of population
+        /// fixed the oversubscription at 500 players but starved the pass at 3500, where a single
+        /// pass was measured peaking at 1204 ms. That interval is the floor on reliable latency:
+        /// the direct-connect handshake needs several round trips inside the client's 4 s budget,
+        /// so P2P times out long before anything else looks wrong. Scaling with the peer count
+        /// keeps a small instance cheap and a large one responsive.
+        /// </summary>
+        private const int PeersPerUpdateWorker = 128;
 
         /// <summary>
         /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
@@ -370,6 +381,15 @@ namespace LiteNetLib
         /// </summary>
         public int MaxUnreliableQueuePerPeer = 256;
 
+        // Slow-pass diagnostics. A pass over this long means reliable delivery is queueing behind
+        // it; 50ms is well inside the client's 4s direct-connect handshake budget but already far
+        // enough from the normal sub-millisecond pass to be worth saying out loud.
+        private const double SlowPassWarnMs = 50.0;
+        private const int SlowPassReportEvery = 200;
+        private long _slowPassCount;
+        private int _slowPassSinceReport;
+        private double _slowPassPeak;
+
         private long _unreliableDropped;
 
         /// <summary>Unreliable packets dropped because a peer's send queue was over budget.</summary>
@@ -379,22 +399,21 @@ namespace LiteNetLib
 
         private ParallelOptions _peerUpdateOptions;
 
-        private ParallelOptions PeerUpdateOptions
-        {
-            get
-            {
-                int desired = PeerUpdateParallelism <= 0
-                    ? Math.Clamp(Environment.ProcessorCount / 4, 4, 8)
-                    : Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
+        private ParallelOptions PeerUpdateOptions => GetPeerUpdateOptions(_updateSnapshot.Count);
 
-                var options = _peerUpdateOptions;
-                if (options == null || options.MaxDegreeOfParallelism != desired)
-                {
-                    options = new ParallelOptions { MaxDegreeOfParallelism = desired };
-                    _peerUpdateOptions = options;
-                }
-                return options;
+        private ParallelOptions GetPeerUpdateOptions(int peerCount)
+        {
+            int desired = PeerUpdateParallelism <= 0
+                ? Math.Clamp(peerCount / PeersPerUpdateWorker, 4, Environment.ProcessorCount)
+                : Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
+
+            var options = _peerUpdateOptions;
+            if (options == null || options.MaxDegreeOfParallelism != desired)
+            {
+                options = new ParallelOptions { MaxDegreeOfParallelism = desired };
+                _peerUpdateOptions = options;
             }
+            return options;
         }
 
         /// <summary>
@@ -752,6 +771,27 @@ namespace LiteNetLib
                     }
 
                     ProcessNtpRequests(elapsed);
+
+                    // Reliable traffic — the P2P handshake, avatar changes, chat — only reaches the
+                    // wire when this pass runs, so the pass interval is the floor on reliable
+                    // latency. When it stretches, things with their own deadlines start failing
+                    // (the client gives a direct-connect handshake 4 s), and nothing else in the
+                    // logs would say why. Reported as a rate-limited summary, not per pass.
+                    double passMs = stopwatch.Elapsed.TotalMilliseconds;
+                    if (passMs > _slowPassPeak) _slowPassPeak = passMs;
+                    if (passMs > SlowPassWarnMs)
+                    {
+                        _slowPassCount++;
+                        if (stopwatch.ElapsedTicks != 0 && ++_slowPassSinceReport >= SlowPassReportEvery)
+                        {
+                            _slowPassSinceReport = 0;
+                            NetDebug.WriteError(
+                                $"[NM] Peer update pass is slow: {_slowPassCount} passes over {SlowPassWarnMs}ms " +
+                                $"(peak {_slowPassPeak:F0}ms) across {snapshotCount} peers with {PeerUpdateOptions.MaxDegreeOfParallelism} workers. " +
+                                "Reliable delivery — including direct-connect handshakes — is delayed by this much.");
+                            _slowPassPeak = 0;
+                        }
+                    }
 
                     int sleepTime = UpdateTime - (int)stopwatch.ElapsedMilliseconds;
                     if (sleepTime > 0)

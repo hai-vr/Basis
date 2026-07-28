@@ -5,6 +5,18 @@
     {
       "key": "settings.thirdpartylicenses.openlicenseurl",
       "value": "فتح رابط الترخيص"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.title",
+      "value": "فتح رابط خارجي؟"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.body",
+      "value": "هل تريد فتح هذا الرابط في متصفح الويب؟\n\n{0}"
+    },
+    {
+      "key": "settings.thirdpartylicenses.open",
+      "value": "فتح"
     }
   ]
 }

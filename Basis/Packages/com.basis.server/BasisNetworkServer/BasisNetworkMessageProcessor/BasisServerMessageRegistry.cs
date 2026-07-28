@@ -341,7 +341,11 @@ public static class BasisServerMessageRegistry
 
                 ServerStatisticMessage serverStatistic = new ServerStatisticMessage
                 {
-                    Data = BasisNetworkStatistics.Snapshot.SnapshotResetEncode(true, 6)
+                    // Quality 1, not 6: the snapshot is a few hundred bytes of already-varint'd
+                    // counters with the zero entries dropped, so q6's extra search finds almost
+                    // nothing while costing real CPU at the 10Hz poll rate. Brotli streams are
+                    // self-describing, so the decoder is unaffected by the quality change.
+                    Data = BasisNetworkStatistics.Snapshot.SnapshotResetEncode(true, 1)
                 };
 
                 reader.Recycle();

@@ -219,6 +219,7 @@ namespace BasisNetworkServer.Security
             if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string UUID))
             {
                 SendBackMessage(peer, "UUID not found");
+                reader.Recycle();
                 return;
             }
 
@@ -232,10 +233,12 @@ namespace BasisNetworkServer.Security
                 if (!PermissionIntegration.HasValidRequirement(peer, PermNodes.PermissionsView))
                 {
                     SendBackMessage(peer, "No permission: view");
+                    reader.Recycle();
                     return;
                 }
 
                 HandleGetPermissions(peer);
+                reader.Recycle();
                 return;
             }
 

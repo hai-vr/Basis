@@ -718,7 +718,7 @@ namespace Basis.BasisUI.MediaPlayer
                 _debugMode = v;
                 ApplyVerboseLoggingToActivePlayer(v);
                 if (v) RefreshDebugInfo();
-                else _debugGroup?.SetDescription("Toggle to surface live pipeline counters.");
+                else _debugGroup?.SetDescription(BasisLocalization.Get("mediaPlayer.debug.description"));
             };
 
             // See BuildAdminGroup: deactivate after children so their Awake doesn't

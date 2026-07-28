@@ -216,6 +216,7 @@ namespace Basis.Network.Core
                 UseNativeSockets = lnl.UseNativeSockets,
                 MergeHoldMs = lnl.MergeHoldMs,
                 PeerUpdateParallelism = lnl.PeerUpdateParallelism,
+                MaxUnreliableQueuePerPeer = lnl.MaxUnreliableQueuePerPeer,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,
                 IPv6Enabled = lnl.IPv6Enabled,

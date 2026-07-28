@@ -195,17 +195,38 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// two thirds of the CPU at 32 workers was spent getting threads to the work rather than
         /// doing it, and throughput was equal or better at the low end.
         ///
-        /// Quarter of the cores, floored at 4 and capped at 8: the win is flat past 8, and the
-        /// floor keeps small boxes from serialising. Admins override with
-        /// BSRMaxDegreeOfParallelism when their player count or hardware wants something else.
+        /// A flat cap is wrong at one end or the other, so this scales with the population instead:
+        /// one worker per <see cref="PlayersPerWorker"/> players, floored at 4 so a small instance
+        /// stays cheap and capped at the core count. At 500 players that is 4 workers — where the
+        /// sweep above is flat — and at 4000 it is the whole box, which is what the phase needs to
+        /// fit its budget. Admins override with BSRMaxDegreeOfParallelism.
         /// </summary>
-        private static int DefaultDegreeOfParallelism =>
-            Math.Clamp(Environment.ProcessorCount / 4, 4, 8);
+        private const int PlayersPerWorker = 128;
+
+        private static int _configuredDegree;
+
+        private static int DegreeFor(int playerCount) =>
+            _configuredDegree > 0
+                ? Math.Min(_configuredDegree, Environment.ProcessorCount)
+                : Math.Clamp(playerCount / PlayersPerWorker, 4, Environment.ProcessorCount);
 
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = DefaultDegreeOfParallelism
+            MaxDegreeOfParallelism = 4
         };
+
+        /// <summary>
+        /// Retunes the worker cap for the current population. Called once per tick from the send
+        /// phase; assigning only on change keeps it free when the count is stable.
+        /// </summary>
+        private static void TuneParallelism(int playerCount)
+        {
+            int desired = DegreeFor(playerCount);
+            if (parallelOptions.MaxDegreeOfParallelism != desired)
+            {
+                parallelOptions.MaxDegreeOfParallelism = desired;
+            }
+        }
 
         // A dedicated worker pool was tried here in place of Parallel.For and did not pay for
         // itself: with the worker cap above already removing the oversubscription, what remained
@@ -219,14 +240,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// </summary>
         public static void SetMaxDegreeOfParallelism(int configured)
         {
-            int resolved = configured <= 0
-                ? DefaultDegreeOfParallelism
-                : Math.Min(configured, Environment.ProcessorCount);
-
-            if (resolved == parallelOptions.MaxDegreeOfParallelism) return;
-
-            parallelOptions.MaxDegreeOfParallelism = resolved;
-            BNL.Log($"[BSR] Parallel worker cap set to {resolved} (of {Environment.ProcessorCount} cores).");
+            _configuredDegree = configured;
+            if (configured > 0)
+            {
+                int resolved = Math.Min(configured, Environment.ProcessorCount);
+                parallelOptions.MaxDegreeOfParallelism = resolved;
+                BNL.Log($"[BSR] Parallel worker cap pinned to {resolved} (of {Environment.ProcessorCount} cores).");
+            }
+            else
+            {
+                BNL.Log($"[BSR] Parallel worker cap scales with population: 1 per {PlayersPerWorker} players, 4 to {Environment.ProcessorCount}.");
+            }
         }
 
         public static ShardedConcurrentDictionary<PlayerState> playerStates = new();
@@ -1187,6 +1211,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 return;
             }
+
+            // Retune workers to the current population before the phase that uses them.
+            TuneParallelism(playerCount);
 
             // Snapshot generation counters only (positions handled by slow distance cache).
             int maxId = 0;

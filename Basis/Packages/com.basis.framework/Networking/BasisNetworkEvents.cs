@@ -741,9 +741,14 @@ public static class BasisNetworkEvents
             Snapshotdata?.Invoke(Snapshot);
         });
     }
+    // Reused across both stat-frame calls: RequestStatFrames fires on a 0.1s timer while the
+    // stats view is open, so a fresh writer per call was garbage every tick for one bool.
+    private static readonly NetDataWriter StatFrameWriter = new NetDataWriter();
+
     public static void RequestStatFrames()
     {
-        NetDataWriter Writer = new NetDataWriter();
+        NetDataWriter Writer = StatFrameWriter;
+        Writer.Reset();
         Writer.Put(true);
         BasisNetworkConnection.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, Basis.Network.Core.DeliveryMethod.ReliableOrdered);
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, Writer.Length);
@@ -752,7 +757,8 @@ public static class BasisNetworkEvents
 
     public static void StopStatFrames()
     {
-        NetDataWriter Writer = new NetDataWriter();
+        NetDataWriter Writer = StatFrameWriter;
+        Writer.Reset();
         Writer.Put(false);
         BasisNetworkConnection.LocalPlayerPeer?.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, Basis.Network.Core.DeliveryMethod.ReliableOrdered);
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, Writer.Length);

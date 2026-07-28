@@ -5,6 +5,18 @@
     {
       "key": "settings.thirdpartylicenses.openlicenseurl",
       "value": "Открыть URL лицензии"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.title",
+      "value": "Открыть внешнюю ссылку?"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.body",
+      "value": "Открыть этот URL в веб-браузере?\n\n{0}"
+    },
+    {
+      "key": "settings.thirdpartylicenses.open",
+      "value": "Открыть"
     }
   ]
 }

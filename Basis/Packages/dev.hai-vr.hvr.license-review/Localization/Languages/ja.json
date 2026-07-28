@@ -5,6 +5,18 @@
     {
       "key": "settings.thirdpartylicenses.openlicenseurl",
       "value": "ライセンス URL を開く"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.title",
+      "value": "外部リンクを開きますか？"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.body",
+      "value": "この URL をウェブブラウザーで開きますか？\n\n{0}"
+    },
+    {
+      "key": "settings.thirdpartylicenses.open",
+      "value": "開く"
     }
   ]
 }

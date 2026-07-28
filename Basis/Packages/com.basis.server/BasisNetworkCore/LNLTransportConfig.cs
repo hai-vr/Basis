@@ -6,7 +6,7 @@ namespace Basis.Network.Core
     public sealed class LNLTransportConfig
     {
         /// <summary>Bump to force existing files to be rewritten; newly-added fields are healed automatically on load.</summary>
-        public const int CurrentConfigVersion = 4;
+        public const int CurrentConfigVersion = 5;
         /// <summary>Schema version stamped into the file; 0 = pre-versioning, upgraded on load.</summary>
         public int ConfigVersion = 0;
 
@@ -62,5 +62,15 @@ namespace Basis.Network.Core
         /// all GC-poll time coming from the parallel machinery itself rather than the work.
         /// </summary>
         public int PeerUpdateParallelism = 0;
+
+        /// <summary>
+        /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
+        ///
+        /// This is the backstop that keeps an overloaded server alive. Unbounded, a server that
+        /// cannot drain its send queue grows the backlog instead — measured at 2000 players, the
+        /// queue reached ~40 GB before every peer timed out and the instance was lost. Bounded, the
+        /// same overload costs dropped position updates and everyone stays connected.
+        /// </summary>
+        public int MaxUnreliableQueuePerPeer = 256;
     }
 }

@@ -360,6 +360,23 @@ namespace LiteNetLib
         /// </summary>
         public int PeerUpdateParallelism = 0;
 
+        /// <summary>
+        /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
+        ///
+        /// Unbounded is not a safe default for a broadcast server: if the send loop enqueues faster
+        /// than the logic pass drains — which is what being CPU-bound looks like — the backlog is
+        /// the only thing that grows, and it grows until the process dies. Bounding it turns an
+        /// overload into dropped position updates, which is what unreliable delivery is for.
+        /// </summary>
+        public int MaxUnreliableQueuePerPeer = 256;
+
+        private long _unreliableDropped;
+
+        /// <summary>Unreliable packets dropped because a peer's send queue was over budget.</summary>
+        public long UnreliableDropped => Interlocked.Read(ref _unreliableDropped);
+
+        internal void NoteUnreliableDropped() => Interlocked.Increment(ref _unreliableDropped);
+
         private ParallelOptions _peerUpdateOptions;
 
         private ParallelOptions PeerUpdateOptions

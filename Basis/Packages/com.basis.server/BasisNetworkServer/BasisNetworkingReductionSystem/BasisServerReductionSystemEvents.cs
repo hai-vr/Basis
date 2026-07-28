@@ -251,6 +251,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static int AvatarBundleMinMessages = 2;
         public static int AvatarBundleMinBytes = 128;
 
+        /// <summary>
+        /// Largest bundle scratch buffer a receiver keeps between ticks. Below this the buffer is
+        /// retained (renting one per receiver per tick contends ArrayPool.Shared badly at scale);
+        /// above it the buffer goes back to the pool so an outlier tick cannot pin an
+        /// LOH-sized array per player. Steady state is a few KB.
+        /// </summary>
+        private const int RetainedScratchBytes = 16 * 1024;
+
         // Avatar delta compression (written from NetworkServer.InitializePulseSettings).
         // When on, each sender emits a full keyframe every AvatarDeltaKeyframeIntervalMs and, in
         // between, per-quality deltas against that keyframe on DeltaAvatarChannel. When off, every
@@ -1624,14 +1632,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
             stateI.PendingCount = 0;
 
-            // Return tick-scoped scratch buffers to the pool. Without this they'd retain
-            // ~85KB+ per PlayerState forever (LOH at 1k+ players, gen2 pause amplifier).
-            if (stateI.BundleRawScratch != null)
+            // Keep modest scratch buffers between ticks; only hand back the oversized ones.
+            //
+            // These used to be returned unconditionally, which meant a rent and a return per
+            // receiver per tick — at 1000 players that is ~330K operations a second against
+            // ArrayPool.Shared, and its bucket contention showed up in the profile as spin-waiting
+            // inside this method. Retaining the common small case removes nearly all of it.
+            //
+            // The cap is what keeps the original concern honest: a receiver that needed a huge
+            // buffer for one tick gives it straight back, so nothing pins LOH-sized arrays per
+            // player. Steady state is a few KB each, and disconnect returns whatever is held.
+            if (stateI.BundleRawScratch != null && stateI.BundleRawScratch.Length > RetainedScratchBytes)
             {
                 ArrayPool<byte>.Shared.Return(stateI.BundleRawScratch);
                 stateI.BundleRawScratch = null;
             }
-            if (stateI.BundleCompressedScratch != null)
+            if (stateI.BundleCompressedScratch != null && stateI.BundleCompressedScratch.Length > RetainedScratchBytes)
             {
                 ArrayPool<byte>.Shared.Return(stateI.BundleCompressedScratch);
                 stateI.BundleCompressedScratch = null;

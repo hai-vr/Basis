@@ -422,10 +422,42 @@ namespace LiteNetLib
                 EnqueueUnreliable(packet._packet);
         }
 
+        /// <summary>
+        /// Approximate depth of <see cref="_unreliableChannel"/>. Tracked separately because
+        /// ConcurrentQueue.Count walks the segments, which is far too expensive to consult on
+        /// every enqueue.
+        /// </summary>
+        private int _unreliableCount;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnqueueUnreliable(NetPacket packet)
         {
             _unreliableChannel.Enqueue(packet);
+
+            // Counted unconditionally so the depth stays honest even while unbounded — the drain
+            // decrements either way, and skipping the increment here would drive it negative and
+            // silently disable the bound if the limit were ever raised at runtime.
+            int depth = Interlocked.Increment(ref _unreliableCount);
+
+            int limit = NetManager.MaxUnreliableQueuePerPeer;
+            if (limit <= 0 || depth <= limit) return;
+
+            // Over budget: the producer is outrunning the send loop. Drop from the front until we
+            // are back inside it.
+            //
+            // This queue used to be unbounded, which turned a CPU overload into an out-of-memory:
+            // at 2000 players the send loop enqueued faster than the logic pass could drain, and
+            // the backlog reached ~40 GB before every peer timed out. Bounding it converts that
+            // into what it always should have been — dropped frames on a server that is behind.
+            //
+            // Oldest-first, because these are position updates: the newest frame supersedes
+            // everything queued behind it, so a stale one is exactly what you want to lose.
+            while (Volatile.Read(ref _unreliableCount) > limit && _unreliableChannel.TryDequeue(out var stale))
+            {
+                Interlocked.Decrement(ref _unreliableCount);
+                NetManager.NoteUnreliableDropped();
+                NetManager.PoolRecycle(stale);
+            }
         }
 
         private BaseChannel CreateChannel(byte idx)
@@ -1562,6 +1594,7 @@ namespace LiteNetLib
 
             while (_unreliableChannel.TryDequeue(out var packet))
             {
+                Interlocked.Decrement(ref _unreliableCount);
                 SendUserData(packet);
                 NetManager.PoolRecycle(packet);
             }

@@ -7331,6 +7331,534 @@
       "value": "Take Photo"
     },
     {
+      "key": "mediaPlayer.title.description",
+      "value": "Open the media player panel to control playback and per-player volume."
+    },
+    {
+      "key": "mediaPlayer.openMediaPlayers",
+      "value": "Open Media Players"
+    },
+    {
+      "key": "mediaPlayer.player",
+      "value": "Player"
+    },
+    {
+      "key": "mediaPlayer.noMediaPlayers",
+      "value": "No Media Players"
+    },
+    {
+      "key": "mediaPlayer.noMediaPlayers.description",
+      "value": "Spawn or load a prop/scene that contains a Basis Media Player."
+    },
+    {
+      "key": "mediaPlayer.playback",
+      "value": "Playback"
+    },
+    {
+      "key": "mediaPlayer.playback.description",
+      "value": "Requires the basis.mediaplayer.control permission, or Anyone Can Control turned on."
+    },
+    {
+      "key": "mediaPlayer.url",
+      "value": "URL"
+    },
+    {
+      "key": "mediaPlayer.loadUrl",
+      "value": "Load URL"
+    },
+    {
+      "key": "mediaPlayer.play",
+      "value": "Play"
+    },
+    {
+      "key": "mediaPlayer.pause",
+      "value": "Pause"
+    },
+    {
+      "key": "mediaPlayer.stop",
+      "value": "Stop"
+    },
+    {
+      "key": "mediaPlayer.position",
+      "value": "Position"
+    },
+    {
+      "key": "mediaPlayer.bitrate",
+      "value": "Bitrate"
+    },
+    {
+      "key": "mediaPlayer.audioTrack",
+      "value": "Audio Track"
+    },
+    {
+      "key": "mediaPlayer.mySettings",
+      "value": "My Settings"
+    },
+    {
+      "key": "mediaPlayer.mySettings.description",
+      "value": "Client-side controls — only affect your own playback."
+    },
+    {
+      "key": "mediaPlayer.volume",
+      "value": "Volume"
+    },
+    {
+      "key": "mediaPlayer.captionsCc",
+      "value": "Captions (CC)"
+    },
+    {
+      "key": "mediaPlayer.captionsCc.description",
+      "value": "Show closed captions when the stream or its subtitle track provides them."
+    },
+    {
+      "key": "mediaPlayer.subtitles",
+      "value": "Subtitles"
+    },
+    {
+      "key": "mediaPlayer.textOpacity",
+      "value": "Text Opacity"
+    },
+    {
+      "key": "mediaPlayer.backgroundOpacity",
+      "value": "Background Opacity"
+    },
+    {
+      "key": "mediaPlayer.resync",
+      "value": "Resync"
+    },
+    {
+      "key": "mediaPlayer.advanced",
+      "value": "Advanced"
+    },
+    {
+      "key": "mediaPlayer.admin",
+      "value": "Admin"
+    },
+    {
+      "key": "mediaPlayer.admin.description",
+      "value": "Network-synced policy. Visible only to clients with the basis.mediaplayer.control permission."
+    },
+    {
+      "key": "mediaPlayer.adminOnly",
+      "value": "Admin Only"
+    },
+    {
+      "key": "mediaPlayer.adminOnly.description",
+      "value": "Only clients with the control permission can take ownership and drive this player."
+    },
+    {
+      "key": "mediaPlayer.allowAnyoneToTakeControl",
+      "value": "Allow Anyone To Take Control"
+    },
+    {
+      "key": "mediaPlayer.allowAnyoneToTakeControl.description",
+      "value": "When Admin Only is off, allows non-owners to take ownership of this player."
+    },
+    {
+      "key": "mediaPlayer.anyoneCanControl",
+      "value": "Anyone Can Control"
+    },
+    {
+      "key": "mediaPlayer.anyoneCanControl.description",
+      "value": "Lets clients without the control permission load URLs and drive playback."
+    },
+    {
+      "key": "mediaPlayer.driftSeekThresholdS",
+      "value": "Drift Seek Threshold (s)"
+    },
+    {
+      "key": "mediaPlayer.status",
+      "value": "Status"
+    },
+    {
+      "key": "mediaPlayer.debug",
+      "value": "Debug"
+    },
+    {
+      "key": "mediaPlayer.debug.description",
+      "value": "Toggle to surface live pipeline counters."
+    },
+    {
+      "key": "mediaPlayer.debugMode",
+      "value": "Debug Mode"
+    },
+    {
+      "key": "mediaPlayer.noActivePlayer",
+      "value": "No active player."
+    },
+    {
+      "key": "settings.mediapipe.webcamTracking",
+      "value": "Webcam Tracking"
+    },
+    {
+      "key": "settings.mediapipe.webcamTracking.description",
+      "value": "Drive your avatar's face, eyes, fingers and hands from a webcam (experimental)."
+    },
+    {
+      "key": "settings.mediapipe.enableWebcamTracking",
+      "value": "Enable Webcam Tracking"
+    },
+    {
+      "key": "settings.mediapipe.enableWebcamTracking.description",
+      "value": "Turn webcam tracking on or off."
+    },
+    {
+      "key": "settings.mediapipe.camera",
+      "value": "Camera"
+    },
+    {
+      "key": "settings.mediapipe.camera.description",
+      "value": "Select which webcam to use."
+    },
+    {
+      "key": "settings.mediapipe.cameraResolution",
+      "value": "Camera Resolution"
+    },
+    {
+      "key": "settings.mediapipe.cameraResolution.description",
+      "value": "Higher = sharper tracking but more CPU."
+    },
+    {
+      "key": "settings.mediapipe.cameraFrameRate",
+      "value": "Camera Frame Rate"
+    },
+    {
+      "key": "settings.mediapipe.cameraFrameRate.description",
+      "value": "Requested webcam frames per second."
+    },
+    {
+      "key": "settings.mediapipe.armElbowPoleExperimental",
+      "value": "Arm Elbow Pole (experimental)"
+    },
+    {
+      "key": "settings.mediapipe.armElbowPoleExperimental.description",
+      "value": "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first."
+    },
+    {
+      "key": "settings.mediapipe.handRotation",
+      "value": "Hand Rotation"
+    },
+    {
+      "key": "settings.mediapipe.handRotation.description",
+      "value": "Off keeps the wrist aligned to the forearm (position only) to avoid noisy webcam wrist rotation."
+    },
+    {
+      "key": "settings.mediapipe.invertBlink",
+      "value": "Invert Blink"
+    },
+    {
+      "key": "settings.mediapipe.invertBlink.description",
+      "value": "Fix blink if the eyes close when you open them."
+    },
+    {
+      "key": "settings.mediapipe.invertHeadYaw",
+      "value": "Invert Head Yaw"
+    },
+    {
+      "key": "settings.mediapipe.invertHeadYaw.description",
+      "value": "Fix the head turn (left/right) direction."
+    },
+    {
+      "key": "settings.mediapipe.invertHeadPitch",
+      "value": "Invert Head Pitch"
+    },
+    {
+      "key": "settings.mediapipe.invertHeadPitch.description",
+      "value": "Fix the head nod (up/down) direction."
+    },
+    {
+      "key": "settings.mediapipe.invertHeadRoll",
+      "value": "Invert Head Roll"
+    },
+    {
+      "key": "settings.mediapipe.invertHeadRoll.description",
+      "value": "Fix the head tilt (ear-to-shoulder) direction."
+    },
+    {
+      "key": "settings.mediapipe.smoothing.description",
+      "value": "Higher = smoother but more latency."
+    },
+    {
+      "key": "settings.mediapipe.headSmoothing",
+      "value": "Head Smoothing"
+    },
+    {
+      "key": "settings.mediapipe.faceSmoothing",
+      "value": "Face Smoothing"
+    },
+    {
+      "key": "settings.mediapipe.handSmoothing",
+      "value": "Hand Smoothing"
+    },
+    {
+      "key": "settings.mediapipe.fingerSmoothing",
+      "value": "Finger Smoothing"
+    },
+    {
+      "key": "settings.mediapipe.chestMotion",
+      "value": "Chest Motion"
+    },
+    {
+      "key": "settings.mediapipe.chestMotion.description",
+      "value": "How much your torso lean, twist and sway carries into the avatar."
+    },
+    {
+      "key": "settings.mediapipe.elbowRestBias",
+      "value": "Elbow Rest Bias"
+    },
+    {
+      "key": "settings.mediapipe.elbowRestBias.description",
+      "value": "Pulls the elbow toward hanging naturally. The camera guesses elbow depth, so a little bias usually looks better."
+    },
+    {
+      "key": "settings.mediapipe.armHeadAnchor",
+      "value": "Arm Head Anchor"
+    },
+    {
+      "key": "settings.mediapipe.armHeadAnchor.description",
+      "value": "Lines a raised hand up with the avatar's head rather than the webcam frame."
+    },
+    {
+      "key": "settings.mediapipe.headPositionStrength",
+      "value": "Head Position Strength"
+    },
+    {
+      "key": "settings.mediapipe.headPositionStrength.description",
+      "value": "How much your head movement shifts the avatar's head position."
+    },
+    {
+      "key": "settings.mediapipe.headRotationStrength",
+      "value": "Head Rotation Strength"
+    },
+    {
+      "key": "settings.mediapipe.headRotationStrength.description",
+      "value": "Amplifies how far the avatar's head turns/nods relative to yours."
+    },
+    {
+      "key": "settings.mediapipe.headHeightTrim",
+      "value": "Head Height Trim"
+    },
+    {
+      "key": "settings.mediapipe.headHeightTrim.description",
+      "value": "Fine vertical adjustment. The head is auto-fit to your avatar, so this is usually only a small nudge."
+    },
+    {
+      "key": "settings.mediapipe.tongueExperimental",
+      "value": "Tongue (experimental)"
+    },
+    {
+      "key": "settings.mediapipe.tongueExperimental.description",
+      "value": "Estimate tongue-out from the mouth interior (webcam heuristic)."
+    },
+    {
+      "key": "settings.mediapipe.tongueStrength",
+      "value": "Tongue Strength"
+    },
+    {
+      "key": "settings.mediapipe.tongueStrength.description",
+      "value": "How strongly tongue-out is detected."
+    },
+    {
+      "key": "settings.mediapipe.calibrateHeadLookForward",
+      "value": "Calibrate Head (look forward)"
+    },
+    {
+      "key": "settings.mediapipe.calibrateHeadLookForward.description",
+      "value": "Face the screen straight on, then click to set your neutral head pose."
+    },
+    {
+      "key": "settings.mediapipe.diagnostics",
+      "value": "Diagnostics"
+    },
+    {
+      "key": "settings.mediapipe.diagnostics.description",
+      "value": "Live webcam tracking state."
+    },
+    {
+      "key": "settings.mediapipe.status",
+      "value": "Status"
+    },
+    {
+      "key": "settings.mediapipe.status.description",
+      "value": "(press Refresh)"
+    },
+    {
+      "key": "settings.mediapipe.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.mediapipe.refresh.description",
+      "value": "Poll the current tracking state."
+    },
+    {
+      "key": "settings.faceTracking.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.faceTracking.refresh.description",
+      "value": "Poll the current face tracking state from all components."
+    },
+    {
+      "key": "settings.faceTracking.faceTrackingActive",
+      "value": "Face Tracking Active"
+    },
+    {
+      "key": "settings.faceTracking.oscAcquisition",
+      "value": "OSC Acquisition"
+    },
+    {
+      "key": "settings.faceTracking.blendshapeTracking",
+      "value": "Blendshape Tracking"
+    },
+    {
+      "key": "settings.faceTracking.actuatedAddresses",
+      "value": "Actuated Addresses"
+    },
+    {
+      "key": "settings.eyeTracking.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.eyeTracking.refresh.description",
+      "value": "Poll the current eye tracking state from all components."
+    },
+    {
+      "key": "settings.faceTracking.eyeOverride",
+      "value": "Eye Override"
+    },
+    {
+      "key": "settings.faceTracking.eyeDriverEnabled",
+      "value": "Eye Driver Enabled"
+    },
+    {
+      "key": "settings.faceTracking.eyeParamsActive",
+      "value": "Eye Params Active"
+    },
+    {
+      "key": "settings.faceTracking.eyeLeftX",
+      "value": "Eye Left X"
+    },
+    {
+      "key": "settings.faceTracking.eyeRightX",
+      "value": "Eye Right X"
+    },
+    {
+      "key": "settings.faceTracking.eyeY",
+      "value": "Eye Y"
+    },
+    {
+      "key": "settings.faceTracking.noComponent",
+      "value": "No component"
+    },
+    {
+      "key": "settings.faceTracking.vixxy.description",
+      "value": "Trigger effects on this avatar."
+    },
+    {
+      "key": "settings.faceTracking.resetToDefault",
+      "value": "Reset to Default"
+    },
+    {
+      "key": "settings.faceTracking.resetToDefault.description",
+      "value": "Restore all customization on this avatar to its defaults."
+    },
+    {
+      "key": "settings.faceTracking.eyeTracking",
+      "value": "Eye Tracking"
+    },
+    {
+      "key": "settings.faceTracking.eyeTracking.description",
+      "value": "Limit and scale eye tracking rotation on this avatar."
+    },
+    {
+      "key": "settings.faceTracking.overrideRotationLimits",
+      "value": "Override Rotation Limits"
+    },
+    {
+      "key": "settings.faceTracking.overrideRotationLimits.description",
+      "value": "When off, the values baked into the avatar are used."
+    },
+    {
+      "key": "settings.faceTracking.resetEyeTracking",
+      "value": "Reset Eye Tracking"
+    },
+    {
+      "key": "settings.faceTracking.resetEyeTracking.description",
+      "value": "Turn off the override and restore the values baked into this avatar."
+    },
+    {
+      "key": "settings.slimevr.title",
+      "value": "SlimeVR"
+    },
+    {
+      "key": "settings.slimevr.title.description",
+      "value": "Sets your height and arm span automatically from a running SlimeVR server."
+    },
+    {
+      "key": "settings.slimevr.connectToSlimevr",
+      "value": "Connect To SlimeVR"
+    },
+    {
+      "key": "settings.slimevr.connectToSlimevr.description",
+      "value": "Stay connected to a local SlimeVR server."
+    },
+    {
+      "key": "settings.slimevr.connectionMethod",
+      "value": "Connection Method"
+    },
+    {
+      "key": "settings.slimevr.connectionMethod.description",
+      "value": "WebSocket suits every server; Pipe is SlimeVR's native transport."
+    },
+    {
+      "key": "settings.slimevr.autoApplyBodyMeasurements",
+      "value": "Auto Apply Body Measurements"
+    },
+    {
+      "key": "settings.slimevr.autoApplyBodyMeasurements.description",
+      "value": "Use SlimeVR's eye height and arm span as your body size."
+    },
+    {
+      "key": "settings.slimevr.autoBindSlimevrTrackers",
+      "value": "Auto Bind SlimeVR Trackers"
+    },
+    {
+      "key": "settings.slimevr.autoBindSlimevrTrackers.description",
+      "value": "Bind trackers to their announced body part automatically."
+    },
+    {
+      "key": "settings.slimevr.recalibrateOnReset",
+      "value": "Recalibrate On Reset"
+    },
+    {
+      "key": "settings.slimevr.recalibrateOnReset.description",
+      "value": "Re-run calibration after a SlimeVR mounting or full reset."
+    },
+    {
+      "key": "settings.slimevr.trackerSourceExperimental",
+      "value": "Tracker Source (Experimental)"
+    },
+    {
+      "key": "settings.slimevr.trackerSourceExperimental.description",
+      "value": "Get trackers from the SlimeVR server instead of OpenVR/OpenXR. Needs SteamVR in the background."
+    },
+    {
+      "key": "settings.slimevr.status",
+      "value": "Status"
+    },
+    {
+      "key": "settings.slimevr.refresh",
+      "value": "Refresh"
+    },
+    {
+      "key": "settings.slimevr.refresh.description",
+      "value": "Re-read measurements and status."
+    },
+    {
+      "key": "settings.slimevr.getIntoPose",
+      "value": "Get into pose — press again to cancel."
+    },
+    {
       "key": "settings.developer.handheldCameraRate.limit.tooltip",
       "value": "On: cap the handheld camera's render rate to the value below. Off: render every frame."
     },

@@ -5,6 +5,18 @@
     {
       "key": "settings.thirdpartylicenses.openlicenseurl",
       "value": "लाइसेंस URL खोलें"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.title",
+      "value": "बाहरी लिंक खोलें?"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.body",
+      "value": "क्या आप इस URL को अपने वेब ब्राउज़र में खोलना चाहते हैं?\n\n{0}"
+    },
+    {
+      "key": "settings.thirdpartylicenses.open",
+      "value": "खोलें"
     }
   ]
 }

@@ -434,11 +434,13 @@ namespace LiteNetLib
         {
             _unreliableChannel.Enqueue(packet);
 
-            int limit = NetManager.MaxUnreliableQueuePerPeer;
-            if (limit <= 0) return;
-
+            // Counted unconditionally so the depth stays honest even while unbounded — the drain
+            // decrements either way, and skipping the increment here would drive it negative and
+            // silently disable the bound if the limit were ever raised at runtime.
             int depth = Interlocked.Increment(ref _unreliableCount);
-            if (depth <= limit) return;
+
+            int limit = NetManager.MaxUnreliableQueuePerPeer;
+            if (limit <= 0 || depth <= limit) return;
 
             // Over budget: the producer is outrunning the send loop. Drop from the front until we
             // are back inside it.

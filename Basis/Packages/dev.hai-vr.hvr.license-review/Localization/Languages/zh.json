@@ -5,6 +5,18 @@
     {
       "key": "settings.thirdpartylicenses.openlicenseurl",
       "value": "開啟授權 URL"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.title",
+      "value": "打开外部链接？"
+    },
+    {
+      "key": "settings.thirdpartylicenses.openexternallink.body",
+      "value": "是否在网页浏览器中打开此网址？\n\n{0}"
+    },
+    {
+      "key": "settings.thirdpartylicenses.open",
+      "value": "打开"
     }
   ]
 }

@@ -42,10 +42,10 @@ namespace HVR.LicenseReview
                     }
 
                     BasisMainMenu.Instance.OpenDialogue(
-                        "Open external link?",
-                        $"Do you want to open this URL in your web browser?\n\n{safeUrl}",
-                        "Open",
-                        "Cancel",
+                        BasisLocalization.Get("settings.thirdpartylicenses.openexternallink.title"),
+                        string.Format(BasisLocalization.Get("settings.thirdpartylicenses.openexternallink.body"), safeUrl),
+                        BasisLocalization.Get("settings.thirdpartylicenses.open"),
+                        BasisLocalization.Get("ui.cancel"),
                         confirmed =>
                         {
                             if (confirmed) Application.OpenURL(safeUrl);
