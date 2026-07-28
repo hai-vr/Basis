@@ -283,6 +283,32 @@ prefab); for surround, one `Output` per channel so a 5.1 / 7.1 mix (up to 8
 channels) can be positioned speaker-by-speaker in the world (the
 `Prefabs/MediaPlayerMultiChannelStreaming` prefab).
 
+Each output `AudioSource` carries a `BasisMediaPlayerAudioTap`, which writes the
+decoded stream straight into that source's DSP block. Unity applies audio filters in
+component order, so a Low Pass / High Pass / Reverb filter has to sit **below** the
+tap on the same GameObject; anything above it is handed silence.
+
+An output carrying filters with no tap above them is flagged in the inspector, on the
+owning `BasisMediaPlayerAudio` and on the tap itself where there is one, with a button
+that fixes the order by raising the tap, or by lowering the filters past it where the
+tap can't move. An output with no filters isn't flagged: it gets its tap at runtime and
+there's no ordering to get wrong. Component order is fixed once play starts, so an
+output assembled in code that already carries filters can't be put right, and logs a
+warning naming the filter instead.
+
+Each source's own `Volume` and `Mute` are folded into that tap's gain, so they behave
+as they would for a clip and stay per-output — on a surround setup you can trim one
+speaker without touching the rest. `BasisMediaPlayerAudio`'s `VolumeGain` / `Mute` are
+the player-wide pair, and the client's main volume scales the lot; all three multiply.
+
+Two of the AudioSource's own controls behave differently from a clip. `Pitch` does
+nothing, since it belongs to clip playback, and pitching the stream would pull the
+audio off the video in any case. Spatialisation needs the spatialiser to run *after*
+the tap, so `Spatialize Post Effects` stays ticked and `Bypass Effects` unticked (both
+prefabs ship that way): with either the wrong way round, the spatialiser processes the
+silent keepalive clip and the tap overwrites the result, which sounds the same as
+dropping `Spatial Blend` to 2D.
+
 Channel ceiling depends on the source: **LPCM** — Blu-ray-style over MPEG-TS, or a
 **WAV** file — carries a full 7.1 (8 channels); **AAC on Windows** decodes up to 5.1
 (the Media Foundation decoder's limit — wider or PCE-signalled AAC layouts play muted
