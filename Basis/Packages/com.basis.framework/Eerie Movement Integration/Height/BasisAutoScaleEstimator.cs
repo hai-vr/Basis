@@ -32,6 +32,11 @@ public static class BasisAutoScaleEstimator
 
     public static void Tick(float deltaTime)
     {
+        // Superseded by BasisBodyEvidenceSampler, which measures the same two quantities continuously
+        // but rejects outliers, references the floor from the player's own trackers, and keeps working
+        // after an explicit calibration (this stops for good the moment one happens). Both writing
+        // PlayerEyeHeight would have them overwriting each other, so this stands down while that runs.
+        if (Basis.BasisUI.BasisSettingsDefaults.ContinuousBodyMeasurement.RawValue) return;
         if (BasisHeightDriver.HasUserCalibratedHeight) return;
         if (!Basis.BasisUI.BasisSettingsDefaults.AutoScaleEstimateEnabled.RawValue) return;
         if (!BasisDeviceManagement.IsCurrentModeVR() || SMModuleSitStand.IsSteatedMode) return;

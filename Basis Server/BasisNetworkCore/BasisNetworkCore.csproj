@@ -14,6 +14,9 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 	<ItemGroup>
+		<InternalsVisibleTo Include="BasisServerTests" />
+	</ItemGroup>
+	<ItemGroup>
 	  <PackageReference Include="System.Threading.Tasks" Version="4.3.0" />
 		<ProjectReference Include="..\LiteNetLib\LiteNetLib.csproj" />
 		<ProjectReference Include="..\Contrib\Crypto\Crypto.csproj" />

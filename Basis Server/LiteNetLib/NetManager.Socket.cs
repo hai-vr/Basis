@@ -25,8 +25,99 @@ namespace LiteNetLib
         private readonly List<Socket> _extraSocketsV4 = new List<Socket>();
         private readonly List<Socket> _extraSocketsV6 = new List<Socket>();
         private readonly List<Thread> _extraReceiveThreads = new List<Thread>();
-        private const int SO_REUSEPORT_LINUX = 15;
         private bool _useReusePort;
+
+        /// <summary>
+        /// Send paths actually bound — 1, plus however many extra SO_REUSEPORT sockets succeeded.
+        /// The host sizes its send worker pool from this: concurrent send capacity is set by how
+        /// many sockets there are, not by how many cores, and asking for eight while running on one
+        /// would size the pool for capacity that is not there.
+        /// </summary>
+        public int BoundSendSocketCount { get; private set; } = 1;
+
+        private IPAddress _reusePortAddressV4;
+        private IPAddress _reusePortAddressV6;
+        private readonly object _socketGrowLock = new object();
+
+        /// <summary>
+        /// Whether more send paths can be added at runtime. Only true on Linux with SO_REUSEPORT
+        /// working — everywhere else the port cannot be shared and the answer is fixed at startup.
+        /// </summary>
+        public bool CanAddSendSockets => _useReusePort && _isRunning;
+
+        /// <summary>
+        /// Binds one more SO_REUSEPORT socket on the listen port and starts a receive thread for it.
+        ///
+        /// This is the axis the send path actually scales on. Adding worker threads to one socket
+        /// makes things worse, not better — measured at 1000 players, going 8 to 16 to 32 send
+        /// workers took the update phase from 6.1 to 12.9 to 15.4 ms per tick while throughput fell
+        /// from 497 to 393 MB/s, because the threads simply queue on the same socket. Another socket
+        /// is another independent path, and the host's send worker ceiling is derived from how many
+        /// are bound, so this widens both at once.
+        ///
+        /// Grow-only by design. Removing a socket means tearing down a live receive thread and
+        /// dropping whatever is in its queue, and the sockets are cheap to keep; a server that
+        /// needed the capacity once will very likely need it again.
+        ///
+        /// ⚠️ Adding a socket changes the size of the kernel's SO_REUSEPORT group, so which socket a
+        /// given 4-tuple hashes to can change. Existing peers may see a brief reordering as their
+        /// flow moves; the channel layer already tolerates that, but it is why this grows on
+        /// sustained pressure rather than on a momentary spike.
+        /// </summary>
+        public bool TryAddSendSocket()
+        {
+            if (!_useReusePort || !_isRunning) return false;
+
+            lock (_socketGrowLock)
+            {
+                int index = _extraSocketsV4.Count + 1;
+
+                var extraV4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                if (!BindSocket(extraV4, new IPEndPoint(_reusePortAddressV4, LocalPort)))
+                {
+                    NetDebug.WriteError($"[NM] Extra REUSEPORT socket #{index} (v4) bind failed; staying at {BoundSendSocketCount} send sockets");
+                    extraV4.Close();
+                    return false;
+                }
+                _extraSocketsV4.Add(extraV4);
+
+                Socket extraV6 = null;
+                if (_udpSocketv6 != null && _reusePortAddressV6 != null)
+                {
+                    extraV6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+                    if (!BindSocket(extraV6, new IPEndPoint(_reusePortAddressV6, LocalPort)))
+                    {
+                        // v6 bind can fail with AddressAlreadyInUse on dual-stack hosts even with
+                        // REUSEPORT — degrade to v4-only for this slot rather than aborting.
+                        extraV6.Close();
+                        extraV6 = null;
+                    }
+                    else
+                    {
+                        _extraSocketsV6.Add(extraV6);
+                    }
+                }
+
+                Socket capturedV4 = extraV4;
+                Socket capturedV6 = extraV6;
+                Thread extraThread = new Thread(() =>
+                {
+                    if (UseNativeSockets)
+                        NativeReceiveLogicForSocketPair(capturedV4, capturedV6);
+                    else
+                        ReceiveLogicForSocketPair(capturedV4, capturedV6);
+                })
+                {
+                    Name = $"ReceiveThread({LocalPort}#{index})",
+                    IsBackground = true
+                };
+                _extraReceiveThreads.Add(extraThread);
+                extraThread.Start();
+
+                BoundSendSocketCount = 1 + _extraSocketsV4.Count;
+                return true;
+            }
+        }
 #if UNITY_SOCKET_FIX
         private PausedSocketFix _pausedSocketFix;
         private bool _useSocketFix;
@@ -520,8 +611,14 @@ namespace LiteNetLib
                     // worth — several threads on one socket would let two datagrams from the same
                     // peer be processed at once (SO_REUSEPORT avoids that only because RSS pins a
                     // 4-tuple to one socket), and giving each peer its own port is a protocol
-                    // change. Measured at 500 players, the entire receive path — recv loop and
-                    // packet handling — is 2% of server CPU, so there is nothing here to win.
+                    // change.
+                    //
+                    // ⚠️ Do not read the "receive is only ~2% of CPU" measurement as meaning this
+                    // does not matter. That was taken on a single socket with fast cores, where one
+                    // receive thread kept up easily. A saturated receive thread does not show up as
+                    // CPU at all — it shows up as the kernel discarding datagrams behind it — and
+                    // on hosts with many weak cores one thread is the throughput wall. That is why
+                    // Linux grows sockets on RcvbufErrors. Windows simply cannot.
                     NetDebug.WriteError($"[NM] MultiSocketCount={MultiSocketCount} requested but SO_REUSEPORT is Linux-only; falling back to single socket");
                 }
             }
@@ -580,49 +677,23 @@ namespace LiteNetLib
                 // (and v6 if enabled) socket bound to the same port. The Linux kernel hashes
                 // inbound 4-tuples across them — per-peer order preserved, single-recv-thread
                 // pps wall lifted.
+                // Only if the primary actually got SO_REUSEPORT. Binding a second socket to a port
+                // without it cannot succeed — it fails with AddressAlreadyInUse and prints a bind
+                // exception that reads like a crash. The flag is cleared by BindSocket above, which
+                // runs after extraSocketCount was decided, so it has to be re-checked here.
+                if (!_useReusePort) extraSocketCount = 0;
+
+                // How many send paths there actually are, as opposed to how many were asked for.
+                // The host sizes its send worker pool from this, and a pool sized for sockets that
+                // failed to bind would be sized for capacity that does not exist.
+                BoundSendSocketCount = 1;
+
+                _reusePortAddressV4 = addressIPv4;
+                _reusePortAddressV6 = addressIPv6;
+
                 for (int i = 0; i < extraSocketCount; i++)
                 {
-                    var extraV4 = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                    if (!BindSocket(extraV4, new IPEndPoint(addressIPv4, LocalPort)))
-                    {
-                        NetDebug.WriteError($"[NM] Extra REUSEPORT socket #{i + 1} (v4) bind failed; stopping at {i} extras");
-                        extraV4.Close();
-                        break;
-                    }
-                    _extraSocketsV4.Add(extraV4);
-
-                    Socket extraV6 = null;
-                    if (_udpSocketv6 != null)
-                    {
-                        extraV6 = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
-                        if (!BindSocket(extraV6, new IPEndPoint(addressIPv6, LocalPort)))
-                        {
-                            // v6 bind can fail with AddressAlreadyInUse on dual-stack hosts even with
-                            // REUSEPORT — degrade to v4-only for this slot rather than aborting.
-                            extraV6.Close();
-                            extraV6 = null;
-                        }
-                        else
-                        {
-                            _extraSocketsV6.Add(extraV6);
-                        }
-                    }
-
-                    Socket capturedV4 = extraV4;
-                    Socket capturedV6 = extraV6;
-                    Thread extraThread = new Thread(() =>
-                    {
-                        if (UseNativeSockets)
-                            NativeReceiveLogicForSocketPair(capturedV4, capturedV6);
-                        else
-                            ReceiveLogicForSocketPair(capturedV4, capturedV6);
-                    })
-                    {
-                        Name = $"ReceiveThread({LocalPort}#{i + 1})",
-                        IsBackground = true
-                    };
-                    _extraReceiveThreads.Add(extraThread);
-                    extraThread.Start();
+                    if (!TryAddSendSocket()) break;
                 }
             }
 
@@ -669,16 +740,17 @@ namespace LiteNetLib
                 socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontRoute, DontRoute);
                 if (_useReusePort && RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    try
+                    // Set MUST happen before bind. Enables the kernel to hash inbound 4-tuples
+                    // across all sockets sharing the port, giving one receive thread per socket
+                    // without app-level load balancing.
+                    //
+                    // Goes through libc rather than SetSocketOption: .NET's Unix layer maps option
+                    // names through a table of ones it knows and rejects anything else with
+                    // OperationNotSupported, so casting the raw constant could never work — it
+                    // failed on every Linux host, silently falling back to a single socket.
+                    if (!NativeSocket.TryEnableReusePort(socket.Handle, out int errno))
                     {
-                        // SO_REUSEPORT = 15 on Linux. Set MUST happen before bind. Enables the
-                        // kernel to RSS-hash inbound 4-tuples across all sockets sharing the port,
-                        // giving one receive thread per socket without app-level load balancing.
-                        socket.SetSocketOption(SocketOptionLevel.Socket, (SocketOptionName)SO_REUSEPORT_LINUX, 1);
-                    }
-                    catch (SocketException ex)
-                    {
-                        NetDebug.WriteError($"[NM] SO_REUSEPORT setsockopt failed ({ex.SocketErrorCode}); multi-socket disabled");
+                        NetDebug.WriteError($"[NM] SO_REUSEPORT unavailable (errno {errno}); running a single socket.");
                         _useReusePort = false;
                     }
                 }

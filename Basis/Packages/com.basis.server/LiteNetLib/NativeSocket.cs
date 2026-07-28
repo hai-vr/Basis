@@ -81,6 +81,20 @@ namespace LiteNetLib
                 [In] int socketAddressSize);
 
             /// <summary>
+            /// Raw setsockopt. Needed because .NET's Unix socket layer validates option names
+            /// against its own mapping table instead of passing the value through, so an option it
+            /// does not know — SO_REUSEPORT among them — is rejected with OperationNotSupported
+            /// however it is cast. Going straight to libc is the only way to set it.
+            /// </summary>
+            [DllImport(LibName, SetLastError = true)]
+            internal static extern int setsockopt(
+                IntPtr socketHandle,
+                int level,
+                int optname,
+                ref int optval,
+                uint optlen);
+
+            /// <summary>
             /// Sends up to <paramref name="vlen"/> datagrams — each to its own destination — in a
             /// single syscall. This is the whole point of the batch path: a broadcast server's
             /// cost is dominated by syscall count, not by bytes.
@@ -398,6 +412,41 @@ namespace LiteNetLib
                 ok++;
             }
             return ok;
+        }
+
+        // Linux values. SOL_SOCKET is 1 and SO_REUSEPORT is 15 there; both differ on macOS/BSD
+        // (0xffff / 0x0200), which is why this is gated to Linux by the caller rather than guessed.
+        private const int SOL_SOCKET_LINUX = 1;
+        private const int SO_REUSEPORT_LINUX = 15;
+
+        /// <summary>
+        /// Enables SO_REUSEPORT on <paramref name="socketHandle"/>, so several sockets can share one
+        /// UDP port and the kernel hashes inbound 4-tuples across them. Must be set before bind.
+        /// Returns false with <paramref name="errno"/> set when the kernel refuses.
+        ///
+        /// Linux only — the caller checks the platform. It exists as a P/Invoke because the managed
+        /// SetSocketOption cannot express this option at all; see <see cref="UnixSock.setsockopt"/>.
+        /// </summary>
+        public static bool TryEnableReusePort(IntPtr socketHandle, out int errno)
+        {
+            errno = 0;
+            if (!UnixMode) return false;
+
+            try
+            {
+                int enable = 1;
+                int result = UnixSock.setsockopt(
+                    socketHandle, SOL_SOCKET_LINUX, SO_REUSEPORT_LINUX, ref enable, sizeof(int));
+                if (result == 0) return true;
+
+                errno = Marshal.GetLastWin32Error();
+                return false;
+            }
+            catch (Exception)
+            {
+                // No libc symbol, or a platform that does not have it — treat as unsupported.
+                return false;
+            }
         }
 
         public static SocketError GetSocketError()

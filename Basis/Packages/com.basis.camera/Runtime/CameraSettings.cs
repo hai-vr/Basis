@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Basis.Cinematics;
 using UnityEngine;
 
 public partial class BasisHandHeldCameraUI
@@ -11,12 +13,17 @@ public partial class BasisHandHeldCameraUI
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
         /// v2 added the auto-follow config, capture toggles and MSAA.
         /// </summary>
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
         {
             settingsVersion = CurrentVersion;
+
+            backgroundMode = 0;
+            backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
+            backgroundKeepsWorld = false;
+            subjectFramingRadius = 0.45f;
 
             autoFollowPositionOffset = new Vector3(0.5f, 0f, 1.4f);
             autoFollowRotationOffset = Vector3.zero;
@@ -114,5 +121,18 @@ public partial class BasisHandHeldCameraUI
         public bool capture360;
         public bool useAutoLeveling;
         public bool useVRHandheldSmoothing;
+
+        // Background. Mode 0 is World, so a zero-filled old file keeps the world background.
+        public int backgroundMode;
+        public Color backgroundCustomColor;
+        public bool backgroundKeepsWorld;
+
+        /// <summary>
+        /// The authored shot rig. Whether the rig is switched on is deliberately not saved — the
+        /// same reasoning as auto follow, which would otherwise fly the camera off on every spawn.
+        /// </summary>
+        public List<BasisCameraShot> cinematicShots = new List<BasisCameraShot>();
+
+        public float subjectFramingRadius;
     }
 }

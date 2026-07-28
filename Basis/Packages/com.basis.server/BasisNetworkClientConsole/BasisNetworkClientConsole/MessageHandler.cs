@@ -409,6 +409,52 @@ namespace Basis.Network
 
             ushort playerId = large ? (ushort)(raw[pos] | (raw[pos + 1] << 8)) : raw[pos];
             Basis.Network.MovementSender.VoiceSender.NoteAudible(clientIndex, playerId);
+            NoteSenderSeen(playerId);
+        }
+
+        // ── Per-sender delivery fairness ──────────────────────────────────────────────────────
+        //
+        // Counts inbound avatar frames per sender across the whole crowd. A server that is over
+        // capacity has to drop something, but it should thin everyone out evenly — if instead the
+        // same players are starved every tick they freeze in place for everybody else, which looks
+        // like a bug rather than like load. Only the spread of these counts shows the difference;
+        // an aggregate send or drop total cannot.
+        private static readonly long[] SenderSeen = new long[ushort.MaxValue + 1];
+
+        public static void NoteSenderSeen(ushort playerId) =>
+            Interlocked.Increment(ref SenderSeen[playerId]);
+
+        /// <summary>Distribution of received frames per sender — the fairness check.</summary>
+        public static string SenderFairness()
+        {
+            var counts = new List<long>(1024);
+            for (int i = 0; i < SenderSeen.Length; i++)
+            {
+                long c = Interlocked.Read(ref SenderSeen[i]);
+                if (c > 0) counts.Add(c);
+            }
+            if (counts.Count == 0) return "[Fairness] no avatar frames seen yet.";
+
+            counts.Sort();
+            long total = 0;
+            foreach (long c in counts) total += c;
+            double mean = (double)total / counts.Count;
+
+            double variance = 0;
+            foreach (long c in counts) { double d = c - mean; variance += d * d; }
+            double stddev = Math.Sqrt(variance / counts.Count);
+
+            long p01 = counts[(int)(counts.Count * 0.01)];
+            long p50 = counts[counts.Count / 2];
+            long p99 = counts[Math.Min(counts.Count - 1, (int)(counts.Count * 0.99))];
+
+            // Starved = receiving under a tenth of the median. On a fairly-degrading server this is
+            // zero however hard it is shedding.
+            int starved = 0;
+            foreach (long c in counts) if (c < p50 / 10) starved++;
+
+            return $"[Fairness] {counts.Count} senders seen | min={counts[0]} p1={p01} median={p50} p99={p99} max={counts[counts.Count - 1]} " +
+                   $"| stddev/mean={(mean > 0 ? stddev / mean : 0):F2} | starved(<10% of median)={starved}";
         }
 
     }

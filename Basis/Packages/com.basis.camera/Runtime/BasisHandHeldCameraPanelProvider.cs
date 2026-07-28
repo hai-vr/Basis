@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 namespace Basis.BasisUI.HandHeldCamera
 {
-    public class BasisHandHeldCameraPanelProvider : BasisMenuActionProvider<BasisMainMenu>
+    public partial class BasisHandHeldCameraPanelProvider : BasisMenuActionProvider<BasisMainMenu>
     {
         public const string StaticTitle = "Camera Settings";
 
@@ -254,6 +254,8 @@ namespace Basis.BasisUI.HandHeldCamera
             BuildFollowGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, false, OnSectionExpanded);
 
+            BuildCinematicSections(_scrollContent);
+
             BuildActionsGroup(_scrollContent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
 
@@ -407,6 +409,7 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             ApplyOnPropUIVisibility(false);
             SetPanelTickSubscription(false);
+            ClearCinematicReferences();
             _panel = null;
             _scrollContent = null;
             _selector = null;
@@ -1326,6 +1329,12 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_effectsSection, _effectsGroup, active);
             SetSectionActive(_outputSection, _outputGroup, active);
             SetSectionActive(_followSection, _followGroup, active);
+            SetSectionActive(_cinematicSection, _cinematicGroup, active);
+            SetSectionActive(_compositionSection, _compositionGroup, active);
+            SetSectionActive(_orbitSection, _orbitGroup, active);
+            SetSectionActive(_noiseSection, _noiseGroup, active);
+            SetSectionActive(_dollySection, _dollyGroup, active);
+            SetSectionActive(_backgroundSection, _backgroundGroup, active);
             SetSectionActive(_actionSection, _actionGroup, active);
             SetSectionActive(_layersSection, _layersGroup, active);
             SetSectionActive(_performanceSection, _performanceGroup, active);
@@ -1344,6 +1353,13 @@ namespace Basis.BasisUI.HandHeldCamera
         private void ApplyActiveCameraToControls()
         {
             if (_activeCamera == null) return;
+
+            _lastShotRosterHash = -1;
+            _lastWaypointCount = -1;
+            _lastCinematic = null;
+            SeedCinematicCameraControls();
+            RefreshShotList();
+            RefreshWaypointList();
 
             BasisHandHeldCameraMetaData metaData = _activeCamera.MetaData;
 
@@ -1629,6 +1645,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
             SyncSharedControls();
             RefreshFollowTargets();
+            TickCinematicSections();
             RefreshTimerLabel();
             RefreshHiddenState();
         }

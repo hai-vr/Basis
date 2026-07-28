@@ -22,11 +22,21 @@ namespace Basis.Scripts.BasisSdk.Players
         EyeHeight,
 
         /// <summary>
-        /// Automatically picks between EyeHeight and ArmSpan per avatar: whichever metric pair
-        /// yields the larger DeviceScale wins, so the player's full reach always covers the
-        /// avatar's arms (arms can always straighten) and the viewpoint lands at-or-above the
-        /// avatar's eyes. Resolved by BasisHeightDriver.ResolveHeightMode.
+        /// Fits the player into the avatar using every measurement available rather than picking one.
+        /// Resolved by BasisHeightDriver.ResolveHeightMode; this is what Auto becomes in VR.
         /// </summary>
         Auto,
+
+        /// <summary>
+        /// Scale chosen by <see cref="Basis.IK.BasisScaleFitCore"/> from every body measurement held —
+        /// eye height, arm span, hip height — with the positional stretcher taking up whatever the one
+        /// uniform scale could not cover. Sits as close to the eye-matched scale as the other segments
+        /// allow, so while the stretcher can absorb the difference the viewpoint stays exactly right.
+        ///
+        /// Not offered in the height-mode dropdown: it is what Auto resolves to, not a fourth choice
+        /// the player picks between. The dropdown maps its indices by hand (SMModuleCalibration), so
+        /// this value never surfaces there.
+        /// </summary>
+        BestFit,
     }
 }

@@ -369,7 +369,88 @@ namespace LiteNetLib
         /// so P2P times out long before anything else looks wrong. Scaling with the peer count
         /// keeps a small instance cheap and a large one responsive.
         /// </summary>
-        private const int PeersPerUpdateWorker = 128;
+        private int _peersPerUpdateWorker = 128;
+
+        /// <summary>
+        /// Peers each worker in the per-peer pass is expected to service. Lower means more workers
+        /// for the same population.
+        ///
+        /// This is the number that decides how much of a large host the server can actually use,
+        /// and 128 was fitted to a 32-thread machine with fast cores. It is a ceiling, not a
+        /// target: at 4000 peers it picks 31 workers no matter how many cores exist, so a 128-core
+        /// host runs at about a quarter utilisation with the pass still over its latency target.
+        /// Halving it doubles the workers.
+        ///
+        /// Tune it against the pass time in the [CPU] log line: above PeerPassTargetMs with cores
+        /// to spare means this is too high. Slower cores want a lower value than fast ones, because
+        /// a worker gets through fewer peers per pass.
+        /// </summary>
+        public int PeersPerUpdateWorker
+        {
+            get => _peersPerUpdateWorker;
+            set => _peersPerUpdateWorker = value > 0 ? value : 128;
+        }
+
+        /// <summary>
+        /// Pass duration above which the pool is under-provisioned. Diagnostic only.
+        ///
+        /// Three controllers were built to size this pool from live load and all three measured
+        /// worse. Duty cycle is degenerate — the loop only waits when a pass fits inside UpdateTime,
+        /// so anything longer reports ~1.00 whether it takes 3 ms or 300 ms. Steering on pass
+        /// duration alone cannot tell a host with spare cores, where widening is free, from a
+        /// saturated one, where it took CPU from 16.2 to 25.2 cores at 2000 players and lowered
+        /// throughput. Sizing stays explicit; this exists so an operator can see if theirs is right.
+        /// </summary>
+        public const double PeerPassTargetMs = 25.0;
+
+        /// <summary>Workers currently running the per-peer pass. Diagnostics.</summary>
+        public int PeerUpdateWorkers { get; private set; }
+
+        /// <summary>
+        /// Fraction of the machine the host process is using, 0..1. Set by the host; 0 means
+        /// unknown, and the pool then stays on the population figure alone.
+        ///
+        /// Without this the pool cannot tell "slow because it is short of workers" from "slow
+        /// because the machine is full", and those want opposite responses.
+        /// </summary>
+        public double MachineUtilization;
+
+        /// <summary>Widen only below this — above it the cores would come out of something else.</summary>
+        private const double GrowBelowUtilization = 0.70;
+
+        /// <summary>Above this the machine is full; hand workers back rather than add contention.</summary>
+        private const double ShrinkAboveUtilization = 0.88;
+
+        private long _lastWorkerStepTicks;
+        private static readonly long WorkerStepIntervalTicks = Stopwatch.Frequency / 10;   // 100 ms
+
+        // A widening is held for a settle window, then kept only if the pass actually got shorter.
+        private int _probeFromWorkers;
+        private double _probePassMsBefore;
+        private int _probeSettleSteps;
+        private int _cooldownSteps;
+        private const int ProbeSettleSteps = 8;       // ~800 ms, enough for the average to follow
+        private const int ProbeCooldownSteps = 30;    // ~3 s before trying again
+        private const double ProbeMustImproveBy = 0.10;
+
+        /// <summary>Smoothed per-peer pass duration in ms — the floor on reliable delivery.</summary>
+        public double PeerUpdatePassMs => Volatile.Read(ref _passBusyEma);
+
+        private long _peersUpdatedTotal;
+        private long _peerUpdateBusyMicros;
+
+        /// <summary>
+        /// Peers updated since start, paired with <see cref="PeerUpdateBusyMicros"/>.
+        ///
+        /// The ratio of the two is peers per millisecond of pass time — how fast this pass chews
+        /// through peers while it is running, as opposed to how many it gets through per second of
+        /// wall clock, which is set by the pass interval and says nothing about workers. A host
+        /// that samples both over a window can see whether changing the worker count moved it.
+        /// </summary>
+        public long PeersUpdatedTotal => Interlocked.Read(ref _peersUpdatedTotal);
+
+        /// <summary>Microseconds the per-peer pass has spent working. Pairs with <see cref="PeersUpdatedTotal"/>.</summary>
+        public long PeerUpdateBusyMicros => Interlocked.Read(ref _peerUpdateBusyMicros);
 
         /// <summary>
         /// Ceiling for the auto-sized worker count.
@@ -401,6 +482,29 @@ namespace LiteNetLib
         // Slow-pass diagnostics. A pass over this long means reliable delivery is queueing behind
         // it; 50ms is well inside the client's 4s direct-connect handshake budget but already far
         // enough from the normal sub-millisecond pass to be worth saying out loud.
+        // Duty cycle of the per-peer pass: how much of each cycle it spends working rather than
+        // waiting. This is the pool's "am I behind" signal, and it is deliberately the same shape
+        // as the reduction system's so the two can be compared against each other and the core
+        // budget shifted toward whichever is actually short. Near 1 means the pass is continuously
+        // busy — more workers would let it finish sooner.
+        private double _passBusyEma;
+        private double _passPeriodEma;
+
+        /// <summary>
+        /// Fraction of wall time the per-peer update pass is busy, 0..1. Smoothed, so a single long
+        /// pass does not swing it.
+        /// </summary>
+        public double PeerUpdatePressure
+        {
+            get
+            {
+                double period = Volatile.Read(ref _passPeriodEma);
+                if (period <= 0.001) return 0;
+                double duty = Volatile.Read(ref _passBusyEma) / period;
+                return duty < 0 ? 0 : duty > 1 ? 1 : duty;
+            }
+        }
+
         private const double SlowPassWarnMs = 50.0;
         private const int SlowPassReportEvery = 200;
         private long _slowPassCount;
@@ -418,11 +522,91 @@ namespace LiteNetLib
 
         private ParallelOptions PeerUpdateOptions => GetPeerUpdateOptions(_updateSnapshot.Count);
 
+        private int _adaptivePeerWorkers;
+
         private ParallelOptions GetPeerUpdateOptions(int peerCount)
         {
-            int desired = PeerUpdateParallelism <= 0
-                ? Math.Clamp(peerCount / PeersPerUpdateWorker, 4, ResolvedPeerUpdateCap)
-                : Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
+            int desired;
+            if (PeerUpdateParallelism > 0)
+            {
+                desired = Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
+            }
+            else
+            {
+                int cap = ResolvedPeerUpdateCap;
+
+                // Population sets the floor, not the ceiling. As a ceiling it capped the whole
+                // server: peers-per-worker picks 31 workers for 4000 peers however many cores
+                // exist, so a 128-core host ran at about a quarter utilisation with the pass still
+                // over target and no way to reach the idle cores.
+                int floor = Math.Clamp(peerCount / _peersPerUpdateWorker, 4, cap);
+
+                int current = _adaptivePeerWorkers;
+                if (current < floor) current = floor;
+                if (current > cap) current = cap;
+
+                long now = Stopwatch.GetTimestamp();
+                if (now - _lastWorkerStepTicks >= WorkerStepIntervalTicks)
+                {
+                    _lastWorkerStepTicks = now;
+
+                    double passMs = Volatile.Read(ref _passBusyEma);
+                    double util = MachineUtilization;
+
+                    if (util <= 0)
+                    {
+                        // Host is not reporting utilisation, so there is no way to tell short-of-
+                        // workers from short-of-cores. Stay on the population figure.
+                        current = floor;
+                    }
+                    else if (util > ShrinkAboveUtilization && current > floor)
+                    {
+                        // Machine is full. More workers here is contention, not throughput.
+                        current--;
+                    }
+                    else if (_probeSettleSteps > 0)
+                    {
+                        // A widening is in flight. Hold it until the pass average reflects it, then
+                        // judge — headroom measured *before* growing is not proof it helped, since
+                        // growing is itself what consumes the headroom. Without this check the pool
+                        // grows into saturation and stays: measured at 2000 players it climbed to
+                        // the cap, took utilisation from 35% to 78%, and left the pass at 40-55 ms.
+                        if (--_probeSettleSteps == 0)
+                        {
+                            bool helped = passMs < _probePassMsBefore * (1.0 - ProbeMustImproveBy);
+                            if (!helped)
+                            {
+                                current = Math.Max(floor, _probeFromWorkers);
+                                _cooldownSteps = ProbeCooldownSteps;
+                            }
+                        }
+                    }
+                    else if (_cooldownSteps > 0)
+                    {
+                        _cooldownSteps--;
+                    }
+                    else if (passMs > PeerPassTargetMs && util < GrowBelowUtilization && current < cap)
+                    {
+                        // Slow, and there are cores to fix it with. Climb quickly — an
+                        // under-provisioned pass delays every reliable message while it is short,
+                        // and on a large host the gap can be a hundred workers.
+                        _probeFromWorkers = current;
+                        _probePassMsBefore = passMs;
+                        _probeSettleSteps = ProbeSettleSteps;
+                        current = Math.Min(cap, current + Math.Max(1, current / 4));
+                    }
+                    else if (passMs < PeerPassTargetMs / 2 && current > floor)
+                    {
+                        // Comfortably inside target — give one back, slowly.
+                        current--;
+                    }
+                }
+
+                _adaptivePeerWorkers = current;
+                desired = current;
+            }
+
+            PeerUpdateWorkers = desired;
 
             var options = _peerUpdateOptions;
             if (options == null || options.MaxDegreeOfParallelism != desired)
@@ -801,6 +985,20 @@ namespace LiteNetLib
                     // (the client gives a direct-connect handshake 4 s), and nothing else in the
                     // logs would say why. Reported as a rate-limited summary, not per pass.
                     double passMs = stopwatch.Elapsed.TotalMilliseconds;
+
+                    // Busy time against full cycle time (elapsed was read before the restart, so it
+                    // spans the previous cycle including its wait). Their ratio is the duty cycle
+                    // the budget allocator balances on.
+                    _passBusyEma = _passBusyEma <= 0 ? passMs : _passBusyEma * 0.9 + passMs * 0.1;
+                    _passPeriodEma = _passPeriodEma <= 0 ? elapsed : _passPeriodEma * 0.9 + elapsed * 0.1;
+
+                    // Peers per millisecond of pass time, accumulated for the host's core allocator
+                    // to differentiate. This pair is what lets it measure the width past which more
+                    // workers stop shortening the pass, rather than trusting a shipped constant.
+                    // Kept as raw totals, not a rate, so the reader picks its own window.
+                    _peersUpdatedTotal += snapshotCount;
+                    _peerUpdateBusyMicros += (long)(passMs * 1000.0);
+
                     if (passMs > _slowPassPeak) _slowPassPeak = passMs;
                     if (passMs > SlowPassWarnMs)
                     {

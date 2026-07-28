@@ -78,6 +78,9 @@ public static class BasisLocalHeightCalculator
         float span = Vector3.Distance(lFlat, rFlat);
 
         BasisHeightDriver.PlayerArmSpan = span;
+        // Both hands tracked and measured against each other: the only reading here that describes the
+        // player's actual reach rather than a fallback or a doubled head-to-hand guess.
+        BasisHeightDriver.HasGenuinePlayerArmSpan = true;
         BasisDebug.Log($"Player hand-to-hand arm span: {BasisHeightDriver.PlayerArmSpan}", BasisDebug.LogTag.Avatar);
     }
 

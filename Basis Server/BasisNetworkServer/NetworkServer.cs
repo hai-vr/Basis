@@ -50,7 +50,10 @@ public static class NetworkServer
     // Centralized NetDataWriter pool — single source of truth for all server code.
     // Capped so writers don't accumulate unboundedly after player count spikes.
     private static readonly ConcurrentQueue<NetDataWriter> _writerPool = new();
-    private const int MaxPooledWriters = 64;
+    // Depth follows the machine: this pool absorbs writers borrowed concurrently, and how many that
+    // is scales with how many threads can be in flight. A literal cap was too small on a large host
+    // (writers allocated instead of reused) and wasteful on a small one.
+    private static readonly int MaxPooledWriters = BasisCpuBudget.ConcurrencyWidth(perCore: 4, min: 32, max: 2048);
     public static NetDataWriter RentWriter(int initialCapacity = 208)
     {
         if (_writerPool.TryDequeue(out var writer)) return writer;
@@ -124,6 +127,13 @@ public static class NetworkServer
     public static void InitializePulseSettings()
     {
         BasisServerReductionSystemEvents.SetMaxDegreeOfParallelism(Configuration.BSRMaxDegreeOfParallelism);
+        int configuredMaxSockets = Basis.Network.Core.BasisTransportConfigStore
+            .Get<Basis.Network.Core.LNLTransportConfig>(
+                Basis.Network.Core.BasisNetworkStackRegistry.LiteNetLibId).MaxSendSockets;
+        // 0 = auto, derived from the core count. See BasisCpuBudget.AutoMaxSendSockets.
+        BasisServerReductionSystemEvents.MaxSendSockets = configuredMaxSockets > 0
+            ? configuredMaxSockets
+            : Basis.Network.Core.BasisCpuBudget.AutoMaxSendSockets;
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
         BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;

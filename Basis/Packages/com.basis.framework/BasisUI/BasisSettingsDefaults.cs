@@ -515,7 +515,14 @@ namespace Basis.BasisUI
 
         // Estimate a ballpark scale from the live HMD/controllers while the player hasn't calibrated yet, so an
         // uncalibrated VR session isn't wildly mis-sized. A real calibration overrides it. See BasisAutoScaleEstimator.
+        // Superseded by ContinuousBodyMeasurement below, which does the same job for calibrated sessions too.
         public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
+
+        // Keep watching the player's real eye height and arm span while they use the world, and refit the
+        // avatar when a better measurement turns up, instead of trusting whatever pose they happened to be
+        // in on the one frame an avatar loaded. Both measurements only ever read SHORT, so this only ever
+        // corrects upward and settles. See BasisBodyEvidenceSampler.
+        public static BasisSettingsBinding<bool> ContinuousBodyMeasurement = new("continuousbodymeasurement", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<string> SelectedBone = new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
@@ -671,6 +678,19 @@ namespace Basis.BasisUI
         // Nothing wrote shadowCastingMode on a remote renderer before this, so a distant crowd was
         // paying a full extra skinned draw per shadow cascade each.
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
+
+        // Swaps remote avatars past a distance for the baked low-poly imposter carried in their
+        // bundle (driven by the same networked bone data). Avatars without an imposter payload
+        // keep the regular LOD path.
+        public static BasisSettingsBinding<bool> UseAvatarImposter = new("useavatarimposter", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> AvatarImposterDistance = new("avatarimposterdistance", new BasisPlatformDefault<float>
+        {
+            windows = 20,
+            android = 12,
+            ios = 12,
+            linux = 20,
+            other = 20
+        });
 
         public static BasisSettingsBinding<float> GlobalMeshLOD = new("globalmeshlod", new BasisPlatformDefault<float>
         {
@@ -1878,6 +1898,7 @@ namespace Basis.BasisUI
             SavedPlayerEyeHeight.LoadBindingValue();
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
+            ContinuousBodyMeasurement.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             TrackerVisuals.LoadBindingValue();
@@ -2017,6 +2038,8 @@ namespace Basis.BasisUI
             AvatarMeshLOD.LoadBindingValue();
             UseAvatarSkinLod.LoadBindingValue();
             UseAvatarShadowLod.LoadBindingValue();
+            UseAvatarImposter.LoadBindingValue();
+            AvatarImposterDistance.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
 
             // Performance Limits

@@ -61,6 +61,7 @@ public static class BasisAssetBundlePipeline
         string assetPath = null;
         string uniqueID = null;
         GameObject prefab = null;
+        BasisSceneBuildName sceneBuildName = null;
 
         try
         {
@@ -79,7 +80,13 @@ public static class BasisAssetBundlePipeline
                 }
 
                 OnBeforeBuildScene?.Invoke(scene, settings);
-                assetPath = TemporaryStorageHandler.SaveScene(scene, settings, out uniqueID);
+                sceneBuildName = BasisSceneBuildName.Assign(scene);
+                if (sceneBuildName == null)
+                {
+                    throw new Exception("Failed to stage the scene for building, see the errors above.");
+                }
+                assetPath = sceneBuildName.ScenePath;
+                uniqueID = sceneBuildName.UniqueID;
             }
             else
             {
@@ -157,6 +164,10 @@ public static class BasisAssetBundlePipeline
             }
 
             return new(false, (null, new AssetBundleBuilder.InformationHash()));
+        }
+        finally
+        {
+            sceneBuildName?.Dispose();
         }
     }
 

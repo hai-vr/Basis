@@ -31,6 +31,19 @@ namespace Basis.IK
         public float AvatarLegSpan;
         public float AvatarSpineSpan;
         public float AvatarShoulderWidth;
+
+        /// <summary>
+        /// The uniform scale actually applied to the avatar — what one player metre became in avatar
+        /// metres. The fit measures its residual against THIS, so whatever the uniform scale left over
+        /// is exactly what the segments take up. Deriving it from eye height instead (as this did
+        /// before <see cref="BasisScaleFitCore"/> existed) silently assumed the scale had matched eye
+        /// height, so in any other height mode the fit computed a residual that did not exist and
+        /// pulled against the scale rather than completing it.
+        ///
+        /// Zero or less falls back to the eye-height ratio, which is the correct answer whenever the
+        /// scale did match eye height.
+        /// </summary>
+        public float UniformScale;
     }
 
     public struct BasisBodyFitResult
@@ -89,6 +102,32 @@ namespace Basis.IK
             _ => "unknown",
         };
 
+        /// <summary>
+        /// Avatar-metres of arm-span mismatch the arm fit can absorb at this deviation, for
+        /// <see cref="BasisScaleFitSample.Slack"/>. The arm fit scales arm length (span minus shoulders)
+        /// by at most 1±deviation, so the reachable span moves by that much of the arm-only part —
+        /// shoulder width does not scale, which is why this is not simply deviation × span.
+        /// Must stay in step with <see cref="SolveArms"/>.
+        /// </summary>
+        public static float ArmSpanSlack(in BasisBodyFitMeasurements m, float maxDeviation)
+        {
+            float deviation = Mathf.Clamp(maxDeviation, 0f, MaxDeviationCeiling);
+            float armOnly = m.AvatarArmSpan - Mathf.Max(0f, m.AvatarShoulderWidth);
+            return armOnly > 0f ? deviation * armOnly : 0f;
+        }
+
+        /// <summary>
+        /// Avatar-metres of hip-height mismatch the leg/torso fit can absorb at this deviation, for
+        /// <see cref="BasisScaleFitSample.Slack"/>. The fit trades leg length against spine length, so
+        /// the shorter of the two caps the shift. Must stay in step with <see cref="SolveBody"/>.
+        /// </summary>
+        public static float HipHeightSlack(in BasisBodyFitMeasurements m, float maxDeviation)
+        {
+            float deviation = Mathf.Clamp(maxDeviation, 0f, MaxDeviationCeiling);
+            float shorter = Mathf.Min(m.AvatarLegSpan, m.AvatarSpineSpan);
+            return shorter > 0f ? deviation * shorter : 0f;
+        }
+
         public static BasisBodyFitResult Solve(in BasisBodyFitMeasurements m, float maxDeviation)
         {
             BasisBodyFitResult result = BasisBodyFitResult.Identity;
@@ -113,7 +152,9 @@ namespace Basis.IK
                 return result;
             }
 
-            float toAvatarSpace = m.AvatarEyeHeight / m.PlayerEyeHeight;
+            float toAvatarSpace = m.UniformScale > 0f && !float.IsNaN(m.UniformScale) && !float.IsInfinity(m.UniformScale)
+                ? m.UniformScale
+                : m.AvatarEyeHeight / m.PlayerEyeHeight;
 
             SolveArms(in m, toAvatarSpace, deviation, ref result);
             SolveBody(in m, toAvatarSpace, deviation, ref result);

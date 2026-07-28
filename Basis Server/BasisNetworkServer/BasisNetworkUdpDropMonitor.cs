@@ -27,6 +27,22 @@ namespace BasisNetworkServer
         private static long _lastInErrors = -1;
         private static long _lastInCsumErrors = -1;
 
+        private static long _recvBufferDropsTotal;
+
+        /// <summary>
+        /// Running total of receive-buffer drops since start.
+        ///
+        /// A saturated receive thread is invisible in CPU terms — the thread is pinned either way —
+        /// so this is the signal that says the receive side, rather than the send side or the
+        /// machine, is what limits throughput. The kernel is discarding datagrams because nothing
+        /// drained them in time, which more receive threads (more SO_REUSEPORT sockets) can fix.
+        ///
+        /// Cumulative rather than take-and-reset so callers can compare rates across windows —
+        /// "are drops falling now that I added a socket" is a different question from "are there
+        /// drops", and only the first one can tell whether sockets are the right fix at all.
+        /// </summary>
+        public static long TotalReceiveBufferDrops => Interlocked.Read(ref _recvBufferDropsTotal);
+
         public static void Start()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
@@ -78,6 +94,13 @@ namespace BasisNetworkServer
 
                 if (droppedBuf > 0)
                 {
+                    // Publish it, not just log it. This is the only direct evidence that the
+                    // receive side is the bottleneck, and it is what the socket-growth controller
+                    // steers on — a saturated receive thread cannot be seen in CPU numbers,
+                    // because the thread is busy either way. It shows up as the kernel throwing
+                    // packets away behind it.
+                    Interlocked.Add(ref _recvBufferDropsTotal, droppedBuf);
+
                     BNL.LogWarning(
                         $"[UdpDropMonitor] Kernel dropped {droppedBuf} UDP packets in last {SampleInterval.TotalSeconds:F0}s " +
                         $"(RcvbufErrors). Receive thread is saturated -- raise MultiSocketCount in litenetlib.xml " +

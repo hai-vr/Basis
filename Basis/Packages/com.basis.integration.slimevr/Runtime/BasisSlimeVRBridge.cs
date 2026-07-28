@@ -585,6 +585,7 @@ namespace Basis.Integration.SlimeVR
                     || !BasisHeightDriver.HasUserCalibratedHeight))
             {
                 BasisHeightDriver.PlayerEyeHeight = eyeHeight;
+                BasisHeightDriver.HasGenuinePlayerEyeHeight = true;
                 Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(eyeHeight);
                 changed = true;
             }
@@ -603,6 +604,9 @@ namespace Basis.Integration.SlimeVR
             if (spanPlausible && Mathf.Abs(BasisHeightDriver.PlayerArmSpan - armSpan) > 0.005f)
             {
                 BasisHeightDriver.PlayerArmSpan = armSpan;
+                // SlimeVR measured this off a real skeleton, so it must survive the next avatar load
+                // rather than being re-polled from whatever pose the player is in.
+                BasisHeightDriver.HasGenuinePlayerArmSpan = true;
                 Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(armSpan);
                 changed = true;
             }

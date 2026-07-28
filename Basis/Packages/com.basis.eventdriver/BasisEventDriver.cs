@@ -299,6 +299,12 @@ namespace Basis.EventDriver
             {
                 Basis.Scripts.Device_Management.EyeTracking.BasisGazeFoveationAutoDriver.Simulate();
             }
+            // After the input pump, so the device poses this reads are the ones polled this frame.
+            using (Prof.BodyEvidenceSample.Auto())
+            {
+                BasisBodyEvidenceSampler.Simulate(DeltaTime);
+                BasisHeightDriver.TickObservedEvidence(DeltaTime);
+            }
             using (Prof.HighPlayerCap.Auto())
             {
                 BasisPerformanceMode.Simulate();

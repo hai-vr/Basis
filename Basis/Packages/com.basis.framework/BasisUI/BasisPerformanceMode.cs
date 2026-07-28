@@ -679,6 +679,7 @@ namespace Basis.BasisUI
                 Floats(BasisSettingsDefaults.PoseLOD, 2f, 3f, 5f, higherIsCheaper: true),
                 Floats(BasisSettingsDefaults.AvatarMeshLOD, 0.08f, 0.12f, 0.2f, higherIsCheaper: true),
                 Floats(BasisSettingsDefaults.GlobalMeshLOD, 20f, 40f, 60f, higherIsCheaper: true),
+                Floats(BasisSettingsDefaults.AvatarImposterDistance, 18f, 12f, 8f),
 
                 Floats(BasisSettingsDefaults.MaxAudioSources, 32f, 16f, 8f, zeroIsUnlimited: true),
                 Floats(BasisSettingsDefaults.OpenLipSyncMaxSlots, 20f, 12f, 6f),
@@ -715,6 +716,7 @@ namespace Basis.BasisUI
 
                 Bools(BasisSettingsDefaults.UseAvatarSkinLod, true, true, true),
                 Bools(BasisSettingsDefaults.UseAvatarShadowLod, true, true, true),
+                Bools(BasisSettingsDefaults.UseAvatarImposter, true, true, true),
 
                 Bools(BasisSettingsDefaults.UseRealtimeReflectionProbes, false, false, false),
                 Bools(BasisSettingsDefaults.LimitHandHeldCameraRate, true, true, true),

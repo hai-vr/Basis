@@ -16,10 +16,30 @@ namespace LiteNetLib
     /// </summary>
     public sealed class NetStatistics
     {
-        // 64 stripes is comfortably above the core count of machines this runs on, so collisions
-        // are rare. Power of two: the index is a mask, not a modulo.
-        private const int StripeCount = 64;
-        private const int StripeMask = StripeCount - 1;
+        // Sized from the machine, not assumed. A literal 64 was "comfortably above the core count"
+        // only on the box it was written on; on a 256-core host it is a quarter of the threads and
+        // the collisions it exists to prevent come straight back. Power of two: the index is a
+        // mask, not a modulo.
+        //
+        // Two per core, floored so a tiny container still gets a usable table and capped so a very
+        // large host does not allocate a pointless one.
+        private static readonly int StripeCount = ConcurrencyWidth(perCore: 2, min: 16, max: 1024);
+        private static readonly int StripeMask = StripeCount - 1;
+
+        /// <summary>
+        /// Local copy of the shared sizing helper — LiteNetLib sits below Basis.Network.Core and
+        /// cannot reference it. Keep the two in step.
+        /// </summary>
+        private static int ConcurrencyWidth(int perCore, int min, int max)
+        {
+            long wanted = (long)Environment.ProcessorCount * (perCore < 1 ? 1 : perCore);
+            if (wanted < min) wanted = min;
+            if (wanted > max) wanted = max;
+
+            int pow2 = 1;
+            while (pow2 < wanted) pow2 <<= 1;
+            return pow2;
+        }
 
         // 8 longs = one 64-byte cache line per stripe per counter, so neighbouring stripes never
         // share a line. Index i lives at i * Stride.

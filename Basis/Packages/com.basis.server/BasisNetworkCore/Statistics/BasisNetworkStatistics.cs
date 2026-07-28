@@ -16,8 +16,11 @@ namespace BasisNetworkServer.BasisNetworking
     {
         private const int Indices = 256;
 
-        // More stripes -> less contention (2x cores is a good start; clamp to a sane range).
-        private static readonly int StripeCount = Math.Clamp(Environment.ProcessorCount * 2, 16, 128);
+        // More stripes -> less contention. Two per core, from the shared sizing helper so every
+        // contention table in the server is derived the same way. The old upper clamp of 128 was
+        // the problem case: on a 256-core host it silently became fewer stripes than threads,
+        // which is the situation striping exists to avoid.
+        private static readonly int StripeCount = Basis.Network.Core.BasisCpuBudget.ConcurrencyWidth(perCore: 2, min: 16, max: 1024);
 
         // Jagged arrays so Interlocked can take ref long (elements are referenceable).
         private static readonly long[][] _inCountStripes;

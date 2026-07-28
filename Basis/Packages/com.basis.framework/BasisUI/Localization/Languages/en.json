@@ -2603,6 +2603,10 @@
       "value": "Break this pair and return both trackers to the unpaired list."
     },
     {
+      "key": "trackerLinking.roleOverridePair.tooltip",
+      "value": "Lock the pair's fused midpoint to a body role. Auto lets calibration choose."
+    },
+    {
       "key": "trackerLinking.pair.title",
       "value": "Paired Trackers"
     },
@@ -2659,6 +2663,10 @@
       "value": "Calibrating"
     },
     {
+      "key": "calibration.clickToConfirm",
+      "value": "Click again to calibrate"
+    },
+    {
       "key": "calibration.additionalHeight",
       "value": "Additional Player Height"
     },
@@ -2673,6 +2681,14 @@
     {
       "key": "calibration.report.empty",
       "value": "Calibrate to see a quality report."
+    },
+    {
+      "key": "settings.calibration.continuousBodyMeasurement",
+      "value": "Keep Measuring Me"
+    },
+    {
+      "key": "settings.calibration.continuousBodyMeasurement.tooltip",
+      "value": "Keep watching your real height and arm span while you play, and resize the avatar when a better measurement turns up. Your reach in particular can only be measured once you actually reach out, which you have rarely done at the moment an avatar loads. Turn this off to use only what was measured when you last calibrated."
     },
     {
       "key": "settings.calibration.armToHeightRatio",
@@ -3209,6 +3225,10 @@
     {
       "key": "menu.individualPlayer.directConnection.failed",
       "value": "<color=#ff5252>Direct Connection Failed</color>"
+    },
+    {
+      "key": "menu.individualPlayer.directConnection.partial",
+      "value": "Direct Connection: <color=#ff9100>Partial</color> <size=55%>(using server)</size>"
     },
     {
       "key": "menu.individualPlayer.directConnection.playerDisconnected",
@@ -4063,6 +4083,14 @@
       "value": "Choose a Tracker"
     },
     {
+      "key": "library.trackerPicker.empty",
+      "value": "No spare trackers are currently connected."
+    },
+    {
+      "key": "library.trackerPicker.outOfRange",
+      "value": "No spare trackers are within reach of this item. Bring a tracker to the item to bind it."
+    },
+    {
       "key": "library.trackerPicker.cancel",
       "value": "Cancel"
     },
@@ -4451,12 +4479,44 @@
       "value": "Which finger drives direct touch."
     },
     {
+      "key": "settings.general.fingerTouch.finger.index",
+      "value": "Index"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.thumb",
+      "value": "Thumb"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.middle",
+      "value": "Middle"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.ring",
+      "value": "Ring"
+    },
+    {
+      "key": "settings.general.fingerTouch.finger.little",
+      "value": "Little"
+    },
+    {
       "key": "settings.general.fingerTouch.hands",
       "value": "Touch Hands"
     },
     {
       "key": "settings.general.fingerTouch.hands.tooltip",
       "value": "Which hands can touch directly."
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.both",
+      "value": "Both"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.left",
+      "value": "Left"
+    },
+    {
+      "key": "settings.general.fingerTouch.hands.right",
+      "value": "Right"
     },
     {
       "key": "settings.general.fingerTouch.tipOffset",
@@ -5371,6 +5431,18 @@
       "value": "Keep the keyboard and mouse active while a headset is connected."
     },
     {
+      "key": "settings.controls.desktopInputInVR.adaptive",
+      "value": "Adaptive"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.alwaysOn",
+      "value": "Always On"
+    },
+    {
+      "key": "settings.controls.desktopInputInVR.off",
+      "value": "Off"
+    },
+    {
       "key": "settings.controls.uiClick.title",
       "value": "UI Click"
     },
@@ -5783,12 +5855,44 @@
       "value": "Forces hip-to-chest twist to distribute 75% upper chest / 25% spine — the real anatomical ratio for axial rotation."
     },
     {
+      "key": "settings.bodyTracking.anat.spineRom.title",
+      "value": "Anatomical Spine Limits"
+    },
+    {
+      "key": "settings.bodyTracking.anat.spineRom.description",
+      "value": "Holds each spine bone inside the range of motion of the real vertebrae it stands for — the lumbar barely twists, the chest barely folds, the neck is free. Stops impossible spine poses."
+    },
+    {
+      "key": "settings.bodyTracking.anat.chestIkTarget.title",
+      "value": "Chest IK Target"
+    },
+    {
+      "key": "settings.bodyTracking.anat.chestIkTarget.description",
+      "value": "Places the chest at its own target instead of leaving it wherever the head solve happens to put it, so the torso follows your real chest (or a chest tracker) more faithfully. The head stays exactly on the headset."
+    },
+    {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.title",
       "value": "Leg Swivel Smoothing"
     },
     {
       "key": "settings.bodyTracking.anat.legSwivelSmoothing.description",
       "value": "Damps the leg's roll about the hip-to-foot axis so a still, near-straight standing leg doesn't twist with tracking jitter. Real turning still tracks without lag."
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleHold.title",
+      "value": "Foot-Pole Knee Hold"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleHold.description",
+      "value": "Extends the knee-swivel freeze to knees aimed by a foot tracker alone. A knee tracker always gets it; this widens it to the guessed pole, which stops a near-straight standing leg rolling with sway at the cost of a slower release out of the pose. Needs Leg Swivel Smoothing on."
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning.title",
+      "value": "Foot-Pole Knee Low-Pass"
+    },
+    {
+      "key": "settings.bodyTracking.kneeFootPoleConditioning.description",
+      "value": "Runs the knee-swivel low-pass on knees aimed by a foot tracker alone. Quieter near a straight leg, but adds lag to real shin motion. Needs Leg Swivel Smoothing on."
     },
     {
       "key": "settings.bodyTracking.anat.trackerBendNormal.title",
@@ -6267,12 +6371,28 @@
       "value": "How closely the avatar's proportions are matched to your measured body."
     },
     {
+      "key": "settings.bodyTracking.bodyFit.enabled.title",
+      "value": "Fit Avatar To My Proportions"
+    },
+    {
+      "key": "settings.bodyTracking.bodyFit.enabled.description",
+      "value": "Resizes individual bones at calibration so your hands and hips land where the avatar's are. Recalibrate after changing this."
+    },
+    {
       "key": "settings.bodyTracking.section.headSwing.title",
       "value": "Head Carry (Desktop)"
     },
     {
       "key": "settings.bodyTracking.section.headSwing.description",
       "value": "Desktop only — reproduces the lever arm the headset already provides in VR."
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.enabled.title",
+      "value": "Carry the head when looking up/down"
+    },
+    {
+      "key": "settings.bodyTracking.headSwing.enabled.description",
+      "value": "Moves the camera forward as you look down and back as you look up, by the amount your avatar's own neck geometry says it should. Turn this off to pin the camera over the hips as it was before."
     },
     {
       "key": "settings.bodyTracking.vspineChestPitchFrac.title",
@@ -6433,6 +6553,62 @@
     {
       "key": "settings.bodyTracking.derivativeCutoff.description",
       "value": "Controls how much motion speed affects smoothing behavior. Lower values are steadier; higher values feel more responsive but noisier."
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.head",
+      "value": "Head"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.hands",
+      "value": "Hands"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.elbows",
+      "value": "Elbows"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.chest",
+      "value": "Chest"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.hips",
+      "value": "Hips"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.knees",
+      "value": "Knees"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.group.feet",
+      "value": "Feet"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.auto",
+      "value": "Auto"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.light",
+      "value": "Light"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.standard",
+      "value": "Standard"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.heavy",
+      "value": "Heavy"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.optical",
+      "value": "Optical"
+    },
+    {
+      "key": "settings.bodyTracking.smoothing.preset.custom",
+      "value": "Custom"
     },
     {
       "key": "settings.nameplates.title",
@@ -7137,6 +7313,18 @@
     {
       "key": "settings.highPlayerCap.prompt.no",
       "value": "Not Now"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.bodyPreConnect",
+      "value": "This server reports over {0} people online. Turn on Performance Mode before joining to keep your frame rate up in the crowd?\n\nHeadline changes:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nIt also tightens audio, lip sync, jiggle and avatar cost limits. Nothing is lost — your own settings are put back the moment you turn Performance Mode off in Settings → Graphics."
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.enableConnect",
+      "value": "Enable & Connect"
+    },
+    {
+      "key": "settings.highPlayerCap.prompt.connectWithout",
+      "value": "Connect Without It"
     },
     {
       "key": "settings.highPlayerCap.prompt.dontAskAgain",
@@ -9179,6 +9367,10 @@
       "value": "Seated Mode"
     },
     {
+      "key": "settings.bodyTracking.ikMode.auto",
+      "value": "Auto"
+    },
+    {
       "key": "settings.bodyTracking.ikMode.eyeHeight",
       "value": "Eye Height"
     },
@@ -9391,6 +9583,18 @@
       "value": "What to draw at each tracker: the real device model, a simple shape, or nothing."
     },
     {
+      "key": "settings.bodyTracking.trackerVisuals.off",
+      "value": "Off"
+    },
+    {
+      "key": "settings.bodyTracking.trackerVisuals.markers",
+      "value": "Markers"
+    },
+    {
+      "key": "settings.bodyTracking.trackerVisuals.deviceModels",
+      "value": "Device Models"
+    },
+    {
       "key": "settings.bodyTracking.jobLocomotion",
       "value": "Threaded Locomotion"
     },
@@ -9509,6 +9713,14 @@
     {
       "key": "settings.bodyTracking.headSwing.backward.tooltip",
       "value": "How much of that carry also applies when you move backwards."
+    },
+    {
+      "key": "library.instantiated.assignTracker.tooltip",
+      "value": "Bind this item to a spare tracker"
+    },
+    {
+      "key": "library.instantiated.unbindTracker.tooltip",
+      "value": "Release this item from its tracker"
     },
     {
       "key": "settings.bodyTracking.kneeFootFollow.title",
@@ -10283,8 +10495,24 @@
       "value": "How aggressively avatars are simplified. Each entry lists the player count that arms it."
     },
     {
+      "key": "settings.performanceMode.level.off",
+      "value": "Off"
+    },
+    {
       "key": "settings.performanceMode.level.withThreshold",
       "value": "{0} ({1}+)"
+    },
+    {
+      "key": "settings.performanceMode.level.light",
+      "value": "Light"
+    },
+    {
+      "key": "settings.performanceMode.level.balanced",
+      "value": "Balanced"
+    },
+    {
+      "key": "settings.performanceMode.level.aggressive",
+      "value": "Aggressive"
     },
     {
       "key": "settings.performanceMode.level.autoLocked",
@@ -10323,6 +10551,10 @@
       "value": "Ask this player for permission to record their voice."
     },
     {
+      "key": "menu.individualPlayer.voiceRecording.stop",
+      "value": "Stop Recording"
+    },
+    {
       "key": "menu.individualPlayer.voiceRecording.requesting",
       "value": "Waiting for a reply..."
     },
@@ -10351,12 +10583,608 @@
       "value": "Voice Recording Request"
     },
     {
+      "key": "menu.voiceRecording.consent.body",
+      "value": "{0} wants to record your voice. They will be able to capture and re-play it while you allow this. Allow?"
+    },
+    {
+      "key": "menu.voiceRecording.consent.body.route",
+      "value": "A world in this instance (via {0}) wants to play your voice from an object so people nearby hear it come from there. Allow?"
+    },
+    {
       "key": "menu.voiceRecording.consent.allow",
       "value": "Allow"
     },
     {
       "key": "menu.voiceRecording.consent.deny",
       "value": "Deny"
+    },
+    {
+      "key": "settings.developer.backup.title",
+      "value": "Backup & Restore"
+    },
+    {
+      "key": "settings.developer.backup.create.title",
+      "value": "Create Backup"
+    },
+    {
+      "key": "settings.developer.backup.create.description",
+      "value": "Packs your settings, avatar and prop keys, saved servers, trust lists, tracker pairings and input bindings into a single file you can carry to another machine. Backups are written to the Backups folder next to your other Basis data."
+    },
+    {
+      "key": "settings.developer.backup.includeIdentity",
+      "value": "Include Identity Key"
+    },
+    {
+      "key": "settings.developer.backup.includeIdentity.tooltip",
+      "value": "Include your identity (DID) key pair so the new machine keeps the same identity. This is the one secret in the backup — anyone with the file can impersonate you, so keep it somewhere private. Turn this off to make a shareable settings-only backup."
+    },
+    {
+      "key": "settings.developer.backup.includeCache",
+      "value": "Include Downloaded Content"
+    },
+    {
+      "key": "settings.developer.backup.includeCache.tooltip",
+      "value": "Also pack the downloaded avatar and world cache. Your avatars come back either way — without this they simply download again on the new machine. The cache can be tens of gigabytes, so this is off by default."
+    },
+    {
+      "key": "settings.developer.backup.create",
+      "value": "Create Backup Now"
+    },
+    {
+      "key": "settings.developer.backup.create.tooltip",
+      "value": "Write a new backup file. Large backups can take a while; the file appears in the list below when it is finished."
+    },
+    {
+      "key": "settings.developer.backup.working",
+      "value": "Working…"
+    },
+    {
+      "key": "settings.developer.backup.openFolder",
+      "value": "Open Backups Folder"
+    },
+    {
+      "key": "settings.developer.backup.openFolder.tooltip",
+      "value": "Show the Backups folder in your file browser so you can copy a backup off this machine."
+    },
+    {
+      "key": "settings.developer.backup.create.done",
+      "value": "Backup created.\n\n{0}\n{1} files, {2} preference entries, {3}"
+    },
+    {
+      "key": "settings.developer.backup.create.failed",
+      "value": "Backup failed: {0}"
+    },
+    {
+      "key": "settings.developer.backup.restore.title",
+      "value": "Restore Backup"
+    },
+    {
+      "key": "settings.developer.backup.restore.description",
+      "value": "Unpack a backup over this install. Existing settings and keys are overwritten, so restart as soon as it finishes."
+    },
+    {
+      "key": "settings.developer.backup.restore.unsupported",
+      "value": "Restoring a backup is only available on Windows and Linux."
+    },
+    {
+      "key": "settings.developer.backup.restoreIdentity",
+      "value": "Restore Identity Key"
+    },
+    {
+      "key": "settings.developer.backup.restoreIdentity.tooltip",
+      "value": "Take over the identity (DID) key stored in the backup, replacing this machine's. Turn this off to keep the identity you already have here and restore only the settings and content."
+    },
+    {
+      "key": "settings.developer.backup.path",
+      "value": "Backup File Path"
+    },
+    {
+      "key": "settings.developer.backup.path.tooltip",
+      "value": "Full path to a backup file that is not in the Backups folder, for example one copied from a USB drive."
+    },
+    {
+      "key": "settings.developer.backup.path.missing",
+      "value": "Enter the full path to a backup file first."
+    },
+    {
+      "key": "settings.developer.backup.restoreFromPath",
+      "value": "Restore From Path"
+    },
+    {
+      "key": "settings.developer.backup.restoreFromPath.tooltip",
+      "value": "Restore the backup at the path above."
+    },
+    {
+      "key": "settings.developer.backup.available",
+      "value": "Available Backups"
+    },
+    {
+      "key": "settings.developer.backup.refresh",
+      "value": "Refresh List"
+    },
+    {
+      "key": "settings.developer.backup.none",
+      "value": "No backups found."
+    },
+    {
+      "key": "settings.developer.backup.unreadable",
+      "value": "This file could not be read as a Basis backup."
+    },
+    {
+      "key": "settings.developer.backup.entry.summary",
+      "value": "{0} — {1} files, {2} preference entries, built on {3}"
+    },
+    {
+      "key": "settings.developer.backup.tag.identity",
+      "value": "[identity]"
+    },
+    {
+      "key": "settings.developer.backup.tag.cache",
+      "value": "[content cache]"
+    },
+    {
+      "key": "settings.developer.backup.restore.confirm",
+      "value": "Restore \"{0}\"?\n\nThis overwrites your current settings, avatar and prop keys, saved servers and trust lists on this machine. You will be asked to restart once it finishes — do that straight away, or the running session will save over what was just restored."
+    },
+    {
+      "key": "settings.developer.backup.restore.button",
+      "value": "Restore"
+    },
+    {
+      "key": "settings.developer.backup.restore.done",
+      "value": "Restored {0} files and {1} preference entries."
+    },
+    {
+      "key": "settings.developer.backup.restore.failed",
+      "value": "Restore failed: {0}"
+    },
+    {
+      "key": "settings.developer.backup.restart.prompt",
+      "value": "Restart now to load the restored data."
+    },
+    {
+      "key": "settings.developer.backup.restart.now",
+      "value": "Restart Now"
+    },
+    {
+      "key": "settings.developer.backup.restart.later",
+      "value": "Later"
+    },
+    {
+      "key": "settings.developer.backup.restart.manual",
+      "value": "Close and reopen Basis now to load the restored data."
+    },
+    {
+      "key": "camera.cinematic",
+      "value": "Cinematic Rig"
+    },
+    {
+      "key": "camera.cinematicEnabled",
+      "value": "Use Cinematic Rig"
+    },
+    {
+      "key": "camera.cinematicEnabled.description",
+      "value": "Drives the camera from the shot list below instead of the single follow offset."
+    },
+    {
+      "key": "camera.shot",
+      "value": "Shot"
+    },
+    {
+      "key": "camera.shot.description",
+      "value": "The shot the camera is running. Changing this blends to it."
+    },
+    {
+      "key": "camera.noShots",
+      "value": "No Shots"
+    },
+    {
+      "key": "camera.addShot",
+      "value": "Add Shot"
+    },
+    {
+      "key": "camera.duplicateShot",
+      "value": "Duplicate"
+    },
+    {
+      "key": "camera.deleteShot",
+      "value": "Delete"
+    },
+    {
+      "key": "camera.shotOrder",
+      "value": "Shot Position"
+    },
+    {
+      "key": "camera.shotOrder.description",
+      "value": "Where this shot sits in the list."
+    },
+    {
+      "key": "camera.shotPriority",
+      "value": "Priority"
+    },
+    {
+      "key": "camera.shotPriority.description",
+      "value": "The highest priority shot goes live when none is picked by hand."
+    },
+    {
+      "key": "camera.bodyMode",
+      "value": "Camera Movement"
+    },
+    {
+      "key": "camera.bodyMode.description",
+      "value": "How the shot decides where the camera sits."
+    },
+    {
+      "key": "camera.aimMode",
+      "value": "Camera Aim"
+    },
+    {
+      "key": "camera.aimMode.description",
+      "value": "How the shot decides where the camera points."
+    },
+    {
+      "key": "camera.bindingMode",
+      "value": "Offset Space"
+    },
+    {
+      "key": "camera.bindingMode.description",
+      "value": "Whether the offset turns with the subject or stays fixed to world directions."
+    },
+    {
+      "key": "camera.shotOffsetX",
+      "value": "Offset Sideways"
+    },
+    {
+      "key": "camera.shotOffsetY",
+      "value": "Offset Height"
+    },
+    {
+      "key": "camera.shotOffsetZ",
+      "value": "Offset Distance"
+    },
+    {
+      "key": "camera.dampSideways",
+      "value": "Sideways Lag"
+    },
+    {
+      "key": "camera.damp.description",
+      "value": "Seconds the camera takes to catch up. 0 is rigid, higher is looser and more relaxed."
+    },
+    {
+      "key": "camera.dampVertical",
+      "value": "Vertical Lag"
+    },
+    {
+      "key": "camera.dampApproach",
+      "value": "Approach Lag"
+    },
+    {
+      "key": "camera.dampRotation",
+      "value": "Turn Lag"
+    },
+    {
+      "key": "camera.dampRotation.description",
+      "value": "Seconds the camera takes to finish a turn. Only used when the aim is not composition based."
+    },
+    {
+      "key": "camera.blendStyle",
+      "value": "Blend Style"
+    },
+    {
+      "key": "camera.blendStyle.description",
+      "value": "The shape of the move when this shot becomes live. Cut switches instantly."
+    },
+    {
+      "key": "camera.blendTime",
+      "value": "Blend Time"
+    },
+    {
+      "key": "camera.composition",
+      "value": "Framing"
+    },
+    {
+      "key": "camera.screenX",
+      "value": "Subject Across"
+    },
+    {
+      "key": "camera.screenX.description",
+      "value": "Where the subject sits across the frame. 0.5 is centred."
+    },
+    {
+      "key": "camera.screenY",
+      "value": "Subject Up"
+    },
+    {
+      "key": "camera.deadZoneWidth",
+      "value": "Free Area Width"
+    },
+    {
+      "key": "camera.deadZone.description",
+      "value": "How far the subject may drift before the camera reacts at all."
+    },
+    {
+      "key": "camera.deadZoneHeight",
+      "value": "Free Area Height"
+    },
+    {
+      "key": "camera.softZoneWidth",
+      "value": "Limit Width"
+    },
+    {
+      "key": "camera.softZone.description",
+      "value": "The subject is never allowed outside this. At the edge the camera keeps up exactly."
+    },
+    {
+      "key": "camera.softZoneHeight",
+      "value": "Limit Height"
+    },
+    {
+      "key": "camera.composerDampH",
+      "value": "Framing Lag Across"
+    },
+    {
+      "key": "camera.composerDampV",
+      "value": "Framing Lag Up"
+    },
+    {
+      "key": "camera.lookAhead",
+      "value": "Lead The Subject"
+    },
+    {
+      "key": "camera.lookAhead.description",
+      "value": "Aims where the subject is heading rather than where they are, so fast movement is not trailed."
+    },
+    {
+      "key": "camera.subjectSize",
+      "value": "Subject Size"
+    },
+    {
+      "key": "camera.subjectSize.description",
+      "value": "How much of the frame the subject fills. The camera moves in or out to hold it."
+    },
+    {
+      "key": "camera.framingZoom",
+      "value": "Zoom Instead Of Move"
+    },
+    {
+      "key": "camera.framingZoom.description",
+      "value": "Holds subject size with the lens rather than by moving the camera."
+    },
+    {
+      "key": "camera.avoidOcclusion",
+      "value": "Avoid Obstacles"
+    },
+    {
+      "key": "camera.avoidOcclusion.description",
+      "value": "Pulls the camera in when a wall or object gets between it and the subject."
+    },
+    {
+      "key": "camera.targetGroup",
+      "value": "Frame Everyone"
+    },
+    {
+      "key": "camera.targetGroup.description",
+      "value": "Keeps every player in the instance in frame instead of a single target."
+    },
+    {
+      "key": "camera.orbit",
+      "value": "Orbit"
+    },
+    {
+      "key": "camera.orbit.inactive",
+      "value": "Used when Camera Movement is set to Orbit."
+    },
+    {
+      "key": "camera.orbitFollowHeading",
+      "value": "Turn With Subject"
+    },
+    {
+      "key": "camera.orbitFollowHeading.description",
+      "value": "Keeps the orbit anchored to the way the subject faces, so it stays in front as they turn."
+    },
+    {
+      "key": "camera.orbitHeading",
+      "value": "Angle Around"
+    },
+    {
+      "key": "camera.orbitVertical",
+      "value": "Height Along Orbit"
+    },
+    {
+      "key": "camera.orbitVertical.description",
+      "value": "Sweeps from the low ring through the waist ring to the high ring."
+    },
+    {
+      "key": "camera.orbitTopHeight",
+      "value": "High Ring Height"
+    },
+    {
+      "key": "camera.orbitTopRadius",
+      "value": "High Ring Distance"
+    },
+    {
+      "key": "camera.orbitMidHeight",
+      "value": "Waist Ring Height"
+    },
+    {
+      "key": "camera.orbitMidRadius",
+      "value": "Waist Ring Distance"
+    },
+    {
+      "key": "camera.orbitBottomHeight",
+      "value": "Low Ring Height"
+    },
+    {
+      "key": "camera.orbitBottomRadius",
+      "value": "Low Ring Distance"
+    },
+    {
+      "key": "camera.noise",
+      "value": "Camera Shake"
+    },
+    {
+      "key": "camera.noiseProfile",
+      "value": "Shake Style"
+    },
+    {
+      "key": "camera.noiseProfile.description",
+      "value": "Adds an operator's wander to the shot so it does not look locked to a rail."
+    },
+    {
+      "key": "camera.noiseAmplitude",
+      "value": "Shake Amount"
+    },
+    {
+      "key": "camera.noiseAmplitude.description",
+      "value": "Scales the whole shake. 0 is perfectly still."
+    },
+    {
+      "key": "camera.noiseFrequency",
+      "value": "Shake Speed"
+    },
+    {
+      "key": "camera.dolly",
+      "value": "Dolly Track"
+    },
+    {
+      "key": "camera.dollyEmpty",
+      "value": "No Track Yet"
+    },
+    {
+      "key": "camera.dollyEmpty.description",
+      "value": "Place points below to build a path. Each one can be picked up and moved."
+    },
+    {
+      "key": "camera.placeWaypointHere",
+      "value": "Place At Camera"
+    },
+    {
+      "key": "camera.placeWaypointHere.description",
+      "value": "Drops a point where the camera is now and adds it to the end of the track."
+    },
+    {
+      "key": "camera.placeWaypointAtMe",
+      "value": "Place At Me"
+    },
+    {
+      "key": "camera.placeWaypointAtMe.description",
+      "value": "Drops a point in front of you and adds it to the end of the track."
+    },
+    {
+      "key": "camera.waypoint",
+      "value": "Point"
+    },
+    {
+      "key": "camera.waypoint.description",
+      "value": "The point the controls below act on. Points can also be grabbed in the world."
+    },
+    {
+      "key": "camera.waypointOrder",
+      "value": "Point Position"
+    },
+    {
+      "key": "camera.waypointOrder.description",
+      "value": "Where this point sits in the track order. The marker stays put, only the path changes."
+    },
+    {
+      "key": "camera.deleteWaypoint",
+      "value": "Delete Point"
+    },
+    {
+      "key": "camera.clearTrack",
+      "value": "Clear Track"
+    },
+    {
+      "key": "camera.dollyLoop",
+      "value": "Loop Track"
+    },
+    {
+      "key": "camera.dollyLoop.description",
+      "value": "Joins the last point back to the first."
+    },
+    {
+      "key": "camera.dollyVisible",
+      "value": "Show Track"
+    },
+    {
+      "key": "camera.dollyVisible.description",
+      "value": "Shows the points and the path. They never appear in the shot."
+    },
+    {
+      "key": "camera.dollyGridSnap",
+      "value": "Snap To Grid"
+    },
+    {
+      "key": "camera.dollyGridSnap.description",
+      "value": "Snaps points to a grid as they are placed and moved."
+    },
+    {
+      "key": "camera.dollyGridSize",
+      "value": "Grid Size"
+    },
+    {
+      "key": "camera.dollyAutoTrack",
+      "value": "Follow Subject Along Track"
+    },
+    {
+      "key": "camera.dollyAutoTrack.description",
+      "value": "Slides the camera to whichever part of the track is nearest the subject."
+    },
+    {
+      "key": "camera.dollyPosition",
+      "value": "Track Position"
+    },
+    {
+      "key": "camera.dollyPosition.description",
+      "value": "Where on the track the camera sits, counted in points."
+    },
+    {
+      "key": "camera.dollySpeed",
+      "value": "Track Speed"
+    },
+    {
+      "key": "camera.dollySpeed.description",
+      "value": "Metres per second the camera travels along the track. 0 holds position."
+    },
+    {
+      "key": "camera.background",
+      "value": "Background"
+    },
+    {
+      "key": "camera.backgroundMode",
+      "value": "Background"
+    },
+    {
+      "key": "camera.backgroundMode.description",
+      "value": "Replaces what is behind the subject. Colour modes drop the world out for keying."
+    },
+    {
+      "key": "camera.backgroundKeepWorld",
+      "value": "Keep World Visible"
+    },
+    {
+      "key": "camera.backgroundKeepWorld.description",
+      "value": "Keeps world geometry in shot on a colour background. Off leaves only players and props."
+    },
+    {
+      "key": "camera.backgroundRed",
+      "value": "Custom Red"
+    },
+    {
+      "key": "camera.backgroundGreen",
+      "value": "Custom Green"
+    },
+    {
+      "key": "camera.backgroundBlue",
+      "value": "Custom Blue"
+    },
+    {
+      "key": "camera.showGuides",
+      "value": "Show Framing Guides"
+    },
+    {
+      "key": "camera.showGuides.description",
+      "value": "Draws the free area, the limit and the target point over the preview so the framing numbers can be placed by eye."
     }
   ]
 }

@@ -204,72 +204,15 @@ namespace Basis.Scripts.Drivers
 
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;
 
-            // Ensure stale data is removed
-            if (InBoneDriver)
-            {
-                RemoteBoneJobSystem.RemoveRemotePlayer(RemotePlayer.NetworkReceiver.playerId);
-                InBoneDriver = false;
-            }
-
             // Register with the RemoteBoneJobSystem (including skeleton bones for job-based apply).
             // Use the cached References.AnimatorRoot rather than walking through
             // RemotePlayer.BasisAvatar.Animator.transform on each line.
             var receiver = RemotePlayer.NetworkReceiver;
             Transform animatorRoot = References.AnimatorRoot;
-            Vector3 animatorRootPos = animatorRoot.position;
             // Sampled before the network rescale below writes this same transform — jiggle collider
             // radii are authored in metres against this scale and rebased off it at build time.
             ColliderScaleReference = animatorRoot.localScale;
-            // TPose hips localPosition + localRotation feed the per-frame
-            // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
-            // turns the received hips world pose into a derived root world
-            // pose). Hips world itself is then applied directly via
-            // ApplyHipsWorldJob, which is hierarchy-agnostic — these TPose
-            // values are only used for the (best-effort) root derivation,
-            // not for writing the hips bone's local transform anymore.
-            float3 tposeHipsLocalPos;
-            quaternion tposeHipsLocalRot;
-            if (References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal))
-            {
-                tposeHipsLocalPos = hipsTposeLocal.position;
-                tposeHipsLocalRot = hipsTposeLocal.rotation;
-            }
-            else
-            {
-                tposeHipsLocalPos = float3.zero;
-                tposeHipsLocalRot = quaternion.identity;
-            }
-            // Initialize this player's interpolation slot before registering it with the bone
-            // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than
-            // BeginWrite's lazy init runs (LateUpdate tail), so a cached/fallback avatar that
-            // calibrates within a frame of joining would otherwise be read from uninitialized
-            // memory and pose as NaN.
-            BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
-            RemoteBoneJobSystem.AddRemotePlayer(
-                key: receiver.playerId,
-                remotePlayerRoot: animatorRoot,
-                head: References.head,
-                hips: References.Hips,
-                tposeHead: References.TposeFromRoot[HumanBodyBones.Head],
-                tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
-                tposeHipsLocalPos: tposeHipsLocalPos,
-                tposeHipsLocalRot: tposeHipsLocalRot,
-                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
-                    animatorRootPos
-                ),
-                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
-                    animatorRootPos
-                ),
-                NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
-                AvatarScale: animatorRoot,
-                MouthTransform: RemotePlayer.MouthTransform,
-                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitialScale,
-                boneTPoseLocal: receiver.TposeLocalRotations,
-                boneTransforms: receiver.BoneTransforms
-            );
-            InBoneDriver = true;
+            RegisterAvatarWithBoneJobSystem(RemotePlayer, snapToNetworkPose: false);
 
             // player.RemoteBoneDriver.InitializeFromAvatar(player);
             RemotePlayer.BasisAvatar.Animator.enabled = false;
@@ -298,6 +241,21 @@ namespace Basis.Scripts.Drivers
                 {
                     jiggleRootsBeforeSnap[Index] = jiggleRoot.position;
                 }
+            }
+
+            // TPose hips locals for the root derivation below (also fed to the job system
+            // inside RegisterAvatarWithBoneJobSystem).
+            float3 tposeHipsLocalPos;
+            quaternion tposeHipsLocalRot;
+            if (References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal))
+            {
+                tposeHipsLocalPos = hipsTposeLocal.position;
+                tposeHipsLocalRot = hipsTposeLocal.rotation;
+            }
+            else
+            {
+                tposeHipsLocalPos = float3.zero;
+                tposeHipsLocalRot = quaternion.identity;
             }
 
             // Apply scale before snapping any pose so localScale is in place for
@@ -348,6 +306,120 @@ namespace Basis.Scripts.Drivers
             }
 
             CalibrationComplete?.Invoke();
+
+            // Seed the imposter for the distance this avatar loaded at — the transmit tick's
+            // swap check is edge-triggered, so a far-away load would otherwise start at full
+            // detail. Also drops any imposter belonging to the previous avatar.
+            BasisAvatarImposterLOD.SeedAfterCalibration(RemotePlayer);
+        }
+
+        /// <summary>
+        /// (Re)registers the real avatar's transforms with the bone job system. Split out of
+        /// <see cref="RemoteCalibration"/> so the imposter swap can restore the registration
+        /// without a full recalibration. With <paramref name="snapToNetworkPose"/> the avatar is
+        /// also snapped onto the latest network pose (scale, derived root, hips world) and the
+        /// jiggle rigs are teleported by the travel delta — used when the avatar wakes back up
+        /// after the imposter hid it.
+        /// </summary>
+        public void RegisterAvatarWithBoneJobSystem(BasisRemotePlayer RemotePlayer, bool snapToNetworkPose)
+        {
+            var receiver = RemotePlayer.NetworkReceiver;
+            if (receiver == null || RemotePlayer.BasisAvatar == null || References?.AnimatorRoot == null ||
+                receiver.BoneTransforms == null || !receiver.TposeLocalRotations.IsCreated)
+            {
+                return;
+            }
+            Transform animatorRoot = References.AnimatorRoot;
+            Vector3 animatorRootPos = animatorRoot.position;
+
+            // Ensure stale data is removed
+            if (InBoneDriver)
+            {
+                RemoteBoneJobSystem.RemoveRemotePlayer(receiver.playerId);
+                InBoneDriver = false;
+            }
+
+            // TPose hips localPosition + localRotation feed the per-frame
+            // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
+            // turns the received hips world pose into a derived root world
+            // pose). Hips world itself is then applied directly via
+            // ApplyHipsWorldJob, which is hierarchy-agnostic — these TPose
+            // values are only used for the (best-effort) root derivation,
+            // not for writing the hips bone's local transform anymore.
+            float3 tposeHipsLocalPos;
+            quaternion tposeHipsLocalRot;
+            if (References.TposeLocal.TryGetValue(HumanBodyBones.Hips, out var hipsTposeLocal))
+            {
+                tposeHipsLocalPos = hipsTposeLocal.position;
+                tposeHipsLocalRot = hipsTposeLocal.rotation;
+            }
+            else
+            {
+                tposeHipsLocalPos = float3.zero;
+                tposeHipsLocalRot = quaternion.identity;
+            }
+
+            // Initialize this player's interpolation slot before registering it with the bone
+            // job system. The bone Schedule reads _filtered*[playerId] earlier in LateUpdate than
+            // BeginWrite's lazy init runs (LateUpdate tail), so a cached/fallback avatar that
+            // calibrates within a frame of joining would otherwise be read from uninitialized
+            // memory and pose as NaN.
+            BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
+            RemoteBoneJobSystem.AddRemotePlayer(
+                key: receiver.playerId,
+                remotePlayerRoot: animatorRoot,
+                head: References.head,
+                hips: References.Hips,
+                tposeHead: References.TposeFromRoot[HumanBodyBones.Head],
+                tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
+                tposeHipsLocalPos: tposeHipsLocalPos,
+                tposeHipsLocalRot: tposeHipsLocalRot,
+                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
+                    animatorRootPos
+                ),
+                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
+                    animatorRootPos
+                ),
+                NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
+                AvatarScale: animatorRoot,
+                MouthTransform: RemotePlayer.MouthTransform,
+                TposedScale: AvatarInitialScale,
+                boneTPoseLocal: receiver.TposeLocalRotations,
+                boneTransforms: receiver.BoneTransforms
+            );
+            InBoneDriver = true;
+
+            if (!snapToNetworkPose)
+            {
+                return;
+            }
+
+            Vector3 hipsBeforeSnap = References.Hips.position;
+            receiver.GetLatestNetworkPose(out var hipsWorldPos, out var hipsWorldRot, out var networkScale);
+            animatorRoot.localScale = networkScale;
+            BasisRemoteNetworkDriver.SeedScaleState(receiver.playerId, networkScale);
+            // conjugate, not inverse — unit quaternions only.
+            quaternion rootRot = math.mul(hipsWorldRot, math.conjugate(tposeHipsLocalRot));
+            float3 scaledLocal = (float3)networkScale * tposeHipsLocalPos;
+            float3 rootPos = (float3)hipsWorldPos - math.mul(rootRot, scaledLocal);
+            animatorRoot.SetPositionAndRotation(rootPos, rootRot);
+            References.Hips.SetPositionAndRotation(hipsWorldPos, hipsWorldRot);
+
+            // Teleport jiggle rigs by the travel delta so they don't whip across the distance
+            // the player covered while the avatar was asleep.
+            Vector3 jiggleDelta = (Vector3)hipsWorldPos - hipsBeforeSnap;
+            int jiggleRigCount = JiggleRigs.Length;
+            for (int Index = 0; Index < jiggleRigCount; Index++)
+            {
+                JiggleRig rig = JiggleRigs[Index];
+                if (rig == null || !rig.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                rig.Teleport(jiggleDelta);
+            }
         }
 
         /// <summary>

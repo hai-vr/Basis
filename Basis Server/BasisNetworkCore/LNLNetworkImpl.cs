@@ -219,6 +219,7 @@ namespace Basis.Network.Core
                 // This pool's share of the machine, decided centrally so it composes with the
                 // reduction system's overlapping pool instead of both claiming the whole box.
                 PeerUpdateWorkerCap = BasisCpuBudget.PeerUpdateCap,
+                PeersPerUpdateWorker = lnl.PeerUpdatePeersPerWorker > 0 ? lnl.PeerUpdatePeersPerWorker : 128,
                 MaxUnreliableQueuePerPeer = lnl.MaxUnreliableQueuePerPeer,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,

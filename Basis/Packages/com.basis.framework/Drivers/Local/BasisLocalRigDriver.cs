@@ -287,6 +287,10 @@ namespace Basis.Scripts.Drivers
                 AvatarLegSpan = BasisHeightDriver.AvatarLegSpan,
                 AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan,
                 AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
+                // Measure the residual against the scale that was actually applied, so the fit completes
+                // that scale instead of pulling against it. Zero in the legacy height modes, which makes
+                // the fit fall back to the eye ratio it has always used.
+                UniformScale = BasisHeightDriver.AppliedUniformScale,
             };
 
             BasisBodyFitResult fit = BasisBodyFitCore.Solve(

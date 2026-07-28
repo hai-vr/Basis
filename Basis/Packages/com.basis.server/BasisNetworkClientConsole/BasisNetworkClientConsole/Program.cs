@@ -140,6 +140,8 @@ namespace Basis
                         BNL.Log($"[Driver] BEHIND: {delta} slice overruns in 10s (peak {peak:F0}ms vs {DriverTickMs}ms tick) — harness is limiting, not the server.");
                     else
                         BNL.Log($"[Driver] healthy: 0 overruns in 10s ({DriverTickMs}ms tick met).");
+
+                    BNL.Log(MessageHandler.SenderFairness());
                 }
             });
 

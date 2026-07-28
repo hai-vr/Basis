@@ -28,6 +28,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker PerformanceLimits = new ProfilerMarker("BasisDriver.PerfLimits.AvatarLimits");
         public static readonly ProfilerMarker DebugOptions = new ProfilerMarker("BasisDriver.DebugOptions");
         public static readonly ProfilerMarker GazeFoveationAuto = new ProfilerMarker("BasisDriver.Eye.GazeFoveationAuto");
+        public static readonly ProfilerMarker BodyEvidenceSample = new ProfilerMarker("BasisDriver.Calibration.BodyEvidenceSample");
         public static readonly ProfilerMarker HighPlayerCap = new ProfilerMarker("BasisDriver.PerfLimits.HighPlayerCap");
         public static readonly ProfilerMarker OnUpdateCallbacks = new ProfilerMarker("BasisDriver.OnUpdateCallbacks");
 

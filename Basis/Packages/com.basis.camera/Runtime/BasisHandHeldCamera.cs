@@ -140,7 +140,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// culling mask so it is the single source of truth — the Render Layers "Nameplates" toggle
     /// and this can never disagree.
     /// </summary>
-    public bool ShowUIInCapture => captureCamera != null && uiLayerMask != 0 && (captureCamera.cullingMask & uiLayerMask) != 0;
+    public bool ShowUIInCapture => captureCamera != null && uiLayerMask != 0 && (WorldCullingMask & uiLayerMask) != 0;
 
     /// <summary>Last visibility state reported by the mesh renderer check.</summary>
     public bool LastVisibilityState = false;
@@ -564,7 +564,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public bool IsCaptureLayerEnabled(int layer)
     {
         if (captureCamera == null || layer < 0 || layer > 31) return false;
-        return (captureCamera.cullingMask & (1 << layer)) != 0;
+        return (WorldCullingMask & (1 << layer)) != 0;
     }
 
     /// <summary>
@@ -575,8 +575,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public void SetCaptureLayerEnabled(int layer, bool enabled)
     {
         if (captureCamera == null || !IsCaptureLayerUserTogglable(layer)) return;
-        if (enabled) captureCamera.cullingMask |= 1 << layer;
-        else captureCamera.cullingMask &= ~(1 << layer);
+        if (enabled) WorldCullingMask |= 1 << layer;
+        else WorldCullingMask &= ~(1 << layer);
     }
 
     /// <summary>Fetches Tonemapping from the profile and sets default mode.</summary>
@@ -1020,10 +1020,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             return;
         }
 
-        if ((captureCamera.cullingMask & uiLayerMask) != 0)
-            captureCamera.cullingMask &= ~uiLayerMask;
+        if ((WorldCullingMask & uiLayerMask) != 0)
+            WorldCullingMask &= ~uiLayerMask;
         else
-            captureCamera.cullingMask |= uiLayerMask;
+            WorldCullingMask |= uiLayerMask;
     }
 
     /// <summary>Immediate photo capture using the current format choice (EXR/PNG).</summary>

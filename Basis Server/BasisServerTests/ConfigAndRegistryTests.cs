@@ -311,9 +311,11 @@ public class TransportConfigStoreTests
     public void LnlTransportConfig_Defaults()
     {
         var cfg = new LNLTransportConfig();
-        // 5: added MergeHoldMs, PeerUpdateParallelism and MaxUnreliableQueuePerPeer, so existing
-        // files get rewritten with them.
-        Assert.Equal(5, LNLTransportConfig.CurrentConfigVersion);
+        // 7: added MergeHoldMs, PeerUpdateParallelism, MaxUnreliableQueuePerPeer,
+        // PeerUpdatePeersPerWorker and MaxSendSockets, so existing files get rewritten with them.
+        Assert.Equal(7, LNLTransportConfig.CurrentConfigVersion);
+        Assert.Equal(0, cfg.MaxSendSockets);   // 0 = auto: half the cores, 4 to 64
+        Assert.Equal(0, cfg.PeerUpdatePeersPerWorker);
         Assert.Equal(256, cfg.MaxUnreliableQueuePerPeer);
         Assert.Equal(0, cfg.ConfigVersion);
         Assert.Equal(3f, cfg.MergeHoldMs);

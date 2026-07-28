@@ -620,6 +620,11 @@ public partial class BasisHandHeldCameraUI
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
+            backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
+            backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisHandHeldCamera.ChromaGreen,
+            backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
+            subjectFramingRadius = HHC != null ? HHC.subjectFramingRadius : 0.45f,
+            cinematicShots = HHC != null ? HHC.SaveShots() : new System.Collections.Generic.List<Basis.Cinematics.BasisCameraShot>(),
         };
 
 #if Basis_VOLUMETRIC_SUPPORTED
@@ -728,6 +733,16 @@ public partial class BasisHandHeldCameraUI
             settings.dofFocalLength = defaults.dofFocalLength;
         }
 
+        if (settings.settingsVersion < 6)
+        {
+            // Both zero-fill to values that are not just wrong but harmful: a transparent black
+            // custom background, and a zero framing radius that would dolly the camera into the
+            // subject's face the moment Framing mode was picked.
+            var defaults = new CameraSettings();
+            settings.backgroundCustomColor = defaults.backgroundCustomColor;
+            settings.subjectFramingRadius = defaults.subjectFramingRadius;
+        }
+
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
@@ -815,6 +830,17 @@ public partial class BasisHandHeldCameraUI
 
             // Post-processing
             ApplyPostProcessingSettings(settings);
+
+            // Cinematic rig. Shots load before the background so a colour mode caches a culling
+            // mask that already reflects everything else this method applied.
+            HHC.subjectFramingRadius = settings.subjectFramingRadius > 0f ? settings.subjectFramingRadius : 0.45f;
+            HHC.LoadShots(settings.cinematicShots);
+
+            HHC.backgroundCustomColor = settings.backgroundCustomColor.a > 0f
+                ? settings.backgroundCustomColor
+                : BasisHandHeldCamera.ChromaGreen;
+            HHC.backgroundKeepsWorld = settings.backgroundKeepsWorld;
+            HHC.SetBackgroundMode((BasisCameraBackgroundMode)settings.backgroundMode);
 
             // Depth UI mode & cursor
             SetDepthMode(settings.useManualFocus ? DepthMode.Manual : DepthMode.Auto);

@@ -12,6 +12,12 @@ public class BasisBundleConnector
     [SerializeField]
     public BasisBundleGenerated[] BasisBundleGenerated;
     public string ImageBase64;
+    // Distance imposter payload (see BasisImposterPayload), generated at avatar build time.
+    // Rides the connector so it survives the disk cache byte-identically and is available
+    // from a connector-only download without touching the AssetBundle. Older bundles built
+    // before this field existed deserialize with null — clients treat null/invalid as
+    // "no imposter" and fall back to existing distance behavior.
+    public string ImposterBase64;
     public string DateOfCreation;
     [SerializeField]
     public BasisBounds Bounds;
@@ -41,12 +47,13 @@ public class BasisBundleConnector
         public string Name;
         public int count;
     }
-    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes, BasisBounds basisBounds, BasisMetaData basisMetaData)
+    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes, BasisBounds basisBounds, BasisMetaData basisMetaData, string imposterBase64 = null)
     {
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
         BasisBundleGenerated = basisBundleGenerated ?? throw new ArgumentNullException(nameof(basisBundleGenerated));
         ImageBase64 = imageBytes;
+        ImposterBase64 = imposterBase64;
         DateOfCreation = DateTime.UtcNow.ToString("o");
         Bounds = basisBounds;
         MetaData = basisMetaData;

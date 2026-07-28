@@ -14,7 +14,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 /// - Provides a desktop “fly” mode with smoothed movement/rotation, momentum, and auto-leveling
 /// - Locks/unlocks player controls while interacting
 /// </summary>
-public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
+public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInteractable
 {
     /// <summary>Owning handheld camera component and metadata.</summary>
     public BasisHandHeldCamera HHC;
@@ -759,6 +759,8 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         };
 
         flyCamera = new BasisFlyCamera();
+
+        InitializeCinematics();
     }
 
     /// <summary>Assigns the UI instance so orientation changes can be reflected.</summary>
@@ -798,6 +800,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
         CheckCameraOrientation();
         ApplyCameraScale();
+        TickDollyTrack();
 
         if (inDesktop)
         {
@@ -1174,6 +1177,12 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             return;
         }
 
+        if (cinematicEnabled)
+        {
+            MoveCameraCinematic(deltaTime);
+            return;
+        }
+
         if (autoFollowEnabled)
         {
             MoveCameraAutoFollow(deltaTime);
@@ -1484,6 +1493,8 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         {
             flyCamera.OnDestroy();
         }
+
+        DisposeCinematics();
 
         BasisCursorManagement.LockCursor(nameof(BasisHandHeldCamera));
         base.OnDestroy();

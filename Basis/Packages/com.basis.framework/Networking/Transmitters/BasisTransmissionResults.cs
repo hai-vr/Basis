@@ -427,6 +427,8 @@ public partial class BasisTransmissionResults
         bool jiggleColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
         // Per-tick budget of avatar (re)loads admitted below; reset each tick. See MaxAvatarReloadsPerTick.
         int avatarReloadsAdmitted = 0;
+        // Per-tick budget of imposter swaps — each swap forces a bone-job sync.
+        int imposterTransitionBudget = BasisAvatarImposterLOD.MaxTransitionsPerTick;
         unsafe
         {
             bool* pHearingRange = (bool*)hearingRange.GetUnsafeReadOnlyPtr();
@@ -539,6 +541,10 @@ public partial class BasisTransmissionResults
 
                 // Update pose LOD from distance — independent of mesh LOD
                 remote.CurrentLodLevel = pMeshLodLevel[i];
+
+                // Distance imposter swap, using the distance already in hand. Edge-triggered
+                // with hysteresis inside; only actual swaps consume budget.
+                BasisAvatarImposterLOD.Tick(remote, pDistanceSq[i], ref imposterTransitionBudget);
 
                 // Distance-based jiggle collider reduction: trim a remote's arm/finger/foot
                 // colliders as it gets farther so distant crowds stop dominating the jiggle sim.

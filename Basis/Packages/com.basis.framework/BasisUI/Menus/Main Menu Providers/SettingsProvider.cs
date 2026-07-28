@@ -115,6 +115,8 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarSkinLOD.ApplyFromSettings;
             BasisAvatarShadowLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarShadowLOD.ApplyFromSettings;
+            BasisAvatarImposterLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarImposterLOD.ApplyFromSettings;
             ApplyDesktopInputInVR();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyDesktopInputInVR;
         }
@@ -3221,6 +3223,12 @@ namespace Basis.BasisUI
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(notificationSectionToggle, container, notificationStart, false,
                 _ => descriptor.ForceRebuild());
+
+            // ---- Backup & Restore ----
+            PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
+                BasisLocalization.Get("settings.developer.backup.title"),
+                () => SettingsProviderBackup.BuildSection(container, descriptor),
+                false, _ => descriptor.ForceRebuild());
 
             // ---- Console Log ----
             PanelSectionToggleHelpers.CreateLazyFlatSection(container,

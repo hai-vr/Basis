@@ -123,6 +123,13 @@ namespace Basis.BasisUI
                 new List<string> { "settings.bodyTracking.ikMode.auto", "settings.bodyTracking.ikMode.eyeHeight", "settings.bodyTracking.ikMode.armDistance" });
             scalingModeDropdown.AssignBinding(BasisSettingsDefaults.IKMode);
 
+            // Keep observing the player's real size while they play instead of trusting the pose they
+            // happened to be in when an avatar loaded (VR only; see BasisBodyEvidenceSampler).
+            var continuousMeasureToggle = PanelToggle.CreateNewEntry(container);
+            continuousMeasureToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.calibration.continuousBodyMeasurement"));
+            continuousMeasureToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.continuousBodyMeasurement.tooltip"));
+            continuousMeasureToggle.AssignBinding(BasisSettingsDefaults.ContinuousBodyMeasurement);
+
             // Arm To Height Ratio: scale by a percentage between the two measurements instead of a single
             // scaling mode. Overrides the Avatar Scaling Mode dropdown while enabled (VR only).
             var armToHeightToggle = PanelToggle.CreateNewEntry(container);

@@ -14,22 +14,9 @@ public static class TemporaryStorageHandler
         wasModified = true;
         return prefabPath;
     }
-    public static string SaveScene(Scene sceneToCopy, BasisAssetBundleObject settings, out string uniqueID)
-    {
-        // Generate a unique ID
-        uniqueID = BasisGenerateUniqueID.GenerateUniqueID();
-
-        // Attempt to save the scene
-        if (EditorSceneManager.SaveScene(sceneToCopy))
-        {
-            // Return the path it was saved to
-            return sceneToCopy.path;
-        }
-
-        // If save fails, clear the ID and return null
-        uniqueID = null;
-        return null;
-    }
+    // SaveScene lived here, but it handed the build the scene's original path while only the bundle
+    // name was unique, which is what let two worlds built from one scene collide. Scenes are now
+    // staged by BasisSceneBuildName instead.
     public static void EnsureDirectoryExists(string directoryPath)
     {
         if (!Directory.Exists(directoryPath))
