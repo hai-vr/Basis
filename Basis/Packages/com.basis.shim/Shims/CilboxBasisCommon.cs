@@ -24,6 +24,11 @@ namespace Cilbox
 			"Basis.Shims.BasisOsc*",
 			"Basis.Network.Core.DeliveryMethod",
 			"Basis.SafeUtil",
+			// Roster access plus the pose reads IBasisPlayer withholds. Returns players as
+			// IBasisPlayer, and poses as copied Vector3/Quaternion — never a Transform.
+			"Basis.Shims.BasisPlayersShim",
+			// Late-latch callback. Auto-added by GetComponent<T> since it derives from CilboxShim.
+			"Basis.Shims.BasisBeforeRenderShim",
 			"Basis.Scripts.BasisSdk.Players.BasisLocalPlayer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
 			"HVR.Basis.Comms.OSC*",
@@ -374,6 +379,36 @@ namespace Cilbox
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject), new HashSet<string> { } },
 			{ typeof(Basis.Scripts.Device_Management.Devices.BasisInput), new HashSet<string> { } },
+			// IBasisPlayer is reachable through BasisNetworkPlayer.Player, and methods are
+			// default-allow once a type is whitelisted — which handed scripts set_DisplayName,
+			// set_UUID, get_AvatarTransform, get_PlayerSelf and get_GameObject on ANY player, i.e.
+			// a write handle on someone else's avatar. CilboxPropBasis already curated it this way;
+			// this is the same treatment for scene and avatar boxes. Entries union with a box's
+			// ExtraMethodWhitelist, so a box type can still add its own (prop adds get_BasisAvatar,
+			// which is only safe there because prop also blocks every BasisAvatar method).
+			//
+			// Everything returning a value is allowed. Held back, and why:
+			//   set_*, SetSafeDisplayname, UpdateFaceVisibility, AvatarSwitched — mutate another player.
+			//   get_AvatarTransform/AvatarAnimatorTransform/PlayerSelf/Transform/AvatarParent — a
+			//     Transform is default-allow once handed over, so these are write handles.
+			//   get_GameObject — SetActive is allowed on GameObject; that hides or breaks a player.
+			//   get_UUID — stable across instances, so it lets any world fingerprint and correlate
+			//     users between visits. PlayerId covers per-session identity.
+			//   add/remove_OnAvatarSwitched — an interpreted delegate cannot be unsubscribed, and
+			//     this event outlives the script.
+			//   get_AudioReceived — hands back a Delegate.
+			// ProgressReportAvatarLoad, AvatarProgress, FaceRenderer and AvatarMetaData need no entry:
+			// their return types are not whitelisted, so the return-type check already blocks them.
+			{ typeof(Basis.Scripts.BasisSdk.Players.IBasisPlayer), new HashSet<string> {
+				"get_IsLocal",
+				"get_PlayerPlatform",
+				"get_DisplayName",
+				"get_SafeDisplayName",
+				"get_IsConsideredFallBackAvatar",
+				"get_AvatarLoadMode",
+				"get_FaceIsVisible",
+				"get_IsDestroyed",
+				} },
 			{ typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer), new HashSet<string> {
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.Player)).GetGetMethod().Name,
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.LocalPlayer)).GetGetMethod().Name,

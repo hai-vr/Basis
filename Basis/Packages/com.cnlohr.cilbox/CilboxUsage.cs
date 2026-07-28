@@ -668,29 +668,52 @@ namespace Cilbox
 			rp.meth = method;
 			rp.o = proxy;
 
-			Type[] parameterTypes = typeof(T).GenericTypeArguments;
-			int parameterCount = parameterTypes.Length;
-
+			// Invoke() is authoritative rather than GenericTypeArguments: the two only agree for
+			// Action<...>.  Func<int,bool> has two generic arguments and one parameter, and
+			// Comparison<T>/Predicate<T> reuse a single argument across their parameter list.
+			Type[] parameterTypes;
+			Type returnType = typeof(void);
 			MethodInfo dMethod = typeof(T).GetMethod("Invoke");
 			if( dMethod != null )
 			{
-				// For some reason, in some contexts we get non-generic delegates.
-				// If that's the case, just use the parameters.
 				System.Reflection.ParameterInfo[] parameters = dMethod.GetParameters();
-				int methodParameters = parameters.Length;
-				if( methodParameters > parameterCount )
-				{
-					parameterCount = methodParameters;
-					parameterTypes = new Type[parameterCount];
-					for( int n = 0; n < parameterCount; n++ )
-						parameterTypes[n] = parameters[n].ParameterType;
-				}
+				parameterTypes = new Type[parameters.Length];
+				for( int n = 0; n < parameters.Length; n++ )
+					parameterTypes[n] = parameters[n].ParameterType;
+				returnType = dMethod.ReturnType;
+			}
+			else
+			{
+				// For some reason, in some contexts we get non-generic delegates.
+				parameterTypes = typeof(T).GenericTypeArguments;
+			}
+			int parameterCount = parameterTypes.Length;
+
+			// Delegate.CreateDelegate matches the target signature exactly and will not bridge void
+			// to a value, so the repackager has to expose a void-shaped entry alongside the general
+			// one. Everything past that selection is a single path: the void entries just forward
+			// into the value-returning ones, so argument packing and the call into the interpreter
+			// exist once. Value-returning delegates are Comparison<T> for List.Sort, Predicate<T>
+			// for List.RemoveAll/Find, and Func<...> for the rest.
+			bool isVoid = returnType == typeof(void);
+			Type[] callbackTypes;
+			if( isVoid )
+			{
+				callbackTypes = parameterTypes;
+			}
+			else
+			{
+				callbackTypes = new Type[parameterCount+1];
+				Array.Copy( parameterTypes, callbackTypes, parameterCount );
+				callbackTypes[parameterCount] = returnType;
 			}
 
 			MethodInfo mthis = typeof(CilboxPlatform.DelegateRepackage)
-				.GetMethod("ActionCallback"+parameterCount.ToString());
+				.GetMethod( ( isVoid ? "ActionCallback" : "FuncCallback" ) + parameterCount.ToString() );
+			if( mthis == null )
+				throw new ArgumentException( $"Cilbox cannot marshal a {parameterCount} parameter delegate returning {returnType} ({typeof(T)})." );
 			if( mthis.IsGenericMethod )
-				mthis = mthis.MakeGenericMethod( parameterTypes );
+				mthis = mthis.MakeGenericMethod( callbackTypes );
 			return Delegate.CreateDelegate( typeof(T), rp, mthis );
 		}
 
@@ -698,11 +721,34 @@ namespace Cilbox
 		{
 			public CilboxMethod meth;
 			public CilboxProxy o;
-		    public void ActionCallback0( )                                         { object[] oa = new object[0]; meth.Interpret( o, oa ); }
-		    public void ActionCallback1<T0>( T0 o0 )                               { object[] oa = new object[1]; oa[0] = o0; meth.Interpret( o, oa ); }
-		    public void ActionCallback2<T0,T1>( T0 o0, T1 o1 )                     { object[] oa = new object[2]; oa[0] = o0; oa[1] = o1; meth.Interpret( o, oa ); }
-		    public void ActionCallback3<T0,T1,T2>( T0 o0, T1 o1, T2 o2 )           { object[] oa = new object[3]; oa[0] = o0; oa[1] = o1; oa[2] = o2; meth.Interpret( o, oa ); }
-		    public void ActionCallback4<T0,T1,T2,T3>( T0 o0, T1 o1, T2 o2, T3 o3 ) { object[] oa = new object[4]; oa[0] = o0; oa[1] = o1; oa[2] = o2; oa[3] = o3; meth.Interpret( o, oa ); }
+			// The FuncCallback family is the real marshalling path. The ActionCallback family exists
+			// only because Delegate.CreateDelegate needs a void-returning target for a void
+			// delegate; each one forwards straight into its value-returning counterpart.
+		    public void ActionCallback0( )                                         { FuncCallback0<object>(); }
+		    public void ActionCallback1<T0>( T0 o0 )                               { FuncCallback1<T0,object>( o0 ); }
+		    public void ActionCallback2<T0,T1>( T0 o0, T1 o1 )                     { FuncCallback2<T0,T1,object>( o0, o1 ); }
+		    public void ActionCallback3<T0,T1,T2>( T0 o0, T1 o1, T2 o2 )           { FuncCallback3<T0,T1,T2,object>( o0, o1, o2 ); }
+		    public void ActionCallback4<T0,T1,T2,T3>( T0 o0, T1 o1, T2 o2, T3 o3 ) { FuncCallback4<T0,T1,T2,T3,object>( o0, o1, o2, o3 ); }
+
+		    public TR FuncCallback0<TR>( )                                             { object[] oa = new object[0]; return Coerce<TR>( meth.Interpret( o, oa ) ); }
+		    public TR FuncCallback1<T0,TR>( T0 o0 )                                    { object[] oa = new object[1]; oa[0] = o0; return Coerce<TR>( meth.Interpret( o, oa ) ); }
+		    public TR FuncCallback2<T0,T1,TR>( T0 o0, T1 o1 )                          { object[] oa = new object[2]; oa[0] = o0; oa[1] = o1; return Coerce<TR>( meth.Interpret( o, oa ) ); }
+		    public TR FuncCallback3<T0,T1,T2,TR>( T0 o0, T1 o1, T2 o2 )                { object[] oa = new object[3]; oa[0] = o0; oa[1] = o1; oa[2] = o2; return Coerce<TR>( meth.Interpret( o, oa ) ); }
+		    public TR FuncCallback4<T0,T1,T2,T3,TR>( T0 o0, T1 o1, T2 o2, T3 o3 )      { object[] oa = new object[4]; oa[0] = o0; oa[1] = o1; oa[2] = o2; oa[3] = o3; return Coerce<TR>( meth.Interpret( o, oa ) ); }
+
+			// Interpret() hands back a value boxed at CIL stack width rather than at the delegate's
+			// declared return type, so an interpreted comparison that returns int can arrive as a
+			// boxed long.  Narrow it before the host consumes it.  TR is object on the void path,
+			// where this is an identity pass.
+			private static TR Coerce<TR>( object v )
+			{
+				if( v is TR typed ) return typed;
+				if( v == null ) return default(TR);
+				Type t = Nullable.GetUnderlyingType( typeof(TR) ) ?? typeof(TR);
+				if( t.IsEnum ) return (TR)Enum.ToObject( t, v );
+				if( v is IConvertible ) return (TR)Convert.ChangeType( v, t );
+				return (TR)v;
+			}
 		}
 	}
 }

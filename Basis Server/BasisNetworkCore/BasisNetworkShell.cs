@@ -136,6 +136,14 @@ namespace Basis.Network.Core
         public NetStatistics Statistics { get; }
 
         public int ConnectedPeersCount { get; }
+
+        /// <summary>
+        /// Unreliable packets dropped because a peer's send queue was over budget — i.e. the server
+        /// could not drain what it was producing and shed the oldest position updates instead of
+        /// growing the backlog. Zero on a healthy instance; a rising number is the signal that the
+        /// instance is past what it can deliver. Transports without a bounded queue report 0.
+        /// </summary>
+        public long UnreliableDropped => 0;
     }
 
     public sealed partial class NetStatistics

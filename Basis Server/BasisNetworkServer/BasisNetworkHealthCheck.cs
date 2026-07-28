@@ -140,6 +140,10 @@ namespace Basis.Network.Server
                         $"\"capacity\":{capacity}," +
                         $"\"sent\":{sent}," +
                         $"\"recv\":{recv}," +
+                        // Zero on a healthy instance. Rising means the server is shedding position
+                        // updates because it cannot drain what it produces — the one number that
+                        // distinguishes "busy" from "past capacity", and there was no way to see it.
+                        $"\"droppedUnreliable\":{NetworkServer.Server.UnreliableDropped}," +
                         $"\"currentTime\":\"{nowUtc:O}\"," +
                         $"\"startTime\":\"{startTimeUtc:O}\"," +
                         $"\"version\":\"{BasisNetworkVersion.ServerVersion}\"" +

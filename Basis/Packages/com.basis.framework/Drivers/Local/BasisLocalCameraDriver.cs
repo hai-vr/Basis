@@ -55,6 +55,40 @@ namespace Basis.Scripts.Drivers
             RenderSettingsApplied?.Invoke();
         }
 
+        /// <summary>
+        /// Raised once per rendered frame from <c>BasisEventDriver</c>'s before-render pass, after the
+        /// local player's render-time simulation has settled the camera and head. The late-latch slot:
+        /// the camera pose statics (<see cref="Position"/>, <see cref="HeadPosition"/>, the eye
+        /// vectors) are final here, and nothing has been drawn yet.
+        ///
+        /// Anything writing a transform that must not trail the head by a frame belongs here rather
+        /// than in <c>LateUpdate</c>. It runs with the whole render waiting on it, so keep handlers
+        /// short. Does not fire on a headless client, which never renders.
+        /// </summary>
+        public static event Action BeforeRender;
+
+        public static void RaiseBeforeRender()
+        {
+            // Subscribers are independent, and one of them is the sandbox bridge — a throwing
+            // handler must not take the rest of the frame's late-latch work down with it.
+            Delegate[] handlers = BeforeRender?.GetInvocationList();
+            if (handlers == null)
+            {
+                return;
+            }
+            for (int Index = 0; Index < handlers.Length; Index++)
+            {
+                try
+                {
+                    ((Action)handlers[Index])();
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogErrorOnce($"BasisLocalCameraDriver.BeforeRender handler failed: {ex}", BasisDebug.LogTag.Event);
+                }
+            }
+        }
+
         /// <summary>Optional input-lock helper for driving camera from input.</summary>
         public BasisLockToInput BasisLockToInput;
 

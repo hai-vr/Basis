@@ -372,6 +372,23 @@ namespace LiteNetLib
         private const int PeersPerUpdateWorker = 128;
 
         /// <summary>
+        /// Ceiling for the auto-sized worker count.
+        ///
+        /// The host sets this, because this pool is not the only one on the machine — the server's
+        /// reduction system runs an overlapping one, and sizing both against the core count
+        /// oversubscribes the box (measured at 4000 players: 23.6 cores / 634 MB/s / 153 ms worst
+        /// pass with both at full width, against 18.0 / 644 / 108 once they were given shares).
+        /// Basis sets it from BasisCpuBudget. Standalone users who never assign it get three
+        /// quarters of the box, which is the right answer when this is the only such pool.
+        /// </summary>
+        public int PeerUpdateWorkerCap = 0;
+
+        private int ResolvedPeerUpdateCap =>
+            PeerUpdateWorkerCap > 0
+                ? Math.Min(PeerUpdateWorkerCap, Environment.ProcessorCount)
+                : Math.Max(4, Environment.ProcessorCount * 3 / 4);
+
+        /// <summary>
         /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
         ///
         /// Unbounded is not a safe default for a broadcast server: if the send loop enqueues faster
@@ -404,7 +421,7 @@ namespace LiteNetLib
         private ParallelOptions GetPeerUpdateOptions(int peerCount)
         {
             int desired = PeerUpdateParallelism <= 0
-                ? Math.Clamp(peerCount / PeersPerUpdateWorker, 4, Environment.ProcessorCount)
+                ? Math.Clamp(peerCount / PeersPerUpdateWorker, 4, ResolvedPeerUpdateCap)
                 : Math.Min(PeerUpdateParallelism, Environment.ProcessorCount);
 
             var options = _peerUpdateOptions;
@@ -527,7 +544,10 @@ namespace LiteNetLib
             if (shutdownResult == ShutdownResult.None)
                 return;
             if (shutdownResult == ShutdownResult.WasConnected)
+            {
                 Interlocked.Decrement(ref _connectedPeersCount);
+                RecomputePoolCap();
+            }
             CreateEvent(
                 NetEvent.EType.Disconnect,
                 peer,
@@ -553,7 +573,10 @@ namespace LiteNetLib
             bool unsyncEvent = UnsyncedEvents;
 
             if (type == NetEvent.EType.Connect)
+            {
                 Interlocked.Increment(ref _connectedPeersCount);
+                RecomputePoolCap();
+            }
             else if (type == NetEvent.EType.MessageDelivered)
                 unsyncEvent = UnsyncedDeliveryEvent;
 
@@ -1902,6 +1925,7 @@ namespace LiteNetLib
             ClearPingSimulationList();
 
             _connectedPeersCount = 0;
+            RecomputePoolCap();
             _pendingEventHead = null;
             _pendingEventTail = null;
         }

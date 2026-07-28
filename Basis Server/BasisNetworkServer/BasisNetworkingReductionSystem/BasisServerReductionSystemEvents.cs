@@ -199,20 +199,34 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// two thirds of the CPU at 32 workers was spent getting threads to the work rather than
         /// doing it, and throughput was equal or better at the low end.
         ///
-        /// A flat cap is wrong at one end or the other, so this scales with the population instead:
-        /// one worker per <see cref="PlayersPerWorker"/> players, floored at 4 so a small instance
-        /// stays cheap and capped at the core count. At 500 players that is 4 workers — where the
-        /// sweep above is flat — and at 4000 it is the whole box, which is what the phase needs to
-        /// fit its budget. Admins override with BSRMaxDegreeOfParallelism.
+        /// Scales with the population — one worker per <see cref="PlayersPerWorker"/> players — but
+        /// capped hard at <see cref="MaxAutoWorkers"/>, which matters more than the scaling does.
+        ///
+        /// This phase is throughput-bound, not latency-bound: it is already rate-limited by the
+        /// tick budget via slicing, so extra workers do not let it deliver sooner, they just cost
+        /// more to schedule. The transport's per-peer pass is the opposite — it sets reliable
+        /// latency and genuinely needs workers as the population grows. Scaling both by the same
+        /// rule let the two pools oversubscribe the box, and measured worse on every axis:
+        /// at 4000 players, both scaled = 23.6 cores / 634 MB/s / 153 ms peak pass, this phase
+        /// pinned to 8 = 18.0 cores / 644 MB/s / 108 ms. At 2000, 11.0 cores against 7.8.
+        ///
+        /// So: let the latency-bound pool grow, keep this one small.
         /// </summary>
         private const int PlayersPerWorker = 128;
+
+        /// <summary>
+        /// Ceiling for the auto-sized worker count, from the machine-wide split in
+        /// <see cref="BasisCpuBudget"/>. This pool and the transport's per-peer pool overlap, so
+        /// the shares are decided in one place rather than each sizing itself against the whole box.
+        /// </summary>
+        private static int MaxAutoWorkers => BasisCpuBudget.ReductionSendCap;
 
         private static int _configuredDegree;
 
         private static int DegreeFor(int playerCount) =>
             _configuredDegree > 0
                 ? Math.Min(_configuredDegree, Environment.ProcessorCount)
-                : Math.Clamp(playerCount / PlayersPerWorker, 4, Environment.ProcessorCount);
+                : Math.Clamp(playerCount / PlayersPerWorker, 4, Math.Min(MaxAutoWorkers, Environment.ProcessorCount));
 
         private static readonly ParallelOptions parallelOptions = new()
         {
@@ -253,7 +267,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
             else
             {
-                BNL.Log($"[BSR] Parallel worker cap scales with population: 1 per {PlayersPerWorker} players, 4 to {Environment.ProcessorCount}.");
+                BNL.Log($"[CPU] {BasisCpuBudget.Describe()}");
+                BNL.Log($"[BSR] Send workers scale with population: 1 per {PlayersPerWorker} players, {BasisCpuBudget.MinWorkersPerPool} to {MaxAutoWorkers}.");
             }
         }
 
@@ -409,11 +424,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// </summary>
         public static long intervalMs = 10;
 
-        // 4 ms (250 Hz) floor: no pair is ever scheduled faster than 20 Hz, so going below this only
-        // adds barriers. 20 ms (50 Hz) ceiling: still comfortably under the 50 ms shortest interval,
-        // so even fully backed off the tick never becomes the thing limiting delivery rate.
+        // 4 ms (250 Hz) absolute floor: no pair is ever scheduled faster than 20 Hz, so going below
+        // this only adds barriers. 20 ms (50 Hz) ceiling: still comfortably under the 50 ms shortest
+        // interval, so even fully backed off the tick never becomes the thing limiting delivery.
         public const long MinTickIntervalMs = 4;
         public const long MaxTickIntervalMs = 20;
+
+        /// <summary>
+        /// How many ticks the loop wants inside the shortest send interval, and so how far it is
+        /// allowed to speed up when there is spare budget.
+        ///
+        /// The period only has to be fine enough to hit a pair's deadline without much jitter;
+        /// beyond that, extra ticks find nothing due and pay fork/join on several Parallel loops for
+        /// it. The old flat 4 ms floor meant a nearly idle server ran the whole tick machinery ~300
+        /// times a second — measured at 500 players, scheduling was 59% of all server CPU, a flat
+        /// ~1.1 cores that did not shrink with the population. Four ticks per interval bounds the
+        /// added latency to a quarter of the shortest interval while running a third of the ticks.
+        /// </summary>
+        private const int TicksPerSendInterval = 4;
+
+        /// <summary>
+        /// Fastest period worth running for the current configuration. Derived from the shortest
+        /// send interval rather than fixed, so lowering BSRSMillisecondDefaultInterval still buys a
+        /// finer tick and raising it stops paying for one.
+        /// </summary>
+        private static long AdaptiveMinIntervalMs =>
+            Math.Max(MinTickIntervalMs, BSRSMillisecondDefaultInterval / TicksPerSendInterval);
         // Fallback wake while the server is empty; _tickWake.Set() does the real wake.
         private const int IdleWaitMs = 250;
         // Load-adaptive inter-tick wait: if the tick left more than this much of its budget
@@ -909,12 +945,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 intervalMs = Math.Min(MaxTickIntervalMs, intervalMs + 2L * escalationSteps);
             }
-            else if (comfortable && intervalMs > MinTickIntervalMs
+            else if (comfortable && intervalMs > AdaptiveMinIntervalMs
                      && _sliceCount == 1 && _loadShedTier == 0)
             {
                 // Only tighten the period once nothing is being degraded — otherwise the loop would
                 // speed back up while still dropping players, which is the wrong order of recovery.
-                intervalMs = Math.Max(MinTickIntervalMs, intervalMs - 1);
+                //
+                // Stops at the period the send intervals actually justify, not at the absolute
+                // floor: past that point the extra ticks find nothing due and just pay barriers.
+                intervalMs = Math.Max(AdaptiveMinIntervalMs, intervalMs - 1);
             }
 
             if (overloaded)

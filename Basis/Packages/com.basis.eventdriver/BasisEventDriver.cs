@@ -886,6 +886,15 @@ namespace Basis.EventDriver
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver microphone-icon simulate failed: {ex}", BasisDebug.LogTag.Event); }
 #endif
             }
+
+            // Last thing before the render: the camera, head and eye statics have settled above, so
+            // anything late-latching to them (sandboxed world scripts via BasisBeforeRenderShim, and
+            // any native subscriber) gets a final pose. RaiseBeforeRender isolates its own handlers.
+            using (Prof.BeforeRenderCallbacks.Auto())
+            {
+                BasisLocalCameraDriver.RaiseBeforeRender();
+            }
+
             StateOfOnRenderBefore = false;
 
             ProfileBeforeRenderFinish();

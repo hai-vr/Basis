@@ -15,6 +15,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker FixedUpdate = new ProfilerMarker("BasisDriver.FixedUpdate");
         public static readonly ProfilerMarker LateUpdate = new ProfilerMarker("BasisDriver.LateUpdate");
         public static readonly ProfilerMarker BeforeRender = new ProfilerMarker("BasisDriver.OnBeforeRender");
+        public static readonly ProfilerMarker BeforeRenderCallbacks = new ProfilerMarker("BasisDriver.OnBeforeRender.Callbacks");
 
         public static readonly ProfilerMarker NetworkCompleteCompute = new ProfilerMarker("BasisDriver.Network.CompleteCompute");
         public static readonly ProfilerMarker FrameClockTick = new ProfilerMarker("BasisDriver.FrameClock.Tick");

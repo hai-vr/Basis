@@ -1,5 +1,74 @@
 namespace Basis.Network.Core
 {
+    /// <summary>
+    /// Divides the machine's cores between the server's parallel pools.
+    ///
+    /// The pools do not run in isolation: the reduction system's send phase and the transport's
+    /// per-peer pass overlap in time, because the send phase ends by waking the transport while
+    /// the next tick is already starting. Each sizing itself against the whole machine therefore
+    /// oversubscribes it. Measured at 4000 players on a 32-thread box, both pools sized to the
+    /// core count cost 23.6 cores for 634 MB/s with a 153 ms worst pass; holding the send pool to
+    /// a quarter and giving the rest to the per-peer pass cost 18.0 cores for 644 MB/s with a
+    /// 108 ms worst pass — less CPU, more throughput, lower latency. At 2000 players the same
+    /// change was 11.0 cores against 7.8.
+    ///
+    /// Shares rather than fixed worker counts, so this scales with whatever it is deployed on
+    /// instead of encoding one test machine's core count.
+    ///
+    /// Why these two get the split they do:
+    ///  - The send phase is <b>throughput-bound</b> and already rate-limited by the tick budget
+    ///    (it sheds by slicing), so extra workers cannot make it deliver sooner — they only cost
+    ///    more to schedule. It takes the smaller share.
+    ///  - The per-peer pass is <b>latency-bound</b>: its interval is the floor on reliable
+    ///    delivery, and a direct-connect handshake has to complete several round trips inside the
+    ///    client's 4 s budget. It takes the larger share.
+    ///
+    /// Not everything here is under the allocator, deliberately. The dedicated single threads
+    /// (tick loop, logic loop, receive, stats) are one apiece and not worth modelling, and the
+    /// receive path measured at ~2% of server CPU at 4000 players, so sizing it would be policy
+    /// without evidence.
+    /// </summary>
+    public static class BasisCpuBudget
+    {
+        /// <summary>
+        /// Floor for any pool. Below roughly this a parallel region costs more to dispatch than it
+        /// saves, and a small machine should not end up effectively serial.
+        /// </summary>
+        public const int MinWorkersPerPool = 4;
+
+        /// <summary>Share of the machine for the reduction system's send/process/distance phases.</summary>
+        public const int ReductionSendWeight = 1;
+
+        /// <summary>Share of the machine for the transport's per-peer update pass.</summary>
+        public const int PeerUpdateWeight = 3;
+
+        private const int TotalWeight = ReductionSendWeight + PeerUpdateWeight;
+
+        /// <summary>Cores the allocator is dividing up.</summary>
+        public static int TotalCores => System.Environment.ProcessorCount;
+
+        /// <summary>Worker ceiling for a pool holding <paramref name="weight"/> of the total.</summary>
+        public static int CapForWeight(int weight)
+        {
+            int share = TotalCores * weight / TotalWeight;
+            if (share < MinWorkersPerPool) share = MinWorkersPerPool;
+            if (share > TotalCores) share = TotalCores;
+            return share;
+        }
+
+        /// <summary>Worker ceiling for the reduction system's parallel phases.</summary>
+        public static int ReductionSendCap => CapForWeight(ReductionSendWeight);
+
+        /// <summary>Worker ceiling for the transport's per-peer update pass.</summary>
+        public static int PeerUpdateCap => CapForWeight(PeerUpdateWeight);
+
+        /// <summary>One line describing the split, for the boot log.</summary>
+        // ASCII only: this goes to the log file, which is not written as UTF-8 everywhere.
+        public static string Describe() =>
+            $"{TotalCores} cores: reduction-send max {ReductionSendCap}, peer-update max {PeerUpdateCap} " +
+            $"(floor {MinWorkersPerPool} each; pools grow with population up to their cap)";
+    }
+
     public static class BasisNetworkCommons
     {
         /// <summary>

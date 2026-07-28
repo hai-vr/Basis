@@ -216,6 +216,9 @@ namespace Basis.Network.Core
                 UseNativeSockets = lnl.UseNativeSockets,
                 MergeHoldMs = lnl.MergeHoldMs,
                 PeerUpdateParallelism = lnl.PeerUpdateParallelism,
+                // This pool's share of the machine, decided centrally so it composes with the
+                // reduction system's overlapping pool instead of both claiming the whole box.
+                PeerUpdateWorkerCap = BasisCpuBudget.PeerUpdateCap,
                 MaxUnreliableQueuePerPeer = lnl.MaxUnreliableQueuePerPeer,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
                 EnableStatistics = configuration.EnableStatistics,
@@ -276,6 +279,8 @@ namespace Basis.Network.Core
         }
 
         public int ConnectedPeersCount => manager.ConnectedPeersCount;
+
+        public long UnreliableDropped => manager.UnreliableDropped;
 
         public NetStatistics Statistics => new NetStatistics(manager.Statistics);
     }

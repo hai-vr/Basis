@@ -499,6 +499,9 @@ namespace LiteNetLib
             NotConnected = false;
             _manualMode = manualMode;
             UseNativeSockets = UseNativeSockets && NativeSocket.IsSupported;
+            // Seed the cached pool ceiling now that the sizing knobs are set; peer connect and
+            // disconnect refresh it from then on.
+            RecomputePoolCap();
 
             // SO_REUSEPORT multi-socket ingress: Linux-only. Decide here so the primary socket
             // also opts in (SO_REUSEPORT must be set on every socket sharing the port).
