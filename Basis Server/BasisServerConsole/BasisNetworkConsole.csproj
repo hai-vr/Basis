@@ -12,6 +12,15 @@
     <TieredCompilation>true</TieredCompilation>
     <TieredPGO>true</TieredPGO>
   </PropertyGroup>
+
+  <!--
+    System.GC.ConserveMemory was measured here and does nothing for this workload: A/B at 2000
+    players, 1122 MB working set with it at 7 against 1108 MB with it off, and no CPU difference.
+    The heap is dominated by long-lived per-player state that is genuinely live, not by slack the
+    GC could hand back, so there is nothing for conserving to reclaim. Don't re-add it without a
+    fresh measurement — an early reading that suggested a 42% saving turned out to be an artifact
+    of a slow ramp that never reached full population.
+  -->
 	<ItemGroup>
 		<ProjectReference Include="..\BasisNetworkServer\BasisNetworkServer.csproj" />
 		<ProjectReference Include="..\BasisNetworkCore\BasisNetworkCore.csproj" />

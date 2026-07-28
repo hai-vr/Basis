@@ -160,6 +160,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Only this player's own receive thread (one Parallel.For body) writes here,
         // so no synchronization is needed.
         public PendingAvatarSend[] PendingSends;
+        /// <summary>Largest PendingCount seen in the current shrink window. See PendingShrinkWindowTicks.</summary>
+        public int PendingPeak;
+        /// <summary>Flushes elapsed in the current shrink window.</summary>
+        public int PendingPeakTicks;
         public int PendingCount;
 
         // Scratch buffers reused tick-to-tick when emitting compressed bundles to this receiver.
@@ -195,17 +199,38 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// two thirds of the CPU at 32 workers was spent getting threads to the work rather than
         /// doing it, and throughput was equal or better at the low end.
         ///
-        /// Quarter of the cores, floored at 4 and capped at 8: the win is flat past 8, and the
-        /// floor keeps small boxes from serialising. Admins override with
-        /// BSRMaxDegreeOfParallelism when their player count or hardware wants something else.
+        /// A flat cap is wrong at one end or the other, so this scales with the population instead:
+        /// one worker per <see cref="PlayersPerWorker"/> players, floored at 4 so a small instance
+        /// stays cheap and capped at the core count. At 500 players that is 4 workers — where the
+        /// sweep above is flat — and at 4000 it is the whole box, which is what the phase needs to
+        /// fit its budget. Admins override with BSRMaxDegreeOfParallelism.
         /// </summary>
-        private static int DefaultDegreeOfParallelism =>
-            Math.Clamp(Environment.ProcessorCount / 4, 4, 8);
+        private const int PlayersPerWorker = 128;
+
+        private static int _configuredDegree;
+
+        private static int DegreeFor(int playerCount) =>
+            _configuredDegree > 0
+                ? Math.Min(_configuredDegree, Environment.ProcessorCount)
+                : Math.Clamp(playerCount / PlayersPerWorker, 4, Environment.ProcessorCount);
 
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = DefaultDegreeOfParallelism
+            MaxDegreeOfParallelism = 4
         };
+
+        /// <summary>
+        /// Retunes the worker cap for the current population. Called once per tick from the send
+        /// phase; assigning only on change keeps it free when the count is stable.
+        /// </summary>
+        private static void TuneParallelism(int playerCount)
+        {
+            int desired = DegreeFor(playerCount);
+            if (parallelOptions.MaxDegreeOfParallelism != desired)
+            {
+                parallelOptions.MaxDegreeOfParallelism = desired;
+            }
+        }
 
         // A dedicated worker pool was tried here in place of Parallel.For and did not pay for
         // itself: with the worker cap above already removing the oversubscription, what remained
@@ -219,14 +244,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// </summary>
         public static void SetMaxDegreeOfParallelism(int configured)
         {
-            int resolved = configured <= 0
-                ? DefaultDegreeOfParallelism
-                : Math.Min(configured, Environment.ProcessorCount);
-
-            if (resolved == parallelOptions.MaxDegreeOfParallelism) return;
-
-            parallelOptions.MaxDegreeOfParallelism = resolved;
-            BNL.Log($"[BSR] Parallel worker cap set to {resolved} (of {Environment.ProcessorCount} cores).");
+            _configuredDegree = configured;
+            if (configured > 0)
+            {
+                int resolved = Math.Min(configured, Environment.ProcessorCount);
+                parallelOptions.MaxDegreeOfParallelism = resolved;
+                BNL.Log($"[BSR] Parallel worker cap pinned to {resolved} (of {Environment.ProcessorCount} cores).");
+            }
+            else
+            {
+                BNL.Log($"[BSR] Parallel worker cap scales with population: 1 per {PlayersPerWorker} players, 4 to {Environment.ProcessorCount}.");
+            }
         }
 
         public static ShardedConcurrentDictionary<PlayerState> playerStates = new();
@@ -258,6 +286,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// LOH-sized array per player. Steady state is a few KB.
         /// </summary>
         private const int RetainedScratchBytes = 16 * 1024;
+
+        /// <summary>
+        /// Flushes between reconsiderations of a receiver's PendingSends capacity. Long enough that
+        /// a receiver with bursty traffic keeps its buffer across the quiet stretches between
+        /// bursts, short enough that a population drop is reclaimed in seconds.
+        /// </summary>
+        private const int PendingShrinkWindowTicks = 256;
+
+        /// <summary>Floor for PendingSends so a quiet receiver still avoids immediate regrowth.</summary>
+        private const int PendingMinCapacity = 64;
 
         // Avatar delta compression (written from NetworkServer.InitializePulseSettings).
         // When on, each sender emits a full keyframe every AvatarDeltaKeyframeIntervalMs and, in
@@ -1188,6 +1226,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
+            // Retune workers to the current population before the phase that uses them.
+            TuneParallelism(playerCount);
+
             // Snapshot generation counters only (positions handled by slow distance cache).
             int maxId = 0;
             for (int i = 0; i < playerCount; i++)
@@ -1622,15 +1663,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     counters.BundleFallbacks++;
                 }
             }
-            // Clear the payload references, not just the count. PendingSends grows to the player
-            // count and is never shrunk, so leaving the Source pointers behind keeps ~1M dead
-            // references reachable at 1000 players — every GC has to trace them, and they pin the
-            // serialized payloads of players who may already have disconnected.
+            // Clear the payload references, not just the count. Leaving the Source pointers behind
+            // keeps ~1M dead references reachable at 1000 players — every GC has to trace them, and
+            // they pin the serialized payloads of players who may already have disconnected.
             for (int i = 0; i < count; i++)
             {
                 pending[i].Source = null;
             }
             stateI.PendingCount = 0;
+
+            // Give back a buffer that a busy spell grew and quiet ticks no longer justify.
+            //
+            // This array only ever grew before, sized by the worst tick a receiver had ever seen
+            // and kept at that size forever — 223 MB across 4000 players, most of it untouched.
+            // The peak is tracked over a window rather than reacting to one tick, so a receiver
+            // that is periodically busy does not thrash between sizes.
+            stateI.PendingPeak = Math.Max(stateI.PendingPeak, count);
+            if (++stateI.PendingPeakTicks >= PendingShrinkWindowTicks)
+            {
+                stateI.PendingPeakTicks = 0;
+                int want = Math.Max(PendingMinCapacity, stateI.PendingPeak * 2);
+                if (pending.Length > want * 2)
+                {
+                    stateI.PendingSends = new PendingAvatarSend[want];
+                }
+                stateI.PendingPeak = 0;
+            }
 
             // Keep modest scratch buffers between ticks; only hand back the oversized ones.
             //
