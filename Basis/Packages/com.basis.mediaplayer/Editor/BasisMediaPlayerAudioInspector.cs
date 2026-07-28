@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEditor.UIElements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 [CustomEditor(typeof(BasisMediaPlayerAudio))]
@@ -33,6 +34,11 @@ public class BasisMediaPlayerAudioInspector : Editor
         BindByName("VolumeGainField", "VolumeGain");
         BindByName("MuteField", "Mute");
         _root.Bind(serializedObject);
+
+        _root.Insert(0, new BasisMediaPlayerTapOrdering.Notice(
+            () => (target as BasisMediaPlayerAudio)?.Outputs,
+            names => $"Audio filters on {string.Join(", ", names)} won't be heard: the tap that " +
+                     "generates the stream has to sit above them in the component list."));
 
         return _root;
     }
