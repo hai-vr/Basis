@@ -251,6 +251,16 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             src.spatializePostEffects = true;
             if (!src.TryGetComponent(out BasisMediaPlayerAudioTap tap)) tap = src.gameObject.AddComponent<BasisMediaPlayerAudioTap>();
             b.FilterTap = tap;
+            // A tap added here appends, so it lands below anything already on the
+            // object. Component order is fixed at runtime, so this is a warning
+            // rather than something we can put right; the editor offers the reorder.
+            Component bypassed = BasisMediaPlayerAudioTap.FirstBypassedFilter(src);
+            if (bypassed != null)
+            {
+                BasisDebug.LogWarning(
+                    $"BasisMediaPlayerAudio: '{src.name}' has a {bypassed.GetType().Name} above its BasisMediaPlayerAudioTap, so that filter never hears the stream. Move it below the tap.",
+                    BasisDebug.LogTag.Video);
+            }
             bool primary = b.Primary;
             // Source frames per output frame: the tap renders straight into DSP
             // blocks, so rate conversion happens in the splitter read (Quest runs

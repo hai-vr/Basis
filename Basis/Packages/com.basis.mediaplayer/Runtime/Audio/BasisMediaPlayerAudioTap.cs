@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using UnityEngine;
 
 // Feeds one BasisMediaPlayer output AudioSource by mixing its channel(s) from the
@@ -18,6 +19,7 @@ using UnityEngine;
 // this output's channel taps, and a gain provider; the primary tap also reports the
 // mixed block back for the diagnostics metrics (consumed samples / peak / RMS).
 [RequireComponent(typeof(AudioSource))]
+[DisallowMultipleComponent]
 public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
 {
     private AudioSource source;
@@ -70,6 +72,46 @@ public sealed class BasisMediaPlayerAudioTap : MonoBehaviour
     {
         if (source == null && !TryGetComponent(out source)) return;
         sourceVolume = source.mute ? 0f : Mathf.Max(0f, source.volume);
+    }
+
+    // Unity runs a source's filters in component order, and this tap generates the
+    // audio rather than processing it, so a filter above it is handed the silent
+    // keepalive clip and then overwritten. Returns the topmost filter that has ended
+    // up there, for callers to warn about or offer to reorder. Component order can't
+    // be changed at runtime, so a rig assembled in code can only be warned about.
+    public static Component FirstBypassedFilter(AudioSource source)
+    {
+        if (source == null) return null;
+
+        Component[] comps = source.GetComponents<Component>();
+        int limit = comps.Length;
+        for (int i = 0; i < comps.Length; i++)
+        {
+            if (comps[i] is BasisMediaPlayerAudioTap) { limit = i; break; }
+        }
+        for (int i = 0; i < limit; i++)
+        {
+            if (comps[i] != null && IsAudioFilter(comps[i])) return comps[i];
+        }
+        return null;
+    }
+
+    public static bool IsAudioFilter(Component c)
+    {
+        if (c is AudioLowPassFilter || c is AudioHighPassFilter || c is AudioReverbFilter ||
+            c is AudioChorusFilter || c is AudioDistortionFilter || c is AudioEchoFilter)
+        {
+            return true;
+        }
+        if (c is not MonoBehaviour) return false;
+
+        // Script filters are DSP stages too. Match Unity's callback exactly, so a
+        // same-named method of another shape isn't mistaken for one (and so an
+        // overload can't make the lookup ambiguous).
+        MethodInfo m = c.GetType().GetMethod("OnAudioFilterRead",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null, types: new[] { typeof(float[]), typeof(int) }, modifiers: null);
+        return m != null && m.ReturnType == typeof(void);
     }
 
     public void Unbind()
