@@ -7,8 +7,10 @@ Shader "Basis/AvatarImposter"
     // No ShadowCaster on purpose: imposters render past the shadow LOD cutoff.
     Properties
     {
-        _BaseMap ("Atlas", 2D) = "white" {}
-        _Tint ("Tint", Color) = (1,1,1,1)
+        // [MainTexture]/[MainColor] make Material.mainTexture / .color target these —
+        // without them Unity writes _MainTex/_Color, which this shader doesn't have.
+        [MainTexture] _BaseMap ("Atlas", 2D) = "white" {}
+        [MainColor] _Tint ("Tint", Color) = (1,1,1,1)
     }
 
     SubShader

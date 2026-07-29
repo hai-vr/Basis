@@ -34,6 +34,7 @@ public class BasisAvatarImposter
     }
 
     private static readonly Dictionary<string, SharedAssets> SharedByVersion = new Dictionary<string, SharedAssets>(8);
+    private static readonly int BaseMapProperty = Shader.PropertyToID("_BaseMap");
     private static Shader sImposterShader;
 
     public GameObject Root;
@@ -291,7 +292,8 @@ public class BasisAvatarImposter
             UnityEngine.Object.Destroy(shared.Mesh);
             return null;
         }
-        shared.Material = new Material(sImposterShader) { mainTexture = texture };
+        shared.Material = new Material(sImposterShader);
+        shared.Material.SetTexture(BaseMapProperty, texture);
 
         SharedByVersion[uniqueVersion] = shared;
         return shared;
