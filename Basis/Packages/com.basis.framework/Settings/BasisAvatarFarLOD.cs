@@ -1,3 +1,4 @@
+using System.Threading;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
@@ -59,9 +60,23 @@ public static class BasisAvatarFarLOD
         {
             return;
         }
+
+        // While a real avatar downloads, promote to stand-in as soon as the connector (which
+        // downloads first) carries a payload — the player shows as their own silhouette on the
+        // fallback skeleton instead of as the loading dummy.
+        if (remote.IsLoadingAnAvatar && !remote.FarLodIsAvatar)
+        {
+            BasisLoadableBundle loadingBundle = remote.AlwaysRequestedAvatar;
+            if (loadingBundle?.BasisBundleConnector != null && !string.IsNullOrEmpty(loadingBundle.BasisBundleConnector.FarLodBase64))
+            {
+                CaptureFarLodFallback(remote, loadingBundle);
+            }
+        }
+
         bool current = remote.IsFarLodActive;
         // Stand-in mode ignores distance and the swap toggle: the far LOD IS the avatar
-        // (no build exists for this platform), so it stays up until a real avatar calibrates.
+        // (no build for this platform, still downloading, out of avatar range), so it stays
+        // up until a real avatar calibrates.
         bool desired = remote.FarLodIsAvatar
             ? IsEligible(remote)
             : Enabled && WantsFarLod(distanceSq, current) && IsEligible(remote);
@@ -91,7 +106,63 @@ public static class BasisAvatarFarLOD
         }
         remote.FarLodOverridePayload = connector.FarLodBase64;
         remote.FarLodOverrideVersion = connector.UniqueVersion;
+        remote.FarLodOverrideSource = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
         remote.FarLodIsAvatar = true;
+    }
+
+    private static readonly SemaphoreSlim sConnectorFetchGate = new SemaphoreSlim(4);
+
+    /// <summary>
+    /// Fetches just the bee connector (two ranged requests, no bundle download) for a player
+    /// whose avatar was never loaded — out-of-range players get their real silhouette without
+    /// ever paying for the full avatar. Fire-and-forget; the transmit tick activates the far
+    /// LOD once the payload lands.
+    /// </summary>
+    public static async void RequestFarLodPayload(BasisRemotePlayer remote, BasisLoadableBundle bundle)
+    {
+        if (remote == null || bundle == null || remote.FarLodConnectorFetchInFlight ||
+            string.IsNullOrEmpty(bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
+        {
+            return;
+        }
+        if (bundle.BasisBundleConnector != null)
+        {
+            CaptureFarLodFallback(remote, bundle);
+            return;
+        }
+
+        remote.FarLodConnectorFetchInFlight = true;
+        try
+        {
+            await sConnectorFetchGate.WaitAsync();
+            try
+            {
+                if (remote.IsDestroyed || bundle.BasisBundleConnector != null)
+                {
+                    return;
+                }
+                BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { LoadableBundle = bundle };
+                await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, new BasisProgressReport(), CancellationToken.None);
+            }
+            finally
+            {
+                sConnectorFetchGate.Release();
+            }
+
+            // The player may have disconnected or switched avatars during the fetch.
+            if (!remote.IsDestroyed && remote.AlwaysRequestedAvatar == bundle && bundle.BasisBundleConnector != null)
+            {
+                CaptureFarLodFallback(remote, bundle);
+            }
+        }
+        catch (System.Exception e)
+        {
+            BasisDebug.Log($"Far LOD connector fetch failed: {e.Message}", BasisDebug.LogTag.Avatar);
+        }
+        finally
+        {
+            remote.FarLodConnectorFetchInFlight = false;
+        }
     }
 
     /// <summary>
@@ -138,18 +209,19 @@ public static class BasisAvatarFarLOD
 
     private static bool IsEligible(BasisRemotePlayer remote)
     {
-        if (remote.IsEffectivelyBlocked || remote.IsLoadingAnAvatar ||
+        if (remote.IsEffectivelyBlocked ||
             remote.RemoteAvatarDriver == null || !remote.RemoteAvatarDriver.InBoneDriver || !remote.HasFarLodPayload)
         {
             return false;
         }
         if (remote.FarLodIsAvatar)
         {
-            // Stand-in mode runs ON the fallback avatar, and AlwaysShowAvatar means "show me
-            // this player" — the far LOD is the best available representation of them.
+            // Stand-in mode runs ON the fallback avatar (including mid-download), and
+            // AlwaysShowAvatar means "show me this player" — the far LOD is the best
+            // available representation of them.
             return true;
         }
-        return !remote.AlwaysShowAvatar && !remote.IsConsideredFallBackAvatar;
+        return !remote.IsLoadingAnAvatar && !remote.AlwaysShowAvatar && !remote.IsConsideredFallBackAvatar;
     }
 
     private static void ReapplyAllRemotes()

@@ -62,7 +62,7 @@ Shader "Basis/AvatarFarLod"
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv         : TEXCOORD0;
-                half3 light       : TEXCOORD1;
+                half3 normalWS    : TEXCOORD1;
                 half fogFactor    : TEXCOORD2;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -74,16 +74,9 @@ Shader "Basis/AvatarFarLod"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
-                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = input.uv;
-
-                // Wrapped diffuse keeps the dark side readable — at far LOD range a hard
-                // terminator on 1.5k triangles reads as banding, not shading.
-                Light mainLight = GetMainLight();
-                half wrapped = saturate(dot(normalWS, mainLight.direction)) * 0.6h + 0.4h;
-                output.light = SampleSH(normalWS) + mainLight.color * wrapped;
-
+                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.fogFactor = ComputeFogFactor(output.positionCS.z);
                 return output;
             }
@@ -92,7 +85,16 @@ Shader "Basis/AvatarFarLod"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _Tint.rgb;
-                half3 color = MixFog(albedo * input.light, input.fogFactor);
+
+                // Per-pixel lighting: per-vertex on big decimated triangles reads as faceting.
+                // Wrapped diffuse keeps the dark side readable — a hard terminator on low poly
+                // reads as banding, not shading.
+                half3 normalWS = normalize(input.normalWS);
+                Light mainLight = GetMainLight();
+                half wrapped = saturate(dot(normalWS, mainLight.direction)) * 0.6h + 0.4h;
+                half3 light = SampleSH(normalWS) + mainLight.color * wrapped;
+
+                half3 color = MixFog(albedo * light, input.fogFactor);
                 return half4(color, 1.0h);
             }
             ENDHLSL

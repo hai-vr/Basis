@@ -66,6 +66,31 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool FarLodIsAvatar;
         public string FarLodOverridePayload;
         public string FarLodOverrideVersion;
+        /// <summary>Bee URL the override payload was captured from — detects avatar changes.</summary>
+        public string FarLodOverrideSource;
+        public bool FarLodConnectorFetchInFlight;
+
+        /// <summary>
+        /// Drops the stand-in payload and any built far LOD, e.g. when the player's avatar
+        /// record changed to a different bundle or the user hid this player.
+        /// </summary>
+        public void ClearFarLodStandIn()
+        {
+            if (FarLod != null)
+            {
+                if (FarLod.IsActive)
+                {
+                    FarLod.Deactivate(this);
+                }
+                FarLod.DestroyInstance();
+                FarLod = null;
+            }
+            FarLodIsAvatar = false;
+            FarLodOverridePayload = null;
+            FarLodOverrideVersion = null;
+            FarLodOverrideSource = null;
+            _farLodPayloadState = 0;
+        }
 
         public bool IsFarLodActive => FarLod != null && FarLod.IsActive;
 
@@ -138,6 +163,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 FarLodIsAvatar = false;
                 FarLodOverridePayload = null;
                 FarLodOverrideVersion = null;
+                FarLodOverrideSource = null;
             }
         }
 
@@ -626,11 +652,31 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
                 else
                 {
-                    // A performance-blocked avatar can still show as its far LOD — the payload
-                    // is a fixed small cost no matter how heavy the real avatar is.
-                    if (IsBlockedByPerformance && BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && (InAvatarRange || AlwaysShowAvatar))
+                    if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked)
                     {
-                        BasisAvatarFarLOD.CaptureFarLodFallback(this, BasisLoadableBundle);
+                        // Real avatar won't be loaded (out of range, over the visible cap, or
+                        // performance-blocked) — stand in with the far LOD instead of the
+                        // loading dummy. The payload is a fixed small cost regardless of how
+                        // heavy the real avatar is, and for players whose bundle was never
+                        // downloaded only the connector is fetched — never the bundle.
+                        string source = BasisLoadableBundle?.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                        if (!string.IsNullOrEmpty(FarLodOverridePayload) && FarLodOverrideSource != source)
+                        {
+                            ClearFarLodStandIn();
+                        }
+                        if (BasisLoadableBundle?.BasisBundleConnector != null)
+                        {
+                            BasisAvatarFarLOD.CaptureFarLodFallback(this, BasisLoadableBundle);
+                        }
+                        else
+                        {
+                            BasisAvatarFarLOD.RequestFarLodPayload(this, BasisLoadableBundle);
+                        }
+                    }
+                    else
+                    {
+                        // Hidden or blocked — never represent this player with a far LOD.
+                        ClearFarLodStandIn();
                     }
                     if (!IsConsideredFallBackAvatar)
                     {

@@ -218,6 +218,7 @@ public static class BasisFarLodGenerator
 
             Stage("Unwrap", 0.5f);
             Mesh unwrapped = BuildUnwrappedMesh(soup, out byte[] boneA, out byte[] boneB, out byte[] weightA);
+            RepackChartsByImportance(unwrapped, boneA, skeleton);
             try
             {
                 Vector3[] positions = unwrapped.vertices;
@@ -780,7 +781,186 @@ public static class BasisFarLodGenerator
 
         mesh.uv = uv2;
         mesh.RecalculateNormals();
+        SmoothNormalsAcrossSeams(mesh);
         return mesh;
+    }
+
+    private static float ImportanceOfBone(HumanBodyBones bone)
+    {
+        switch (bone)
+        {
+            case HumanBodyBones.Head: return 2f;
+            case HumanBodyBones.LeftHand:
+            case HumanBodyBones.RightHand:
+                return 1.7f;
+            case HumanBodyBones.LeftFoot:
+            case HumanBodyBones.RightFoot:
+                return 1.4f;
+            default: return 1f;
+        }
+    }
+
+    /// <summary>
+    /// GenerateSecondaryUVSet allocates atlas area by surface area, so a face gets the same
+    /// texel density as a shoulder blade. Rescale each UV island by the importance of the body
+    /// part it belongs to and shelf-pack everything back into [0,1] — faces and hands stay
+    /// legible at the same atlas size.
+    /// </summary>
+    private static void RepackChartsByImportance(Mesh mesh, byte[] boneA, FarLodSkeleton skeleton)
+    {
+        Vector2[] uv = mesh.uv;
+        int[] triangles = mesh.triangles;
+        int vertexCount = uv.Length;
+        if (vertexCount == 0 || triangles.Length == 0)
+        {
+            return;
+        }
+
+        // Union-find over triangle connectivity: post-unwrap, index connectivity == chart.
+        int[] parent = new int[vertexCount];
+        for (int i = 0; i < vertexCount; i++)
+        {
+            parent[i] = i;
+        }
+        int Find(int x)
+        {
+            while (parent[x] != x)
+            {
+                parent[x] = parent[parent[x]];
+                x = parent[x];
+            }
+            return x;
+        }
+        for (int t = 0; t + 2 < triangles.Length; t += 3)
+        {
+            int a = Find(triangles[t]);
+            int b = Find(triangles[t + 1]);
+            int c = Find(triangles[t + 2]);
+            if (b != a) parent[b] = a;
+            if (c != a) parent[c] = a;
+        }
+
+        Dictionary<int, ChartIsland> islands = new Dictionary<int, ChartIsland>(64);
+        for (int i = 0; i < vertexCount; i++)
+        {
+            int root = Find(i);
+            if (!islands.TryGetValue(root, out ChartIsland island))
+            {
+                island = new ChartIsland { Min = uv[i], Max = uv[i], Importance = 1f };
+                islands[root] = island;
+            }
+            island.Min = Vector2.Min(island.Min, uv[i]);
+            island.Max = Vector2.Max(island.Max, uv[i]);
+            island.Importance = Mathf.Max(island.Importance, ImportanceOfBone(skeleton.Bones[boneA[i]]));
+            island.Vertices.Add(i);
+        }
+
+        List<ChartIsland> sorted = new List<ChartIsland>(islands.Values);
+        float margin = 4f / AtlasSize;
+
+        // Shrink the global scale until everything shelf-packs into [0,1].
+        float scaledArea = 0f;
+        foreach (ChartIsland island in sorted)
+        {
+            Vector2 size = island.Max - island.Min;
+            scaledArea += (size.x * island.Importance + margin * 2f) * (size.y * island.Importance + margin * 2f);
+        }
+        float globalScale = Mathf.Min(1.5f, Mathf.Sqrt(0.82f / Mathf.Max(scaledArea, 1e-6f)));
+        for (int attempt = 0; attempt < 48; attempt++)
+        {
+            if (TryShelfPack(sorted, globalScale, margin))
+            {
+                for (int s = 0; s < sorted.Count; s++)
+                {
+                    ChartIsland island = sorted[s];
+                    float scale = island.Importance * globalScale;
+                    for (int v = 0; v < island.Vertices.Count; v++)
+                    {
+                        int index = island.Vertices[v];
+                        uv[index] = island.PackedOrigin + (uv[index] - island.Min) * scale;
+                    }
+                }
+                mesh.uv = uv;
+                return;
+            }
+            globalScale *= 0.93f;
+        }
+        Debug.LogWarning("[FarLod] Chart repacking failed to converge — keeping the default unwrap packing.");
+    }
+
+    private sealed class ChartIsland
+    {
+        public Vector2 Min;
+        public Vector2 Max;
+        public float Importance;
+        public Vector2 PackedOrigin;
+        public readonly List<int> Vertices = new List<int>(64);
+    }
+
+    private static bool TryShelfPack(List<ChartIsland> islands, float globalScale, float margin)
+    {
+        islands.Sort((a, b) =>
+        {
+            float heightA = (a.Max.y - a.Min.y) * a.Importance;
+            float heightB = (b.Max.y - b.Min.y) * b.Importance;
+            return heightB.CompareTo(heightA);
+        });
+
+        float cursorX = 0f;
+        float cursorY = 0f;
+        float shelfHeight = 0f;
+        for (int i = 0; i < islands.Count; i++)
+        {
+            ChartIsland island = islands[i];
+            float scale = island.Importance * globalScale;
+            float width = (island.Max.x - island.Min.x) * scale + margin * 2f;
+            float height = (island.Max.y - island.Min.y) * scale + margin * 2f;
+            if (width > 1f || height > 1f)
+            {
+                return false;
+            }
+            if (cursorX + width > 1f)
+            {
+                cursorY += shelfHeight;
+                cursorX = 0f;
+                shelfHeight = 0f;
+            }
+            if (cursorY + height > 1f)
+            {
+                return false;
+            }
+            island.PackedOrigin = new Vector2(cursorX + margin, cursorY + margin);
+            cursorX += width;
+            shelfHeight = Mathf.Max(shelfHeight, height);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// RecalculateNormals treats the UV-split copies along chart seams as separate vertices,
+    /// hardening every seam into a visible facet line. Average the normals of all vertices
+    /// sharing a position so the low-poly surface shades smooth.
+    /// </summary>
+    private static void SmoothNormalsAcrossSeams(Mesh mesh)
+    {
+        Vector3[] vertices = mesh.vertices;
+        Vector3[] normals = mesh.normals;
+        Dictionary<Vector3, Vector3> accumulated = new Dictionary<Vector3, Vector3>(vertices.Length);
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            accumulated.TryGetValue(vertices[i], out Vector3 sum);
+            accumulated[vertices[i]] = sum + normals[i];
+        }
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 smoothed = accumulated[vertices[i]];
+            float magnitude = smoothed.magnitude;
+            if (magnitude > 1e-6f)
+            {
+                normals[i] = smoothed / magnitude;
+            }
+        }
+        mesh.normals = normals;
     }
 
     private static BasisFarLodPayload AssemblePayload(BasisAvatar avatar, Transform root, FarLodSkeleton skeleton,

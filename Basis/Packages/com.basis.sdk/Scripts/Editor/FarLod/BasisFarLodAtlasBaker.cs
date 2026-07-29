@@ -239,13 +239,15 @@ public static class BasisFarLodAtlasBaker
             collider.sharedMesh = decimatedMesh;
             Physics.SyncTransforms();
 
+            float[] vertexAo = ComputeVertexAo(positions, normals, rootToWorld, rootRotation, radius);
+
             sFlipSampleY = DetectSampleFlip(views, rootToWorld, rootRotation, positions, normals);
             if (sFlipSampleY)
             {
                 Debug.LogWarning("[FarLod] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
             }
 
-            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup);
+            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup, vertexAo);
             return CompressAtlas(atlas, atlasSize);
         }
         finally
@@ -437,8 +439,63 @@ public static class BasisFarLodAtlasBaker
         return readback.GetPixels32();
     }
 
+    private const float AoBakeStrength = 0.6f;
+    private const int AoRayCount = 12;
+
+    /// <summary>
+    /// Coarse ambient occlusion per decimated vertex (hemisphere raycasts against the bake
+    /// collider), baked gently into the atlas. The flat-ambient capture strips all depth cues;
+    /// this restores the under-chin / between-limbs shading that makes shapes read at range.
+    /// </summary>
+    private static float[] ComputeVertexAo(Vector3[] positions, Vector3[] normals, Matrix4x4 rootToWorld, Quaternion rootRotation, float radius)
+    {
+        int layerMask = 1 << OcclusionLayer;
+        float rayLength = Mathf.Max(radius * 0.5f, 0.2f);
+        float bias = Mathf.Max(0.004f, radius * 0.008f);
+
+        // Fixed cosine-weighted hemisphere set (tangent space, z = up).
+        Vector3[] hemisphere = new Vector3[AoRayCount];
+        for (int i = 0; i < AoRayCount; i++)
+        {
+            float u = (i + 0.5f) / AoRayCount;
+            float phi = i * 2.3999632f; // golden angle
+            float sinTheta = Mathf.Sqrt(u);
+            hemisphere[i] = new Vector3(Mathf.Cos(phi) * sinTheta, Mathf.Sin(phi) * sinTheta, Mathf.Sqrt(1f - u));
+        }
+
+        float[] ao = new float[positions.Length];
+        for (int v = 0; v < positions.Length; v++)
+        {
+            Vector3 normalWorld = (rootRotation * normals[v]).normalized;
+            Vector3 origin = rootToWorld.MultiplyPoint3x4(positions[v]) + normalWorld * bias;
+            Vector3 tangent = Vector3.Cross(normalWorld, Mathf.Abs(normalWorld.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+            Vector3 bitangent = Vector3.Cross(normalWorld, tangent);
+
+            int occluded = 0;
+            for (int r = 0; r < AoRayCount; r++)
+            {
+                Vector3 direction = tangent * hemisphere[r].x + bitangent * hemisphere[r].y + normalWorld * hemisphere[r].z;
+                if (Physics.Raycast(origin, direction, rayLength, layerMask))
+                {
+                    occluded++;
+                }
+            }
+            ao[v] = 1f - (occluded / (float)AoRayCount) * 0.9f;
+        }
+        return ao;
+    }
+
+    private static Color32 ApplyAo(Color32 color, float aoFactor)
+    {
+        return new Color32(
+            (byte)Mathf.Clamp(Mathf.RoundToInt(color.r * aoFactor), 0, 255),
+            (byte)Mathf.Clamp(Mathf.RoundToInt(color.g * aoFactor), 0, 255),
+            (byte)Mathf.Clamp(Mathf.RoundToInt(color.b * aoFactor), 0, 255),
+            255);
+    }
+
     private static Color32[] ProjectAtlas(List<CaptureView> views, Matrix4x4 rootToWorld, Quaternion rootRotation,
-        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius, byte[] texelGroups)
+        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius, byte[] texelGroups, float[] vertexAo)
     {
         int texelCount = atlasSize * atlasSize;
         Color32[] atlas = new Color32[texelCount];
@@ -509,6 +566,12 @@ public static class BasisFarLodAtlasBaker
                     Vector3 normalRoot = normals[i0] * baryA + normals[i1] * baryB + normals[i2] * baryC;
                     Vector3 positionWorld = rootToWorld.MultiplyPoint3x4(positionRoot);
                     Vector3 normalWorld = (rootRotation * normalRoot).normalized;
+                    float aoFactor = 1f;
+                    if (vertexAo != null)
+                    {
+                        float ao = Mathf.Clamp01(vertexAo[i0] * baryA + vertexAo[i1] * baryB + vertexAo[i2] * baryC);
+                        aoFactor = Mathf.Lerp(1f, ao, AoBakeStrength);
+                    }
 
                     // A view must face the surface properly: sampling near-tangent views smears
                     // capture pixels sideways across the texel (decimation parallax), which reads
@@ -598,14 +661,14 @@ public static class BasisFarLodAtlasBaker
                                 continue;
                             }
                         }
-                        atlas[texelIndex] = new Color32(color.r, color.g, color.b, 255);
+                        atlas[texelIndex] = ApplyAo(color, aoFactor);
                         texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
                         sampled = true;
                     }
 
                     if (!sampled && hasFallback)
                     {
-                        atlas[texelIndex] = new Color32(fallbackColor.r, fallbackColor.g, fallbackColor.b, 255);
+                        atlas[texelIndex] = ApplyAo(fallbackColor, aoFactor);
                         texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
                     }
                 }
