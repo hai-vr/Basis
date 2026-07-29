@@ -1,9 +1,11 @@
 Shader "Hidden/BasisFarLodPartId"
 {
     // Editor-only, used by the far LOD atlas baker: renders the snapshot geometry with the
-    // body-part id encoded in the vertex color, producing a per-pixel part mask that matches
-    // the beauty captures. A texel baking the arm then rejects pixels the mask attributes to
-    // the torso behind it. Exact passthrough — no lighting, no fog, no blending.
+    // body-part id (vertex color) in R and 16-bit normalized view depth in G/B, producing a
+    // per-pixel identity + depth reference that matches the beauty captures. A texel baking
+    // the arm rejects pixels the mask attributes to the torso behind it, and the depth match
+    // rejects front-surface pixels when baking the surface behind them (same-group occlusion).
+    // Must render into a LINEAR target — sRGB encoding would remap the id/depth bytes.
     SubShader
     {
         Tags
@@ -39,19 +41,26 @@ Shader "Hidden/BasisFarLodPartId"
             {
                 float4 positionCS : SV_POSITION;
                 float4 color      : COLOR;
+                float depth01     : TEXCOORD0;
             };
 
             Varyings vert(Attributes input)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(positionWS);
+                float3 positionVS = TransformWorldToView(positionWS);
+                // Normalized [near, far] view depth — linear for the baker's ortho cameras.
+                output.depth01 = saturate((-positionVS.z - _ProjectionParams.y) / (_ProjectionParams.z - _ProjectionParams.y));
                 output.color = input.color;
                 return output;
             }
 
-            half4 frag(Varyings input) : SV_Target
+            float4 frag(Varyings input) : SV_Target
             {
-                return half4(input.color.rgb, 1.0h);
+                float2 depthEncoded = frac(float2(1.0, 255.0) * input.depth01);
+                depthEncoded.x -= depthEncoded.y * (1.0 / 255.0);
+                return float4(input.color.r, depthEncoded.x, depthEncoded.y, 1.0);
             }
             ENDHLSL
         }

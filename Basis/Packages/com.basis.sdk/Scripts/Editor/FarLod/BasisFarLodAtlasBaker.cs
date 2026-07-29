@@ -75,6 +75,11 @@ public static class BasisFarLodAtlasBaker
         public Matrix4x4 WorldToPixel;
         public Color32[] Pixels; // rgb = un-premultiplied color, a = coverage
         public byte[] GroupIds;  // per pixel body group (255 = background); null when no mask
+        public ushort[] Depth16; // per pixel normalized [near,far] depth; null when no mask
+        public Vector3 CameraPositionWorld;
+        public float DepthNear;
+        public float DepthFar;
+        public float DepthToleranceMeters;
         public int Size;
         public bool IsRegion;
         public Bounds ValidBoundsRoot; // region views only serve texels inside this
@@ -363,8 +368,9 @@ public static class BasisFarLodAtlasBaker
             onBlack[p].a = (byte)coverage;
         }
 
-        // Part-id mask pass: same camera, only the vertex-colored snapshot mesh visible.
+        // Part-id + depth pass: same camera, only the vertex-colored snapshot mesh visible.
         byte[] groupIds = null;
+        ushort[] depth16 = null;
         if (maskObject != null && maskTarget != null)
         {
             for (int r = 0; r < avatarRenderers.Length; r++)
@@ -389,9 +395,13 @@ public static class BasisFarLodAtlasBaker
                 }
             }
             groupIds = new byte[maskPixels.Length];
+            depth16 = new ushort[maskPixels.Length];
             for (int p = 0; p < maskPixels.Length; p++)
             {
-                groupIds[p] = DecodeGroup(maskPixels[p].r);
+                Color32 maskPixel = maskPixels[p];
+                groupIds[p] = DecodeGroup(maskPixel.r);
+                float depth01 = maskPixel.g * (1f / 255f) + maskPixel.b * (1f / 65025f);
+                depth16[p] = (ushort)Mathf.Clamp(Mathf.RoundToInt(depth01 * 65535f), 0, 65535);
             }
         }
 
@@ -403,6 +413,13 @@ public static class BasisFarLodAtlasBaker
             WorldToPixel = ndcToPixel * clip,
             Pixels = onBlack,
             GroupIds = groupIds,
+            Depth16 = depth16,
+            CameraPositionWorld = camera.transform.position,
+            DepthNear = camera.nearClipPlane,
+            DepthFar = camera.farClipPlane,
+            // Absorbs the decimated-vs-original surface offset; anything deeper is another
+            // surface in front of (or behind) the one this texel belongs to.
+            DepthToleranceMeters = Mathf.Max(0.015f, frameRadius * 0.03f),
             Size = size,
             IsRegion = isRegion,
             ValidBoundsRoot = validBoundsRoot,
@@ -569,11 +586,17 @@ public static class BasisFarLodAtlasBaker
                         {
                             continue;
                         }
-                        Vector3 towardCamera = -view.DirectionWorld;
-                        Vector3 origin = positionWorld + normalWorld * rayBias + towardCamera * rayBias;
-                        if (Physics.Raycast(origin, towardCamera, radius * 3f, layerMask))
+                        // Depth-validated samples don't need the raycast — the per-pixel depth
+                        // match against the snapshot render already proves visibility. The
+                        // collider raycast remains as the fallback when the mask pass is absent.
+                        if (view.Depth16 == null)
                         {
-                            continue;
+                            Vector3 towardCamera = -view.DirectionWorld;
+                            Vector3 origin = positionWorld + normalWorld * rayBias + towardCamera * rayBias;
+                            if (Physics.Raycast(origin, towardCamera, radius * 3f, layerMask))
+                            {
+                                continue;
+                            }
                         }
                         atlas[texelIndex] = new Color32(color.r, color.g, color.b, 255);
                         texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
@@ -648,6 +671,21 @@ public static class BasisFarLodAtlasBaker
         {
             pixel.y = view.Size - pixel.y;
         }
+
+        // Expected capture depth of this surface point — pixels whose recorded depth differs
+        // belong to another surface along the same ray (front/back of the torso, arm in front
+        // of chest) and count as background.
+        bool hasDepth = view.Depth16 != null;
+        float expectedDepth16 = 0f;
+        float depthTolerance16 = 0f;
+        if (hasDepth)
+        {
+            float depthRange = Mathf.Max(view.DepthFar - view.DepthNear, 1e-4f);
+            float viewDepth = Vector3.Dot(positionWorld - view.CameraPositionWorld, view.DirectionWorld);
+            expectedDepth16 = Mathf.Clamp01((viewDepth - view.DepthNear) / depthRange) * 65535f;
+            depthTolerance16 = view.DepthToleranceMeters / depthRange * 65535f;
+        }
+
         float fx = pixel.x - 0.5f;
         float fy = pixel.y - 0.5f;
         int x0 = Mathf.FloorToInt(fx);
@@ -682,16 +720,22 @@ public static class BasisFarLodAtlasBaker
                 {
                     continue;
                 }
+                int sampleIndex = sy * view.Size + sx;
                 if (view.GroupIds != null && allowed0 != 255)
                 {
-                    byte pixelGroup = view.GroupIds[sy * view.Size + sx];
+                    byte pixelGroup = view.GroupIds[sampleIndex];
                     if (pixelGroup != allowed0 && pixelGroup != allowed1 && pixelGroup != allowed2)
                     {
                         totalWeight += weight;
                         continue;
                     }
                 }
-                Color32 sample = view.Pixels[sy * view.Size + sx];
+                if (hasDepth && Mathf.Abs(view.Depth16[sampleIndex] - expectedDepth16) > depthTolerance16)
+                {
+                    totalWeight += weight;
+                    continue;
+                }
+                Color32 sample = view.Pixels[sampleIndex];
                 float sampleCoverage = sample.a * (1f / 255f);
                 float colorWeight = weight * sampleCoverage;
                 r += sample.r * colorWeight;
