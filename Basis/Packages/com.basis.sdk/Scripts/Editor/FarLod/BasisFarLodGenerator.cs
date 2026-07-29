@@ -20,7 +20,7 @@ using UnityEngine;
 public static class BasisFarLodGenerator
 {
     public static int TargetTriangleCount = 8000;
-    public static int AtlasSize = 512;
+    public static int AtlasSize = 1024;
     public static int CaptureSize = 1024;
 
     /// <summary>Per-stage timing/count logs, enabled by the far LOD tester.</summary>
