@@ -23,6 +23,70 @@ public static class BasisImposterGenerator
     public static int AtlasSize = 256;
     public static int CaptureSize = 1024;
 
+    /// <summary>Per-stage timing/count logs, enabled by the imposter tester.</summary>
+    public static bool VerboseLogging;
+
+    /// <summary>
+    /// Structured stage report for tooling. Attach before calling <see cref="Generate"/>;
+    /// each stage records its label, duration and detail line (counts etc.).
+    /// </summary>
+    public sealed class GenerationReport
+    {
+        public struct Entry
+        {
+            public string Label;
+            public double Seconds;
+            public string Detail;
+        }
+
+        public readonly List<Entry> Entries = new List<Entry>();
+        public double TotalSeconds;
+    }
+
+    public static GenerationReport ActiveReport;
+
+    private static double _stageStart;
+
+    private static void Stage(string label, float progress)
+    {
+        double now = EditorApplication.timeSinceStartup;
+        CloseStage(now);
+        EditorUtility.DisplayProgressBar("Imposter Generation", label, progress);
+        ActiveReport?.Entries.Add(new GenerationReport.Entry { Label = label });
+        if (VerboseLogging)
+        {
+            Debug.Log($"[Imposter] {label}");
+        }
+        _stageStart = now;
+    }
+
+    private static void CloseStage(double now)
+    {
+        if (ActiveReport != null && ActiveReport.Entries.Count > 0)
+        {
+            GenerationReport.Entry entry = ActiveReport.Entries[ActiveReport.Entries.Count - 1];
+            if (entry.Seconds == 0)
+            {
+                entry.Seconds = now - _stageStart;
+                ActiveReport.Entries[ActiveReport.Entries.Count - 1] = entry;
+            }
+        }
+    }
+
+    private static void StageDetail(string detail)
+    {
+        if (ActiveReport != null && ActiveReport.Entries.Count > 0)
+        {
+            GenerationReport.Entry entry = ActiveReport.Entries[ActiveReport.Entries.Count - 1];
+            entry.Detail = detail;
+            ActiveReport.Entries[ActiveReport.Entries.Count - 1] = entry;
+        }
+        if (VerboseLogging)
+        {
+            Debug.Log($"[Imposter] {detail}");
+        }
+    }
+
     /// <summary>Matches BasisPlayerFactory.TPose so build-time and runtime T-poses agree exactly.</summary>
     public const string TposeControllerPath = "Assets/Animator/Animated TPose.controller";
 
@@ -114,6 +178,7 @@ public static class BasisImposterGenerator
         Animator animator = avatar.Animator;
         Transform root = animator.transform;
         double startTime = EditorApplication.timeSinceStartup;
+        _stageStart = startTime;
 
         TransformPoseSnapshot poseSnapshot = TransformPoseSnapshot.Capture(root);
         RuntimeAnimatorController savedController = animator.runtimeAnimatorController;
@@ -122,23 +187,31 @@ public static class BasisImposterGenerator
             // Park the clone on an isolated island so multi-view captures see nothing else.
             root.position = new Vector3(4096f, 4096f, 4096f);
 
+            Stage("T-pose", 0.05f);
             ApplyTPose(animator);
 
             ImposterSkeleton skeleton = CaptureSkeleton(animator, root);
             if (skeleton.Count == 0)
             {
+                Debug.LogWarning("Imposter generation skipped: no humanoid bones resolved.");
                 return null;
             }
 
+            Stage("Snapshot geometry", 0.15f);
             SnapshotSoup soup = SnapshotGeometry(animator, root, skeleton);
+            StageDetail($"{soup.Positions.Count} verts, {soup.Indices.Count / 3} tris across the avatar, {skeleton.Count} bones kept");
             if (soup.Indices.Count < 3)
             {
                 Debug.LogWarning("Imposter generation skipped: no triangle geometry found.");
                 return null;
             }
 
+            Stage("Simplify", 0.3f);
+            int soupTriangles = soup.Indices.Count / 3;
             BasisImposterMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, soup.Indices, TargetTriangleCount);
+            StageDetail($"{soupTriangles} → {soup.Indices.Count / 3} tris ({soup.Positions.Count} verts)");
 
+            Stage("Unwrap", 0.5f);
             Mesh unwrapped = BuildUnwrappedMesh(soup, out byte[] boneA, out byte[] boneB, out byte[] weightA);
             try
             {
@@ -152,6 +225,7 @@ public static class BasisImposterGenerator
                     return null;
                 }
 
+                Stage("Bake atlas", 0.65f);
                 BasisImposterPayload.ImposterTexture[] textures = BasisImposterAtlasBaker.Bake(
                     root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize);
                 if (textures == null || textures.Length == 0)
@@ -159,7 +233,9 @@ public static class BasisImposterGenerator
                     Debug.LogWarning("Imposter generation skipped: atlas bake failed.");
                     return null;
                 }
+                StageDetail($"{AtlasSize}px atlas, {textures.Length} compressed payload(s)");
 
+                Stage("Serialize", 0.95f);
                 BasisImposterPayload payload = AssemblePayload(avatar, root, skeleton, positions, normals, uv, indices, boneA, boneB, weightA, textures);
                 double elapsed = EditorApplication.timeSinceStartup - startTime;
                 Debug.Log($"Imposter generated: {indices.Length / 3} triangles, {positions.Length} vertices, {skeleton.Count} bones, {AtlasSize}px atlas, {elapsed:0.00}s.");
@@ -172,17 +248,27 @@ public static class BasisImposterGenerator
         }
         finally
         {
+            double endTime = EditorApplication.timeSinceStartup;
+            CloseStage(endTime);
+            if (ActiveReport != null)
+            {
+                ActiveReport.TotalSeconds = endTime - startTime;
+            }
+            EditorUtility.ClearProgressBar();
             animator.runtimeAnimatorController = savedController;
             poseSnapshot.Restore();
         }
     }
 
-    private static void ApplyTPose(Animator animator)
+    public static void ApplyTPose(Animator animator)
     {
         RuntimeAnimatorController tpose = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(TposeControllerPath);
         if (tpose != null)
         {
             animator.runtimeAnimatorController = tpose;
+            // Edit-mode animators are usually uninitialized; Rebind is what makes Update
+            // actually evaluate and write the pose outside play mode.
+            animator.Rebind();
             animator.Update(0f);
             animator.Update(0.02f);
             return;
@@ -204,6 +290,37 @@ public static class BasisImposterGenerator
         {
             handler.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Per-core-bone T-pose local rotations in the avatar's ACTUAL hierarchy (relative to each
+    /// bone's real transform parent — the sender-side frame the wire deltas are computed
+    /// against). Used by the imposter tester to reproduce the runtime's
+    /// `rest * delta` composition. Momentarily T-poses the avatar and restores it.
+    /// </summary>
+    public static Dictionary<HumanBodyBones, Quaternion> CaptureActualTposeLocals(Animator animator)
+    {
+        Dictionary<HumanBodyBones, Quaternion> locals = new Dictionary<HumanBodyBones, Quaternion>(CoreBones.Length);
+        TransformPoseSnapshot snapshot = TransformPoseSnapshot.Capture(animator.transform);
+        RuntimeAnimatorController savedController = animator.runtimeAnimatorController;
+        try
+        {
+            ApplyTPose(animator);
+            for (int i = 0; i < CoreBones.Length; i++)
+            {
+                Transform bone = animator.GetBoneTransform(CoreBones[i]);
+                if (bone != null)
+                {
+                    locals[CoreBones[i]] = bone.localRotation;
+                }
+            }
+        }
+        finally
+        {
+            animator.runtimeAnimatorController = savedController;
+            snapshot.Restore();
+        }
+        return locals;
     }
 
     private static ImposterSkeleton CaptureSkeleton(Animator animator, Transform root)

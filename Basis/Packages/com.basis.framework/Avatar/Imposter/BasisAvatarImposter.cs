@@ -28,8 +28,6 @@ public class BasisAvatarImposter
         public Mesh Mesh;
         public Texture2D Texture;
         public Material Material;
-        public Vector3[] BoneRootSpacePosition;
-        public Quaternion[] BoneRootSpaceRotation;
         public int HipsIndex;
         public int HeadIndex;
         public int RefCount;
@@ -259,7 +257,7 @@ public class BasisAvatarImposter
             return null;
         }
 
-        Texture2D texture = BuildTexture(payload);
+        Texture2D texture = payload.CreateTexture();
         if (texture == null)
         {
             return null;
@@ -271,39 +269,11 @@ public class BasisAvatarImposter
             Payload = payload,
             Texture = texture,
             RefCount = 1,
-            HipsIndex = -1,
-            HeadIndex = -1,
+            HipsIndex = payload.FindBone(HumanBodyBones.Hips),
+            HeadIndex = payload.FindBone(HumanBodyBones.Head),
         };
-        for (int i = 0; i < payload.BoneCount; i++)
-        {
-            if (payload.BoneHumanBodyBone[i] == (byte)HumanBodyBones.Hips)
-            {
-                shared.HipsIndex = i;
-            }
-            else if (payload.BoneHumanBodyBone[i] == (byte)HumanBodyBones.Head)
-            {
-                shared.HeadIndex = i;
-            }
-        }
 
-        shared.BoneRootSpacePosition = new Vector3[payload.BoneCount];
-        shared.BoneRootSpaceRotation = new Quaternion[payload.BoneCount];
-        for (int i = 0; i < payload.BoneCount; i++)
-        {
-            byte parent = payload.BoneParentIndex[i];
-            if (parent == 0xFF)
-            {
-                shared.BoneRootSpacePosition[i] = payload.BoneRestLocalPosition[i];
-                shared.BoneRootSpaceRotation[i] = payload.BoneRestLocalRotation[i];
-            }
-            else
-            {
-                shared.BoneRootSpacePosition[i] = shared.BoneRootSpacePosition[parent] + shared.BoneRootSpaceRotation[parent] * payload.BoneRestLocalPosition[i];
-                shared.BoneRootSpaceRotation[i] = shared.BoneRootSpaceRotation[parent] * payload.BoneRestLocalRotation[i];
-            }
-        }
-
-        shared.Mesh = BuildMesh(payload, shared);
+        shared.Mesh = payload.CreateMesh();
         if (shared.Mesh == null)
         {
             UnityEngine.Object.Destroy(texture);
@@ -349,115 +319,4 @@ public class BasisAvatarImposter
         }
     }
 
-    private static Texture2D BuildTexture(BasisImposterPayload payload)
-    {
-        for (int i = 0; i < payload.Textures.Length; i++)
-        {
-            BasisImposterPayload.ImposterTexture texturePayload = payload.Textures[i];
-            TextureFormat format;
-            switch (texturePayload.Format)
-            {
-                case BasisImposterPayload.ImposterTextureFormat.BC1: format = TextureFormat.DXT1; break;
-                case BasisImposterPayload.ImposterTextureFormat.ASTC6x6: format = TextureFormat.ASTC_6x6; break;
-                case BasisImposterPayload.ImposterTextureFormat.RGBA32: format = TextureFormat.RGBA32; break;
-                default: continue;
-            }
-            if (!SystemInfo.SupportsTextureFormat(format))
-            {
-                continue;
-            }
-            try
-            {
-                Texture2D texture = new Texture2D(texturePayload.Width, texturePayload.Height, format, texturePayload.MipCount > 1, false)
-                {
-                    name = "BasisImposterAtlas",
-                    wrapMode = TextureWrapMode.Clamp,
-                    filterMode = FilterMode.Trilinear,
-                    anisoLevel = 1,
-                };
-                texture.LoadRawTextureData(texturePayload.Data);
-                texture.Apply(false, true);
-                return texture;
-            }
-            catch (System.Exception e)
-            {
-                BasisDebug.LogError($"Imposter texture rejected: {e.Message}", BasisDebug.LogTag.Avatar);
-            }
-        }
-        return null;
-    }
-
-    private static Mesh BuildMesh(BasisImposterPayload payload, SharedAssets shared)
-    {
-        try
-        {
-            int vertexCount = payload.VertexCount;
-            Vector3[] vertices = new Vector3[vertexCount];
-            Vector3[] normals = new Vector3[vertexCount];
-            Vector2[] uv = new Vector2[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-            {
-                vertices[i] = payload.DequantizePosition(i);
-                normals[i] = BasisImposterPayload.OctDecodeNormal(payload.NormalsOct[i]);
-                uv[i] = payload.DequantizeUv(i);
-            }
-            int[] triangles = new int[payload.Indices.Length];
-            for (int i = 0; i < triangles.Length; i++)
-            {
-                triangles[i] = payload.Indices[i];
-            }
-
-            Mesh mesh = new Mesh { name = "BasisImposterMesh" };
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.uv = uv;
-            mesh.triangles = triangles;
-
-            int influenceCount = 0;
-            for (int i = 0; i < vertexCount; i++)
-            {
-                influenceCount += payload.BoneIndexB[i] != payload.BoneIndexA[i] && payload.BoneWeightA[i] < 255 ? 2 : 1;
-            }
-            using (NativeArray<byte> bonesPerVertex = new NativeArray<byte>(vertexCount, Allocator.Temp))
-            using (NativeArray<BoneWeight1> weights = new NativeArray<BoneWeight1>(influenceCount, Allocator.Temp))
-            {
-                var bonesPerVertexSpan = bonesPerVertex;
-                var weightSpan = weights;
-                int cursor = 0;
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float weightA = payload.BoneWeightA[i] * (1f / 255f);
-                    bool twoInfluences = payload.BoneIndexB[i] != payload.BoneIndexA[i] && payload.BoneWeightA[i] < 255;
-                    bonesPerVertexSpan[i] = (byte)(twoInfluences ? 2 : 1);
-                    if (twoInfluences)
-                    {
-                        weightSpan[cursor++] = new BoneWeight1 { boneIndex = payload.BoneIndexA[i], weight = weightA };
-                        weightSpan[cursor++] = new BoneWeight1 { boneIndex = payload.BoneIndexB[i], weight = 1f - weightA };
-                    }
-                    else
-                    {
-                        weightSpan[cursor++] = new BoneWeight1 { boneIndex = payload.BoneIndexA[i], weight = 1f };
-                    }
-                }
-                mesh.SetBoneWeights(bonesPerVertex, weights);
-            }
-
-            Matrix4x4[] bindposes = new Matrix4x4[payload.BoneCount];
-            for (int i = 0; i < payload.BoneCount; i++)
-            {
-                bindposes[i] = Matrix4x4.TRS(shared.BoneRootSpacePosition[i], shared.BoneRootSpaceRotation[i], Vector3.one).inverse;
-            }
-            mesh.bindposes = bindposes;
-            mesh.bounds = new Bounds(
-                (payload.PositionBoundsMin + payload.PositionBoundsMax) * 0.5f,
-                payload.PositionBoundsMax - payload.PositionBoundsMin);
-            mesh.UploadMeshData(true);
-            return mesh;
-        }
-        catch (System.Exception e)
-        {
-            BasisDebug.LogError($"Imposter mesh rejected: {e.Message}", BasisDebug.LogTag.Avatar);
-            return null;
-        }
-    }
 }

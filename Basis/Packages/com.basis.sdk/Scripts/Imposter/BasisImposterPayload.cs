@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Unity.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -316,6 +317,167 @@ public class BasisImposterPayload
             BasisDebug.LogError($"Imposter payload parse failed: {e.Message}", BasisDebug.LogTag.Avatar);
             return null;
         }
+    }
+
+    public int FindBone(HumanBodyBones bone)
+    {
+        byte value = (byte)bone;
+        for (int i = 0; i < BoneCount; i++)
+        {
+            if (BoneHumanBodyBone[i] == value)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Rest pose of every bone in animator-root space, composed down the collapsed hierarchy.
+    /// Used for bind poses; runtime bone scale is unity (network scale applies at the root).
+    /// </summary>
+    public void ComputeBoneRootSpace(out Vector3[] positions, out Quaternion[] rotations)
+    {
+        int boneCount = BoneCount;
+        positions = new Vector3[boneCount];
+        rotations = new Quaternion[boneCount];
+        for (int i = 0; i < boneCount; i++)
+        {
+            byte parent = BoneParentIndex[i];
+            if (parent == 0xFF)
+            {
+                positions[i] = BoneRestLocalPosition[i];
+                rotations[i] = BoneRestLocalRotation[i];
+            }
+            else
+            {
+                positions[i] = positions[parent] + rotations[parent] * BoneRestLocalPosition[i];
+                rotations[i] = rotations[parent] * BoneRestLocalRotation[i];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Builds the skinned imposter mesh from this payload — the single construction path shared
+    /// by the runtime imposter and the SDK tester. Returns null (with a log) on bad data.
+    /// </summary>
+    public Mesh CreateMesh()
+    {
+        try
+        {
+            int vertexCount = VertexCount;
+            Vector3[] vertices = new Vector3[vertexCount];
+            Vector3[] normals = new Vector3[vertexCount];
+            Vector2[] uv = new Vector2[vertexCount];
+            for (int i = 0; i < vertexCount; i++)
+            {
+                vertices[i] = DequantizePosition(i);
+                normals[i] = OctDecodeNormal(NormalsOct[i]);
+                uv[i] = DequantizeUv(i);
+            }
+            int[] triangles = new int[Indices.Length];
+            for (int i = 0; i < triangles.Length; i++)
+            {
+                triangles[i] = Indices[i];
+            }
+
+            Mesh mesh = new Mesh { name = "BasisImposterMesh" };
+            mesh.vertices = vertices;
+            mesh.normals = normals;
+            mesh.uv = uv;
+            mesh.triangles = triangles;
+
+            int influenceCount = 0;
+            for (int i = 0; i < vertexCount; i++)
+            {
+                influenceCount += BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255 ? 2 : 1;
+            }
+            using (NativeArray<byte> bonesPerVertex = new NativeArray<byte>(vertexCount, Allocator.Temp))
+            using (NativeArray<BoneWeight1> weights = new NativeArray<BoneWeight1>(influenceCount, Allocator.Temp))
+            {
+                // Struct copies of the using-declared arrays (same buffer) — a using variable
+                // is readonly, so its indexer can't be written through directly.
+                NativeArray<byte> bonesPerVertexWriter = bonesPerVertex;
+                NativeArray<BoneWeight1> weightWriter = weights;
+                int cursor = 0;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    float weightA = BoneWeightA[i] * (1f / 255f);
+                    bool twoInfluences = BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255;
+                    bonesPerVertexWriter[i] = (byte)(twoInfluences ? 2 : 1);
+                    if (twoInfluences)
+                    {
+                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = weightA };
+                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexB[i], weight = 1f - weightA };
+                    }
+                    else
+                    {
+                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = 1f };
+                    }
+                }
+                mesh.SetBoneWeights(bonesPerVertex, weights);
+            }
+
+            ComputeBoneRootSpace(out Vector3[] bonePositions, out Quaternion[] boneRotations);
+            Matrix4x4[] bindposes = new Matrix4x4[BoneCount];
+            for (int i = 0; i < BoneCount; i++)
+            {
+                bindposes[i] = Matrix4x4.TRS(bonePositions[i], boneRotations[i], Vector3.one).inverse;
+            }
+            mesh.bindposes = bindposes;
+            mesh.bounds = new Bounds(
+                (PositionBoundsMin + PositionBoundsMax) * 0.5f,
+                PositionBoundsMax - PositionBoundsMin);
+            mesh.UploadMeshData(true);
+            return mesh;
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogError($"Imposter mesh rejected: {e.Message}", BasisDebug.LogTag.Avatar);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds the atlas texture from the first payload whose compression format this device
+    /// supports. Returns null when none apply.
+    /// </summary>
+    public Texture2D CreateTexture()
+    {
+        for (int i = 0; i < Textures.Length; i++)
+        {
+            ImposterTexture texturePayload = Textures[i];
+            TextureFormat format;
+            switch (texturePayload.Format)
+            {
+                case ImposterTextureFormat.BC1: format = TextureFormat.DXT1; break;
+                case ImposterTextureFormat.ASTC6x6: format = TextureFormat.ASTC_6x6; break;
+                case ImposterTextureFormat.RGBA32: format = TextureFormat.RGBA32; break;
+                default: continue;
+            }
+            if (!SystemInfo.SupportsTextureFormat(format))
+            {
+                continue;
+            }
+            try
+            {
+                Texture2D texture = new Texture2D(texturePayload.Width, texturePayload.Height, format, texturePayload.MipCount > 1, false)
+                {
+                    name = "BasisImposterAtlas",
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Trilinear,
+                    anisoLevel = 1,
+                };
+                texture.LoadRawTextureData(texturePayload.Data);
+                texture.Apply(false, true);
+                return texture;
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"Imposter texture rejected: {e.Message}", BasisDebug.LogTag.Avatar);
+            }
+        }
+        return null;
     }
 
     public Vector3 DequantizePosition(int vertexIndex)

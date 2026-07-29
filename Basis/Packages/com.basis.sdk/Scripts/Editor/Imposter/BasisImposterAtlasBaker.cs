@@ -106,6 +106,25 @@ public static class BasisImposterAtlasBaker
             }
             camera.targetTexture = null;
 
+            // Sanity: if every capture came back empty, the camera rendered nothing (edit-mode
+            // SRP issue or the avatar's renderers are off) — the atlas would be flat gray.
+            long coveredPixels = 0;
+            for (int v = 0; v < views.Length; v++)
+            {
+                Color32[] pixels = views[v].Pixels;
+                for (int p = 0; p < pixels.Length; p += 7)
+                {
+                    if (pixels[p].a > 128)
+                    {
+                        coveredPixels++;
+                    }
+                }
+            }
+            if (coveredPixels == 0)
+            {
+                Debug.LogWarning("[Imposter] Every view capture was empty — Camera.Render produced no avatar pixels. The atlas will be flat. Check that the avatar's renderers are enabled and visible.");
+            }
+
             colliderObject = new GameObject("ImposterBakeCollider") { hideFlags = HideFlags.HideAndDontSave, layer = OcclusionLayer };
             colliderObject.transform.SetPositionAndRotation(root.position, root.rotation);
             colliderObject.transform.localScale = root.lossyScale;
