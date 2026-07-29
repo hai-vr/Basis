@@ -505,12 +505,12 @@ public class BasisFarLodPayload
         Texture2D texture;
         if (useMipmapLimit && hasMips)
         {
-            if (!TextureMipmapLimitGroups.HasGroup(MipmapLimitGroup))
-            {
-                TextureMipmapLimitGroups.CreateGroup(MipmapLimitGroup);
-            }
+            // Limit groups can only be authored in Quality Settings (no runtime creation in
+            // this Unity version) — use ours when someone has added it there, otherwise
+            // participate through the global texture mipmap limit.
+            string limitGroup = TextureMipmapLimitGroups.HasGroup(MipmapLimitGroup) ? MipmapLimitGroup : string.Empty;
             texture = new Texture2D(texturePayload.Width, texturePayload.Height, format,
-                texturePayload.MipCount, false, false, new MipmapLimitDescriptor(true, MipmapLimitGroup));
+                texturePayload.MipCount, false, false, new MipmapLimitDescriptor(true, limitGroup));
         }
         else
         {
