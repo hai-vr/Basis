@@ -261,6 +261,22 @@ public static class BasisBodyEvidenceSampler
         return BasisBodyEvidenceCore.TryGetEstimate(state.ArmSpan, out armSpan, out confidence);
     }
 
+    /// <summary>
+    /// True when the player has looked persistently shorter than the size on record for long enough
+    /// that posture cannot explain it — a shared headset that changed hands. The caller prompts rather
+    /// than acting on it.
+    /// </summary>
+    public static bool LooksLikeADifferentPerson()
+    {
+        if (!s_allocated)
+        {
+            return false;
+        }
+        CompleteIfPending();
+        BasisBodyEvidenceState state = s_state.Value;
+        return BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye);
+    }
+
     /// <summary>Sample counts for the calibration debug readout.</summary>
     public static void GetSampleCounts(out int eyeSamples, out int spanSamples)
     {

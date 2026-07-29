@@ -2683,6 +2683,130 @@
       "value": "Calibrate to see a quality report."
     },
     {
+      "key": "settings.calibration.yourHeight",
+      "value": "Your Height"
+    },
+    {
+      "key": "settings.calibration.yourHeight.tooltip",
+      "value": "How tall you are. This is the most reliable measurement there is — better than anything we can work out from your headset — so telling us once makes everything else more accurate. It also lets us throw out bad readings. Type it however you like: 178, 178cm, 1.78m, or 5'10\". Leave it blank to rely on measurement alone."
+    },
+    {
+      "key": "settings.calibration.yourHeight.placeholder",
+      "value": "e.g. 178 cm or 5'10\""
+    },
+    {
+      "key": "settings.calibration.yourHeight.rejected",
+      "value": "Could not read that as a height — try 178, 178cm, 1.78m or 5'10\"."
+    },
+    {
+      "key": "calibration.measureMe",
+      "value": "Measure Me"
+    },
+    {
+      "key": "calibration.measureMe.tooltip",
+      "value": "Forget what we have measured and watch you again from scratch. No T-pose needed — just stand up straight and stretch your arms out wide, and the numbers below will settle. Use this if the avatar feels the wrong size, or if someone else has been using this headset."
+    },
+    {
+      "key": "calibration.measureMe.prompt",
+      "value": "Stand up straight and stretch your arms out wide."
+    },
+    {
+      "key": "calibration.report.size.title",
+      "value": "Your Size"
+    },
+    {
+      "key": "calibration.summary.height",
+      "value": "Your height:"
+    },
+    {
+      "key": "calibration.summary.reach",
+      "value": "Your reach:"
+    },
+    {
+      "key": "calibration.summary.reach.unmeasured",
+      "value": "not measured yet — stretch your arms out wide once and this will fill in"
+    },
+    {
+      "key": "calibration.summary.source.measured",
+      "value": "measured while you played"
+    },
+    {
+      "key": "calibration.summary.source.stated",
+      "value": "you told us"
+    },
+    {
+      "key": "calibration.summary.source.saved",
+      "value": "from your last calibration"
+    },
+    {
+      "key": "calibration.summary.source.slimevr",
+      "value": "from SlimeVR"
+    },
+    {
+      "key": "calibration.summary.source.fallback",
+      "value": "a generic default — nothing measured yet"
+    },
+    {
+      "key": "calibration.summary.avatar.matches",
+      "value": "This avatar's proportions match yours closely."
+    },
+    {
+      "key": "calibration.summary.avatar.armsLonger",
+      "value": "This avatar's arms are {0:P0} longer than yours."
+    },
+    {
+      "key": "calibration.summary.avatar.armsShorter",
+      "value": "This avatar's arms are {0:P0} shorter than yours."
+    },
+    {
+      "key": "calibration.summary.avatar.adjusted",
+      "value": "Its arms were resized to match your reach."
+    },
+    {
+      "key": "calibration.summary.avatar.beyondAdjustment",
+      "value": "That is further than its arms can be resized, so some difference remains."
+    },
+    {
+      "key": "calibration.summary.fit.exact",
+      "value": "Fit: perfect — your eye height matches exactly and the avatar was reshaped around it."
+    },
+    {
+      "key": "calibration.summary.fit.adjusted",
+      "value": "Fit: good — the avatar was scaled {0:P0} away from your exact eye height so its arms could reach where yours do."
+    },
+    {
+      "key": "calibration.summary.fit.compromised",
+      "value": "Fit: this avatar's proportions are hard to match. Try the size nudge below if it still feels off."
+    },
+    {
+      "key": "calibration.summary.fit.none",
+      "value": "Fit: waiting for measurements."
+    },
+    {
+      "key": "calibration.summary.differentPerson",
+      "value": "You have been measuring shorter than the size on record for a while. If someone else used this headset, press Measure Me."
+    },
+    {
+      "key": "calibration.avatarNudge",
+      "value": "This Avatar's Size"
+    },
+    {
+      "key": "calibration.avatarNudge.tooltip",
+      "value": "Make just this avatar bigger or smaller. Remembered per avatar, so it never affects your measured size or any other avatar you wear. Use it when an avatar's proportions are too unusual for the automatic fit."
+    },
+    {
+      "key": "calibration.refit.title",
+      "value": "Fit updated"
+    },
+    {
+      "key": "calibration.refit.reach",
+      "value": "Measured your reach at {0:F2} m and resized the avatar to match."
+    },
+    {
+      "key": "calibration.refit.height",
+      "value": "Measured your height and resized the avatar to match ({0:F2} m to your eyes)."
+    },
+    {
       "key": "settings.calibration.continuousBodyMeasurement",
       "value": "Keep Measuring Me"
     },

@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Builds a <see cref="BasisImposterPayload"/> for an avatar at bundle build time.
+/// Builds a <see cref="BasisFarLodPayload"/> for an avatar at bundle build time.
 ///
 /// Pipeline: force the runtime T-pose → snapshot every active renderer into animator-root
 /// space with skin weights collapsed onto the core humanoid bones → QEM-decimate to a small
@@ -15,15 +15,15 @@ using UnityEngine;
 ///
 /// The captured skeleton uses the same T-pose the runtime bone system calibrates against
 /// (Animated TPose.controller), which is what keeps the networked per-bone deltas
-/// bit-compatible between the real avatar and the imposter.
+/// bit-compatible between the real avatar and the far LOD.
 /// </summary>
-public static class BasisImposterGenerator
+public static class BasisFarLodGenerator
 {
-    public static int TargetTriangleCount = 1500;
+    public static int TargetTriangleCount = 8000;
     public static int AtlasSize = 256;
     public static int CaptureSize = 1024;
 
-    /// <summary>Per-stage timing/count logs, enabled by the imposter tester.</summary>
+    /// <summary>Per-stage timing/count logs, enabled by the far LOD tester.</summary>
     public static bool VerboseLogging;
 
     /// <summary>
@@ -51,11 +51,11 @@ public static class BasisImposterGenerator
     {
         double now = EditorApplication.timeSinceStartup;
         CloseStage(now);
-        EditorUtility.DisplayProgressBar("Imposter Generation", label, progress);
+        EditorUtility.DisplayProgressBar("Far LOD Generation", label, progress);
         ActiveReport?.Entries.Add(new GenerationReport.Entry { Label = label });
         if (VerboseLogging)
         {
-            Debug.Log($"[Imposter] {label}");
+            Debug.Log($"[FarLod] {label}");
         }
         _stageStart = now;
     }
@@ -83,7 +83,7 @@ public static class BasisImposterGenerator
         }
         if (VerboseLogging)
         {
-            Debug.Log($"[Imposter] {detail}");
+            Debug.Log($"[FarLod] {detail}");
         }
     }
 
@@ -91,8 +91,8 @@ public static class BasisImposterGenerator
     public const string TposeControllerPath = "Assets/Animator/Animated TPose.controller";
 
     /// <summary>
-    /// Core humanoid bones the imposter keeps, ordered parents-first. Fingers, toes, eyes and
-    /// jaw collapse into their nearest ancestor here — they are sub-pixel at imposter range and
+    /// Core humanoid bones the far LOD keeps, ordered parents-first. Fingers, toes, eyes and
+    /// jaw collapse into their nearest ancestor here — they are sub-pixel at far LOD range and
     /// dropping them keeps the runtime skeleton around 20 transforms per player.
     /// </summary>
     private static readonly HumanBodyBones[] CoreBones =
@@ -148,7 +148,7 @@ public static class BasisImposterGenerator
         }
     }
 
-    public sealed class ImposterSkeleton
+    public sealed class FarLodSkeleton
     {
         public readonly List<HumanBodyBones> Bones = new List<HumanBodyBones>();
         public readonly List<int> ParentIndex = new List<int>();
@@ -163,15 +163,15 @@ public static class BasisImposterGenerator
 
     public static string GenerateBase64(BasisAvatar avatar)
     {
-        BasisImposterPayload payload = Generate(avatar);
+        BasisFarLodPayload payload = Generate(avatar);
         return payload?.SerializeToBase64();
     }
 
-    public static BasisImposterPayload Generate(BasisAvatar avatar)
+    public static BasisFarLodPayload Generate(BasisAvatar avatar)
     {
         if (avatar == null || avatar.Animator == null || avatar.Animator.avatar == null || !avatar.Animator.avatar.isHuman)
         {
-            Debug.LogWarning("Imposter generation skipped: avatar is not humanoid.");
+            Debug.LogWarning("Far LOD generation skipped: avatar is not humanoid.");
             return null;
         }
 
@@ -190,10 +190,10 @@ public static class BasisImposterGenerator
             Stage("T-pose", 0.05f);
             ApplyTPose(animator);
 
-            ImposterSkeleton skeleton = CaptureSkeleton(animator, root);
+            FarLodSkeleton skeleton = CaptureSkeleton(animator, root);
             if (skeleton.Count == 0)
             {
-                Debug.LogWarning("Imposter generation skipped: no humanoid bones resolved.");
+                Debug.LogWarning("Far LOD generation skipped: no humanoid bones resolved.");
                 return null;
             }
 
@@ -202,13 +202,13 @@ public static class BasisImposterGenerator
             StageDetail($"{soup.Positions.Count} verts, {soup.Indices.Count / 3} tris across the avatar, {skeleton.Count} bones kept");
             if (soup.Indices.Count < 3)
             {
-                Debug.LogWarning("Imposter generation skipped: no triangle geometry found.");
+                Debug.LogWarning("Far LOD generation skipped: no triangle geometry found.");
                 return null;
             }
 
             Stage("Simplify", 0.3f);
             int soupTriangles = soup.Indices.Count / 3;
-            BasisImposterMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, soup.Indices, TargetTriangleCount);
+            BasisFarLodMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, soup.Indices, TargetTriangleCount);
             StageDetail($"{soupTriangles} → {soup.Indices.Count / 3} tris ({soup.Positions.Count} verts)");
 
             Stage("Unwrap", 0.5f);
@@ -219,26 +219,27 @@ public static class BasisImposterGenerator
                 Vector3[] normals = unwrapped.normals;
                 Vector2[] uv = unwrapped.uv;
                 int[] indices = unwrapped.triangles;
-                if (positions.Length == 0 || positions.Length > BasisImposterPayload.MaxVertices || indices.Length == 0)
+                if (positions.Length == 0 || positions.Length > BasisFarLodPayload.MaxVertices || indices.Length == 0)
                 {
-                    Debug.LogWarning($"Imposter generation skipped: decimated mesh out of range ({positions.Length} verts).");
+                    Debug.LogWarning($"Far LOD generation skipped: decimated mesh out of range ({positions.Length} verts).");
                     return null;
                 }
 
                 Stage("Bake atlas", 0.65f);
-                BasisImposterPayload.ImposterTexture[] textures = BasisImposterAtlasBaker.Bake(
-                    root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize);
+                BasisFarLodAtlasBaker.RegionOfInterest[] regions = BuildCaptureRegions(skeleton, positions, boneA, boneB, weightA);
+                BasisFarLodPayload.FarLodTexture[] textures = BasisFarLodAtlasBaker.Bake(
+                    root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize, regions);
                 if (textures == null || textures.Length == 0)
                 {
-                    Debug.LogWarning("Imposter generation skipped: atlas bake failed.");
+                    Debug.LogWarning("Far LOD generation skipped: atlas bake failed.");
                     return null;
                 }
                 StageDetail($"{AtlasSize}px atlas, {textures.Length} compressed payload(s)");
 
                 Stage("Serialize", 0.95f);
-                BasisImposterPayload payload = AssemblePayload(avatar, root, skeleton, positions, normals, uv, indices, boneA, boneB, weightA, textures);
+                BasisFarLodPayload payload = AssemblePayload(avatar, root, skeleton, positions, normals, uv, indices, boneA, boneB, weightA, textures);
                 double elapsed = EditorApplication.timeSinceStartup - startTime;
-                Debug.Log($"Imposter generated: {indices.Length / 3} triangles, {positions.Length} vertices, {skeleton.Count} bones, {AtlasSize}px atlas, {elapsed:0.00}s.");
+                Debug.Log($"Far LOD generated: {indices.Length / 3} triangles, {positions.Length} vertices, {skeleton.Count} bones, {AtlasSize}px atlas, {elapsed:0.00}s.");
                 return payload;
             }
             finally
@@ -295,7 +296,7 @@ public static class BasisImposterGenerator
     /// <summary>
     /// Per-core-bone T-pose local rotations in the avatar's ACTUAL hierarchy (relative to each
     /// bone's real transform parent — the sender-side frame the wire deltas are computed
-    /// against). Used by the imposter tester to reproduce the runtime's
+    /// against). Used by the far LOD tester to reproduce the runtime's
     /// `rest * delta` composition. Momentarily T-poses the avatar and restores it.
     /// </summary>
     public static Dictionary<HumanBodyBones, Quaternion> CaptureActualTposeLocals(Animator animator)
@@ -323,9 +324,9 @@ public static class BasisImposterGenerator
         return locals;
     }
 
-    private static ImposterSkeleton CaptureSkeleton(Animator animator, Transform root)
+    private static FarLodSkeleton CaptureSkeleton(Animator animator, Transform root)
     {
-        ImposterSkeleton skeleton = new ImposterSkeleton();
+        FarLodSkeleton skeleton = new FarLodSkeleton();
         Matrix4x4 rootWorldToLocal = root.worldToLocalMatrix;
         Quaternion rootRotationInverse = Quaternion.Inverse(root.rotation);
 
@@ -389,7 +390,7 @@ public static class BasisImposterGenerator
         public readonly List<int> Indices = new List<int>(196608);
     }
 
-    private static SnapshotSoup SnapshotGeometry(Animator animator, Transform root, ImposterSkeleton skeleton)
+    private static SnapshotSoup SnapshotGeometry(Animator animator, Transform root, FarLodSkeleton skeleton)
     {
         SnapshotSoup soup = new SnapshotSoup();
         Matrix4x4 rootWorldToLocal = root.worldToLocalMatrix;
@@ -422,7 +423,7 @@ public static class BasisImposterGenerator
         return soup;
     }
 
-    private static int ResolveAncestorBone(Transform transform, Transform root, ImposterSkeleton skeleton, Dictionary<Transform, int> cache)
+    private static int ResolveAncestorBone(Transform transform, Transform root, FarLodSkeleton skeleton, Dictionary<Transform, int> cache)
     {
         if (transform == null)
         {
@@ -452,7 +453,7 @@ public static class BasisImposterGenerator
     }
 
     private static void AppendSkinnedMesh(SnapshotSoup soup, SkinnedMeshRenderer skinned, Transform root, Matrix4x4 rootWorldToLocal,
-        ImposterSkeleton skeleton, Dictionary<Transform, int> ancestorCache, float[] weightScratch, int[] touchedScratch)
+        FarLodSkeleton skeleton, Dictionary<Transform, int> ancestorCache, float[] weightScratch, int[] touchedScratch)
     {
         Mesh mesh = skinned.sharedMesh;
         Transform[] bones = skinned.bones;
@@ -468,11 +469,11 @@ public static class BasisImposterGenerator
         Matrix4x4[] bindposes = mesh.bindposes;
         int boneCount = Mathf.Min(bones.Length, bindposes.Length);
         Matrix4x4[] skinMatrices = new Matrix4x4[boneCount];
-        int[] boneToImposter = new int[boneCount];
+        int[] boneToFarLodBone = new int[boneCount];
         for (int b = 0; b < boneCount; b++)
         {
             skinMatrices[b] = bones[b] != null ? bones[b].localToWorldMatrix * bindposes[b] : Matrix4x4.identity;
-            boneToImposter[b] = ResolveAncestorBone(bones[b] != null ? bones[b] : skinned.transform, root, skeleton, ancestorCache);
+            boneToFarLodBone[b] = ResolveAncestorBone(bones[b] != null ? bones[b] : skinned.transform, root, skeleton, ancestorCache);
         }
 
         var bonesPerVertex = mesh.GetBonesPerVertex();
@@ -501,21 +502,21 @@ public static class BasisImposterGenerator
                 world += skinMatrices[weight.boneIndex].MultiplyPoint3x4(vertices[v]) * weight.weight;
                 totalWeight += weight.weight;
 
-                int imposterBone = boneToImposter[weight.boneIndex];
-                if (weightScratch[imposterBone] == 0f && touchedCount < touchedScratch.Length)
+                int farLodBone = boneToFarLodBone[weight.boneIndex];
+                if (weightScratch[farLodBone] == 0f && touchedCount < touchedScratch.Length)
                 {
-                    touchedScratch[touchedCount++] = imposterBone;
+                    touchedScratch[touchedCount++] = farLodBone;
                 }
-                weightScratch[imposterBone] += weight.weight;
+                weightScratch[farLodBone] += weight.weight;
             }
 
             if (totalWeight <= 1e-6f)
             {
                 world = skinned.transform.localToWorldMatrix.MultiplyPoint3x4(vertices[v]);
-                weightScratch[boneToImposter.Length > 0 ? boneToImposter[0] : 0] = 1f;
+                weightScratch[boneToFarLodBone.Length > 0 ? boneToFarLodBone[0] : 0] = 1f;
                 if (touchedCount == 0 && touchedScratch.Length > 0)
                 {
-                    touchedScratch[touchedCount++] = boneToImposter.Length > 0 ? boneToImposter[0] : 0;
+                    touchedScratch[touchedCount++] = boneToFarLodBone.Length > 0 ? boneToFarLodBone[0] : 0;
                 }
             }
             else if (totalWeight < 0.999f)
@@ -588,7 +589,7 @@ public static class BasisImposterGenerator
     }
 
     private static void AppendRigidMesh(SnapshotSoup soup, Mesh mesh, Transform meshTransform, Transform root, Matrix4x4 rootWorldToLocal,
-        ImposterSkeleton skeleton, Dictionary<Transform, int> ancestorCache)
+        FarLodSkeleton skeleton, Dictionary<Transform, int> ancestorCache)
     {
         int bone = ResolveAncestorBone(meshTransform, root, skeleton, ancestorCache);
         Matrix4x4 toRoot = rootWorldToLocal * meshTransform.localToWorldMatrix;
@@ -618,6 +619,59 @@ public static class BasisImposterGenerator
                 soup.Indices.Add(vertexBase + indices[i]);
             }
         }
+    }
+
+    /// <summary>
+    /// Close-up capture regions for small, detail-dense parts. In a whole-body frame a hand is
+    /// a few dozen pixels — these bounds get their own tightly-framed captures in the baker.
+    /// </summary>
+    private static BasisFarLodAtlasBaker.RegionOfInterest[] BuildCaptureRegions(FarLodSkeleton skeleton,
+        Vector3[] positions, byte[] boneA, byte[] boneB, byte[] weightA)
+    {
+        HumanBodyBones[] targets =
+        {
+            HumanBodyBones.LeftHand, HumanBodyBones.RightHand,
+            HumanBodyBones.LeftFoot, HumanBodyBones.RightFoot,
+            HumanBodyBones.Head,
+        };
+        List<BasisFarLodAtlasBaker.RegionOfInterest> regions = new List<BasisFarLodAtlasBaker.RegionOfInterest>(targets.Length);
+        for (int t = 0; t < targets.Length; t++)
+        {
+            int boneIndex = skeleton.Bones.IndexOf(targets[t]);
+            if (boneIndex < 0)
+            {
+                continue;
+            }
+            bool hasBounds = false;
+            Bounds bounds = default;
+            for (int i = 0; i < positions.Length; i++)
+            {
+                bool influencedByA = boneA[i] == boneIndex && weightA[i] > 32;
+                bool influencedByB = boneB[i] == boneIndex && weightA[i] < 223;
+                if (!influencedByA && !influencedByB)
+                {
+                    continue;
+                }
+                if (!hasBounds)
+                {
+                    bounds = new Bounds(positions[i], Vector3.zero);
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(positions[i]);
+                }
+            }
+            if (hasBounds && bounds.size.magnitude > 0.01f)
+            {
+                regions.Add(new BasisFarLodAtlasBaker.RegionOfInterest
+                {
+                    Name = targets[t].ToString(),
+                    RootBounds = bounds,
+                });
+            }
+        }
+        return regions.ToArray();
     }
 
     private static Mesh BuildUnwrappedMesh(SnapshotSoup soup, out byte[] boneA, out byte[] boneB, out byte[] weightA)
@@ -663,11 +717,11 @@ public static class BasisImposterGenerator
         return mesh;
     }
 
-    private static BasisImposterPayload AssemblePayload(BasisAvatar avatar, Transform root, ImposterSkeleton skeleton,
+    private static BasisFarLodPayload AssemblePayload(BasisAvatar avatar, Transform root, FarLodSkeleton skeleton,
         Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices,
-        byte[] boneA, byte[] boneB, byte[] weightA, BasisImposterPayload.ImposterTexture[] textures)
+        byte[] boneA, byte[] boneB, byte[] weightA, BasisFarLodPayload.FarLodTexture[] textures)
     {
-        BasisImposterPayload payload = new BasisImposterPayload
+        BasisFarLodPayload payload = new BasisFarLodPayload
         {
             AvatarEyePosition = avatar.AvatarEyePosition,
             AvatarMouthPosition = avatar.AvatarMouthPosition,
@@ -741,13 +795,13 @@ public static class BasisImposterGenerator
         for (int i = 0; i < vertexCount; i++)
         {
             Vector3 p = positions[i];
-            payload.PositionsQ[i * 3] = BasisImposterPayload.QuantizeUnorm((p.x - boundsMin.x) / range.x);
-            payload.PositionsQ[i * 3 + 1] = BasisImposterPayload.QuantizeUnorm((p.y - boundsMin.y) / range.y);
-            payload.PositionsQ[i * 3 + 2] = BasisImposterPayload.QuantizeUnorm((p.z - boundsMin.z) / range.z);
-            payload.NormalsOct[i] = BasisImposterPayload.OctEncodeNormal(i < normals.Length ? normals[i] : Vector3.up);
+            payload.PositionsQ[i * 3] = BasisFarLodPayload.QuantizeUnorm((p.x - boundsMin.x) / range.x);
+            payload.PositionsQ[i * 3 + 1] = BasisFarLodPayload.QuantizeUnorm((p.y - boundsMin.y) / range.y);
+            payload.PositionsQ[i * 3 + 2] = BasisFarLodPayload.QuantizeUnorm((p.z - boundsMin.z) / range.z);
+            payload.NormalsOct[i] = BasisFarLodPayload.OctEncodeNormal(i < normals.Length ? normals[i] : Vector3.up);
             Vector2 texcoord = i < uv.Length ? uv[i] : Vector2.zero;
-            payload.UvQ[i * 2] = BasisImposterPayload.QuantizeUnorm(texcoord.x);
-            payload.UvQ[i * 2 + 1] = BasisImposterPayload.QuantizeUnorm(texcoord.y);
+            payload.UvQ[i * 2] = BasisFarLodPayload.QuantizeUnorm(texcoord.x);
+            payload.UvQ[i * 2 + 1] = BasisFarLodPayload.QuantizeUnorm(texcoord.y);
         }
 
         payload.Indices = new ushort[indices.Length];

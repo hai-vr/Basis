@@ -307,19 +307,19 @@ namespace Basis.Scripts.Drivers
 
             CalibrationComplete?.Invoke();
 
-            // Seed the imposter for the distance this avatar loaded at — the transmit tick's
+            // Seed the far LOD for the distance this avatar loaded at — the transmit tick's
             // swap check is edge-triggered, so a far-away load would otherwise start at full
-            // detail. Also drops any imposter belonging to the previous avatar.
-            BasisAvatarImposterLOD.SeedAfterCalibration(RemotePlayer);
+            // detail. Also drops any far LOD belonging to the previous avatar.
+            BasisAvatarFarLOD.SeedAfterCalibration(RemotePlayer);
         }
 
         /// <summary>
         /// (Re)registers the real avatar's transforms with the bone job system. Split out of
-        /// <see cref="RemoteCalibration"/> so the imposter swap can restore the registration
+        /// <see cref="RemoteCalibration"/> so the far LOD swap can restore the registration
         /// without a full recalibration. With <paramref name="snapToNetworkPose"/> the avatar is
         /// also snapped onto the latest network pose (scale, derived root, hips world) and the
         /// jiggle rigs are teleported by the travel delta — used when the avatar wakes back up
-        /// after the imposter hid it.
+        /// after the far LOD hid it.
         /// </summary>
         public void RegisterAvatarWithBoneJobSystem(BasisRemotePlayer RemotePlayer, bool snapToNetworkPose)
         {

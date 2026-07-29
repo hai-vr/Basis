@@ -51,71 +51,71 @@ namespace Basis.Scripts.BasisSdk.Players
         public byte AvatarLoadMode { get; set; }
         public BasisLoadableBundle AvatarMetaData { get; set; }
 
-        /// <summary>Distance imposter for the current avatar, built lazily on first swap.</summary>
-        public BasisAvatarImposter Imposter;
+        /// <summary>Distance far LOD for the current avatar, built lazily on first swap.</summary>
+        public BasisAvatarFarLodRenderer FarLod;
         // 0 = unknown, 1 = present, -1 = absent or failed to build (don't retry every tick).
-        private sbyte _imposterPayloadState;
+        private sbyte _farLodPayloadState;
 
-        public bool IsImposterActive => Imposter != null && Imposter.IsActive;
+        public bool IsFarLodActive => FarLod != null && FarLod.IsActive;
 
-        /// <summary>True when the current avatar's bundle connector carries an imposter payload.</summary>
-        public bool HasImposterPayload
+        /// <summary>True when the current avatar's bundle connector carries an far LOD payload.</summary>
+        public bool HasFarLodPayload
         {
             get
             {
-                if (_imposterPayloadState == 0)
+                if (_farLodPayloadState == 0)
                 {
-                    string payload = AvatarMetaData?.BasisBundleConnector?.ImposterBase64;
-                    _imposterPayloadState = string.IsNullOrEmpty(payload) ? (sbyte)-1 : (sbyte)1;
+                    string payload = AvatarMetaData?.BasisBundleConnector?.FarLodBase64;
+                    _farLodPayloadState = string.IsNullOrEmpty(payload) ? (sbyte)-1 : (sbyte)1;
                 }
-                return _imposterPayloadState == 1;
+                return _farLodPayloadState == 1;
             }
         }
 
         /// <summary>
-        /// Swaps between the real avatar and its imposter. Returns true when a transition
+        /// Swaps between the real avatar and its far LOD. Returns true when a transition
         /// actually happened (callers budget these — each one costs a bone-job sync).
         /// </summary>
-        public bool SetImposterActive(bool active)
+        public bool SetFarLodActive(bool active)
         {
             if (active)
             {
-                if (IsImposterActive)
+                if (IsFarLodActive)
                 {
                     return false;
                 }
-                if (Imposter == null)
+                if (FarLod == null)
                 {
-                    Imposter = BasisAvatarImposter.TryCreate(this);
-                    if (Imposter == null)
+                    FarLod = BasisAvatarFarLodRenderer.TryCreate(this);
+                    if (FarLod == null)
                     {
-                        _imposterPayloadState = -1;
+                        _farLodPayloadState = -1;
                         return false;
                     }
                 }
-                return Imposter.Activate(this);
+                return FarLod.Activate(this);
             }
-            if (Imposter == null || !Imposter.IsActive)
+            if (FarLod == null || !FarLod.IsActive)
             {
                 return false;
             }
-            return Imposter.Deactivate(this);
+            return FarLod.Deactivate(this);
         }
 
         /// <summary>
-        /// Drops the imposter built for the previous avatar. Called from the calibration seed —
+        /// Drops the far LOD built for the previous avatar. Called from the calibration seed —
         /// a recalibration replaced this player's bone registration and may have changed the
         /// avatar version the payload belongs to.
         /// </summary>
-        public void ResetImposterForNewAvatar()
+        public void ResetFarLodForNewAvatar()
         {
-            if (Imposter != null)
+            if (FarLod != null)
             {
-                Imposter.IsActive = false;
-                Imposter.DestroyInstance();
-                Imposter = null;
+                FarLod.IsActive = false;
+                FarLod.DestroyInstance();
+                FarLod = null;
             }
-            _imposterPayloadState = 0;
+            _farLodPayloadState = 0;
         }
 
         /// <summary>
@@ -670,13 +670,13 @@ namespace Basis.Scripts.BasisSdk.Players
             // destroyed — the job holds the nameplate and mouth transforms.
             RemoveFromBoneDriver();
 
-            // The imposter skeleton is its own scene root; drop it now that the registration
+            // The far LOD skeleton is its own scene root; drop it now that the registration
             // (which may have pointed at these transforms) is gone.
-            if (Imposter != null)
+            if (FarLod != null)
             {
-                Imposter.IsActive = false;
-                Imposter.DestroyInstance();
-                Imposter = null;
+                FarLod.IsActive = false;
+                FarLod.DestroyInstance();
+                FarLod = null;
             }
 
             // Same constraint: JigglePhysics keys scene colliders off their Transform, so this

@@ -1,4 +1,4 @@
-﻿using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Rendering;
@@ -115,8 +115,8 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarSkinLOD.ApplyFromSettings;
             BasisAvatarShadowLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarShadowLOD.ApplyFromSettings;
-            BasisAvatarImposterLOD.ApplyFromSettings();
-            BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarImposterLOD.ApplyFromSettings;
+            BasisAvatarFarLOD.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarFarLOD.ApplyFromSettings;
             ApplyDesktopInputInVR();
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyDesktopInputInVR;
         }

@@ -4,8 +4,8 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Dev tool: runs the real imposter build on a scene avatar and shows the result — an
-/// interactive 3D view of the decoded imposter, the baked atlas, payload stats and the
+/// Dev tool: runs the real far LOD build on a scene avatar and shows the result — an
+/// interactive 3D view of the decoded far LOD, the baked atlas, payload stats and the
 /// per-stage generation log. The preview is constructed from the serialized → reparsed
 /// payload using the same builders the client runtime uses, so what you see is what a
 /// remote player would get.
@@ -13,25 +13,40 @@ using UnityEngine;
 /// A scene copy is also spawned next to the source avatar; "Mirror source pose" drives it
 /// with the same `rest * delta` composition the networked bone job applies, so posing or
 /// animating the source live-validates skinning and the delta math.
+///
+/// Lifetime: preview assets are HideAndDontSave (the editor destroys unflagged loose
+/// assets on scene/play transitions), and the payload is kept in SessionState so the
+/// window rebuilds itself after every domain reload instead of going blank.
 /// </summary>
-public class BasisImposterTesterWindow : EditorWindow
+public class BasisFarLodTesterWindow : EditorWindow
 {
-    [MenuItem("Basis/Avatar/Imposter Tester")]
+    private const string PayloadSessionKey = "BasisFarLodTester.Payload";
+    private const string RawBytesSessionKey = "BasisFarLodTester.RawBytes";
+    private const string Base64BytesSessionKey = "BasisFarLodTester.Base64Bytes";
+    private const string ScenePreviewPrefix = "Far LOD Preview (";
+
+    [MenuItem("Basis/Avatar/Far LOD Tester")]
     public static void Open()
     {
-        BasisImposterTesterWindow window = GetWindow<BasisImposterTesterWindow>("Imposter Tester");
+        BasisFarLodTesterWindow window = GetWindow<BasisFarLodTesterWindow>("Far LOD Tester");
         window.minSize = new Vector2(390f, 580f);
     }
 
-    private BasisAvatar _avatar;
-    private BasisImposterPayload _payload;
-    private BasisImposterGenerator.GenerationReport _report;
+    [SerializeField] private BasisAvatar _avatar;
+    [SerializeField] private int _tab;
+    [SerializeField] private bool _mirrorPose = true;
+    [SerializeField] private float _previewOffset;
+    [SerializeField] private float _orbitYaw = 135f;
+    [SerializeField] private float _orbitPitch = 12f;
+    [SerializeField] private float _orbitZoom = 1f;
+    [SerializeField] private bool _showStages = true;
+    [SerializeField] private bool _showBones;
+
+    private BasisFarLodPayload _payload;
+    private BasisFarLodGenerator.GenerationReport _report;
     private int _payloadBytes;
     private int _base64Bytes;
     private string _lastError;
-    private bool _showStages = true;
-    private bool _showBones;
-    private int _tab;
     private static readonly string[] TabNames = { "3D View", "Atlas", "Info" };
 
     private GameObject _previewRoot;
@@ -44,18 +59,37 @@ public class BasisImposterTesterWindow : EditorWindow
     private Animator _sourceAnimator;
     private Transform[] _sourceBones;
     private Dictionary<HumanBodyBones, Quaternion> _sourceTposeLocals;
-    private bool _mirrorPose = true;
-    private float _previewOffset;
 
     private PreviewRenderUtility _previewRender;
-    private float _orbitYaw = 135f;
-    private float _orbitPitch = 12f;
-    private float _orbitZoom = 1f;
     private Vector2 _scroll;
 
     private void OnEnable()
     {
         EditorApplication.update += OnEditorUpdate;
+
+        // Restore the last result across domain reloads / play-mode transitions.
+        if (_payload == null)
+        {
+            string stored = SessionState.GetString(PayloadSessionKey, null);
+            if (!string.IsNullOrEmpty(stored))
+            {
+                _payload = BasisFarLodPayload.TryParseBase64(stored);
+                _payloadBytes = SessionState.GetInt(RawBytesSessionKey, 0);
+                _base64Bytes = SessionState.GetInt(Base64BytesSessionKey, 0);
+                if (_payload != null)
+                {
+                    try
+                    {
+                        BuildWindowAssets();
+                        BuildSceneCopy();
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogException(e);
+                    }
+                }
+            }
+        }
     }
 
     private void OnDisable()
@@ -63,7 +97,15 @@ public class BasisImposterTesterWindow : EditorWindow
         EditorApplication.update -= OnEditorUpdate;
         _previewRender?.Cleanup();
         _previewRender = null;
+        // Domain reloads pass through here too — assets are rebuilt from SessionState in OnEnable.
         DestroyPreview();
+    }
+
+    private void OnDestroy()
+    {
+        SessionState.EraseString(PayloadSessionKey);
+        SessionState.EraseInt(RawBytesSessionKey);
+        SessionState.EraseInt(Base64BytesSessionKey);
     }
 
     private void OnGUI()
@@ -103,8 +145,8 @@ public class BasisImposterTesterWindow : EditorWindow
             }
         }
 
-        BasisImposterGenerator.TargetTriangleCount = EditorGUILayout.IntSlider("Target Triangles", BasisImposterGenerator.TargetTriangleCount, 200, 8000);
-        BasisImposterGenerator.AtlasSize = EditorGUILayout.IntPopup("Atlas Size", BasisImposterGenerator.AtlasSize,
+        BasisFarLodGenerator.TargetTriangleCount = EditorGUILayout.IntSlider("Target Triangles", BasisFarLodGenerator.TargetTriangleCount, 500, 12000);
+        BasisFarLodGenerator.AtlasSize = EditorGUILayout.IntPopup("Atlas Size", BasisFarLodGenerator.AtlasSize,
             new[] { "128", "256", "512" }, new[] { 128, 256, 512 });
 
         bool persistent = _avatar != null && EditorUtility.IsPersistent(_avatar);
@@ -157,13 +199,13 @@ public class BasisImposterTesterWindow : EditorWindow
     {
         _lastError = null;
         _payload = null;
-        _report = new BasisImposterGenerator.GenerationReport();
-        BasisImposterPayload generated = null;
-        BasisImposterGenerator.VerboseLogging = true;
-        BasisImposterGenerator.ActiveReport = _report;
+        _report = new BasisFarLodGenerator.GenerationReport();
+        BasisFarLodPayload generated = null;
+        BasisFarLodGenerator.VerboseLogging = true;
+        BasisFarLodGenerator.ActiveReport = _report;
         try
         {
-            generated = BasisImposterGenerator.Generate(_avatar);
+            generated = BasisFarLodGenerator.Generate(_avatar);
         }
         catch (System.Exception e)
         {
@@ -173,8 +215,8 @@ public class BasisImposterTesterWindow : EditorWindow
         }
         finally
         {
-            BasisImposterGenerator.ActiveReport = null;
-            BasisImposterGenerator.VerboseLogging = false;
+            BasisFarLodGenerator.ActiveReport = null;
+            BasisFarLodGenerator.VerboseLogging = false;
             EditorUtility.ClearProgressBar();
         }
         if (generated == null)
@@ -187,16 +229,23 @@ public class BasisImposterTesterWindow : EditorWindow
         {
             // Round-trip through the wire format so the preview is what a client would decode.
             byte[] bytes = generated.Serialize();
+            string base64 = System.Convert.ToBase64String(bytes);
             _payloadBytes = bytes.Length;
-            _base64Bytes = System.Convert.ToBase64String(bytes).Length;
-            _payload = BasisImposterPayload.TryParse(bytes);
+            _base64Bytes = base64.Length;
+            _payload = BasisFarLodPayload.TryParse(bytes);
             if (_payload == null)
             {
                 _lastError = "Serialize → parse round-trip failed — codec bug, see Console.";
                 return;
             }
 
-            BuildPreview();
+            SessionState.SetString(PayloadSessionKey, base64);
+            SessionState.SetInt(RawBytesSessionKey, _payloadBytes);
+            SessionState.SetInt(Base64BytesSessionKey, _base64Bytes);
+
+            DestroyPreview();
+            BuildWindowAssets();
+            BuildSceneCopy();
             _tab = 0;
         }
         catch (System.Exception e)
@@ -330,39 +379,11 @@ public class BasisImposterTesterWindow : EditorWindow
         }
     }
 
-    // ─────────────────────────── scene copy ───────────────────────────
+    // ─────────────────────────── preview building ───────────────────────────
 
-    private void DrawScenePreviewSection()
+    /// <summary>Mesh, texture and material for the in-window viewport — no scene objects.</summary>
+    private void BuildWindowAssets()
     {
-        EditorGUILayout.Space(6);
-        EditorGUILayout.LabelField("Scene Copy", EditorStyles.boldLabel);
-        if (_previewRoot == null)
-        {
-            EditorGUILayout.LabelField("Destroyed. Regenerate to respawn it.", EditorStyles.miniLabel);
-            return;
-        }
-        _mirrorPose = EditorGUILayout.Toggle("Mirror Source Pose", _mirrorPose);
-        _previewOffset = EditorGUILayout.FloatField("Offset (0 = auto)", _previewOffset);
-        EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Select In Scene"))
-        {
-            EditorGUIUtility.PingObject(_previewRoot);
-            Selection.activeGameObject = _previewRoot;
-        }
-        if (GUILayout.Button("Destroy Copy"))
-        {
-            DestroyScenePreviewOnly();
-        }
-        EditorGUILayout.EndHorizontal();
-    }
-
-    private void BuildPreview()
-    {
-        DestroyPreview();
-
-        _sourceAnimator = _avatar.Animator;
-        _sourceTposeLocals = BasisImposterGenerator.CaptureActualTposeLocals(_sourceAnimator);
-
         _previewMesh = _payload.CreateMesh();
         _previewTexture = _payload.CreateTexture();
         if (_previewMesh == null || _previewTexture == null)
@@ -372,15 +393,35 @@ public class BasisImposterTesterWindow : EditorWindow
             return;
         }
 
-        Shader shader = Shader.Find("Basis/AvatarImposter");
+        Shader shader = Shader.Find("Basis/AvatarFarLod");
         if (shader == null)
         {
             shader = Shader.Find("Universal Render Pipeline/Unlit");
-            Debug.LogWarning("Basis/AvatarImposter shader not found — previewing with URP Unlit.");
+            Debug.LogWarning("Basis/AvatarFarLod shader not found — previewing with URP Unlit.");
         }
-        _previewMaterial = new Material(shader) { mainTexture = _previewTexture };
+        _previewMaterial = new Material(shader);
+        _previewMaterial.SetTexture("_BaseMap", _previewTexture);
 
-        _previewRoot = new GameObject($"Imposter Preview ({_avatar.name})")
+        // Without HideAndDontSave the editor destroys loose created assets on scene/play
+        // transitions — this is the "texture disappears after a while" failure mode.
+        _previewMesh.hideFlags = HideFlags.HideAndDontSave;
+        _previewTexture.hideFlags = HideFlags.HideAndDontSave;
+        _previewMaterial.hideFlags = HideFlags.HideAndDontSave;
+    }
+
+    /// <summary>Spawns the posable copy next to the source avatar.</summary>
+    private void BuildSceneCopy()
+    {
+        DestroyStaleSceneCopies();
+        if (_previewMesh == null || _previewMaterial == null || _avatar == null || _avatar.Animator == null)
+        {
+            return;
+        }
+
+        _sourceAnimator = _avatar.Animator;
+        _sourceTposeLocals = BasisFarLodGenerator.CaptureActualTposeLocals(_sourceAnimator);
+
+        _previewRoot = new GameObject($"{ScenePreviewPrefix}{_avatar.name})")
         {
             hideFlags = HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild,
         };
@@ -421,6 +462,60 @@ public class BasisImposterTesterWindow : EditorWindow
         SceneView.RepaintAll();
     }
 
+    /// <summary>
+    /// Scene copies survive domain reloads while our references don't — sweep leftovers by
+    /// name so a rebuild never stacks duplicates next to the avatar.
+    /// </summary>
+    private void DestroyStaleSceneCopies()
+    {
+        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (!scene.IsValid())
+        {
+            return;
+        }
+        GameObject[] roots = scene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            if (roots[i] != null && roots[i] != _previewRoot && roots[i].name.StartsWith(ScenePreviewPrefix))
+            {
+                DestroyImmediate(roots[i]);
+            }
+        }
+    }
+
+    // ─────────────────────────── scene copy section ───────────────────────────
+
+    private void DrawScenePreviewSection()
+    {
+        EditorGUILayout.Space(6);
+        EditorGUILayout.LabelField("Scene Copy", EditorStyles.boldLabel);
+        if (_previewRoot == null)
+        {
+            if (_avatar != null && _previewMesh != null && GUILayout.Button("Spawn Scene Copy"))
+            {
+                BuildSceneCopy();
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Not spawned.", EditorStyles.miniLabel);
+            }
+            return;
+        }
+        _mirrorPose = EditorGUILayout.Toggle("Mirror Source Pose", _mirrorPose);
+        _previewOffset = EditorGUILayout.FloatField("Offset (0 = auto)", _previewOffset);
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Select In Scene"))
+        {
+            EditorGUIUtility.PingObject(_previewRoot);
+            Selection.activeGameObject = _previewRoot;
+        }
+        if (GUILayout.Button("Destroy Copy"))
+        {
+            DestroyScenePreviewOnly();
+        }
+        EditorGUILayout.EndHorizontal();
+    }
+
     private float ResolveOffset()
     {
         if (_previewOffset > 0.0001f)
@@ -456,7 +551,7 @@ public class BasisImposterTesterWindow : EditorWindow
                 continue;
             }
             // Exactly the wire composition: delta is the source bone's rotation off its own
-            // T-pose local frame, applied on top of the imposter's collapsed rest local.
+            // T-pose local frame, applied on top of the far LOD's collapsed rest local.
             Quaternion delta = Quaternion.Inverse(tposeLocal) * source.localRotation;
             _previewBones[i].localRotation = _payload.BoneRestLocalRotation[i] * delta;
         }

@@ -113,7 +113,7 @@ namespace Basis.IK
                 GuardSpineChain(stream);
                 SolveSequentialSpineIK(stream, headPos, headRot);
             }
-            else if (handleChest.IsValid(stream) && handleNeck.IsValid(stream) && handleHead.IsValid(stream))
+            else if (handleHead.IsValid(stream))
             {
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
@@ -174,12 +174,21 @@ namespace Basis.IK
             float cervicalTwistKeep = spineNeckTwistKeep;
             // Body-relative twist axis (hips-up), NOT world-up: vertical standing, horizontal lying down, so
             // the relax strips the same anatomical axial-twist DOF in any orientation. Falls back to playerUp.
+            // Bind-cancelled, because the hips BONE's local axes are a rig convention: bound rolled (Blender
+            // exports at -90 X), bone-up points along body-forward and the relax strips bend as twist.
             Quaternion hipsTwistRot = handleHips.IsValid(stream) ? handleHips.GetRotation(stream) : Quaternion.identity;
+            float hipsBindMagSq = offsetRotationHips.x * offsetRotationHips.x + offsetRotationHips.y * offsetRotationHips.y
+                + offsetRotationHips.z * offsetRotationHips.z + offsetRotationHips.w * offsetRotationHips.w;
+            if (hipsBindMagSq > k_SqrEpsilon)
+            {
+                hipsTwistRot *= Quaternion.Inverse(offsetRotationHips);
+            }
             Vector3 ccdUp = hipsTwistRot * Vector3.up;
             if (ccdUp.sqrMagnitude < k_SqrEpsilon) ccdUp = playerUp;
             float jointSpan = Mathf.Max(1, lastJoint - firstJoint);
             float neckCone = neckMaxConeDeg;
             float chestCone = maxChestDeltaDeg;
+            int chestIdx = chainChestIdx != 0 ? chainChestIdx : (chainLen >= 5 ? chainLen - 3 : -1);
             Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
 
             for (int iter = 0; iter < maxIters; iter++)
@@ -193,7 +202,7 @@ namespace Basis.IK
                 // shorter levers.
                 for (int i = lastJoint; i >= firstJoint; i--)
                 {
-                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestIdx, jointSpan,
                         cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
                 }
             }
@@ -205,7 +214,7 @@ namespace Basis.IK
             // have spare DOF. The head is never traded for the chest. Bit-identical to head-only above when
             // the chest target is off (weight 0). See SolveChestTarget.
             // ==========================================================================================
-            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chainLen, jointSpan,
+            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan,
                 cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
 
             chainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
@@ -213,7 +222,7 @@ namespace Basis.IK
         // One CCD step aiming the head tip from joint `i` -- the exact body of the Phase A loop, extracted so
         // Phase B's head-restore reuses it verbatim (a copy would drift). Shapes the reach (twist graded root
         // -> tip, mid-thoracic stiffened), relaxes, applies the cones, then the anatomy guard LAST.
-        void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chainLen,
+        void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
             float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax,
             float neckCone, float chestCone)
         {
@@ -238,7 +247,7 @@ namespace Basis.IK
             {
                 ClampNeckCone(stream, i, neckCone);
             }
-            else if (chainLen >= 5 && i == chainLen - 3)
+            else if (i == chestIdx)
             {
                 ClampChestCone(stream, i, chestCone);
             }
@@ -248,7 +257,7 @@ namespace Basis.IK
             GuardSpineJoint(stream, i);
         }
         void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
-            int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
+            int chestBoneIdx, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
             float ccdRelax, float neckCone, float chestCone)
         {
             // Off (toggle false -> weight 0): return before touching a single bone, so the head-only solve
@@ -256,7 +265,6 @@ namespace Basis.IK
             if (!chestIkTarget)
                 return;
 
-            int chestBoneIdx = chainLen - 3;   // the Chest bone
             // Need a real Spine joint below the chest to move it, and real upper joints to restore the head.
             if (chestBoneIdx < firstJoint || lastJoint <= firstJoint || lastJoint <= chestBoneIdx)
                 return;
@@ -300,7 +308,7 @@ namespace Basis.IK
                 {
                     for (int i = lastJoint - 1; i >= firstJoint; i--)
                     {
-                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chainLen, jointSpan,
+                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan,
                             cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
                     }
                 }
@@ -586,12 +594,12 @@ namespace Basis.IK
             Quaternion invHipsAnat = Quaternion.Inverse(hipsAnat);
             if (r.WriteSpine)
             {
-                Quaternion deltaWorld = hipsAnat * Quaternion.Euler(r.SpineEuler) * invHipsAnat;
+                Quaternion deltaWorld = hipsAnat * BasisSpineBendCore.Compose(r.SpineEuler) * invHipsAnat;
                 handleSpine.SetRotation(stream, deltaWorld * handleSpine.GetRotation(stream));
             }
             if (r.WriteUpper)
             {
-                Quaternion deltaWorld = hipsAnat * Quaternion.Euler(r.UpperEuler) * invHipsAnat;
+                Quaternion deltaWorld = hipsAnat * BasisSpineBendCore.Compose(r.UpperEuler) * invHipsAnat;
                 handleUpperChest.SetRotation(stream, deltaWorld * handleUpperChest.GetRotation(stream));
             }
         }

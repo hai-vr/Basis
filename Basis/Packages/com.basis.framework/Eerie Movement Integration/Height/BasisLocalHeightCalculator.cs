@@ -180,12 +180,19 @@ public static class BasisLocalHeightCalculator
         if (SMModuleSitStand.IsSteatedMode)
         {
             BasisHeightDriver.PlayerCenterEyeVerticalOffset = 0f;
-            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
-            // NOT genuine: this is the virtual standing eye, not the player's body. Leaving it genuine
-            // locked 1.61 m in as the "known standing height", so leaving seated mode could never
-            // restore the real one (the persisted-size seed only fills in when nothing genuine exists).
+            // A seated player's real standing height is unobservable — the HMD is at sitting height and
+            // never rises — so a virtual one stands in. If they have told us how tall they are, that is
+            // a far better virtual height than the generic 1.61 m, and for a permanently-seated player
+            // it is the ONLY way their own size ever reaches the avatar.
+            BasisHeightDriver.PlayerEyeHeight = BasisStatedHeight.IsSet
+                ? BasisStatedHeight.ImpliedEyeHeight
+                : BasisHeightDriver.FallbackHeightInMeters;
+            // NOT genuine either way: this is the virtual standing eye, not a measurement of the body.
+            // Leaving it genuine locked the value in as the "known standing height", so leaving seated
+            // mode could never restore the real one (the persisted seed only fills in when nothing
+            // genuine exists).
             genuine = false;
-            BasisDebug.Log($"Seated mode; using standard eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
+            BasisDebug.Log($"Seated mode; using {(BasisStatedHeight.IsSet ? "your stated" : "standard")} eye height {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
         }
         else
         {

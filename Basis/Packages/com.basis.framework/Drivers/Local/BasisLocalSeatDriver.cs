@@ -101,7 +101,7 @@ namespace Basis.Scripts.Drivers
             if (BasisDesktopEye.Instance != null)
             {
                 previousHeadPitchGlobal = BasisDesktopEye.Instance.rotationPitch;
-                previousHeadYawVsSeat = BasisDesktopEye.Instance.rotationYaw - (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+                previousHeadYawVsSeat = BasisDesktopEye.Instance.rotationYaw - SeatYawDeg();
             }
 
             CapturePlayspaceOffset();
@@ -125,6 +125,11 @@ namespace Basis.Scripts.Drivers
             }
 
             OnSimulate();
+        }
+
+        private float SeatYawDeg()
+        {
+            return Basis.IK.BasisTwistSolveCore.SignedTwistAngleDeg(_seat.transform.rotation * _seat.SpineRotation, Vector3.up);
         }
 
         private void CapturePlayspaceOffset()
@@ -196,7 +201,7 @@ namespace Basis.Scripts.Drivers
             if (BasisDesktopEye.Instance != null)
             {
                 BasisDesktopEye.Instance.rotationPitch = previousHeadPitchGlobal;
-                BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+                BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + SeatYawDeg();
             }
 
             Vector3 desiredPos = _seat.transform.TransformPoint(previousRelativePosition);

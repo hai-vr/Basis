@@ -25,6 +25,15 @@ namespace Basis.IK
         /// <summary>Previous accepted raw value, for the quasi-static gate.</summary>
         public float Previous;
         public bool HasPrevious;
+
+        /// <summary>
+        /// Consecutive accepted samples sitting far below the settled estimate. The high-water mark can
+        /// only ever rise, which is right for one unchanging body and wrong the moment a shorter person
+        /// picks up the headset — they would inherit the previous player's size with no way out. A long
+        /// run of low readings is the only evidence that distinguishes "someone else" from "slouching",
+        /// and it takes far longer than any posture to accumulate.
+        /// </summary>
+        public int LowStreak;
     }
 
     /// <summary>Everything the sampler folds in one tick. Positions arrive already unscaled.</summary>
@@ -71,6 +80,14 @@ namespace Basis.IK
         /// <summary>Hand separation speed above which the span reading is mid-swing. Reaching out
         /// decelerates to zero at full extension, so the pose that matters still lands samples.</summary>
         public const float MaxSpanSettleSpeed = 0.8f;
+
+        /// <summary>How far below the settled estimate a sample must sit to count toward the
+        /// different-person streak. Slouching and a relaxed stance live well inside this.</summary>
+        public const float DifferentPersonDrop = 0.12f;
+        /// <summary>Consecutive low samples before we conclude it is a different body. At the sampler's
+        /// cadence this is minutes of never once standing to the recorded height — no posture lasts
+        /// that long, but a shorter person's entire session does.</summary>
+        public const int DifferentPersonStreak = 900;
 
         public static void Reset(ref BasisBodyEvidenceState state)
         {
@@ -131,6 +148,21 @@ namespace Basis.IK
             }
 
             track.SampleCount++;
+
+            // Watch for a body that is persistently smaller than the one on record before folding the
+            // sample in, so the streak is measured against the estimate as it stood.
+            if (TryGetEstimate(track, out float onRecord, out _))
+            {
+                if (value < onRecord * (1f - DifferentPersonDrop))
+                {
+                    if (track.LowStreak < int.MaxValue) track.LowStreak++;
+                }
+                else
+                {
+                    track.LowStreak = 0;
+                }
+            }
+
             if (value < minPlausible)
             {
                 // Counted (it is real evidence the player is being observed) but never a candidate for
@@ -138,6 +170,16 @@ namespace Basis.IK
                 return;
             }
             InsertDescending(ref track.Top, value);
+        }
+
+        /// <summary>
+        /// True when the observations have looked like a different, smaller body for long enough that
+        /// no posture explains it. The caller prompts rather than acting: guessing wrong and silently
+        /// shrinking someone would be worse than asking.
+        /// </summary>
+        public static bool LooksLikeADifferentPerson(in BasisBodyEvidenceTrack track)
+        {
+            return track.LowStreak >= DifferentPersonStreak;
         }
 
         static void InsertDescending(ref FixedList64Bytes<float> top, float value)

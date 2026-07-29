@@ -525,6 +525,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public virtual void OnInteractStart(BasisInput input)
         {
+            // Resizing the player while they are holding something would shift it in their hand, so
+            // the auto-refit waits this out. The gate prunes anything it finds released, so a subclass
+            // that overrides without calling base can only delay one refit, never block them all.
+            BasisCalibrationRefitGate.MarkInteracting(this);
             OnInteractStartEvent?.Invoke(input);
         }
 
@@ -533,6 +537,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public virtual void OnInteractEnd(BasisInput input)
         {
+            BasisCalibrationRefitGate.MarkReleased(this);
             OnInteractEndEvent?.Invoke(input);
         }
 

@@ -2,14 +2,14 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Quadric-error-metric edge-collapse simplifier for the imposter generator. Avatar meshes are
+/// Quadric-error-metric edge-collapse simplifier for the far LOD generator. Avatar meshes are
 /// triangle soup (hair cards, cloth shells, accessories), so vertices are position-welded first
 /// to connect shells, boundary edges get penalty planes so open sheets keep their silhouette,
 /// and a grid-clustering fallback guarantees the triangle budget even when collapse quality
 /// checks refuse to go further. Bone attributes (2-influence, collapsed to humanoid bones)
 /// ride along by copying from the surviving endpoint nearest the collapse position.
 /// </summary>
-public static class BasisImposterMeshSimplifier
+public static class BasisFarLodMeshSimplifier
 {
     private const float WeldEpsilonFactor = 2e-4f;
     private const float BoundaryPenalty = 100f;

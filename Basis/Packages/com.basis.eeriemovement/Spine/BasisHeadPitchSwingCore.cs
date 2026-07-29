@@ -49,7 +49,7 @@ namespace Basis.IK
             float lever = i.EyeFromNeck.y;
             if (!(lever > k_Epsilon)) return;                       // no lever arm above the pivot => no swing
             if (!(i.PitchDeg > -180f && i.PitchDeg < 180f)) return;
-            if (!(i.YawDeg > -720f && i.YawDeg < 720f)) return;     // Quaternion.Euler(0, NaN, 0) yields a NaN heading
+            if (!(i.YawDeg > -720f && i.YawDeg < 720f)) return;     // sin/cos of a NaN yaw yields a NaN heading
             if (!(i.Strength > 0f)) return;
 
             float p = i.PitchDeg * Mathf.Deg2Rad;
@@ -72,7 +72,8 @@ namespace Basis.IK
             // The carry is along the direction the player is FACING, not along playspace +Z. Note this is only
             // the pitch-induced swing: the eye's static forward offset stays pinned by the caller, so turning on
             // the spot does not orbit the camera around the neck.
-            Vector3 heading = Quaternion.Euler(0f, i.YawDeg, 0f) * Vector3.forward;
+            float yawRad = i.YawDeg * Mathf.Deg2Rad;
+            Vector3 heading = new Vector3(Mathf.Sin(yawRad), 0f, Mathf.Cos(yawRad));
 
             r.ForwardMeters = forward;
             r.Offset = new Vector3(heading.x * forward, 0f, heading.z * forward);

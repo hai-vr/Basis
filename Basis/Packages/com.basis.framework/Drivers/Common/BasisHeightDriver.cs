@@ -46,6 +46,23 @@ public static class BasisHeightDriver
     public static float ObservedArmSpanConfidence = 0f;
 
     /// <summary>
+    /// Where a body measurement came from. Tracked purely so the calibration panel can tell the player
+    /// WHY they are the size they are — "measured" and "the generic default" deserve very different
+    /// amounts of trust, and until now both looked identical from the outside.
+    /// </summary>
+    public enum BasisBodyMeasurementSource
+    {
+        Fallback,
+        Stated,
+        Saved,
+        Measured,
+        SlimeVR,
+    }
+
+    public static BasisBodyMeasurementSource EyeHeightSource = BasisBodyMeasurementSource.Fallback;
+    public static BasisBodyMeasurementSource ArmSpanSource = BasisBodyMeasurementSource.Fallback;
+
+    /// <summary>
     /// The uniform player-to-avatar scale actually applied, excluding the user's scale slider. This is
     /// what the positional stretcher measures its residual against, so the two compose instead of
     /// pulling against each other.
@@ -183,11 +200,14 @@ public static class BasisHeightDriver
         bool eyeLooksLiftPoisoned = spanPlausible
             && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(PlayerEyeHeight, PlayerArmSpan);
 
-        if (eyePlausible && eyeLooksUnderMeasured == false && eyeLooksLiftPoisoned == false)
+        // A stated height is the strongest veto available: it bounds the answer directly rather than
+        // inferring it from a sibling measurement, so a reading that contradicts it never reaches disk.
+        if (eyePlausible && eyeLooksUnderMeasured == false && eyeLooksLiftPoisoned == false
+            && BasisStatedHeight.IsPlausibleEye(PlayerEyeHeight))
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerEyeHeight.SetValue(PlayerEyeHeight);
         }
-        if (spanPlausible && spanLooksUnderMeasured == false)
+        if (spanPlausible && spanLooksUnderMeasured == false && BasisStatedHeight.IsPlausibleSpan(PlayerArmSpan))
         {
             Basis.BasisUI.BasisSettingsDefaults.SavedPlayerArmSpan.SetValue(PlayerArmSpan);
         }
@@ -224,6 +244,7 @@ public static class BasisHeightDriver
         }
         PlayerEyeHeight = savedEye;
         HasGenuinePlayerEyeHeight = true;
+        EyeHeightSource = BasisBodyMeasurementSource.Saved;
         // The saved size originated from an explicit calibration, so the pre-calibration ballpark
         // auto-scale estimator must not fight it.
         HasUserCalibratedHeight = true;
@@ -234,9 +255,35 @@ public static class BasisHeightDriver
             // A restored save is a real measurement of this player, so it is not to be re-measured from
             // whatever pose the next avatar load catches them in.
             HasGenuinePlayerArmSpan = true;
+            ArmSpanSource = BasisBodyMeasurementSource.Saved;
         }
         BasisDebug.Log($"Seeded last session's calibrated body size: eye {PlayerEyeHeight:F3}m span {PlayerArmSpan:F3}m", BasisDebug.LogTag.Avatar);
     }
+    /// <summary>
+    /// Falls back to what the player told us about themselves when nothing has been measured yet.
+    /// Ranks BELOW a saved measurement (that was a real reading of this player) and below anything the
+    /// sampler observes, but far above the 1.61 m generic fallback — which is what an otherwise
+    /// unmeasured player would be wearing.
+    /// </summary>
+    private static void SeedStatedBodyHeight()
+    {
+        if (HasGenuinePlayerEyeHeight || SMModuleSitStand.IsSteatedMode || !BasisStatedHeight.IsSet)
+        {
+            return;
+        }
+        PlayerEyeHeight = BasisStatedHeight.ImpliedEyeHeight;
+        HasGenuinePlayerEyeHeight = true;
+        EyeHeightSource = BasisBodyMeasurementSource.Stated;
+        if (!HasGenuinePlayerArmSpan)
+        {
+            ArmSpanSource = BasisBodyMeasurementSource.Stated;
+            // An ape index of 1 is the population average and a much better opening guess than the
+            // fallback, but it stays NOT genuine so a real reach measurement still overrides it.
+            PlayerArmSpan = BasisStatedHeight.ImpliedArmSpan;
+        }
+        BasisDebug.Log($"Using your stated height {BasisStatedHeight.Meters:F2}m (eye {PlayerEyeHeight:F3}m) until something is measured.", BasisDebug.LogTag.Avatar);
+    }
+
     public static void ScheduleHeightChangeCallback(HeightModeChange Mode)
     {
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
@@ -251,10 +298,15 @@ public static class BasisHeightDriver
     {
         SelectedScale = SanitizePositive(SelectedScale, FallbackHeightInMeters);
 
+        // A per-avatar nudge rides on top of the resolved target, so an avatar whose proportions the fit
+        // cannot fully rescue can be corrected without distorting the player's measured body size —
+        // which would otherwise follow them onto every other avatar they wear.
+        BasisPerAvatarScale.RefreshForCurrentAvatar();
+
         // Resolve target + denominator in eye-height metres (the space admin limits use) so the clamp
         // is correct in every height mode. Scaling off keeps the factor at 1x unless a limit pulls in.
         float avatarEye = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters);
-        float targetEyeMeters = ClampToAdminEyeHeight(ScaleAvatar ? SelectedScale : avatarEye);
+        float targetEyeMeters = ClampToAdminEyeHeight((ScaleAvatar ? SelectedScale : avatarEye) * BasisPerAvatarScale.Current);
         ScaledToMatchValue = targetEyeMeters / avatarEye;
 
         BasisDebug.Log($"Applying Scale to Avatar {ScaledToMatchValue}", BasisDebug.LogTag.Avatar);
@@ -434,6 +486,7 @@ public static class BasisHeightDriver
     {
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
         SeedPersistedBodySize();
+        SeedStatedBodyHeight();
         if (BasisCalibrationMath.ShouldRecaptureEyeHeight(recaptureEyeHeight, HasGenuinePlayerEyeHeight))
         {
             BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
@@ -475,45 +528,102 @@ public static class BasisHeightDriver
     /// of one unchanging body, the longer is the better one — and the sampler has thousands of chances
     /// to catch the player upright and reaching where a single capture had one.
     /// </summary>
-    private static void AdoptObservedBodyEvidence()
+    /// <summary>What the observations would have us believe, without committing to it yet.</summary>
+    public struct ObservedBodySize
     {
+        public float EyeHeight;
+        public float ArmSpan;
+        public bool EyeIsGenuine;
+        public bool SpanIsGenuine;
+    }
+
+    /// <summary>
+    /// Reads the best observed body size, leaving the current values in place where nothing better was
+    /// seen. Split from adoption so the live refit can stage a change and ease into it rather than
+    /// teleporting the player's viewpoint the instant a measurement lands.
+    /// </summary>
+    private static bool TryGetObservedBodySize(out ObservedBodySize result)
+    {
+        result = new ObservedBodySize
+        {
+            EyeHeight = PlayerEyeHeight,
+            ArmSpan = PlayerArmSpan,
+            EyeIsGenuine = HasGenuinePlayerEyeHeight,
+            SpanIsGenuine = HasGenuinePlayerArmSpan,
+        };
+
         ObservedEyeConfidence = 0f;
         ObservedArmSpanConfidence = 0f;
         if (BasisDeviceManagement.IsUserInDesktop())
         {
-            return;
+            return false;
         }
+
+        bool changed = false;
 
         if (BasisBodyEvidenceSampler.TryGetArmSpan(out float observedSpan, out float spanConfidence))
         {
             ObservedArmSpanConfidence = spanConfidence;
-            if (observedSpan > PlayerArmSpan && Plausible(observedSpan))
+            // A stated height caps how long anyone's reach can credibly be; past that it is a glitch.
+            if (observedSpan > result.ArmSpan && Plausible(observedSpan) && BasisStatedHeight.IsPlausibleSpan(observedSpan))
             {
-                BasisDebug.Log($"Adopting observed arm span {observedSpan:F3}m over captured {PlayerArmSpan:F3}m (confidence {spanConfidence:P0})", BasisDebug.LogTag.Avatar);
-                PlayerArmSpan = observedSpan;
-                HasGenuinePlayerArmSpan = true;
+                result.ArmSpan = observedSpan;
+                result.SpanIsGenuine = true;
+                changed = true;
             }
         }
 
         // Seated mode substitutes a virtual standing eye; observing the chair would overwrite it.
         if (SMModuleSitStand.IsSteatedMode)
         {
-            return;
+            return changed;
         }
         if (BasisBodyEvidenceSampler.TryGetEyeHeight(out float observedEye, out float eyeConfidence))
         {
             ObservedEyeConfidence = eyeConfidence;
-            // The one way an eye reading CAN come out too long is a vertical shift of the play space,
-            // and the span is the witness for it — anatomy cannot put an eye that high above that reach.
-            bool poisoned = HasGenuinePlayerArmSpan
-                && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(observedEye, PlayerArmSpan);
-            if (observedEye > PlayerEyeHeight && Plausible(observedEye) && poisoned == false)
+            // The one way an eye reading CAN come out too long is a vertical shift of the play space.
+            // The arm span is one witness against that; a stated height is a far better one, because it
+            // bounds the answer directly instead of inferring it from a second measurement.
+            bool poisoned = result.SpanIsGenuine
+                && BasisCalibrationMath.EyeHeightLooksLiftPoisoned(observedEye, result.ArmSpan);
+            if (observedEye > result.EyeHeight && Plausible(observedEye)
+                && poisoned == false && BasisStatedHeight.IsPlausibleEye(observedEye))
             {
-                BasisDebug.Log($"Adopting observed eye height {observedEye:F3}m over captured {PlayerEyeHeight:F3}m (confidence {eyeConfidence:P0})", BasisDebug.LogTag.Avatar);
-                PlayerEyeHeight = observedEye;
-                HasGenuinePlayerEyeHeight = true;
+                result.EyeHeight = observedEye;
+                result.EyeIsGenuine = true;
+                changed = true;
             }
         }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// Takes the best measurement seen while the player has actually been using the world, in place of
+    /// whatever a single capture happened to catch. Immediate — used on paths that are already
+    /// re-fitting the avatar anyway; the live path eases in through <see cref="TickObservedEvidence"/>.
+    ///
+    /// Adoption is a simple "keep the larger", which is not a heuristic but the same argument the rest
+    /// of this file rests on: a slouch, a crouch or arms at your sides all read SHORT, and nothing
+    /// short of a tracking glitch reads longer than the body actually is. So between two measurements
+    /// of one unchanging body, the longer is the better one — and the sampler has thousands of chances
+    /// to catch the player upright and reaching where a single capture had one.
+    /// </summary>
+    private static void AdoptObservedBodyEvidence()
+    {
+        if (!TryGetObservedBodySize(out ObservedBodySize observed))
+        {
+            return;
+        }
+        BasisDebug.Log(
+            $"Adopting observed body size: eye {PlayerEyeHeight:F3}->{observed.EyeHeight:F3}m, span {PlayerArmSpan:F3}->{observed.ArmSpan:F3}m",
+            BasisDebug.LogTag.Avatar);
+        if (!Mathf.Approximately(PlayerEyeHeight, observed.EyeHeight)) EyeHeightSource = BasisBodyMeasurementSource.Measured;
+        if (!Mathf.Approximately(PlayerArmSpan, observed.ArmSpan)) ArmSpanSource = BasisBodyMeasurementSource.Measured;
+        PlayerEyeHeight = observed.EyeHeight;
+        PlayerArmSpan = observed.ArmSpan;
+        HasGenuinePlayerEyeHeight = observed.EyeIsGenuine;
+        HasGenuinePlayerArmSpan = observed.SpanIsGenuine;
     }
 
     private static bool Plausible(float measure) =>
@@ -525,6 +635,21 @@ public static class BasisHeightDriver
     private const float EvidenceReapplyIntervalSeconds = 1f;
     private static float s_evidenceReapplyTimer;
 
+    /// <summary>Seconds to ease a staged measurement in over. Long enough that the viewpoint drifts
+    /// rather than jumps; short enough that it is over before the player wonders what happened.</summary>
+    private const float RefitRampSeconds = 0.4f;
+    /// <summary>Seconds between ramp steps. The refit is not free (body fit + tracker reprojection), so
+    /// the ramp runs at a fixed modest rate instead of every frame — at these deltas it is invisible.</summary>
+    private const float RefitStepSeconds = 1f / 20f;
+
+    private static float s_targetEye, s_targetSpan;
+    private static bool s_targetEyeGenuine, s_targetSpanGenuine;
+    private static bool s_hasRefitTarget;
+    private static float s_refitEyeRate, s_refitSpanRate;
+    private static float s_refitStepTimer;
+    private static float s_refitFromEye, s_refitFromSpan;
+    private static bool s_refitHeldLogged;
+
     /// <summary>
     /// Folds newly-observed evidence into the LIVE fit while the player is in the world.
     ///
@@ -533,8 +658,11 @@ public static class BasisHeightDriver
     /// best measurement of the session would sit unused until the next avatar swap. With it, the
     /// avatar's arms settle onto the player's real reach within seconds of them gesturing once.
     ///
-    /// Adoption only ever raises a measurement, so this converges and goes quiet rather than
-    /// oscillating; the threshold keeps a millimetre of noise from triggering a refit.
+    /// The change is staged and then eased in rather than applied outright: a scale change moves the
+    /// viewpoint, and a correction that arrives as an instant jump reads as a glitch even when it is
+    /// an improvement. It also waits for a moment when a resize is not actively unwelcome — see
+    /// <see cref="BasisCalibrationRefitGate"/>. Adoption only ever raises a measurement, so this
+    /// converges and goes quiet rather than oscillating.
     /// </summary>
     public static void TickObservedEvidence(float deltaTime)
     {
@@ -546,24 +674,104 @@ public static class BasisHeightDriver
         }
 
         s_evidenceReapplyTimer += deltaTime;
-        if (s_evidenceReapplyTimer < EvidenceReapplyIntervalSeconds)
+        if (s_evidenceReapplyTimer >= EvidenceReapplyIntervalSeconds)
+        {
+            s_evidenceReapplyTimer = 0f;
+            StageObservedBodySize();
+        }
+
+        if (!s_hasRefitTarget)
         {
             return;
         }
-        s_evidenceReapplyTimer = 0f;
 
-        float eyeBefore = PlayerEyeHeight;
-        float spanBefore = PlayerArmSpan;
-        AdoptObservedBodyEvidence();
-
-        if (Mathf.Abs(PlayerEyeHeight - eyeBefore) > EvidenceReapplyThresholdMeters
-            || Mathf.Abs(PlayerArmSpan - spanBefore) > EvidenceReapplyThresholdMeters)
+        // The measurement keeps. Waiting costs nothing; resizing someone mid-grab does.
+        if (BasisCalibrationRefitGate.ShouldHoldRefit(out string reason))
         {
-            BasisDebug.Log(
-                $"Observed body size improved (eye {eyeBefore:F3}->{PlayerEyeHeight:F3}m, span {spanBefore:F3}->{PlayerArmSpan:F3}m); refitting avatar.",
-                BasisDebug.LogTag.Avatar);
-            ApplyScaleAndHeight();
+            if (!s_refitHeldLogged)
+            {
+                s_refitHeldLogged = true;
+                BasisDebug.Log($"Better body measurement is ready; holding the refit until later ({reason}).", BasisDebug.LogTag.Avatar);
+            }
+            return;
         }
+        s_refitHeldLogged = false;
+
+        s_refitStepTimer += deltaTime;
+        if (s_refitStepTimer < RefitStepSeconds)
+        {
+            return;
+        }
+        float step = s_refitStepTimer;
+        s_refitStepTimer = 0f;
+
+        PlayerEyeHeight = Mathf.MoveTowards(PlayerEyeHeight, s_targetEye, s_refitEyeRate * step);
+        PlayerArmSpan = Mathf.MoveTowards(PlayerArmSpan, s_targetSpan, s_refitSpanRate * step);
+        HasGenuinePlayerEyeHeight |= s_targetEyeGenuine;
+        HasGenuinePlayerArmSpan |= s_targetSpanGenuine;
+        if (s_refitEyeRate > 0f) EyeHeightSource = BasisBodyMeasurementSource.Measured;
+        if (s_refitSpanRate > 0f) ArmSpanSource = BasisBodyMeasurementSource.Measured;
+        ApplyScaleAndHeight();
+
+        if (Mathf.Approximately(PlayerEyeHeight, s_targetEye) && Mathf.Approximately(PlayerArmSpan, s_targetSpan))
+        {
+            s_hasRefitTarget = false;
+            AnnounceRefit(s_refitFromEye, s_refitFromSpan);
+        }
+    }
+
+    /// <summary>
+    /// Looks for a better measurement and stages it, without touching the applied size. Re-staging
+    /// mid-ramp just moves the target — the ramp continues from wherever it had reached.
+    /// </summary>
+    private static void StageObservedBodySize()
+    {
+        if (!TryGetObservedBodySize(out ObservedBodySize observed))
+        {
+            return;
+        }
+
+        if (Mathf.Abs(observed.EyeHeight - PlayerEyeHeight) <= EvidenceReapplyThresholdMeters
+            && Mathf.Abs(observed.ArmSpan - PlayerArmSpan) <= EvidenceReapplyThresholdMeters)
+        {
+            return; // real but not worth moving the world for
+        }
+
+        if (!s_hasRefitTarget)
+        {
+            s_refitFromEye = PlayerEyeHeight;
+            s_refitFromSpan = PlayerArmSpan;
+        }
+        s_targetEye = observed.EyeHeight;
+        s_targetSpan = observed.ArmSpan;
+        s_targetEyeGenuine = observed.EyeIsGenuine;
+        s_targetSpanGenuine = observed.SpanIsGenuine;
+        s_refitEyeRate = Mathf.Abs(s_targetEye - PlayerEyeHeight) / RefitRampSeconds;
+        s_refitSpanRate = Mathf.Abs(s_targetSpan - PlayerArmSpan) / RefitRampSeconds;
+        s_hasRefitTarget = true;
+
+        BasisDebug.Log(
+            $"Observed body size improved (eye {PlayerEyeHeight:F3}->{s_targetEye:F3}m, span {PlayerArmSpan:F3}->{s_targetSpan:F3}m); easing the avatar into it.",
+            BasisDebug.LogTag.Avatar);
+    }
+
+    /// <summary>
+    /// Tells the player what just happened. Without this the system's best feature — quietly getting
+    /// their size right — is indistinguishable from the avatar randomly changing size.
+    /// </summary>
+    private static void AnnounceRefit(float fromEye, float fromSpan)
+    {
+        float eyeDelta = PlayerEyeHeight - fromEye;
+        float spanDelta = PlayerArmSpan - fromSpan;
+        string detail = Mathf.Abs(spanDelta) >= Mathf.Abs(eyeDelta)
+            ? string.Format(BasisLocalization.Get("calibration.refit.reach"), PlayerArmSpan)
+            : string.Format(BasisLocalization.Get("calibration.refit.height"), PlayerEyeHeight);
+
+        BasisNotificationCenter.LogResolved(
+            BasisLocalization.Get("calibration.refit.title"),
+            detail,
+            AddressableAssets.Sprites.Information,
+            BasisNotificationStatus.Accepted);
     }
 
     public static void CaptureAvatarHeightDuringTpose()

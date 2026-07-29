@@ -7,25 +7,25 @@ using UnityEngine.Rendering;
 namespace Basis.Scripts.Editor
 {
     /// <summary>
-    /// The avatar imposter material is created at runtime through Shader.Find, which in a
-    /// player only resolves shaders the build kept. Nothing references the imposter shader
+    /// The avatar far LOD material is created at runtime through Shader.Find, which in a
+    /// player only resolves shaders the build kept. Nothing references the far LOD shader
     /// from a scene, prefab or material, so put it in Always Included Shaders.
     /// </summary>
-    public sealed class BasisImposterShaderInclusion : IPreprocessBuildWithReport
+    public sealed class BasisFarLodShaderInclusion : IPreprocessBuildWithReport
     {
-        public const string ImposterShaderName = "Basis/AvatarImposter";
+        public const string FarLodShaderName = "Basis/AvatarFarLod";
 
         public int callbackOrder => 0;
 
         public void OnPreprocessBuild(BuildReport report) => EnsureIncluded();
 
-        [MenuItem("Basis/Avatar/Include Imposter Shader")]
+        [MenuItem("Basis/Avatar/Include Far LOD Shader")]
         private static void EnsureIncluded()
         {
-            Shader shader = Shader.Find(ImposterShaderName);
+            Shader shader = Shader.Find(FarLodShaderName);
             if (shader == null)
             {
-                Debug.LogError($"[BasisImposter] Shader '{ImposterShaderName}' not found — distance imposters will not render in builds.");
+                Debug.LogError($"[BasisFarLod] Shader '{FarLodShaderName}' not found — distance far LODs will not render in builds.");
                 return;
             }
 
@@ -33,7 +33,7 @@ namespace Basis.Scripts.Editor
             SerializedProperty included = graphics.FindProperty("m_AlwaysIncludedShaders");
             if (included == null)
             {
-                Debug.LogError($"[BasisImposter] Could not reach Always Included Shaders — add '{ImposterShaderName}' by hand under Project Settings > Graphics.");
+                Debug.LogError($"[BasisFarLod] Could not reach Always Included Shaders — add '{FarLodShaderName}' by hand under Project Settings > Graphics.");
                 return;
             }
 
@@ -49,7 +49,7 @@ namespace Basis.Scripts.Editor
             included.GetArrayElementAtIndex(included.arraySize - 1).objectReferenceValue = shader;
             graphics.ApplyModifiedProperties();
             AssetDatabase.SaveAssets();
-            Debug.Log($"[BasisImposter] Added '{ImposterShaderName}' to Always Included Shaders.");
+            Debug.Log($"[BasisFarLod] Added '{FarLodShaderName}' to Always Included Shaders.");
         }
     }
 }

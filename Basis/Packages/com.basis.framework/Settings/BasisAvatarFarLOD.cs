@@ -4,22 +4,22 @@ using Basis.Scripts.Networking;
 using UnityEngine;
 
 /// <summary>
-/// Distance-based swap of remote avatars to their baked imposters (see
-/// <see cref="BasisAvatarImposter"/>). Beyond the configured distance the whole avatar
+/// Distance-based swap of remote avatars to their baked far LODs (see
+/// <see cref="BasisAvatarFarLodRenderer"/>). Beyond the configured distance the whole avatar
 /// GameObject sleeps — no full-res skinning, no jiggle, no face work — and a ~20-bone,
 /// ~1.5k-triangle proxy driven by the same networked bone data renders instead.
 ///
-/// Only avatars whose bundle connector carries an imposter payload participate; everything
+/// Only avatars whose bundle connector carries an far LOD payload participate; everything
 /// else keeps the existing mesh/skin/shadow LOD behavior. Transitions are hysteretic (10%)
 /// and budgeted per transmit tick because each swap forces one bone-job sync, mirroring how
 /// avatar reloads are budgeted.
 /// </summary>
-public static class BasisAvatarImposterLOD
+public static class BasisAvatarFarLOD
 {
     /// <summary>Master switch. When false every remote is restored to its real avatar.</summary>
     public static bool Enabled;
 
-    /// <summary>Distance in meters past which a remote swaps to its imposter.</summary>
+    /// <summary>Distance in meters past which a remote swaps to its far LOD.</summary>
     public static float ImposterDistance = 20f;
 
     /// <summary>Swaps admitted per transmit tick; each one costs a bone-job sync.</summary>
@@ -32,8 +32,8 @@ public static class BasisAvatarImposterLOD
     {
         bool wasEnabled = Enabled;
         float wasDistance = ImposterDistance;
-        Enabled = BasisSettingsDefaults.UseAvatarImposter.RawValue;
-        ImposterDistance = Mathf.Max(1f, BasisSettingsDefaults.AvatarImposterDistance.RawValue);
+        Enabled = BasisSettingsDefaults.UseAvatarFarLod.RawValue;
+        ImposterDistance = Mathf.Max(1f, BasisSettingsDefaults.AvatarFarLodDistance.RawValue);
         _enterDistanceSq = ImposterDistance * ImposterDistance;
         _exitDistanceSq = _enterDistanceSq / (1.1f * 1.1f);
 
@@ -59,13 +59,13 @@ public static class BasisAvatarImposterLOD
         {
             return;
         }
-        bool current = remote.IsImposterActive;
+        bool current = remote.IsFarLodActive;
         bool desired = Enabled && WantsImposter(distanceSq, current) && IsEligible(remote);
         if (desired == current)
         {
             return;
         }
-        if (remote.SetImposterActive(desired))
+        if (remote.SetFarLodActive(desired))
         {
             transitionBudget--;
         }
@@ -74,7 +74,7 @@ public static class BasisAvatarImposterLOD
     /// <summary>
     /// Seed hook, run at the end of remote calibration. The tick is edge-triggered on distance
     /// crossings, so an avatar that loads while already far away would otherwise pop in at full
-    /// detail until the next boundary crossing. Also releases any imposter built for the
+    /// detail until the next boundary crossing. Also releases any far LOD built for the
     /// previous avatar — a new calibration means a new avatar version.
     /// </summary>
     public static void SeedAfterCalibration(BasisRemotePlayer remote)
@@ -83,7 +83,7 @@ public static class BasisAvatarImposterLOD
         {
             return;
         }
-        remote.ResetImposterForNewAvatar();
+        remote.ResetFarLodForNewAvatar();
         if (!Enabled)
         {
             return;
@@ -97,7 +97,7 @@ public static class BasisAvatarImposterLOD
         float distanceSq = ((Vector3)hipsWorldPos - Basis.Scripts.Drivers.BasisLocalCameraDriver.HeadPosition).sqrMagnitude;
         if (WantsImposter(distanceSq, false) && IsEligible(remote))
         {
-            remote.SetImposterActive(true);
+            remote.SetFarLodActive(true);
         }
     }
 
@@ -107,7 +107,7 @@ public static class BasisAvatarImposterLOD
             && !remote.IsConsideredFallBackAvatar
             && !remote.IsEffectivelyBlocked
             && !remote.IsLoadingAnAvatar
-            && remote.HasImposterPayload
+            && remote.HasFarLodPayload
             && remote.RemoteAvatarDriver != null
             && remote.RemoteAvatarDriver.InBoneDriver;
     }
@@ -121,9 +121,9 @@ public static class BasisAvatarImposterLOD
             {
                 continue;
             }
-            if (!Enabled && remote.IsImposterActive)
+            if (!Enabled && remote.IsFarLodActive)
             {
-                remote.SetImposterActive(false);
+                remote.SetFarLodActive(false);
             }
             // Enabling (or a distance change) is picked up by the next transmit tick — it owns
             // the per-tick swap budget, so no bulk transition storm starts from here.

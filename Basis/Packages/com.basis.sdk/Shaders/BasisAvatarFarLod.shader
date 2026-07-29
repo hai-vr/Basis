@@ -1,10 +1,10 @@
-Shader "Basis/AvatarImposter"
+Shader "Basis/AvatarFarLod"
 {
-    // Distance imposter for remote avatars. One opaque pass, per-vertex lighting
+    // Distance far LOD for remote avatars. One opaque pass, per-vertex lighting
     // (ambient SH + wrapped main light — the atlas was captured under flat white
     // ambient, so world lighting is applied here), fog, VR single-pass instanced
     // safe. DepthOnly pass included so forced depth priming keeps working.
-    // No ShadowCaster on purpose: imposters render past the shadow LOD cutoff.
+    // No ShadowCaster on purpose: far LODs render past the shadow LOD cutoff.
     Properties
     {
         // [MainTexture]/[MainColor] make Material.mainTexture / .color target these —
@@ -78,7 +78,7 @@ Shader "Basis/AvatarImposter"
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = input.uv;
 
-                // Wrapped diffuse keeps the dark side readable — at imposter range a hard
+                // Wrapped diffuse keeps the dark side readable — at far LOD range a hard
                 // terminator on 1.5k triangles reads as banding, not shading.
                 Light mainLight = GetMainLight();
                 half wrapped = saturate(dot(normalWS, mainLight.direction)) * 0.6h + 0.4h;

@@ -34,9 +34,14 @@ namespace Basis.IK
         public BasisBoneHandle handleLeftUpperLeg, handleLeftLowerLeg, handleLeftFoot, handleLeftToe;
         public BasisBoneHandle handleRightUpperLeg, handleRightLowerLeg, handleRightFoot, handleRightToe;
         // Head -> hips, tip first. The CCD chain, with its per-joint rest frames and ranges of motion.
+        // The chain holds only the bones the avatar HAS -- neck / upperChest / chest are optional in a
+        // humanoid rig, so index-from-length arithmetic cannot identify the chest.
         public NativeArray<BasisBoneHandle> chainHeadToSpine;
         public NativeArray<BasisSpineRestFrame> chainSpineRestFrames;
         public NativeArray<BasisSpineRom> chainSpineRoms;
+        // Chest position in chainHeadToSpine: -1 = no chest bone; 0 = unset (hand-built job), which falls
+        // back to the legacy chainLen - 3 slot.
+        public int chainChestIdx;
 
         // ===== Per-frame targets: spine =====
         public Vector3 targetPositionHead, targetPositionHips;

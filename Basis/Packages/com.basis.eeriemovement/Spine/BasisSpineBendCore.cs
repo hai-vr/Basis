@@ -47,9 +47,9 @@ namespace Basis.IK
     // Stream-free port of BasisFullIKConstraintJob.DistributeSpineBend's per-axis math. Computes the bend
     // (pitch/roll from chest->head), the twist (from head facing, with the hips bind cancelled so atan2
     // stays continuous across center), the squish coupling, the anatomy weight re-routing and the
-    // asymmetric flexion clamp, returning the spine/upperChest euler deltas. The wrapper still owns the
-    // chest spring and the handle reads/writes (delta = hipsRot * Euler(e) * invHips, pre-multiplied onto
-    // the bone). Change the distribution math HERE so the job and the sweep stay in lock-step.
+    // asymmetric flexion clamp, returning the spine/upperChest per-axis deltas. The wrapper still owns the
+    // chest spring and the handle reads/writes (delta = hipsAnat * Compose(e) * invHipsAnat, pre-multiplied
+    // onto the bone). Change the distribution math HERE so the job and the sweep stay in lock-step.
     public static class BasisSpineBendCore
     {
         const float k_SqrEpsilon = 1e-8f;
@@ -83,8 +83,19 @@ namespace Basis.IK
 
             Vector3 chestDirN = localChestDir.normalized;
             Vector3 targetDirN = localTargetDir.normalized;
-            float bendPitchDeg = (Mathf.Atan2(targetDirN.z, targetDirN.y) - Mathf.Atan2(chestDirN.z, chestDirN.y)) * Mathf.Rad2Deg;
-            float bendRollDeg = (Mathf.Atan2(-targetDirN.x, targetDirN.y) - Mathf.Atan2(-chestDirN.x, chestDirN.y)) * Mathf.Rad2Deg;
+            // The bend as the ONE rotation carrying chest-dir onto target-dir, read out as rotation-vector
+            // components on the anatomical axes -- not as two independent plane azimuths, whose difference
+            // over-reports a diagonal bend and carries an atan2 pole per plane. Same sign convention:
+            // +x tips forward (pitch), -z tips to the subject's right (roll). The axis' y component is
+            // dropped, as before: a from-to rotation between directions carries no meaningful twist.
+            Vector3 bendCross = Vector3.Cross(chestDirN, targetDirN);
+            float bendDot = Mathf.Clamp(Vector3.Dot(chestDirN, targetDirN), -1f, 1f);
+            float bendAngleDeg = Mathf.Atan2(bendCross.magnitude, bendDot) * Mathf.Rad2Deg;
+            Vector3 bendAxisScaled = bendCross.sqrMagnitude > k_SqrEpsilon
+                ? bendCross.normalized * bendAngleDeg
+                : Vector3.zero;
+            float bendPitchDeg = bendAxisScaled.x;
+            float bendRollDeg = bendAxisScaled.z;
             Vector3 bendEuler = new Vector3(bendPitchDeg, 0f, bendRollDeg);
 
             Quaternion headRotLocal = hipsSpace * i.HeadTargetRot;
@@ -156,6 +167,24 @@ namespace Basis.IK
             r.BendGate = bendGate;
             r.SpineYawEff = spineYawEff;
             r.UpperYawEff = upperYawEff;
+        }
+
+        /// <summary>
+        /// Quaternion for a per-axis anatomical delta (x = pitch, y = yaw, z = roll, degrees): the yaw
+        /// outermost -- where Quaternion.Euler put it -- and the pitch/roll pair as ONE swing, the same
+        /// swing-twist construction BasisSpineAnatomyCore.Recompose uses, instead of two ordered euler
+        /// rotations. ECall-free, so it runs in the standalone harnesses.
+        /// </summary>
+        public static Quaternion Compose(Vector3 e)
+        {
+            Quaternion yaw = BasisSpineAnatomyCore.AxisAngle(e.y, Vector3.up);
+            float swingDeg = Mathf.Sqrt(e.x * e.x + e.z * e.z);
+            if (swingDeg <= k_Epsilon)
+            {
+                return yaw;
+            }
+            Quaternion swing = BasisSpineAnatomyCore.AxisAngle(swingDeg, new Vector3(e.x / swingDeg, 0f, e.z / swingDeg));
+            return yaw * swing;
         }
 
         public static float ComputeSquishMultiplier(Vector3 hipsToHead, float restLen, float squishBoost)

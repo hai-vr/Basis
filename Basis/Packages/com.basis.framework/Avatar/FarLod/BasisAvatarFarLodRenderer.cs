@@ -9,22 +9,22 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Runtime distance imposter for one remote player: a low-poly skinned proxy built from the
-/// <see cref="BasisImposterPayload"/> carried in the avatar's bundle connector, skinned to a
+/// Runtime distance far LOD for one remote player: a low-poly skinned proxy built from the
+/// <see cref="BasisFarLodPayload"/> carried in the avatar's bundle connector, skinned to a
 /// rebuilt copy of the avatar's humanoid skeleton and registered with
 /// <see cref="RemoteBoneJobSystem"/> under the same player id — so the existing networked
 /// per-bone deltas drive it with no retargeting and no new job code.
 ///
 /// Mesh, texture and material are shared per avatar version across every player wearing it;
-/// only the ~20-transform skeleton is per player. The imposter root is its own scene root
+/// only the ~20-transform skeleton is per player. The far LOD root is its own scene root
 /// (like the real remote avatar) so bone jobs keep parallelizing across Transform roots.
 /// </summary>
-public class BasisAvatarImposter
+public class BasisAvatarFarLodRenderer
 {
     public sealed class SharedAssets
     {
         public string UniqueVersion;
-        public BasisImposterPayload Payload;
+        public BasisFarLodPayload Payload;
         public Mesh Mesh;
         public Texture2D Texture;
         public Material Material;
@@ -49,30 +49,30 @@ public class BasisAvatarImposter
     private Transform[] _slotTransforms;
     private NativeArray<quaternion> _slotTpose;
 
-    public static BasisAvatarImposter TryCreate(BasisRemotePlayer remote)
+    public static BasisAvatarFarLodRenderer TryCreate(BasisRemotePlayer remote)
     {
         BasisBundleConnector connector = remote?.AvatarMetaData?.BasisBundleConnector;
-        if (connector == null || string.IsNullOrEmpty(connector.UniqueVersion) || string.IsNullOrEmpty(connector.ImposterBase64))
+        if (connector == null || string.IsNullOrEmpty(connector.UniqueVersion) || string.IsNullOrEmpty(connector.FarLodBase64))
         {
             return null;
         }
-        SharedAssets shared = AcquireShared(connector.UniqueVersion, connector.ImposterBase64);
+        SharedAssets shared = AcquireShared(connector.UniqueVersion, connector.FarLodBase64);
         if (shared == null)
         {
             return null;
         }
 
-        BasisAvatarImposter imposter = new BasisAvatarImposter { _shared = shared };
-        imposter.BuildInstance(remote);
-        return imposter;
+        BasisAvatarFarLodRenderer farLod = new BasisAvatarFarLodRenderer { _shared = shared };
+        farLod.BuildInstance(remote);
+        return farLod;
     }
 
     private void BuildInstance(BasisRemotePlayer remote)
     {
-        BasisImposterPayload payload = _shared.Payload;
+        BasisFarLodPayload payload = _shared.Payload;
         int layer = BasisLayerMapper.RemoteAvatarLayer;
 
-        Root = new GameObject($"Imposter {remote.DisplayName}") { layer = layer };
+        Root = new GameObject($"FarLod {remote.DisplayName}") { layer = layer };
         UnityEngine.Object.DontDestroyOnLoad(Root);
         RootTransform = Root.transform;
 
@@ -129,7 +129,7 @@ public class BasisAvatarImposter
     }
 
     /// <summary>
-    /// Swaps this player's bone-job registration from the real avatar to the imposter skeleton
+    /// Swaps this player's bone-job registration from the real avatar to the far LOD skeleton
     /// and hides the avatar. Forces one job sync (RemoveRemotePlayer) — callers budget swaps
     /// per tick the same way avatar reloads are budgeted.
     /// </summary>
@@ -145,7 +145,7 @@ public class BasisAvatarImposter
         {
             return false;
         }
-        BasisImposterPayload payload = _shared.Payload;
+        BasisFarLodPayload payload = _shared.Payload;
 
         receiver.GetLatestNetworkPose(out float3 hipsWorldPos, out quaternion hipsWorldRot, out float3 networkScale);
         quaternion tposeHipsRot = payload.TposeHipsFromRootRotation;
@@ -252,7 +252,7 @@ public class BasisAvatarImposter
             return existing;
         }
 
-        BasisImposterPayload payload = BasisImposterPayload.TryParseBase64(base64);
+        BasisFarLodPayload payload = BasisFarLodPayload.TryParseBase64(base64);
         if (payload == null)
         {
             return null;
@@ -283,11 +283,11 @@ public class BasisAvatarImposter
 
         if (sImposterShader == null)
         {
-            sImposterShader = Shader.Find("Basis/AvatarImposter");
+            sImposterShader = Shader.Find("Basis/AvatarFarLod");
         }
         if (sImposterShader == null)
         {
-            BasisDebug.LogError("Basis/AvatarImposter shader missing from build — imposters disabled.", BasisDebug.LogTag.Avatar);
+            BasisDebug.LogError("Basis/AvatarFarLod shader missing from build — far LODs disabled.", BasisDebug.LogTag.Avatar);
             UnityEngine.Object.Destroy(texture);
             UnityEngine.Object.Destroy(shared.Mesh);
             return null;

@@ -518,6 +518,11 @@ namespace Basis.BasisUI
         // Superseded by ContinuousBodyMeasurement below, which does the same job for calibrated sessions too.
         public static BasisSettingsBinding<bool> AutoScaleEstimateEnabled = new("autoscaleestimateenabled_v2", new BasisPlatformDefault<bool>(false));
 
+        // The player's own stated body height in metres (0 = they have not told us). The most reliable
+        // measurement available -- and the only one a permanently-seated player has. Used to fill in
+        // before anything is observed, and to reject readings anatomy cannot produce. See BasisStatedHeight.
+        public static BasisSettingsBinding<float> StatedBodyHeight = new("statedbodyheight", new BasisPlatformDefault<float>(0f));
+
         // Keep watching the player's real eye height and arm span while they use the world, and refit the
         // avatar when a better measurement turns up, instead of trusting whatever pose they happened to be
         // in on the one frame an avatar loaded. Both measurements only ever read SHORT, so this only ever
@@ -679,11 +684,11 @@ namespace Basis.BasisUI
         // paying a full extra skinned draw per shadow cascade each.
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
 
-        // Swaps remote avatars past a distance for the baked low-poly imposter carried in their
-        // bundle (driven by the same networked bone data). Avatars without an imposter payload
+        // Swaps remote avatars past a distance for the baked low-poly far LOD carried in their
+        // bundle (driven by the same networked bone data). Avatars without an far LOD payload
         // keep the regular LOD path.
-        public static BasisSettingsBinding<bool> UseAvatarImposter = new("useavatarimposter", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> AvatarImposterDistance = new("avatarimposterdistance", new BasisPlatformDefault<float>
+        public static BasisSettingsBinding<bool> UseAvatarFarLod = new("useavatarfarlod", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> AvatarFarLodDistance = new("avatarfarloddistance", new BasisPlatformDefault<float>
         {
             windows = 20,
             android = 12,
@@ -1899,6 +1904,7 @@ namespace Basis.BasisUI
             SavedPlayerArmSpan.LoadBindingValue();
             AutoScaleEstimateEnabled.LoadBindingValue();
             ContinuousBodyMeasurement.LoadBindingValue();
+            StatedBodyHeight.LoadBindingValue();
             SitStand.LoadBindingValue();
             EnableFBT.LoadBindingValue();
             TrackerVisuals.LoadBindingValue();
@@ -2038,8 +2044,8 @@ namespace Basis.BasisUI
             AvatarMeshLOD.LoadBindingValue();
             UseAvatarSkinLod.LoadBindingValue();
             UseAvatarShadowLod.LoadBindingValue();
-            UseAvatarImposter.LoadBindingValue();
-            AvatarImposterDistance.LoadBindingValue();
+            UseAvatarFarLod.LoadBindingValue();
+            AvatarFarLodDistance.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
 
             // Performance Limits

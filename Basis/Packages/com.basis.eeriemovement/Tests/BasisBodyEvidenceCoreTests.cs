@@ -205,6 +205,19 @@ namespace Basis.Tests.IK
         }
 
         [Test]
+        public void OneGoodSampleAmongLowOnesStillRaisesNothingItShouldNot()
+        {
+            // Guards the interaction between the two mechanisms: the different-person streak reads the
+            // estimate, and folding must not let that bookkeeping disturb the estimate itself.
+            var state = new BasisBodyEvidenceState();
+            FoldEyeRepeated(ref state, 1.60f, BasisBodyEvidenceCore.SamplesForFullConfidence);
+            FoldEyeRepeated(ref state, 1.20f, 50);
+
+            Assert.IsTrue(BasisBodyEvidenceCore.TryGetEstimate(state.Eye, out float estimate, out _));
+            Assert.AreEqual(1.60f, estimate, Eps);
+        }
+
+        [Test]
         public void ResetDropsEverythingObserved()
         {
             var state = new BasisBodyEvidenceState();
@@ -215,6 +228,60 @@ namespace Basis.Tests.IK
 
             Assert.IsFalse(BasisBodyEvidenceCore.TryGetEstimate(state.Eye, out _, out _),
                 "recalibrating has to be able to escape a poisoned session");
+        }
+
+        [Test]
+        public void SlouchingIsNeverMistakenForADifferentPerson()
+        {
+            var state = new BasisBodyEvidenceState();
+            FoldEyeRepeated(ref state, 1.75f, BasisBodyEvidenceCore.SamplesForFullConfidence);
+
+            // A long stretch of relaxed, slightly-low standing — exactly what a real session looks like.
+            FoldEyeRepeated(ref state, 1.70f, BasisBodyEvidenceCore.DifferentPersonStreak * 2);
+
+            Assert.IsFalse(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye),
+                "posture must never trigger the prompt, or it would fire constantly");
+        }
+
+        [Test]
+        public void APersistentlyShorterBodyIsFlagged()
+        {
+            var state = new BasisBodyEvidenceState();
+            FoldEyeRepeated(ref state, 1.85f, BasisBodyEvidenceCore.SamplesForFullConfidence);
+            Assert.IsFalse(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye));
+
+            // Someone a head shorter picks up the headset. The high-water mark cannot come down on its
+            // own, so without this they would wear the previous player's size for the whole session.
+            FoldEyeRepeated(ref state, 1.50f, BasisBodyEvidenceCore.DifferentPersonStreak + 1);
+
+            Assert.IsTrue(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye));
+        }
+
+        [Test]
+        public void StandingBackUpClearsTheSuspicion()
+        {
+            var state = new BasisBodyEvidenceState();
+            FoldEyeRepeated(ref state, 1.85f, BasisBodyEvidenceCore.SamplesForFullConfidence);
+            FoldEyeRepeated(ref state, 1.50f, BasisBodyEvidenceCore.DifferentPersonStreak / 2);
+            FoldEyeRepeated(ref state, 1.85f, 1);
+            FoldEyeRepeated(ref state, 1.50f, BasisBodyEvidenceCore.DifferentPersonStreak / 2);
+
+            Assert.IsFalse(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye),
+                "one sample at full height proves the body is still there; the streak has to restart");
+        }
+
+        [Test]
+        public void ResetAlsoClearsTheDifferentPersonStreak()
+        {
+            var state = new BasisBodyEvidenceState();
+            FoldEyeRepeated(ref state, 1.85f, BasisBodyEvidenceCore.SamplesForFullConfidence);
+            FoldEyeRepeated(ref state, 1.50f, BasisBodyEvidenceCore.DifferentPersonStreak + 1);
+            Assert.IsTrue(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye));
+
+            BasisBodyEvidenceCore.Reset(ref state);
+
+            Assert.IsFalse(BasisBodyEvidenceCore.LooksLikeADifferentPerson(state.Eye),
+                "re-measuring is the answer to the prompt, so it must also silence it");
         }
 
         [Test]

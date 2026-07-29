@@ -32,19 +32,19 @@ public static class BasisBundleBuild
         Bounds unitybounds = CalculateLocalRenderBounds(BasisContentBase.gameObject);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
-        // Imposter generation runs once here (before the per-platform loop) on the live build
+        // Far LOD generation runs once here (before the per-platform loop) on the live build
         // clone, while its real materials are still intact. Failure is never fatal to the build.
-        string imposterBase64 = null;
-        if (BasisContentBase is BasisAvatar imposterSourceAvatar)
+        string farLodBase64 = null;
+        if (BasisContentBase is BasisAvatar farLodSourceAvatar)
         {
             try
             {
-                imposterBase64 = BasisImposterGenerator.GenerateBase64(imposterSourceAvatar);
+                farLodBase64 = BasisFarLodGenerator.GenerateBase64(farLodSourceAvatar);
             }
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                Debug.LogWarning("Imposter generation failed — building the bundle without an imposter.");
+                Debug.LogWarning("Far LOD generation failed — building the bundle without a far LOD.");
             }
         }
 
@@ -60,7 +60,7 @@ public static class BasisBundleBuild
             OverriddenPassword: OverriddenPassword,
             buildFunction: (content, obj, hex, target, buildId) =>
                 BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, FolderPath),
-            ImposterBase64: imposterBase64);
+            FarLodBase64: farLodBase64);
     }
     /// <summary>
     /// Calculates bounds of all child renderers in PARENT LOCAL SPACE (pivot-relative).
@@ -467,7 +467,7 @@ public static class BasisBundleBuild
       string OverriddenPassword,
       Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, string,
            Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction,
-      string ImposterBase64 = null)
+      string FarLodBase64 = null)
     {
         string generatedID = null;
         string stagingRoot = null;
@@ -550,7 +550,7 @@ public static class BasisBundleBuild
                 Images,
                 BasisBounds,
                 MetaData,
-                ImposterBase64
+                FarLodBase64
             );
 
             byte[] BasisbundleconnectorUnEncrypted =

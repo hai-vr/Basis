@@ -3,33 +3,52 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Bakes the avatar's rendered appearance into the imposter atlas. The avatar is rendered with
-/// its real materials from a ring of orthographic views, twice per view (black and white
-/// background) so coverage comes from difference matting — robust against arbitrary shaders
-/// that write no meaningful alpha. Scene lighting is overridden with flat white ambient during
-/// capture so the atlas stores an unlit/albedo-like response; the runtime imposter shader
-/// re-lights it from the world's ambient probe and main light.
+/// Bakes the avatar's rendered appearance into the far LOD atlas. The avatar is rendered with
+/// its real materials from a ring of orthographic body views plus tightly-framed close-up
+/// passes for hands, feet and head (small parts are only a handful of pixels in a whole-body
+/// frame — the close-ups are what keep them legible). Every view is captured twice (black and
+/// white background) so coverage comes from difference matting — robust against arbitrary
+/// shaders that write no meaningful alpha — and colors are un-premultiplied by that coverage
+/// so silhouette edges don't keep background darkening.
 ///
-/// Each atlas texel is projected into the best-facing views, occlusion-tested with a raycast
-/// against a temporary collider of the decimated mesh, sampled, dilated, mipped, and finally
-/// compressed to BC1 (desktop) and ASTC 6x6 (mobile) payloads.
+/// Scene lighting is overridden with flat white ambient during capture so the atlas stores an
+/// unlit/albedo-like response; the runtime far LOD shader re-lights it from the world's
+/// ambient probe and main light.
+///
+/// Each atlas texel is projected into the best-facing valid views (close-ups outrank body
+/// views), occlusion-tested with a raycast against a temporary collider of the decimated mesh,
+/// sampled bilinearly with coverage weighting, dilated, mipped, and finally compressed to BC1
+/// (desktop) and ASTC 6x6 (mobile) payloads.
 /// </summary>
-public static class BasisImposterAtlasBaker
+public static class BasisFarLodAtlasBaker
 {
     private const int DilatePasses = 16;
     private const float MinCoverage = 0.4f;
     private const float FallbackCoverage = 0.1f;
     private const int OcclusionLayer = 2; // Ignore Raycast: invisible to default queries, targetable by mask
+    private const int RegionCaptureSize = 512;
+    private const float RegionScoreBias = 0.75f;
+
+    /// <summary>A body part that deserves its own close-up capture set (bounds in root space).</summary>
+    public struct RegionOfInterest
+    {
+        public string Name;
+        public Bounds RootBounds;
+    }
 
     private struct CaptureView
     {
         public Vector3 DirectionWorld;
         public Matrix4x4 WorldToPixel;
-        public Color32[] Pixels; // rgb = color rendered on black, a = coverage
+        public Color32[] Pixels; // rgb = un-premultiplied color, a = coverage
+        public int Size;
+        public bool IsRegion;
+        public Bounds ValidBoundsRoot; // region views only serve texels inside this
     }
 
-    public static BasisImposterPayload.ImposterTexture[] Bake(Transform root, Mesh decimatedMesh,
-        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, int captureSize)
+    public static BasisFarLodPayload.FarLodTexture[] Bake(Transform root, Mesh decimatedMesh,
+        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, int captureSize,
+        RegionOfInterest[] regions = null)
     {
         Bounds rootBounds = new Bounds(positions[0], Vector3.zero);
         for (int i = 1; i < positions.Length; i++)
@@ -49,67 +68,71 @@ public static class BasisImposterAtlasBaker
             radius = Mathf.Max(radius, (rootToWorld.MultiplyPoint3x4(cornerLocal) - centerWorld).magnitude);
         }
 
-        Vector3[] localDirections = BuildViewDirections();
         Quaternion rootRotation = root.rotation;
-
         LightingScope lighting = LightingScope.Push();
         GameObject cameraObject = null;
         GameObject colliderObject = null;
-        RenderTexture renderTexture = null;
-        Texture2D readback = null;
+        RenderTexture bodyTexture = null;
+        RenderTexture regionTexture = null;
+        Texture2D bodyReadback = null;
+        Texture2D regionReadback = null;
         try
         {
-            cameraObject = new GameObject("ImposterBakeCamera") { hideFlags = HideFlags.HideAndDontSave };
+            cameraObject = new GameObject("FarLodBakeCamera") { hideFlags = HideFlags.HideAndDontSave };
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.enabled = false;
             camera.orthographic = true;
-            camera.orthographicSize = radius;
-            camera.nearClipPlane = 0.01f;
-            camera.farClipPlane = radius * 4f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.cullingMask = ~0;
             camera.allowHDR = false;
             camera.allowMSAA = false;
             camera.useOcclusionCulling = false;
 
-            renderTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32);
-            camera.targetTexture = renderTexture;
-            readback = new Texture2D(captureSize, captureSize, TextureFormat.RGBA32, false, false)
+            bodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32);
+            regionTexture = RenderTexture.GetTemporary(RegionCaptureSize, RegionCaptureSize, 24, RenderTextureFormat.ARGB32);
+            bodyReadback = NewReadback(captureSize);
+            regionReadback = NewReadback(RegionCaptureSize);
+
+            List<CaptureView> views = new List<CaptureView>(64);
+
+            // Whole-body ring: equator, upper ring, lower ring (palms face down in T-pose —
+            // without under-views they only ever see the single bottom capture), poles.
+            Vector3[] bodyDirections = BuildBodyViewDirections();
+            for (int v = 0; v < bodyDirections.Length; v++)
             {
-                hideFlags = HideFlags.HideAndDontSave,
-            };
+                Vector3 directionWorld = (rootRotation * bodyDirections[v]).normalized;
+                views.Add(CaptureOne(camera, bodyTexture, bodyReadback, captureSize,
+                    centerWorld, directionWorld, rootRotation, radius, isRegion: false, default));
+            }
 
-            CaptureView[] views = new CaptureView[localDirections.Length];
-            for (int v = 0; v < localDirections.Length; v++)
+            // Close-up passes.
+            if (regions != null)
             {
-                Vector3 directionWorld = (rootRotation * localDirections[v]).normalized;
-                Vector3 up = Mathf.Abs(Vector3.Dot(directionWorld, Vector3.up)) > 0.95f ? rootRotation * Vector3.forward : Vector3.up;
-                camera.transform.SetPositionAndRotation(centerWorld - directionWorld * (radius * 2f), Quaternion.LookRotation(directionWorld, up));
-
-                Color32[] onBlack = RenderAndRead(camera, readback, captureSize, new Color(0f, 0f, 0f, 0f));
-                Color32[] onWhite = RenderAndRead(camera, readback, captureSize, new Color(1f, 1f, 1f, 0f));
-                for (int p = 0; p < onBlack.Length; p++)
+                Vector3[] regionDirections =
                 {
-                    int difference = (Mathf.Abs(onWhite[p].r - onBlack[p].r) + Mathf.Abs(onWhite[p].g - onBlack[p].g) + Mathf.Abs(onWhite[p].b - onBlack[p].b)) / 3;
-                    onBlack[p].a = (byte)(255 - difference);
-                }
-
-                // world → clip → pixel, matching ReadPixels' lower-left origin.
-                Matrix4x4 clip = camera.projectionMatrix * camera.worldToCameraMatrix;
-                Matrix4x4 ndcToPixel = Matrix4x4.TRS(new Vector3(captureSize * 0.5f, captureSize * 0.5f, 0f), Quaternion.identity, new Vector3(captureSize * 0.5f, captureSize * 0.5f, 1f));
-                views[v] = new CaptureView
-                {
-                    DirectionWorld = directionWorld,
-                    WorldToPixel = ndcToPixel * clip,
-                    Pixels = onBlack,
+                    Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back,
                 };
+                for (int r = 0; r < regions.Length; r++)
+                {
+                    Bounds region = regions[r].RootBounds;
+                    Vector3 regionCenterWorld = rootToWorld.MultiplyPoint3x4(region.center);
+                    float regionRadius = Mathf.Max(rootToWorld.MultiplyVector(region.extents).magnitude, 0.01f);
+                    Bounds valid = region;
+                    valid.Expand(region.size.magnitude * 0.1f + 0.005f);
+                    for (int d = 0; d < regionDirections.Length; d++)
+                    {
+                        Vector3 directionWorld = (rootRotation * regionDirections[d]).normalized;
+                        views.Add(CaptureOne(camera, regionTexture, regionReadback, RegionCaptureSize,
+                            regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid));
+                    }
+                }
             }
             camera.targetTexture = null;
 
             // Sanity: if every capture came back empty, the camera rendered nothing (edit-mode
             // SRP issue or the avatar's renderers are off) — the atlas would be flat gray.
             long coveredPixels = 0;
-            for (int v = 0; v < views.Length; v++)
+            for (int v = 0; v < views.Count; v++)
             {
                 Color32[] pixels = views[v].Pixels;
                 for (int p = 0; p < pixels.Length; p += 7)
@@ -122,10 +145,10 @@ public static class BasisImposterAtlasBaker
             }
             if (coveredPixels == 0)
             {
-                Debug.LogWarning("[Imposter] Every view capture was empty — Camera.Render produced no avatar pixels. The atlas will be flat. Check that the avatar's renderers are enabled and visible.");
+                Debug.LogWarning("[FarLod] Every view capture was empty — Camera.Render produced no avatar pixels. The atlas will be flat. Check that the avatar's renderers are enabled and visible.");
             }
 
-            colliderObject = new GameObject("ImposterBakeCollider") { hideFlags = HideFlags.HideAndDontSave, layer = OcclusionLayer };
+            colliderObject = new GameObject("FarLodBakeCollider") { hideFlags = HideFlags.HideAndDontSave, layer = OcclusionLayer };
             colliderObject.transform.SetPositionAndRotation(root.position, root.rotation);
             colliderObject.transform.localScale = root.lossyScale;
             MeshCollider collider = colliderObject.AddComponent<MeshCollider>();
@@ -137,13 +160,21 @@ public static class BasisImposterAtlasBaker
         }
         finally
         {
-            if (renderTexture != null)
+            if (bodyTexture != null)
             {
-                RenderTexture.ReleaseTemporary(renderTexture);
+                RenderTexture.ReleaseTemporary(bodyTexture);
             }
-            if (readback != null)
+            if (regionTexture != null)
             {
-                Object.DestroyImmediate(readback);
+                RenderTexture.ReleaseTemporary(regionTexture);
+            }
+            if (bodyReadback != null)
+            {
+                Object.DestroyImmediate(bodyReadback);
+            }
+            if (regionReadback != null)
+            {
+                Object.DestroyImmediate(regionReadback);
             }
             if (cameraObject != null)
             {
@@ -157,9 +188,17 @@ public static class BasisImposterAtlasBaker
         }
     }
 
-    private static Vector3[] BuildViewDirections()
+    private static Texture2D NewReadback(int size)
     {
-        List<Vector3> directions = new List<Vector3>(14);
+        return new Texture2D(size, size, TextureFormat.RGBA32, false, false)
+        {
+            hideFlags = HideFlags.HideAndDontSave,
+        };
+    }
+
+    private static Vector3[] BuildBodyViewDirections()
+    {
+        List<Vector3> directions = new List<Vector3>(18);
         for (int yaw = 0; yaw < 360; yaw += 45)
         {
             float radians = yaw * Mathf.Deg2Rad;
@@ -168,11 +207,57 @@ public static class BasisImposterAtlasBaker
         for (int yaw = 0; yaw < 360; yaw += 90)
         {
             float radians = yaw * Mathf.Deg2Rad;
-            directions.Add((new Vector3(Mathf.Sin(radians), 0.84f, Mathf.Cos(radians))).normalized);
+            directions.Add(new Vector3(Mathf.Sin(radians), 0.84f, Mathf.Cos(radians)).normalized);
+        }
+        for (int yaw = 45; yaw < 360; yaw += 90)
+        {
+            float radians = yaw * Mathf.Deg2Rad;
+            directions.Add(new Vector3(Mathf.Sin(radians), -0.84f, Mathf.Cos(radians)).normalized);
         }
         directions.Add(Vector3.up);
         directions.Add(Vector3.down);
         return directions.ToArray();
+    }
+
+    private static CaptureView CaptureOne(Camera camera, RenderTexture target, Texture2D readback, int size,
+        Vector3 centerWorld, Vector3 directionWorld, Quaternion rootRotation, float frameRadius, bool isRegion, Bounds validBoundsRoot)
+    {
+        Vector3 up = Mathf.Abs(Vector3.Dot(directionWorld, Vector3.up)) > 0.95f ? rootRotation * Vector3.forward : Vector3.up;
+        camera.targetTexture = target;
+        camera.orthographicSize = frameRadius * (isRegion ? 1.1f : 1f);
+        camera.nearClipPlane = 0.01f;
+        camera.farClipPlane = frameRadius * 4f;
+        camera.transform.SetPositionAndRotation(centerWorld - directionWorld * (frameRadius * 2f), Quaternion.LookRotation(directionWorld, up));
+
+        Color32[] onBlack = RenderAndRead(camera, readback, size, new Color(0f, 0f, 0f, 0f));
+        Color32[] onWhite = RenderAndRead(camera, readback, size, new Color(1f, 1f, 1f, 0f));
+        for (int p = 0; p < onBlack.Length; p++)
+        {
+            int difference = (Mathf.Abs(onWhite[p].r - onBlack[p].r) + Mathf.Abs(onWhite[p].g - onBlack[p].g) + Mathf.Abs(onWhite[p].b - onBlack[p].b)) / 3;
+            int coverage = 255 - difference;
+            // Un-premultiply: the color rendered on black is truth × coverage — divide the
+            // background attenuation back out so silhouette edges don't bake in dark fringes.
+            if (coverage > 6 && coverage < 255)
+            {
+                float scale = 255f / coverage;
+                onBlack[p].r = (byte)Mathf.Min(255f, onBlack[p].r * scale);
+                onBlack[p].g = (byte)Mathf.Min(255f, onBlack[p].g * scale);
+                onBlack[p].b = (byte)Mathf.Min(255f, onBlack[p].b * scale);
+            }
+            onBlack[p].a = (byte)coverage;
+        }
+
+        Matrix4x4 clip = camera.projectionMatrix * camera.worldToCameraMatrix;
+        Matrix4x4 ndcToPixel = Matrix4x4.TRS(new Vector3(size * 0.5f, size * 0.5f, 0f), Quaternion.identity, new Vector3(size * 0.5f, size * 0.5f, 1f));
+        return new CaptureView
+        {
+            DirectionWorld = directionWorld,
+            WorldToPixel = ndcToPixel * clip,
+            Pixels = onBlack,
+            Size = size,
+            IsRegion = isRegion,
+            ValidBoundsRoot = validBoundsRoot,
+        };
     }
 
     private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
@@ -186,17 +271,18 @@ public static class BasisImposterAtlasBaker
         return readback.GetPixels32();
     }
 
-    private static Color32[] ProjectAtlas(CaptureView[] views, Matrix4x4 rootToWorld, Quaternion rootRotation,
+    private static Color32[] ProjectAtlas(List<CaptureView> views, Matrix4x4 rootToWorld, Quaternion rootRotation,
         Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius)
     {
         int texelCount = atlasSize * atlasSize;
         Color32[] atlas = new Color32[texelCount];
         bool[] written = new bool[texelCount];
-        int captureSize = (int)Mathf.Sqrt(views[0].Pixels.Length);
         float rayBias = Mathf.Max(0.004f, radius * 0.01f);
         int layerMask = 1 << OcclusionLayer;
-        int[] candidateOrder = new int[views.Length];
-        float[] candidateScore = new float[views.Length];
+        int viewCount = views.Count;
+        CaptureView[] viewArray = views.ToArray();
+        int[] candidateOrder = new int[viewCount];
+        float[] candidateScore = new float[viewCount];
 
         for (int t = 0; t + 2 < indices.Length; t += 3)
         {
@@ -236,22 +322,27 @@ public static class BasisImposterAtlasBaker
                     }
 
                     Vector3 positionRoot = positions[i0] * baryA + positions[i1] * baryB + positions[i2] * baryC;
-                    Vector3 normalRoot = (normals[i0] * baryA + normals[i1] * baryB + normals[i2] * baryC);
+                    Vector3 normalRoot = normals[i0] * baryA + normals[i1] * baryB + normals[i2] * baryC;
                     Vector3 positionWorld = rootToWorld.MultiplyPoint3x4(positionRoot);
                     Vector3 normalWorld = (rootRotation * normalRoot).normalized;
 
                     int candidateCount = 0;
-                    for (int v = 0; v < views.Length; v++)
+                    for (int v = 0; v < viewCount; v++)
                     {
-                        float score = Vector3.Dot(normalWorld, -views[v].DirectionWorld);
+                        ref CaptureView view = ref viewArray[v];
+                        if (view.IsRegion && !view.ValidBoundsRoot.Contains(positionRoot))
+                        {
+                            continue;
+                        }
+                        float score = Vector3.Dot(normalWorld, -view.DirectionWorld);
                         if (score > 0.05f)
                         {
                             candidateOrder[candidateCount] = v;
-                            candidateScore[candidateCount] = score;
+                            candidateScore[candidateCount] = score + (view.IsRegion ? RegionScoreBias : 0f);
                             candidateCount++;
                         }
                     }
-                    // insertion sort by score, best first (candidate counts are tiny)
+                    // insertion sort by score, best first (candidate counts are small)
                     for (int a = 1; a < candidateCount; a++)
                     {
                         int order = candidateOrder[a];
@@ -272,11 +363,11 @@ public static class BasisImposterAtlasBaker
                     Color32 fallbackColor = default;
                     bool hasFallback = false;
 
-                    int consider = Mathf.Min(candidateCount, 5);
+                    int consider = Mathf.Min(candidateCount, 6);
                     for (int c = 0; c < consider && !sampled; c++)
                     {
-                        CaptureView view = views[candidateOrder[c]];
-                        if (!TrySampleView(view, positionWorld, captureSize, out Color32 color, out float coverage))
+                        ref CaptureView view = ref viewArray[candidateOrder[c]];
+                        if (!TrySampleView(in view, positionWorld, out Color32 color, out float coverage))
                         {
                             continue;
                         }
@@ -313,20 +404,68 @@ public static class BasisImposterAtlasBaker
         return atlas;
     }
 
-    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, int captureSize, out Color32 color, out float coverage)
+    /// <summary>Bilinear, coverage-weighted sample — background texels are weighted out.</summary>
+    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, out Color32 color, out float coverage)
     {
         Vector3 pixel = view.WorldToPixel.MultiplyPoint(positionWorld);
-        int x = (int)pixel.x;
-        int y = (int)pixel.y;
-        if (x < 0 || y < 0 || x >= captureSize || y >= captureSize)
+        float fx = pixel.x - 0.5f;
+        float fy = pixel.y - 0.5f;
+        int x0 = Mathf.FloorToInt(fx);
+        int y0 = Mathf.FloorToInt(fy);
+        if (x0 < -1 || y0 < -1 || x0 >= view.Size || y0 >= view.Size)
         {
             color = default;
             coverage = 0f;
             return false;
         }
-        Color32 sample = view.Pixels[y * captureSize + x];
-        color = sample;
-        coverage = sample.a * (1f / 255f);
+        float tx = fx - x0;
+        float ty = fy - y0;
+
+        float r = 0f, g = 0f, b = 0f, weightedCoverage = 0f, totalWeight = 0f;
+        for (int dy = 0; dy <= 1; dy++)
+        {
+            int sy = y0 + dy;
+            if (sy < 0 || sy >= view.Size)
+            {
+                continue;
+            }
+            float wy = dy == 0 ? 1f - ty : ty;
+            for (int dx = 0; dx <= 1; dx++)
+            {
+                int sx = x0 + dx;
+                if (sx < 0 || sx >= view.Size)
+                {
+                    continue;
+                }
+                float weight = wy * (dx == 0 ? 1f - tx : tx);
+                if (weight <= 0f)
+                {
+                    continue;
+                }
+                Color32 sample = view.Pixels[sy * view.Size + sx];
+                float sampleCoverage = sample.a * (1f / 255f);
+                float colorWeight = weight * sampleCoverage;
+                r += sample.r * colorWeight;
+                g += sample.g * colorWeight;
+                b += sample.b * colorWeight;
+                weightedCoverage += sampleCoverage * weight;
+                totalWeight += weight;
+            }
+        }
+
+        if (totalWeight <= 0f || weightedCoverage <= 1e-4f)
+        {
+            color = default;
+            coverage = 0f;
+            return false;
+        }
+        float inverseColorWeight = 1f / Mathf.Max(weightedCoverage, 1e-4f);
+        color = new Color32(
+            (byte)Mathf.Clamp(Mathf.RoundToInt(r * inverseColorWeight), 0, 255),
+            (byte)Mathf.Clamp(Mathf.RoundToInt(g * inverseColorWeight), 0, 255),
+            (byte)Mathf.Clamp(Mathf.RoundToInt(b * inverseColorWeight), 0, 255),
+            255);
+        coverage = weightedCoverage / totalWeight;
         return true;
     }
 
@@ -410,7 +549,7 @@ public static class BasisImposterAtlasBaker
         }
     }
 
-    private static BasisImposterPayload.ImposterTexture[] CompressAtlas(Color32[] atlas, int atlasSize)
+    private static BasisFarLodPayload.FarLodTexture[] CompressAtlas(Color32[] atlas, int atlasSize)
     {
         Texture2D source = new Texture2D(atlasSize, atlasSize, TextureFormat.RGBA32, true, false)
         {
@@ -421,9 +560,9 @@ public static class BasisImposterAtlasBaker
             source.SetPixels32(atlas);
             source.Apply(true, false);
 
-            List<BasisImposterPayload.ImposterTexture> textures = new List<BasisImposterPayload.ImposterTexture>(2);
-            AppendCompressed(textures, source, TextureFormat.DXT1, BasisImposterPayload.ImposterTextureFormat.BC1);
-            AppendCompressed(textures, source, TextureFormat.ASTC_6x6, BasisImposterPayload.ImposterTextureFormat.ASTC6x6);
+            List<BasisFarLodPayload.FarLodTexture> textures = new List<BasisFarLodPayload.FarLodTexture>(2);
+            AppendCompressed(textures, source, TextureFormat.DXT1, BasisFarLodPayload.FarLodTextureFormat.BC1);
+            AppendCompressed(textures, source, TextureFormat.ASTC_6x6, BasisFarLodPayload.FarLodTextureFormat.ASTC6x6);
             return textures.ToArray();
         }
         finally
@@ -432,8 +571,8 @@ public static class BasisImposterAtlasBaker
         }
     }
 
-    private static void AppendCompressed(List<BasisImposterPayload.ImposterTexture> textures, Texture2D source,
-        TextureFormat format, BasisImposterPayload.ImposterTextureFormat payloadFormat)
+    private static void AppendCompressed(List<BasisFarLodPayload.FarLodTexture> textures, Texture2D source,
+        TextureFormat format, BasisFarLodPayload.FarLodTextureFormat payloadFormat)
     {
         Texture2D copy = Object.Instantiate(source);
         copy.hideFlags = HideFlags.HideAndDontSave;
@@ -442,10 +581,10 @@ public static class BasisImposterAtlasBaker
             EditorUtility.CompressTexture(copy, format, TextureCompressionQuality.Normal);
             if (copy.format != format)
             {
-                Debug.LogWarning($"Imposter atlas compression to {format} was not applied on this platform; skipping that payload.");
+                Debug.LogWarning($"Far LOD atlas compression to {format} was not applied on this platform; skipping that payload.");
                 return;
             }
-            textures.Add(new BasisImposterPayload.ImposterTexture
+            textures.Add(new BasisFarLodPayload.FarLodTexture
             {
                 Format = payloadFormat,
                 Width = (ushort)copy.width,

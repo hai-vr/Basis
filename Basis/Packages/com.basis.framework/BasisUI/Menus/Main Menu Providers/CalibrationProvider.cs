@@ -36,6 +36,8 @@ namespace Basis.BasisUI
 
         public PanelButton Button;
         private PanelElementDescriptor _reportGroup;
+        private PanelElementDescriptor _sizeGroup;
+        private bool _tickHooked;
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
@@ -64,6 +66,15 @@ namespace Basis.BasisUI
             Button.OnClicked += OnCalibrateButtonClicked;
             Button.Descriptor.SetTitle(BasisLocalization.Get("calibration.calibrate"));
             Button.Descriptor.SetTooltip(BasisLocalization.Get("calibration.calibrate.tooltip"));
+
+            // Sizing no longer needs the T-pose ritual — that is for assigning full-body trackers and
+            // capturing their offsets. Measuring the player only needs them to stand tall and reach out
+            // once, which the sampler picks up on its own, so it gets its own low-friction button. For a
+            // desktop or 3-point player this is the only calibration they ever needed.
+            PanelButton measureButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+            measureButton.OnClicked += OnMeasureMeClicked;
+            measureButton.Descriptor.SetTitle(BasisLocalization.Get("calibration.measureMe"));
+            measureButton.Descriptor.SetTooltip(BasisLocalization.Get("calibration.measureMe.tooltip"));
 
             // See-through calibration mirror (implementation registers from the examples assembly):
             // shows only your avatar + calibration visuals, and unlike the pinned Personal Mirror it
@@ -97,6 +108,22 @@ namespace Basis.BasisUI
                 };
             }
 
+            // What size we think the player is, and how well this avatar matches — always visible. The
+            // tracker report below stays developer-gated, but a player whose avatar feels wrong needs
+            // this one, and it is the difference between "re-measure me" and "nudge this avatar".
+            _sizeGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            _sizeGroup.SetTitle(BasisLocalization.Get("calibration.report.size.title"));
+            RefreshSizeSummary();
+            HookSummaryTick();
+
+            // The single most reliable measurement available, and the only one a permanently-seated
+            // player has: their own answer.
+            var heightField = PanelTextField.CreateNewEntry(container);
+            heightField.Descriptor.SetTitle(BasisLocalization.Get("settings.calibration.yourHeight"));
+            heightField.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.yourHeight.tooltip"));
+            heightField.SetValueWithoutNotify(BasisStatedHeight.FormatCompact(BasisStatedHeight.Meters));
+            heightField.OnValueChanged += text => OnStatedHeightEntered(heightField, text);
+
             // Calibration quality report — filled in after a calibration completes.
             _reportGroup = null;
             if (BasisSettingsDefaults.DevShowCalibrationDebug.RawValue)
@@ -104,6 +131,25 @@ namespace Basis.BasisUI
                 _reportGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
                 _reportGroup.SetTitle(BasisLocalization.Get("calibration.report.title"));
                 _reportGroup.SetDescription(BasisCalibrationQualityReport.HasReport ? BasisCalibrationQualityReport.Summary : BasisLocalization.Get("calibration.report.empty"));
+            }
+
+            // Escape hatch for an avatar whose proportions no automatic fit can rescue. Per-avatar, so
+            // correcting a chibi never distorts the body size you carry onto everything else.
+            BasisPerAvatarScale.RefreshForCurrentAvatar();
+            var avatarNudge = PanelSlider.CreateNew(container);
+            if (avatarNudge != null)
+            {
+                avatarNudge.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("calibration.avatarNudge"),
+                    BasisPerAvatarScale.Min, BasisPerAvatarScale.Max,
+                    false, 2, ValueDisplayMode.percentageFromZero));
+                avatarNudge.Descriptor.SetTooltip(BasisLocalization.Get("calibration.avatarNudge.tooltip"));
+                avatarNudge.SetValueWithoutNotify(BasisPerAvatarScale.Current);
+                avatarNudge.OnValueChanged += value =>
+                {
+                    BasisPerAvatarScale.SetForCurrentAvatar(value);
+                    RefreshSizeSummary();
+                };
             }
 
             // Calibration modes (moved here from Body Tracking settings): seated/standing, avatar scaling, spine lock.
@@ -246,6 +292,120 @@ namespace Basis.BasisUI
             Calibrate();
         }
 
+        /// <summary>
+        /// Re-measures the player from scratch without the T-pose ritual. Everything observed so far is
+        /// dropped — that is the point: the high-water estimate can only rise, so if it is wrong (a bad
+        /// tracking episode, or someone else in the headset) discarding it is the only way out.
+        /// </summary>
+        private void OnMeasureMeClicked()
+        {
+            BasisBodyEvidenceSampler.ResetEvidence();
+            BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
+            BasisHeightDriver.HasGenuinePlayerArmSpan = false;
+            BasisHeightDriver.CapturePlayerHeight();
+            BasisHeightDriver.ApplyScaleAndHeight();
+            RefreshSizeSummary();
+
+            BasisNotificationCenter.LogResolved(
+                BasisLocalization.Get("calibration.measureMe"),
+                BasisLocalization.Get("calibration.measureMe.prompt"),
+                AddressableAssets.Sprites.Information,
+                BasisNotificationStatus.Accepted);
+        }
+
+        private void OnStatedHeightEntered(PanelTextField field, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                BasisSettingsDefaults.StatedBodyHeight.SetValue(0f);
+                ReapplyAfterSizeChange();
+                return;
+            }
+
+            if (!BasisStatedHeight.TryParse(text, out float meters))
+            {
+                field.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.yourHeight.rejected"));
+                field.SetValueWithoutNotify(BasisStatedHeight.FormatCompact(BasisStatedHeight.Meters));
+                return;
+            }
+
+            BasisSettingsDefaults.StatedBodyHeight.SetValue(meters);
+            // Echo it back in a canonical form so the player can see we understood them.
+            field.SetValueWithoutNotify(BasisStatedHeight.FormatCompact(meters));
+            field.Descriptor.SetTooltip(BasisLocalization.Get("settings.calibration.yourHeight.tooltip"));
+            ReapplyAfterSizeChange();
+        }
+
+        /// <summary>
+        /// A stated height only ever FILLS IN for a missing measurement, so it cannot take effect while
+        /// a stale one is still marked genuine. Dropping that flag lets the normal capture path decide
+        /// afresh which source wins.
+        /// </summary>
+        private void ReapplyAfterSizeChange()
+        {
+            BasisHeightDriver.HasGenuinePlayerEyeHeight = false;
+            BasisHeightDriver.CapturePlayerHeight(recaptureEyeHeight: false);
+            BasisHeightDriver.ApplyScaleAndHeight();
+            RefreshSizeSummary();
+        }
+
+        private void HookSummaryTick()
+        {
+            if (_tickHooked)
+            {
+                return;
+            }
+            _tickHooked = true;
+            BasisFrameClock.OnTick += OnSummaryTick;
+        }
+
+        private void UnhookSummaryTick()
+        {
+            if (!_tickHooked)
+            {
+                return;
+            }
+            _tickHooked = false;
+            BasisFrameClock.OnTick -= OnSummaryTick;
+        }
+
+        // The measurements settle while the panel is open — watching the reach fill in as you stretch
+        // is the clearest possible explanation of what "Measure Me" is asking for.
+        private float _summaryTimer;
+        private void OnSummaryTick()
+        {
+            if (_sizeGroup == null)
+            {
+                UnhookSummaryTick();
+                return;
+            }
+            _summaryTimer += Time.unscaledDeltaTime;
+            if (_summaryTimer < 0.5f)
+            {
+                return;
+            }
+            _summaryTimer = 0f;
+            RefreshSizeSummary();
+        }
+
+        private void RefreshSizeSummary()
+        {
+            if (_sizeGroup == null)
+            {
+                return;
+            }
+            try
+            {
+                _sizeGroup.SetDescription(BasisBodyFitSummary.Build());
+            }
+            catch (Exception e)
+            {
+                // A readout must never be able to break the panel it lives in.
+                BasisDebug.LogError($"Body fit summary failed: {e}", BasisDebug.LogTag.Avatar);
+                UnhookSummaryTick();
+            }
+        }
+
         public void Calibrate()
         {
             var localplayer = BasisLocalPlayer.Instance;
@@ -320,6 +480,8 @@ namespace Basis.BasisUI
 
         private void CancelActiveCalibration()
         {
+            UnhookSummaryTick();
+            _sizeGroup = null;
             UnsubscribeAll();
             BasisCalibrationLockInVisualizer.End();
             _leftPressed = false;
