@@ -206,6 +206,11 @@ public static class BasisFarLodGenerator
                 return null;
             }
 
+            // Snapshot the pre-decimation geometry for the part-id mask before Simplify mutates
+            // the soup in place. The mask renders alongside the beauty captures so a texel
+            // baking the arm can reject pixels that actually belong to the torso behind it.
+            BasisFarLodAtlasBaker.BakeMask bakeMask = BuildBakeMask(skeleton, soup);
+
             Stage("Simplify", 0.3f);
             int soupTriangles = soup.Indices.Count / 3;
             BasisFarLodMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, soup.Indices, TargetTriangleCount);
@@ -227,8 +232,13 @@ public static class BasisFarLodGenerator
 
                 Stage("Bake atlas", 0.65f);
                 BasisFarLodAtlasBaker.RegionOfInterest[] regions = BuildCaptureRegions(skeleton, positions, boneA, boneB, weightA);
+                bakeMask.TexelVertexGroup = new byte[boneA.Length];
+                for (int i = 0; i < boneA.Length; i++)
+                {
+                    bakeMask.TexelVertexGroup[i] = GroupOfBone(skeleton.Bones[boneA[i]]);
+                }
                 BasisFarLodPayload.FarLodTexture[] textures = BasisFarLodAtlasBaker.Bake(
-                    root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize, regions);
+                    root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize, regions, bakeMask);
                 if (textures == null || textures.Length == 0)
                 {
                     Debug.LogWarning("Far LOD generation skipped: atlas bake failed.");
@@ -619,6 +629,55 @@ public static class BasisFarLodGenerator
                 soup.Indices.Add(vertexBase + indices[i]);
             }
         }
+    }
+
+    /// <summary>
+    /// Coarse body group per humanoid bone, used by the part-id mask: a texel only samples
+    /// capture pixels belonging to its own group, so side views can't paint torso onto arms.
+    /// </summary>
+    public static byte GroupOfBone(HumanBodyBones bone)
+    {
+        switch (bone)
+        {
+            case HumanBodyBones.Head: return 1;
+            case HumanBodyBones.LeftShoulder:
+            case HumanBodyBones.LeftUpperArm:
+            case HumanBodyBones.LeftLowerArm:
+            case HumanBodyBones.LeftHand:
+                return 2;
+            case HumanBodyBones.RightShoulder:
+            case HumanBodyBones.RightUpperArm:
+            case HumanBodyBones.RightLowerArm:
+            case HumanBodyBones.RightHand:
+                return 3;
+            case HumanBodyBones.LeftUpperLeg:
+            case HumanBodyBones.LeftLowerLeg:
+            case HumanBodyBones.LeftFoot:
+                return 4;
+            case HumanBodyBones.RightUpperLeg:
+            case HumanBodyBones.RightLowerLeg:
+            case HumanBodyBones.RightFoot:
+                return 5;
+            default: return 0; // torso: hips, spine, chest, upper chest, neck
+        }
+    }
+
+    private static BasisFarLodAtlasBaker.BakeMask BuildBakeMask(FarLodSkeleton skeleton, SnapshotSoup soup)
+    {
+        int vertexCount = soup.Positions.Count;
+        BasisFarLodAtlasBaker.BakeMask mask = new BasisFarLodAtlasBaker.BakeMask
+        {
+            Positions = soup.Positions.ToArray(),
+            Indices = soup.Indices.ToArray(),
+            Colors = new Color32[vertexCount],
+        };
+        for (int i = 0; i < vertexCount; i++)
+        {
+            byte group = GroupOfBone(skeleton.Bones[soup.BoneA[i]]);
+            byte encoded = BasisFarLodAtlasBaker.EncodeGroup(group);
+            mask.Colors[i] = new Color32(encoded, encoded, encoded, 255);
+        }
+        return mask;
     }
 
     /// <summary>

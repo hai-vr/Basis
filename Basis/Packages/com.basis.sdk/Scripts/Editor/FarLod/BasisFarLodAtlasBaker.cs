@@ -42,11 +42,39 @@ public static class BasisFarLodAtlasBaker
         public Bounds RootBounds;
     }
 
+    /// <summary>
+    /// Part-isolation data: the pre-decimation snapshot geometry, vertex-colored by body group
+    /// (torso/head/arms/legs), rendered per view as an id mask. A texel then only accepts
+    /// capture pixels of its own group — side views can't paint the torso onto an arm that
+    /// happens to sit in front of it.
+    /// </summary>
+    public struct BakeMask
+    {
+        public Vector3[] Positions;  // root space, pre-decimation
+        public Color32[] Colors;     // EncodeGroup in r
+        public int[] Indices;
+        public byte[] TexelVertexGroup; // per decimated vertex
+
+        public bool IsValid => Positions != null && Colors != null && Indices != null &&
+                               Positions.Length > 0 && Colors.Length == Positions.Length && Indices.Length >= 3;
+    }
+
+    public static byte EncodeGroup(byte group)
+    {
+        return (byte)(40 + group * 40);
+    }
+
+    private static byte DecodeGroup(byte encoded)
+    {
+        return encoded < 20 ? (byte)255 : (byte)Mathf.Clamp(Mathf.RoundToInt((encoded - 40f) / 40f), 0, 5);
+    }
+
     private struct CaptureView
     {
         public Vector3 DirectionWorld;
         public Matrix4x4 WorldToPixel;
         public Color32[] Pixels; // rgb = un-premultiplied color, a = coverage
+        public byte[] GroupIds;  // per pixel body group (255 = background); null when no mask
         public int Size;
         public bool IsRegion;
         public Bounds ValidBoundsRoot; // region views only serve texels inside this
@@ -54,7 +82,7 @@ public static class BasisFarLodAtlasBaker
 
     public static BasisFarLodPayload.FarLodTexture[] Bake(Transform root, Mesh decimatedMesh,
         Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, int captureSize,
-        RegionOfInterest[] regions = null)
+        RegionOfInterest[] regions = null, BakeMask mask = default)
     {
         Bounds rootBounds = new Bounds(positions[0], Vector3.zero);
         for (int i = 1; i < positions.Length; i++)
@@ -78,10 +106,17 @@ public static class BasisFarLodAtlasBaker
         LightingScope lighting = LightingScope.Push();
         GameObject cameraObject = null;
         GameObject colliderObject = null;
+        GameObject maskObject = null;
+        Mesh maskMesh = null;
+        Material maskMaterial = null;
         RenderTexture bodyTexture = null;
         RenderTexture regionTexture = null;
+        RenderTexture maskBodyTexture = null;
+        RenderTexture maskRegionTexture = null;
         Texture2D bodyReadback = null;
         Texture2D regionReadback = null;
+        Renderer[] avatarRenderers = null;
+        bool[] avatarRendererStates = null;
         try
         {
             cameraObject = new GameObject("FarLodBakeCamera") { hideFlags = HideFlags.HideAndDontSave };
@@ -99,6 +134,42 @@ public static class BasisFarLodAtlasBaker
             bodyReadback = NewReadback(captureSize);
             regionReadback = NewReadback(RegionCaptureSize);
 
+            if (mask.IsValid)
+            {
+                Shader maskShader = Shader.Find("Hidden/BasisFarLodPartId");
+                if (maskShader != null)
+                {
+                    maskMesh = new Mesh
+                    {
+                        hideFlags = HideFlags.HideAndDontSave,
+                        indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+                    };
+                    maskMesh.SetVertices(mask.Positions);
+                    maskMesh.SetColors(mask.Colors);
+                    maskMesh.SetTriangles(mask.Indices, 0);
+                    maskMesh.RecalculateBounds();
+                    maskMaterial = new Material(maskShader) { hideFlags = HideFlags.HideAndDontSave };
+                    maskObject = new GameObject("FarLodBakeMask") { hideFlags = HideFlags.HideAndDontSave };
+                    maskObject.transform.SetPositionAndRotation(root.position, root.rotation);
+                    maskObject.transform.localScale = root.lossyScale;
+                    maskObject.AddComponent<MeshFilter>().sharedMesh = maskMesh;
+                    MeshRenderer maskRenderer = maskObject.AddComponent<MeshRenderer>();
+                    maskRenderer.sharedMaterial = maskMaterial;
+                    maskRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    maskObject.SetActive(false);
+                    avatarRenderers = root.GetComponentsInChildren<Renderer>(false);
+                    avatarRendererStates = new bool[avatarRenderers.Length];
+                    // Mask bytes must round-trip exactly — render into linear targets so no
+                    // sRGB encode remaps the group ids.
+                    maskBodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                    maskRegionTexture = RenderTexture.GetTemporary(RegionCaptureSize, RegionCaptureSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                }
+                else
+                {
+                    Debug.LogWarning("[FarLod] Hidden/BasisFarLodPartId shader missing — baking without part isolation.");
+                }
+            }
+
             List<CaptureView> views = new List<CaptureView>(64);
 
             // Whole-body ring: equator, upper ring, lower ring (palms face down in T-pose —
@@ -108,7 +179,8 @@ public static class BasisFarLodAtlasBaker
             {
                 Vector3 directionWorld = (rootRotation * bodyDirections[v]).normalized;
                 views.Add(CaptureOne(camera, bodyTexture, bodyReadback, captureSize,
-                    centerWorld, directionWorld, rootRotation, radius, isRegion: false, default));
+                    centerWorld, directionWorld, rootRotation, radius, isRegion: false, default,
+                    maskObject, maskBodyTexture, avatarRenderers, avatarRendererStates));
             }
 
             // Close-up passes.
@@ -129,7 +201,8 @@ public static class BasisFarLodAtlasBaker
                     {
                         Vector3 directionWorld = (rootRotation * regionDirections[d]).normalized;
                         views.Add(CaptureOne(camera, regionTexture, regionReadback, RegionCaptureSize,
-                            regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid));
+                            regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid,
+                            maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates));
                     }
                 }
             }
@@ -167,11 +240,41 @@ public static class BasisFarLodAtlasBaker
                 Debug.LogWarning("[FarLod] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
             }
 
-            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius);
+            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup);
             return CompressAtlas(atlas, atlasSize);
         }
         finally
         {
+            if (avatarRenderers != null && avatarRendererStates != null)
+            {
+                for (int r = 0; r < avatarRenderers.Length; r++)
+                {
+                    if (avatarRendererStates[r] && avatarRenderers[r] != null && !avatarRenderers[r].enabled)
+                    {
+                        avatarRenderers[r].enabled = true;
+                    }
+                }
+            }
+            if (maskObject != null)
+            {
+                Object.DestroyImmediate(maskObject);
+            }
+            if (maskMesh != null)
+            {
+                Object.DestroyImmediate(maskMesh);
+            }
+            if (maskMaterial != null)
+            {
+                Object.DestroyImmediate(maskMaterial);
+            }
+            if (maskBodyTexture != null)
+            {
+                RenderTexture.ReleaseTemporary(maskBodyTexture);
+            }
+            if (maskRegionTexture != null)
+            {
+                RenderTexture.ReleaseTemporary(maskRegionTexture);
+            }
             if (bodyTexture != null)
             {
                 RenderTexture.ReleaseTemporary(bodyTexture);
@@ -232,7 +335,8 @@ public static class BasisFarLodAtlasBaker
     }
 
     private static CaptureView CaptureOne(Camera camera, RenderTexture target, Texture2D readback, int size,
-        Vector3 centerWorld, Vector3 directionWorld, Quaternion rootRotation, float frameRadius, bool isRegion, Bounds validBoundsRoot)
+        Vector3 centerWorld, Vector3 directionWorld, Quaternion rootRotation, float frameRadius, bool isRegion, Bounds validBoundsRoot,
+        GameObject maskObject, RenderTexture maskTarget, Renderer[] avatarRenderers, bool[] avatarRendererStates)
     {
         Vector3 up = Mathf.Abs(Vector3.Dot(directionWorld, Vector3.up)) > 0.95f ? rootRotation * Vector3.forward : Vector3.up;
         camera.targetTexture = target;
@@ -259,6 +363,38 @@ public static class BasisFarLodAtlasBaker
             onBlack[p].a = (byte)coverage;
         }
 
+        // Part-id mask pass: same camera, only the vertex-colored snapshot mesh visible.
+        byte[] groupIds = null;
+        if (maskObject != null && maskTarget != null)
+        {
+            for (int r = 0; r < avatarRenderers.Length; r++)
+            {
+                Renderer avatarRenderer = avatarRenderers[r];
+                avatarRendererStates[r] = avatarRenderer != null && avatarRenderer.enabled;
+                if (avatarRendererStates[r])
+                {
+                    avatarRenderer.enabled = false;
+                }
+            }
+            maskObject.SetActive(true);
+            camera.targetTexture = maskTarget;
+            Color32[] maskPixels = RenderAndRead(camera, readback, size, new Color(0f, 0f, 0f, 0f));
+            camera.targetTexture = target;
+            maskObject.SetActive(false);
+            for (int r = 0; r < avatarRenderers.Length; r++)
+            {
+                if (avatarRendererStates[r] && avatarRenderers[r] != null)
+                {
+                    avatarRenderers[r].enabled = true;
+                }
+            }
+            groupIds = new byte[maskPixels.Length];
+            for (int p = 0; p < maskPixels.Length; p++)
+            {
+                groupIds[p] = DecodeGroup(maskPixels[p].r);
+            }
+        }
+
         Matrix4x4 clip = camera.projectionMatrix * camera.worldToCameraMatrix;
         Matrix4x4 ndcToPixel = Matrix4x4.TRS(new Vector3(size * 0.5f, size * 0.5f, 0f), Quaternion.identity, new Vector3(size * 0.5f, size * 0.5f, 1f));
         return new CaptureView
@@ -266,6 +402,7 @@ public static class BasisFarLodAtlasBaker
             DirectionWorld = directionWorld,
             WorldToPixel = ndcToPixel * clip,
             Pixels = onBlack,
+            GroupIds = groupIds,
             Size = size,
             IsRegion = isRegion,
             ValidBoundsRoot = validBoundsRoot,
@@ -284,7 +421,7 @@ public static class BasisFarLodAtlasBaker
     }
 
     private static Color32[] ProjectAtlas(List<CaptureView> views, Matrix4x4 rootToWorld, Quaternion rootRotation,
-        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius)
+        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius, byte[] texelGroups)
     {
         int texelCount = atlasSize * atlasSize;
         Color32[] atlas = new Color32[texelCount];
@@ -320,6 +457,16 @@ public static class BasisFarLodAtlasBaker
                 continue;
             }
             float inverseDenominator = 1f / denominator;
+
+            // Groups this triangle's texels may sample from (255 = unrestricted). Seam
+            // triangles list up to three groups so shoulder/hip transitions stay seamless.
+            byte allowedGroup0 = 255, allowedGroup1 = 255, allowedGroup2 = 255;
+            if (texelGroups != null)
+            {
+                allowedGroup0 = texelGroups[i0];
+                allowedGroup1 = texelGroups[i1];
+                allowedGroup2 = texelGroups[i2];
+            }
 
             for (int y = startY; y <= endY; y++)
             {
@@ -409,7 +556,7 @@ public static class BasisFarLodAtlasBaker
                     for (int c = 0; c < consider && !sampled; c++)
                     {
                         ref CaptureView view = ref viewArray[candidateOrder[c]];
-                        if (!TrySampleView(in view, positionWorld, out Color32 color, out float coverage))
+                        if (!TrySampleView(in view, positionWorld, allowedGroup0, allowedGroup1, allowedGroup2, out Color32 color, out float coverage))
                         {
                             continue;
                         }
@@ -490,8 +637,11 @@ public static class BasisFarLodAtlasBaker
         return flipped > upright + upright / 2 && flipped > 64;
     }
 
-    /// <summary>Bilinear, coverage-weighted sample — background texels are weighted out.</summary>
-    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, out Color32 color, out float coverage)
+    /// <summary>
+    /// Bilinear, coverage-weighted sample — background texels are weighted out, and when a part
+    /// mask is present, pixels belonging to another body group count as background too.
+    /// </summary>
+    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, byte allowed0, byte allowed1, byte allowed2, out Color32 color, out float coverage)
     {
         Vector3 pixel = view.WorldToPixel.MultiplyPoint(positionWorld);
         if (sFlipSampleY)
@@ -531,6 +681,15 @@ public static class BasisFarLodAtlasBaker
                 if (weight <= 0f)
                 {
                     continue;
+                }
+                if (view.GroupIds != null && allowed0 != 255)
+                {
+                    byte pixelGroup = view.GroupIds[sy * view.Size + sx];
+                    if (pixelGroup != allowed0 && pixelGroup != allowed1 && pixelGroup != allowed2)
+                    {
+                        totalWeight += weight;
+                        continue;
+                    }
                 }
                 Color32 sample = view.Pixels[sy * view.Size + sx];
                 float sampleCoverage = sample.a * (1f / 255f);
