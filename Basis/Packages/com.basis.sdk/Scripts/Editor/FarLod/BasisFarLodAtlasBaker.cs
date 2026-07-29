@@ -53,6 +53,7 @@ public static class BasisFarLodAtlasBaker
         public Color32[] Colors;     // EncodeGroup in r
         public int[] Indices;
         public byte[] TexelVertexGroup; // per decimated vertex
+        public byte[] TexelHidden;      // per decimated vertex: 1 = exterior-invisible remnant
 
         public bool IsValid => Positions != null && Colors != null && Indices != null &&
                                Positions.Length > 0 && Colors.Length == Positions.Length && Indices.Length >= 3;
@@ -187,7 +188,7 @@ public static class BasisFarLodAtlasBaker
                 Vector3 directionWorld = (rootRotation * bodyDirections[v]).normalized;
                 views.Add(CaptureOne(camera, bodyTexture, bodyReadback, captureSize,
                     centerWorld, directionWorld, rootRotation, radius, isRegion: false, default,
-                    maskObject, maskBodyTexture, avatarRenderers, avatarRendererStates));
+                    maskObject, maskBodyTexture, avatarRenderers, avatarRendererStates, radius));
             }
 
             // Close-up passes.
@@ -209,7 +210,7 @@ public static class BasisFarLodAtlasBaker
                         Vector3 directionWorld = (rootRotation * regionDirections[d]).normalized;
                         views.Add(CaptureOne(camera, regionTexture, regionReadback, regionCaptureSize,
                             regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid,
-                            maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates));
+                            maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates, radius));
                     }
                 }
             }
@@ -249,7 +250,7 @@ public static class BasisFarLodAtlasBaker
                 Debug.LogWarning("[FarLod] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
             }
 
-            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup, vertexAo);
+            Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup, mask.TexelHidden, vertexAo);
             return CompressAtlas(atlas, atlasSize);
         }
         finally
@@ -345,14 +346,30 @@ public static class BasisFarLodAtlasBaker
 
     private static CaptureView CaptureOne(Camera camera, RenderTexture target, Texture2D readback, int size,
         Vector3 centerWorld, Vector3 directionWorld, Quaternion rootRotation, float frameRadius, bool isRegion, Bounds validBoundsRoot,
-        GameObject maskObject, RenderTexture maskTarget, Renderer[] avatarRenderers, bool[] avatarRendererStates)
+        GameObject maskObject, RenderTexture maskTarget, Renderer[] avatarRenderers, bool[] avatarRendererStates,
+        float clearanceRadius)
     {
         Vector3 up = Mathf.Abs(Vector3.Dot(directionWorld, Vector3.up)) > 0.95f ? rootRotation * Vector3.forward : Vector3.up;
         camera.targetTexture = target;
         camera.orthographicSize = frameRadius * (isRegion ? 1.1f : 1f);
-        camera.nearClipPlane = 0.01f;
-        camera.farClipPlane = frameRadius * 4f;
-        camera.transform.SetPositionAndRotation(centerWorld - directionWorld * (frameRadius * 2f), Quaternion.LookRotation(directionWorld, up));
+        if (isRegion)
+        {
+            // Ortho framing is distance-independent, so sit OUTSIDE the whole body (a below-head
+            // camera at 2x head radius is inside the chest — the mask renders backface-culled
+            // while double-sided beauty materials don't, letting shirt interiors pass as "head").
+            // The near plane starts just before the region, clipping every occluder in front of
+            // it out of beauty, mask and depth alike.
+            float cameraDistance = clearanceRadius * 2f + frameRadius;
+            camera.nearClipPlane = Mathf.Max(0.01f, cameraDistance - frameRadius * 2.5f);
+            camera.farClipPlane = cameraDistance + frameRadius * 2.5f;
+            camera.transform.SetPositionAndRotation(centerWorld - directionWorld * cameraDistance, Quaternion.LookRotation(directionWorld, up));
+        }
+        else
+        {
+            camera.nearClipPlane = 0.01f;
+            camera.farClipPlane = frameRadius * 4f;
+            camera.transform.SetPositionAndRotation(centerWorld - directionWorld * (frameRadius * 2f), Quaternion.LookRotation(directionWorld, up));
+        }
 
         Color32[] onBlack = RenderAndRead(camera, readback, size, new Color(0f, 0f, 0f, 0f));
         Color32[] onWhite = RenderAndRead(camera, readback, size, new Color(1f, 1f, 1f, 0f));
@@ -531,7 +548,7 @@ public static class BasisFarLodAtlasBaker
     }
 
     private static Color32[] ProjectAtlas(List<CaptureView> views, Matrix4x4 rootToWorld, Quaternion rootRotation,
-        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius, byte[] texelGroups, float[] vertexAo)
+        Vector3[] positions, Vector3[] normals, Vector2[] uv, int[] indices, int atlasSize, float radius, byte[] texelGroups, byte[] texelHidden, float[] vertexAo)
     {
         int texelCount = atlasSize * atlasSize;
         Color32[] atlas = new Color32[texelCount];
@@ -548,6 +565,15 @@ public static class BasisFarLodAtlasBaker
         for (int t = 0; t + 2 < indices.Length; t += 3)
         {
             int i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
+
+            // Exterior-invisible remnants (hem seals kept by the fail-open cull) never show a
+            // texel: skip the whole view search and let flood fill inherit their in-chart
+            // neighbors' color — faster, and cleaner than a widened-depth rescue sample.
+            if (texelHidden != null && texelHidden[i0] != 0 && texelHidden[i1] != 0 && texelHidden[i2] != 0)
+            {
+                continue;
+            }
+
             Vector2 uv0 = uv[i0] * atlasSize, uv1 = uv[i1] * atlasSize, uv2 = uv[i2] * atlasSize;
 
             float minX = Mathf.Min(uv0.x, Mathf.Min(uv1.x, uv2.x)) - 1f;

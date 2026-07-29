@@ -206,19 +206,39 @@ public static class BasisFarLodGenerator
                 return null;
             }
 
-            // Snapshot the pre-decimation geometry for the part-id mask before Simplify mutates
-            // the soup in place. The mask renders alongside the beauty captures so a texel
-            // baking the arm can reject pixels that actually belong to the torso behind it.
+            // Exterior-visibility cull before decimation: budget spent on skin under clothing,
+            // linings and inner mouths is budget stolen from the silhouette.
+            Stage("Visibility cull", 0.24f);
+            int hiddenRemoved = BasisFarLodVisibilityCuller.RemoveHiddenTriangles(soup.Positions, soup.Indices, root, TargetTriangleCount, out byte[] vertexHiddenFlags);
+            StageDetail(hiddenRemoved > 0
+                ? $"{hiddenRemoved} exterior-invisible tris removed, {soup.Indices.Count / 3} remain"
+                : "nothing removed");
+            List<byte> hiddenFlags = new List<byte>(soup.Positions.Count);
+            if (vertexHiddenFlags != null)
+            {
+                hiddenFlags.AddRange(vertexHiddenFlags);
+            }
+            else
+            {
+                for (int i = 0; i < soup.Positions.Count; i++)
+                {
+                    hiddenFlags.Add(0);
+                }
+            }
+
+            // Part-id mask from the CULLED soup, before Simplify mutates it. Removed triangles
+            // were never the nearest surface, so the per-pixel identity/depth image is
+            // unchanged — the mask pass just renders cheaper.
             BasisFarLodAtlasBaker.BakeMask bakeMask = BuildBakeMask(skeleton, soup);
 
             Stage("Simplify", 0.3f);
             int soupTriangles = soup.Indices.Count / 3;
-            BasisFarLodMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, soup.Indices, TargetTriangleCount);
+            BasisFarLodMeshSimplifier.Simplify(soup.Positions, soup.BoneA, soup.BoneB, soup.WeightA, hiddenFlags, soup.Indices, TargetTriangleCount);
             StageDetail($"{soupTriangles} → {soup.Indices.Count / 3} tris ({soup.Positions.Count} verts)");
 
             Stage("Unwrap", 0.5f);
-            Mesh unwrapped = BuildUnwrappedMesh(soup, out byte[] boneA, out byte[] boneB, out byte[] weightA);
-            RepackChartsByImportance(unwrapped, boneA, skeleton);
+            Mesh unwrapped = BuildUnwrappedMesh(soup, hiddenFlags, out byte[] boneA, out byte[] boneB, out byte[] weightA, out byte[] texelHidden);
+            RepackChartsByImportance(unwrapped, boneA, texelHidden, skeleton);
             try
             {
                 Vector3[] positions = unwrapped.vertices;
@@ -238,6 +258,7 @@ public static class BasisFarLodGenerator
                 {
                     bakeMask.TexelVertexGroup[i] = GroupOfBone(skeleton.Bones[boneA[i]]);
                 }
+                bakeMask.TexelHidden = texelHidden;
                 // Captures must keep pace with the atlas or a big atlas just magnifies blur.
                 int effectiveCaptureSize = Mathf.Max(CaptureSize, AtlasSize);
                 BasisFarLodPayload.FarLodTexture[] textures = BasisFarLodAtlasBaker.Bake(
@@ -736,7 +757,7 @@ public static class BasisFarLodGenerator
         return regions.ToArray();
     }
 
-    private static Mesh BuildUnwrappedMesh(SnapshotSoup soup, out byte[] boneA, out byte[] boneB, out byte[] weightA)
+    private static Mesh BuildUnwrappedMesh(SnapshotSoup soup, List<byte> hiddenFlags, out byte[] boneA, out byte[] boneB, out byte[] weightA, out byte[] hidden)
     {
         Mesh mesh = new Mesh
         {
@@ -773,12 +794,14 @@ public static class BasisFarLodGenerator
         boneA = new byte[vertices.Length];
         boneB = new byte[vertices.Length];
         weightA = new byte[vertices.Length];
+        hidden = new byte[vertices.Length];
         for (int i = 0; i < vertices.Length; i++)
         {
             int source = positionToSource.TryGetValue(vertices[i], out int index) ? index : Mathf.Min(i, soup.Positions.Count - 1);
             boneA[i] = soup.BoneA[source];
             boneB[i] = soup.BoneB[source];
             weightA[i] = soup.WeightA[source];
+            hidden[i] = hiddenFlags[source];
         }
 
         mesh.uv = uv2;
@@ -808,7 +831,7 @@ public static class BasisFarLodGenerator
     /// part it belongs to and shelf-pack everything back into [0,1] — faces and hands stay
     /// legible at the same atlas size.
     /// </summary>
-    private static void RepackChartsByImportance(Mesh mesh, byte[] boneA, FarLodSkeleton skeleton)
+    private static void RepackChartsByImportance(Mesh mesh, byte[] boneA, byte[] hidden, FarLodSkeleton skeleton)
     {
         Vector2[] uv = mesh.uv;
         int[] triangles = mesh.triangles;
@@ -848,16 +871,26 @@ public static class BasisFarLodGenerator
             int root = Find(i);
             if (!islands.TryGetValue(root, out ChartIsland island))
             {
-                island = new ChartIsland { Min = uv[i], Max = uv[i], Importance = 1f };
+                island = new ChartIsland { Min = uv[i], Max = uv[i], Importance = 1f, AllHidden = true };
                 islands[root] = island;
             }
             island.Min = Vector2.Min(island.Min, uv[i]);
             island.Max = Vector2.Max(island.Max, uv[i]);
             island.Importance = Mathf.Max(island.Importance, ImportanceOfBone(skeleton.Bones[boneA[i]]));
+            island.AllHidden &= hidden != null && hidden[i] != 0;
             island.Vertices.Add(i);
         }
 
         List<ChartIsland> sorted = new List<ChartIsland>(islands.Values);
+        for (int s = 0; s < sorted.Count; s++)
+        {
+            // Charts made only of exterior-invisible remnants (hem seals) never show a texel —
+            // shrink them and hand the area to surfaces that exist.
+            if (sorted[s].AllHidden)
+            {
+                sorted[s].Importance *= 0.5f;
+            }
+        }
         float margin = 4f / AtlasSize;
 
         // Shrink the global scale until everything shelf-packs into [0,1].
@@ -895,6 +928,7 @@ public static class BasisFarLodGenerator
         public Vector2 Min;
         public Vector2 Max;
         public float Importance;
+        public bool AllHidden;
         public Vector2 PackedOrigin;
         public readonly List<int> Vertices = new List<int>(64);
     }

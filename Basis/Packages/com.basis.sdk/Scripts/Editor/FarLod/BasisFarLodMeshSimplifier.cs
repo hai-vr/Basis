@@ -15,18 +15,18 @@ public static class BasisFarLodMeshSimplifier
     private const float BoundaryPenalty = 100f;
     private const float FlipRejectDot = 0.15f;
 
-    public static void Simplify(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<int> indices, int targetTriangles)
+    public static void Simplify(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<byte> hiddenFlag, List<int> indices, int targetTriangles)
     {
         Weld(positions, boneA, boneB, weightA, indices);
         if (indices.Count / 3 > targetTriangles)
         {
-            Collapse(positions, boneA, boneB, weightA, indices, targetTriangles);
+            Collapse(positions, boneA, boneB, weightA, hiddenFlag, indices, targetTriangles);
         }
         if (indices.Count / 3 > targetTriangles)
         {
             ClusterFallback(positions, boneA, boneB, weightA, indices, targetTriangles);
         }
-        Compact(positions, boneA, boneB, weightA, indices);
+        Compact(positions, boneA, boneB, weightA, hiddenFlag, indices);
     }
 
     private static void Weld(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<int> indices)
@@ -149,7 +149,7 @@ public static class BasisFarLodMeshSimplifier
         public Vector3 Target;
     }
 
-    private static void Collapse(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<int> indices, int targetTriangles)
+    private static void Collapse(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<byte> hiddenFlag, List<int> indices, int targetTriangles)
     {
         int vertexCount = positions.Count;
         int triangleCount = indices.Count / 3;
@@ -261,6 +261,9 @@ public static class BasisFarLodMeshSimplifier
                 boneB[va] = boneB[vb];
                 weightA[va] = weightA[vb];
             }
+            // Hidden only survives a merge when both sides were hidden — a seam vertex
+            // absorbing a visible one must count as visible for the texture pass.
+            hiddenFlag[va] = (byte)(hiddenFlag[va] & hiddenFlag[vb]);
             pos[va] = entry.Target;
             quadrics[va].Add(in quadrics[vb]);
             versions[va]++;
@@ -522,7 +525,7 @@ public static class BasisFarLodMeshSimplifier
         }
     }
 
-    private static void Compact(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<int> indices)
+    private static void Compact(List<Vector3> positions, List<byte> boneA, List<byte> boneB, List<byte> weightA, List<byte> hiddenFlag, List<int> indices)
     {
         int[] remap = new int[positions.Count];
         for (int i = 0; i < remap.Length; i++)
@@ -533,6 +536,7 @@ public static class BasisFarLodMeshSimplifier
         List<byte> newBoneA = new List<byte>(indices.Count);
         List<byte> newBoneB = new List<byte>(indices.Count);
         List<byte> newWeightA = new List<byte>(indices.Count);
+        List<byte> newHidden = new List<byte>(indices.Count);
         for (int i = 0; i < indices.Count; i++)
         {
             int old = indices[i];
@@ -543,6 +547,7 @@ public static class BasisFarLodMeshSimplifier
                 newBoneA.Add(boneA[old]);
                 newBoneB.Add(boneB[old]);
                 newWeightA.Add(weightA[old]);
+                newHidden.Add(hiddenFlag[old]);
             }
             indices[i] = remap[old];
         }
@@ -554,5 +559,7 @@ public static class BasisFarLodMeshSimplifier
         boneB.AddRange(newBoneB);
         weightA.Clear();
         weightA.AddRange(newWeightA);
+        hiddenFlag.Clear();
+        hiddenFlag.AddRange(newHidden);
     }
 }
