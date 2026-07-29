@@ -467,32 +467,77 @@ public class BasisFarLodPayload
             {
                 continue;
             }
+            // Mipmap-limit participation is best-effort: with an active nonzero limit Unity
+            // allocates a trimmed chain and full-chain LoadRawTextureData throws. Never let
+            // that cost us the texture — fall back to plain construction.
+            Texture2D texture = null;
             try
             {
-                bool hasMips = texturePayload.MipCount > 1;
-                if (hasMips && !TextureMipmapLimitGroups.HasGroup(MipmapLimitGroup))
-                {
-                    TextureMipmapLimitGroups.CreateGroup(MipmapLimitGroup);
-                }
-                Texture2D texture = new Texture2D(texturePayload.Width, texturePayload.Height, format,
-                    hasMips ? texturePayload.MipCount : 1, linear: false, createUninitialized: true,
-                    new MipmapLimitDescriptor(hasMips, MipmapLimitGroup))
-                {
-                    name = "BasisFarLodAtlas",
-                    wrapMode = TextureWrapMode.Clamp,
-                    filterMode = FilterMode.Trilinear,
-                    anisoLevel = 1,
-                };
-                texture.LoadRawTextureData(texturePayload.Data);
-                texture.Apply(false, true);
-                return texture;
+                texture = CreateTextureForPayload(texturePayload, format, useMipmapLimit: true);
             }
             catch (Exception e)
             {
-                BasisDebug.LogError($"Far LOD texture rejected: {e.Message}", BasisDebug.LogTag.Avatar);
+                BasisDebug.Log($"Far LOD atlas mip-limit path unavailable ({e.Message}) — using plain texture.", BasisDebug.LogTag.Avatar);
+                texture = null;
+            }
+            if (texture == null)
+            {
+                try
+                {
+                    texture = CreateTextureForPayload(texturePayload, format, useMipmapLimit: false);
+                }
+                catch (Exception e)
+                {
+                    BasisDebug.LogError($"Far LOD texture rejected: {e.Message}", BasisDebug.LogTag.Avatar);
+                }
+            }
+            if (texture != null)
+            {
+                return texture;
             }
         }
         return null;
+    }
+
+    private static Texture2D CreateTextureForPayload(in FarLodTexture texturePayload, TextureFormat format, bool useMipmapLimit)
+    {
+        bool hasMips = texturePayload.MipCount > 1;
+        Texture2D texture;
+        if (useMipmapLimit && hasMips)
+        {
+            if (!TextureMipmapLimitGroups.HasGroup(MipmapLimitGroup))
+            {
+                TextureMipmapLimitGroups.CreateGroup(MipmapLimitGroup);
+            }
+            texture = new Texture2D(texturePayload.Width, texturePayload.Height, format,
+                texturePayload.MipCount, false, false, new MipmapLimitDescriptor(true, MipmapLimitGroup));
+        }
+        else
+        {
+            texture = new Texture2D(texturePayload.Width, texturePayload.Height, format, hasMips, false);
+        }
+        texture.name = "BasisFarLodAtlas";
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Trilinear;
+        texture.anisoLevel = 1;
+        try
+        {
+            texture.LoadRawTextureData(texturePayload.Data);
+            texture.Apply(false, true);
+        }
+        catch
+        {
+            if (Application.isPlaying)
+            {
+                UnityEngine.Object.Destroy(texture);
+            }
+            else
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+            throw;
+        }
+        return texture;
     }
 
     public Vector3 DequantizePosition(int vertexIndex)
