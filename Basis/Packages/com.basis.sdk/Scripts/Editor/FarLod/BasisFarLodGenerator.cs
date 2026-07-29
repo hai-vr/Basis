@@ -20,7 +20,7 @@ using UnityEngine;
 public static class BasisFarLodGenerator
 {
     public static int TargetTriangleCount = 8000;
-    public static int AtlasSize = 256;
+    public static int AtlasSize = 512;
     public static int CaptureSize = 1024;
 
     /// <summary>Per-stage timing/count logs, enabled by the far LOD tester.</summary>
@@ -238,8 +238,10 @@ public static class BasisFarLodGenerator
                 {
                     bakeMask.TexelVertexGroup[i] = GroupOfBone(skeleton.Bones[boneA[i]]);
                 }
+                // Captures must keep pace with the atlas or a big atlas just magnifies blur.
+                int effectiveCaptureSize = Mathf.Max(CaptureSize, AtlasSize);
                 BasisFarLodPayload.FarLodTexture[] textures = BasisFarLodAtlasBaker.Bake(
-                    root, unwrapped, positions, normals, uv, indices, AtlasSize, CaptureSize, regions, bakeMask);
+                    root, unwrapped, positions, normals, uv, indices, AtlasSize, effectiveCaptureSize, regions, bakeMask);
                 if (textures == null || textures.Length == 0)
                 {
                     Debug.LogWarning("Far LOD generation skipped: atlas bake failed.");

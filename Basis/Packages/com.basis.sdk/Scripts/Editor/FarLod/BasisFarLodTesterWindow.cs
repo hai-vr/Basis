@@ -147,7 +147,11 @@ public class BasisFarLodTesterWindow : EditorWindow
 
         BasisFarLodGenerator.TargetTriangleCount = EditorGUILayout.IntSlider("Target Triangles", BasisFarLodGenerator.TargetTriangleCount, 500, 12000);
         BasisFarLodGenerator.AtlasSize = EditorGUILayout.IntPopup("Atlas Size", BasisFarLodGenerator.AtlasSize,
-            new[] { "128", "256", "512" }, new[] { 128, 256, 512 });
+            new[] { "128", "256", "512", "1024", "2048" }, new[] { 128, 256, 512, 1024, 2048 });
+        if (BasisFarLodGenerator.AtlasSize >= 1024)
+        {
+            EditorGUILayout.HelpBox($"{BasisFarLodGenerator.AtlasSize}px atlas: expect a noticeably slower bake, higher transient memory, and a payload of several MB riding every connector download.", MessageType.Info);
+        }
 
         bool persistent = _avatar != null && EditorUtility.IsPersistent(_avatar);
         if (persistent)

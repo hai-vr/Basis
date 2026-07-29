@@ -24,9 +24,8 @@ public static class BasisFarLodAtlasBaker
 {
     private const int DilatePasses = 16;
     private const float MinCoverage = 0.4f;
-    private const float FallbackCoverage = 0.1f;
+    private const float FallbackCoverage = 0.2f;
     private const int OcclusionLayer = 2; // Ignore Raycast: invisible to default queries, targetable by mask
-    private const int RegionCaptureSize = 512;
     private const float RegionScoreBias = 0.5f;
     private const float MinViewFacing = 0.25f;
     private const float RegionMinFacing = 0.35f;
@@ -107,6 +106,9 @@ public static class BasisFarLodAtlasBaker
             radius = Mathf.Max(radius, (rootToWorld.MultiplyPoint3x4(cornerLocal) - centerWorld).magnitude);
         }
 
+        // Close-up passes scale with the atlas so hand/head charts stay source-fed at 1024/2048.
+        int regionCaptureSize = Mathf.Clamp(atlasSize / 2, 512, 1024);
+
         Quaternion rootRotation = root.rotation;
         LightingScope lighting = LightingScope.Push();
         GameObject cameraObject = null;
@@ -135,9 +137,9 @@ public static class BasisFarLodAtlasBaker
             camera.useOcclusionCulling = false;
 
             bodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32);
-            regionTexture = RenderTexture.GetTemporary(RegionCaptureSize, RegionCaptureSize, 24, RenderTextureFormat.ARGB32);
+            regionTexture = RenderTexture.GetTemporary(regionCaptureSize, regionCaptureSize, 24, RenderTextureFormat.ARGB32);
             bodyReadback = NewReadback(captureSize);
-            regionReadback = NewReadback(RegionCaptureSize);
+            regionReadback = NewReadback(regionCaptureSize);
 
             if (mask.IsValid)
             {
@@ -167,7 +169,7 @@ public static class BasisFarLodAtlasBaker
                     // Mask bytes must round-trip exactly — render into linear targets so no
                     // sRGB encode remaps the group ids.
                     maskBodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-                    maskRegionTexture = RenderTexture.GetTemporary(RegionCaptureSize, RegionCaptureSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                    maskRegionTexture = RenderTexture.GetTemporary(regionCaptureSize, regionCaptureSize, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                 }
                 else
                 {
@@ -205,7 +207,7 @@ public static class BasisFarLodAtlasBaker
                     for (int d = 0; d < regionDirections.Length; d++)
                     {
                         Vector3 directionWorld = (rootRotation * regionDirections[d]).normalized;
-                        views.Add(CaptureOne(camera, regionTexture, regionReadback, RegionCaptureSize,
+                        views.Add(CaptureOne(camera, regionTexture, regionReadback, regionCaptureSize,
                             regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid,
                             maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates));
                     }
@@ -239,7 +241,7 @@ public static class BasisFarLodAtlasBaker
             collider.sharedMesh = decimatedMesh;
             Physics.SyncTransforms();
 
-            float[] vertexAo = ComputeVertexAo(positions, normals, rootToWorld, rootRotation, radius);
+            float[] vertexAo = ComputeVertexAo(positions, normals, indices, rootToWorld, rootRotation, radius);
 
             sFlipSampleY = DetectSampleFlip(views, rootToWorld, rootRotation, positions, normals);
             if (sFlipSampleY)
@@ -439,19 +441,23 @@ public static class BasisFarLodAtlasBaker
         return readback.GetPixels32();
     }
 
-    private const float AoBakeStrength = 0.6f;
+    private const float AoBakeStrength = 0.45f;
     private const int AoRayCount = 12;
 
     /// <summary>
     /// Coarse ambient occlusion per decimated vertex (hemisphere raycasts against the bake
     /// collider), baked gently into the atlas. The flat-ambient capture strips all depth cues;
     /// this restores the under-chin / between-limbs shading that makes shapes read at range.
+    /// Vertices buried inside layered geometry (cloth shells) read as fully occluded and would
+    /// smear darkness onto visible surfaces — they're neutralized, and the result is smoothed
+    /// over the mesh so 12-ray noise doesn't bake in as splotches.
     /// </summary>
-    private static float[] ComputeVertexAo(Vector3[] positions, Vector3[] normals, Matrix4x4 rootToWorld, Quaternion rootRotation, float radius)
+    private static float[] ComputeVertexAo(Vector3[] positions, Vector3[] normals, int[] indices, Matrix4x4 rootToWorld, Quaternion rootRotation, float radius)
     {
         int layerMask = 1 << OcclusionLayer;
         float rayLength = Mathf.Max(radius * 0.5f, 0.2f);
         float bias = Mathf.Max(0.004f, radius * 0.008f);
+        float buriedDistance = bias * 6f;
 
         // Fixed cosine-weighted hemisphere set (tangent space, z = up).
         Vector3[] hemisphere = new Vector3[AoRayCount];
@@ -472,15 +478,45 @@ public static class BasisFarLodAtlasBaker
             Vector3 bitangent = Vector3.Cross(normalWorld, tangent);
 
             int occluded = 0;
+            int nearHits = 0;
             for (int r = 0; r < AoRayCount; r++)
             {
                 Vector3 direction = tangent * hemisphere[r].x + bitangent * hemisphere[r].y + normalWorld * hemisphere[r].z;
-                if (Physics.Raycast(origin, direction, rayLength, layerMask))
+                if (Physics.Raycast(origin, direction, out RaycastHit hit, rayLength, layerMask))
                 {
                     occluded++;
+                    if (hit.distance < buriedDistance)
+                    {
+                        nearHits++;
+                    }
                 }
             }
-            ao[v] = 1f - (occluded / (float)AoRayCount) * 0.9f;
+            // Buried inside another shell — its texels are hidden anyway; stay neutral so
+            // smoothing doesn't drag the darkness onto the visible surface above it.
+            ao[v] = nearHits >= (AoRayCount * 3) / 4 ? 1f : 1f - (occluded / (float)AoRayCount) * 0.9f;
+        }
+
+        // Two rounds of neighbor smoothing over the triangle graph.
+        float[] neighborSum = new float[positions.Length];
+        int[] neighborCount = new int[positions.Length];
+        for (int pass = 0; pass < 2; pass++)
+        {
+            System.Array.Clear(neighborSum, 0, neighborSum.Length);
+            System.Array.Clear(neighborCount, 0, neighborCount.Length);
+            for (int t = 0; t + 2 < indices.Length; t += 3)
+            {
+                int a = indices[t], b = indices[t + 1], c = indices[t + 2];
+                neighborSum[a] += ao[b] + ao[c]; neighborCount[a] += 2;
+                neighborSum[b] += ao[a] + ao[c]; neighborCount[b] += 2;
+                neighborSum[c] += ao[a] + ao[b]; neighborCount[c] += 2;
+            }
+            for (int v = 0; v < ao.Length; v++)
+            {
+                if (neighborCount[v] > 0)
+                {
+                    ao[v] = ao[v] * 0.5f + (neighborSum[v] / neighborCount[v]) * 0.5f;
+                }
+            }
         }
         return ao;
     }
@@ -670,6 +706,25 @@ public static class BasisFarLodAtlasBaker
                     {
                         atlas[texelIndex] = ApplyAo(fallbackColor, aoFactor);
                         texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
+                        sampled = true;
+                    }
+
+                    if (!sampled)
+                    {
+                        // Rescue tier: nothing passed the strict gates (deep crevice). A
+                        // same-part sample through a widened depth window still beats leaving
+                        // the texel to flood fill.
+                        for (int c = 0; c < candidateCount && !sampled; c++)
+                        {
+                            ref CaptureView rescueView = ref viewArray[candidateOrder[c]];
+                            if (TrySampleView(in rescueView, positionWorld, allowedGroup0, allowedGroup1, allowedGroup2, out Color32 rescueColor, out float rescueCoverage, 3f)
+                                && rescueCoverage >= 0.05f)
+                            {
+                                atlas[texelIndex] = ApplyAo(rescueColor, aoFactor);
+                                texelQuality[texelIndex] = 1;
+                                sampled = true;
+                            }
+                        }
                     }
                 }
             }
@@ -727,7 +782,7 @@ public static class BasisFarLodAtlasBaker
     /// Bilinear, coverage-weighted sample — background texels are weighted out, and when a part
     /// mask is present, pixels belonging to another body group count as background too.
     /// </summary>
-    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, byte allowed0, byte allowed1, byte allowed2, out Color32 color, out float coverage)
+    private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, byte allowed0, byte allowed1, byte allowed2, out Color32 color, out float coverage, float depthToleranceScale = 1f)
     {
         Vector3 pixel = view.WorldToPixel.MultiplyPoint(positionWorld);
         if (sFlipSampleY)
@@ -746,7 +801,7 @@ public static class BasisFarLodAtlasBaker
             float depthRange = Mathf.Max(view.DepthFar - view.DepthNear, 1e-4f);
             float viewDepth = Vector3.Dot(positionWorld - view.CameraPositionWorld, view.DirectionWorld);
             expectedDepth16 = Mathf.Clamp01((viewDepth - view.DepthNear) / depthRange) * 65535f;
-            depthTolerance16 = view.DepthToleranceMeters / depthRange * 65535f;
+            depthTolerance16 = view.DepthToleranceMeters * depthToleranceScale / depthRange * 65535f;
         }
 
         float fx = pixel.x - 0.5f;
@@ -882,25 +937,55 @@ public static class BasisFarLodAtlasBaker
             }
         }
 
-        long totalR = 0, totalG = 0, totalB = 0, totalCount = 0;
+        // Flood the remaining texels from their nearest written neighbor — a flat global-average
+        // patch in a crevice reads as a splotch the moment it becomes visible.
+        Queue<int> frontier = new Queue<int>(4096);
+        bool anyWritten = false;
         for (int i = 0; i < atlas.Length; i++)
         {
             if (current[i] > 0)
             {
-                totalR += atlas[i].r;
-                totalG += atlas[i].g;
-                totalB += atlas[i].b;
-                totalCount++;
+                frontier.Enqueue(i);
+                anyWritten = true;
             }
         }
-        Color32 average = totalCount > 0
-            ? new Color32((byte)(totalR / totalCount), (byte)(totalG / totalCount), (byte)(totalB / totalCount), 255)
-            : new Color32(128, 128, 128, 255);
-        for (int i = 0; i < atlas.Length; i++)
+        if (!anyWritten)
         {
-            if (current[i] == 0)
+            Color32 neutral = new Color32(128, 128, 128, 255);
+            for (int i = 0; i < atlas.Length; i++)
             {
-                atlas[i] = average;
+                atlas[i] = neutral;
+            }
+            return;
+        }
+        while (frontier.Count > 0)
+        {
+            int index = frontier.Dequeue();
+            int x = index % atlasSize;
+            int y = index / atlasSize;
+            if (x > 0 && current[index - 1] == 0)
+            {
+                atlas[index - 1] = atlas[index];
+                current[index - 1] = 1;
+                frontier.Enqueue(index - 1);
+            }
+            if (x < atlasSize - 1 && current[index + 1] == 0)
+            {
+                atlas[index + 1] = atlas[index];
+                current[index + 1] = 1;
+                frontier.Enqueue(index + 1);
+            }
+            if (y > 0 && current[index - atlasSize] == 0)
+            {
+                atlas[index - atlasSize] = atlas[index];
+                current[index - atlasSize] = 1;
+                frontier.Enqueue(index - atlasSize);
+            }
+            if (y < atlasSize - 1 && current[index + atlasSize] == 0)
+            {
+                atlas[index + atlasSize] = atlas[index];
+                current[index + atlasSize] = 1;
+                frontier.Enqueue(index + atlasSize);
             }
         }
     }

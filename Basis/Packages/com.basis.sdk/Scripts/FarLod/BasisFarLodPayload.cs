@@ -27,10 +27,10 @@ public class BasisFarLodPayload
     public const int MaxBones = 64;
     public const int MaxVertices = 16384;
     public const int MaxIndexCount = 98304;
-    public const int MaxTextureDimension = 1024;
-    public const int MaxTexturePayloadBytes = 4 * 1024 * 1024;
+    public const int MaxTextureDimension = 2048;
+    public const int MaxTexturePayloadBytes = 6 * 1024 * 1024;
     public const int MaxTextures = 4;
-    public const int MaxPayloadBytes = 12 * 1024 * 1024;
+    public const int MaxPayloadBytes = 16 * 1024 * 1024;
 
     public enum FarLodTextureFormat : byte
     {
@@ -439,6 +439,14 @@ public class BasisFarLodPayload
     }
 
     /// <summary>
+    /// Mipmap limit group for decoded far LOD atlases. Script-created textures can't join the
+    /// mip STREAMING system (asset-pipeline textures only), but through this group they respect
+    /// the global texture quality / mipmap limit — dropping the graphics tier sheds their top
+    /// mips like any imported texture.
+    /// </summary>
+    public const string MipmapLimitGroup = "BasisAvatarFarLod";
+
+    /// <summary>
     /// Builds the atlas texture from the first payload whose compression format this device
     /// supports. Returns null when none apply.
     /// </summary>
@@ -461,7 +469,14 @@ public class BasisFarLodPayload
             }
             try
             {
-                Texture2D texture = new Texture2D(texturePayload.Width, texturePayload.Height, format, texturePayload.MipCount > 1, false)
+                bool hasMips = texturePayload.MipCount > 1;
+                if (hasMips && !TextureMipmapLimitGroups.HasGroup(MipmapLimitGroup))
+                {
+                    TextureMipmapLimitGroups.CreateGroup(MipmapLimitGroup);
+                }
+                Texture2D texture = new Texture2D(texturePayload.Width, texturePayload.Height, format,
+                    hasMips ? texturePayload.MipCount : 1, linear: false, createUninitialized: true,
+                    new MipmapLimitDescriptor(hasMips, MipmapLimitGroup))
                 {
                     name = "BasisFarLodAtlas",
                     wrapMode = TextureWrapMode.Clamp,
