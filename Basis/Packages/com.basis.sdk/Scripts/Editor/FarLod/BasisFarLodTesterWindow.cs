@@ -403,7 +403,7 @@ public class BasisFarLodTesterWindow : EditorWindow
             shader = Shader.Find("Universal Render Pipeline/Unlit");
             Debug.LogWarning("Basis/AvatarFarLod shader not found — previewing with URP Unlit.");
         }
-        _previewMaterial = new Material(shader);
+        _previewMaterial = new Material(shader) { enableInstancing = true };
         _previewMaterial.SetTexture("_BaseMap", _previewTexture);
 
         // Without HideAndDontSave the editor destroys loose created assets on scene/play

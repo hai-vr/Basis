@@ -312,7 +312,7 @@ public class BasisAvatarFarLodRenderer
             UnityEngine.Object.Destroy(shared.Mesh);
             return null;
         }
-        shared.Material = new Material(sImposterShader);
+        shared.Material = new Material(sImposterShader) { enableInstancing = true };
         shared.Material.SetTexture(BaseMapProperty, texture);
 
         SharedByVersion[uniqueVersion] = shared;
