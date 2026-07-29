@@ -507,6 +507,7 @@ public class BasisFarLodTesterWindow : EditorWindow
         }
         _mirrorPose = EditorGUILayout.Toggle("Mirror Source Pose", _mirrorPose);
         _previewOffset = EditorGUILayout.FloatField("Offset (0 = auto)", _previewOffset);
+        EditorGUILayout.LabelField("Mirroring pauses while a copy transform is selected, so you can pose the copy by hand.", EditorStyles.miniLabel);
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Select In Scene"))
         {
@@ -571,6 +572,13 @@ public class BasisFarLodTesterWindow : EditorWindow
     private void OnEditorUpdate()
     {
         if (_previewRoot == null || _avatar == null || _sourceAnimator == null)
+        {
+            return;
+        }
+        // Hands-off while the user is posing/inspecting the copy itself — otherwise the
+        // mirror rewrites every bone rotation each tick and manual rotations appear dead.
+        Transform selected = Selection.activeTransform;
+        if (selected != null && selected.IsChildOf(_previewRoot.transform))
         {
             return;
         }

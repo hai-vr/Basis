@@ -8,8 +8,7 @@ public static class BasisBundleLoadAsset
 {
     public static async Task<GameObject> LoadFromWrapper(GameObject DisabledGameobject,BasisTrackedBundleWrapper BasisLoadableBundle, bool UseContentRemoval, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, Selector Selector, Transform Parent = null, bool DestroyColliders = false,bool ChangeColidersToCorrectLayer = false, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop = null)
     {
-        bool Incremented = false;
-        if (BasisLoadableBundle.AssetBundle != null)
+        if (BasisLoadableBundle.AssetBundle != null || BasisLoadableBundle.HasGltfTemplate)
         {
             BasisLoadableBundle output = BasisLoadableBundle.LoadableBundle;
             if (output.BasisBundleConnector.GetPlatform(out BasisBundleGenerated Generated))
@@ -34,51 +33,20 @@ public static class BasisBundleLoadAsset
                                 await BasisLoadableBundle.AssetBundle.UnloadAsync(true);
                                 return null;
                             }
-                            ChecksRequired ChecksRequired = new ChecksRequired();
-                            if (loadedObject.TryGetComponent<BasisAvatar>(out BasisAvatar BasisAvatar))
+                            return await InstantiateContentControlled(DisabledGameobject, BasisLoadableBundle, loadedObject, UseContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
+                        }
+                    case BasisBundleConnector.GltfAssetMode:
+                        {
+                            // Generic (glTF) fallback: the wrapper holds an inactive template
+                            // instead of an AssetBundle; clone it like a prefab.
+                            GameObject template = BasisLoadableBundle.GltfTemplateAvatarRoot;
+                            if (template == null)
                             {
-                                ChecksRequired.DisableAnimatorEvents = true;
-                            }
-                            ChecksRequired.UseContentRemoval = UseContentRemoval;
-                            ChecksRequired.RemoveColliders = DestroyColliders;
-                            ChecksRequired.ChangeCollidersToCorrectLayer = ChangeColidersToCorrectLayer;
-                            ChecksRequired.ScrubPersistentUnityEvents = true;
-                            BasisContentHarvest harvest = BasisAvatar != null ? new BasisContentHarvest() : null;
-                            // Instantiate (phase one) and the component strip/scrub walk (phase two) are
-                            // each a multi-ms main-thread cost; running both in one frame is the load hitch.
-                            // BeginContentControl parks the clone inactive after Instantiate; yield a frame
-                            // before FinishContentControl runs the walk + activate so the two never share a
-                            // frame. The budget gate still spreads concurrent loads across frames on top of that.
-                            await BasisLoadFrameBudget.WaitForBudgetAsync();
-                            double instantiateStart = BasisLoadFrameBudget.BeginStep();
-                            ContentPoliceControl.ContentControlState scrubState = ContentPoliceControl.BeginContentControl(DisabledGameobject, loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop, harvest);
-                            BasisLoadFrameBudget.EndStep(instantiateStart);
-                            GameObject CreatedCopy;
-                            if (scrubState.RemovalWalkPending)
-                            {
-                                await Task.Yield();
-                                await BasisLoadFrameBudget.WaitForBudgetAsync();
-                                double walkStart = BasisLoadFrameBudget.BeginStep();
-                                CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
-                                BasisLoadFrameBudget.EndStep(walkStart);
-                            }
-                            else
-                            {
-                                CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
-                            }
-                            if (CreatedCopy == null)
-                            {
-                                BasisDebug.LogError("ContentControl returned null; clone was destroyed during the frame-split load.");
+                                BasisDebug.LogError("Generic (glTF) template missing on wrapper for " + Generated.AssetToLoadName);
+                                BasisLoadableBundle.DidErrorOccur = true;
                                 return null;
                             }
-                            if (harvest != null && CreatedCopy != null && CreatedCopy.TryGetComponent(out Basis.Scripts.BasisSdk.BasisAvatar createdAvatar))
-                            {
-                                createdAvatar.Harvest = harvest;
-                            }
-                            Incremented = BasisLoadableBundle.Increment();
-                            string InstanceID = BasisGenerateUniqueID.GenerateUniqueID();
-                            CreatedCopy.name = InstanceID + Incremented;
-                            return CreatedCopy;
+                            return await InstantiateContentControlled(DisabledGameobject, BasisLoadableBundle, template, UseContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
                         }
                     default:
                         BasisDebug.LogError("Requested type " + Generated.AssetMode + " has no handler");
@@ -96,6 +64,55 @@ public static class BasisBundleLoadAsset
         }
         BasisDebug.LogError("Returning unable to load gameobject!");
         return null;
+    }
+
+    private static async Task<GameObject> InstantiateContentControlled(GameObject DisabledGameobject, BasisTrackedBundleWrapper BasisLoadableBundle, GameObject loadedObject, bool UseContentRemoval, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, Selector Selector, Transform Parent, bool DestroyColliders, bool ChangeColidersToCorrectLayer, List<BasisHeadChop.HeadChopTarget> HarvestedHeadChop)
+    {
+        ChecksRequired ChecksRequired = new ChecksRequired();
+        if (loadedObject.TryGetComponent<BasisAvatar>(out BasisAvatar BasisAvatar))
+        {
+            ChecksRequired.DisableAnimatorEvents = true;
+        }
+        ChecksRequired.UseContentRemoval = UseContentRemoval;
+        ChecksRequired.RemoveColliders = DestroyColliders;
+        ChecksRequired.ChangeCollidersToCorrectLayer = ChangeColidersToCorrectLayer;
+        ChecksRequired.ScrubPersistentUnityEvents = true;
+        BasisContentHarvest harvest = BasisAvatar != null ? new BasisContentHarvest() : null;
+        // Instantiate (phase one) and the component strip/scrub walk (phase two) are
+        // each a multi-ms main-thread cost; running both in one frame is the load hitch.
+        // BeginContentControl parks the clone inactive after Instantiate; yield a frame
+        // before FinishContentControl runs the walk + activate so the two never share a
+        // frame. The budget gate still spreads concurrent loads across frames on top of that.
+        await BasisLoadFrameBudget.WaitForBudgetAsync();
+        double instantiateStart = BasisLoadFrameBudget.BeginStep();
+        ContentPoliceControl.ContentControlState scrubState = ContentPoliceControl.BeginContentControl(DisabledGameobject, loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"), HarvestedHeadChop, harvest);
+        BasisLoadFrameBudget.EndStep(instantiateStart);
+        GameObject CreatedCopy;
+        if (scrubState.RemovalWalkPending)
+        {
+            await Task.Yield();
+            await BasisLoadFrameBudget.WaitForBudgetAsync();
+            double walkStart = BasisLoadFrameBudget.BeginStep();
+            CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
+            BasisLoadFrameBudget.EndStep(walkStart);
+        }
+        else
+        {
+            CreatedCopy = ContentPoliceControl.FinishContentControl(scrubState);
+        }
+        if (CreatedCopy == null)
+        {
+            BasisDebug.LogError("ContentControl returned null; clone was destroyed during the frame-split load.");
+            return null;
+        }
+        if (harvest != null && CreatedCopy != null && CreatedCopy.TryGetComponent(out Basis.Scripts.BasisSdk.BasisAvatar createdAvatar))
+        {
+            createdAvatar.Harvest = harvest;
+        }
+        bool Incremented = BasisLoadableBundle.Increment();
+        string InstanceID = BasisGenerateUniqueID.GenerateUniqueID();
+        CreatedCopy.name = InstanceID + Incremented;
+        return CreatedCopy;
     }
     public static async Task<Scene> LoadSceneFromBundleAsync(BasisTrackedBundleWrapper bundle, bool MakeActiveScene, BasisProgressReport progressCallback)
     {

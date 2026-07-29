@@ -23,6 +23,9 @@ public class BasisAssetBundleObject : ScriptableObject
     public bool GenerateImage = true;
     public bool OpenFolderOnDisc = true;
     public bool RebakeOcclusionCulling = true;
+    // Avatars only: also embed a platform-agnostic glTF (Generic) section so platforms
+    // without a built AssetBundle can still load the avatar.
+    public bool GenerateGenericGLTF = true;
     public BuildTarget BuildTarget = BuildTarget.StandaloneWindows;
     public BuildAssetBundleOptions BuildAssetBundleOptions;
     public string AssetBundleDirectory = "./AssetBundles";
@@ -71,6 +74,7 @@ public class BasisAssetBundleObjectEditor : Editor
         assetBundleObject.selectedTargets = new List<BuildTarget>(BasisSDKConstants.allowedTargets);
         assetBundleObject.RebakeOcclusionCullingInThese = new List<BuildTarget>(BasisSDKConstants.OcclusionCullingTargets);
         assetBundleObject.RebakeOcclusionCulling = true;
+        assetBundleObject.GenerateGenericGLTF = true;
         // Mark the object as dirty to save changes
         EditorUtility.SetDirty(assetBundleObject);
         AssetDatabase.SaveAssets();

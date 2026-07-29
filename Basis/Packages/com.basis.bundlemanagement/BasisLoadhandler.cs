@@ -205,6 +205,7 @@ public static class BasisLoadHandler
                 wrapper.AssetBundle.Unload(true);
                 wrapper.AssetBundle = null;
             }
+            wrapper.UnloadGltfTemplate();
             LoadedBundles.Remove(Key, out var data);
             CleanupFiles(loadableBundle.BasisLocalEncryptedBundle);
             return null;
@@ -269,12 +270,16 @@ public static class BasisLoadHandler
                 BasisDebug.LogError($"Skipping in-memory unload for: {remoteUrl}; bundle is still in use.");
                 continue;
             }
-            if (LoadedBundles.TryRemove(key, out BasisTrackedBundleWrapper removed) && removed?.AssetBundle != null)
+            if (LoadedBundles.TryRemove(key, out BasisTrackedBundleWrapper removed) && removed != null)
             {
                 try
                 {
-                    BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);
-                    removed.AssetBundle.Unload(true);
+                    if (removed.AssetBundle != null)
+                    {
+                        BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);
+                        removed.AssetBundle.Unload(true);
+                    }
+                    removed.UnloadGltfTemplate();
                 }
                 catch (Exception ex)
                 {

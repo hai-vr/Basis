@@ -7,7 +7,9 @@
         "BasisSerializer.OdinSerializer",
         "Unity.Mathematics",
         "BasisDebug",
-        "Unity.RenderPipelines.Core.Runtime"
+        "Unity.RenderPipelines.Core.Runtime",
+        "glTFast",
+        "glTFast.Export"
     ],
     "includePlatforms": [
         "Editor"

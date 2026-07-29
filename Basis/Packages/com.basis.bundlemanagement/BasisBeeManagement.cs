@@ -97,6 +97,38 @@ public static class BasisBeeManagement
         {
             throw new Exception($"Bundle load failed for {wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? "unknown"}: {output.Item3}");
         }
+        // Generic (glTF) fallback section: no AssetBundle exists for this platform, the bytes
+        // are an encrypted glb. Build the template instead of an AssetBundle, with the same
+        // cache-refresh retry the bundle path gets for stale cached bytes.
+        if (BasisBundleConnector.IsGltfMode(output.Item1))
+        {
+            if (wrapper.HasGltfTemplate)
+            {
+                return;
+            }
+            bool gltfLoaded = await BasisGltfAvatarLoader.LoadTemplate(wrapper, output.Item1, output.Item2, report);
+            if (!gltfLoaded && shouldUseOnDiskMeta && !didForceRedownload)
+            {
+                BasisDebug.Log("Cached generic (glTF) bytes failed to load; forcing re-download.", BasisDebug.LogTag.Event);
+                output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInBytes);
+                didForceRedownload = true;
+
+                if (output.Item1 == null || output.Item2 == null || output.Item2.Length == 0 || !string.IsNullOrEmpty(output.Item3))
+                {
+                    throw new Exception($"Unable to reload generic (glTF) section after cache mismatch. {output.Item3}");
+                }
+
+                gltfLoaded = await BasisGltfAvatarLoader.LoadTemplate(wrapper, output.Item1, output.Item2, report);
+            }
+
+            if (!gltfLoaded)
+            {
+                throw new Exception($"Generic (glTF) avatar template creation failed for {wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? "unknown"}.");
+            }
+
+            await SaveMetaIfNeeded(wrapper, shouldUseOnDiskMeta, didForceRedownload, output.Item1.Platform);
+            return;
+        }
         IEnumerable<AssetBundle> AssetBundles = AssetBundle.GetAllLoadedAssetBundles();
         foreach (AssetBundle assetBundle in AssetBundles)
         {
@@ -174,6 +206,17 @@ public static class BasisBeeManagement
         if (output.Item2 == null || output.Item2.Length == 0)
         {
             throw new Exception($"Local bundle load returned no section data for {localBeePath}.");
+        }
+
+        // Generic (glTF) fallback section from a local bee — same template path as remote.
+        if (BasisBundleConnector.IsGltfMode(output.Item1))
+        {
+            bool gltfLoaded = await BasisGltfAvatarLoader.LoadTemplate(wrapper, output.Item1, output.Item2, report);
+            if (!gltfLoaded)
+            {
+                throw new Exception($"Generic (glTF) avatar template creation failed for local bee file {localBeePath}.");
+            }
+            return;
         }
 
         string assetToLoadName = output.Item1.AssetToLoadName;

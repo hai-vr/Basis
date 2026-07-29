@@ -73,14 +73,41 @@ public class BasisBundleConnector
         return UniqueVersion.ToLower() == version.ToLower();
     }
 
+    /// <summary>
+    /// Platform string of the platform-agnostic fallback section (avatar-only, glTF binary
+    /// payload instead of a Unity AssetBundle). Never matches a real platform, so clients
+    /// built before this existed simply skip the section during the section walk.
+    /// </summary>
+    public const string GenericPlatform = "Generic";
+    /// <summary>
+    /// AssetMode of the generic section. The section bytes are an encrypted .glb (glTF 2.0
+    /// binary) rather than an AssetBundle; avatar wiring rides in
+    /// <see cref="BasisBundleGenerated.GenericAvatarDataJson"/>.
+    /// </summary>
+    public const string GltfAssetMode = "GLTF";
+
     public bool GetPlatform(out BasisBundleGenerated platformBundle)
     {
         platformBundle = BasisBundleGenerated.FirstOrDefault(bundle => PlatformMatch(bundle.Platform));
+        // Exact platform sections always win; the generic (glTF) section only applies when
+        // this platform has no AssetBundle in the bee, which was previously a hard failure.
+        if (platformBundle == null)
+        {
+            platformBundle = BasisBundleGenerated.FirstOrDefault(IsGenericBundle);
+        }
         return platformBundle != null;
     }
     public static bool IsPlatform(BasisBundleGenerated platformBundle)
     {
         return PlatformMatch(platformBundle.Platform);
+    }
+    public static bool IsGenericBundle(BasisBundleGenerated bundle)
+    {
+        return bundle != null && string.Equals(bundle.Platform, GenericPlatform, StringComparison.OrdinalIgnoreCase);
+    }
+    public static bool IsGltfMode(BasisBundleGenerated bundle)
+    {
+        return bundle != null && string.Equals(bundle.AssetMode, GltfAssetMode, StringComparison.OrdinalIgnoreCase);
     }
     private static readonly Dictionary<string, HashSet<RuntimePlatform>> platformMappings = new Dictionary<string, HashSet<RuntimePlatform>>()
     {
@@ -187,6 +214,11 @@ public class BasisBundleGenerated
     // bundles built before this field existed deserialize with null — display layer
     // treats null/empty as "Unknown".
     public string[] GraphicsAPIs;
+    // Only set on the Generic (glTF) avatar section: BasisGenericAvatarData serialized as
+    // JSON — humanoid rig description plus BasisAvatar wiring (visemes, eye/mouth positions)
+    // that glTF itself cannot carry. Null/empty on platform AssetBundle sections and on
+    // bundles built before this field existed.
+    public string GenericAvatarDataJson;
     public BasisBundleGenerated()
     {
     }

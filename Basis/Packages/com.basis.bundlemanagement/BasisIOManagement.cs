@@ -24,7 +24,13 @@ public static class BasisIOManagement
 
     public static bool CachePlatformMatchesCurrent(string downloadedPlatform)
     {
-        return string.Equals(NormalizeCachePlatformName(downloadedPlatform), GetCurrentCachePlatform(), StringComparison.OrdinalIgnoreCase);
+        string normalized = NormalizeCachePlatformName(downloadedPlatform);
+        // A cached Generic (glTF) section is platform-agnostic, so it is valid on any device.
+        if (string.Equals(normalized, BasisBundleConnector.GenericPlatform, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return string.Equals(normalized, GetCurrentCachePlatform(), StringComparison.OrdinalIgnoreCase);
     }
 
     public static string NormalizeCachePlatformName(string platformName)
@@ -184,6 +190,12 @@ public static class BasisIOManagement
         // 4) Walk sections, compute ranges, download only the platform-matching section
         long previousEnd = connectorEndInclusive; // End of connector region in the remote file
         byte[] platformSectionData = null;
+        bool downloadedGeneric = false;
+        // Generic (glTF) fallback candidate, remembered while walking so it can be range-
+        // downloaded only when the walk finds no section for this platform.
+        long genericStart = -1;
+        long genericLength = 0;
+        int genericIndex = -1;
 
         for (int index = 0; index < connector.BasisBundleGenerated.Length; index++)
         {
@@ -233,8 +245,29 @@ public static class BasisIOManagement
                 BasisDebug.Log("Platform section length: " + platformSectionData.LongLength);
                 // Do not break; keep walking to ensure previousEnd is advanced correctly regardless of multiple matches
             }
+            else if (genericStart < 0 && BasisBundleConnector.IsGenericBundle(entry))
+            {
+                genericStart = start;
+                genericLength = sectionLength;
+                genericIndex = index;
+            }
 
             previousEnd = end;
+        }
+
+        if ((platformSectionData == null || platformSectionData.Length == 0) && genericStart >= 0)
+        {
+            BasisDebug.Log($"No section for {Application.platform}; falling back to Generic (glTF) section range {genericStart}-{genericStart + genericLength - 1}");
+            var genericRes = await DownloadRangeInternal(url, genericStart, genericStart + genericLength - 1, toFilePath: null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
+
+            if (!genericRes.IsSuccess || genericRes.Value?.Data == null)
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download generic section at index {genericIndex}. {genericRes.Error ?? "No data"}", genericRes.ResponseCode);
+
+            if (genericRes.Value.Data.LongLength != genericLength)
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Expected generic section length {genericLength}, got {genericRes.Value.Data.LongLength}.", genericRes.ResponseCode);
+
+            platformSectionData = genericRes.Value.Data;
+            downloadedGeneric = true;
         }
 
         if (platformSectionData == null || platformSectionData.Length == 0)
@@ -243,14 +276,17 @@ public static class BasisIOManagement
         }
 
         // 5) Write local .bee (Int32 header + connector + section)
-        string fileName = Path.GetFileName(GetBeeCacheFilePath(connector.UniqueVersion));
+        // Generic downloads are cached under the Generic platform name so the cache meta,
+        // the .bee filename, and the section they describe stay in agreement.
+        string cachePlatform = downloadedGeneric ? BasisBundleConnector.GenericPlatform : null;
+        string fileName = Path.GetFileName(GetBeeCacheFilePath(connector.UniqueVersion, cachePlatform));
         if (string.IsNullOrWhiteSpace(fileName))
             return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
 
         string localPath;
         try
         {
-            localPath = GetBeeCacheFilePath(connector.UniqueVersion);
+            localPath = GetBeeCacheFilePath(connector.UniqueVersion, cachePlatform);
         }
         catch (Exception ex)
         {
@@ -505,6 +541,8 @@ public static class BasisIOManagement
         long cursor = fs.Position;
         long matchOffset = -1;
         long matchLength = 0;
+        long genericOffset = -1;
+        long genericLength = 0;
 
         for (int index = 0; index < connector.BasisBundleGenerated.Length; index++)
         {
@@ -538,8 +576,22 @@ public static class BasisIOManagement
                 matchOffset = cursor;
                 matchLength = sectionLength;
             }
+            else if (genericOffset < 0 && BasisBundleConnector.IsGenericBundle(entry))
+            {
+                genericOffset = cursor;
+                genericLength = sectionLength;
+            }
 
             cursor = sectionEndExclusive;
+        }
+
+        // Exact platform sections win; the Generic (glTF) section only fills in when this
+        // platform has no AssetBundle in the bee.
+        if (matchOffset < 0 && genericOffset >= 0)
+        {
+            BasisDebug.Log($"No section for {Application.platform} in local bee; using Generic (glTF) section.");
+            matchOffset = genericOffset;
+            matchLength = genericLength;
         }
 
         if (matchOffset < 0)

@@ -519,7 +519,7 @@ public static class BasisBundleBuild
             string Password = useProvidedPassword ? OverriddenPassword : GenerateHexString(32);
 
             int targetsLength = targets.Count;
-            BasisBundleGenerated[] bundles = new BasisBundleGenerated[targetsLength];
+            List<BasisBundleGenerated> bundles = new List<BasisBundleGenerated>(targetsLength + 1);
             List<string> paths = new List<string>();
 
             for (int Index = 0; Index < targetsLength; Index++)
@@ -533,7 +533,7 @@ public static class BasisBundleBuild
                     return (false, $"Failure While Building for {target}");
                 }
 
-                bundles[Index] = result.Item1;
+                bundles.Add(result.Item1);
 
                 string hashPath = PathConversion(result.Item2.EncyptedPath);
                 paths.Add(hashPath);
@@ -541,12 +541,35 @@ public static class BasisBundleBuild
                 BasisDebug.Log("Adding " + result.Item2.EncyptedPath);
             }
 
+            // Avatars additionally get a platform-agnostic Generic (glTF) section, appended
+            // after the platform sections so platforms without a purpose-built AssetBundle can
+            // still load the avatar. Appending last keeps every platform section's byte range
+            // where old clients expect it, and failure is never fatal to the build.
+            if (basisContentBase is BasisAvatar genericSourceAvatar && assetBundleObject.GenerateGenericGLTF)
+            {
+                try
+                {
+                    var (genericGenerated, genericEncryptedPath) = await BasisGenericAvatarExporter.ExportEncryptedGlb(genericSourceAvatar, assetBundleObject, Password, stagingRoot);
+                    if (genericGenerated != null && !string.IsNullOrEmpty(genericEncryptedPath))
+                    {
+                        bundles.Add(genericGenerated);
+                        paths.Add(genericEncryptedPath);
+                        BasisDebug.Log("Adding generic (glTF) section " + genericEncryptedPath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                    Debug.LogWarning("Generic (glTF) section generation failed — building the bundle without it.");
+                }
+            }
+
             EditorUtility.DisplayProgressBar(BasisEditorLocalization.Get("sdk.bundleBuild.progress.start"), BasisEditorLocalization.Get("sdk.bundleBuild.progress.start"), 10);
 
             BasisBundleConnector basisBundleConnector = new BasisBundleConnector(
                 generatedID,
                 basisContentBase.BasisBundleDescription,
-                bundles,
+                bundles.ToArray(),
                 Images,
                 BasisBounds,
                 MetaData,
