@@ -635,18 +635,9 @@ public static class BasisHeightDriver
     private const float EvidenceReapplyIntervalSeconds = 1f;
     private static float s_evidenceReapplyTimer;
 
-    /// <summary>Seconds to ease a staged measurement in over. Long enough that the viewpoint drifts
-    /// rather than jumps; short enough that it is over before the player wonders what happened.</summary>
-    private const float RefitRampSeconds = 0.4f;
-    /// <summary>Seconds between ramp steps. The refit is not free (body fit + tracker reprojection), so
-    /// the ramp runs at a fixed modest rate instead of every frame — at these deltas it is invisible.</summary>
-    private const float RefitStepSeconds = 1f / 20f;
-
     private static float s_targetEye, s_targetSpan;
     private static bool s_targetEyeGenuine, s_targetSpanGenuine;
     private static bool s_hasRefitTarget;
-    private static float s_refitEyeRate, s_refitSpanRate;
-    private static float s_refitStepTimer;
     private static float s_refitFromEye, s_refitFromSpan;
     private static bool s_refitHeldLogged;
 
@@ -658,11 +649,17 @@ public static class BasisHeightDriver
     /// best measurement of the session would sit unused until the next avatar swap. With it, the
     /// avatar's arms settle onto the player's real reach within seconds of them gesturing once.
     ///
-    /// The change is staged and then eased in rather than applied outright: a scale change moves the
-    /// viewpoint, and a correction that arrives as an instant jump reads as a glitch even when it is
-    /// an improvement. It also waits for a moment when a resize is not actively unwelcome — see
-    /// <see cref="BasisCalibrationRefitGate"/>. Adoption only ever raises a measurement, so this
-    /// converges and goes quiet rather than oscillating.
+    /// ⚠️ The change is applied in ONE STEP, on purpose. Easing it in over a few tenths of a second is
+    /// the instinct from flat-screen UI and it is wrong here: a gradual uncommanded change means
+    /// several hundred milliseconds of visual motion with nothing matching it in the inner ear, which
+    /// is exactly the mismatch that makes people ill — the same reason VR turns snap rather than
+    /// sweeping. A single discontinuity is dismissed as a cut; a slow drift is felt. Do not "smooth"
+    /// this.
+    ///
+    /// The change is still STAGED rather than applied the instant it is measured, because the snap has
+    /// to land at a moment when a resize is harmless — see <see cref="BasisCalibrationRefitGate"/>.
+    /// Adoption only ever raises a measurement, so this converges and goes quiet rather than
+    /// oscillating.
     /// </summary>
     public static void TickObservedEvidence(float deltaTime)
     {
@@ -685,7 +682,7 @@ public static class BasisHeightDriver
             return;
         }
 
-        // The measurement keeps. Waiting costs nothing; resizing someone mid-grab does.
+        // The measurement keeps. Waiting costs nothing; snapping someone's scale mid-grab does.
         if (BasisCalibrationRefitGate.ShouldHoldRefit(out string reason))
         {
             if (!s_refitHeldLogged)
@@ -696,33 +693,22 @@ public static class BasisHeightDriver
             return;
         }
         s_refitHeldLogged = false;
+        s_hasRefitTarget = false;
 
-        s_refitStepTimer += deltaTime;
-        if (s_refitStepTimer < RefitStepSeconds)
-        {
-            return;
-        }
-        float step = s_refitStepTimer;
-        s_refitStepTimer = 0f;
-
-        PlayerEyeHeight = Mathf.MoveTowards(PlayerEyeHeight, s_targetEye, s_refitEyeRate * step);
-        PlayerArmSpan = Mathf.MoveTowards(PlayerArmSpan, s_targetSpan, s_refitSpanRate * step);
+        if (!Mathf.Approximately(PlayerEyeHeight, s_targetEye)) EyeHeightSource = BasisBodyMeasurementSource.Measured;
+        if (!Mathf.Approximately(PlayerArmSpan, s_targetSpan)) ArmSpanSource = BasisBodyMeasurementSource.Measured;
+        PlayerEyeHeight = s_targetEye;
+        PlayerArmSpan = s_targetSpan;
         HasGenuinePlayerEyeHeight |= s_targetEyeGenuine;
         HasGenuinePlayerArmSpan |= s_targetSpanGenuine;
-        if (s_refitEyeRate > 0f) EyeHeightSource = BasisBodyMeasurementSource.Measured;
-        if (s_refitSpanRate > 0f) ArmSpanSource = BasisBodyMeasurementSource.Measured;
         ApplyScaleAndHeight();
-
-        if (Mathf.Approximately(PlayerEyeHeight, s_targetEye) && Mathf.Approximately(PlayerArmSpan, s_targetSpan))
-        {
-            s_hasRefitTarget = false;
-            AnnounceRefit(s_refitFromEye, s_refitFromSpan);
-        }
+        AnnounceRefit(s_refitFromEye, s_refitFromSpan);
     }
 
     /// <summary>
-    /// Looks for a better measurement and stages it, without touching the applied size. Re-staging
-    /// mid-ramp just moves the target — the ramp continues from wherever it had reached.
+    /// Looks for a better measurement and stages it, without touching the applied size. Staging exists
+    /// so the snap can wait for a safe moment; a second, better measurement arriving before the first
+    /// has landed simply replaces the target, so the player only ever feels one change.
     /// </summary>
     private static void StageObservedBodySize()
     {
@@ -746,12 +732,10 @@ public static class BasisHeightDriver
         s_targetSpan = observed.ArmSpan;
         s_targetEyeGenuine = observed.EyeIsGenuine;
         s_targetSpanGenuine = observed.SpanIsGenuine;
-        s_refitEyeRate = Mathf.Abs(s_targetEye - PlayerEyeHeight) / RefitRampSeconds;
-        s_refitSpanRate = Mathf.Abs(s_targetSpan - PlayerArmSpan) / RefitRampSeconds;
         s_hasRefitTarget = true;
 
         BasisDebug.Log(
-            $"Observed body size improved (eye {PlayerEyeHeight:F3}->{s_targetEye:F3}m, span {PlayerArmSpan:F3}->{s_targetSpan:F3}m); easing the avatar into it.",
+            $"Observed body size improved (eye {PlayerEyeHeight:F3}->{s_targetEye:F3}m, span {PlayerArmSpan:F3}->{s_targetSpan:F3}m); refitting at the next safe moment.",
             BasisDebug.LogTag.Avatar);
     }
 

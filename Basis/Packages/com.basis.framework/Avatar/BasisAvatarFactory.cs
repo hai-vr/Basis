@@ -322,6 +322,11 @@ namespace Basis.Scripts.Avatar
                 if (!token.IsCancellationRequested)
                 {
                     MarkRemoteLoadFailed(Player);
+                    // The connector is platform-independent and usually already parsed even when
+                    // the load failed (e.g. the bee has no section for this platform). If it
+                    // carries a far LOD, the player renders as their real silhouette on top of
+                    // the fallback skeleton instead of as the loading avatar.
+                    BasisAvatarFarLOD.CaptureFarLodFallback(Player, BasisLoadableBundle);
                     LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
                 }
             }

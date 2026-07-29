@@ -696,6 +696,13 @@ public static class BasisFarLodGenerator
         }
 
         UnwrapParam.SetDefaults(out UnwrapParam unwrapParam);
+        // Fewer, larger charts: default unwrap settings shatter a high-budget decimated mesh
+        // into hundreds of tiny islands, and bilinear/mip sampling across their borders reads
+        // as texture misalignment. Distortion inside big charts is harmless here — the texture
+        // is projected onto the final UVs, not authored against them.
+        unwrapParam.hardAngle = 180f;
+        unwrapParam.angleError = 0.25f;
+        unwrapParam.areaError = 0.35f;
         unwrapParam.packMargin = 4f / AtlasSize;
         Unwrapping.GenerateSecondaryUVSet(mesh, unwrapParam);
 

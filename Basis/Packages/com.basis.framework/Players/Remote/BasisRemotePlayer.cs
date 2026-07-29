@@ -56,13 +56,28 @@ namespace Basis.Scripts.BasisSdk.Players
         // 0 = unknown, 1 = present, -1 = absent or failed to build (don't retry every tick).
         private sbyte _farLodPayloadState;
 
+        /// <summary>
+        /// When true the far LOD stands in for the whole avatar — the bundle has no build for
+        /// this platform (or the load failed) but its connector carried a payload. It stays
+        /// active at every distance until a real avatar calibrates. The payload lives in
+        /// <see cref="FarLodOverridePayload"/> because AvatarMetaData now points at the
+        /// loading-avatar bundle.
+        /// </summary>
+        public bool FarLodIsAvatar;
+        public string FarLodOverridePayload;
+        public string FarLodOverrideVersion;
+
         public bool IsFarLodActive => FarLod != null && FarLod.IsActive;
 
-        /// <summary>True when the current avatar's bundle connector carries an far LOD payload.</summary>
+        /// <summary>True when a far LOD payload is available for this player.</summary>
         public bool HasFarLodPayload
         {
             get
             {
+                if (FarLodIsAvatar && !string.IsNullOrEmpty(FarLodOverridePayload))
+                {
+                    return true;
+                }
                 if (_farLodPayloadState == 0)
                 {
                     string payload = AvatarMetaData?.BasisBundleConnector?.FarLodBase64;
@@ -116,6 +131,14 @@ namespace Basis.Scripts.BasisSdk.Players
                 FarLod = null;
             }
             _farLodPayloadState = 0;
+            // A real avatar calibrated — the stand-in override belonged to the failed load
+            // before it. A fallback calibration keeps it: that's the stand-in's skeleton host.
+            if (!IsConsideredFallBackAvatar)
+            {
+                FarLodIsAvatar = false;
+                FarLodOverridePayload = null;
+                FarLodOverrideVersion = null;
+            }
         }
 
         /// <summary>
@@ -601,9 +624,18 @@ namespace Basis.Scripts.BasisSdk.Players
                 {
                     await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
                 }
-                else if (!IsConsideredFallBackAvatar)
+                else
                 {
-                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
+                    // A performance-blocked avatar can still show as its far LOD — the payload
+                    // is a fixed small cost no matter how heavy the real avatar is.
+                    if (IsBlockedByPerformance && BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && (InAvatarRange || AlwaysShowAvatar))
+                    {
+                        BasisAvatarFarLOD.CaptureFarLodFallback(this, BasisLoadableBundle);
+                    }
+                    if (!IsConsideredFallBackAvatar)
+                    {
+                        BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
+                    }
                 }
 
                 if (BasisAvatar != null)

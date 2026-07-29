@@ -43,9 +43,9 @@ public static class BasisAvatarFarLOD
         }
     }
 
-    public static bool WantsImposter(float distanceSq, bool currentlyImposter)
+    public static bool WantsFarLod(float distanceSq, bool currentlyFarLod)
     {
-        return currentlyImposter ? distanceSq > _exitDistanceSq : distanceSq > _enterDistanceSq;
+        return currentlyFarLod ? distanceSq > _exitDistanceSq : distanceSq > _enterDistanceSq;
     }
 
     /// <summary>
@@ -60,7 +60,11 @@ public static class BasisAvatarFarLOD
             return;
         }
         bool current = remote.IsFarLodActive;
-        bool desired = Enabled && WantsImposter(distanceSq, current) && IsEligible(remote);
+        // Stand-in mode ignores distance and the swap toggle: the far LOD IS the avatar
+        // (no build exists for this platform), so it stays up until a real avatar calibrates.
+        bool desired = remote.FarLodIsAvatar
+            ? IsEligible(remote)
+            : Enabled && WantsFarLod(distanceSq, current) && IsEligible(remote);
         if (desired == current)
         {
             return;
@@ -69,6 +73,25 @@ public static class BasisAvatarFarLOD
         {
             transitionBudget--;
         }
+    }
+
+    /// <summary>
+    /// Remembers the original bundle's far LOD payload when the real avatar can't be used
+    /// (no section for this platform, load failure, performance block). The fallback avatar
+    /// still loads and calibrates as usual — the far LOD then renders in its place at every
+    /// distance, driven by the same networked bone data.
+    /// </summary>
+    public static void CaptureFarLodFallback(BasisRemotePlayer remote, BasisLoadableBundle bundle)
+    {
+        BasisBundleConnector connector = bundle?.BasisBundleConnector;
+        if (remote == null || connector == null ||
+            string.IsNullOrEmpty(connector.UniqueVersion) || string.IsNullOrEmpty(connector.FarLodBase64))
+        {
+            return;
+        }
+        remote.FarLodOverridePayload = connector.FarLodBase64;
+        remote.FarLodOverrideVersion = connector.UniqueVersion;
+        remote.FarLodIsAvatar = true;
     }
 
     /// <summary>
@@ -84,6 +107,18 @@ public static class BasisAvatarFarLOD
             return;
         }
         remote.ResetFarLodForNewAvatar();
+
+        // Stand-in mode: this calibration is the fallback avatar hosting the skeleton —
+        // put the far LOD up immediately, at any distance, toggle or not.
+        if (remote.FarLodIsAvatar)
+        {
+            if (IsEligible(remote))
+            {
+                remote.SetFarLodActive(true);
+            }
+            return;
+        }
+
         if (!Enabled)
         {
             return;
@@ -95,7 +130,7 @@ public static class BasisAvatarFarLOD
         }
         receiver.GetLatestNetworkPose(out var hipsWorldPos, out _, out _);
         float distanceSq = ((Vector3)hipsWorldPos - Basis.Scripts.Drivers.BasisLocalCameraDriver.HeadPosition).sqrMagnitude;
-        if (WantsImposter(distanceSq, false) && IsEligible(remote))
+        if (WantsFarLod(distanceSq, false) && IsEligible(remote))
         {
             remote.SetFarLodActive(true);
         }
@@ -103,13 +138,18 @@ public static class BasisAvatarFarLOD
 
     private static bool IsEligible(BasisRemotePlayer remote)
     {
-        return !remote.AlwaysShowAvatar
-            && !remote.IsConsideredFallBackAvatar
-            && !remote.IsEffectivelyBlocked
-            && !remote.IsLoadingAnAvatar
-            && remote.HasFarLodPayload
-            && remote.RemoteAvatarDriver != null
-            && remote.RemoteAvatarDriver.InBoneDriver;
+        if (remote.IsEffectivelyBlocked || remote.IsLoadingAnAvatar ||
+            remote.RemoteAvatarDriver == null || !remote.RemoteAvatarDriver.InBoneDriver || !remote.HasFarLodPayload)
+        {
+            return false;
+        }
+        if (remote.FarLodIsAvatar)
+        {
+            // Stand-in mode runs ON the fallback avatar, and AlwaysShowAvatar means "show me
+            // this player" — the far LOD is the best available representation of them.
+            return true;
+        }
+        return !remote.AlwaysShowAvatar && !remote.IsConsideredFallBackAvatar;
     }
 
     private static void ReapplyAllRemotes()
@@ -121,7 +161,7 @@ public static class BasisAvatarFarLOD
             {
                 continue;
             }
-            if (!Enabled && remote.IsFarLodActive)
+            if (!Enabled && remote.IsFarLodActive && !remote.FarLodIsAvatar)
             {
                 remote.SetFarLodActive(false);
             }

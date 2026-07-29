@@ -51,12 +51,32 @@ public class BasisAvatarFarLodRenderer
 
     public static BasisAvatarFarLodRenderer TryCreate(BasisRemotePlayer remote)
     {
-        BasisBundleConnector connector = remote?.AvatarMetaData?.BasisBundleConnector;
-        if (connector == null || string.IsNullOrEmpty(connector.UniqueVersion) || string.IsNullOrEmpty(connector.FarLodBase64))
+        if (remote == null)
         {
             return null;
         }
-        SharedAssets shared = AcquireShared(connector.UniqueVersion, connector.FarLodBase64);
+
+        string uniqueVersion;
+        string payloadBase64;
+        if (remote.FarLodIsAvatar && !string.IsNullOrEmpty(remote.FarLodOverridePayload))
+        {
+            // Stand-in mode: the real avatar never loaded (no build for this platform), so the
+            // payload was captured off the original bundle's connector before the fallback
+            // replaced AvatarMetaData.
+            uniqueVersion = remote.FarLodOverrideVersion;
+            payloadBase64 = remote.FarLodOverridePayload;
+        }
+        else
+        {
+            BasisBundleConnector connector = remote.AvatarMetaData?.BasisBundleConnector;
+            uniqueVersion = connector?.UniqueVersion;
+            payloadBase64 = connector?.FarLodBase64;
+        }
+        if (string.IsNullOrEmpty(uniqueVersion) || string.IsNullOrEmpty(payloadBase64))
+        {
+            return null;
+        }
+        SharedAssets shared = AcquireShared(uniqueVersion, payloadBase64);
         if (shared == null)
         {
             return null;

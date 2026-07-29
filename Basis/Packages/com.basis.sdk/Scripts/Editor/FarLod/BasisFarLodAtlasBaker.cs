@@ -27,7 +27,13 @@ public static class BasisFarLodAtlasBaker
     private const float FallbackCoverage = 0.1f;
     private const int OcclusionLayer = 2; // Ignore Raycast: invisible to default queries, targetable by mask
     private const int RegionCaptureSize = 512;
-    private const float RegionScoreBias = 0.75f;
+    private const float RegionScoreBias = 0.5f;
+    private const float MinViewFacing = 0.25f;
+    private const float RegionMinFacing = 0.35f;
+
+    // Set per bake by DetectSampleFlip: true when captured rows come back top-down on this
+    // platform/pipeline, so sampling must mirror Y to line up with the projection math.
+    private static bool sFlipSampleY;
 
     /// <summary>A body part that deserves its own close-up capture set (bounds in root space).</summary>
     public struct RegionOfInterest
@@ -155,6 +161,12 @@ public static class BasisFarLodAtlasBaker
             collider.sharedMesh = decimatedMesh;
             Physics.SyncTransforms();
 
+            sFlipSampleY = DetectSampleFlip(views, rootToWorld, rootRotation, positions, normals);
+            if (sFlipSampleY)
+            {
+                Debug.LogWarning("[FarLod] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
+            }
+
             Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius);
             return CompressAtlas(atlas, atlasSize);
         }
@@ -276,7 +288,9 @@ public static class BasisFarLodAtlasBaker
     {
         int texelCount = atlasSize * atlasSize;
         Color32[] atlas = new Color32[texelCount];
-        bool[] written = new bool[texelCount];
+        // 0 = unwritten, 1 = edge-slack sample (gutter), 2 = interior sample. Interior always
+        // wins — a neighboring triangle's slack texels must never stomp real surface samples.
+        byte[] texelQuality = new byte[texelCount];
         float rayBias = Mathf.Max(0.004f, radius * 0.01f);
         int layerMask = 1 << OcclusionLayer;
         int viewCount = views.Count;
@@ -320,12 +334,22 @@ public static class BasisFarLodAtlasBaker
                     {
                         continue;
                     }
+                    bool interior = baryA >= 0f && baryB >= 0f && baryC >= 0f;
+                    int texelIndex = y * atlasSize + x;
+                    if (texelQuality[texelIndex] >= (interior ? (byte)2 : (byte)1))
+                    {
+                        continue;
+                    }
 
                     Vector3 positionRoot = positions[i0] * baryA + positions[i1] * baryB + positions[i2] * baryC;
                     Vector3 normalRoot = normals[i0] * baryA + normals[i1] * baryB + normals[i2] * baryC;
                     Vector3 positionWorld = rootToWorld.MultiplyPoint3x4(positionRoot);
                     Vector3 normalWorld = (rootRotation * normalRoot).normalized;
 
+                    // A view must face the surface properly: sampling near-tangent views smears
+                    // capture pixels sideways across the texel (decimation parallax), which reads
+                    // as texture misalignment. Close-ups outrank body views only when they also
+                    // face the surface — an oblique close-up is worse than a perpendicular body view.
                     int candidateCount = 0;
                     for (int v = 0; v < viewCount; v++)
                     {
@@ -334,12 +358,31 @@ public static class BasisFarLodAtlasBaker
                         {
                             continue;
                         }
-                        float score = Vector3.Dot(normalWorld, -view.DirectionWorld);
-                        if (score > 0.05f)
+                        float facing = Vector3.Dot(normalWorld, -view.DirectionWorld);
+                        if (facing > MinViewFacing)
                         {
                             candidateOrder[candidateCount] = v;
-                            candidateScore[candidateCount] = score + (view.IsRegion ? RegionScoreBias : 0f);
+                            candidateScore[candidateCount] = facing + (view.IsRegion && facing > RegionMinFacing ? RegionScoreBias : 0f);
                             candidateCount++;
+                        }
+                    }
+                    if (candidateCount == 0)
+                    {
+                        // Crevice texel no view faces well — take anything above the old floor.
+                        for (int v = 0; v < viewCount; v++)
+                        {
+                            ref CaptureView view = ref viewArray[v];
+                            if (view.IsRegion && !view.ValidBoundsRoot.Contains(positionRoot))
+                            {
+                                continue;
+                            }
+                            float facing = Vector3.Dot(normalWorld, -view.DirectionWorld);
+                            if (facing > 0.05f)
+                            {
+                                candidateOrder[candidateCount] = v;
+                                candidateScore[candidateCount] = facing;
+                                candidateCount++;
+                            }
                         }
                     }
                     // insertion sort by score, best first (candidate counts are small)
@@ -358,7 +401,6 @@ public static class BasisFarLodAtlasBaker
                         candidateScore[b + 1] = score;
                     }
 
-                    int texelIndex = y * atlasSize + x;
                     bool sampled = false;
                     Color32 fallbackColor = default;
                     bool hasFallback = false;
@@ -387,27 +429,75 @@ public static class BasisFarLodAtlasBaker
                             continue;
                         }
                         atlas[texelIndex] = new Color32(color.r, color.g, color.b, 255);
-                        written[texelIndex] = true;
+                        texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
                         sampled = true;
                     }
 
                     if (!sampled && hasFallback)
                     {
                         atlas[texelIndex] = new Color32(fallbackColor.r, fallbackColor.g, fallbackColor.b, 255);
-                        written[texelIndex] = true;
+                        texelQuality[texelIndex] = interior ? (byte)2 : (byte)1;
                     }
                 }
             }
         }
 
-        Dilate(atlas, written, atlasSize);
+        Dilate(atlas, texelQuality, atlasSize);
         return atlas;
+    }
+
+    /// <summary>
+    /// Samples a strided set of front-facing vertices through the projection math against the
+    /// captured coverage, upright vs Y-mirrored, and reports whether the capture rows came back
+    /// top-down (platform/pipeline dependent). Guessing wrong reads as severe misalignment.
+    /// </summary>
+    private static bool DetectSampleFlip(List<CaptureView> views, Matrix4x4 rootToWorld, Quaternion rootRotation, Vector3[] positions, Vector3[] normals)
+    {
+        int upright = 0;
+        int flipped = 0;
+        int stride = Mathf.Max(1, positions.Length / 512);
+        for (int v = 0; v < views.Count; v++)
+        {
+            CaptureView view = views[v];
+            if (view.IsRegion)
+            {
+                continue;
+            }
+            for (int i = 0; i < positions.Length; i += stride)
+            {
+                Vector3 normalWorld = rootRotation * normals[i];
+                if (Vector3.Dot(normalWorld, -view.DirectionWorld) < 0.5f)
+                {
+                    continue;
+                }
+                Vector3 pixel = view.WorldToPixel.MultiplyPoint(rootToWorld.MultiplyPoint3x4(positions[i]));
+                int x = (int)pixel.x;
+                int y = (int)pixel.y;
+                if (x < 0 || y < 0 || x >= view.Size || y >= view.Size)
+                {
+                    continue;
+                }
+                if (view.Pixels[y * view.Size + x].a > 128)
+                {
+                    upright++;
+                }
+                if (view.Pixels[(view.Size - 1 - y) * view.Size + x].a > 128)
+                {
+                    flipped++;
+                }
+            }
+        }
+        return flipped > upright + upright / 2 && flipped > 64;
     }
 
     /// <summary>Bilinear, coverage-weighted sample — background texels are weighted out.</summary>
     private static bool TrySampleView(in CaptureView view, Vector3 positionWorld, out Color32 color, out float coverage)
     {
         Vector3 pixel = view.WorldToPixel.MultiplyPoint(positionWorld);
+        if (sFlipSampleY)
+        {
+            pixel.y = view.Size - pixel.y;
+        }
         float fx = pixel.x - 0.5f;
         float fy = pixel.y - 0.5f;
         int x0 = Mathf.FloorToInt(fx);
@@ -469,19 +559,19 @@ public static class BasisFarLodAtlasBaker
         return true;
     }
 
-    private static void Dilate(Color32[] atlas, bool[] written, int atlasSize)
+    private static void Dilate(Color32[] atlas, byte[] texelQuality, int atlasSize)
     {
-        bool[] current = written;
+        byte[] current = texelQuality;
         for (int pass = 0; pass < DilatePasses; pass++)
         {
-            bool[] next = (bool[])current.Clone();
+            byte[] next = (byte[])current.Clone();
             bool any = false;
             for (int y = 0; y < atlasSize; y++)
             {
                 for (int x = 0; x < atlasSize; x++)
                 {
                     int index = y * atlasSize + x;
-                    if (current[index])
+                    if (current[index] > 0)
                     {
                         continue;
                     }
@@ -501,7 +591,7 @@ public static class BasisFarLodAtlasBaker
                                 continue;
                             }
                             int neighbor = ny * atlasSize + nx;
-                            if (!current[neighbor])
+                            if (current[neighbor] == 0)
                             {
                                 continue;
                             }
@@ -514,7 +604,7 @@ public static class BasisFarLodAtlasBaker
                     if (count > 0)
                     {
                         atlas[index] = new Color32((byte)(r / count), (byte)(g / count), (byte)(b / count), 255);
-                        next[index] = true;
+                        next[index] = 1;
                         any = true;
                     }
                 }
@@ -529,7 +619,7 @@ public static class BasisFarLodAtlasBaker
         long totalR = 0, totalG = 0, totalB = 0, totalCount = 0;
         for (int i = 0; i < atlas.Length; i++)
         {
-            if (current[i])
+            if (current[i] > 0)
             {
                 totalR += atlas[i].r;
                 totalG += atlas[i].g;
@@ -542,7 +632,7 @@ public static class BasisFarLodAtlasBaker
             : new Color32(128, 128, 128, 255);
         for (int i = 0; i < atlas.Length; i++)
         {
-            if (!current[i])
+            if (current[i] == 0)
             {
                 atlas[i] = average;
             }
