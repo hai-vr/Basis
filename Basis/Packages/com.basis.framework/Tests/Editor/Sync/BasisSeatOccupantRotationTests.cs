@@ -1,20 +1,10 @@
 using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.BasisSdk.Players;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace Basis.Tests.Sync
 {
-    /// <summary>
-    /// Occupant rotation on seats (issue #538): a seat authors how far its occupant may turn themselves and
-    /// in what steps, so a stool can be spun, a bench can allow a glance either way, and a chair can hold
-    /// its occupant facing forward.
-    ///
-    /// Two properties matter beyond the arithmetic. The turn must be a pure spin about the occupant's own
-    /// spine — turning on a stool cannot slide the pelvis around the seat's origin. And the yaw the occupant
-    /// settles on is authoritative: remotes apply it verbatim and never re-resolve, because a seat whose
-    /// limits changed mid-session (or whose step does not divide 360) would otherwise resolve to a different
-    /// answer on each client and the occupant would face two directions at once.
-    /// </summary>
     public sealed class BasisSeatOccupantRotationTests
     {
         private GameObject _go;
@@ -36,13 +26,7 @@ namespace Basis.Tests.Sync
 
         private static BasisSeatRotationLimits Limits(float range, float snap) => new BasisSeatRotationLimits(range, snap);
 
-        // ── Defaults: existing content must not start rotating ──
 
-        /// <summary>
-        /// Seats did nothing when you tried to turn on them, and the maintainer asked for that to stay the
-        /// default so other projects can choose their own behaviour. A fresh seat must therefore hold its
-        /// occupant forward no matter what is thrown at it.
-        /// </summary>
         [Test]
         public void AFreshSeat_HoldsItsOccupantFacingForward()
         {
@@ -62,7 +46,6 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(0f, _seat.OccupantYawDegrees, 1e-5f);
         }
 
-        /// <summary>A held seat composes exactly the pose it composed before occupant rotation existed.</summary>
         [Test]
         public void AHeldSeat_ComposesTheSamePoseAsBeforeRotationExisted()
         {
@@ -81,12 +64,7 @@ namespace Basis.Tests.Sync
                 $"a held seat turned its occupant {Quaternion.Angle(rot, expectedRot):F4} degrees");
         }
 
-        // ── Range ──
 
-        /// <summary>
-        /// The issue asks for "allow rotation degrees from center, example 180, 360, 90, 45" — a total sweep
-        /// centred on the seat's forward, so 90 means 45 degrees either way.
-        /// </summary>
         [Test]
         public void Range_BoundsTheTurnEitherWayFromTheSeatsForward()
         {
@@ -111,7 +89,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>360 is a free spin — a stool. The yaw stays in (-180, 180] so it survives the wire.</summary>
         [Test]
         public void FullCircle_SpinsFreely_AndStaysWrapped()
         {
@@ -130,12 +107,7 @@ namespace Basis.Tests.Sync
             }
         }
 
-        // ── Snap ──
 
-        /// <summary>
-        /// The issue asks for "snap degrees 25, 30, 45, 90". Every reachable facing must be a multiple of
-        /// the step.
-        /// </summary>
         [Test]
         public void Snap_QuantisesEveryReachableFacing()
         {
@@ -160,12 +132,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// Range and snap together must not fight: with a 90 degree range (45 either way) and a 30 degree
-        /// step, 60 is a legal step but outside the range and 45 is inside the range but not a step. Only
-        /// -30, 0 and 30 are reachable, and the solver has to pick the outermost legal step rather than
-        /// hand back an illegal value from either rule.
-        /// </summary>
         [Test]
         public void SnapAndRangeTogether_OnlyOfferStepsThatAreAlsoInsideTheRange()
         {
@@ -184,10 +150,6 @@ namespace Basis.Tests.Sync
                 + string.Join(", ", reached));
         }
 
-        /// <summary>
-        /// A step wider than the range leaves only the centre reachable — the seat is effectively held, and
-        /// must not hand back a half-step or the range limit as a consolation.
-        /// </summary>
         [Test]
         public void AStepWiderThanTheRange_LeavesOnlyTheCentre()
         {
@@ -203,11 +165,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// A smooth turn axis feeds deltas far smaller than a snap step. Resolving in place each frame would
-        /// round every delta straight back to where it started and the occupant would never move, so the raw
-        /// request accumulates separately and only the applied yaw snaps.
-        /// </summary>
         [Test]
         public void SmoothTurnInput_AccumulatesUntilItCrossesASnapStep()
         {
@@ -232,7 +189,6 @@ namespace Basis.Tests.Sync
                 + "snapping is what keeps a spinning stool nearly free on the wire.");
         }
 
-        /// <summary>Shrinking the range under an occupant pulls them back inside it rather than leaving them out.</summary>
         [Test]
         public void ShrinkingTheRange_PullsTheOccupantBackInside()
         {
@@ -246,14 +202,7 @@ namespace Basis.Tests.Sync
                 + "outside what the seat now allows.");
         }
 
-        // ── The turn is a spin about the occupant, not a slide around the seat ──
 
-        /// <summary>
-        /// Turning on a stool must not move the pelvis. The pelvis is the pivot, so the position it was
-        /// solved onto has to come back byte-for-byte at every facing, while the rotation carries the whole
-        /// turn. If the seat origin were the pivot instead, a 180 degree turn on this seat would drag the
-        /// occupant half a metre off the cushion.
-        /// </summary>
         [Test]
         public void TurningSpinsAboutThePelvis_WithoutMovingIt()
         {
@@ -289,7 +238,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>The occupant's facing must reach the remote pin, or only its owner sees the turn.</summary>
         [Test]
         public void TheRemotePinCarriesTheOccupantsFacing()
         {
@@ -313,12 +261,7 @@ namespace Basis.Tests.Sync
             }
         }
 
-        // ── Over the network ──
 
-        /// <summary>
-        /// The yaw rides in the seat packet. It must survive quantisation far more finely than anyone can
-        /// see, and the packet has to stay readable by the shorter forms that predate it.
-        /// </summary>
         [Test]
         public void TheSeatPacketCarriesTheYaw_AndStaysBackwardReadable()
         {
@@ -345,12 +288,6 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(0, BasisSeatSync.QuantizeYaw(float.NaN), "a NaN yaw must not reach the wire");
         }
 
-        /// <summary>
-        /// Remotes apply the occupant's yaw verbatim and must never re-resolve it. A step that does not
-        /// divide 360 is the case that proves why: 15 is a legal wrapped facing for a 25 degree step, but
-        /// re-snapping it locally would move it to 25 and that client alone would show the occupant turned
-        /// wrong. Same hazard if a world script widens or narrows the limits mid-session.
-        /// </summary>
         [Test]
         public void ARemoteAppliesTheOccupantsYawVerbatim_NeverReResolvingIt()
         {
@@ -372,11 +309,6 @@ namespace Basis.Tests.Sync
             Assert.AreEqual(140f, _seat.OccupantYawDegrees, 1e-4f, "a NaN from the wire must be ignored, not applied");
         }
 
-        /// <summary>
-        /// Turning marks the yaw for broadcast, and the flush is rate limited so a smoothly turning occupant
-        /// cannot send every frame. The dirty flag has to survive a suppressed frame, otherwise the facing a
-        /// turn settles on is the one that never gets sent.
-        /// </summary>
         [Test]
         public void TheYawFlushIsRateLimited_ButNeverDropsTheFinalFacing()
         {
@@ -392,7 +324,6 @@ namespace Basis.Tests.Sync
                 "a turn by someone who is not the recorded local occupant must not broadcast");
         }
 
-        /// <summary>Standing up returns the seat to its forward, so the next occupant does not inherit a facing.</summary>
         [Test]
         public void EmptyingTheSeat_ReturnsItToForward()
         {
@@ -405,9 +336,48 @@ namespace Basis.Tests.Sync
                 "the next person to sit here would start out turned 120 degrees");
         }
 
-        // ── Resolver edges ──
 
-        /// <summary>Degenerate limits and requests must not produce a NaN facing.</summary>
+        [Test]
+        public void AnEmptySeat_ReportsNobody_AndIsAvailable()
+        {
+            Assert.IsFalse(_seat.HasOccupant, "a fresh seat should be empty");
+            Assert.IsFalse(_seat.IsLocalPlayerSeated, "a fresh seat should not hold the local player");
+            Assert.IsTrue(_seat.IsAvailable, "a fresh seat should be available");
+            Assert.IsFalse(_seat.TryGetOccupant(out IBasisPlayer occupant), "an empty seat reported an occupant");
+            Assert.IsNull(occupant, "an empty seat handed back a player reference");
+        }
+
+        [Test]
+        public void OccupancyAndIdentity_TrackTheNetworkedRecord()
+        {
+            _seat.SetSeatOccupied(true);
+            Assert.IsTrue(_seat.HasOccupant, "the seat should report occupied");
+            Assert.IsFalse(_seat.IsAvailable, "an occupied seat is not available");
+            Assert.IsFalse(_seat.TryGetOccupant(out _),
+                "the seat named an occupant before one had resolved on this client");
+
+            _seat.SetSeatOccupied(false);
+            Assert.IsFalse(_seat.HasOccupant, "the seat should report empty again");
+            Assert.IsFalse(_seat.TryGetOccupant(out _), "an emptied seat still named an occupant");
+        }
+
+        [Test]
+        public void TheForcePaths_RefuseWhenThereIsNothingToDo()
+        {
+            Assert.IsFalse(_seat.EjectLocalPlayer(),
+                "ejecting from a seat the local player is not in should report false, not act");
+
+            _seat.SetSeatOccupied(true);
+            Assert.IsFalse(_seat.TrySeatLocalPlayer(),
+                "the local player was allowed into a seat somebody else already holds");
+            Assert.IsFalse(_seat.IsLocalPlayerSeated, "a refused seating still marked the local player seated");
+
+            _seat.SetSeatOccupied(false);
+            Assert.IsFalse(_seat.EjectLocalPlayer(),
+                "ejecting still reported true after the seat emptied without the local player in it");
+        }
+
+
         [Test]
         public void DegenerateLimitsAndRequests_StayFinite()
         {

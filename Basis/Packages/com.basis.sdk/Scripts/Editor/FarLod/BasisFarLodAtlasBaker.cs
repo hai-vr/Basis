@@ -5,7 +5,7 @@ using UnityEngine;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// Bakes the avatar's rendered appearance into the far LOD atlas. The avatar is rendered with
+/// Bakes the avatar's rendered appearance into the far avatar atlas. The avatar is rendered with
 /// its real materials from a ring of orthographic body views plus tightly-framed close-up
 /// passes for hands, feet and head (small parts are only a handful of pixels in a whole-body
 /// frame — the close-ups are what keep them legible). Every view is captured twice (black and
@@ -14,7 +14,7 @@ using Object = UnityEngine.Object;
 /// so silhouette edges don't keep background darkening.
 ///
 /// Scene lighting is overridden with flat white ambient during capture so the atlas stores an
-/// unlit/albedo-like response; the runtime far LOD shader re-lights it from the world's
+/// unlit/albedo-like response; the runtime far avatar shader re-lights it from the world's
 /// ambient probe and main light.
 ///
 /// Each atlas texel is projected into the best-facing valid views (close-ups outrank body
@@ -164,13 +164,13 @@ public static class BasisFarLodAtlasBaker
 
             if (!DetectCaptureMode(camera, bodyReadback, captureSize))
             {
-                // Errors, not warnings, for every skip: the far LOD silently vanishing from a
+                // Errors, not warnings, for every skip: the far avatar silently vanishing from a
                 // bundle must surface in the same red stream creators actually read.
                 BasisFarLodGenerator.LastFailureReason = "no capture path passed the geometry probe (render requests and Camera.Render, MSAA and 1x targets)";
-                Debug.LogError("[FarLod] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far LOD instead of baking garbage.");
+                Debug.LogError("[FarAvatar] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far avatar instead of baking garbage.");
                 return null;
             }
-            Debug.Log($"[FarLod] Capture mode: {(sUseRenderRequest ? "render request" : "Camera.Render")} into {(sUseMsaaTargets ? "4x MSAA" : "1x")} targets.");
+            Debug.Log($"[FarAvatar] Capture mode: {(sUseRenderRequest ? "render request" : "Camera.Render")} into {(sUseMsaaTargets ? "4x MSAA" : "1x")} targets.");
 
             // MSAA beauty targets are preferred: URP disables depth priming for MSAA targets,
             // restoring the plain forward path for arbitrary avatar shaders (under a forced-
@@ -216,7 +216,7 @@ public static class BasisFarLodAtlasBaker
                 }
                 else
                 {
-                    Debug.LogWarning("[FarLod] Hidden/BasisFarLodPartId shader missing — baking without part isolation.");
+                    Debug.LogWarning("[FarAvatar] Hidden/BasisFarLodPartId shader missing — baking without part isolation.");
                 }
             }
 
@@ -245,12 +245,12 @@ public static class BasisFarLodAtlasBaker
             }
             if (staleBodyViews > 0)
             {
-                Debug.LogWarning($"[FarLod] Dropped {staleBodyViews} of {bodyDirections.Length} body captures whose readback did not contain this camera's render.");
+                Debug.LogWarning($"[FarAvatar] Dropped {staleBodyViews} of {bodyDirections.Length} body captures whose readback did not contain this camera's render.");
             }
             if (bodyDirections.Length - staleBodyViews < 6)
             {
                 BasisFarLodGenerator.LastFailureReason = $"beauty captures failed freshness validation ({staleBodyViews} of {bodyDirections.Length} body views poisoned, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")})";
-                Debug.LogError($"[FarLod] Most body captures contained a wrong buffer ({staleBodyViews} of {bodyDirections.Length}) — skipping the far LOD instead of baking garbage.");
+                Debug.LogError($"[FarAvatar] Most body captures contained a wrong buffer ({staleBodyViews} of {bodyDirections.Length}) — skipping the far avatar instead of baking garbage.");
                 return null;
             }
 
@@ -303,9 +303,9 @@ public static class BasisFarLodAtlasBaker
             if (coveredPixels < sampledPixels / 200)
             {
                 // Shipping a flat gray imposter is worse than shipping none — abort so the
-                // bundle builds without a far LOD and the console says why.
+                // bundle builds without a far avatar and the console says why.
                 BasisFarLodGenerator.LastFailureReason = $"captures show (almost) no avatar pixels: {coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}";
-                Debug.LogError($"[FarLod] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}) — skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
+                Debug.LogError($"[FarAvatar] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}) — skipping the far avatar instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
                 return null;
             }
 
@@ -321,7 +321,7 @@ public static class BasisFarLodAtlasBaker
             sFlipSampleY = DetectSampleFlip(views, rootToWorld, rootRotation, positions, normals);
             if (sFlipSampleY)
             {
-                Debug.LogWarning("[FarLod] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
+                Debug.LogWarning("[FarAvatar] Capture rows came back top-down on this pipeline — sampling with mirrored Y.");
             }
 
             Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup, mask.TexelHidden, vertexAo);
@@ -443,11 +443,11 @@ public static class BasisFarLodAtlasBaker
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[FarLod] Could not adjust depth priming for the bake: {ex.Message}");
+                Debug.LogWarning($"[FarAvatar] Could not adjust depth priming for the bake: {ex.Message}");
             }
             if (scope._changed.Count > 0)
             {
-                Debug.Log($"[FarLod] Depth priming disabled on {scope._changed.Count} renderer(s) for the bake.");
+                Debug.Log($"[FarAvatar] Depth priming disabled on {scope._changed.Count} renderer(s) for the bake.");
             }
             return scope;
         }
@@ -633,7 +633,7 @@ public static class BasisFarLodAtlasBaker
     /// live editor session, and plain no-op paths. Candidates run best-first — render request
     /// then Camera.Render, MSAA targets then 1x — and the first that provably renders sets
     /// <see cref="sUseRenderRequest"/>/<see cref="sUseMsaaTargets"/>. False when nothing
-    /// works — the bake then ships no far LOD instead of garbage.
+    /// works — the bake then ships no far avatar instead of garbage.
     /// </summary>
     private static bool DetectCaptureMode(Camera camera, Texture2D readback, int size)
     {
@@ -1100,7 +1100,7 @@ public static class BasisFarLodAtlasBaker
         // If projection wrote (almost) nothing the flood fill below would paint the whole
         // atlas a flat color — captures and the part mask disagreeing with the geometry (a
         // dead mask render rejects every sample). Shipping that is worse than shipping no
-        // far LOD.
+        // far avatar.
         long writtenTexels = 0;
         for (int Index = 0; Index < texelQuality.Length; Index++)
         {
@@ -1112,7 +1112,7 @@ public static class BasisFarLodAtlasBaker
         if (writtenTexels < texelCount / 100)
         {
             BasisFarLodGenerator.LastFailureReason = $"atlas projection wrote almost nothing: {writtenTexels} of {texelCount} texels";
-            Debug.LogError($"[FarLod] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far LOD instead of baking a flat atlas.");
+            Debug.LogError($"[FarAvatar] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far avatar instead of baking a flat atlas.");
             return null;
         }
 
@@ -1408,7 +1408,7 @@ public static class BasisFarLodAtlasBaker
             EditorUtility.CompressTexture(copy, format, TextureCompressionQuality.Normal);
             if (copy.format != format)
             {
-                Debug.LogWarning($"Far LOD atlas compression to {format} was not applied on this platform; skipping that payload.");
+                Debug.LogWarning($"Far avatar atlas compression to {format} was not applied on this platform; skipping that payload.");
                 return;
             }
             textures.Add(new BasisFarLodPayload.FarLodTexture

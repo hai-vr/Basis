@@ -15,7 +15,7 @@ using UnityEngine;
 ///
 /// The captured skeleton uses the same T-pose the runtime bone system calibrates against
 /// (Animated TPose.controller), which is what keeps the networked per-bone deltas
-/// bit-compatible between the real avatar and the far LOD.
+/// bit-compatible between the real avatar and the far avatar.
 /// </summary>
 public static class BasisFarLodGenerator
 {
@@ -23,7 +23,7 @@ public static class BasisFarLodGenerator
     public static int AtlasSize = 1024;
     public static int CaptureSize = 1024;
 
-    /// <summary>Per-stage timing/count logs, enabled by the far LOD tester.</summary>
+    /// <summary>Per-stage timing/count logs, enabled by the far avatar tester.</summary>
     public static bool VerboseLogging;
 
     /// <summary>
@@ -51,11 +51,11 @@ public static class BasisFarLodGenerator
     {
         double now = EditorApplication.timeSinceStartup;
         CloseStage(now);
-        EditorUtility.DisplayProgressBar("Far LOD Generation", label, progress);
+        EditorUtility.DisplayProgressBar("Far Avatar Generation", label, progress);
         ActiveReport?.Entries.Add(new GenerationReport.Entry { Label = label });
         if (VerboseLogging)
         {
-            Debug.Log($"[FarLod] {label}");
+            Debug.Log($"[FarAvatar] {label}");
         }
         _stageStart = now;
     }
@@ -83,7 +83,7 @@ public static class BasisFarLodGenerator
         }
         if (VerboseLogging)
         {
-            Debug.Log($"[FarLod] {detail}");
+            Debug.Log($"[FarAvatar] {detail}");
         }
     }
 
@@ -91,8 +91,8 @@ public static class BasisFarLodGenerator
     public const string TposeControllerPath = "Assets/Animator/Animated TPose.controller";
 
     /// <summary>
-    /// Core humanoid bones the far LOD keeps, ordered parents-first. Fingers, toes, eyes and
-    /// jaw collapse into their nearest ancestor here — they are sub-pixel at far LOD range and
+    /// Core humanoid bones the far avatar keeps, ordered parents-first. Fingers, toes, eyes and
+    /// jaw collapse into their nearest ancestor here — they are sub-pixel at far avatar range and
     /// dropping them keeps the runtime skeleton around 20 transforms per player.
     /// </summary>
     private static readonly HumanBodyBones[] CoreBones =
@@ -163,7 +163,7 @@ public static class BasisFarLodGenerator
 
     /// <summary>
     /// Why the last <see cref="Generate"/> call produced no payload — set by every abort path
-    /// here and in the atlas baker, written next to the built bee so a missing far LOD can be
+    /// here and in the atlas baker, written next to the built bee so a missing far avatar can be
     /// diagnosed from the build output alone.
     /// </summary>
     public static string LastFailureReason;
@@ -180,7 +180,7 @@ public static class BasisFarLodGenerator
         if (avatar == null || avatar.Animator == null || avatar.Animator.avatar == null || !avatar.Animator.avatar.isHuman)
         {
             LastFailureReason = "avatar is not humanoid";
-            Debug.LogWarning("Far LOD generation skipped: avatar is not humanoid.");
+            Debug.LogWarning("Far avatar generation skipped: avatar is not humanoid.");
             return null;
         }
 
@@ -203,7 +203,7 @@ public static class BasisFarLodGenerator
             if (skeleton.Count == 0)
             {
                 LastFailureReason = "no humanoid bones resolved";
-                Debug.LogWarning("Far LOD generation skipped: no humanoid bones resolved.");
+                Debug.LogWarning("Far avatar generation skipped: no humanoid bones resolved.");
                 return null;
             }
 
@@ -213,7 +213,7 @@ public static class BasisFarLodGenerator
             if (soup.Indices.Count < 3)
             {
                 LastFailureReason = "no triangle geometry found";
-                Debug.LogWarning("Far LOD generation skipped: no triangle geometry found.");
+                Debug.LogWarning("Far avatar generation skipped: no triangle geometry found.");
                 return null;
             }
 
@@ -259,7 +259,7 @@ public static class BasisFarLodGenerator
                 if (positions.Length == 0 || positions.Length > BasisFarLodPayload.MaxVertices || indices.Length == 0)
                 {
                     LastFailureReason = $"decimated mesh out of range ({positions.Length} verts)";
-                    Debug.LogWarning($"Far LOD generation skipped: decimated mesh out of range ({positions.Length} verts).");
+                    Debug.LogWarning($"Far avatar generation skipped: decimated mesh out of range ({positions.Length} verts).");
                     return null;
                 }
 
@@ -281,7 +281,7 @@ public static class BasisFarLodGenerator
                     {
                         LastFailureReason = "atlas bake failed (no specific reason recorded)";
                     }
-                    Debug.LogWarning("Far LOD generation skipped: atlas bake failed.");
+                    Debug.LogWarning("Far avatar generation skipped: atlas bake failed.");
                     return null;
                 }
                 StageDetail($"{AtlasSize}px atlas, {textures.Length} compressed payload(s)");
@@ -289,7 +289,7 @@ public static class BasisFarLodGenerator
                 Stage("Serialize", 0.95f);
                 BasisFarLodPayload payload = AssemblePayload(avatar, root, skeleton, positions, normals, uv, indices, boneA, boneB, weightA, textures);
                 double elapsed = EditorApplication.timeSinceStartup - startTime;
-                Debug.Log($"Far LOD generated: {indices.Length / 3} triangles, {positions.Length} vertices, {skeleton.Count} bones, {AtlasSize}px atlas, {elapsed:0.00}s.");
+                Debug.Log($"Far avatar generated: {indices.Length / 3} triangles, {positions.Length} vertices, {skeleton.Count} bones, {AtlasSize}px atlas, {elapsed:0.00}s.");
                 return payload;
             }
             finally
@@ -346,7 +346,7 @@ public static class BasisFarLodGenerator
     /// <summary>
     /// Per-core-bone T-pose local rotations in the avatar's ACTUAL hierarchy (relative to each
     /// bone's real transform parent — the sender-side frame the wire deltas are computed
-    /// against). Used by the far LOD tester to reproduce the runtime's
+    /// against). Used by the far avatar tester to reproduce the runtime's
     /// `rest * delta` composition. Momentarily T-poses the avatar and restores it.
     /// </summary>
     public static Dictionary<HumanBodyBones, Quaternion> CaptureActualTposeLocals(Animator animator)
@@ -936,7 +936,7 @@ public static class BasisFarLodGenerator
             }
             globalScale *= 0.93f;
         }
-        Debug.LogWarning("[FarLod] Chart repacking failed to converge — keeping the default unwrap packing.");
+        Debug.LogWarning("[FarAvatar] Chart repacking failed to converge — keeping the default unwrap packing.");
     }
 
     private sealed class ChartIsland

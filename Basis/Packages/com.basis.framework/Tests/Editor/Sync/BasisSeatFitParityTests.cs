@@ -5,22 +5,8 @@ using UnityEngine;
 
 namespace Basis.Tests.Sync
 {
-    /// <summary>
-    /// A seated avatar has to land in the same place for its owner and for everyone else. The owner's
-    /// client drives hips/legs through <c>BasisLocalSeatDriver</c>; every other client pins the same
-    /// avatar's hips through <c>BasisSeat.CalculateSeatPositionRotation</c>. Those were two separate
-    /// transcriptions of the same fit, and they disagreed — most visibly on seats whose spine angle is
-    /// not 90 degrees, where the two differed in the argument fed to
-    /// <see cref="BasisSeat.GetAdjustmentScalar"/> and in the sign of the analytic thigh/shin direction.
-    ///
-    /// Both paths now run <see cref="BasisSeatFit.Solve"/>. These tests pin that: the remote pin equals
-    /// the local placement across seats and bodies, the legacy pair is reproduced to show the divergence
-    /// was real and how large it was, and the surviving convention is checked against the geometry it
-    /// claims to model rather than against either of the old transcriptions.
-    /// </summary>
     public sealed class BasisSeatFitParityTests
     {
-        /// <summary>Chair-like seat: 25 cm behind the pelvis pivot, 50 cm pan, 50 cm drop to the floor.</summary>
         private static BasisSeatFitFrame Chair(float spineAngle)
         {
             return Seat(new Vector3(0f, 0f, -0.25f), new Vector3(0f, 0f, 0.25f), new Vector3(0f, -0.5f, 0.25f), spineAngle);
@@ -43,7 +29,6 @@ namespace Basis.Tests.Sync
             };
         }
 
-        /// <summary>Proportions spanning the range real uploads actually cover.</summary>
         private static IEnumerable<(string name, BasisSeatFitLegs legs)> Bodies()
         {
             yield return ("average", Body(0.42f, 0.40f, 0.08f));
@@ -53,7 +38,6 @@ namespace Basis.Tests.Sync
             yield return ("giant", Body(0.95f, 0.90f, 0.16f));
         }
 
-        /// <summary>What the remote pin does with a solved fit: seat-local pelvis to world hips pose.</summary>
         private static void RemotePin(in BasisSeatFitFrame frame, in BasisSeatFitLegs legs, Matrix4x4 seatToWorld, Quaternion seatRotation,
             out Vector3 hipsPos, out Quaternion hipsRot)
         {
@@ -61,13 +45,7 @@ namespace Basis.Tests.Sync
             BasisSeatFit.ComposeHipsWorld(seatToWorld, seatRotation, frame.SpineRotation, fit.Back, out hipsPos, out hipsRot);
         }
 
-        // ── Legacy transcriptions, kept verbatim so the divergence they caused stays measurable ──
 
-        /// <summary>
-        /// The pelvis the LOCAL driver used to solve. Reproduced for an avatar whose hips basis is
-        /// identity and whose T-pose legs hang straight down, which is the case where the pole-aimed
-        /// bone rotations reduce to the analytic direction the travel ratio was read off.
-        /// </summary>
         private static Vector3 LegacyLocalPelvis(in BasisSeatFitFrame seat, in BasisSeatFitLegs legs)
         {
             return LegacySolve(seat, legs,
@@ -77,7 +55,6 @@ namespace Basis.Tests.Sync
                 clampShifts: true);
         }
 
-        /// <summary>The pelvis the REMOTE pin used to solve, same reduction.</summary>
         private static Vector3 LegacyRemotePelvis(in BasisSeatFitFrame seat, in BasisSeatFitLegs legs)
         {
             return LegacySolve(seat, legs,
@@ -184,13 +161,7 @@ namespace Basis.Tests.Sync
             return targetBack;
         }
 
-        // ── Parity ──
 
-        /// <summary>
-        /// The remote pin and the local placement must resolve to the same world hips pose for every
-        /// seat/body combination — that is the whole point of the shared solve. Seats are placed at
-        /// awkward world transforms so a frame or a scale slipping into one path and not the other shows up.
-        /// </summary>
         [Test]
         public void RemotePin_MatchesLocalHipsPlacement_AcrossSeatsAndBodies()
         {
@@ -231,12 +202,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// The local driver places the avatar ROOT and lets the rig override put the hips on the pin; the
-        /// remote pins the hips and derives root from there. Those are inverses, so a round trip through
-        /// <see cref="BasisSeatFit.ComposeSeatedRoot"/> must return the pinned hips exactly — including
-        /// for an avatar whose hips bone is not axis-aligned with its root.
-        /// </summary>
         [Test]
         public void SeatedRoot_RoundTripsBackToThePinnedHips()
         {
@@ -271,13 +236,7 @@ namespace Basis.Tests.Sync
             }
         }
 
-        // ── The divergence that was reported ──
 
-        /// <summary>
-        /// The pair the two clients used to run. On a 90 degree seat they agreed, which is why the default
-        /// chair always looked right and the bug read as "some avatars, some chairs". Off 90 they walked
-        /// apart by centimetres, and the further the seat reclined the worse it got.
-        /// </summary>
         [Test]
         public void LegacyLocalAndRemote_AgreedAt90_AndDivergedOffIt()
         {
@@ -302,14 +261,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// Square seats — backrest perpendicular to the pan, shins perpendicular to the pan — are the
-        /// BasisSeat default and the shape effectively every authored chair uses. Both corrections the
-        /// unified solve took from the remote side are exact identities there (at a 90 degree spine the
-        /// <see cref="BasisSeat.GetAdjustmentScalar"/> argument is its own reflection, and with the shin
-        /// square to the pan the flipped limb sign falls on the component the dot product discards), so
-        /// those chairs must not move at all.
-        /// </summary>
         [Test]
         public void SquareSeats_KeepTheirExistingLocalPose_Exactly()
         {
@@ -329,13 +280,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// A seat with a raked shin DOES shift, and should: the shin-direction sign is only an identity
-        /// when the shin is square to the pan. Off square, the legacy direction under-read how much of the
-        /// shin lies along the seat's own shin line, so bodies sitting on a length-matching boundary move —
-        /// by millimetres, onto the geometrically correct fit. Bounded here so the correction can't quietly
-        /// grow into a visible reseat of existing content.
-        /// </summary>
         [Test]
         public void RakedShinSeats_ShiftMillimetres_OntoTheCorrectShinSpan()
         {
@@ -371,15 +315,7 @@ namespace Basis.Tests.Sync
             }
         }
 
-        // ── The convention that survived, checked against geometry rather than against either fork ──
 
-        /// <summary>
-        /// The pelvis offset exists to clear the sitter's own back thickness off the backrest. As the seat
-        /// reclines the corner between backrest and pan opens up and the body nestles further INTO it, so
-        /// the offset must not grow. The remote's <c>180 - spineAngle</c> argument has that property; the
-        /// local's raw <c>spineAngle</c> inverted it, which is why the local pushed pelvises forward off
-        /// reclined seats.
-        /// </summary>
         [Test]
         public void PelvisBackOffset_ShrinksAsTheSeatReclines()
         {
@@ -415,12 +351,6 @@ namespace Basis.Tests.Sync
                 + "is not actually discriminating between the two.");
         }
 
-        /// <summary>
-        /// The thigh lies along the seat pan whatever the backrest is doing, so its span across the pan is
-        /// nearly the whole thigh at any spine angle. The solve reads that span off an analytic direction;
-        /// the local's flipped sign turned it into a fraction on reclined seats, which is what drove the
-        /// pelvis shift. Checked here as the geometric property, independent of either transcription.
-        /// </summary>
         [Test]
         public void ThighSpansThePan_AtEverySpineAngle()
         {
@@ -455,12 +385,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// A body whose thighs are far too short or far too long for the pan must still be seated ON the
-        /// seat. The remote path had no bound on how far the pelvis could slide, so an ill-fitting avatar
-        /// could be pinned well off the cushion; the shared solve keeps the whole family inside
-        /// <see cref="BasisSeatFit.MaxBackShift"/> of the authored pelvis point.
-        /// </summary>
         [Test]
         public void PelvisStaysNearTheAuthoredPoint_ForEveryBody()
         {
@@ -480,10 +404,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// The legacy REMOTE path had no such bound, so a badly-proportioned avatar could be pinned well
-        /// clear of the cushion while its owner saw it seated. This is the paired negative for the bound above.
-        /// </summary>
         [Test]
         public void LegacyRemotePin_CouldSlideOffTheSeat()
         {
@@ -508,7 +428,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>The pelvis point the seat author placed, before any length-matching slide.</summary>
         private static Vector3 AuthoredPelvis(in BasisSeatFitFrame frame, in BasisSeatFitLegs legs)
         {
             float total = legs.UpperLegLength + legs.LowerLegLength;
@@ -521,7 +440,6 @@ namespace Basis.Tests.Sync
                     legs.UpperLegLength);
         }
 
-        /// <summary>Degenerate inputs must not produce NaN pins that would teleport an avatar to nowhere.</summary>
         [Test]
         public void DegenerateBodiesAndSeats_StayFinite()
         {
@@ -550,10 +468,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// The frame derivation feeding both paths must agree with the seat's own published helper vectors;
-        /// they are the same numbers and <c>BasisSeat</c> now sources them from here.
-        /// </summary>
         [Test]
         public void BuildFrame_MatchesTheSeatsPublishedGeometry()
         {

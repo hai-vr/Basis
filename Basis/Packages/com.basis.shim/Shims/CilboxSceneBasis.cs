@@ -29,6 +29,7 @@ namespace Cilbox
 			// Scene-specific Basis types
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton",
 			"Basis.Scripts.BasisSdk.Interactions.BasisInteractableButton+ClickEvent",
+			"Basis.Scripts.BasisSdk.Interactions.BasisSeat",
 			"Basis.BasisImageDownloader",
 			"Basis.IBasisImageDownload",
 			"Basis.BasisStringDownloader",
@@ -293,22 +294,32 @@ namespace Cilbox
 				$"get_{nameof(BasisMediaPlayer.OutputTexture)}",
 				$"get_{nameof(BasisMediaPlayer.OutputFrameIsTopLeftOrigin)}",
 				} },
-			// Cilbox-facing voice routing (issue #911). Pinned to the safe route API only: no PCM
-			// access, no disk output, no consent bypass (see BasisVoiceRoutingShim). Basis.Shims.* is
-			// type-whitelisted, so this restriction is what keeps the callable surface to these four.
 			{ typeof(Basis.Shims.BasisVoiceRoutingShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisVoiceRoutingShim.HasConsent),
 				nameof(Basis.Shims.BasisVoiceRoutingShim.RouteVoiceToObject),
 				nameof(Basis.Shims.BasisVoiceRoutingShim.StopVoiceRoute),
 				nameof(Basis.Shims.BasisVoiceRoutingShim.StopAllRoutesFor),
 				} },
+			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisSeat), new HashSet<string>{
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",
+				$"set_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationSnapDegrees)}",
+				$"set_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationSnapDegrees)}",
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantYawDegrees)}",
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.TurnOccupant),
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.SetOccupantYaw),
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.ResetOccupantYaw),
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.HasOccupant)}",
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.IsAvailable)}",
+				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.IsLocalPlayerSeated)}",
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.TryGetOccupant),
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.TrySeatLocalPlayer),
+				nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.EjectLocalPlayer),
+				} },
 			// Restrict BasisDeviceManagement to the single mode query the menu uses.
 			{ typeof(Basis.Scripts.Device_Management.BasisDeviceManagement), new HashSet<string>{ "IsCurrentModeVR" } },
 			// BasisLocalCameraDriver: only the static CameraInstance field is needed (whitelisted above); block all methods.
 			{ typeof(Basis.Scripts.Drivers.BasisLocalCameraDriver), new HashSet<string>() },
-			// Scripted player input is an AVATAR-box feature (the avatar you are wearing drives your own
-			// locomotion / play-space mover). Basis.Shims.* is type-whitelisted here, so block every
-			// method to keep world scripts out of it; worlds already have Teleport/Respawn/Immobilize.
 			{ typeof(Basis.Shims.BasisPlayspaceInputShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(BasisLocalPlayer), new HashSet<string>{

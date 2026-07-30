@@ -8,9 +8,9 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Loads a final .BEE file and previews the avatar's two fallback representations: the far
-/// LOD imposter carried on the connector, and the Generic (glTF) avatar section. Both are
-/// decoded exactly the way a client decodes them — the imposter through
+/// Loads a final .BEE file and previews the avatar's two fallback representations: the
+/// far avatar carried on the connector, and the Generic (glTF) avatar section. Both are
+/// decoded exactly the way a client decodes them — the far avatar through
 /// <see cref="BasisFarLodPayload"/>'s builders, the generic avatar through a real glTFast
 /// import of the decrypted section — so what renders here is what remote players get on a
 /// platform without a purpose-built AssetBundle.
@@ -37,9 +37,9 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
     [SerializeField] private float orbitYaw = 135f;
     [SerializeField] private float orbitPitch = 12f;
     [SerializeField] private float orbitZoom = 1f;
-    [SerializeField] private bool showImposterAtlas;
+    [SerializeField] private bool showFarAvatarAtlas;
 
-    private static readonly string[] TabNames = { "Imposter", "Generic Avatar", "Info" };
+    private static readonly string[] TabNames = { "Far Avatar", "Generic Avatar", "Info" };
 
     private bool isLoading;
     private bool hasLoaded;
@@ -49,7 +49,7 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
     // Connector
     private BasisBundleConnector connector;
 
-    // Imposter (far LOD)
+    // Far avatar
     private BasisFarLodPayload farLodPayload;
     private Mesh farLodMesh;
     private Texture2D farLodTexture;
@@ -86,7 +86,7 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
             EditorGUILayout.Space(2);
             switch (tab)
             {
-                case 0: DrawImposterTab(); break;
+                case 0: DrawFarAvatarTab(); break;
                 case 1: DrawGenericTab(); break;
                 default: DrawInfoTab(); break;
             }
@@ -206,7 +206,7 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
             hasLoaded = true;
             statusMessage = "Connector loaded: " + (connector.BasisBundleDescription?.AssetBundleName ?? connector.UniqueVersion);
 
-            BuildImposterAssets();
+            BuildFarAvatarAssets();
             await BuildGenericAvatarAsync(encryptedGenericSection, report);
         }
         catch (Exception ex)
@@ -307,9 +307,9 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
         }
     }
 
-    // ─────────────────────────── imposter (far LOD) ───────────────────────────
+    // ─────────────────────────── far avatar ───────────────────────────
 
-    private void BuildImposterAssets()
+    private void BuildFarAvatarAssets()
     {
         farLodPayload = BasisFarLodPayload.TryParseBase64(connector.FarLodBase64);
         if (farLodPayload == null)
@@ -335,11 +335,11 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
         farLodMaterial.hideFlags = HideFlags.HideAndDontSave;
     }
 
-    private void DrawImposterTab()
+    private void DrawFarAvatarTab()
     {
         if (farLodPayload == null)
         {
-            EditorGUILayout.HelpBox("This bee carries no far LOD imposter (or it failed to decode — see Console). Avatars built before the far LOD feature have none.", MessageType.Info);
+            EditorGUILayout.HelpBox("This bee carries no far avatar (or it failed to decode — see Console). Avatars built before the far avatar feature have none.", MessageType.Info);
             return;
         }
 
@@ -367,8 +367,8 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
 
         // A flat single-color atlas means the bake captured nothing — showing it makes that
         // failure obvious at a glance instead of reading as a lighting issue in the viewport.
-        showImposterAtlas = EditorGUILayout.Foldout(showImposterAtlas, "Atlas", true);
-        if (showImposterAtlas)
+        showFarAvatarAtlas = EditorGUILayout.Foldout(showFarAvatarAtlas, "Atlas", true);
+        if (showFarAvatarAtlas)
         {
             float atlasSide = Mathf.Clamp(position.width - 48f, 128f, 320f);
             Rect atlasRect = GUILayoutUtility.GetRect(atlasSide, atlasSide, GUILayout.ExpandWidth(false));
@@ -581,7 +581,7 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
         }
 
         EditorGUILayout.Space(4);
-        EditorGUILayout.LabelField("Imposter (Far LOD)", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Far Avatar", EditorStyles.boldLabel);
         if (farLodPayload != null)
         {
             EditorGUILayout.LabelField("Payload", $"{connector.FarLodBase64.Length / 1024f:0.0} KB base64, {farLodPayload.TriangleCount:N0} tris, {farLodPayload.BoneCount} bones");

@@ -32,7 +32,7 @@ public static class BasisBundleBuild
         Bounds unitybounds = CalculateLocalRenderBounds(BasisContentBase.gameObject);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
-        // Far LOD generation runs once here (before the per-platform loop) on the live build
+        // Far avatar generation runs once here (before the per-platform loop) on the live build
         // clone, while its real materials are still intact. Failure is never fatal to the build.
         string farLodBase64 = null;
         if (BasisContentBase is BasisAvatar farLodSourceAvatar)
@@ -45,7 +45,7 @@ public static class BasisBundleBuild
             {
                 BasisFarLodGenerator.LastFailureReason = $"generation threw {ex.GetType().Name}: {ex.Message}";
                 Debug.LogException(ex);
-                Debug.LogWarning("Far LOD generation failed — building the bundle without a far LOD.");
+                Debug.LogWarning("Far avatar generation failed — building the bundle without a far avatar.");
             }
         }
 
@@ -596,12 +596,12 @@ public static class BasisBundleBuild
 
             await AssetBundleBuilder.SaveFileAsync(buildOutDir, assetBundleObject.ProtectedPasswordFileName, "txt", Password);
 
-            // A missing far LOD is diagnosable from the build output alone: the reason lands
+            // A missing far avatar is diagnosable from the build output alone: the reason lands
             // next to the bee instead of only in a console that scrolls away.
             if (basisContentBase is BasisAvatar && string.IsNullOrEmpty(FarLodBase64))
             {
                 string skipReason = string.IsNullOrEmpty(BasisFarLodGenerator.LastFailureReason) ? "unknown (no reason recorded)" : BasisFarLodGenerator.LastFailureReason;
-                await AssetBundleBuilder.SaveFileAsync(buildOutDir, "farlod_skip", "txt", $"{DateTime.UtcNow:o}\nFar LOD was not included in this bundle.\nReason: {skipReason}\n");
+                await AssetBundleBuilder.SaveFileAsync(buildOutDir, "faravatar_skip", "txt", $"{DateTime.UtcNow:o}\nFar avatar was not included in this bundle.\nReason: {skipReason}\n");
             }
 
             EditorUtility.DisplayProgressBar(BasisEditorLocalization.Get("sdk.bundleBuild.progress.combineDone"), BasisEditorLocalization.Get("sdk.bundleBuild.progress.combineDone"), 100);

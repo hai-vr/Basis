@@ -237,13 +237,6 @@ namespace Basis.Scripts.Drivers
         private const float SeatedSnapTurnThreshold = 0.8f;
         private bool seatedSnapTurnLatched;
 
-        /// <summary>
-        /// Turn input while seated. The character driver stops resolving rotation the moment it is disabled
-        /// on sit, but the raw turn axis it reads is still live, so a seat that allows rotation can pick it
-        /// up here and spend it on the occupant instead of the capsule. The seat's own snap step wins over
-        /// the player's comfort setting when it is authored; either way the step lands in one frame, because
-        /// an eased viewpoint rotation the player did not ask for is what causes sickness.
-        /// </summary>
         private void TickOccupantTurn()
         {
             BasisSeatRotationLimits limits = _seat.OccupantRotationLimits;
@@ -565,8 +558,6 @@ namespace Basis.Scripts.Drivers
             Vector3 leftFootSeatLocal = footSeatLocal + seatRightLocal * lFootRelInBasis.x;
             Vector3 rightFootSeatLocal = footSeatLocal + seatRightLocal * rFootRelInBasis.x;
 
-            // Still in seat space, so unlike the T-pose points above these do not ride the root — turn them
-            // around the pelvis by hand or the feet stay pointing down the seat while the body swivels.
             Vector3 leftFootWorldTarget = BasisSeatFit.RotateAboutPivot(seatT.TransformPoint(leftFootSeatLocal), pelvisWorldPos, occupantPivot);
             Vector3 rightFootWorldTarget = BasisSeatFit.RotateAboutPivot(seatT.TransformPoint(rightFootSeatLocal), pelvisWorldPos, occupantPivot);
 

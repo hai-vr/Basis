@@ -4,8 +4,8 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Dev tool: runs the real far LOD build on a scene avatar and shows the result — an
-/// interactive 3D view of the decoded far LOD, the baked atlas, payload stats and the
+/// Dev tool: runs the real far avatar build on a scene avatar and shows the result — an
+/// interactive 3D view of the decoded far avatar, the baked atlas, payload stats and the
 /// per-stage generation log. The preview is constructed from the serialized → reparsed
 /// payload using the same builders the client runtime uses, so what you see is what a
 /// remote player would get.
@@ -23,12 +23,12 @@ public class BasisFarLodTesterWindow : EditorWindow
     private const string PayloadSessionKey = "BasisFarLodTester.Payload";
     private const string RawBytesSessionKey = "BasisFarLodTester.RawBytes";
     private const string Base64BytesSessionKey = "BasisFarLodTester.Base64Bytes";
-    private const string ScenePreviewPrefix = "Far LOD Preview (";
+    private const string ScenePreviewPrefix = "Far avatar Preview (";
 
-    [MenuItem("Basis/Avatar/Far LOD Tester")]
+    [MenuItem("Basis/Avatar/Far Avatar Tester")]
     public static void Open()
     {
-        BasisFarLodTesterWindow window = GetWindow<BasisFarLodTesterWindow>("Far LOD Tester");
+        BasisFarLodTesterWindow window = GetWindow<BasisFarLodTesterWindow>("Far Avatar Tester");
         window.minSize = new Vector2(390f, 580f);
     }
 
@@ -556,7 +556,7 @@ public class BasisFarLodTesterWindow : EditorWindow
                 continue;
             }
             // Exactly the wire composition: delta is the source bone's rotation off its own
-            // T-pose local frame, applied on top of the far LOD's collapsed rest local.
+            // T-pose local frame, applied on top of the far avatar's collapsed rest local.
             Quaternion delta = Quaternion.Inverse(tposeLocal) * source.localRotation;
             _previewBones[i].localRotation = _payload.BoneRestLocalRotation[i] * delta;
         }

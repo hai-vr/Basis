@@ -4,30 +4,11 @@ using UnityEngine;
 
 namespace Basis.Tests.Sync
 {
-    /// <summary>
-    /// Sitting down re-anchors the whole tracking space onto the seat: the play-space offset
-    /// (<c>BasisInput.OffsetCoords</c>) yaws the space onto the seat's facing and drops the occupant's
-    /// head onto the play-space origin, so it does not matter where in the room the player is standing.
-    ///
-    /// The vertical half of that anchor was disabled (<c>OffsetCoords.position.y = 0; //revisit later</c>),
-    /// which left the seated torso riding the raw device Y. Every vertical shift Basis injects in
-    /// <c>BasisInput.ComputeUnscaledDeviceCoord</c> lands in that same Y — the play-space mover's drag,
-    /// seated mode's missing-height lift, the height-mode grounding offset — so each one silently moved
-    /// the avatar on the chair, and so did simply being a player whose real height did not match the
-    /// scale calibration.
-    ///
-    /// These tests drive the real <see cref="BasisSeatFit.ComposePlayspaceOffset"/> through the real
-    /// <see cref="BasisCalibrationMath.ScaleDeviceCoord"/> the device pipeline uses, and pin the anchor
-    /// against the seat geometry it is supposed to hold: eyes one spine above the pinned hips, invariant
-    /// to every vertical shift. Each invariance gate is paired with the disabled-Y behaviour so the gate
-    /// stays honest.
-    /// </summary>
     public sealed class BasisSeatPlayspaceOffsetTests
     {
         const float AvatarEyeTposeHeight = 1.62f;
         const float AvatarHipsTposeHeight = 0.94f;
 
-        /// <summary>Runs a device pose through capture-then-apply exactly as the seat entry does.</summary>
         static Vector3 SeatedEyeInPlayspace(Vector3 unscaledEye, Quaternion unscaledEyeRot, float deviceScale,
             bool vr = true, float eyeTposeHeight = AvatarEyeTposeHeight)
         {
@@ -39,7 +20,6 @@ namespace Basis.Tests.Sync
             return scaledPos;
         }
 
-        /// <summary>The shipped behaviour: yaw captured, translation X/Z captured, Y forced to zero.</summary>
         static Vector3 SeatedEyeInPlayspace_WithDisabledHeightAnchor(Vector3 unscaledEye, Quaternion unscaledEyeRot, float deviceScale)
         {
             Quaternion offsetRotation = Quaternion.Inverse(BasisSeatFit.YawOnly(unscaledEyeRot));
@@ -51,11 +31,6 @@ namespace Basis.Tests.Sync
             return scaledPos;
         }
 
-        /// <summary>
-        /// Whatever the player's real height, real head position, or facing, sitting must put the avatar's
-        /// eyes at the avatar's OWN T-pose eye height, directly over the play-space origin. That is what
-        /// makes a seated pose reproducible instead of a function of who is wearing the headset.
-        /// </summary>
         [Test]
         public void Sitting_DropsTheEyeOnTheAvatarsOwnEyeHeight()
         {
@@ -84,11 +59,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// The whole point of the anchor: every vertical tracking-space shift Basis adds into the device Y
-        /// must cancel. The play-space mover's drag, seated mode's lift and the grounding offset all enter
-        /// the same way, so one sweep over the summed shift covers all three.
-        /// </summary>
         [Test]
         public void SeatedEyeHeight_IsInvariantToVerticalPlayspaceShifts()
         {
@@ -114,10 +84,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// Two players of different real heights, wearing the same avatar with the same calibration, must
-        /// sit identically. Under the disabled anchor the taller player's avatar sat taller.
-        /// </summary>
         [Test]
         public void PlayersOfDifferentHeights_SitIdentically()
         {
@@ -138,10 +104,6 @@ namespace Basis.Tests.Sync
                 + "defect. It no longer does, so the gate above is not discriminating.");
         }
 
-        /// <summary>
-        /// The user-visible claim, end to end: the avatar's eyes end up one spine-length above the hips the
-        /// seat pinned. Runs the real fit, the real root placement and the real offset together.
-        /// </summary>
         [Test]
         public void SeatedEye_SitsOneSpineAboveThePinnedHips()
         {
@@ -170,11 +132,6 @@ namespace Basis.Tests.Sync
                 + "seat path exists to produce.");
         }
 
-        /// <summary>
-        /// Sitting turns the player to face the way the seat faces: the captured offset must cancel the
-        /// head's yaw, so the re-centred eye looks down play-space forward and the avatar root's own
-        /// seat-derived rotation supplies the world facing.
-        /// </summary>
         [Test]
         public void Sitting_AlignsTrackingSpaceYawWithTheSeat()
         {
@@ -193,10 +150,6 @@ namespace Basis.Tests.Sync
             }
         }
 
-        /// <summary>
-        /// Desktop synthesizes its eye pose from the avatar rather than from a tracked room, so it takes the
-        /// yaw alignment and no translation — re-centring a synthetic head would fight the desktop camera.
-        /// </summary>
         [Test]
         public void Desktop_TakesTheYawAlignmentWithoutTranslating()
         {
@@ -209,10 +162,6 @@ namespace Basis.Tests.Sync
                 "desktop still needs the yaw alignment so the seated avatar faces the seat");
         }
 
-        /// <summary>
-        /// Re-anchoring after a height or scale change must move the occupant vertically only. Re-running
-        /// the full capture would also re-centre X/Z and yank a player who has since walked around the room.
-        /// </summary>
         [Test]
         public void HeightReanchor_MovesTheOccupantVerticallyOnly()
         {
@@ -239,10 +188,6 @@ namespace Basis.Tests.Sync
                 + $"{newEyeTposeHeight:F2} m eye height. Resizing while seated must not lift the avatar off the chair.");
         }
 
-        /// <summary>
-        /// Standing back up drops the offset. A leaked offset would leave the tracking space yawed and
-        /// vertically shifted for the rest of the session, so the identity round trip is worth pinning.
-        /// </summary>
         [Test]
         public void ClearedOffset_LeavesTheDevicePoseUntouched()
         {
