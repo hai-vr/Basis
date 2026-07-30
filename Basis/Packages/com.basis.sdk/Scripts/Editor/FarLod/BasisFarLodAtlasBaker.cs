@@ -35,10 +35,12 @@ public static class BasisFarLodAtlasBaker
     private static bool sFlipSampleY;
 
     // Set per bake by DetectCaptureMode. Manual offscreen camera rendering is pipeline-
-    // dependent: some URP configurations render nothing for Camera.Render() and others land
-    // the wrong buffer for render requests, so the working path is proven with a two-color
-    // background round trip before any real capture.
+    // dependent: some URP configurations render nothing for Camera.Render(), others land the
+    // wrong buffer for render requests, and MSAA targets (used to defeat forced depth
+    // priming) don't survive every environment either — so a ladder of candidate modes is
+    // probed with real geometry and the first one that provably renders wins.
     private static bool sUseRenderRequest;
+    private static bool sUseMsaaTargets;
 
     /// <summary>A body part that deserves its own close-up capture set (bounds in root space).</summary>
     public struct RegionOfInterest
@@ -148,24 +150,27 @@ public static class BasisFarLodAtlasBaker
             // identical whether the pipeline renders via targetTexture or a request destination.
             camera.aspect = 1f;
 
-            // Beauty targets are 4x MSAA on purpose: URP disables depth priming for MSAA
-            // targets, restoring the plain forward path for arbitrary avatar shaders. Under a
-            // forced-depth-priming renderer, shaders whose DepthOnly pass is missing or broken
-            // are otherwise invisible in manual captures (probe-verified on stock URP 17.4:
-            // 1x target = cleared-but-empty, 4x target = renders). The resolve on readback is
-            // plain anti-aliasing — harmless for beauty. The mask targets stay 1x because
-            // sample-averaging would corrupt the encoded ids/depth; the part-id shader carries
-            // its own DepthOnly pass, so priming is satisfied there.
-            bodyTexture = GetCaptureTarget(captureSize);
-            regionTexture = GetCaptureTarget(regionCaptureSize);
             bodyReadback = NewReadback(captureSize);
             regionReadback = NewReadback(regionCaptureSize);
 
-            if (!DetectCaptureMode(camera, bodyTexture, bodyReadback, captureSize))
+            if (!DetectCaptureMode(camera, bodyReadback, captureSize))
             {
-                Debug.LogWarning("[FarLod] No capture path renders correctly on this pipeline (both render requests and Camera.Render failed the background round trip). Skipping the far LOD instead of baking garbage.");
+                Debug.LogWarning("[FarLod] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far LOD instead of baking garbage.");
                 return null;
             }
+            Debug.Log($"[FarLod] Capture mode: {(sUseRenderRequest ? "render request" : "Camera.Render")} into {(sUseMsaaTargets ? "4x MSAA" : "1x")} targets.");
+
+            // MSAA beauty targets are preferred: URP disables depth priming for MSAA targets,
+            // restoring the plain forward path for arbitrary avatar shaders (under a forced-
+            // depth-priming renderer, shaders whose DepthOnly pass is missing or broken are
+            // otherwise invisible in manual captures — probe-verified on stock URP 17.4). The
+            // resolve on readback is plain anti-aliasing, harmless for beauty. The 1x rungs
+            // exist for environments where MSAA capture itself misbehaves; the coverage guard
+            // below still aborts if priming empties them. Mask targets are always 1x because
+            // sample-averaging would corrupt the encoded ids/depth; the part-id shader carries
+            // its own DepthOnly pass, so priming is satisfied there.
+            bodyTexture = GetCaptureTarget(captureSize, sUseMsaaTargets);
+            regionTexture = GetCaptureTarget(regionCaptureSize, sUseMsaaTargets);
 
             if (mask.IsValid)
             {
@@ -283,6 +288,10 @@ public static class BasisFarLodAtlasBaker
             }
 
             Color32[] atlas = ProjectAtlas(views, rootToWorld, rootRotation, positions, normals, uv, indices, atlasSize, radius, mask.TexelVertexGroup, mask.TexelHidden, vertexAo);
+            if (atlas == null)
+            {
+                return null;
+            }
             return CompressAtlas(atlas, atlasSize);
         }
         finally
@@ -353,11 +362,11 @@ public static class BasisFarLodAtlasBaker
         };
     }
 
-    private static RenderTexture GetCaptureTarget(int size)
+    private static RenderTexture GetCaptureTarget(int size, bool msaa)
     {
         RenderTextureDescriptor descriptor = new RenderTextureDescriptor(size, size, RenderTextureFormat.ARGB32, 24)
         {
-            msaaSamples = 4,
+            msaaSamples = msaa ? 4 : 1,
         };
         return RenderTexture.GetTemporary(descriptor);
     }
@@ -489,20 +498,23 @@ public static class BasisFarLodAtlasBaker
     }
 
     /// <summary>
-    /// Proves which manual capture path actually works on this pipeline before the bake uses
-    /// it. A path must render a red unlit probe cube in the frame center AND hand back two
+    /// Proves which manual capture mode actually works on this pipeline before the bake uses
+    /// it. A mode must render a red unlit probe cube in the frame center AND hand back two
     /// successive, distinct background colors around it. That kills every failure mode seen in
     /// the wild: clears-but-draws-nothing (one URP setup's Camera.Render), a wrong/stale
-    /// buffer in the readback (another setup's render request), and plain no-op paths.
-    /// Prefers render requests, falls back to Camera.Render(), returns false when neither is
-    /// trustworthy — the bake then ships no far LOD instead of garbage.
+    /// buffer in the readback (another setup's render request), MSAA targets misbehaving in a
+    /// live editor session, and plain no-op paths. Candidates run best-first — render request
+    /// then Camera.Render, MSAA targets then 1x — and the first that provably renders sets
+    /// <see cref="sUseRenderRequest"/>/<see cref="sUseMsaaTargets"/>. False when nothing
+    /// works — the bake then ships no far LOD instead of garbage.
     /// </summary>
-    private static bool DetectCaptureMode(Camera camera, RenderTexture target, Texture2D readback, int size)
+    private static bool DetectCaptureMode(Camera camera, Texture2D readback, int size)
     {
         int savedMask = camera.cullingMask;
         RenderTexture savedTarget = camera.targetTexture;
         GameObject probe = null;
         Material probeMaterial = null;
+        RenderTexture probeTarget = null;
         try
         {
             probe = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -524,22 +536,29 @@ public static class BasisFarLodAtlasBaker
             probe.transform.position = new Vector3(0f, -8192f, 0f);
 
             camera.cullingMask = ~0;
-            camera.targetTexture = target;
             camera.orthographicSize = 1.2f;
             camera.nearClipPlane = 0.1f;
             camera.farClipPlane = 10f;
             camera.transform.SetPositionAndRotation(probe.transform.position - Vector3.forward * 3f, Quaternion.identity);
 
-            sUseRenderRequest = true;
-            if (CaptureProbeWorks(camera, readback, size))
+            (bool useRequest, bool useMsaa)[] candidates =
             {
-                return true;
-            }
-            sUseRenderRequest = false;
-            if (CaptureProbeWorks(camera, readback, size))
+                (true, true), (false, true), (true, false), (false, false),
+            };
+            foreach ((bool useRequest, bool useMsaa) in candidates)
             {
-                Debug.LogWarning("[FarLod] Render requests failed the capture probe on this pipeline — capturing via Camera.Render().");
-                return true;
+                if (probeTarget != null)
+                {
+                    RenderTexture.ReleaseTemporary(probeTarget);
+                }
+                probeTarget = GetCaptureTarget(size, useMsaa);
+                camera.targetTexture = probeTarget;
+                sUseRenderRequest = useRequest;
+                sUseMsaaTargets = useMsaa;
+                if (CaptureProbeWorks(camera, readback, size))
+                {
+                    return true;
+                }
             }
             return false;
         }
@@ -547,6 +566,10 @@ public static class BasisFarLodAtlasBaker
         {
             camera.cullingMask = savedMask;
             camera.targetTexture = savedTarget;
+            if (probeTarget != null)
+            {
+                RenderTexture.ReleaseTemporary(probeTarget);
+            }
             if (probe != null)
             {
                 Object.DestroyImmediate(probe);
@@ -913,6 +936,24 @@ public static class BasisFarLodAtlasBaker
                     }
                 }
             }
+        }
+
+        // If projection wrote (almost) nothing the flood fill below would paint the whole
+        // atlas a flat color — captures and the part mask disagreeing with the geometry (a
+        // dead mask render rejects every sample). Shipping that is worse than shipping no
+        // far LOD.
+        long writtenTexels = 0;
+        for (int Index = 0; Index < texelQuality.Length; Index++)
+        {
+            if (texelQuality[Index] > 0)
+            {
+                writtenTexels++;
+            }
+        }
+        if (writtenTexels < texelCount / 100)
+        {
+            Debug.LogWarning($"[FarLod] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far LOD instead of baking a flat atlas.");
+            return null;
         }
 
         Dilate(atlas, texelQuality, atlasSize);
