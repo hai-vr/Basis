@@ -224,13 +224,34 @@ public static class BasisFarLodAtlasBaker
 
             // Whole-body ring: equator, upper ring, lower ring (palms face down in T-pose —
             // without under-views they only ever see the single bottom capture), poles.
+            // Views whose raw reads don't show the requested backgrounds carry a wrong buffer
+            // (not this camera's render) and are dropped; a mostly-poisoned set aborts.
             Vector3[] bodyDirections = BuildBodyViewDirections();
+            int staleBodyViews = 0;
             for (int v = 0; v < bodyDirections.Length; v++)
             {
                 Vector3 directionWorld = (rootRotation * bodyDirections[v]).normalized;
-                views.Add(CaptureOne(camera, bodyTexture, bodyReadback, captureSize,
+                CaptureView view = CaptureOne(camera, bodyTexture, bodyReadback, captureSize,
                     centerWorld, directionWorld, rootRotation, radius, isRegion: false, default,
-                    maskObject, maskBodyTexture, avatarRenderers, avatarRendererStates, radius));
+                    maskObject, maskBodyTexture, avatarRenderers, avatarRendererStates, radius, out bool backgroundFresh);
+                if (backgroundFresh)
+                {
+                    views.Add(view);
+                }
+                else
+                {
+                    staleBodyViews++;
+                }
+            }
+            if (staleBodyViews > 0)
+            {
+                Debug.LogWarning($"[FarLod] Dropped {staleBodyViews} of {bodyDirections.Length} body captures whose readback did not contain this camera's render.");
+            }
+            if (bodyDirections.Length - staleBodyViews < 6)
+            {
+                BasisFarLodGenerator.LastFailureReason = $"beauty captures failed freshness validation ({staleBodyViews} of {bodyDirections.Length} body views poisoned, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")})";
+                Debug.LogError($"[FarLod] Most body captures contained a wrong buffer ({staleBodyViews} of {bodyDirections.Length}) — skipping the far LOD instead of baking garbage.");
+                return null;
             }
 
             // Close-up passes.
@@ -250,9 +271,12 @@ public static class BasisFarLodAtlasBaker
                     for (int d = 0; d < regionDirections.Length; d++)
                     {
                         Vector3 directionWorld = (rootRotation * regionDirections[d]).normalized;
+                        // Close-ups can legitimately fill their corners with avatar, so the
+                        // freshness verdict is ignored — the body-view gate above already
+                        // proved or condemned this capture mode.
                         views.Add(CaptureOne(camera, regionTexture, regionReadback, regionCaptureSize,
                             regionCenterWorld, directionWorld, rootRotation, regionRadius, isRegion: true, valid,
-                            maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates, radius));
+                            maskObject, maskRegionTexture, avatarRenderers, avatarRendererStates, radius, out _));
                     }
                 }
             }
@@ -495,7 +519,7 @@ public static class BasisFarLodAtlasBaker
     private static CaptureView CaptureOne(Camera camera, RenderTexture target, Texture2D readback, int size,
         Vector3 centerWorld, Vector3 directionWorld, Quaternion rootRotation, float frameRadius, bool isRegion, Bounds validBoundsRoot,
         GameObject maskObject, RenderTexture maskTarget, Renderer[] avatarRenderers, bool[] avatarRendererStates,
-        float clearanceRadius)
+        float clearanceRadius, out bool backgroundFresh)
     {
         Vector3 up = Mathf.Abs(Vector3.Dot(directionWorld, Vector3.up)) > 0.95f ? rootRotation * Vector3.forward : Vector3.up;
         camera.targetTexture = target;
@@ -521,6 +545,11 @@ public static class BasisFarLodAtlasBaker
 
         Color32[] onBlack = RenderAndRead(camera, readback, size, new Color(0f, 0f, 0f, 0f));
         Color32[] onWhite = RenderAndRead(camera, readback, size, new Color(1f, 1f, 1f, 0f));
+        // Freshness: the raw reads must actually contain THIS camera's renders — the black
+        // pass shows a black background and the white pass a white one. A capture path that
+        // hands back some other buffer (observed on live-editor render requests) fails this
+        // on every corner, no matter what it contains.
+        backgroundFresh = CornersMatch(onBlack, size, expectDark: true) && CornersMatch(onWhite, size, expectDark: false);
         for (int p = 0; p < onBlack.Length; p++)
         {
             int difference = (Mathf.Abs(onWhite[p].r - onBlack[p].r) + Mathf.Abs(onWhite[p].g - onBlack[p].g) + Mathf.Abs(onWhite[p].b - onBlack[p].b)) / 3;
@@ -639,9 +668,13 @@ public static class BasisFarLodAtlasBaker
             camera.farClipPlane = 10f;
             camera.transform.SetPositionAndRotation(probe.transform.position - Vector3.forward * 3f, Quaternion.identity);
 
+            // Camera.Render rungs first: render requests have been observed passing this
+            // probe and then landing a wrong internal buffer in the readback mid-sequence on
+            // live editor sessions — Camera.Render has not. The per-view freshness check in
+            // CaptureOne is the backstop either way.
             (bool useRequest, bool useMsaa)[] candidates =
             {
-                (true, true), (false, true), (true, false), (false, false),
+                (false, true), (false, false), (true, true), (true, false),
             };
             foreach ((bool useRequest, bool useMsaa) in candidates)
             {
@@ -697,6 +730,34 @@ public static class BasisFarLodAtlasBaker
         Color32[] onMagenta = RenderAndRead(camera, readback, size, new Color(1f, 0f, 1f, 1f));
         Color32 cornerMagenta = onMagenta[(size / 8) * size + size / 8];
         return cornerMagenta.r > 180 && cornerMagenta.b > 180 && cornerMagenta.g < 100;
+    }
+
+    /// <summary>
+    /// At least two of the four corners must agree with the requested background brightness.
+    /// Body views frame the avatar inscribed in the capture circle, so corners are normally
+    /// background — but a scene floor can legitimately occupy the lower ones, hence the
+    /// majority rule. A wrong buffer (uniform depth/id-like content) fails on every corner in
+    /// both passes and can't sneak through.
+    /// </summary>
+    private static bool CornersMatch(Color32[] pixels, int size, bool expectDark)
+    {
+        int margin = size / 16;
+        int[] xs = { margin, size - 1 - margin };
+        int[] ys = { margin, size - 1 - margin };
+        int matching = 0;
+        foreach (int y in ys)
+        {
+            foreach (int x in xs)
+            {
+                Color32 pixel = pixels[y * size + x];
+                int brightness = (pixel.r + pixel.g + pixel.b) / 3;
+                if (expectDark ? brightness <= 64 : brightness >= 191)
+                {
+                    matching++;
+                }
+            }
+        }
+        return matching >= 2;
     }
 
     private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)

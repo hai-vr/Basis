@@ -50,6 +50,40 @@ namespace Basis.Scripts.BasisSdk.Interactions
     }
 
     /// <summary>
+    /// How far an occupant may turn themselves on a seat, and in what steps — a stool they can spin on,
+    /// a bench seat that only lets them glance either way, or a chair that holds them facing forward.
+    /// Authored per seat on <see cref="BasisSeat"/>.
+    /// </summary>
+    public struct BasisSeatRotationLimits
+    {
+        /// <summary>
+        /// Total sweep the occupant may cover, centred on the seat's own forward. Zero or less holds them
+        /// facing forward (the default, and what seats did before this existed); 360 or more is a free spin.
+        /// </summary>
+        public float RangeDegrees;
+
+        /// <summary>
+        /// Step size the yaw is quantised to. Zero turns continuously. A step larger than the range leaves
+        /// only the centre reachable.
+        /// </summary>
+        public float SnapDegrees;
+
+        public static BasisSeatRotationLimits Held => new BasisSeatRotationLimits();
+
+        public bool AllowsRotation => RangeDegrees > 0f;
+        public bool IsFullCircle => RangeDegrees >= 360f;
+
+        /// <summary>Largest yaw either way. 180 for a full circle.</summary>
+        public float HalfRangeDegrees => IsFullCircle ? 180f : RangeDegrees * 0.5f;
+
+        public BasisSeatRotationLimits(float rangeDegrees, float snapDegrees)
+        {
+            RangeDegrees = rangeDegrees;
+            SnapDegrees = snapDegrees;
+        }
+    }
+
+    /// <summary>
     /// The single seat-fit solve shared by the local seat driver and the remote seat pin, so an avatar
     /// lands on a seat in exactly the same place for its owner and for everyone else. Pure math: no
     /// avatar rig, no player, no scene lookups.
@@ -221,6 +255,80 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
+        /// Folds a requested occupant yaw into what the seat actually permits: wrapped, clamped to the
+        /// authored range, and quantised to the authored step. A step that would land outside the range
+        /// falls back to the outermost step still inside it, so the result is always both a legal step and
+        /// inside the range.
+        ///
+        /// Only the occupant's own client resolves; the yaw it settles on is what goes on the wire and what
+        /// every other client applies verbatim, so a seat whose limits are changed mid-session (or whose
+        /// step does not divide 360) can never make two clients disagree about where the avatar is facing.
+        /// </summary>
+        public static float ResolveOccupantYaw(float requestedDegrees, in BasisSeatRotationLimits limits)
+        {
+            if (limits.AllowsRotation == false || float.IsNaN(requestedDegrees) || float.IsInfinity(requestedDegrees))
+            {
+                return 0f;
+            }
+
+            float limit = limits.HalfRangeDegrees;
+            float yaw = WrapDegrees(requestedDegrees);
+            if (limits.IsFullCircle == false)
+            {
+                yaw = Mathf.Clamp(yaw, -limit, limit);
+            }
+
+            float snap = limits.SnapDegrees;
+            if (snap <= 0f)
+            {
+                return yaw;
+            }
+
+            float snapped = Mathf.Round(yaw / snap) * snap;
+            if (limits.IsFullCircle)
+            {
+                return WrapDegrees(snapped);
+            }
+
+            if (Mathf.Abs(snapped) > limit)
+            {
+                float steps = Mathf.Floor((limit + 1e-4f) / snap);
+                snapped = Mathf.Sign(snapped) * steps * snap;
+            }
+            return snapped;
+        }
+
+        /// <summary>
+        /// Adds a turn to an occupant's accumulated request and resolves it. The raw accumulation is kept
+        /// separate from the resolved yaw so a smooth turn axis still crosses snap thresholds properly —
+        /// resolving in place every frame would round each tiny delta back to where it started and the
+        /// occupant would never move.
+        /// </summary>
+        public static float AddOccupantYaw(float rawDegrees, float deltaDegrees, in BasisSeatRotationLimits limits, out float newRawDegrees)
+        {
+            if (limits.AllowsRotation == false)
+            {
+                newRawDegrees = 0f;
+                return 0f;
+            }
+
+            if (float.IsNaN(deltaDegrees) || float.IsInfinity(deltaDegrees))
+            {
+                deltaDegrees = 0f;
+            }
+
+            float raw = rawDegrees + deltaDegrees;
+            newRawDegrees = limits.IsFullCircle
+                ? WrapDegrees(raw)
+                : Mathf.Clamp(raw, -limits.HalfRangeDegrees, limits.HalfRangeDegrees);
+
+            return ResolveOccupantYaw(newRawDegrees, limits);
+        }
+
+        /// <summary>Signed degrees in (-180, 180].</summary>
+        public static float WrapDegrees(float degrees) => Mathf.DeltaAngle(0f, degrees);
+
+        /// <summary>
         /// Maps a solved seat-local pelvis target onto the world hips pose that both the local rig
         /// override and the remote hips pin are driven to.
         /// </summary>
@@ -232,8 +340,45 @@ namespace Basis.Scripts.BasisSdk.Interactions
             out Vector3 hipsWorldPosition,
             out Quaternion hipsWorldRotation)
         {
+            ComposeHipsWorld(seatLocalToWorld, seatWorldRotation, spineRotation, seatLocalBack, 0f,
+                out hipsWorldPosition, out hipsWorldRotation, out _);
+        }
+
+        /// <summary>
+        /// As above, with the occupant turned <paramref name="occupantYawDegrees"/> about their own spine
+        /// axis. The pelvis is the pivot, so turning on a stool spins the occupant in place rather than
+        /// sweeping them around the seat's origin. <paramref name="occupantPivot"/> carries the same
+        /// rotation for anything else still expressed in seat space — the foot targets — via
+        /// <see cref="RotateAboutPivot"/>.
+        /// </summary>
+        public static void ComposeHipsWorld(
+            Matrix4x4 seatLocalToWorld,
+            Quaternion seatWorldRotation,
+            Quaternion spineRotation,
+            Vector3 seatLocalBack,
+            float occupantYawDegrees,
+            out Vector3 hipsWorldPosition,
+            out Quaternion hipsWorldRotation,
+            out Quaternion occupantPivot)
+        {
             hipsWorldPosition = seatLocalToWorld.MultiplyPoint3x4(seatLocalBack);
-            hipsWorldRotation = seatWorldRotation * spineRotation;
+            Quaternion seatedRotation = seatWorldRotation * spineRotation;
+
+            if (occupantYawDegrees == 0f)
+            {
+                occupantPivot = Quaternion.identity;
+                hipsWorldRotation = seatedRotation;
+                return;
+            }
+
+            occupantPivot = Quaternion.AngleAxis(occupantYawDegrees, seatedRotation * Vector3.up);
+            hipsWorldRotation = occupantPivot * seatedRotation;
+        }
+
+        /// <summary>Turns a seat-space world point around the occupant's pelvis pivot.</summary>
+        public static Vector3 RotateAboutPivot(Vector3 worldPoint, Vector3 pivot, Quaternion pivotRotation)
+        {
+            return pivot + pivotRotation * (worldPoint - pivot);
         }
 
         /// <summary>

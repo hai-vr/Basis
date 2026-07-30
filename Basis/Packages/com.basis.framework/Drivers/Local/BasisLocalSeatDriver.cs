@@ -92,6 +92,8 @@ namespace Basis.Scripts.Drivers
                 Stand();
 
             _seat = seat;
+            _seat.ResetOccupantYaw();
+            seatedSnapTurnLatched = false;
 
             LocalPlayer.transform.GetPositionAndRotation(out lastSeatRootPosition, out lastSeatRootRotation);
             hasLastSeatRootPosition = true;
@@ -129,7 +131,13 @@ namespace Basis.Scripts.Drivers
 
         private float SeatYawDeg()
         {
-            return Basis.IK.BasisTwistSolveCore.SignedTwistAngleDeg(_seat.transform.rotation * _seat.SpineRotation, Vector3.up);
+            Quaternion seated = _seat.transform.rotation * _seat.SpineRotation;
+            float occupantYaw = _seat.OccupantYawDegrees;
+            if (occupantYaw != 0f)
+            {
+                seated = Quaternion.AngleAxis(occupantYaw, seated * Vector3.up) * seated;
+            }
+            return Basis.IK.BasisTwistSolveCore.SignedTwistAngleDeg(seated, Vector3.up);
         }
 
         private void CapturePlayspaceOffset()
@@ -204,6 +212,9 @@ namespace Basis.Scripts.Drivers
                 BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + SeatYawDeg();
             }
 
+            _seat.ResetOccupantYaw();
+            seatedSnapTurnLatched = false;
+
             Vector3 desiredPos = _seat.transform.TransformPoint(previousRelativePosition);
 
             if (BasisSafeTeleportUtil.TryFindSafeStandingPosition(
@@ -223,10 +234,60 @@ namespace Basis.Scripts.Drivers
             _seat = null;
         }
 
+        private const float SeatedSnapTurnThreshold = 0.8f;
+        private bool seatedSnapTurnLatched;
+
+        /// <summary>
+        /// Turn input while seated. The character driver stops resolving rotation the moment it is disabled
+        /// on sit, but the raw turn axis it reads is still live, so a seat that allows rotation can pick it
+        /// up here and spend it on the occupant instead of the capsule. The seat's own snap step wins over
+        /// the player's comfort setting when it is authored; either way the step lands in one frame, because
+        /// an eased viewpoint rotation the player did not ask for is what causes sickness.
+        /// </summary>
+        private void TickOccupantTurn()
+        {
+            BasisSeatRotationLimits limits = _seat.OccupantRotationLimits;
+            if (limits.AllowsRotation == false)
+            {
+                seatedSnapTurnLatched = false;
+                return;
+            }
+
+            float axis = LocalPlayer.LocalCharacterDriver.Rotation.x;
+            float seatSnap = _seat.OccupantRotationSnapDegrees;
+            bool stepped = seatSnap > 0f
+                || (SMModuleControllerSettings.UsingSnapTurnAngle && BasisDeviceManagement.IsCurrentModeVR());
+
+            if (stepped)
+            {
+                bool held = Mathf.Abs(axis) > SeatedSnapTurnThreshold;
+                if (held == seatedSnapTurnLatched)
+                {
+                    return;
+                }
+                seatedSnapTurnLatched = held;
+                if (held == false)
+                {
+                    return;
+                }
+                float step = seatSnap > 0f ? seatSnap : SMModuleControllerSettings.SnapTurnAngle;
+                _seat.TurnOccupant(Mathf.Sign(axis) * step);
+                return;
+            }
+
+            seatedSnapTurnLatched = false;
+            if (axis != 0f)
+            {
+                _seat.TurnOccupant(axis * SMModuleControllerSettings.SmoothTurnSpeed * Time.deltaTime);
+            }
+        }
+
         private void OnSimulate()
         {
             if (_seat == null)
                 return;
+
+            TickOccupantTurn();
 
             BasisSeatFitResult fit = BasisSeatFit.Solve(_seat.GetFitFrame(), legs);
 
@@ -456,7 +517,8 @@ namespace Basis.Scripts.Drivers
             // Stable avatar hips basis
             Quaternion avatarHipsBasis = avatarHipsBasisTpose;
 
-            BasisSeatFit.ComposeHipsWorld(seatT.localToWorldMatrix, seatT.rotation, _seat.SpineRotation, pelvisSeatLocal, out Vector3 pelvisWorldPos, out Quaternion hipsWorldRot);
+            BasisSeatFit.ComposeHipsWorld(seatT.localToWorldMatrix, seatT.rotation, _seat.SpineRotation, pelvisSeatLocal,
+                _seat.OccupantYawDegrees, out Vector3 pelvisWorldPos, out Quaternion hipsWorldRot, out Quaternion occupantPivot);
             BasisSeatFit.ComposeSeatedRoot(pelvisWorldPos, hipsWorldRot, avatarHipsBasis, hipsLocalPos, out Vector3 playerPos, out Quaternion playerRot);
 
             LocalPlayer.transform.SetPositionAndRotation(playerPos, playerRot);
@@ -503,8 +565,10 @@ namespace Basis.Scripts.Drivers
             Vector3 leftFootSeatLocal = footSeatLocal + seatRightLocal * lFootRelInBasis.x;
             Vector3 rightFootSeatLocal = footSeatLocal + seatRightLocal * rFootRelInBasis.x;
 
-            Vector3 leftFootWorldTarget = seatT.TransformPoint(leftFootSeatLocal);
-            Vector3 rightFootWorldTarget = seatT.TransformPoint(rightFootSeatLocal);
+            // Still in seat space, so unlike the T-pose points above these do not ride the root — turn them
+            // around the pelvis by hand or the feet stay pointing down the seat while the body swivels.
+            Vector3 leftFootWorldTarget = BasisSeatFit.RotateAboutPivot(seatT.TransformPoint(leftFootSeatLocal), pelvisWorldPos, occupantPivot);
+            Vector3 rightFootWorldTarget = BasisSeatFit.RotateAboutPivot(seatT.TransformPoint(rightFootSeatLocal), pelvisWorldPos, occupantPivot);
 
             // --- World positions for overridden bones ---
             Vector3 hipsW = ToWorld(BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position);

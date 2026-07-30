@@ -85,6 +85,115 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
+        #region Occupant Rotation
+        [Header("Occupant Rotation")]
+        [Tooltip("Total sweep the occupant may turn themselves, centred on the seat's forward. 0 holds them facing forward; 360 is a free spin (a stool). 90 gives them 45 degrees either way.")]
+        [SerializeField, Range(0f, 360f)] private float _occupantRotationRangeDegrees = 0f;
+
+        [Tooltip("Step size the occupant's turn is quantised to. 0 turns smoothly. Snapping is instant, which is what VR wants.")]
+        [SerializeField, Range(0f, 180f)] private float _occupantRotationSnapDegrees = 0f;
+
+        private float _occupantYawDegrees;
+        private float _occupantYawRaw;
+
+        /// <summary>
+        /// Total sweep the occupant may turn themselves, centred on the seat's forward. 0 holds them facing
+        /// forward, 360 is a free spin. Shrinking this while occupied pulls them back inside it.
+        /// </summary>
+        public float OccupantRotationRangeDegrees
+        {
+            get => _occupantRotationRangeDegrees;
+            set
+            {
+                _occupantRotationRangeDegrees = Mathf.Clamp(value, 0f, 360f);
+                SetOccupantYaw(_occupantYawRaw);
+            }
+        }
+
+        /// <summary>Step size the occupant's turn is quantised to; 0 turns smoothly.</summary>
+        public float OccupantRotationSnapDegrees
+        {
+            get => _occupantRotationSnapDegrees;
+            set
+            {
+                _occupantRotationSnapDegrees = Mathf.Clamp(value, 0f, 180f);
+                SetOccupantYaw(_occupantYawRaw);
+            }
+        }
+
+        public BasisSeatRotationLimits OccupantRotationLimits =>
+            new BasisSeatRotationLimits(_occupantRotationRangeDegrees, _occupantRotationSnapDegrees);
+
+        /// <summary>
+        /// How far the occupant is currently turned from the seat's forward, about their own spine axis.
+        /// Always a yaw this seat permits. Applied by the local seat driver and by every remote's hips pin.
+        /// </summary>
+        public float OccupantYawDegrees => _occupantYawDegrees;
+
+        /// <summary>
+        /// Raised whenever <see cref="OccupantYawDegrees"/> changes on this client. <c>BasisSeatSync</c>
+        /// listens so the occupant's turn reaches everyone else.
+        /// </summary>
+        public Action<float> OnOccupantYawChanged;
+
+        /// <summary>
+        /// Turns the occupant by <paramref name="deltaDegrees"/> within what this seat allows. Feed a turn
+        /// axis or a snap step straight into it. Returns true when the applied yaw actually moved.
+        /// </summary>
+        public bool TurnOccupant(float deltaDegrees)
+        {
+            float resolved = BasisSeatFit.AddOccupantYaw(_occupantYawRaw, deltaDegrees, OccupantRotationLimits, out _occupantYawRaw);
+            return CommitOccupantYaw(resolved);
+        }
+
+        /// <summary>
+        /// Points the occupant at an absolute yaw from the seat's forward, resolved against what this seat
+        /// allows. Returns true when the applied yaw actually moved.
+        /// </summary>
+        public bool SetOccupantYaw(float degrees)
+        {
+            BasisSeatRotationLimits limits = OccupantRotationLimits;
+            _occupantYawRaw = limits.AllowsRotation
+                ? (limits.IsFullCircle
+                    ? BasisSeatFit.WrapDegrees(degrees)
+                    : Mathf.Clamp(BasisSeatFit.WrapDegrees(degrees), -limits.HalfRangeDegrees, limits.HalfRangeDegrees))
+                : 0f;
+            return CommitOccupantYaw(BasisSeatFit.ResolveOccupantYaw(_occupantYawRaw, limits));
+        }
+
+        /// <summary>
+        /// Applies a yaw an occupant's own client already resolved, verbatim and without re-resolving.
+        /// Re-resolving here is what would let two clients disagree, so remotes never do it.
+        /// </summary>
+        public void ApplyNetworkedOccupantYaw(float degrees)
+        {
+            if (float.IsNaN(degrees) || float.IsInfinity(degrees))
+            {
+                return;
+            }
+            _occupantYawRaw = degrees;
+            _occupantYawDegrees = degrees;
+        }
+
+        /// <summary>Returns the occupant to the seat's forward. Called when the seat empties.</summary>
+        public void ResetOccupantYaw()
+        {
+            _occupantYawRaw = 0f;
+            CommitOccupantYaw(0f);
+        }
+
+        private bool CommitOccupantYaw(float resolved)
+        {
+            if (Mathf.Approximately(resolved, _occupantYawDegrees))
+            {
+                return false;
+            }
+            _occupantYawDegrees = resolved;
+            OnOccupantYawChanged?.Invoke(resolved);
+            return true;
+        }
+        #endregion Occupant Rotation
+
         // These are calculated in `_recalculateHelperVectors` based on the public control points.
         // The default values are provided as sane reference for normal seats, they are not actually used.
         public Vector3 Left { get; private set; } = Vector3.left;
@@ -255,7 +364,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public void CalculateSeatPositionRotation(in BasisSeatFitLegs legs, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
         {
             BasisSeatFitResult fit = BasisSeatFit.Solve(GetFitFrame(), legs);
-            BasisSeatFit.ComposeHipsWorld(transform.localToWorldMatrix, transform.rotation, SpineRotation, fit.Back, out hipsWorldPos, out hipsWorldRot);
+            BasisSeatFit.ComposeHipsWorld(transform.localToWorldMatrix, transform.rotation, SpineRotation, fit.Back,
+                _occupantYawDegrees, out hipsWorldPos, out hipsWorldRot, out _);
         }
         public static Vector3 ClosestPointOnSphere(Vector3 point, Vector3 sphereCenter, float sphereRadius)
         {
