@@ -5,58 +5,41 @@ using Basis.Scripts.Networking;
 using UnityEngine;
 
 /// <summary>
-/// Distance-based swap of remote avatars to their baked far LODs (see
-/// <see cref="BasisAvatarFarLodRenderer"/>). Beyond the configured distance the whole avatar
-/// GameObject sleeps — no full-res skinning, no jiggle, no face work — and a ~20-bone,
-/// ~1.5k-triangle proxy driven by the same networked bone data renders instead.
+/// Far avatars for remote players whose real avatar isn't loaded (see
+/// <see cref="BasisAvatarFarLodRenderer"/>): a ~20-bone, ~8k-triangle proxy baked into the
+/// bee connector, driven by the same networked bone data as the real avatar.
 ///
-/// Only avatars whose bundle connector carries an far LOD payload participate; everything
-/// else keeps the existing mesh/skin/shadow LOD behavior. Transitions are hysteretic (10%)
-/// and budgeted per transmit tick because each swap forces one bone-job sync, mirroring how
-/// avatar reloads are budgeted.
+/// The far avatar lives PAST the max avatar range slider: inside avatar range the real
+/// avatar always shows; beyond it the range system unloads the real avatar onto the fallback
+/// skeleton and the far avatar renders there instead of the loading dummy. The same stand-in
+/// path covers avatars that are still downloading, have no build for this platform, or are
+/// performance-blocked. Transitions are budgeted per transmit tick because each swap forces
+/// one bone-job sync, mirroring how avatar reloads are budgeted.
 /// </summary>
 public static class BasisAvatarFarLOD
 {
-    /// <summary>Master switch. When false every remote is restored to its real avatar.</summary>
+    /// <summary>Master switch. When false, players without a real avatar show the loading dummy.</summary>
     public static bool Enabled;
-
-    /// <summary>Distance in meters past which a remote swaps to its far LOD.</summary>
-    public static float ImposterDistance = 20f;
 
     /// <summary>Swaps admitted per transmit tick; each one costs a bone-job sync.</summary>
     public static int MaxTransitionsPerTick = 4;
 
-    private static float _enterDistanceSq = 400f;
-    private static float _exitDistanceSq = 400f / (1.1f * 1.1f);
-
     public static void ApplyFromSettings()
     {
         bool wasEnabled = Enabled;
-        float wasDistance = ImposterDistance;
         Enabled = BasisSettingsDefaults.UseAvatarFarLod.RawValue;
-        ImposterDistance = Mathf.Max(1f, BasisSettingsDefaults.AvatarFarLodDistance.RawValue);
-        _enterDistanceSq = ImposterDistance * ImposterDistance;
-        _exitDistanceSq = _enterDistanceSq / (1.1f * 1.1f);
-
-        if (wasEnabled != Enabled || !Mathf.Approximately(wasDistance, ImposterDistance))
+        if (wasEnabled != Enabled)
         {
             ReapplyAllRemotes();
         }
     }
 
-    public static bool WantsFarLod(float distanceSq, bool currentlyFarLod)
-    {
-        return currentlyFarLod ? distanceSq > _exitDistanceSq : distanceSq > _enterDistanceSq;
-    }
-
     /// <summary>
     /// Per-remote evaluation, called from the transmit tick's merged post-processing loop.
-    /// <paramref name="distanceSq"/> is the tick's mouth-based job distance — used only as a
-    /// cross-check; the swap decision itself runs on the raw network hips position (see below).
     /// Edge-triggered: does nothing while the desired state matches, and consumes one unit of
     /// <paramref name="transitionBudget"/> on a swap.
     /// </summary>
-    public static void Tick(BasisRemotePlayer remote, float distanceSq, ref int transitionBudget)
+    public static void Tick(BasisRemotePlayer remote, ref int transitionBudget)
     {
         if (remote == null || transitionBudget <= 0)
         {
@@ -82,7 +65,7 @@ public static class BasisAvatarFarLOD
         if (remote.FarLodIsAvatar && !remote.IsLoadingAnAvatar && !remote.IsConsideredFallBackAvatar && remote.BasisAvatar != null)
         {
             remote.FarLodIsAvatar = false;
-            BasisDebug.Log($"Far avatar stand-in expired for {remote.DisplayName} (real avatar is loaded) — returning to distance-based swapping.", BasisDebug.LogTag.Avatar);
+            BasisDebug.Log($"Far avatar stand-in expired for {remote.DisplayName} (real avatar is loaded).", BasisDebug.LogTag.Avatar);
         }
 
         // A permanently pinned stand-in (real load failed) is BY DESIGN — but it looks
@@ -118,12 +101,10 @@ public static class BasisAvatarFarLOD
             }
         }
 
-        // Stand-in mode ignores distance and the swap toggle: the far LOD IS the avatar
-        // (no build for this platform, still downloading, out of avatar range), so it stays
-        // up until a real avatar calibrates.
-        bool desired = remote.FarLodIsAvatar
-            ? IsEligible(remote)
-            : Enabled && WantsFarLod(distanceSq, current) && IsEligible(remote);
+        // The far avatar only ever runs as the stand-in: past avatar range, mid-download,
+        // platform-missing, or perf-blocked — the range system owns the distance decision
+        // (its slider is the boundary), this system owns what shows beyond it.
+        bool desired = remote.FarLodIsAvatar && IsEligible(remote);
         if (desired == current)
         {
             return;
@@ -215,10 +196,10 @@ public static class BasisAvatarFarLOD
     }
 
     /// <summary>
-    /// Seed hook, run at the end of remote calibration. The tick is edge-triggered on distance
-    /// crossings, so an avatar that loads while already far away would otherwise pop in at full
-    /// detail until the next boundary crossing. Also releases any far LOD built for the
-    /// previous avatar — a new calibration means a new avatar version.
+    /// Seed hook, run at the end of remote calibration. Releases any far avatar built for the
+    /// previous avatar (a new calibration means a new avatar version) and, when this
+    /// calibration is the fallback skeleton hosting a stand-in, puts the far avatar up
+    /// immediately instead of waiting for the next transmit tick.
     /// </summary>
     public static void SeedAfterCalibration(BasisRemotePlayer remote)
     {
@@ -228,29 +209,7 @@ public static class BasisAvatarFarLOD
         }
         remote.ResetFarLodForNewAvatar();
 
-        // Stand-in mode: this calibration is the fallback avatar hosting the skeleton —
-        // put the far LOD up immediately, at any distance, toggle or not.
-        if (remote.FarLodIsAvatar)
-        {
-            if (IsEligible(remote))
-            {
-                remote.SetFarLodActive(true);
-            }
-            return;
-        }
-
-        if (!Enabled)
-        {
-            return;
-        }
-        var receiver = remote.NetworkReceiver;
-        if (receiver == null)
-        {
-            return;
-        }
-        receiver.GetLatestNetworkPose(out var hipsWorldPos, out _, out _);
-        float distanceSq = ((Vector3)hipsWorldPos - Basis.Scripts.Drivers.BasisLocalCameraDriver.HeadPosition).sqrMagnitude;
-        if (WantsFarLod(distanceSq, false) && IsEligible(remote))
+        if (remote.FarLodIsAvatar && IsEligible(remote))
         {
             remote.SetFarLodActive(true);
         }
@@ -258,19 +217,11 @@ public static class BasisAvatarFarLOD
 
     private static bool IsEligible(BasisRemotePlayer remote)
     {
-        if (remote.IsEffectivelyBlocked ||
-            remote.RemoteAvatarDriver == null || !remote.RemoteAvatarDriver.InBoneDriver || !remote.HasFarLodPayload)
-        {
-            return false;
-        }
-        if (remote.FarLodIsAvatar)
-        {
-            // Stand-in mode runs ON the fallback avatar (including mid-download), and
-            // AlwaysShowAvatar means "show me this player" — the far LOD is the best
-            // available representation of them.
-            return true;
-        }
-        return !remote.IsLoadingAnAvatar && !remote.AlwaysShowAvatar && !remote.IsConsideredFallBackAvatar;
+        // Stand-ins run ON the fallback avatar (including mid-download), and AlwaysShowAvatar
+        // means "show me this player" — the far avatar is the best available representation.
+        return Enabled && !remote.IsEffectivelyBlocked &&
+               remote.RemoteAvatarDriver != null && remote.RemoteAvatarDriver.InBoneDriver &&
+               remote.HasFarLodPayload;
     }
 
     private static void ReapplyAllRemotes()
@@ -282,12 +233,13 @@ public static class BasisAvatarFarLOD
             {
                 continue;
             }
-            if (!Enabled && remote.IsFarLodActive && !remote.FarLodIsAvatar)
+            if (!Enabled && remote.IsFarLodActive)
             {
+                // FarLodIsAvatar stays latched, so re-enabling restores the stand-in on the
+                // next transmit tick — which owns the per-tick swap budget, so no bulk
+                // transition storm starts from here.
                 remote.SetFarLodActive(false);
             }
-            // Enabling (or a distance change) is picked up by the next transmit tick — it owns
-            // the per-tick swap budget, so no bulk transition storm starts from here.
         }
     }
 }

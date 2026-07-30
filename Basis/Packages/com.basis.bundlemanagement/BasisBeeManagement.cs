@@ -83,6 +83,24 @@ public static class BasisBeeManagement
         else
         {
             BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
+            // First-time download: fetch the connector alone first (two small ranged
+            // requests). It carries the far avatar payload, so a player can appear as their
+            // own silhouette within moments while the full bundle downloads behind it.
+            if (wrapper.LoadableBundle.BasisBundleConnector == null)
+            {
+                try
+                {
+                    var (connector, connectorError) = await BasisBundleManagement.DownloadConnectorFile(wrapper, new BasisProgressReport(), cancellationToken, MaxDownloadSizeInBytes);
+                    if (connector == null)
+                    {
+                        BasisDebug.Log($"Connector prefetch unavailable ({connectorError}) — continuing with the full download.", BasisDebug.LogTag.Event);
+                    }
+                }
+                catch (Exception prefetchException)
+                {
+                    BasisDebug.Log($"Connector prefetch failed ({prefetchException.Message}) — continuing with the full download.", BasisDebug.LogTag.Event);
+                }
+            }
             output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInBytes);
         }
         if(output.Item2 == null || output.Item2.Length == 0)

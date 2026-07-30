@@ -684,18 +684,20 @@ namespace Basis.BasisUI
         // paying a full extra skinned draw per shadow cascade each.
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
 
-        // Swaps remote avatars past a distance for the baked low-poly far LOD carried in their
-        // bundle (driven by the same networked bone data). Avatars without an far LOD payload
-        // keep the regular LOD path.
+        // Shows the baked far avatar carried in a player's bundle (driven by the same
+        // networked bone data) whenever their real avatar isn't loaded — past the max avatar
+        // range, mid-download, or platform-missing. When off, those players show the loading
+        // dummy instead.
         public static BasisSettingsBinding<bool> UseAvatarFarLod = new("useavatarfarlod", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<float> AvatarFarLodDistance = new("avatarfarloddistance", new BasisPlatformDefault<float>
-        {
-            windows = 20,
-            android = 12,
-            ios = 12,
-            linux = 20,
-            other = 20
-        });
+        // Far avatars now begin where the max avatar range ends — no separate distance.
+        //public static BasisSettingsBinding<float> AvatarFarLodDistance = new("avatarfarloddistance", new BasisPlatformDefault<float>
+        //{
+        //    windows = 20,
+        //    android = 12,
+        //    ios = 12,
+        //    linux = 20,
+        //    other = 20
+        //});
 
         public static BasisSettingsBinding<float> GlobalMeshLOD = new("globalmeshlod", new BasisPlatformDefault<float>
         {
@@ -2045,7 +2047,7 @@ namespace Basis.BasisUI
             UseAvatarSkinLod.LoadBindingValue();
             UseAvatarShadowLod.LoadBindingValue();
             UseAvatarFarLod.LoadBindingValue();
-            AvatarFarLodDistance.LoadBindingValue();
+            //AvatarFarLodDistance.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
 
             // Performance Limits

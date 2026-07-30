@@ -551,9 +551,9 @@ public partial class BasisTransmissionResults
                 // Update pose LOD from distance — independent of mesh LOD
                 remote.CurrentLodLevel = pMeshLodLevel[i];
 
-                // Distance far LOD swap, using the distance already in hand. Edge-triggered
-                // with hysteresis inside; only actual swaps consume budget.
-                BasisAvatarFarLOD.Tick(remote, pDistanceSq[i], ref farLodTransitionBudget);
+                // Far avatar stand-in upkeep (past avatar range, mid-download, platform
+                // missing). Edge-triggered; only actual swaps consume budget.
+                BasisAvatarFarLOD.Tick(remote, ref farLodTransitionBudget);
 
                 // Nameplate piggybacks on the distance swaps: once the avatar has been
                 // replaced by the far LOD or the out-of-range fallback, the plate is too

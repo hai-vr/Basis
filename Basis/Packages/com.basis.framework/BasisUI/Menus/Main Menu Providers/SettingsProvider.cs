@@ -1522,7 +1522,7 @@ namespace Basis.BasisUI
             // before per-pixel quality knobs.
             PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
                 qualityGroup,
-                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 100),
+                PanelSlider.SliderSettings.Distance(BasisLocalization.Get("settings.general.avatarRange"), 250),
                 BasisSettingsDefaults.AvatarRange);
             sliderAvatarRange.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.avatarRange.tooltip"));
 
