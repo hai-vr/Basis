@@ -110,19 +110,20 @@ public static class BasisGenericComponentReplicator
         JObject fields = new JObject();
         foreach (FieldInfo field in SerializableFields(type))
         {
-            object value;
+            // Per-field isolation: an unreadable or misbehaving field (creators ship
+            // unassigned references all the time) must cost that field, not the component.
             try
             {
-                value = field.GetValue(instance);
+                object value = field.GetValue(instance);
+                JToken encoded = EncodeValue(value, field.FieldType, root, depth, visited);
+                if (encoded != null)
+                {
+                    fields[field.Name] = encoded;
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                continue;
-            }
-            JToken encoded = EncodeValue(value, field.FieldType, root, depth, visited);
-            if (encoded != null)
-            {
-                fields[field.Name] = encoded;
+                BasisDebug.Log($"Component replication: skipping field {type.Name}.{field.Name}: {ex.GetType().Name}: {ex.Message}");
             }
         }
         return fields;
@@ -135,6 +136,13 @@ public static class BasisGenericComponentReplicator
             return null;
         }
         if (value == null)
+        {
+            return JValue.CreateNull();
+        }
+        // Unity fake-null: an unassigned/destroyed UnityEngine.Object is a live C# instance
+        // that throws (UnassignedReferenceException/NRE) the moment its members are touched.
+        // Unity's own boolean operator is the truth test — encode it as plain null.
+        if (value is UnityEngine.Object unityValue && !unityValue)
         {
             return JValue.CreateNull();
         }
@@ -197,6 +205,10 @@ public static class BasisGenericComponentReplicator
 
     private static JToken EncodeUnityObject(UnityEngine.Object unityObject, Transform root, int depth, HashSet<object> visited)
     {
+        if (!unityObject)
+        {
+            return JValue.CreateNull();
+        }
         if (unityObject is GameObject gameObject)
         {
             string path = BasisGenericAvatarData.GetPathRelativeTo(root, gameObject.transform);

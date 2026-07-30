@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 /// <summary>
 /// Bakes the avatar's rendered appearance into the far LOD atlas. The avatar is rendered with
@@ -120,6 +122,13 @@ public static class BasisFarLodAtlasBaker
 
         Quaternion rootRotation = root.rotation;
         LightingScope lighting = LightingScope.Push();
+        // Forced depth priming hides any shader whose DepthOnly pass is missing or broken
+        // from manual captures (the whole avatar, with common toon shaders). MSAA targets
+        // dodge priming where they work, but not every live-editor session cooperates —
+        // switching priming off at the source for the bake's duration makes the plain 1x
+        // path render everything. Reflection-based so this assembly needs no URP reference;
+        // a no-op on pipelines without the setting.
+        DepthPrimingScope depthPriming = DepthPrimingScope.Push();
         GameObject cameraObject = null;
         GameObject colliderObject = null;
         GameObject maskObject = null;
@@ -155,7 +164,9 @@ public static class BasisFarLodAtlasBaker
 
             if (!DetectCaptureMode(camera, bodyReadback, captureSize))
             {
-                Debug.LogWarning("[FarLod] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far LOD instead of baking garbage.");
+                // Errors, not warnings, for every skip: the far LOD silently vanishing from a
+                // bundle must surface in the same red stream creators actually read.
+                Debug.LogError("[FarLod] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far LOD instead of baking garbage.");
                 return null;
             }
             Debug.Log($"[FarLod] Capture mode: {(sUseRenderRequest ? "render request" : "Camera.Render")} into {(sUseMsaaTargets ? "4x MSAA" : "1x")} targets.");
@@ -268,7 +279,7 @@ public static class BasisFarLodAtlasBaker
             {
                 // Shipping a flat gray imposter is worse than shipping none — abort so the
                 // bundle builds without a far LOD and the console says why.
-                Debug.LogWarning($"[FarLod] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered) — skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
+                Debug.LogError($"[FarLod] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}) — skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
                 return null;
             }
 
@@ -350,7 +361,92 @@ public static class BasisFarLodAtlasBaker
             {
                 Object.DestroyImmediate(colliderObject);
             }
+            depthPriming.Pop();
             lighting.Pop();
+        }
+    }
+
+    /// <summary>
+    /// Temporarily sets every renderer data of the active URP asset to DepthPrimingMode
+    /// Disabled and restores the original values afterwards. Purely in-memory reflection over
+    /// the serialized fields (nothing is saved to disk); SetDirty makes URP rebuild its
+    /// renderers so the change actually applies to the bake's manual renders.
+    /// </summary>
+    private struct DepthPrimingScope
+    {
+        private List<(UnityEngine.Object rendererData, System.Reflection.FieldInfo field, int originalMode)> _changed;
+
+        public static DepthPrimingScope Push()
+        {
+            DepthPrimingScope scope = new DepthPrimingScope
+            {
+                _changed = new List<(UnityEngine.Object, System.Reflection.FieldInfo, int)>(),
+            };
+            try
+            {
+                UnityEngine.Rendering.RenderPipelineAsset pipeline = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+                if (pipeline == null)
+                {
+                    return scope;
+                }
+                System.Reflection.FieldInfo listField = pipeline.GetType().GetField("m_RendererDataList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (listField == null || listField.GetValue(pipeline) is not System.Collections.IEnumerable rendererDatas)
+                {
+                    return scope;
+                }
+                foreach (object entry in rendererDatas)
+                {
+                    if (entry is not UnityEngine.Object rendererData || rendererData == null)
+                    {
+                        continue;
+                    }
+                    System.Reflection.FieldInfo modeField = rendererData.GetType().GetField("m_DepthPrimingMode", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    if (modeField == null)
+                    {
+                        continue;
+                    }
+                    int original = Convert.ToInt32(modeField.GetValue(rendererData));
+                    if (original == 0)
+                    {
+                        continue;
+                    }
+                    modeField.SetValue(rendererData, 0); // DepthPrimingMode.Disabled
+                    InvokeSetDirty(rendererData);
+                    scope._changed.Add((rendererData, modeField, original));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[FarLod] Could not adjust depth priming for the bake: {ex.Message}");
+            }
+            if (scope._changed.Count > 0)
+            {
+                Debug.Log($"[FarLod] Depth priming disabled on {scope._changed.Count} renderer(s) for the bake.");
+            }
+            return scope;
+        }
+
+        public void Pop()
+        {
+            if (_changed == null)
+            {
+                return;
+            }
+            for (int Index = 0; Index < _changed.Count; Index++)
+            {
+                (UnityEngine.Object rendererData, System.Reflection.FieldInfo field, int originalMode) = _changed[Index];
+                if (rendererData != null)
+                {
+                    field.SetValue(rendererData, originalMode);
+                    InvokeSetDirty(rendererData);
+                }
+            }
+        }
+
+        private static void InvokeSetDirty(UnityEngine.Object rendererData)
+        {
+            System.Reflection.MethodInfo setDirty = rendererData.GetType().GetMethod("SetDirty", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            setDirty?.Invoke(rendererData, null);
         }
     }
 
@@ -952,7 +1048,7 @@ public static class BasisFarLodAtlasBaker
         }
         if (writtenTexels < texelCount / 100)
         {
-            Debug.LogWarning($"[FarLod] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far LOD instead of baking a flat atlas.");
+            Debug.LogError($"[FarLod] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far LOD instead of baking a flat atlas.");
             return null;
         }
 
