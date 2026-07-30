@@ -37,6 +37,19 @@ public static class BasisGltfAvatarLoader
             return false;
         }
 
+        // The section is the GLB followed by an optional Basis blendshape sidecar (glTFast
+        // exports no morph targets, so driver shapes ride separately and are rebuilt below).
+        byte[] sectionBytes = decrypted.Data;
+        byte[] glbBytes = sectionBytes;
+        BasisGenericBlendshapeSidecar blendshapeSidecar = null;
+        int glbLength = BasisGenericBlendshapeSidecar.GetGlbLength(sectionBytes);
+        if (glbLength > 0 && glbLength < sectionBytes.Length)
+        {
+            blendshapeSidecar = BasisGenericBlendshapeSidecar.TryParse(sectionBytes, glbLength);
+            glbBytes = new byte[glbLength];
+            Buffer.BlockCopy(sectionBytes, 0, glbBytes, 0, glbLength);
+        }
+
         GltfImport gltf = new GltfImport();
         GameObject holder = null;
         Avatar humanoidAvatar = null;
@@ -48,7 +61,7 @@ public static class BasisGltfAvatarLoader
                 AnimationMethod = AnimationMethod.None,
                 GenerateMipMaps = true,
             };
-            bool loaded = await gltf.Load(decrypted.Data, null, importSettings);
+            bool loaded = await gltf.Load(glbBytes, null, importSettings);
             if (!loaded)
             {
                 BasisDebug.LogError("Generic (glTF) load: glb parse/load failed for " + generated.AssetToLoadName);
@@ -92,9 +105,14 @@ public static class BasisGltfAvatarLoader
             // the humanoid build so the build saw the full exported hierarchy.
             avatarData.ApplyNodeState(avatarRoot.transform);
 
+            // Rebuild driver blendshapes on the imported meshes before wiring so the viseme
+            // and blink indices can be re-resolved against what actually exists now.
+            blendshapeSidecar?.ApplyTo(avatarRoot.transform);
+
             BasisAvatar basisAvatar = avatarRoot.AddComponent<BasisAvatar>();
             basisAvatar.Animator = animator;
             avatarData.ApplyWiring(basisAvatar, avatarRoot.transform);
+            avatarData.RemapShapeIndicesByName(basisAvatar);
             basisAvatar.Renders = avatarRoot.GetComponentsInChildren<Renderer>(true);
             basisAvatar.BasisBundleDescription = wrapper.LoadableBundle.BasisBundleConnector?.BasisBundleDescription;
             basisAvatar.TransformStorage = BasisAvatarTransformStorage.CaptureFrom(animator);

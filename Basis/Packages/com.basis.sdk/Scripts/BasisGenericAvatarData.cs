@@ -33,6 +33,13 @@ public class BasisGenericAvatarData
     public string FaceVisemeMeshPath;
     public string FaceBlinkMeshPath;
 
+    // Blendshape names matching the index arrays above, so indices can be re-resolved on the
+    // imported mesh — the sidecar-rebuilt shapes don't share the source mesh's ordering.
+    // Null entries mean that slot was unused (-1) on the authored avatar.
+    public string[] FaceVisemeShapeNames;
+    public string[] BlinkShapeNames;
+    public string LaughterShapeName;
+
     // Name of the avatar root node inside the exported glTF scene, used to locate the rig
     // root after import (glTFast wraps exported roots in a scene GameObject).
     public string RootNodeName;
@@ -153,6 +160,9 @@ public class BasisGenericAvatarData
             }
         }
 
+        Mesh visemeMesh = avatar.FaceVisemeMesh != null ? avatar.FaceVisemeMesh.sharedMesh : null;
+        Mesh blinkMesh = avatar.FaceBlinkMesh != null ? avatar.FaceBlinkMesh.sharedMesh : null;
+
         return new BasisGenericAvatarData
         {
             AvatarEyePosition = avatar.AvatarEyePosition,
@@ -165,12 +175,66 @@ public class BasisGenericAvatarData
             AnimatorHumanScale = avatar.AnimatorHumanScale,
             FaceVisemeMeshPath = avatar.FaceVisemeMesh != null ? GetPathRelativeTo(root, avatar.FaceVisemeMesh.transform) : null,
             FaceBlinkMeshPath = avatar.FaceBlinkMesh != null ? GetPathRelativeTo(root, avatar.FaceBlinkMesh.transform) : null,
+            FaceVisemeShapeNames = CaptureShapeNames(visemeMesh, avatar.FaceVisemeMovement),
+            BlinkShapeNames = CaptureShapeNames(blinkMesh, avatar.BlinkViseme),
+            LaughterShapeName = ShapeName(visemeMesh, avatar.laughterBlendTarget),
             RootNodeName = root.name,
             InactiveNodePaths = inactiveNodePaths.ToArray(),
             DisabledRendererPaths = disabledRendererPaths.ToArray(),
             HumanBones = humanBones.ToArray(),
             SkeletonBones = skeletonBones.ToArray(),
         };
+    }
+
+    private static string[] CaptureShapeNames(Mesh mesh, int[] shapeIndices)
+    {
+        if (mesh == null || shapeIndices == null || shapeIndices.Length == 0)
+        {
+            return null;
+        }
+        string[] names = new string[shapeIndices.Length];
+        for (int Index = 0; Index < shapeIndices.Length; Index++)
+        {
+            names[Index] = ShapeName(mesh, shapeIndices[Index]);
+        }
+        return names;
+    }
+
+    private static string ShapeName(Mesh mesh, int shapeIndex)
+    {
+        return mesh != null && shapeIndex >= 0 && shapeIndex < mesh.blendShapeCount ? mesh.GetBlendShapeName(shapeIndex) : null;
+    }
+
+    /// <summary>
+    /// Re-resolves the viseme/blink/laughter blendshape indices against the imported meshes by
+    /// name. The sidecar rebuild adds only the driver shapes, so raw source-mesh indices are
+    /// meaningless after import; a missing name resolves to -1, which every driver treats as
+    /// "unused". Payloads without names (no shapes on the source) keep their raw values.
+    /// </summary>
+    public void RemapShapeIndicesByName(BasisAvatar avatar)
+    {
+        Mesh visemeMesh = avatar.FaceVisemeMesh != null ? avatar.FaceVisemeMesh.sharedMesh : null;
+        if (visemeMesh != null && FaceVisemeShapeNames != null && avatar.FaceVisemeMovement != null)
+        {
+            int count = Mathf.Min(FaceVisemeShapeNames.Length, avatar.FaceVisemeMovement.Length);
+            for (int Index = 0; Index < count; Index++)
+            {
+                avatar.FaceVisemeMovement[Index] = string.IsNullOrEmpty(FaceVisemeShapeNames[Index]) ? -1 : visemeMesh.GetBlendShapeIndex(FaceVisemeShapeNames[Index]);
+            }
+        }
+        if (visemeMesh != null)
+        {
+            avatar.laughterBlendTarget = string.IsNullOrEmpty(LaughterShapeName) ? -1 : visemeMesh.GetBlendShapeIndex(LaughterShapeName);
+        }
+        Mesh blinkMesh = avatar.FaceBlinkMesh != null ? avatar.FaceBlinkMesh.sharedMesh : null;
+        if (blinkMesh != null && BlinkShapeNames != null && avatar.BlinkViseme != null)
+        {
+            int count = Mathf.Min(BlinkShapeNames.Length, avatar.BlinkViseme.Length);
+            for (int Index = 0; Index < count; Index++)
+            {
+                avatar.BlinkViseme[Index] = string.IsNullOrEmpty(BlinkShapeNames[Index]) ? -1 : blinkMesh.GetBlendShapeIndex(BlinkShapeNames[Index]);
+            }
+        }
     }
 
     private static void CaptureSkeletonRecursive(Transform root, Transform current, List<BasisSkeletonBoneEntry> skeletonBones, List<string> inactiveNodePaths)

@@ -27,6 +27,7 @@ public static class BasisGenericAvatarExporter
     public static async Task<(BasisBundleGenerated Generated, string EncryptedPath)> ExportEncryptedGlb(BasisAvatar sourceAvatar, BasisAssetBundleObject settings, string password, string stagingDirectory)
     {
         GameObject clone = Object.Instantiate(sourceAvatar.gameObject);
+        List<Mesh> duplicatedMeshes = new List<Mesh>();
         try
         {
             clone.name = sourceAvatar.gameObject.name;
@@ -43,6 +44,13 @@ public static class BasisGenericAvatarExporter
                 return (null, null);
             }
 
+            // glTFast writes no morph targets, so blendshapes need two treatments: authored
+            // nonzero weights get baked into the base vertices (the exported geometry then
+            // LOOKS like the authored avatar), and driver-actuated shapes (visemes, blink,
+            // laughter) ride a sparse sidecar appended after the GLB so the importing client
+            // can rebuild them.
+            BasisGenericBlendshapeSidecar sidecar = BakeAndCollectBlendshapes(cloneAvatar, duplicatedMeshes);
+
             BasisGenericAvatarData avatarData = BasisGenericAvatarData.Capture(cloneAvatar);
             if (avatarData == null)
             {
@@ -56,10 +64,20 @@ public static class BasisGenericAvatarExporter
                 return (null, null);
             }
 
+            byte[] sectionPayload = glbBytes;
+            if (sidecar != null && sidecar.HasContent)
+            {
+                byte[] sidecarBytes = sidecar.Serialize();
+                sectionPayload = new byte[glbBytes.Length + sidecarBytes.Length];
+                Buffer.BlockCopy(glbBytes, 0, sectionPayload, 0, glbBytes.Length);
+                Buffer.BlockCopy(sidecarBytes, 0, sectionPayload, glbBytes.Length, sidecarBytes.Length);
+                BasisDebug.Log($"Generic avatar blendshape sidecar: {sidecarBytes.LongLength} bytes.");
+            }
+
             string uniqueId = BasisGenerateUniqueID.GenerateUniqueID();
             var basisPassword = new BasisEncryptionWrapper.BasisPassword { VP = password };
             BasisProgressReport report = new BasisProgressReport();
-            byte[] encrypted = await BasisEncryptionWrapper.EncryptToBytesAsync(uniqueId, basisPassword, glbBytes, report);
+            byte[] encrypted = await BasisEncryptionWrapper.EncryptToBytesAsync(uniqueId, basisPassword, sectionPayload, report);
             if (encrypted == null || encrypted.Length == 0)
             {
                 BasisDebug.LogError("Generic avatar export failed to encrypt the glb payload.");
@@ -71,7 +89,7 @@ public static class BasisGenericAvatarExporter
             await File.WriteAllBytesAsync(encryptedPath, encrypted);
 
             BasisBundleGenerated generated = new BasisBundleGenerated(
-                Hash128.Compute(glbBytes).ToString(),
+                Hash128.Compute(sectionPayload).ToString(),
                 BasisBundleConnector.GltfAssetMode,
                 clone.name + ".glb",
                 0,
@@ -83,7 +101,7 @@ public static class BasisGenericAvatarExporter
                 GenericAvatarDataJson = avatarData.ToJson(),
             };
 
-            BasisDebug.Log($"Generic (glTF) avatar section: glb {glbBytes.LongLength} bytes, encrypted {encrypted.LongLength} bytes.");
+            BasisDebug.Log($"Generic (glTF) avatar section: glb {glbBytes.LongLength} bytes, section {sectionPayload.LongLength} bytes, encrypted {encrypted.LongLength} bytes.");
             return (generated, encryptedPath);
         }
         finally
@@ -92,7 +110,228 @@ public static class BasisGenericAvatarExporter
             {
                 Object.DestroyImmediate(clone);
             }
+            for (int Index = 0; Index < duplicatedMeshes.Count; Index++)
+            {
+                if (duplicatedMeshes[Index] != null)
+                {
+                    Object.DestroyImmediate(duplicatedMeshes[Index]);
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// For every skinned mesh on the clone: duplicates the mesh (the user's asset is never
+    /// touched), bakes currently nonzero, non-driver blendshape weights into the base
+    /// vertices/normals, and collects the driver shapes (visemes, blink, laughter) as sparse
+    /// deltas pre-scaled to full application at weight 100. Shapes that are neither weighted
+    /// nor driver-referenced are dropped — the fallback has nothing that would actuate them.
+    /// </summary>
+    private static BasisGenericBlendshapeSidecar BakeAndCollectBlendshapes(BasisAvatar cloneAvatar, List<Mesh> duplicatedMeshes)
+    {
+        Transform root = cloneAvatar.transform;
+        BasisGenericBlendshapeSidecar sidecar = new BasisGenericBlendshapeSidecar();
+        SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
+        {
+            SkinnedMeshRenderer renderer = renderers[rendererIndex];
+            Mesh source = renderer.sharedMesh;
+            if (source == null || source.blendShapeCount == 0)
+            {
+                continue;
+            }
+
+            HashSet<int> driverShapes = CollectDriverShapeIndices(cloneAvatar, renderer, source.blendShapeCount);
+
+            Mesh working;
+            try
+            {
+                working = Object.Instantiate(source);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Generic avatar export: could not duplicate mesh '{source.name}' for blendshape processing: {ex.Message}");
+                continue;
+            }
+            working.name = source.name;
+            duplicatedMeshes.Add(working);
+            renderer.sharedMesh = working;
+
+            try
+            {
+                BakeNonDriverWeights(renderer, working, driverShapes);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Generic avatar export: baking blendshape weights on '{working.name}' failed: {ex.Message}");
+            }
+
+            if (driverShapes.Count == 0)
+            {
+                continue;
+            }
+
+            BasisGenericBlendshapeSidecar.SidecarMesh entry = new BasisGenericBlendshapeSidecar.SidecarMesh
+            {
+                Path = BasisGenericAvatarData.GetPathRelativeTo(root, renderer.transform),
+                VertexCount = working.vertexCount,
+            };
+            List<int> orderedShapes = new List<int>(driverShapes);
+            orderedShapes.Sort();
+            int vertexCount = working.vertexCount;
+            Vector3[] deltaPositions = new Vector3[vertexCount];
+            Vector3[] deltaNormals = new Vector3[vertexCount];
+            Vector3[] deltaTangents = new Vector3[vertexCount];
+            for (int orderIndex = 0; orderIndex < orderedShapes.Count; orderIndex++)
+            {
+                int shapeIndex = orderedShapes[orderIndex];
+                int lastFrame = working.GetBlendShapeFrameCount(shapeIndex) - 1;
+                float frameWeight = working.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
+                if (frameWeight <= 0f)
+                {
+                    continue;
+                }
+                working.GetBlendShapeFrameVertices(shapeIndex, lastFrame, deltaPositions, deltaNormals, deltaTangents);
+                float scale = 100f / frameWeight;
+
+                const float positionEpsilonSq = 1e-12f;
+                const float normalEpsilonSq = 1e-10f;
+                List<int> sparse = new List<int>(256);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (deltaPositions[i].sqrMagnitude > positionEpsilonSq || deltaNormals[i].sqrMagnitude > normalEpsilonSq)
+                    {
+                        sparse.Add(i);
+                    }
+                }
+
+                BasisGenericBlendshapeSidecar.SidecarShape shape = new BasisGenericBlendshapeSidecar.SidecarShape
+                {
+                    Name = working.GetBlendShapeName(shapeIndex),
+                    SparseIndices = sparse.ToArray(),
+                    DeltaPositions = new Vector3[sparse.Count],
+                    DeltaNormals = new Vector3[sparse.Count],
+                };
+                for (int i = 0; i < sparse.Count; i++)
+                {
+                    shape.DeltaPositions[i] = deltaPositions[sparse[i]] * scale;
+                    shape.DeltaNormals[i] = deltaNormals[sparse[i]] * scale;
+                }
+                entry.Shapes.Add(shape);
+            }
+            if (entry.Shapes.Count > 0)
+            {
+                sidecar.Meshes.Add(entry);
+            }
+        }
+        return sidecar;
+    }
+
+    private static HashSet<int> CollectDriverShapeIndices(BasisAvatar avatar, SkinnedMeshRenderer renderer, int blendShapeCount)
+    {
+        HashSet<int> driverShapes = new HashSet<int>();
+        void Add(int shapeIndex)
+        {
+            if (shapeIndex >= 0 && shapeIndex < blendShapeCount)
+            {
+                driverShapes.Add(shapeIndex);
+            }
+        }
+        if (renderer == avatar.FaceVisemeMesh)
+        {
+            if (avatar.FaceVisemeMovement != null)
+            {
+                for (int i = 0; i < avatar.FaceVisemeMovement.Length; i++)
+                {
+                    Add(avatar.FaceVisemeMovement[i]);
+                }
+            }
+            Add(avatar.laughterBlendTarget);
+        }
+        if (renderer == avatar.FaceBlinkMesh && avatar.BlinkViseme != null)
+        {
+            for (int i = 0; i < avatar.BlinkViseme.Length; i++)
+            {
+                Add(avatar.BlinkViseme[i]);
+            }
+        }
+        return driverShapes;
+    }
+
+    /// <summary>
+    /// Applies every nonzero, non-driver blendshape weight to the mesh's base vertices and
+    /// normals (final frame, scaled by weight/frameWeight) and zeroes the weight — the shape
+    /// state a creator authored becomes the exported geometry itself.
+    /// </summary>
+    private static void BakeNonDriverWeights(SkinnedMeshRenderer renderer, Mesh working, HashSet<int> driverShapes)
+    {
+        int shapeCount = working.blendShapeCount;
+        int vertexCount = working.vertexCount;
+        Vector3[] baseVertices = null;
+        Vector3[] baseNormals = null;
+        Vector3[] deltaPositions = null;
+        Vector3[] deltaNormals = null;
+        Vector3[] deltaTangents = null;
+        bool anyBaked = false;
+
+        for (int shapeIndex = 0; shapeIndex < shapeCount; shapeIndex++)
+        {
+            float weight = renderer.GetBlendShapeWeight(shapeIndex);
+            if (weight <= 0f || driverShapes.Contains(shapeIndex))
+            {
+                continue;
+            }
+            int lastFrame = working.GetBlendShapeFrameCount(shapeIndex) - 1;
+            float frameWeight = working.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
+            if (frameWeight <= 0f)
+            {
+                continue;
+            }
+
+            if (baseVertices == null)
+            {
+                baseVertices = working.vertices;
+                baseNormals = working.normals;
+                deltaPositions = new Vector3[vertexCount];
+                deltaNormals = new Vector3[vertexCount];
+                deltaTangents = new Vector3[vertexCount];
+            }
+
+            working.GetBlendShapeFrameVertices(shapeIndex, lastFrame, deltaPositions, deltaNormals, deltaTangents);
+            float scale = weight / frameWeight;
+            for (int i = 0; i < vertexCount; i++)
+            {
+                baseVertices[i] += deltaPositions[i] * scale;
+            }
+            if (baseNormals != null && baseNormals.Length == vertexCount)
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    baseNormals[i] += deltaNormals[i] * scale;
+                }
+            }
+            renderer.SetBlendShapeWeight(shapeIndex, 0f);
+            anyBaked = true;
+        }
+
+        if (!anyBaked)
+        {
+            return;
+        }
+        working.vertices = baseVertices;
+        if (baseNormals != null && baseNormals.Length == vertexCount)
+        {
+            for (int i = 0; i < vertexCount; i++)
+            {
+                float magnitude = baseNormals[i].magnitude;
+                if (magnitude > 1e-6f)
+                {
+                    baseNormals[i] /= magnitude;
+                }
+            }
+            working.normals = baseNormals;
+        }
+        working.RecalculateBounds();
     }
 
     private static async Task<byte[]> ExportGlb(GameObject clone)

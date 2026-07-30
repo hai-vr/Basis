@@ -232,7 +232,10 @@ public static class BasisFarLodAtlasBaker
             }
             if (coveredPixels == 0)
             {
-                Debug.LogWarning("[FarLod] Every view capture was empty — Camera.Render produced no avatar pixels. The atlas will be flat. Check that the avatar's renderers are enabled and visible.");
+                // Shipping a flat gray imposter is worse than shipping none — abort so the
+                // bundle builds without a far LOD and the console says why.
+                Debug.LogWarning("[FarLod] Every view capture was empty — the camera produced no avatar pixels. Skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
+                return null;
             }
 
             colliderObject = new GameObject("FarLodBakeCollider") { hideFlags = HideFlags.HideAndDontSave, layer = OcclusionLayer };
@@ -450,7 +453,20 @@ public static class BasisFarLodAtlasBaker
     private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
     {
         camera.backgroundColor = background;
-        camera.Render();
+        // Manual Camera.Render() outside the render loop is not reliable on every SRP/project
+        // configuration (observed: captures silently come back empty, shipping a flat gray
+        // atlas). The render-request API is the supported SRP offscreen path — use it whenever
+        // the pipeline offers it and keep Camera.Render() for Built-in.
+        var request = new UnityEngine.Rendering.RenderPipeline.StandardRequest();
+        if (UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(camera, request))
+        {
+            request.destination = camera.targetTexture;
+            UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, request);
+        }
+        else
+        {
+            camera.Render();
+        }
         RenderTexture previous = RenderTexture.active;
         RenderTexture.active = camera.targetTexture;
         readback.ReadPixels(new Rect(0, 0, captureSize, captureSize), 0, 0, false);
