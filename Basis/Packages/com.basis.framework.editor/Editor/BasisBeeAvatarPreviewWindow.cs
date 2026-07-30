@@ -466,6 +466,13 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
         Transform genericAvatarRoot = LocateGenericAvatarRoot();
         genericData?.ApplyNodeState(genericAvatarRoot != null ? genericAvatarRoot : genericTemplate.transform);
         genericSidecar?.ApplyTo(genericAvatarRoot != null ? genericAvatarRoot : genericTemplate.transform);
+        if (genericData != null && genericAvatarRoot != null)
+        {
+            // Same gate the client runs: the shipped avatar selector asset. Fail closed if
+            // it cannot be loaded.
+            ContentPoliceSelector avatarSelector = AssetDatabase.LoadAssetAtPath<ContentPoliceSelector>("Packages/com.basis.sdk/Settings/AvatarContentPoliceSelector.asset");
+            BasisGenericComponentReplicator.Apply(genericData.ComponentsJson, genericAvatarRoot, avatarSelector);
+        }
 
         int sidecarShapes = 0;
         if (genericSidecar != null)
@@ -606,6 +613,7 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
         EditorGUILayout.LabelField("Viseme mesh", DescribeMeshPath(genericData.FaceVisemeMeshPath));
         EditorGUILayout.LabelField("Blink mesh", DescribeMeshPath(genericData.FaceBlinkMeshPath));
         EditorGUILayout.LabelField("Hidden nodes", (genericData.InactiveNodePaths?.Length ?? 0).ToString());
+        EditorGUILayout.LabelField("Replicated components", string.IsNullOrEmpty(genericData.ComponentsJson) ? "(none)" : $"{genericData.ComponentsJson.Length / 1024f:0.0} KB json");
 
         EditorGUILayout.Space(4);
         if (GUILayout.Button("Test Humanoid Rebuild"))

@@ -140,14 +140,24 @@ public static class BasisFarLodAtlasBaker
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.cullingMask = ~0;
             camera.allowHDR = false;
-            camera.allowMSAA = false;
+            // MSAA must stay allowed or URP downgrades the 4x capture targets to 1 sample,
+            // re-enabling depth priming — see GetCaptureTarget.
+            camera.allowMSAA = true;
             camera.useOcclusionCulling = false;
             // Every capture target is square; pinning the aspect keeps the projection math
             // identical whether the pipeline renders via targetTexture or a request destination.
             camera.aspect = 1f;
 
-            bodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32);
-            regionTexture = RenderTexture.GetTemporary(regionCaptureSize, regionCaptureSize, 24, RenderTextureFormat.ARGB32);
+            // Beauty targets are 4x MSAA on purpose: URP disables depth priming for MSAA
+            // targets, restoring the plain forward path for arbitrary avatar shaders. Under a
+            // forced-depth-priming renderer, shaders whose DepthOnly pass is missing or broken
+            // are otherwise invisible in manual captures (probe-verified on stock URP 17.4:
+            // 1x target = cleared-but-empty, 4x target = renders). The resolve on readback is
+            // plain anti-aliasing — harmless for beauty. The mask targets stay 1x because
+            // sample-averaging would corrupt the encoded ids/depth; the part-id shader carries
+            // its own DepthOnly pass, so priming is satisfied there.
+            bodyTexture = GetCaptureTarget(captureSize);
+            regionTexture = GetCaptureTarget(regionCaptureSize);
             bodyReadback = NewReadback(captureSize);
             regionReadback = NewReadback(regionCaptureSize);
 
@@ -341,6 +351,15 @@ public static class BasisFarLodAtlasBaker
         {
             hideFlags = HideFlags.HideAndDontSave,
         };
+    }
+
+    private static RenderTexture GetCaptureTarget(int size)
+    {
+        RenderTextureDescriptor descriptor = new RenderTextureDescriptor(size, size, RenderTextureFormat.ARGB32, 24)
+        {
+            msaaSamples = 4,
+        };
+        return RenderTexture.GetTemporary(descriptor);
     }
 
     private static Vector3[] BuildBodyViewDirections()

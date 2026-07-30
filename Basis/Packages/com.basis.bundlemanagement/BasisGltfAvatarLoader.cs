@@ -113,6 +113,17 @@ public static class BasisGltfAvatarLoader
             basisAvatar.Animator = animator;
             avatarData.ApplyWiring(basisAvatar, avatarRoot.transform);
             avatarData.RemapShapeIndicesByName(basisAvatar);
+
+            // Rebuild replicated components (jiggle, face tracking, colliders, ...) on the
+            // still-inactive template. The avatar ContentPolice selector gates every type
+            // BEFORE construction (fail closed when unavailable), and clones additionally
+            // pass the full ContentPolice walk — the client's removal safeties stay in force.
+            ContentPoliceSelector avatarSelector = null;
+            if (BundledContentHolder.Instance != null)
+            {
+                BundledContentHolder.Instance.GetSelector(BundledContentHolder.Selector.Avatar, out avatarSelector);
+            }
+            BasisGenericComponentReplicator.Apply(avatarData.ComponentsJson, avatarRoot.transform, avatarSelector);
             basisAvatar.Renders = avatarRoot.GetComponentsInChildren<Renderer>(true);
             basisAvatar.BasisBundleDescription = wrapper.LoadableBundle.BasisBundleConnector?.BasisBundleDescription;
             basisAvatar.TransformStorage = BasisAvatarTransformStorage.CaptureFrom(animator);

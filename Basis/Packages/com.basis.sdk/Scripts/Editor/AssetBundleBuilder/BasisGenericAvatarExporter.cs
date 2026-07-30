@@ -63,6 +63,15 @@ public static class BasisGenericAvatarExporter
             {
                 return (null, null);
             }
+            try
+            {
+                avatarData.ComponentsJson = BasisGenericComponentReplicator.Capture(clone.transform);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                Debug.LogWarning("Component replication capture failed — building the generic section without replicated components.");
+            }
 
             byte[] glbBytes = await ExportGlb(clone);
             if (glbBytes == null || glbBytes.Length == 0)
@@ -176,7 +185,91 @@ public static class BasisGenericAvatarExporter
             {
                 renderers[rendererIndex].sharedMaterials = shared;
             }
+
+            // Second pass: surface emission through the standard convention glTFast reads
+            // (_EMISSION keyword + _EmissionColor/_EmissionMap). Toon shaders drive emission
+            // through their own layer properties, so emissive eyes/markings otherwise export
+            // black — the visible base texture is often just a dark canvas under the glow.
+            shared = renderers[rendererIndex].sharedMaterials;
+            changed = false;
+            for (int materialIndex = 0; materialIndex < shared.Length; materialIndex++)
+            {
+                Material material = shared[materialIndex];
+                if (material == null || material.shader == null || material.IsKeywordEnabled("_EMISSION"))
+                {
+                    continue;
+                }
+                if (!TryDetectEmission(material, out Color emissionColor, out Texture emissionMap))
+                {
+                    continue;
+                }
+                Material copy;
+                if (temporaryMaterials.Contains(material))
+                {
+                    copy = material;
+                }
+                else
+                {
+                    copy = new Material(material) { name = material.name };
+                    temporaryMaterials.Add(copy);
+                    shared[materialIndex] = copy;
+                    changed = true;
+                }
+                copy.EnableKeyword("_EMISSION");
+                if (copy.HasProperty("_EmissionColor"))
+                {
+                    copy.SetColor("_EmissionColor", emissionColor);
+                }
+                if (emissionMap != null && copy.HasProperty("_EmissionMap"))
+                {
+                    copy.SetTexture("_EmissionMap", emissionMap);
+                }
+            }
+            if (changed)
+            {
+                renderers[rendererIndex].sharedMaterials = shared;
+            }
         }
+    }
+
+    /// <summary>
+    /// Finds the strongest active emission layer on a material, checking the standard
+    /// properties first and then Poiyomi-style numbered layers (gated on their per-layer
+    /// strength so ubiquitous default-white colors don't light every material up).
+    /// </summary>
+    private static bool TryDetectEmission(Material material, out Color emissionColor, out Texture emissionMap)
+    {
+        emissionColor = Color.black;
+        emissionMap = null;
+        string[] suffixes = { "", "1", "2", "3" };
+        bool found = false;
+        float bestStrength = 0f;
+        foreach (string suffix in suffixes)
+        {
+            string strengthProperty = "_EmissionStrength" + suffix;
+            if (!material.HasProperty(strengthProperty))
+            {
+                continue;
+            }
+            float strength = material.GetFloat(strengthProperty);
+            if (strength <= 0.001f || strength <= bestStrength)
+            {
+                continue;
+            }
+            string colorProperty = "_EmissionColor" + suffix;
+            string mapProperty = "_EmissionMap" + suffix;
+            Color color = material.HasProperty(colorProperty) ? material.GetColor(colorProperty) : Color.white;
+            Texture map = material.HasProperty(mapProperty) ? material.GetTexture(mapProperty) : null;
+            if (map == null && color.maxColorComponent <= 0.001f)
+            {
+                continue;
+            }
+            bestStrength = strength;
+            emissionColor = color * strength;
+            emissionMap = map;
+            found = true;
+        }
+        return found;
     }
 
     private static bool IsEffectivelyCutout(Material material)

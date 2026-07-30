@@ -50,6 +50,11 @@ public class BasisGenericAvatarData
     public string[] InactiveNodePaths;
     public string[] DisabledRendererPaths;
 
+    // Replicated avatar components (jiggle rigs, face tracking, colliders, ...) captured by
+    // BasisGenericComponentReplicator — hierarchy references stored as node paths. Null on
+    // payloads built before component replication existed.
+    public string ComponentsJson;
+
     // Humanoid rig description mirroring UnityEngine.HumanDescription. Skeleton bones are
     // captured from the live (build-time) hierarchy in depth-first order, root first, so the
     // authored pose acts as the T-pose reference — Basis avatars are authored in T-pose.
