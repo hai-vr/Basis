@@ -228,8 +228,9 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
-            // Instant fallback while real avatar loads, skip if already on fallback
-            if (!Player.IsConsideredFallBackAvatar)
+            // Instant fallback while the real avatar loads — skip only when a fallback-classed
+            // avatar is genuinely worn (the flag defaults to true even with no avatar at all).
+            if (!Player.IsConsideredFallBackAvatar || Player.BasisAvatar == null)
             {
                 RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
             }
@@ -500,6 +501,22 @@ namespace Basis.Scripts.Avatar
                     {
                         oldRig.OnRemove();
                     }
+                }
+
+                // Same constraint as the disconnect path (BasisRemotePlayer.OnDestroy): jiggle
+                // colliders are keyed off their Transform, so they must be unregistered while
+                // the old avatar's transforms are still alive. DeleteLastAvatar's Destroy lands
+                // at end-of-frame — a still-registered collider transform dying there
+                // auto-compacts the collider TransformAccessArray against a data array that
+                // kept its rows, and every tree in range then reads shifted collider spheres.
+                switch (Player)
+                {
+                    case BasisLocalPlayer localPlayer when localPlayer.LocalAvatarDriver != null:
+                        localPlayer.LocalAvatarDriver.RemoveJiggleRigColliders();
+                        break;
+                    case BasisRemotePlayer remotePlayer when remotePlayer.RemoteAvatarDriver != null:
+                        remotePlayer.RemoteAvatarDriver.RemoveJiggleRigColliders();
+                        break;
                 }
             }
             DeleteLastAvatar(Player);

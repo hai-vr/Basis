@@ -111,12 +111,17 @@ public static class BasisFarAvatarBuilder
         // The root name is part of the humanoid rig's skeleton description and the rig is
         // shared per version, so it must be deterministic — not player-named.
         GameObject root = new GameObject($"Far Avatar {shared.UniqueVersion}") { layer = layer };
+        // Built under a holder parked far below the world (nothing visibly flashes) while the
+        // root itself stays at LOCAL identity — AvatarBuilder validates the hierarchy against
+        // the skeleton description, which declares the root at zero. Parking the root
+        // directly would contradict its own description.
+        GameObject buildHolder = new GameObject("Far Avatar Build");
+        buildHolder.transform.position = new Vector3(0f, -4096f, 0f);
         try
         {
             Transform rootTransform = root.transform;
-            // Built far below the world: AvatarBuilder needs an active hierarchy, and the
-            // factory snaps the installed avatar onto the network pose during calibration.
-            rootTransform.SetPositionAndRotation(new Vector3(0f, -4096f, 0f), Quaternion.identity);
+            rootTransform.SetParent(buildHolder.transform, false);
+            rootTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             rootTransform.localScale = payload.AuthoredRootScale;
 
             int boneCount = payload.BoneCount;
@@ -175,13 +180,16 @@ public static class BasisFarAvatarBuilder
             BasisFarAvatarInstance instance = root.AddComponent<BasisFarAvatarInstance>();
             instance.SharedVersion = shared.UniqueVersion;
 
-            rootTransform.position = Vector3.zero;
+            rootTransform.SetParent(null, false);
+            rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Object.Destroy(buildHolder);
             return avatar;
         }
         catch (System.Exception e)
         {
             BasisDebug.LogError($"Far avatar build failed for {displayName}: {e}", BasisDebug.LogTag.Avatar);
             Object.Destroy(root);
+            Object.Destroy(buildHolder);
             return null;
         }
     }
@@ -274,6 +282,7 @@ public static class BasisFarAvatarBuilder
         Texture2D texture = payload.CreateTexture();
         if (texture == null)
         {
+            BasisDebug.LogError($"Far avatar texture build failed for version {uniqueVersion}.", BasisDebug.LogTag.Avatar);
             return null;
         }
 
@@ -289,6 +298,7 @@ public static class BasisFarAvatarBuilder
         shared.Mesh = payload.CreateMesh();
         if (shared.Mesh == null)
         {
+            BasisDebug.LogError($"Far avatar mesh build failed for version {uniqueVersion}.", BasisDebug.LogTag.Avatar);
             Object.Destroy(texture);
             return null;
         }

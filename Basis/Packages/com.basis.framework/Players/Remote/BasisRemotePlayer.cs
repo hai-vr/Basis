@@ -70,6 +70,8 @@ namespace Basis.Scripts.BasisSdk.Players
         /// evaluation for them when this is still false.
         /// </summary>
         public bool FarLodInitialEvaluated;
+        /// <summary>Earliest time the transmit tick may retry a failed connector fetch.</summary>
+        public float FarLodNextFetchRetryTime;
 
         /// <summary>
         /// Drops the cached far avatar payload, e.g. when the player's avatar record changed
@@ -631,12 +633,14 @@ namespace Basis.Scripts.BasisSdk.Players
                         {
                             ClearFarLodStandIn();
                         }
-                        if (BasisLoadableBundle?.BasisBundleConnector != null)
+                        if (BasisAvatarFarLOD.HasRealConnector(BasisLoadableBundle))
                         {
                             BasisAvatarFarLOD.CaptureFarLodFallback(this, BasisLoadableBundle);
                         }
                         else
                         {
+                            // Network-converted bundles carry an EMPTY connector husk — a
+                            // null check would skip the fetch for every fresh joiner.
                             BasisAvatarFarLOD.RequestFarLodPayload(this, BasisLoadableBundle);
                         }
                     }
@@ -645,10 +649,11 @@ namespace Basis.Scripts.BasisSdk.Players
                         // Hidden or blocked — never represent this player with a far LOD.
                         ClearFarLodStandIn();
                     }
-                    // The far avatar is fallback-classed and stays put; only a real avatar
-                    // (or a far avatar whose payload was just cleared) drops to the dummy.
+                    // The far avatar is fallback-classed and stays put; a real avatar, a far
+                    // avatar whose payload was just cleared, or a player wearing nothing at
+                    // all (fallback never actually loaded) drops to the dummy.
                     bool wearingClearedFarAvatar = BasisAvatar != null && BasisAvatar.IsFarLodAvatar && string.IsNullOrEmpty(FarLodOverridePayload);
-                    if (!IsConsideredFallBackAvatar || wearingClearedFarAvatar)
+                    if (!IsConsideredFallBackAvatar || BasisAvatar == null || wearingClearedFarAvatar)
                     {
                         BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
                     }

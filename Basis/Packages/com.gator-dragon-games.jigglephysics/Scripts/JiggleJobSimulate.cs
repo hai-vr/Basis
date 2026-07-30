@@ -663,8 +663,18 @@ public struct JiggleJobSimulate : IJobFor {
             Constrain(tree, minExtentPosition, maxExtentPosition);
             FinishStep(tree);
         }
-        ApplyPose(tree);
+        // Repair BEFORE the pose write, not after: a NaN step otherwise leaks one frame of NaN
+        // into the bone transforms, and because the next frame's animated pose is read back off
+        // those same transforms, the corruption feeds itself and never heals — one bad step
+        // permanently explodes the avatar (and its NaN render bounds then fail every culling
+        // test, so a culled tree stops being re-posed at all). Sanitized state degrades the
+        // same event to a one-frame snap back to the animated pose instead.
+        // This is also the ingest guard: a tree committed with garbage build-time measurements
+        // (rebuilt off a mid-swap skeleton) gets its state clamped here, on workers, before its
+        // first write — Cache above re-derives lengths from live poses, so no main-thread
+        // sanitize pass at commit is needed.
         jiggleTrees[index].Sanitize();
+        ApplyPose(tree);
     }
 }
 

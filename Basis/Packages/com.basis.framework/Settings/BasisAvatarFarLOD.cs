@@ -1,7 +1,9 @@
 using System.Threading;
 using Basis.BasisUI;
+using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
+using UnityEngine;
 
 /// <summary>
 /// Far avatars for remote players whose real avatar isn't loaded: a ~20-bone, ~8k-triangle
@@ -56,6 +58,16 @@ public static class BasisAvatarFarLOD
             }
         }
 
+        // Wearing nothing at all — the fallback load never ran or failed (e.g. the factory
+        // wasn't initialized yet at join). IsConsideredFallBackAvatar defaults to true, so
+        // every branch below would assume a dummy is present; load it before evaluating.
+        if (remote.BasisAvatar == null && !remote.IsLoadingAnAvatar)
+        {
+            transitionBudget--;
+            BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(remote, Vector3.zero, Quaternion.identity);
+            return;
+        }
+
         // Join-time evaluation, deferred to this loop so it uses the job's distance: joiners
         // load only the fallback, and an out-of-range joiner never gets a range edge, so run
         // one CreateAvatar pass for them — it reads visibility settings and either starts the
@@ -69,6 +81,21 @@ public static class BasisAvatarFarLOD
             transitionBudget--;
             remote.ReloadAvatar();
             return;
+        }
+
+        // The connector-only fetch can fail transiently (network hiccup, an expired cert on
+        // the bee host) — without a retry those players sit on the dummy forever. Bees known
+        // to carry no payload are excluded: capture records the source it inspected even
+        // when it found nothing there.
+        string requestedSource = remote.AlwaysRequestedAvatar?.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+        if (remote.FarLodInitialEvaluated && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
+            remote.IsConsideredFallBackAvatar && !remote.IsFarLodActive &&
+            !remote.FarLodConnectorFetchInFlight && string.IsNullOrEmpty(remote.FarLodOverridePayload) &&
+            !string.IsNullOrEmpty(requestedSource) && remote.FarLodOverrideSource != requestedSource &&
+            Time.unscaledTime >= remote.FarLodNextFetchRetryTime)
+        {
+            remote.FarLodNextFetchRetryTime = Time.unscaledTime + 10f;
+            RequestFarLodPayload(remote, remote.AlwaysRequestedAvatar);
         }
 
         bool wearingFar = remote.IsFarLodActive;
@@ -102,6 +129,15 @@ public static class BasisAvatarFarLOD
             transitionBudget--;
             remote.ReloadAvatar();
         }
+        else if (!wantsFar && !wearingFar && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
+                 remote.IsConsideredFallBackAvatar && remote.HasFarLodPayload &&
+                 Time.unscaledTime >= remote.FarLodNextFetchRetryTime)
+        {
+            // Payload in hand, player out of range on the dummy, yet no far avatar wanted —
+            // one of the gates is refusing; name it instead of sitting silent.
+            remote.FarLodNextFetchRetryTime = Time.unscaledTime + 10f;
+            BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} has a payload but is gated: enabled={Enabled} blocked={remote.IsEffectivelyBlocked} alwaysShow={remote.AlwaysShowAvatar}", BasisDebug.LogTag.Avatar);
+        }
     }
 
     /// <summary>
@@ -119,6 +155,11 @@ public static class BasisAvatarFarLOD
         if (string.IsNullOrEmpty(connector.FarLodBase64))
         {
             BasisDebug.Log($"Avatar bee for {remote.DisplayName} carries no far avatar payload — staying on the fallback.", BasisDebug.LogTag.Avatar);
+            // Remember that this source was inspected and had nothing — stops the transmit
+            // tick's fetch retry from re-reading a known payload-less bee forever.
+            remote.FarLodOverrideSource = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+            remote.FarLodOverridePayload = null;
+            remote.FarLodOverrideVersion = null;
             return;
         }
         if (string.IsNullOrEmpty(connector.UniqueVersion))
@@ -144,6 +185,17 @@ public static class BasisAvatarFarLOD
     /// ever paying for the full avatar. Fire-and-forget; the transmit tick installs the far
     /// avatar once the payload lands.
     /// </summary>
+    /// <summary>
+    /// True when the bundle carries a REAL parsed connector. Network-converted bundles are
+    /// constructed with a non-null EMPTY connector husk (see BasisBundleConversionNetwork),
+    /// so a plain null check reads "connector present" for every fresh joiner and starves
+    /// the fetch path.
+    /// </summary>
+    public static bool HasRealConnector(BasisLoadableBundle bundle)
+    {
+        return !string.IsNullOrEmpty(bundle?.BasisBundleConnector?.UniqueVersion);
+    }
+
     public static async void RequestFarLodPayload(BasisRemotePlayer remote, BasisLoadableBundle bundle)
     {
         if (remote == null || bundle == null || remote.FarLodConnectorFetchInFlight ||
@@ -151,7 +203,7 @@ public static class BasisAvatarFarLOD
         {
             return;
         }
-        if (bundle.BasisBundleConnector != null)
+        if (HasRealConnector(bundle))
         {
             CaptureFarLodFallback(remote, bundle);
             return;
@@ -161,13 +213,18 @@ public static class BasisAvatarFarLOD
         try
         {
             BasisMetaLoadResult metaResult = BasisMetaLoadResult.Success;
-            await sConnectorFetchGate.WaitAsync();
+            // Hard timeout on the whole attempt (queue wait + download): a hung connection
+            // (e.g. a bad TLS handshake) would otherwise never resolve, pin the in-flight
+            // flag forever, and — once four of them stack up — starve the semaphore so every
+            // other player's fetch queues behind them silently.
+            using System.Threading.CancellationTokenSource fetchTimeout = new System.Threading.CancellationTokenSource(System.TimeSpan.FromSeconds(30));
+            await sConnectorFetchGate.WaitAsync(fetchTimeout.Token);
             try
             {
-                if (!remote.IsDestroyed && bundle.BasisBundleConnector == null)
+                if (!remote.IsDestroyed && !HasRealConnector(bundle))
                 {
                     BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { LoadableBundle = bundle };
-                    metaResult = await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, new BasisProgressReport(), CancellationToken.None);
+                    metaResult = await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, new BasisProgressReport(), fetchTimeout.Token);
                 }
             }
             finally
@@ -183,13 +240,13 @@ public static class BasisAvatarFarLOD
             // recreates AlwaysRequestedAvatar as a new object for the same bee.
             string fetchedSource = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
             string currentSource = remote.AlwaysRequestedAvatar?.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-            if (bundle.BasisBundleConnector != null && fetchedSource == currentSource)
+            if (HasRealConnector(bundle) && fetchedSource == currentSource)
             {
                 CaptureFarLodFallback(remote, bundle);
             }
             else
             {
-                BasisDebug.LogWarning($"Far avatar connector fetch for {remote.DisplayName} produced nothing to capture: connector={(bundle.BasisBundleConnector != null)} sameAvatar={fetchedSource == currentSource} loaded={metaResult.Loaded} transient={metaResult.IsTransient} error={metaResult.Error ?? "none"}", BasisDebug.LogTag.Avatar);
+                BasisDebug.LogWarning($"Far avatar connector fetch for {remote.DisplayName} produced nothing to capture: connector={HasRealConnector(bundle)} sameAvatar={fetchedSource == currentSource} loaded={metaResult.Loaded} transient={metaResult.IsTransient} error={metaResult.Error ?? "none"}", BasisDebug.LogTag.Avatar);
             }
         }
         catch (System.Exception e)

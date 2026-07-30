@@ -86,7 +86,9 @@ public static class BasisBeeManagement
             // First-time download: fetch the connector alone first (two small ranged
             // requests). It carries the far avatar payload, so a player can appear as their
             // own silhouette within moments while the full bundle downloads behind it.
-            if (wrapper.LoadableBundle.BasisBundleConnector == null)
+            // UniqueVersion check, not null: network-converted bundles carry an EMPTY
+            // connector husk that would otherwise read as "already have one".
+            if (string.IsNullOrEmpty(wrapper.LoadableBundle.BasisBundleConnector?.UniqueVersion))
             {
                 try
                 {
