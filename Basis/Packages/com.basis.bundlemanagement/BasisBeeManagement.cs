@@ -319,7 +319,14 @@ public static class BasisBeeManagement
             BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
             {
                 StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
-                StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
+                // Connector-only load: no platform section was written to disk. Snapshot only
+                // what actually exists — carrying the wrapper's pre-generated bee path here
+                // made the full-load path read a file that was never downloaded.
+                StoredLocal = new BasisStoredEncryptedBundle
+                {
+                    DownloadedConnectorFileLocation = wrapper.LoadableBundle.BasisLocalEncryptedBundle?.DownloadedConnectorFileLocation,
+                    DownloadedBeeFileLocation = string.Empty,
+                },
                 UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
                 DownloadedPlatform = BasisIOManagement.GetCurrentCachePlatform(),
             };

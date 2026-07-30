@@ -35,6 +35,8 @@ public class BasisAvatarFarLodRenderer
 
     private static readonly Dictionary<string, SharedAssets> SharedByVersion = new Dictionary<string, SharedAssets>(8);
     private static readonly int BaseMapProperty = Shader.PropertyToID("_BaseMap");
+    private static readonly int MinBrightnessProperty = Shader.PropertyToID("_MinBrightness");
+    private static readonly int MaxBrightnessProperty = Shader.PropertyToID("_MaxBrightness");
     private static Shader sImposterShader;
 
     public GameObject Root;
@@ -221,6 +223,8 @@ public class BasisAvatarFarLodRenderer
         {
             RemoteBoneJobSystem.RemoveRemotePlayer(receiver.playerId);
         }
+        // A world change can have destroyed the root out from under us — the swap back must
+        // still reactivate and re-register the real avatar.
         if (Root != null)
         {
             Root.SetActive(false);
@@ -314,6 +318,8 @@ public class BasisAvatarFarLodRenderer
         }
         shared.Material = new Material(sImposterShader) { enableInstancing = true };
         shared.Material.SetTexture(BaseMapProperty, texture);
+        shared.Material.SetFloat(MinBrightnessProperty, payload.MinBrightness);
+        shared.Material.SetFloat(MaxBrightnessProperty, payload.MaxBrightness);
 
         SharedByVersion[uniqueVersion] = shared;
         return shared;

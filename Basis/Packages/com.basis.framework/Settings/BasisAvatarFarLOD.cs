@@ -50,9 +50,11 @@ public static class BasisAvatarFarLOD
     }
 
     /// <summary>
-    /// Per-remote evaluation, called from the transmit tick's merged post-processing loop with
-    /// the distance it already has in hand. Edge-triggered: does nothing while the desired
-    /// state matches, and consumes one unit of <paramref name="transitionBudget"/> on a swap.
+    /// Per-remote evaluation, called from the transmit tick's merged post-processing loop.
+    /// <paramref name="distanceSq"/> is the tick's mouth-based job distance — used only as a
+    /// cross-check; the swap decision itself runs on the raw network hips position (see below).
+    /// Edge-triggered: does nothing while the desired state matches, and consumes one unit of
+    /// <paramref name="transitionBudget"/> on a swap.
     /// </summary>
     public static void Tick(BasisRemotePlayer remote, float distanceSq, ref int transitionBudget)
     {
@@ -73,7 +75,49 @@ public static class BasisAvatarFarLOD
             }
         }
 
+        // Self-heal a latched stand-in: a real, calibrated, non-fallback avatar means every
+        // stand-in reason (platform missing, downloading, out of range) has expired. The
+        // calibration seed normally clears this — if that edge was missed, the far avatar
+        // would otherwise stay up at ANY distance and never swap back on approach.
+        if (remote.FarLodIsAvatar && !remote.IsLoadingAnAvatar && !remote.IsConsideredFallBackAvatar && remote.BasisAvatar != null)
+        {
+            remote.FarLodIsAvatar = false;
+            BasisDebug.Log($"Far avatar stand-in expired for {remote.DisplayName} (real avatar is loaded) — returning to distance-based swapping.", BasisDebug.LogTag.Avatar);
+        }
+
+        // A permanently pinned stand-in (real load failed) is BY DESIGN — but it looks
+        // identical to a broken swap-back, so say so once instead of staying silent.
+        if (remote.FarLodIsAvatar && remote.IsFarLodActive && remote.HasFailedAvatarLoadGlobally && !remote.FarLodPinLogged)
+        {
+            remote.FarLodPinLogged = true;
+            BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} is standing in at ALL distances because their real avatar FAILED to load (see the earlier 'Loading avatar failed' error). It will not swap to the full avatar until a working avatar arrives.", BasisDebug.LogTag.Avatar);
+        }
+
         bool current = remote.IsFarLodActive;
+
+        // Range decisions are hips-fed for far players at the job-input level, but the
+        // registration's mouth output is still consumed elsewhere (voice positioning), so
+        // cross-check it against the network hips every few seconds. The transforms in the
+        // log separate a corrupt payload (sane farHead, huge offset lever) from a flung
+        // skeleton or a desynced job slot.
+        if (current && Time.unscaledTime >= remote.FarLodNextDistanceCheckTime)
+        {
+            remote.FarLodNextDistanceCheckTime = Time.unscaledTime + 5f;
+            var poseReceiver = remote.NetworkReceiver;
+            if (poseReceiver != null && RemoteBoneJobSystem.GetOutGoingMouth(poseReceiver.playerId, out var mouth))
+            {
+                poseReceiver.GetLatestNetworkPose(out var hipsWorldPos, out _, out _);
+                if (((Vector3)mouth - (Vector3)hipsWorldPos).sqrMagnitude > 100f)
+                {
+                    var farLod = remote.FarLod;
+                    string farState = farLod != null && farLod.Head != null && farLod.RootTransform != null
+                        ? $" farHead={farLod.Head.position} farRoot={farLod.RootTransform.position} farScale={farLod.RootTransform.lossyScale}"
+                        : " farState=<destroyed>";
+                    BasisDebug.LogError($"Far avatar mouth output broken for {remote.DisplayName}: mouth={(Vector3)mouth} vs network hips={(Vector3)hipsWorldPos} (standIn={remote.FarLodIsAvatar}).{farState}", BasisDebug.LogTag.Avatar);
+                }
+            }
+        }
+
         // Stand-in mode ignores distance and the swap toggle: the far LOD IS the avatar
         // (no build for this platform, still downloading, out of avatar range), so it stays
         // up until a real avatar calibrates.
@@ -87,6 +131,11 @@ public static class BasisAvatarFarLOD
         if (remote.SetFarLodActive(desired))
         {
             transitionBudget--;
+        }
+        else if (!desired)
+        {
+            // A refused deactivation is the "won't swap back" symptom — say why.
+            BasisDebug.LogWarning($"Far avatar swap-back did not transition for {remote.DisplayName}: active={remote.IsFarLodActive} standIn={remote.FarLodIsAvatar} loading={remote.IsLoadingAnAvatar} fallback={remote.IsConsideredFallBackAvatar} avatar={(remote.BasisAvatar != null)} inBoneDriver={remote.RemoteAvatarDriver?.InBoneDriver}", BasisDebug.LogTag.Avatar);
         }
     }
 

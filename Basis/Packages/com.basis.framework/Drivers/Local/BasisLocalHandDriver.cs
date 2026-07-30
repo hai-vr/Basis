@@ -427,6 +427,9 @@ public class BasisLocalHandDriver
         };
         _fingerJobHandle = slerpJob.Schedule(_fingerTransforms);
         _hasScheduledJob = true;
+        // Apply now sits on the far side of the event driver's remote stages; kick so the job
+        // runs through that window instead of waiting for the next flush.
+        JobHandle.ScheduleBatchedJobs();
     }
 
     /// <summary>

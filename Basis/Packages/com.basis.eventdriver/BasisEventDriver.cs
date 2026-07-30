@@ -498,41 +498,56 @@ namespace Basis.EventDriver
             {
                 using (Prof.LocalPlayer.Auto())
                 {
-                    BasisLocalCameraDriver LocalCameraDriver = BasisLocalCameraDriver.Instance;
                     BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
-                    using (Prof.FacialBlink.Auto())
-                    {
-                        localplayer.FacialBlinkDriver.Simulate(TimeAsDouble);
-                    }
-                    using (Prof.VisemeApply.Auto())
-                    {
-                        localplayer.LocalVisemeDriver.Apply();
-                    }
+                    // Returns with the FBIK solve and the finger slerp job in flight; the remote-side
+                    // stages below are their overlap window, joined in the FinishSimulate block after
+                    // the remote audio simulate.
                     using (Prof.LocalPlayerSimulate.Auto())
                     {
                         localplayer.Simulate(DeltaTime);
-                    }
-                    // Complete the finger slerp job (TransformAccessArray write) before touching the
-                    // camera transform, so Simulate never overlaps jobified transform access.
-                    using (Prof.LocalHandApply.Auto())
-                    {
-                        localplayer.LocalHandDriver.Apply();
-                    }
-                    using (Prof.LocalCameraSimulate.Auto())
-                    {
-                        LocalCameraDriver.Simulate(DeltaTime);
-                    }
-                    using (Prof.LocalEyeSimulate.Auto())
-                    {
-                        localplayer.LocalEyeDriver.Simulate(DeltaTime);
                     }
                 }
             }
             ProfileEnd(PROF_LOCAL_PLAYER);
 
+            // Blink and viseme write local blendshape weights only — no pose reads, no jobs — so
+            // they run inside the solve window as overlap rather than ahead of Simulate. They stay
+            // ahead of the head blendshape read scheduled further down.
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
+                using (Prof.FacialBlink.Auto())
+                {
+                    localplayer.FacialBlinkDriver.Simulate(TimeAsDouble);
+                }
+                using (Prof.VisemeApply.Auto())
+                {
+                    localplayer.LocalVisemeDriver.Apply();
+                }
+            }
+
             using (Prof.RemoteBoneComplete.Auto())
             {
                 BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
+            }
+
+            // Finger apply + eye schedule run inside the solve window: the head is the solve's
+            // INPUT (head-pinned), and the eye driver reads only the render-latched camera statics
+            // plus remote gaze-target positions (remote bones joined just above) — never the solved
+            // pose. Eye bones are outside the scatter set, and the apply job writes eye LOCAL
+            // rotations, so the head landing afterwards carries them correctly. The finger TAA must
+            // retire first — the eye TAA schedules over the same avatar hierarchy.
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
+                using (Prof.LocalHandApply.Auto())
+                {
+                    localplayer.LocalHandDriver.Apply();
+                }
+                using (Prof.LocalEyeSimulate.Auto())
+                {
+                    localplayer.LocalEyeDriver.Simulate(DeltaTime);
+                }
             }
 
             using (Prof.PickupReweld.Auto())
@@ -574,15 +589,33 @@ namespace Basis.EventDriver
             }
             ProfileEnd(PROF_REMOTE_AUDIO_SIMULATE);
 
-            // Complete the eye apply here rather than right after its schedule in LocalEyeDriver.Simulate,
-            // so the eye compute/apply jobs overlap the remote bone complete, the schedule cluster, and
-            // the remote audio simulate above.
-            // Still ahead of JigglePhysics.ScheduleSimulate, so the transform write has no jiggle job to stall on.
+            // Retire the eye TAA before the IK join below scatters the same hierarchy from the
+            // main thread; its jobs overlapped the reweld/schedule-cluster/remote-audio stages.
+            // Stays ahead of the SteamAudio schedule further down, as before.
             if (BasisLocalPlayer.PlayerReady)
             {
                 using (Prof.LocalEyeApply.Auto())
                 {
                     BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+                }
+            }
+
+            // ── Local player finish: IK solve join + post-IK tail ──
+            // Everything since Simulate returned (remote bone join, finger apply, eye schedule,
+            // pickup reweld, the schedule cluster, remote audio) reads nothing the FBIK solve
+            // writes, so the solve ran through it on a worker. Join it now, then run the stages
+            // that need the solved pose: AfterSimulateOnLate (pickup weld reads IKWorldData) and
+            // the camera, which follows the AfterSimulateOnLate camera subscribers as before.
+            if (BasisLocalPlayer.PlayerReady)
+            {
+                using (Prof.LocalPlayerFinish.Auto())
+                {
+                    BasisLocalPlayer localplayer = BasisLocalPlayer.Instance;
+                    localplayer.FinishSimulate();
+                    using (Prof.LocalCameraSimulate.Auto())
+                    {
+                        BasisLocalCameraDriver.Instance.Simulate(DeltaTime);
+                    }
                 }
             }
 

@@ -193,7 +193,19 @@ public static class BasisFarLodGenerator
     public static string GenerateBase64(BasisAvatar avatar)
     {
         BasisFarLodPayload payload = Generate(avatar);
-        return payload?.SerializeToBase64();
+        if (payload == null)
+        {
+            return null;
+        }
+        byte[] bytes = payload.Serialize();
+        // Round-trip through the runtime parser: a payload every client would refuse (bad
+        // source data like an implausible eye/mouth position, or a writer/format regression)
+        // must fail the build here instead of shipping inside the bee.
+        if (BasisFarLodPayload.TryParse(bytes) == null)
+        {
+            throw new System.InvalidOperationException("Generated far avatar payload failed its validation round-trip — check the avatar's eye/mouth positions and rig for implausible values.");
+        }
+        return System.Convert.ToBase64String(bytes);
     }
 
     public static BasisFarLodPayload Generate(BasisAvatar avatar)
@@ -1070,6 +1082,8 @@ public static class BasisFarLodGenerator
             AvatarMouthPosition = avatar.AvatarMouthPosition,
             AuthoredRootScale = root.localScale,
             Textures = textures,
+            MinBrightness = BasisFarLodAtlasBaker.LastMinBrightness,
+            MaxBrightness = BasisFarLodAtlasBaker.LastMaxBrightness,
         };
 
         int boneCount = skeleton.Count;

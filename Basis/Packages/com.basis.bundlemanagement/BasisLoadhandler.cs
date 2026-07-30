@@ -214,7 +214,7 @@ public static class BasisLoadHandler
 
     private static string GetBundleKey(BasisLoadableBundle loadableBundle)
     {
-        string url = loadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
+        string url = BasisIOManagement.CanonicalizeRemoteUrl(loadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation);
         return $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";
     }
 
@@ -256,9 +256,10 @@ public static class BasisLoadHandler
             return;
         }
         List<string> keysToRemove = new List<string>();
+        string canonicalUrl = BasisIOManagement.CanonicalizeRemoteUrl(remoteUrl);
         foreach (KeyValuePair<string, BasisTrackedBundleWrapper> kvp in LoadedBundles)
         {
-            if (kvp.Value?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation == remoteUrl)
+            if (BasisIOManagement.CanonicalizeRemoteUrl(kvp.Value?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation) == canonicalUrl)
             {
                 keysToRemove.Add(kvp.Key);
             }
@@ -291,7 +292,7 @@ public static class BasisLoadHandler
 
     public static string GetDiscInfoKey(string remoteUrl, string downloadedPlatform)
     {
-        string safeUrl = remoteUrl ?? string.Empty;
+        string safeUrl = BasisIOManagement.CanonicalizeRemoteUrl(remoteUrl);
         string safePlatform = string.IsNullOrWhiteSpace(downloadedPlatform) ? "legacy" : downloadedPlatform.Trim();
         return $"{safePlatform}|{safeUrl}";
     }
@@ -366,6 +367,7 @@ public static class BasisLoadHandler
         }
 
         BasisBEEExtensionMeta legacyCandidate = null;
+        string canonicalUrl = BasisIOManagement.CanonicalizeRemoteUrl(metaUrl);
 
         foreach (string file in Directory.GetFiles(path, $"*{BasisBeeConstants.BasisMetaExtension}"))
         {
@@ -373,7 +375,7 @@ public static class BasisLoadHandler
             {
                 byte[] fileData = File.ReadAllBytes(file);
                 BasisBEEExtensionMeta discInfo = BasisSerialization.DeserializeValue<BasisBEEExtensionMeta>(fileData);
-                if (discInfo?.StoredRemote?.RemoteBeeFileLocation != metaUrl)
+                if (BasisIOManagement.CanonicalizeRemoteUrl(discInfo?.StoredRemote?.RemoteBeeFileLocation) != canonicalUrl)
                 {
                     continue;
                 }
@@ -414,10 +416,11 @@ public static class BasisLoadHandler
     private static bool TryGetInMemoryDiscInfo(string MetaURL, out BasisBEEExtensionMeta info)
     {
         BasisBEEExtensionMeta legacyCandidate = null;
+        string canonicalUrl = BasisIOManagement.CanonicalizeRemoteUrl(MetaURL);
 
         foreach (var discInfo in OnDiscData.Values)
         {
-            if (discInfo.StoredRemote.RemoteBeeFileLocation == MetaURL)
+            if (BasisIOManagement.CanonicalizeRemoteUrl(discInfo.StoredRemote.RemoteBeeFileLocation) == canonicalUrl)
             {
                 if (!string.IsNullOrWhiteSpace(discInfo.DownloadedPlatform) &&
                     !BasisIOManagement.CachePlatformMatchesCurrent(discInfo.DownloadedPlatform))

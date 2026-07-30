@@ -59,6 +59,16 @@ namespace Basis.Scripts.Drivers
         public bool RigLayerActive = true;
         [System.NonSerialized] public bool IKDataReady;
 
+        // Scheduled FBIK solve state. SimulateIKDestinations schedules the solve to a worker and
+        // returns; CompleteIKSolve (BasisLocalPlayer.FinishSimulate, after the remote-side stages
+        // in BasisEventDriver) joins it and runs the scatter/publish tail. Anything that touches
+        // PoseSkeleton.Stream or the job's native arrays outside that window must call
+        // CompleteSolveIfPending first.
+        JobHandle _ikSolveHandle;
+        bool _ikSolveScheduled;
+        bool _ikScatterPending;
+        bool _ikPublishPending;
+
         /// <summary>
         /// The FBIK hand target offsets (landmark frame -> hand bone frame), as plain quaternions.
         ///
@@ -242,6 +252,7 @@ namespace Basis.Scripts.Drivers
             PlayableGraph.SetTimeUpdateMode(EngineDrivenAnimatorEvaluate ? DirectorUpdateMode.GameTime : DirectorUpdateMode.Manual);
 
             LocomotionPose.CompleteIfPending();
+            CompleteSolveIfPending();
             PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
             BasisEerieMovementSetup.Create(ref IKJob, PoseSkeleton, basisTransformMapping);
@@ -262,6 +273,7 @@ namespace Basis.Scripts.Drivers
             // The locomotion pose job writes the stream on a worker; join it before the fit paths below
             // touch Stream.LocalPosition from the main thread.
             LocomotionPose.CompleteIfPending();
+            CompleteSolveIfPending();
 
             if (!Basis.BasisUI.BasisSettingsDefaults.FBIKBodyFit.RawValue)
             {
@@ -306,7 +318,7 @@ namespace Basis.Scripts.Drivers
             BasisBodyFitNetworking.UpdateLocalFit(in fit);
 
             // Push the new lengths onto the bone transforms right now rather than waiting for the next
-            // RunIKSolve scatter. Calibration captures its tracker offsets against live bone positions
+            // CompleteIKSolve scatter. Calibration captures its tracker offsets against live bone positions
             // (see BasisAvatarIKStageCalibration's one-scale-frame note), so a fit that lands a frame
             // later would leave every captured offset describing a body the avatar no longer has.
             PoseSkeleton.WriteFittedLocalPositions();
@@ -350,6 +362,7 @@ namespace Basis.Scripts.Drivers
 
         public void CleanupBeforeContinue()
         {
+            CompleteSolveIfPending();
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChangedNextFrame;
             LocomotionPose.Dispose();
             DisposeFilterArrays();
@@ -585,6 +598,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ScheduleLocomotionPose(BasisLocalPlayer player, float deltaTime)
         {
+            // The loco job writes the same stream the FBIK solve reads; if last frame's solve was
+            // never joined (aborted tick), retire it before handing the stream to a new writer.
+            CompleteSolveIfPending();
             Animator animator = player?.BasisAvatar != null ? player.BasisAvatar.Animator : null;
             BasisLocoParams frameParams = player.LocalAnimatorDriver.GetLocoParams();
             LocomotionPose.Schedule(this, animator, in frameParams, deltaTime);
@@ -601,6 +617,7 @@ namespace Basis.Scripts.Drivers
         static readonly ProfilerMarker sMarkerIKDestPoseGather = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PoseGather");
         static readonly ProfilerMarker sMarkerIKDestApplyFit = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.ApplyFit");
         static readonly ProfilerMarker sMarkerIKDestSolve = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.Solve");
+        static readonly ProfilerMarker sMarkerIKDestSolveJoin = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.SolveJoin");
         static readonly ProfilerMarker sMarkerIKDestPoseScatter = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PoseScatter");
         static readonly ProfilerMarker sMarkerIKDestPublish = new ProfilerMarker("BasisDriver.LocalPlayer.IKDest.PublishWorldData");
 
@@ -1219,40 +1236,12 @@ namespace Basis.Scripts.Drivers
             sMarkerIKDestLocoJoin.Begin();
             bool streamPrefilled = LocomotionPose.TryComplete(PoseSkeleton);
             sMarkerIKDestLocoJoin.End();
-            RunIKSolve(deltaTime, streamPrefilled);
+            ScheduleIKSolve(deltaTime, streamPrefilled);
 
-            // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
-            // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
-            // OutgoingWorldData.
-            sMarkerIKDestPublish.Begin();
-            PublishIKWorldData();
-            sMarkerIKDestPublish.End();
-
-            // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
-            // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
-            // live avatar roots, so the runtime flip can be observed rather than only predicted.
-            if (BasisCalibrationDebugRecorder.RuntimeActive)
-            {
-                BasisCalibrationDebugRecorder.RuntimeBone("head", BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation, data.offsetRotationHead, BasisLocalAvatarDriver.Mapping.head);
-                BasisCalibrationDebugRecorder.RuntimeBone("hips", BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation, data.offsetRotationHips, BasisLocalAvatarDriver.Mapping.Hips);
-                BasisCalibrationDebugRecorder.RuntimeBone("leftFoot", BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation, data.offsetRotationLeftFoot, BasisLocalAvatarDriver.Mapping.leftFoot);
-                BasisCalibrationDebugRecorder.RuntimeBone("rightFoot", BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation, data.offsetRotationRightFoot, BasisLocalAvatarDriver.Mapping.rightFoot);
-                Transform animRoot = localPlayer?.BasisAvatar?.Animator != null ? localPlayer.BasisAvatar.Animator.transform : null;
-                BasisCalibrationDebugRecorder.RuntimeEndFrame(localPlayer != null ? localPlayer.transform : null, animRoot);
-            }
-
-            // Arm-IK jitter capture: log the solved shoulder/elbow/hand + the IK inputs (hand target, elbow
-            // hint) each frame so a held-still capture shows which one actually moves. No-op unless armed.
-            if (BasisArmIKRuntimeRecorder.Active)
-            {
-                var armMap = BasisLocalAvatarDriver.Mapping;
-                BasisArmIKRuntimeRecorder.Sample(
-                    armMap.leftUpperArm, armMap.leftLowerArm, armMap.leftHand,
-                    armMap.RightUpperArm, armMap.RightLowerArm, armMap.rightHand,
-                    data.targetPositionLeftHand, data.targetPositionRightHand,
-                    data.hintPositionLeftHand, data.hintPositionRightHand,
-                    data.hintWeightLeftHand, data.hintWeightRightHand);
-            }
+            // The scatter/publish tail runs in CompleteIKSolve once the solve is joined; flagged here
+            // so the tail still publishes the animation-driven fallback pose on frames where the
+            // solve itself was skipped (RigLayerActive off, skeleton not built).
+            _ikPublishPending = true;
         }
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
@@ -1993,7 +1982,7 @@ namespace Basis.Scripts.Drivers
             d.leftToe, d.rightToe,
         };
 
-        void RunIKSolve(float deltaTime, bool streamPrefilled = false)
+        void ScheduleIKSolve(float deltaTime, bool streamPrefilled = false)
         {
             if (!RigLayerActive || !IKJobCreated || !PoseSkeleton.IsCreated)
             {
@@ -2011,28 +2000,112 @@ namespace Basis.Scripts.Drivers
             PoseSkeleton.ApplyFit();
             sMarkerIKDestApplyFit.End();
 
+            // Schedule instead of Run: every solve output lands in a native container
+            // (poseStream, legDiagnostics), never back on this struct copy, so the solve runs on
+            // a worker through the remote-side stages of the event driver tick and the scatter
+            // waits in CompleteIKSolve. The kick matters — without it the queued job would not
+            // start until the join itself flushed the batch.
             sMarkerIKDestSolve.Begin();
             IKJob.poseStream = PoseSkeleton.Stream;
             IKJob.poseStream.deltaTime = deltaTime;
-            IKJob.Run();
+            _ikSolveHandle = IKJob.Schedule();
+            _ikSolveScheduled = true;
+            _ikScatterPending = true;
+            JobHandle.ScheduleBatchedJobs();
             sMarkerIKDestSolve.End();
+        }
 
-            // Leg diagnostics are written INSIDE the job, so read them here and not before Run().
-            if (BasisLegSwivelDebug.Enabled)
+        /// <summary>
+        /// Joins the scheduled FBIK solve and runs everything that consumes it: leg diagnostics,
+        /// the transform scatter, the post-IK world-pose publish, and the runtime recorders.
+        /// Called from BasisLocalPlayer.FinishSimulate after the IK-independent event-driver
+        /// stages have been given to the main thread as overlap.
+        /// </summary>
+        public void CompleteIKSolve()
+        {
+            if (_ikSolveScheduled)
             {
-                if (TryGetLegDiagnostics(0, out Basis.IK.BasisLegDiagnostics dl))
-                {
-                    BasisLegSwivelDebug.Record("L", Time.time, dl, BendVsAnteriorDeg(IKJob.kneeBendPrefLeft));
-                }
-                if (TryGetLegDiagnostics(1, out Basis.IK.BasisLegDiagnostics dr))
-                {
-                    BasisLegSwivelDebug.Record("R", Time.time, dr, BendVsAnteriorDeg(IKJob.kneeBendPrefRight));
-                }
+                sMarkerIKDestSolveJoin.Begin();
+                _ikSolveHandle.Complete();
+                _ikSolveScheduled = false;
+                sMarkerIKDestSolveJoin.End();
             }
 
-            sMarkerIKDestPoseScatter.Begin();
-            PoseSkeleton.ScatterNow();
-            sMarkerIKDestPoseScatter.End();
+            if (_ikScatterPending)
+            {
+                _ikScatterPending = false;
+
+                // Leg diagnostics are written INSIDE the job, so read them after the join.
+                if (BasisLegSwivelDebug.Enabled)
+                {
+                    if (TryGetLegDiagnostics(0, out Basis.IK.BasisLegDiagnostics dl))
+                    {
+                        BasisLegSwivelDebug.Record("L", Time.time, dl, BendVsAnteriorDeg(IKJob.kneeBendPrefLeft));
+                    }
+                    if (TryGetLegDiagnostics(1, out Basis.IK.BasisLegDiagnostics dr))
+                    {
+                        BasisLegSwivelDebug.Record("R", Time.time, dr, BendVsAnteriorDeg(IKJob.kneeBendPrefRight));
+                    }
+                }
+
+                sMarkerIKDestPoseScatter.Begin();
+                PoseSkeleton.ScatterNow();
+                sMarkerIKDestPoseScatter.End();
+            }
+
+            if (!_ikPublishPending)
+            {
+                return;
+            }
+            _ikPublishPending = false;
+
+            // Publish each bone control's post-IK world pose (the rendered bone) into IKWorldData so consumers can
+            // follow the solved bone instead of the pre-IK target. Bones with no solved transform fall back to
+            // OutgoingWorldData.
+            sMarkerIKDestPublish.Begin();
+            PublishIKWorldData();
+            sMarkerIKDestPublish.End();
+
+            ref BasisEerieMovement data = ref IKJob;
+
+            // Developer diagnostics: after the graph solves, sample the live head/hips/feet solve
+            // (target fed to IK, calibrated offset, predicted product, observed bone pose) plus the
+            // live avatar roots, so the runtime flip can be observed rather than only predicted.
+            if (BasisCalibrationDebugRecorder.RuntimeActive)
+            {
+                BasisCalibrationDebugRecorder.RuntimeBone("head", BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation, data.offsetRotationHead, BasisLocalAvatarDriver.Mapping.head);
+                BasisCalibrationDebugRecorder.RuntimeBone("hips", BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation, data.offsetRotationHips, BasisLocalAvatarDriver.Mapping.Hips);
+                BasisCalibrationDebugRecorder.RuntimeBone("leftFoot", BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation, data.offsetRotationLeftFoot, BasisLocalAvatarDriver.Mapping.leftFoot);
+                BasisCalibrationDebugRecorder.RuntimeBone("rightFoot", BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation, data.offsetRotationRightFoot, BasisLocalAvatarDriver.Mapping.rightFoot);
+                Transform animRoot = localPlayer?.BasisAvatar?.Animator != null ? localPlayer.BasisAvatar.Animator.transform : null;
+                BasisCalibrationDebugRecorder.RuntimeEndFrame(localPlayer != null ? localPlayer.transform : null, animRoot);
+            }
+
+            // Arm-IK jitter capture: log the solved shoulder/elbow/hand + the IK inputs (hand target, elbow
+            // hint) each frame so a held-still capture shows which one actually moves. No-op unless armed.
+            if (BasisArmIKRuntimeRecorder.Active)
+            {
+                var armMap = BasisLocalAvatarDriver.Mapping;
+                BasisArmIKRuntimeRecorder.Sample(
+                    armMap.leftUpperArm, armMap.leftLowerArm, armMap.leftHand,
+                    armMap.RightUpperArm, armMap.RightLowerArm, armMap.rightHand,
+                    data.targetPositionLeftHand, data.targetPositionRightHand,
+                    data.hintPositionLeftHand, data.hintPositionRightHand,
+                    data.hintWeightLeftHand, data.hintWeightRightHand);
+            }
+        }
+
+        /// <summary>
+        /// Retires an in-flight FBIK solve without running the scatter/publish tail. Every path
+        /// that rebuilds, refits, or disposes the pose stream goes through here first.
+        /// </summary>
+        public void CompleteSolveIfPending()
+        {
+            if (_ikSolveScheduled)
+            {
+                _ikSolveHandle.Complete();
+                _ikSolveScheduled = false;
+            }
         }
 
         // How far a leg's bend plane has drifted from the body frame. BendNormal rides the lower-leg TRACKER

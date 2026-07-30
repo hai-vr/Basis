@@ -22,6 +22,30 @@ public static class BasisIOManagement
         return NormalizeCachePlatformName(CachedPlatform.ToString());
     }
 
+    /// <summary>
+    /// Canonical form of a remote bee URL for cache-identity purposes (disc-meta keys and
+    /// in-memory bundle keys). The same location arrives in different spellings — avatar
+    /// records carry escaped paths ("Dooly%20Sailor3") while other sources carry raw ones
+    /// ("Dooly Sailor3"), with host casing differing too. Raw string equality treats those
+    /// as different bees, so each flow redownloads and overwrites the other's cache meta
+    /// every session. Absolute http(s) URLs normalize scheme/host casing and path escaping;
+    /// anything else (local paths, empty) returns trimmed input.
+    /// </summary>
+    public static string CanonicalizeRemoteUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+        string trimmed = url.Trim();
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out Uri uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return uri.AbsoluteUri;
+        }
+        return trimmed;
+    }
+
     public static bool CachePlatformMatchesCurrent(string downloadedPlatform)
     {
         string normalized = NormalizeCachePlatformName(downloadedPlatform);

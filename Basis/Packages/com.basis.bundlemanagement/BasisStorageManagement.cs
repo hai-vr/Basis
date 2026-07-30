@@ -136,9 +136,10 @@ public static class BasisStorageManagement
             return false;
 
         bool removedAny = false;
+        string canonicalUrl = BasisIOManagement.CanonicalizeRemoteUrl(remoteUrl);
         foreach (var kvp in BasisLoadHandler.OnDiscData.ToList())
         {
-            if (!string.Equals(kvp.Value.StoredRemote.RemoteBeeFileLocation, remoteUrl, StringComparison.Ordinal))
+            if (!string.Equals(BasisIOManagement.CanonicalizeRemoteUrl(kvp.Value.StoredRemote.RemoteBeeFileLocation), canonicalUrl, StringComparison.Ordinal))
             {
                 continue;
             }

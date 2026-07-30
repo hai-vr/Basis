@@ -201,7 +201,7 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>
         /// Called where the manual PlayableGraph.Evaluate used to run. True means the stream already
-        /// holds this frame's base pose, so RunIKSolve must skip its transform gather.
+        /// holds this frame's base pose, so ScheduleIKSolve must skip its transform gather.
         /// </summary>
         public bool TryComplete(BasisPoseSkeleton skeleton)
         {

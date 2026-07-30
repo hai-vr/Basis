@@ -639,6 +639,17 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 LocalHandDriver.Simulate(DeltaTime);
             }
+        }
+
+        /// <summary>
+        /// Second half of the local player tick. Simulate leaves the FBIK solve (and the finger
+        /// slerp job) in flight; BasisEventDriver runs the IK-independent remote stages, then calls
+        /// this to join the solve, scatter/publish the pose, and fire AfterSimulateOnLate — whose
+        /// subscribers (pickups, menus, interact) read the post-IK IKWorldData hand poses.
+        /// </summary>
+        public void FinishSimulate()
+        {
+            LocalRigDriver.CompleteIKSolve();
 
             using (sMarkerAfterSimulate.Auto())
             {

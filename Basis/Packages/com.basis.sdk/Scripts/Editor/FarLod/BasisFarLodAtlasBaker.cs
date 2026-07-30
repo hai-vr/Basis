@@ -172,6 +172,8 @@ public static class BasisFarLodAtlasBaker
             }
             Debug.Log($"[FarAvatar] Capture mode: {(sUseRenderRequest ? "render request" : "Camera.Render")} into {(sUseMsaaTargets ? "4x MSAA" : "1x")} targets.");
 
+            MeasureBrightnessResponse(camera, centerWorld, rootRotation, radius);
+
             // MSAA beauty targets are preferred: URP disables depth priming for MSAA targets,
             // restoring the plain forward path for arbitrary avatar shaders (under a forced-
             // depth-priming renderer, shaders whose DepthOnly pass is missing or broken are
@@ -760,9 +762,8 @@ public static class BasisFarLodAtlasBaker
         return matching >= 2;
     }
 
-    private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
+    private static void SubmitRender(Camera camera)
     {
-        camera.backgroundColor = background;
         if (sUseRenderRequest)
         {
             var request = new UnityEngine.Rendering.RenderPipeline.StandardRequest();
@@ -792,11 +793,123 @@ public static class BasisFarLodAtlasBaker
         {
             camera.Render();
         }
+    }
+
+    private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
+    {
+        camera.backgroundColor = background;
+        SubmitRender(camera);
         RenderTexture previous = RenderTexture.active;
         RenderTexture.active = camera.targetTexture;
         readback.ReadPixels(new Rect(0, 0, captureSize, captureSize), 0, 0, false);
         RenderTexture.active = previous;
         return readback.GetPixels32();
+    }
+
+    /// <summary>Measured lighting response of the last bake — consumed by the generator.</summary>
+    public static float LastMinBrightness;
+    public static float LastMaxBrightness = 4f;
+
+    /// <summary>
+    /// Measures the avatar's own lighting clamps the same shader-agnostic way the matte works:
+    /// render under black, reference-white and 2x-overbright ambient into an HDR target and
+    /// compare per-pixel luminance. Toon shaders floor their light term (avatars never go
+    /// fully dark) and cap it (never blow out) — matching that at runtime is what keeps the
+    /// far avatar from standing out in dark or bright worlds. Median ratios so emissive
+    /// patches and rim tricks don't skew the estimate.
+    /// </summary>
+    private static void MeasureBrightnessResponse(Camera camera, Vector3 centerWorld, Quaternion rootRotation, float radius)
+    {
+        LastMinBrightness = 0f;
+        LastMaxBrightness = 4f;
+        const int probeSize = 256;
+        RenderTexture savedTarget = camera.targetTexture;
+        bool savedHdr = camera.allowHDR;
+        Color savedAmbient = RenderSettings.ambientLight;
+        RenderTexture hdrTarget = null;
+        Texture2D hdrReadback = null;
+        try
+        {
+            hdrTarget = RenderTexture.GetTemporary(probeSize, probeSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            hdrReadback = new Texture2D(probeSize, probeSize, TextureFormat.RGBAHalf, false, true) { hideFlags = HideFlags.HideAndDontSave };
+            camera.allowHDR = true;
+            camera.targetTexture = hdrTarget;
+            camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+
+            List<float> minRatios = new List<float>(8192);
+            List<float> capRatios = new List<float>(8192);
+            Vector3[] probeDirections = { rootRotation * Vector3.forward, rootRotation * Vector3.right };
+            for (int d = 0; d < probeDirections.Length; d++)
+            {
+                Vector3 direction = probeDirections[d].normalized;
+                camera.orthographicSize = radius;
+                camera.nearClipPlane = 0.01f;
+                camera.farClipPlane = radius * 4f;
+                camera.transform.SetPositionAndRotation(centerWorld - direction * (radius * 2f), Quaternion.LookRotation(direction, Vector3.up));
+
+                RenderSettings.ambientLight = Color.white;
+                Color[] reference = RenderHdr(camera, hdrReadback, probeSize);
+                RenderSettings.ambientLight = Color.black;
+                Color[] dark = RenderHdr(camera, hdrReadback, probeSize);
+                RenderSettings.ambientLight = new Color(2f, 2f, 2f, 1f);
+                Color[] bright = RenderHdr(camera, hdrReadback, probeSize);
+
+                for (int p = 0; p < reference.Length; p += 3)
+                {
+                    float referenceLum = Mathf.Max(reference[p].r, Mathf.Max(reference[p].g, reference[p].b));
+                    if (referenceLum < 0.02f)
+                    {
+                        continue;
+                    }
+                    float darkLum = Mathf.Max(dark[p].r, Mathf.Max(dark[p].g, dark[p].b));
+                    float brightLum = Mathf.Max(bright[p].r, Mathf.Max(bright[p].g, bright[p].b));
+                    minRatios.Add(Mathf.Clamp01(darkLum / referenceLum));
+                    // 1.0 == the shader kept scaling linearly to 2x (no cap in reach).
+                    capRatios.Add(Mathf.Clamp(brightLum / referenceLum * 0.5f, 0f, 1.5f));
+                }
+            }
+
+            if (minRatios.Count >= 256)
+            {
+                minRatios.Sort();
+                capRatios.Sort();
+                float medianMin = minRatios[minRatios.Count / 2];
+                float medianCap = capRatios[capRatios.Count / 2];
+                LastMinBrightness = Mathf.Clamp(medianMin, 0f, 0.5f);
+                LastMaxBrightness = medianCap >= 0.95f ? 4f : Mathf.Clamp(medianCap * 2f, 0.5f, 4f);
+                Debug.Log($"[FarAvatar] Lighting response: min {LastMinBrightness:0.###}, max {(LastMaxBrightness >= 4f ? "uncapped" : LastMaxBrightness.ToString("0.##"))} ({minRatios.Count} samples).");
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[FarAvatar] Lighting response probe failed ({e.Message}) — using unclamped lighting.");
+            LastMinBrightness = 0f;
+            LastMaxBrightness = 4f;
+        }
+        finally
+        {
+            RenderSettings.ambientLight = savedAmbient;
+            camera.targetTexture = savedTarget;
+            camera.allowHDR = savedHdr;
+            if (hdrTarget != null)
+            {
+                RenderTexture.ReleaseTemporary(hdrTarget);
+            }
+            if (hdrReadback != null)
+            {
+                Object.DestroyImmediate(hdrReadback);
+            }
+        }
+    }
+
+    private static Color[] RenderHdr(Camera camera, Texture2D readback, int size)
+    {
+        SubmitRender(camera);
+        RenderTexture previous = RenderTexture.active;
+        RenderTexture.active = camera.targetTexture;
+        readback.ReadPixels(new Rect(0, 0, size, size), 0, 0, false);
+        RenderTexture.active = previous;
+        return readback.GetPixels();
     }
 
     private const float AoBakeStrength = 0.45f;

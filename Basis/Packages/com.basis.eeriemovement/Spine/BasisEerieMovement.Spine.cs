@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using Basis.Scripts.Common;
 using Unity.Collections;
+using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 namespace Basis.IK
 {
@@ -9,13 +11,22 @@ namespace Basis.IK
     /// </summary>
     public partial struct BasisEerieMovement
     {
+        // Stage markers inside the spine pass — it is the dominant slice of the solve, so the
+        // capture has to attribute it below pass level before any optimization is chosen.
+        static readonly ProfilerMarker sMarkerSpineHips = new ProfilerMarker("BasisEerie.Spine.HipsPlacement");
+        static readonly ProfilerMarker sMarkerSpineChainPrep = new ProfilerMarker("BasisEerie.Spine.ChainPrep");
+        static readonly ProfilerMarker sMarkerSpineSeqIK = new ProfilerMarker("BasisEerie.Spine.SequentialIK");
+        static readonly ProfilerMarker sMarkerSpineLordosis = new ProfilerMarker("BasisEerie.Spine.Lordosis");
+
         // Hips + the chest/neck/head chain, then the anatomy modifiers that act on the spine after it.
         void SolveSpinePass(BasisPoseStream stream)
         {
             SolveSpine(stream);
             if (anatCervicalLordosis)
             {
+                sMarkerSpineLordosis.Begin();
                 ApplyCervicalLordosis(stream);
+                sMarkerSpineLordosis.End();
             }
         }
 
@@ -25,6 +36,7 @@ namespace Basis.IK
             {
                 return;
             }
+            sMarkerSpineHips.Begin();
             // ---- Read targets ----
             Vector3 headTargetPos = targetPositionHead;
             Vector3 hipsTargetPos = targetPositionHips;
@@ -90,6 +102,7 @@ namespace Basis.IK
                 handleHips.SetPosition(stream, hipsTargetPos);
                 handleHips.SetRotation(stream, hipDesired);
             }
+            sMarkerSpineHips.End();
             if (hasChestTracker && handleChest.IsValid(stream))
             {
                 // Neck rotation produced by your spine IK pass – we keep this
@@ -108,20 +121,28 @@ namespace Basis.IK
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
 
+                sMarkerSpineChainPrep.Begin();
                 DistributeSpineBend(stream, headPos);
                 BiasSpineTowardChest(stream);
                 GuardSpineChain(stream);
+                sMarkerSpineChainPrep.End();
+                sMarkerSpineSeqIK.Begin();
                 SolveSequentialSpineIK(stream, headPos, headRot);
+                sMarkerSpineSeqIK.End();
             }
             else if (handleHead.IsValid(stream))
             {
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
 
+                sMarkerSpineChainPrep.Begin();
                 DistributeSpineBend(stream, headPos);
                 ApplyArmSwingChestFollow(stream);
                 GuardSpineChain(stream);
+                sMarkerSpineChainPrep.End();
+                sMarkerSpineSeqIK.Begin();
                 SolveSequentialSpineIK(stream, headPos, headRot);
+                sMarkerSpineSeqIK.End();
             }
         }
         public void SolveSequentialSpineIK(BasisPoseStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
@@ -130,6 +151,8 @@ namespace Basis.IK
                 return;
 
             int chainLen = chainHeadToSpine.Length;
+            if (chainLen > k_CcdChainCap)
+                return;
             const int tipIdx = 0;
             const int firstJoint = 1;
             int lastJoint = chainLen - 2;
@@ -140,15 +163,61 @@ namespace Basis.IK
                     return;
             }
 
+            // ---- World-pose cache for the whole chain ----
+            // Every stream accessor is a full ancestor re-walk (BasisPoseStream.GetWorld), and the CCD
+            // reads and writes chain joints iterations x joints x sweeps times, so both phases run
+            // against this cache and the stream's locals are written once at the end. Legal because
+            // everything the loop and its clamps touch is chain-internal. parentRot holds each node's
+            // TRUE parent rotation (equal to wRot[i+1] on the contiguous fast path) so the write-back
+            // reproduces SetWorldRotation's math exactly even across non-chain intermediate bones.
+            FixedList512Bytes<Vector3> wPos = default;
+            FixedList512Bytes<Quaternion> wRot = default;
+            FixedList512Bytes<Quaternion> parentRot = default;
+            FixedList128Bytes<int> nodeIdx = default;
+            wPos.Length = chainLen;
+            wRot.Length = chainLen;
+            parentRot.Length = chainLen;
+            nodeIdx.Length = chainLen;
+            {
+                int rootIdx = chainHeadToSpine[chainLen - 1].Index;
+                stream.GetWorld(rootIdx, out float3 runPos, out quaternion runRot, out float3 runScale);
+                nodeIdx[chainLen - 1] = rootIdx;
+                wPos[chainLen - 1] = runPos;
+                wRot[chainLen - 1] = runRot;
+                parentRot[chainLen - 1] = Quaternion.identity;   // the root end is never written back
+
+                for (int i = chainLen - 2; i >= 0; i--)
+                {
+                    int idx = chainHeadToSpine[i].Index;
+                    nodeIdx[i] = idx;
+                    if (stream.Parent[idx] == nodeIdx[i + 1])
+                    {
+                        // Contiguous link: extend the parent's fold exactly as GetWorld would.
+                        runPos += math.mul(runRot, stream.LocalPosition[idx] * runScale);
+                        parentRot[i] = runRot;
+                        runRot = math.mul(runRot, stream.LocalRotation[idx]);
+                        runScale *= stream.LocalScale[idx];
+                    }
+                    else
+                    {
+                        stream.GetWorld(idx, out runPos, out runRot, out runScale);
+                        stream.GetParentWorld(idx, out _, out quaternion pr, out _);
+                        parentRot[i] = pr;
+                    }
+                    wPos[i] = runPos;
+                    wRot[i] = runRot;
+                }
+            }
+
             int maxIters = Mathf.Max(1, spineMaxIterations);
             float tolerance = Mathf.Max(0f, spineTolerance);
             float tolSqr = tolerance * tolerance;
             {
-                Vector3 rootPos = chainHeadToSpine[chainLen - 1].GetPosition(stream);
+                Vector3 rootPos = wPos[chainLen - 1];
                 float chainReach = 0f;
                 for (int i = 0; i < chainLen - 1; i++)
                 {
-                    chainReach += (chainHeadToSpine[i].GetPosition(stream) - chainHeadToSpine[i + 1].GetPosition(stream)).magnitude;
+                    chainReach += (wPos[i] - wPos[i + 1]).magnitude;
                 }
                 Vector3 rootToTarget = headTargetPos - rootPos;
                 float targetDist = rootToTarget.magnitude;
@@ -193,7 +262,7 @@ namespace Basis.IK
 
             for (int iter = 0; iter < maxIters; iter++)
             {
-                Vector3 tipPos = chainHeadToSpine[tipIdx].GetPosition(stream);
+                Vector3 tipPos = wPos[tipIdx];
                 if ((headTargetPos - tipPos).sqrMagnitude < tolSqr)
                     break;
 
@@ -202,7 +271,7 @@ namespace Basis.IK
                 // shorter levers.
                 for (int i = lastJoint; i >= firstJoint; i--)
                 {
-                    ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestIdx, jointSpan,
+                    ReachHeadJoint(ref wPos, ref wRot, ref parentRot, i, headTargetPos, firstJoint, chestIdx, jointSpan,
                         cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
                 }
             }
@@ -214,21 +283,49 @@ namespace Basis.IK
             // have spare DOF. The head is never traded for the chest. Bit-identical to head-only above when
             // the chest target is off (weight 0). See SolveChestTarget.
             // ==========================================================================================
-            SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan,
+            SolveChestTarget(ref wPos, ref wRot, ref parentRot, headTargetPos, firstJoint, lastJoint, chestIdx, jointSpan,
                 cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
 
-            chainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
+            wRot[tipIdx] = finalHeadRot;
+
+            // Single write-back -- the same math as BasisPoseStream.SetWorldRotation, against the cached
+            // true parent rotations. The root end of the chain is commanded elsewhere, never solved here.
+            for (int i = 0; i <= chainLen - 2; i++)
+            {
+                stream.LocalRotation[nodeIdx[i]] = math.normalizesafe(math.mul(math.inverse((quaternion)parentRot[i]), (quaternion)wRot[i]));
+            }
         }
+        // The world-pose cache never outgrows its FixedList backing: GenerateHeadToSpine emits at most
+        // head/neck/upperChest/chest/spine + the root end, far under this.
+        const int k_CcdChainCap = 30;
+
+        // Rotating joint `i` in place turns every chain node tipward of it rigidly about that joint,
+        // and their true parents sit at or below `i` on the same path, so their parent rotations turn
+        // by the same delta. This is the FK the write-back will reproduce, applied to the cache.
+        static void ApplyJointWorldDelta(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, int i, Quaternion delta)
+        {
+            wRot[i] = delta * wRot[i];
+            Vector3 pivot = wPos[i];
+            for (int j = i - 1; j >= 0; j--)
+            {
+                wPos[j] = pivot + delta * (wPos[j] - pivot);
+                wRot[j] = delta * wRot[j];
+                parentRot[j] = delta * parentRot[j];
+            }
+        }
+
         // One CCD step aiming the head tip from joint `i` -- the exact body of the Phase A loop, extracted so
         // Phase B's head-restore reuses it verbatim (a copy would drift). Shapes the reach (twist graded root
         // -> tip, mid-thoracic stiffened), relaxes, applies the cones, then the anatomy guard LAST.
-        void ReachHeadJoint(BasisPoseStream stream, int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
+        void ReachHeadJoint(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, int i, Vector3 headTargetPos, int firstJoint, int chestIdx,
             float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp, float ccdRelax,
             float neckCone, float chestCone)
         {
             const int tipIdx = 0;
-            Vector3 jointPos = chainHeadToSpine[i].GetPosition(stream);
-            Vector3 curTipPos = chainHeadToSpine[tipIdx].GetPosition(stream);
+            Vector3 jointPos = wPos[i];
+            Vector3 curTipPos = wPos[tipIdx];
 
             Vector3 cur = curTipPos - jointPos;
             Vector3 tgt = headTargetPos - jointPos;
@@ -241,22 +338,23 @@ namespace Basis.IK
             float jointSwingScale = 1f - thoracicBendStiffen * (1f - Mathf.Abs(2f * t - 1f));
             delta = BasisTwistSolveCore.ShapeReachStep(delta, ccdUp, jointTwistKeep, jointSwingScale);
             delta = Quaternion.Slerp(Quaternion.identity, delta, ccdRelax);
-            chainHeadToSpine[i].SetRotation(stream, delta * chainHeadToSpine[i].GetRotation(stream));
+            ApplyJointWorldDelta(ref wPos, ref wRot, ref parentRot, i, delta);
 
             if (i == firstJoint)
             {
-                ClampNeckCone(stream, i, neckCone);
+                ClampNeckCone(ref wPos, ref wRot, ref parentRot, i, neckCone);
             }
             else if (i == chestIdx)
             {
-                ClampChestCone(stream, i, chestCone);
+                ClampChestCone(ref wPos, ref wRot, ref parentRot, i, chestCone);
             }
 
             // LAST, so it sees the outcome of every other constraint on this joint, not just the
             // CCD's own step. The cones above are reach heuristics; this is anatomy.
-            GuardSpineJoint(stream, i);
+            GuardSpineJoint(ref wPos, ref wRot, ref parentRot, i);
         }
-        void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
+        void SolveChestTarget(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, Vector3 headTargetPos, int firstJoint, int lastJoint,
             int chestBoneIdx, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
             float ccdRelax, float neckCone, float chestCone)
         {
@@ -272,7 +370,7 @@ namespace Basis.IK
             // THE RAW chest, not the head-hint-biased targetPositionChest -- pinning to the biased one dragged
             // the torso ~8cm up and leaned the body in desktop / no-tracker mode.
             Vector3 chestTargetPos = targetPositionChestRaw;
-            Vector3 chestBonePos = chainHeadToSpine[chestBoneIdx].GetPosition(stream);
+            Vector3 chestBonePos = wPos[chestBoneIdx];
             // A chest target that is wildly far from the FK chest is a glitching tracker or an unset target;
             // chasing it would wreck the torso. Fall back to the head-only chest. Same guard the old
             // BiasSpineTowardChest used, and the anatomy guard below bounds whatever does get through.
@@ -287,8 +385,8 @@ namespace Basis.IK
             for (int citer = 0; citer < chestIkIterations; citer++)
             {
                 // 1) rotate the Spine so the Chest bone slides toward its target.
-                Vector3 spinePos = chainHeadToSpine[lastJoint].GetPosition(stream);
-                Vector3 cCur = chainHeadToSpine[chestBoneIdx].GetPosition(stream) - spinePos;
+                Vector3 spinePos = wPos[lastJoint];
+                Vector3 cCur = wPos[chestBoneIdx] - spinePos;
                 Vector3 cTgt = chestTargetPos - spinePos;
                 if (cCur.sqrMagnitude > k_SqrEpsilon && cTgt.sqrMagnitude > k_SqrEpsilon)
                 {
@@ -297,8 +395,8 @@ namespace Basis.IK
                     // Relax x weight: a gentler chest pull lets the head-restore keep pace, which is exactly
                     // why the moderate weight preserves the head where a full pull loosened it.
                     cDelta = Quaternion.Slerp(Quaternion.identity, cDelta, ccdRelax * chestIkWeight);
-                    chainHeadToSpine[lastJoint].SetRotation(stream, cDelta * chainHeadToSpine[lastJoint].GetRotation(stream));
-                    GuardSpineJoint(stream, lastJoint);
+                    ApplyJointWorldDelta(ref wPos, ref wRot, ref parentRot, lastJoint, cDelta);
+                    GuardSpineJoint(ref wPos, ref wRot, ref parentRot, lastJoint);
                 }
 
                 // 2) restore the head with the UPPER joints only (chest and above -- never the Spine, which
@@ -308,7 +406,7 @@ namespace Basis.IK
                 {
                     for (int i = lastJoint - 1; i >= firstJoint; i--)
                     {
-                        ReachHeadJoint(stream, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan,
+                        ReachHeadJoint(ref wPos, ref wRot, ref parentRot, i, headTargetPos, firstJoint, chestBoneIdx, jointSpan,
                             cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
                     }
                 }
@@ -365,6 +463,46 @@ namespace Basis.IK
 
             chainHeadToSpine[i].SetRotation(stream, parentRot * clamped);
         }
+        // Cache-form twin of the stream version above, for the CCD/chest loops. The clamp frame is the
+        // chain-link parent rotation (wRot[i+1]), exactly what the stream version reads; handle validity
+        // was pre-checked at solve entry.
+        void GuardSpineJoint(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, int i)
+        {
+            if (!spineAnatomicalRom)
+            {
+                return;
+            }
+            if (!chainSpineRestFrames.IsCreated || i < 0 || i >= chainSpineRestFrames.Length)
+            {
+                return;
+            }
+
+            BasisSpineRestFrame frame = chainSpineRestFrames[i];
+            if (!frame.Valid)
+            {
+                return;   // the head and the hips: commanded, not solved. Never guarded.
+            }
+
+            int parent = i + 1;
+            if (parent >= chainHeadToSpine.Length)
+            {
+                return;
+            }
+
+            Quaternion linkParentRot = wRot[parent];
+            Quaternion boneRot = wRot[i];
+            Quaternion local = BasisSpineAnatomyCore.Conj(linkParentRot) * boneRot;
+
+            Quaternion clamped = BasisSpineAnatomyCore.Clamp(local, frame, chainSpineRoms[i], out BasisSpineClampInfo info);
+            if (!info.Touched)
+            {
+                return;   // legal pose: the bone is not written at all, so it cannot be perturbed.
+            }
+
+            Quaternion delta = (linkParentRot * clamped) * Quaternion.Inverse(boneRot);
+            ApplyJointWorldDelta(ref wPos, ref wRot, ref parentRot, i, delta);
+        }
         // A full sweep of the envelope over every solved vertebra. Run right after DistributeSpineBend so
         // the CCD starts from a legal spine -- the CCD breaks out early when the head is already on target,
         // and on those frames it would otherwise never look at the pre-bend's output at all.
@@ -381,11 +519,12 @@ namespace Basis.IK
         }
         // Constrains the neck (chain index neckIdx) to within maxConeDeg of the chest→neck
         // direction. Enforced in-loop so chest/spine take the slack on the next CCD sweep.
-        void ClampNeckCone(BasisPoseStream stream, int neckIdx, float maxConeDeg)
+        void ClampNeckCone(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, int neckIdx, float maxConeDeg)
         {
-            Vector3 chestPos = chainHeadToSpine[neckIdx + 1].GetPosition(stream);
-            Vector3 neckPos = chainHeadToSpine[neckIdx].GetPosition(stream);
-            Vector3 headPos = chainHeadToSpine[0].GetPosition(stream);
+            Vector3 chestPos = wPos[neckIdx + 1];
+            Vector3 neckPos = wPos[neckIdx];
+            Vector3 headPos = wPos[0];
 
             Vector3 parentDir = neckPos - chestPos;
             Vector3 boneDir = headPos - neckPos;
@@ -408,13 +547,14 @@ namespace Basis.IK
 
             axis.Normalize();
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
-            chainHeadToSpine[neckIdx].SetRotation(stream, correction * chainHeadToSpine[neckIdx].GetRotation(stream));
+            ApplyJointWorldDelta(ref wPos, ref wRot, ref parentRot, neckIdx, correction);
         }
-        void ClampChestCone(BasisPoseStream stream, int chestIdx, float maxConeDeg)
+        void ClampChestCone(ref FixedList512Bytes<Vector3> wPos, ref FixedList512Bytes<Quaternion> wRot,
+            ref FixedList512Bytes<Quaternion> parentRot, int chestIdx, float maxConeDeg)
         {
-            Vector3 spinePos = chainHeadToSpine[chestIdx + 1].GetPosition(stream);
-            Vector3 chestPos = chainHeadToSpine[chestIdx].GetPosition(stream);
-            Vector3 childPos = chainHeadToSpine[chestIdx - 1].GetPosition(stream);
+            Vector3 spinePos = wPos[chestIdx + 1];
+            Vector3 chestPos = wPos[chestIdx];
+            Vector3 childPos = wPos[chestIdx - 1];
 
             Vector3 parentDir = chestPos - spinePos;
             Vector3 boneDir = childPos - chestPos;
@@ -431,7 +571,7 @@ namespace Basis.IK
 
             axis.Normalize();
             Quaternion correction = Quaternion.AngleAxis(ang - maxConeDeg, axis);
-            chainHeadToSpine[chestIdx].SetRotation(stream, correction * chainHeadToSpine[chestIdx].GetRotation(stream));
+            ApplyJointWorldDelta(ref wPos, ref wRot, ref parentRot, chestIdx, correction);
         }
         void BiasSpineTowardChest(BasisPoseStream stream)
         {

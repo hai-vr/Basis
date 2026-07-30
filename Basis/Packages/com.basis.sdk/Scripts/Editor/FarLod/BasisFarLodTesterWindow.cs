@@ -362,6 +362,7 @@ public class BasisFarLodTesterWindow : EditorWindow
         EditorGUILayout.LabelField("Raw size", $"{_payloadBytes / 1024f:0.0} KB");
         EditorGUILayout.LabelField("In connector (base64)", $"{_base64Bytes / 1024f:0.0} KB");
         EditorGUILayout.LabelField("Authored scale", _payload.AuthoredRootScale.ToString("0.###"));
+        EditorGUILayout.LabelField("Lighting response", $"min {_payload.MinBrightness:0.###}, max {(_payload.MaxBrightness >= 4f ? "uncapped" : _payload.MaxBrightness.ToString("0.##"))}");
         EditorGUILayout.LabelField("Eye height / fwd", _payload.AvatarEyePosition.ToString("0.###"));
         EditorGUILayout.LabelField("Mouth height / fwd", _payload.AvatarMouthPosition.ToString("0.###"));
         Vector3 size = _payload.PositionBoundsMax - _payload.PositionBoundsMin;
@@ -405,6 +406,8 @@ public class BasisFarLodTesterWindow : EditorWindow
         }
         _previewMaterial = new Material(shader) { enableInstancing = true };
         _previewMaterial.SetTexture("_BaseMap", _previewTexture);
+        _previewMaterial.SetFloat("_MinBrightness", _payload.MinBrightness);
+        _previewMaterial.SetFloat("_MaxBrightness", _payload.MaxBrightness);
 
         // Without HideAndDontSave the editor destroys loose created assets on scene/play
         // transitions — this is the "texture disappears after a while" failure mode.

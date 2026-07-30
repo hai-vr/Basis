@@ -51,6 +51,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker FacialBlink = new ProfilerMarker("BasisDriver.LocalPlayer.FacialBlink");
         public static readonly ProfilerMarker VisemeApply = new ProfilerMarker("BasisDriver.LocalPlayer.VisemeApply");
         public static readonly ProfilerMarker LocalPlayerSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.Simulate");
+        public static readonly ProfilerMarker LocalPlayerFinish = new ProfilerMarker("BasisDriver.LocalPlayer.FinishSimulate");
         public static readonly ProfilerMarker LocalHandApply = new ProfilerMarker("BasisDriver.LocalPlayer.HandApply");
         public static readonly ProfilerMarker LocalCameraSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.CameraSimulate");
         public static readonly ProfilerMarker LocalEyeSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.EyeSimulate");

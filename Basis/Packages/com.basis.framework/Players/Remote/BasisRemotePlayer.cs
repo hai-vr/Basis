@@ -69,6 +69,10 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>Bee URL the override payload was captured from — detects avatar changes.</summary>
         public string FarLodOverrideSource;
         public bool FarLodConnectorFetchInFlight;
+        /// <summary>One-shot guard so the "far avatar pinned by a failed load" diagnosis logs once.</summary>
+        public bool FarLodPinLogged;
+        /// <summary>Throttle for the far avatar distance-channel disagreement diagnostic.</summary>
+        public float FarLodNextDistanceCheckTime;
 
         /// <summary>
         /// Drops the stand-in payload and any built far LOD, e.g. when the player's avatar
@@ -123,6 +127,13 @@ namespace Basis.Scripts.BasisSdk.Players
                 if (IsFarLodActive)
                 {
                     return false;
+                }
+                // A world change can destroy the far avatar's scene root — rebuild instead of
+                // dead-ending on the stale instance.
+                if (FarLod != null && FarLod.Root == null)
+                {
+                    FarLod.DestroyInstance();
+                    FarLod = null;
                 }
                 if (FarLod == null)
                 {
@@ -312,6 +323,14 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Whether the remote player is within the range where avatar rendering is allowed.
         /// </summary>
         public bool InAvatarRange = true;
+
+        /// <summary>
+        /// Whether the remote player is close enough for their nameplate to be shown.
+        /// Updated by BasisTransmissionResults: false once the avatar has been distance-swapped
+        /// to the far LOD or the out-of-range fallback (the plate is too far to read and is
+        /// deactivated with it). Stand-in far LODs and nearby loading avatars keep the plate.
+        /// </summary>
+        public bool InNamePlateRange = true;
 
         /// <summary>
         /// Debounce state for avatar range transitions. View-cone and avatar-cap checks

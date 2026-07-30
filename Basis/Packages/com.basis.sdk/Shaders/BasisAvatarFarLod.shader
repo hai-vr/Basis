@@ -11,6 +11,11 @@ Shader "Basis/AvatarFarLod"
         // without them Unity writes _MainTex/_Color, which this shader doesn't have.
         [MainTexture] _BaseMap ("Atlas", 2D) = "white" {}
         [MainColor] _Tint ("Tint", Color) = (1,1,1,1)
+        // Measured from the avatar's own shaders at bake time: toon shaders floor and cap
+        // their light term, and matching that keeps the far avatar from going pitch black or
+        // blowing out where the real avatar wouldn't. 0 / 4 ≈ unclamped standard response.
+        _MinBrightness ("Min Brightness", Range(0, 1)) = 0
+        _MaxBrightness ("Max Brightness", Range(0.5, 4)) = 4
     }
 
     SubShader
@@ -38,6 +43,9 @@ Shader "Basis/AvatarFarLod"
             #pragma fragment frag
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            // Adaptive Probe Volumes: without these variants an APV world lights far avatars
+            // with the global sky ambient — glowing in dark interiors where real avatars don't.
+            #pragma multi_compile_fragment _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -48,6 +56,8 @@ Shader "Basis/AvatarFarLod"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _Tint;
+                half _MinBrightness;
+                half _MaxBrightness;
             CBUFFER_END
 
             struct Attributes
@@ -64,6 +74,7 @@ Shader "Basis/AvatarFarLod"
                 float2 uv         : TEXCOORD0;
                 half3 normalWS    : TEXCOORD1;
                 half fogFactor    : TEXCOORD2;
+                float3 positionWS : TEXCOORD3;
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -78,6 +89,7 @@ Shader "Basis/AvatarFarLod"
                 output.uv = input.uv;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.fogFactor = ComputeFogFactor(output.positionCS.z);
+                output.positionWS = positionWS;
                 return output;
             }
 
@@ -92,7 +104,32 @@ Shader "Basis/AvatarFarLod"
                 half3 normalWS = normalize(input.normalWS);
                 Light mainLight = GetMainLight();
                 half wrapped = saturate(dot(normalWS, mainLight.direction)) * 0.6h + 0.4h;
-                half3 light = SampleSH(normalWS) + mainLight.color * wrapped;
+
+                // Ambient: Adaptive Probe Volumes when the world uses them (same sampling path
+                // as URP's own shaders), classic SH otherwise.
+                half3 ambient;
+                #if defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2)
+                if (_EnableProbeVolumes)
+                {
+                    float3 bakedGI;
+                    EvaluateAdaptiveProbeVolume(input.positionWS, normalWS, GetWorldSpaceNormalizeViewDir(input.positionWS), (uint2)input.positionCS.xy, bakedGI);
+                    ambient = (half3)bakedGI;
+                }
+                else
+                {
+                    ambient = SampleSH(normalWS);
+                }
+                #else
+                ambient = SampleSH(normalWS);
+                #endif
+
+                half3 light = ambient + mainLight.color * wrapped;
+
+                // Match the real avatar's measured lighting clamps: scale by luminance so the
+                // light keeps its hue while its intensity is floored/capped like theirs.
+                half lum = max(light.r, max(light.g, light.b));
+                half clampedLum = clamp(lum, _MinBrightness, _MaxBrightness);
+                light = lum > 1e-4h ? light * (clampedLum / lum) : _MinBrightness.xxx;
 
                 half3 color = MixFog(albedo * light, input.fogFactor);
                 return half4(color, 1.0h);

@@ -442,13 +442,14 @@ namespace Basis.Scripts.UI.NamePlate
 
         /// <summary>
         /// Returns whether a given plate should currently be active, considering
-        /// the enabled toggle, menu-only mode, and per-plate face visibility.
+        /// the enabled toggle, menu-only mode, distance, and per-plate face visibility.
         /// </summary>
         public static bool ShouldPlateBeActive(BasisRemoteNamePlate plate)
         {
             if (!NamePlateEnabled) return false;
             if (!plate.IsVisible) return false;
             if (plate.BasisRemotePlayer != null && plate.BasisRemotePlayer.IsEffectivelyBlocked) return false;
+            if (plate.BasisRemotePlayer != null && !plate.BasisRemotePlayer.InNamePlateRange) return false;
             if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
             return true;
         }

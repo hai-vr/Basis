@@ -23,7 +23,15 @@ public class BasisFarLodPayload
 {
     public const uint MagicValue = 0x444C4642; // "BFLD" little-endian
     // v2: adds the measured lighting response clamps (MinBrightness/MaxBrightness).
-    public const ushort CurrentVersion = 2;
+    public const ushort CurrentVersion = 3;
+    /// <summary>
+    /// Oldest payload version this build parses. v1/v2 blobs only existed during development
+    /// and their layout drifted WITHOUT version bumps, so they can misparse into plausible
+    /// garbage (observed as a ~7km mouth offset lever); they are refused outright. Any future
+    /// layout change MUST bump <see cref="CurrentVersion"/> — the end marker + exact-length
+    /// check in TryParse then turns a writer/reader mismatch into a rejection, never garbage.
+    /// </summary>
+    public const ushort MinSupportedVersion = 3;
 
     public const int MaxBones = 64;
     public const int MaxVertices = 16384;
@@ -161,6 +169,10 @@ public class BasisFarLodPayload
             writer.Write(Textures[i].Data, 0, Textures[i].Data.Length);
         }
 
+        // End marker: TryParse requires this magic at the exact final offset, so a blob
+        // written by a mismatched layout rejects instead of misparsing into garbage fields.
+        writer.Write(MagicValue);
+
         writer.Flush();
         return stream.ToArray();
     }
@@ -205,9 +217,9 @@ public class BasisFarLodPayload
                 return null;
             }
             ushort version = reader.ReadUInt16();
-            if (version == 0 || version > CurrentVersion)
+            if (version < MinSupportedVersion || version > CurrentVersion)
             {
-                BasisDebug.LogError($"Far avatar payload version {version} is newer than supported {CurrentVersion}", BasisDebug.LogTag.Avatar);
+                BasisDebug.LogError($"Far avatar payload version {version} unsupported (this build reads {MinSupportedVersion}..{CurrentVersion}) — the avatar needs a rebuild with the current SDK", BasisDebug.LogTag.Avatar);
                 return null;
             }
             reader.ReadUInt16(); // flags
@@ -233,6 +245,11 @@ public class BasisFarLodPayload
                 {
                     return null;
                 }
+                if (!IsSanePosition(payload.BoneRestLocalPosition[i], MaxAuthoredPositionMeters) ||
+                    !IsSaneRotation(payload.BoneRestLocalRotation[i]))
+                {
+                    return null;
+                }
                 if (payload.BoneParentIndex[i] != 0xFF && payload.BoneParentIndex[i] >= i)
                 {
                     // Parents must precede children so the runtime can build in one pass.
@@ -240,11 +257,8 @@ public class BasisFarLodPayload
                 }
             }
 
-            if (version >= 2)
-            {
-                payload.MinBrightness = Mathf.Clamp(reader.ReadSingle(), 0f, 1f);
-                payload.MaxBrightness = Mathf.Clamp(reader.ReadSingle(), 0.5f, 8f);
-            }
+            payload.MinBrightness = Mathf.Clamp(reader.ReadSingle(), 0f, 1f);
+            payload.MaxBrightness = Mathf.Clamp(reader.ReadSingle(), 0.5f, 8f);
 
             payload.AvatarEyePosition = ReadVector2(reader);
             payload.AvatarMouthPosition = ReadVector2(reader);
@@ -258,6 +272,26 @@ public class BasisFarLodPayload
             payload.PositionBoundsMax = ReadVector3(reader);
             payload.LocalBoundsCenter = ReadVector3(reader);
             payload.LocalBoundsExtents = ReadVector3(reader);
+
+            // Authored-space sanity. A stale/corrupt bake (e.g. a bee written by an interim
+            // payload layout) can pass the structural checks yet parse into garbage floats
+            // here — and these values feed the bone-job mouth/eye offsets, where one bad
+            // float becomes a kilometers-long lever arm that pins every distance consumer
+            // (ranges, voice, nameplates, far LOD swap-back) far away. Reject instead.
+            if (!IsSaneVector2(payload.AvatarEyePosition, MaxAuthoredPositionMeters) ||
+                !IsSaneVector2(payload.AvatarMouthPosition, MaxAuthoredPositionMeters) ||
+                !IsSanePosition(payload.TposeHeadFromRootPosition, MaxAuthoredPositionMeters) ||
+                !IsSanePosition(payload.TposeHipsFromRootPosition, MaxAuthoredPositionMeters) ||
+                !IsSaneRotation(payload.TposeHeadFromRootRotation) ||
+                !IsSaneRotation(payload.TposeHipsFromRootRotation) ||
+                !IsSanePosition(payload.PositionBoundsMin, MaxAuthoredPositionMeters) ||
+                !IsSanePosition(payload.PositionBoundsMax, MaxAuthoredPositionMeters) ||
+                !IsSanePosition(payload.LocalBoundsCenter, MaxAuthoredPositionMeters) ||
+                !IsSanePosition(payload.LocalBoundsExtents, MaxAuthoredPositionMeters) ||
+                !IsSaneScale(payload.AuthoredRootScale))
+            {
+                return null;
+            }
 
             int vertexCount = reader.ReadUInt16();
             if (vertexCount == 0 || vertexCount > MaxVertices)
@@ -327,6 +361,14 @@ public class BasisFarLodPayload
                 payload.Textures[i] = texture;
             }
 
+            // Integrity tail: the end marker must sit at the exact end of the blob. Any
+            // writer/reader layout mismatch shifts it, so a stale or diverged bake is
+            // refused here instead of surviving as shifted garbage fields.
+            if (reader.ReadUInt32() != MagicValue || stream.Position != bytes.Length)
+            {
+                return null;
+            }
+
             return payload;
         }
         catch (Exception e)
@@ -334,6 +376,38 @@ public class BasisFarLodPayload
             BasisDebug.LogError($"Far avatar payload parse failed: {e.Message}", BasisDebug.LogTag.Avatar);
             return null;
         }
+    }
+
+    /// <summary>Upper bound for any authored-space position component — generous even for giant avatars.</summary>
+    private const float MaxAuthoredPositionMeters = 25f;
+
+    private static bool IsSanePosition(Vector3 v, float limit)
+    {
+        return float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z) &&
+               Mathf.Abs(v.x) <= limit && Mathf.Abs(v.y) <= limit && Mathf.Abs(v.z) <= limit;
+    }
+
+    private static bool IsSaneVector2(Vector2 v, float limit)
+    {
+        return float.IsFinite(v.x) && float.IsFinite(v.y) &&
+               Mathf.Abs(v.x) <= limit && Mathf.Abs(v.y) <= limit;
+    }
+
+    private static bool IsSaneRotation(Quaternion q)
+    {
+        if (!float.IsFinite(q.x) || !float.IsFinite(q.y) || !float.IsFinite(q.z) || !float.IsFinite(q.w))
+        {
+            return false;
+        }
+        float magSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        return magSq > 0.5f && magSq < 2f;
+    }
+
+    private static bool IsSaneScale(Vector3 s)
+    {
+        return float.IsFinite(s.x) && float.IsFinite(s.y) && float.IsFinite(s.z) &&
+               s.x > 1e-4f && s.y > 1e-4f && s.z > 1e-4f &&
+               s.x <= 1000f && s.y <= 1000f && s.z <= 1000f;
     }
 
     public int FindBone(HumanBodyBones bone)

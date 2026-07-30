@@ -29,6 +29,7 @@ public static class BasisGenericAvatarExporter
         GameObject clone = Object.Instantiate(sourceAvatar.gameObject);
         List<Mesh> duplicatedMeshes = new List<Mesh>();
         List<Material> temporaryMaterials = new List<Material>();
+        List<Texture2D> temporaryTextures = new List<Texture2D>();
         try
         {
             clone.name = sourceAvatar.gameObject.name;
@@ -56,7 +57,7 @@ public static class BasisGenericAvatarExporter
             // avatar shaders rarely set — cutout fur/hair would export as glTF OPAQUE.
             // Detected modes are stamped onto temporary material copies; user assets are
             // never touched.
-            NormalizeMaterialsForGltf(clone, temporaryMaterials);
+            NormalizeMaterialsForGltf(clone, temporaryMaterials, temporaryTextures);
 
             BasisGenericAvatarData avatarData = BasisGenericAvatarData.Capture(cloneAvatar);
             if (avatarData == null)
@@ -140,6 +141,13 @@ public static class BasisGenericAvatarExporter
                     Object.DestroyImmediate(temporaryMaterials[Index]);
                 }
             }
+            for (int Index = 0; Index < temporaryTextures.Count; Index++)
+            {
+                if (temporaryTextures[Index] != null)
+                {
+                    Object.DestroyImmediate(temporaryTextures[Index]);
+                }
+            }
         }
     }
 
@@ -150,8 +158,10 @@ public static class BasisGenericAvatarExporter
     /// are left untouched; the rest are detected from render queue, common keywords and URP
     /// surface properties, and swapped for tagged temporary copies.
     /// </summary>
-    public static void NormalizeMaterialsForGltf(GameObject clone, List<Material> temporaryMaterials)
+    public static void NormalizeMaterialsForGltf(GameObject clone, List<Material> temporaryMaterials, List<Texture2D> temporaryTextures = null)
     {
+        // Shared between materials: convert each distinct source texture once.
+        Dictionary<Texture, Texture2D> pngReadyTextures = temporaryTextures != null ? new Dictionary<Texture, Texture2D>() : null;
         Renderer[] renderers = clone.GetComponentsInChildren<Renderer>(true);
         for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
         {
@@ -229,7 +239,84 @@ public static class BasisGenericAvatarExporter
             {
                 renderers[rendererIndex].sharedMaterials = shared;
             }
+
+            // Third pass: swap color textures for uncompressed RGBA32 copies. glTFast picks
+            // JPEG for any texture whose format lacks an alpha channel (the typical BC1/BC7
+            // avatar texture), and lossy JPEG shows as blocking on fur/flat-color regions.
+            // A format WITH alpha makes it emit lossless PNG instead.
+            if (pngReadyTextures == null)
+            {
+                continue;
+            }
+            shared = renderers[rendererIndex].sharedMaterials;
+            changed = false;
+            for (int materialIndex = 0; materialIndex < shared.Length; materialIndex++)
+            {
+                Material material = shared[materialIndex];
+                if (material == null || material.shader == null)
+                {
+                    continue;
+                }
+                Texture mainTexture = material.mainTexture;
+                Texture emissionTexture = material.HasProperty("_EmissionMap") ? material.GetTexture("_EmissionMap") : null;
+                bool wantsMain = mainTexture is Texture2D && !TextureReportsAlpha((Texture2D)mainTexture);
+                bool wantsEmission = emissionTexture is Texture2D && !TextureReportsAlpha((Texture2D)emissionTexture);
+                if (!wantsMain && !wantsEmission)
+                {
+                    continue;
+                }
+                Material copy = material;
+                if (!temporaryMaterials.Contains(material))
+                {
+                    copy = new Material(material) { name = material.name };
+                    temporaryMaterials.Add(copy);
+                    shared[materialIndex] = copy;
+                    changed = true;
+                }
+                if (wantsMain)
+                {
+                    copy.mainTexture = GetPngReadyCopy((Texture2D)mainTexture, pngReadyTextures, temporaryTextures);
+                }
+                if (wantsEmission)
+                {
+                    copy.SetTexture("_EmissionMap", GetPngReadyCopy((Texture2D)emissionTexture, pngReadyTextures, temporaryTextures));
+                }
+            }
+            if (changed)
+            {
+                renderers[rendererIndex].sharedMaterials = shared;
+            }
         }
+    }
+
+    private static bool TextureReportsAlpha(Texture2D texture)
+    {
+        return UnityEngine.Experimental.Rendering.GraphicsFormatUtility.HasAlphaChannel(
+            UnityEngine.Experimental.Rendering.GraphicsFormatUtility.GetGraphicsFormat(texture.format, false));
+    }
+
+    /// <summary>
+    /// Readable RGBA32 copy of a color texture, cached per source. Blitting through an sRGB
+    /// render target keeps the stored color bytes identical to the source sample.
+    /// </summary>
+    private static Texture2D GetPngReadyCopy(Texture2D source, Dictionary<Texture, Texture2D> cache, List<Texture2D> temporaryTextures)
+    {
+        if (cache.TryGetValue(source, out Texture2D existing) && existing != null)
+        {
+            return existing;
+        }
+        RenderTexture target = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        Graphics.Blit(source, target);
+        RenderTexture previous = RenderTexture.active;
+        RenderTexture.active = target;
+        Texture2D copy = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, false) { name = source.name };
+        copy.ReadPixels(new Rect(0f, 0f, source.width, source.height), 0, 0, false);
+        copy.Apply(false, false);
+        RenderTexture.active = previous;
+        RenderTexture.ReleaseTemporary(target);
+        cache[source] = copy;
+        temporaryTextures.Add(copy);
+        return copy;
     }
 
     /// <summary>
@@ -518,30 +605,16 @@ public static class BasisGenericAvatarExporter
             return;
         }
         working.vertices = baseVertices;
+        // Deliberately NOT renormalized: Unity's GPU blendshape path feeds the raw
+        // base+delta sums to the shader and normalizes per-PIXEL after interpolation.
+        // Normalizing per-vertex here changes the interpolation weighting and shows up
+        // as faceted shading wherever large deltas were baked (chest/face body shapes).
         if (baseNormals != null && baseNormals.Length == vertexCount)
         {
-            for (int i = 0; i < vertexCount; i++)
-            {
-                float magnitude = baseNormals[i].magnitude;
-                if (magnitude > 1e-6f)
-                {
-                    baseNormals[i] /= magnitude;
-                }
-            }
             working.normals = baseNormals;
         }
         if (baseTangents != null && baseTangents.Length == vertexCount)
         {
-            for (int i = 0; i < vertexCount; i++)
-            {
-                Vector3 tangentDirection = new Vector3(baseTangents[i].x, baseTangents[i].y, baseTangents[i].z);
-                float magnitude = tangentDirection.magnitude;
-                if (magnitude > 1e-6f)
-                {
-                    tangentDirection /= magnitude;
-                    baseTangents[i] = new Vector4(tangentDirection.x, tangentDirection.y, tangentDirection.z, baseTangents[i].w);
-                }
-            }
             working.tangents = baseTangents;
         }
         working.RecalculateBounds();
