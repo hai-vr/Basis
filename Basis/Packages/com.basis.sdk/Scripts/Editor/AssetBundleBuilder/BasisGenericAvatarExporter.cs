@@ -28,6 +28,7 @@ public static class BasisGenericAvatarExporter
     {
         GameObject clone = Object.Instantiate(sourceAvatar.gameObject);
         List<Mesh> duplicatedMeshes = new List<Mesh>();
+        List<Material> temporaryMaterials = new List<Material>();
         try
         {
             clone.name = sourceAvatar.gameObject.name;
@@ -50,6 +51,12 @@ public static class BasisGenericAvatarExporter
             // laughter) ride a sparse sidecar appended after the GLB so the importing client
             // can rebuild them.
             BasisGenericBlendshapeSidecar sidecar = BakeAndCollectBlendshapes(cloneAvatar, duplicatedMeshes);
+
+            // glTFast reads a material's alpha mode from its RenderType tag, which custom
+            // avatar shaders rarely set — cutout fur/hair would export as glTF OPAQUE.
+            // Detected modes are stamped onto temporary material copies; user assets are
+            // never touched.
+            NormalizeMaterialsForGltf(clone, temporaryMaterials);
 
             BasisGenericAvatarData avatarData = BasisGenericAvatarData.Capture(cloneAvatar);
             if (avatarData == null)
@@ -117,7 +124,92 @@ public static class BasisGenericAvatarExporter
                     Object.DestroyImmediate(duplicatedMeshes[Index]);
                 }
             }
+            for (int Index = 0; Index < temporaryMaterials.Count; Index++)
+            {
+                if (temporaryMaterials[Index] != null)
+                {
+                    Object.DestroyImmediate(temporaryMaterials[Index]);
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// Ensures every renderer material carries the RenderType override tag matching its real
+    /// alpha behavior, so glTFast exports MASK/BLEND instead of OPAQUE. Materials whose shader
+    /// already declares the tag (Unity's own shaders, cutout/transparent toon shader variants)
+    /// are left untouched; the rest are detected from render queue, common keywords and URP
+    /// surface properties, and swapped for tagged temporary copies.
+    /// </summary>
+    public static void NormalizeMaterialsForGltf(GameObject clone, List<Material> temporaryMaterials)
+    {
+        Renderer[] renderers = clone.GetComponentsInChildren<Renderer>(true);
+        for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
+        {
+            Material[] shared = renderers[rendererIndex].sharedMaterials;
+            bool changed = false;
+            for (int materialIndex = 0; materialIndex < shared.Length; materialIndex++)
+            {
+                Material source = shared[materialIndex];
+                if (source == null || source.shader == null)
+                {
+                    continue;
+                }
+                string existingTag = source.GetTag("RenderType", false, string.Empty);
+                if (existingTag == "TransparentCutout" || existingTag == "Transparent" || existingTag == "Fade")
+                {
+                    continue;
+                }
+                bool cutout = IsEffectivelyCutout(source);
+                bool blend = !cutout && IsEffectivelyTransparent(source);
+                if (!cutout && !blend)
+                {
+                    continue;
+                }
+                Material copy = new Material(source) { name = source.name };
+                copy.SetOverrideTag("RenderType", cutout ? "TransparentCutout" : "Transparent");
+                temporaryMaterials.Add(copy);
+                shared[materialIndex] = copy;
+                changed = true;
+            }
+            if (changed)
+            {
+                renderers[rendererIndex].sharedMaterials = shared;
+            }
+        }
+    }
+
+    private static bool IsEffectivelyCutout(Material material)
+    {
+        if (material.IsKeywordEnabled("_ALPHATEST_ON") || material.IsKeywordEnabled("ALPHATEST_ON"))
+        {
+            return true;
+        }
+        if (material.HasProperty("_AlphaClip") && material.GetFloat("_AlphaClip") > 0.5f)
+        {
+            return true;
+        }
+        // Standard shader convention: _Mode 1 = Cutout.
+        if (material.HasProperty("_Mode") && Mathf.RoundToInt(material.GetFloat("_Mode")) == 1)
+        {
+            return true;
+        }
+        int queue = material.renderQueue;
+        return queue >= (int)UnityEngine.Rendering.RenderQueue.AlphaTest && queue < (int)UnityEngine.Rendering.RenderQueue.Transparent;
+    }
+
+    private static bool IsEffectivelyTransparent(Material material)
+    {
+        if (material.IsKeywordEnabled("_ALPHABLEND_ON") || material.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON") || material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT"))
+        {
+            return true;
+        }
+        // URP convention: _Surface 1 = Transparent.
+        if (material.HasProperty("_Surface") && Mathf.RoundToInt(material.GetFloat("_Surface")) == 1)
+        {
+            return true;
+        }
+        return material.renderQueue >= (int)UnityEngine.Rendering.RenderQueue.Transparent;
     }
 
     /// <summary>

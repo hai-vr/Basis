@@ -231,25 +231,29 @@ public static class BasisFarLodAtlasBaker
             }
             camera.targetTexture = null;
 
-            // Sanity: if every capture came back empty, the camera rendered nothing (edit-mode
-            // SRP issue or the avatar's renderers are off) — the atlas would be flat gray.
+            // Sanity: if the captures show (almost) no avatar, the camera rendered nothing —
+            // the atlas would be flat gray. A fraction threshold rather than exactly-zero:
+            // stray noise pixels must not sneak an empty bake through (the avatar fills a
+            // large part of every body view, so real captures sit far above this).
             long coveredPixels = 0;
+            long sampledPixels = 0;
             for (int v = 0; v < views.Count; v++)
             {
                 Color32[] pixels = views[v].Pixels;
                 for (int p = 0; p < pixels.Length; p += 7)
                 {
+                    sampledPixels++;
                     if (pixels[p].a > 128)
                     {
                         coveredPixels++;
                     }
                 }
             }
-            if (coveredPixels == 0)
+            if (coveredPixels < sampledPixels / 200)
             {
                 // Shipping a flat gray imposter is worse than shipping none — abort so the
                 // bundle builds without a far LOD and the console says why.
-                Debug.LogWarning("[FarLod] Every view capture was empty — the camera produced no avatar pixels. Skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
+                Debug.LogWarning($"[FarLod] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered) — skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
                 return null;
             }
 
