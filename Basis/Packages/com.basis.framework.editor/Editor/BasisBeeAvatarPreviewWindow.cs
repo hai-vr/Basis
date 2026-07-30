@@ -460,8 +460,12 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
             return;
         }
 
-        genericData?.ApplyNodeState(genericTemplate.transform);
-        genericSidecar?.ApplyTo(genericTemplate.transform);
+        // Node-state and sidecar paths are relative to the avatar ROOT NODE, which sits below
+        // the holder and glTFast's scene wrapper — resolving them against the holder finds
+        // nothing.
+        Transform genericAvatarRoot = LocateGenericAvatarRoot();
+        genericData?.ApplyNodeState(genericAvatarRoot != null ? genericAvatarRoot : genericTemplate.transform);
+        genericSidecar?.ApplyTo(genericAvatarRoot != null ? genericAvatarRoot : genericTemplate.transform);
 
         int sidecarShapes = 0;
         if (genericSidecar != null)
@@ -665,6 +669,37 @@ public class BasisBeeAvatarPreviewWindow : EditorWindow
     {
         // null = the source avatar had no such mesh; empty = the mesh sits on the root node.
         return path == null ? "(none)" : path.Length == 0 ? "(root)" : path;
+    }
+
+    /// <summary>
+    /// The avatar rig root inside the imported template — glTFast wraps exported roots in a
+    /// scene GameObject under the holder. Mirrors the runtime loader's lookup.
+    /// </summary>
+    private Transform LocateGenericAvatarRoot()
+    {
+        if (genericTemplate == null)
+        {
+            return null;
+        }
+        Transform holder = genericTemplate.transform;
+        if (genericData != null && !string.IsNullOrEmpty(genericData.RootNodeName))
+        {
+            Transform named = FindByNameRecursive(holder, genericData.RootNodeName);
+            if (named != null)
+            {
+                return named;
+            }
+        }
+        Transform cursor = holder;
+        while (cursor.childCount == 1)
+        {
+            cursor = cursor.GetChild(0);
+            if (cursor.childCount != 1 || cursor.GetComponent<Renderer>() != null)
+            {
+                break;
+            }
+        }
+        return cursor != holder ? cursor : (holder.childCount > 0 ? holder.GetChild(0) : null);
     }
 
     private static Transform FindByNameRecursive(Transform parent, string name)

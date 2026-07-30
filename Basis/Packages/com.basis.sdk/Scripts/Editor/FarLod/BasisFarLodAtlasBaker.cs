@@ -34,6 +34,12 @@ public static class BasisFarLodAtlasBaker
     // platform/pipeline, so sampling must mirror Y to line up with the projection math.
     private static bool sFlipSampleY;
 
+    // Set per bake by DetectCaptureMode. Manual offscreen camera rendering is pipeline-
+    // dependent: some URP configurations render nothing for Camera.Render() and others land
+    // the wrong buffer for render requests, so the working path is proven with a two-color
+    // background round trip before any real capture.
+    private static bool sUseRenderRequest;
+
     /// <summary>A body part that deserves its own close-up capture set (bounds in root space).</summary>
     public struct RegionOfInterest
     {
@@ -136,11 +142,20 @@ public static class BasisFarLodAtlasBaker
             camera.allowHDR = false;
             camera.allowMSAA = false;
             camera.useOcclusionCulling = false;
+            // Every capture target is square; pinning the aspect keeps the projection math
+            // identical whether the pipeline renders via targetTexture or a request destination.
+            camera.aspect = 1f;
 
             bodyTexture = RenderTexture.GetTemporary(captureSize, captureSize, 24, RenderTextureFormat.ARGB32);
             regionTexture = RenderTexture.GetTemporary(regionCaptureSize, regionCaptureSize, 24, RenderTextureFormat.ARGB32);
             bodyReadback = NewReadback(captureSize);
             regionReadback = NewReadback(regionCaptureSize);
+
+            if (!DetectCaptureMode(camera, bodyTexture, bodyReadback, captureSize))
+            {
+                Debug.LogWarning("[FarLod] No capture path renders correctly on this pipeline (both render requests and Camera.Render failed the background round trip). Skipping the far LOD instead of baking garbage.");
+                return null;
+            }
 
             if (mask.IsValid)
             {
@@ -450,18 +465,88 @@ public static class BasisFarLodAtlasBaker
         };
     }
 
+    /// <summary>
+    /// Proves which manual capture path actually works on this pipeline before the bake uses
+    /// it. With nothing to render (cullingMask 0), a path must hand back two successive,
+    /// distinct background colors — stale pooled content or a wrong intermediate buffer (both
+    /// observed in the wild: empty captures on one URP setup, a depth/id-looking buffer on
+    /// another) cannot pass both colors. Prefers render requests, falls back to
+    /// Camera.Render(), returns false when neither is trustworthy.
+    /// </summary>
+    private static bool DetectCaptureMode(Camera camera, RenderTexture target, Texture2D readback, int size)
+    {
+        int savedMask = camera.cullingMask;
+        RenderTexture savedTarget = camera.targetTexture;
+        camera.cullingMask = 0;
+        camera.targetTexture = target;
+        try
+        {
+            sUseRenderRequest = true;
+            if (BackgroundRoundTrips(camera, readback, size))
+            {
+                return true;
+            }
+            sUseRenderRequest = false;
+            if (BackgroundRoundTrips(camera, readback, size))
+            {
+                Debug.LogWarning("[FarLod] Render requests failed the background round trip on this pipeline — capturing via Camera.Render().");
+                return true;
+            }
+            return false;
+        }
+        finally
+        {
+            camera.cullingMask = savedMask;
+            camera.targetTexture = savedTarget;
+        }
+    }
+
+    private static bool BackgroundRoundTrips(Camera camera, Texture2D readback, int size)
+    {
+        return BackgroundReadsBack(camera, readback, size, new Color(1f, 0f, 1f, 1f))
+            && BackgroundReadsBack(camera, readback, size, new Color(0f, 1f, 0f, 1f));
+    }
+
+    private static bool BackgroundReadsBack(Camera camera, Texture2D readback, int size, Color background)
+    {
+        Color32[] pixels = RenderAndRead(camera, readback, size, background);
+        Color32 center = pixels[(size / 2) * size + size / 2];
+        byte expectedR = (byte)(background.r * 255f);
+        byte expectedG = (byte)(background.g * 255f);
+        byte expectedB = (byte)(background.b * 255f);
+        const int tolerance = 60;
+        return Mathf.Abs(center.r - expectedR) < tolerance
+            && Mathf.Abs(center.g - expectedG) < tolerance
+            && Mathf.Abs(center.b - expectedB) < tolerance;
+    }
+
     private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
     {
         camera.backgroundColor = background;
-        // Manual Camera.Render() outside the render loop is not reliable on every SRP/project
-        // configuration (observed: captures silently come back empty, shipping a flat gray
-        // atlas). The render-request API is the supported SRP offscreen path — use it whenever
-        // the pipeline offers it and keep Camera.Render() for Built-in.
-        var request = new UnityEngine.Rendering.RenderPipeline.StandardRequest();
-        if (UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(camera, request))
+        if (sUseRenderRequest)
         {
-            request.destination = camera.targetTexture;
-            UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, request);
+            var request = new UnityEngine.Rendering.RenderPipeline.StandardRequest();
+            if (UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(camera, request))
+            {
+                // Docs-faithful request usage: the RT goes in request.destination ONLY.
+                // Leaving camera.targetTexture set while submitting makes some stock URP
+                // versions land the wrong buffer in the readback.
+                RenderTexture destination = camera.targetTexture;
+                camera.targetTexture = null;
+                try
+                {
+                    request.destination = destination;
+                    UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, request);
+                }
+                finally
+                {
+                    camera.targetTexture = destination;
+                }
+            }
+            else
+            {
+                camera.Render();
+            }
         }
         else
         {
