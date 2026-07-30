@@ -43,6 +43,7 @@ public static class BasisBundleBuild
             }
             catch (Exception ex)
             {
+                BasisFarLodGenerator.LastFailureReason = $"generation threw {ex.GetType().Name}: {ex.Message}";
                 Debug.LogException(ex);
                 Debug.LogWarning("Far LOD generation failed — building the bundle without a far LOD.");
             }
@@ -594,6 +595,14 @@ public static class BasisBundleBuild
             EditorUtility.DisplayProgressBar(BasisEditorLocalization.Get("sdk.bundleBuild.progress.saveBee"), BasisEditorLocalization.Get("sdk.bundleBuild.progress.saveBee"), 100);
 
             await AssetBundleBuilder.SaveFileAsync(buildOutDir, assetBundleObject.ProtectedPasswordFileName, "txt", Password);
+
+            // A missing far LOD is diagnosable from the build output alone: the reason lands
+            // next to the bee instead of only in a console that scrolls away.
+            if (basisContentBase is BasisAvatar && string.IsNullOrEmpty(FarLodBase64))
+            {
+                string skipReason = string.IsNullOrEmpty(BasisFarLodGenerator.LastFailureReason) ? "unknown (no reason recorded)" : BasisFarLodGenerator.LastFailureReason;
+                await AssetBundleBuilder.SaveFileAsync(buildOutDir, "farlod_skip", "txt", $"{DateTime.UtcNow:o}\nFar LOD was not included in this bundle.\nReason: {skipReason}\n");
+            }
 
             EditorUtility.DisplayProgressBar(BasisEditorLocalization.Get("sdk.bundleBuild.progress.combineDone"), BasisEditorLocalization.Get("sdk.bundleBuild.progress.combineDone"), 100);
 

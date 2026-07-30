@@ -454,6 +454,7 @@ public static class BasisGenericAvatarExporter
         int vertexCount = working.vertexCount;
         Vector3[] baseVertices = null;
         Vector3[] baseNormals = null;
+        Vector4[] baseTangents = null;
         Vector3[] deltaPositions = null;
         Vector3[] deltaNormals = null;
         Vector3[] deltaTangents = null;
@@ -477,6 +478,7 @@ public static class BasisGenericAvatarExporter
             {
                 baseVertices = working.vertices;
                 baseNormals = working.normals;
+                baseTangents = working.tangents;
                 deltaPositions = new Vector3[vertexCount];
                 deltaNormals = new Vector3[vertexCount];
                 deltaTangents = new Vector3[vertexCount];
@@ -493,6 +495,18 @@ public static class BasisGenericAvatarExporter
                 for (int i = 0; i < vertexCount; i++)
                 {
                     baseNormals[i] += deltaNormals[i] * scale;
+                }
+            }
+            // Tangents must move with the surface or normal mapping shades the baked regions
+            // wrong (w = handedness stays untouched).
+            if (baseTangents != null && baseTangents.Length == vertexCount)
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    Vector3 tangentDelta = deltaTangents[i] * scale;
+                    baseTangents[i].x += tangentDelta.x;
+                    baseTangents[i].y += tangentDelta.y;
+                    baseTangents[i].z += tangentDelta.z;
                 }
             }
             renderer.SetBlendShapeWeight(shapeIndex, 0f);
@@ -515,6 +529,20 @@ public static class BasisGenericAvatarExporter
                 }
             }
             working.normals = baseNormals;
+        }
+        if (baseTangents != null && baseTangents.Length == vertexCount)
+        {
+            for (int i = 0; i < vertexCount; i++)
+            {
+                Vector3 tangentDirection = new Vector3(baseTangents[i].x, baseTangents[i].y, baseTangents[i].z);
+                float magnitude = tangentDirection.magnitude;
+                if (magnitude > 1e-6f)
+                {
+                    tangentDirection /= magnitude;
+                    baseTangents[i] = new Vector4(tangentDirection.x, tangentDirection.y, tangentDirection.z, baseTangents[i].w);
+                }
+            }
+            working.tangents = baseTangents;
         }
         working.RecalculateBounds();
     }

@@ -166,6 +166,7 @@ public static class BasisFarLodAtlasBaker
             {
                 // Errors, not warnings, for every skip: the far LOD silently vanishing from a
                 // bundle must surface in the same red stream creators actually read.
+                BasisFarLodGenerator.LastFailureReason = "no capture path passed the geometry probe (render requests and Camera.Render, MSAA and 1x targets)";
                 Debug.LogError("[FarLod] No capture path renders correctly on this pipeline (render requests and Camera.Render, with both MSAA and 1x targets, all failed the geometry probe). Skipping the far LOD instead of baking garbage.");
                 return null;
             }
@@ -279,6 +280,7 @@ public static class BasisFarLodAtlasBaker
             {
                 // Shipping a flat gray imposter is worse than shipping none — abort so the
                 // bundle builds without a far LOD and the console says why.
+                BasisFarLodGenerator.LastFailureReason = $"captures show (almost) no avatar pixels: {coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}";
                 Debug.LogError($"[FarLod] Captures show (almost) no avatar pixels ({coveredPixels} of {sampledPixels} samples covered, capture mode {(sUseRenderRequest ? "request" : "render")}+{(sUseMsaaTargets ? "4x" : "1x")}) — skipping the far LOD instead of baking a flat atlas. Check that the avatar's renderers are enabled and visible during build.");
                 return null;
             }
@@ -1048,6 +1050,7 @@ public static class BasisFarLodAtlasBaker
         }
         if (writtenTexels < texelCount / 100)
         {
+            BasisFarLodGenerator.LastFailureReason = $"atlas projection wrote almost nothing: {writtenTexels} of {texelCount} texels";
             Debug.LogError($"[FarLod] Atlas projection wrote almost nothing ({writtenTexels} of {texelCount} texels) — skipping the far LOD instead of baking a flat atlas.");
             return null;
         }

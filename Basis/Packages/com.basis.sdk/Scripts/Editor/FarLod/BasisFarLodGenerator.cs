@@ -161,6 +161,13 @@ public static class BasisFarLodGenerator
         public int Count => Bones.Count;
     }
 
+    /// <summary>
+    /// Why the last <see cref="Generate"/> call produced no payload — set by every abort path
+    /// here and in the atlas baker, written next to the built bee so a missing far LOD can be
+    /// diagnosed from the build output alone.
+    /// </summary>
+    public static string LastFailureReason;
+
     public static string GenerateBase64(BasisAvatar avatar)
     {
         BasisFarLodPayload payload = Generate(avatar);
@@ -169,8 +176,10 @@ public static class BasisFarLodGenerator
 
     public static BasisFarLodPayload Generate(BasisAvatar avatar)
     {
+        LastFailureReason = null;
         if (avatar == null || avatar.Animator == null || avatar.Animator.avatar == null || !avatar.Animator.avatar.isHuman)
         {
+            LastFailureReason = "avatar is not humanoid";
             Debug.LogWarning("Far LOD generation skipped: avatar is not humanoid.");
             return null;
         }
@@ -193,6 +202,7 @@ public static class BasisFarLodGenerator
             FarLodSkeleton skeleton = CaptureSkeleton(animator, root);
             if (skeleton.Count == 0)
             {
+                LastFailureReason = "no humanoid bones resolved";
                 Debug.LogWarning("Far LOD generation skipped: no humanoid bones resolved.");
                 return null;
             }
@@ -202,6 +212,7 @@ public static class BasisFarLodGenerator
             StageDetail($"{soup.Positions.Count} verts, {soup.Indices.Count / 3} tris across the avatar, {skeleton.Count} bones kept");
             if (soup.Indices.Count < 3)
             {
+                LastFailureReason = "no triangle geometry found";
                 Debug.LogWarning("Far LOD generation skipped: no triangle geometry found.");
                 return null;
             }
@@ -247,6 +258,7 @@ public static class BasisFarLodGenerator
                 int[] indices = unwrapped.triangles;
                 if (positions.Length == 0 || positions.Length > BasisFarLodPayload.MaxVertices || indices.Length == 0)
                 {
+                    LastFailureReason = $"decimated mesh out of range ({positions.Length} verts)";
                     Debug.LogWarning($"Far LOD generation skipped: decimated mesh out of range ({positions.Length} verts).");
                     return null;
                 }
@@ -265,6 +277,10 @@ public static class BasisFarLodGenerator
                     root, unwrapped, positions, normals, uv, indices, AtlasSize, effectiveCaptureSize, regions, bakeMask);
                 if (textures == null || textures.Length == 0)
                 {
+                    if (string.IsNullOrEmpty(LastFailureReason))
+                    {
+                        LastFailureReason = "atlas bake failed (no specific reason recorded)";
+                    }
                     Debug.LogWarning("Far LOD generation skipped: atlas bake failed.");
                     return null;
                 }
