@@ -467,29 +467,55 @@ public static class BasisFarLodAtlasBaker
 
     /// <summary>
     /// Proves which manual capture path actually works on this pipeline before the bake uses
-    /// it. With nothing to render (cullingMask 0), a path must hand back two successive,
-    /// distinct background colors — stale pooled content or a wrong intermediate buffer (both
-    /// observed in the wild: empty captures on one URP setup, a depth/id-looking buffer on
-    /// another) cannot pass both colors. Prefers render requests, falls back to
-    /// Camera.Render(), returns false when neither is trustworthy.
+    /// it. A path must render a red unlit probe cube in the frame center AND hand back two
+    /// successive, distinct background colors around it. That kills every failure mode seen in
+    /// the wild: clears-but-draws-nothing (one URP setup's Camera.Render), a wrong/stale
+    /// buffer in the readback (another setup's render request), and plain no-op paths.
+    /// Prefers render requests, falls back to Camera.Render(), returns false when neither is
+    /// trustworthy — the bake then ships no far LOD instead of garbage.
     /// </summary>
     private static bool DetectCaptureMode(Camera camera, RenderTexture target, Texture2D readback, int size)
     {
         int savedMask = camera.cullingMask;
         RenderTexture savedTarget = camera.targetTexture;
-        camera.cullingMask = 0;
-        camera.targetTexture = target;
+        GameObject probe = null;
+        Material probeMaterial = null;
         try
         {
+            probe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            probe.hideFlags = HideFlags.HideAndDontSave;
+            if (probe.TryGetComponent(out Collider probeCollider))
+            {
+                Object.DestroyImmediate(probeCollider);
+            }
+            Shader unlit = Shader.Find("Universal Render Pipeline/Unlit");
+            if (unlit == null)
+            {
+                unlit = Shader.Find("Unlit/Color");
+            }
+            if (unlit != null)
+            {
+                probeMaterial = new Material(unlit) { hideFlags = HideFlags.HideAndDontSave, color = Color.red };
+                probe.GetComponent<MeshRenderer>().sharedMaterial = probeMaterial;
+            }
+            probe.transform.position = new Vector3(0f, -8192f, 0f);
+
+            camera.cullingMask = ~0;
+            camera.targetTexture = target;
+            camera.orthographicSize = 1.2f;
+            camera.nearClipPlane = 0.1f;
+            camera.farClipPlane = 10f;
+            camera.transform.SetPositionAndRotation(probe.transform.position - Vector3.forward * 3f, Quaternion.identity);
+
             sUseRenderRequest = true;
-            if (BackgroundRoundTrips(camera, readback, size))
+            if (CaptureProbeWorks(camera, readback, size))
             {
                 return true;
             }
             sUseRenderRequest = false;
-            if (BackgroundRoundTrips(camera, readback, size))
+            if (CaptureProbeWorks(camera, readback, size))
             {
-                Debug.LogWarning("[FarLod] Render requests failed the background round trip on this pipeline — capturing via Camera.Render().");
+                Debug.LogWarning("[FarLod] Render requests failed the capture probe on this pipeline — capturing via Camera.Render().");
                 return true;
             }
             return false;
@@ -498,26 +524,35 @@ public static class BasisFarLodAtlasBaker
         {
             camera.cullingMask = savedMask;
             camera.targetTexture = savedTarget;
+            if (probe != null)
+            {
+                Object.DestroyImmediate(probe);
+            }
+            if (probeMaterial != null)
+            {
+                Object.DestroyImmediate(probeMaterial);
+            }
         }
     }
 
-    private static bool BackgroundRoundTrips(Camera camera, Texture2D readback, int size)
+    private static bool CaptureProbeWorks(Camera camera, Texture2D readback, int size)
     {
-        return BackgroundReadsBack(camera, readback, size, new Color(1f, 0f, 1f, 1f))
-            && BackgroundReadsBack(camera, readback, size, new Color(0f, 1f, 0f, 1f));
-    }
-
-    private static bool BackgroundReadsBack(Camera camera, Texture2D readback, int size, Color background)
-    {
-        Color32[] pixels = RenderAndRead(camera, readback, size, background);
-        Color32 center = pixels[(size / 2) * size + size / 2];
-        byte expectedR = (byte)(background.r * 255f);
-        byte expectedG = (byte)(background.g * 255f);
-        byte expectedB = (byte)(background.b * 255f);
-        const int tolerance = 60;
-        return Mathf.Abs(center.r - expectedR) < tolerance
-            && Mathf.Abs(center.g - expectedG) < tolerance
-            && Mathf.Abs(center.b - expectedB) < tolerance;
+        // Green pass: red cube must land in the center, green background in the corner.
+        Color32[] onGreen = RenderAndRead(camera, readback, size, new Color(0f, 1f, 0f, 1f));
+        Color32 center = onGreen[(size / 2) * size + size / 2];
+        Color32 corner = onGreen[(size / 8) * size + size / 8];
+        bool geometryRendered = center.r > 180 && center.g < 100 && center.b < 100;
+        // Row order is pipeline-dependent (see DetectSampleFlip) but the probe is centered, so
+        // only the corner needs care — all four corners are background in this framing anyway.
+        bool clearedGreen = corner.g > 180 && corner.r < 100 && corner.b < 100;
+        if (!geometryRendered || !clearedGreen)
+        {
+            return false;
+        }
+        // Magenta pass: the corner must follow the new background — stale content can't.
+        Color32[] onMagenta = RenderAndRead(camera, readback, size, new Color(1f, 0f, 1f, 1f));
+        Color32 cornerMagenta = onMagenta[(size / 8) * size + size / 8];
+        return cornerMagenta.r > 180 && cornerMagenta.b > 180 && cornerMagenta.g < 100;
     }
 
     private static Color32[] RenderAndRead(Camera camera, Texture2D readback, int captureSize, Color background)
