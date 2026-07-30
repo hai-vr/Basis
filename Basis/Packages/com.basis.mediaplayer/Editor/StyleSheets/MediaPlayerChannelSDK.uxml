@@ -8,5 +8,11 @@
         <engine:VisualElement class="bvp-card">
             <editor:PropertyField name="ChannelField" label="Channel" tooltip="Mono picks one decoded channel; Stereo plays a stereo downmix of the whole stream."/>
         </engine:VisualElement>
+
+        <engine:VisualElement class="bvp-card">
+            <editor:PropertyField name="AnalysisFeedField" label="Analysis Feed" tooltip="Play this output from a written AudioClip so AudioSource.GetOutputData can read it back. Needed by AudioLink and other per-source analysers."/>
+            <editor:PropertyField name="AnalysisFeedLatencyField" label="Feed Delay (s)" tooltip="How far behind the other outputs this one runs. Lower is tighter; too low breaks up when the frame rate dips."/>
+            <engine:HelpBox name="AnalysisFeedHelp" message-type="Info" text="This output plays a clip the player writes instead of the DSP tap, so audio analysers can sample it. It runs slightly behind the other outputs, so point it at the analyser's own AudioSource rather than a speaker you listen to."/>
+        </engine:VisualElement>
     </engine:VisualElement>
 </engine:UXML>

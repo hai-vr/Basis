@@ -12,7 +12,11 @@ using UnityEngine.UIElements;
 // put the tap back on top.
 internal static class BasisMediaPlayerTapOrdering
 {
+    // An analysis output plays a written clip rather than generating into the DSP
+    // block, so its filters run in the normal order and there is nothing to raise.
     public static bool NeedsRaise(AudioSource src) =>
+        src != null &&
+        !(src.TryGetComponent(out BasisMediaAudioChannel channel) && channel.AnalysisFeed) &&
         BasisMediaPlayerAudioTap.FirstBypassedFilter(src) != null;
 
     // Adds the tap if absent and gets it above the filters, by raising the tap or,
