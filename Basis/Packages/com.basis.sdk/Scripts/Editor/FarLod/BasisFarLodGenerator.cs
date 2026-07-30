@@ -87,8 +87,30 @@ public static class BasisFarLodGenerator
         }
     }
 
-    /// <summary>Matches BasisPlayerFactory.TPose so build-time and runtime T-poses agree exactly.</summary>
-    public const string TposeControllerPath = "Assets/Animator/Animated TPose.controller";
+    /// <summary>
+    /// The controller the runtime calibrates against (BasisPlayerFactory.TPose loads the same
+    /// asset through its Addressables key). It ships INSIDE the SDK package; the name search
+    /// covers projects that relocated it.
+    /// </summary>
+    public const string TposeControllerPath = "Packages/com.basis.sdk/Animator/Animated TPose.controller";
+
+    private static RuntimeAnimatorController LoadTposeController()
+    {
+        RuntimeAnimatorController tpose = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(TposeControllerPath);
+        if (tpose == null)
+        {
+            string[] guids = AssetDatabase.FindAssets("\"Animated TPose\" t:RuntimeAnimatorController");
+            for (int i = 0; i < guids.Length; i++)
+            {
+                RuntimeAnimatorController candidate = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(AssetDatabase.GUIDToAssetPath(guids[i]));
+                if (candidate != null)
+                {
+                    return candidate;
+                }
+            }
+        }
+        return tpose;
+    }
 
     /// <summary>
     /// Core humanoid bones the far avatar keeps, ordered parents-first. Fingers, toes, eyes and
@@ -313,7 +335,7 @@ public static class BasisFarLodGenerator
 
     public static void ApplyTPose(Animator animator)
     {
-        RuntimeAnimatorController tpose = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(TposeControllerPath);
+        RuntimeAnimatorController tpose = LoadTposeController();
         if (tpose != null)
         {
             animator.runtimeAnimatorController = tpose;
@@ -325,7 +347,9 @@ public static class BasisFarLodGenerator
             return;
         }
 
-        // No controller asset in this project — muscle-space zero is the same canonical T-pose.
+        // The runtime computes bone deltas against Animated TPose's clip, and BasisTPose.anim
+        // is NOT muscle-zero — a payload baked from this fallback WILL desync limb bends.
+        Debug.LogError("[FarAvatar] Animated TPose.controller not found in this project — falling back to muscle-zero T-pose. Runtime deltas are computed against that controller's clip, so far avatar limb bends will not match the real avatar. Make sure the SDK's Animator folder is present.");
         HumanPoseHandler handler = new HumanPoseHandler(animator.avatar, animator.transform);
         try
         {
@@ -390,14 +414,35 @@ public static class BasisFarLodGenerator
                 continue;
             }
 
+            // Parent by ACTUAL transform ancestry first: the canonical humanoid chain lies on
+            // rigs whose mapped bones aren't each other's transform ancestors, and a wrong
+            // parent makes the far avatar bone follow rotations the real bone never sees.
             int parentIndex = -1;
-            HumanBodyBones[] chain = ParentChain(bone);
-            for (int c = 0; c < chain.Length; c++)
+            Transform ancestor = boneTransform.parent;
+            while (ancestor != null)
             {
-                if (boneToIndex.TryGetValue(chain[c], out int found))
+                if (skeleton.TransformToBone.TryGetValue(ancestor, out int found))
                 {
                     parentIndex = found;
                     break;
+                }
+                if (ancestor == root)
+                {
+                    break;
+                }
+                ancestor = ancestor.parent;
+            }
+            if (parentIndex < 0)
+            {
+                HumanBodyBones[] chain = ParentChain(bone);
+                for (int c = 0; c < chain.Length; c++)
+                {
+                    if (boneToIndex.TryGetValue(chain[c], out int found))
+                    {
+                        Debug.LogWarning($"[FarAvatar] {bone} is not a transform descendant of any captured core bone — falling back to canonical parent {chain[c]}; its far avatar rotations may not track the real avatar.");
+                        parentIndex = found;
+                        break;
+                    }
                 }
             }
             if (parentIndex < 0 && bone != HumanBodyBones.Hips)

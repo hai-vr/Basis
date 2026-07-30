@@ -508,6 +508,7 @@ public class BasisFarLodTesterWindow : EditorWindow
         _mirrorPose = EditorGUILayout.Toggle("Mirror Source Pose", _mirrorPose);
         _previewOffset = EditorGUILayout.FloatField("Offset (0 = auto)", _previewOffset);
         EditorGUILayout.LabelField("Mirroring pauses while a copy transform is selected, so you can pose the copy by hand.", EditorStyles.miniLabel);
+        DrawPoseAudit();
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Select In Scene"))
         {
@@ -519,6 +520,49 @@ public class BasisFarLodTesterWindow : EditorWindow
             DestroyScenePreviewOnly();
         }
         EditorGUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// Live world-rotation error per bone between the source avatar and the mirrored copy —
+    /// this is the exact composition the networked bone job applies, so any error here will
+    /// reproduce at runtime, and a clean audit here with a wrong runtime pose means the
+    /// difference lives in the wire/runtime T-pose provenance instead.
+    /// </summary>
+    private void DrawPoseAudit()
+    {
+        if (!_mirrorPose || _previewBones == null || _sourceBones == null || _payload == null)
+        {
+            return;
+        }
+        float worst = 0f;
+        string worstBone = null;
+        int shown = 0;
+        EditorGUILayout.LabelField("Pose Audit (world-rotation error vs source)", EditorStyles.boldLabel);
+        for (int i = 0; i < _previewBones.Length; i++)
+        {
+            Transform source = _sourceBones[i];
+            Transform copy = _previewBones[i];
+            if (source == null || copy == null)
+            {
+                continue;
+            }
+            float angle = Quaternion.Angle(source.rotation, copy.rotation);
+            if (angle > worst)
+            {
+                worst = angle;
+                worstBone = ((HumanBodyBones)_payload.BoneHumanBodyBone[i]).ToString();
+            }
+            if (angle > 1f && shown < 10)
+            {
+                EditorGUILayout.LabelField($"{(HumanBodyBones)_payload.BoneHumanBodyBone[i]}: {angle:0.0}°", EditorStyles.miniLabel);
+                shown++;
+            }
+        }
+        EditorGUILayout.LabelField(worst <= 1f
+            ? $"All bones within 1° (worst {worst:0.00}° on {worstBone ?? "n/a"})."
+            : $"Worst: {worst:0.0}° on {worstBone}.",
+            worst <= 1f ? EditorStyles.miniLabel : EditorStyles.boldLabel);
+        Repaint();
     }
 
     private float ResolveOffset()

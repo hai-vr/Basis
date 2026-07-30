@@ -686,7 +686,11 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 if (BasisAvatar != null)
                 {
-                    bool shouldBeActive = !effectivelyBlocked;
+                    // While the far avatar renders in this player's place (distance swap or
+                    // stand-in for a failed/blocked load), the real or fallback avatar must
+                    // stay asleep — the stand-in activates during calibration inside this very
+                    // flow, and reactivating here would leave both bodies visible.
+                    bool shouldBeActive = !effectivelyBlocked && !IsFarLodActive;
                     if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
                     {
                         BasisAvatar.gameObject.SetActive(shouldBeActive);

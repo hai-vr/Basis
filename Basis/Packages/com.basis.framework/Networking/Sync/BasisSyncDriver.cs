@@ -19,6 +19,7 @@ namespace Basis.Scripts.Networking.Sync
         private static readonly HashSet<BasisSyncedObject> _owned = new HashSet<BasisSyncedObject>();
         private static readonly List<BasisSyncedObject> _ownedScratch = new List<BasisSyncedObject>();
         private static readonly List<BasisSyncedObject> _mainThreadApply = new List<BasisSyncedObject>();
+        private static readonly List<BasisPickupSyncNetworking> _pickupReweld = new List<BasisPickupSyncNetworking>();
 
         private static bool _initialized;
         private static bool _dirtyLayout;
@@ -217,6 +218,25 @@ namespace Basis.Scripts.Networking.Sync
                 BasisSyncedObject o = _mainThreadApply[i];
                 if (o != null && !o.JobApplied) o.DriverApply();
             }
+        }
+
+        internal static void QueuePickupReweld(BasisPickupSyncNetworking pickup) => _pickupReweld.Add(pickup);
+
+        /// <summary>
+        /// Re-welds every hand-attached remote pickup against the holder's freshly posed skeleton.
+        /// Their <c>ApplyInterpolated</c> runs in <see cref="CompleteRemote"/>, before the remote bone jobs
+        /// write this frame's pose; BasisEventDriver calls this after CompleteRemoteBoneJobSystemJobs.
+        /// </summary>
+        public static void ReweldAttachedPickups()
+        {
+            int count = _pickupReweld.Count;
+            if (count == 0) return;
+            for (int i = 0; i < count; i++)
+            {
+                BasisPickupSyncNetworking pickup = _pickupReweld[i];
+                if (pickup != null) pickup.ReweldAfterRemoteBones();
+            }
+            _pickupReweld.Clear();
         }
 
         public static void TransmitOwned(double timeAsDouble)

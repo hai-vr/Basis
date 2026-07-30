@@ -22,7 +22,8 @@ using UnityEngine;
 public class BasisFarLodPayload
 {
     public const uint MagicValue = 0x444C4642; // "BFLD" little-endian
-    public const ushort CurrentVersion = 1;
+    // v2: adds the measured lighting response clamps (MinBrightness/MaxBrightness).
+    public const ushort CurrentVersion = 2;
 
     public const int MaxBones = 64;
     public const int MaxVertices = 16384;
@@ -54,6 +55,13 @@ public class BasisFarLodPayload
     public byte[] BoneParentIndex; // 0xFF = root bone (hips)
     public Vector3[] BoneRestLocalPosition;
     public Quaternion[] BoneRestLocalRotation;
+
+    // Measured lighting response of the avatar's own shaders (bake-time capture probe):
+    // toon shaders clamp their light term between a floor and a cap, and matching that is
+    // what keeps the far avatar from going pitch black or blowing out where the real avatar
+    // wouldn't. Min 0 / Max 4 ≈ an unclamped standard-lit response.
+    public float MinBrightness;
+    public float MaxBrightness = 4f;
 
     // Registration anchors, mirroring what BasisRemoteAvatarDriver passes to AddRemotePlayer.
     public Vector2 AvatarEyePosition;
@@ -101,6 +109,9 @@ public class BasisFarLodPayload
             WriteVector3(writer, BoneRestLocalPosition[i]);
             WriteQuaternion(writer, BoneRestLocalRotation[i]);
         }
+
+        writer.Write(MinBrightness);
+        writer.Write(MaxBrightness);
 
         WriteVector2(writer, AvatarEyePosition);
         WriteVector2(writer, AvatarMouthPosition);
@@ -227,6 +238,12 @@ public class BasisFarLodPayload
                     // Parents must precede children so the runtime can build in one pass.
                     return null;
                 }
+            }
+
+            if (version >= 2)
+            {
+                payload.MinBrightness = Mathf.Clamp(reader.ReadSingle(), 0f, 1f);
+                payload.MaxBrightness = Mathf.Clamp(reader.ReadSingle(), 0.5f, 8f);
             }
 
             payload.AvatarEyePosition = ReadVector2(reader);

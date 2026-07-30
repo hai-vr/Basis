@@ -27,6 +27,7 @@ MonoBehaviour:
   GenerateImage: 1
   OpenFolderOnDisc: 1
   RebakeOcclusionCulling: 1
+  GenerateGenericGLTF: 1
   BuildTarget: 19
   BuildAssetBundleOptions: 256
   AssetBundleDirectory: ./AssetBundles

@@ -61,7 +61,10 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     private int _lastAppliedHandId;
     private Vector3 _attachWorldPos;
     private Quaternion _attachWorldRot = Quaternion.identity;
+    private Vector3 _attachOffsetPos;
+    private Quaternion _attachOffsetRot = Quaternion.identity;
     private bool _haveAttachPose;
+    private bool _reweldQueued;
     private Animator _cachedHandAnimator;
     private int _cachedHandId;
     private Transform _cachedHand;
@@ -199,11 +202,18 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
                 {
                     ComposeSyncedPose(out Vector3 offPos, out Quaternion offRot, out Vector3 s);
                     hand.GetPositionAndRotation(out Vector3 hp, out Quaternion hr);
+                    _attachOffsetPos = offPos;
+                    _attachOffsetRot = offRot;
                     _attachWorldPos = hp + hr * offPos;
                     _attachWorldRot = hr * offRot;
                     _haveAttachPose = true;
                     Target.SetPositionAndRotation(_attachWorldPos, _attachWorldRot);
                     if (HasSyncedScale) Target.localScale = s;
+                    if (!_reweldQueued)
+                    {
+                        _reweldQueued = true;
+                        BasisSyncDriver.QueuePickupReweld(this);
+                    }
                 }
                 // else: the owner's avatar/hand isn't resolvable (out of range, still loading) — leave the
                 // prop at its last pose rather than snapping it to the offset interpreted as a world pose.
@@ -320,6 +330,18 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
         _cachedHand = resolved;
         hand = resolved;
         return true;
+    }
+
+    /// <summary>Re-weld against the holder's freshly posed skeleton (see <see cref="BasisSyncDriver.ReweldAttachedPickups"/>).</summary>
+    internal void ReweldAfterRemoteBones()
+    {
+        _reweldQueued = false;
+        if (IsOwnedLocallyOnClient || Target == null) return;
+        if (!TryResolveOwnerHandTransform(_lastAppliedHandId, out Transform hand)) return;
+        hand.GetPositionAndRotation(out Vector3 hp, out Quaternion hr);
+        _attachWorldPos = hp + hr * _attachOffsetPos;
+        _attachWorldRot = hr * _attachOffsetRot;
+        Target.SetPositionAndRotation(_attachWorldPos, _attachWorldRot);
     }
 
     private bool CanHover(BasisInput input)

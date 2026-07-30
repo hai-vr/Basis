@@ -56,6 +56,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker LocalEyeSimulate = new ProfilerMarker("BasisDriver.LocalPlayer.EyeSimulate");
         public static readonly ProfilerMarker LocalEyeApply = new ProfilerMarker("BasisDriver.LocalPlayer.EyeApply");
         public static readonly ProfilerMarker RemoteBoneComplete = new ProfilerMarker("BasisDriver.RemoteBone.CompleteJobs");
+        public static readonly ProfilerMarker PickupReweld = new ProfilerMarker("BasisDriver.Sync.PickupReweld");
         public static readonly ProfilerMarker RemoteAudioSimulate = new ProfilerMarker("BasisDriver.RemoteAudio.Simulate");
         public static readonly ProfilerMarker RemoteAudioApply = new ProfilerMarker("BasisDriver.RemoteAudio.Apply");
         public static readonly ProfilerMarker NamePlateSchedule = new ProfilerMarker("BasisDriver.NamePlate.Schedule");

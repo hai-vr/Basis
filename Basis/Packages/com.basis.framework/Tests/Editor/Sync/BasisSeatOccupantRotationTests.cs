@@ -26,7 +26,6 @@ namespace Basis.Tests.Sync
 
         private static BasisSeatRotationLimits Limits(float range, float snap) => new BasisSeatRotationLimits(range, snap);
 
-
         [Test]
         public void AFreshSeat_HoldsItsOccupantFacingForward()
         {
@@ -63,7 +62,6 @@ namespace Basis.Tests.Sync
             Assert.Less(Quaternion.Angle(rot, expectedRot), 1e-3f,
                 $"a held seat turned its occupant {Quaternion.Angle(rot, expectedRot):F4} degrees");
         }
-
 
         [Test]
         public void Range_BoundsTheTurnEitherWayFromTheSeatsForward()
@@ -106,7 +104,6 @@ namespace Basis.Tests.Sync
                     + "supposed to wrap it.");
             }
         }
-
 
         [Test]
         public void Snap_QuantisesEveryReachableFacing()
@@ -202,7 +199,6 @@ namespace Basis.Tests.Sync
                 + "outside what the seat now allows.");
         }
 
-
         [Test]
         public void TurningSpinsAboutThePelvis_WithoutMovingIt()
         {
@@ -260,7 +256,6 @@ namespace Basis.Tests.Sync
                     + $"instead of {Mathf.Abs(yaw)}, so everyone else sees them facing the wrong way.");
             }
         }
-
 
         [Test]
         public void TheSeatPacketCarriesTheYaw_AndStaysBackwardReadable()
@@ -336,7 +331,6 @@ namespace Basis.Tests.Sync
                 "the next person to sit here would start out turned 120 degrees");
         }
 
-
         [Test]
         public void AnEmptySeat_ReportsNobody_AndIsAvailable()
         {
@@ -376,7 +370,6 @@ namespace Basis.Tests.Sync
             Assert.IsFalse(_seat.EjectLocalPlayer(),
                 "ejecting still reported true after the seat emptied without the local player in it");
         }
-
 
         [Test]
         public void DegenerateLimitsAndRequests_StayFinite()

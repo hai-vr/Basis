@@ -45,7 +45,6 @@ namespace Basis.Tests.Sync
             BasisSeatFit.ComposeHipsWorld(seatToWorld, seatRotation, frame.SpineRotation, fit.Back, out hipsPos, out hipsRot);
         }
 
-
         private static Vector3 LegacyLocalPelvis(in BasisSeatFitFrame seat, in BasisSeatFitLegs legs)
         {
             return LegacySolve(seat, legs,
@@ -161,7 +160,6 @@ namespace Basis.Tests.Sync
             return targetBack;
         }
 
-
         [Test]
         public void RemotePin_MatchesLocalHipsPlacement_AcrossSeatsAndBodies()
         {
@@ -235,7 +233,6 @@ namespace Basis.Tests.Sync
                 }
             }
         }
-
 
         [Test]
         public void LegacyLocalAndRemote_AgreedAt90_AndDivergedOffIt()
@@ -314,7 +311,6 @@ namespace Basis.Tests.Sync
                     + "visible reseat of existing content and needs to be looked at.");
             }
         }
-
 
         [Test]
         public void PelvisBackOffset_ShrinksAsTheSeatReclines()

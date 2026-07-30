@@ -535,6 +535,11 @@ namespace Basis.EventDriver
                 BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
             }
 
+            using (Prof.PickupReweld.Auto())
+            {
+                Basis.Scripts.Networking.Sync.BasisSyncDriver.ReweldAttachedPickups();
+            }
+
             // ── Schedule cluster: nameplate pulse, billboard, remote face ──
             // Grouped directly after the remote bone complete (the face eye-write TAA touches
             // remote hierarchies, so the remote bone jobs must be joined first) and kicked as
