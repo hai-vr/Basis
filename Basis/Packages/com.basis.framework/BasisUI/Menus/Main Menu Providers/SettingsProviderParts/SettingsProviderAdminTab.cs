@@ -299,21 +299,6 @@ namespace Basis.BasisUI
             resourceLimitsToggle.SetTitle(BasisLocalization.Get("settings.admin.title.resourceLimits"));
             int resourceLimitsStart = container.childCount;
 
-            PanelTextField maxDatabaseEntriesField = PanelTextField.CreateNewEntry(container);
-            maxDatabaseEntriesField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxDatabaseEntries"));
-            maxDatabaseEntriesField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxDatabaseEntries.description"));
-            maxDatabaseEntriesField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabaseEntries.ToString());
-
-            PanelTextField maxDatabaseNameLengthField = PanelTextField.CreateNewEntry(container);
-            maxDatabaseNameLengthField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxDatabaseNameLength"));
-            maxDatabaseNameLengthField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxDatabaseNameLength.description"));
-            maxDatabaseNameLengthField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabaseNameLength.ToString());
-
-            PanelTextField maxDatabasePayloadEntriesField = PanelTextField.CreateNewEntry(container);
-            maxDatabasePayloadEntriesField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxDatabasePayloadEntries"));
-            maxDatabasePayloadEntriesField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxDatabasePayloadEntries.description"));
-            maxDatabasePayloadEntriesField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxDatabasePayloadEntries.ToString());
-
             PanelTextField maxContentSpheresField = PanelTextField.CreateNewEntry(container);
             maxContentSpheresField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer"));
             maxContentSpheresField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer.description"));
@@ -323,16 +308,10 @@ namespace Basis.BasisUI
             applyResourceLimits.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyResourceLimits"));
             applyResourceLimits.OnClicked += () =>
             {
-                if (!int.TryParse(maxDatabaseEntriesField.Value, out int entries)) entries = BasisNetworkModeration.ServerMaxDatabaseEntries;
-                if (!int.TryParse(maxDatabaseNameLengthField.Value, out int nameLength)) nameLength = BasisNetworkModeration.ServerMaxDatabaseNameLength;
-                if (!int.TryParse(maxDatabasePayloadEntriesField.Value, out int payloadEntries)) payloadEntries = BasisNetworkModeration.ServerMaxDatabasePayloadEntries;
                 if (!int.TryParse(maxContentSpheresField.Value, out int spheres)) spheres = BasisNetworkModeration.ServerMaxContentSpheresPerPlayer;
-                BasisNetworkModeration.SetGlobalResourceLimits(entries, nameLength, payloadEntries, spheres);
+                BasisNetworkModeration.SetGlobalResourceLimits(spheres);
             };
 
-            controller.MaxDatabaseEntriesField = maxDatabaseEntriesField;
-            controller.MaxDatabaseNameLengthField = maxDatabaseNameLengthField;
-            controller.MaxDatabasePayloadEntriesField = maxDatabasePayloadEntriesField;
             controller.MaxContentSpheresField = maxContentSpheresField;
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
@@ -847,9 +826,6 @@ namespace Basis.BasisUI
             public PanelSlider MaxAvatarHeightSlider;
             public float MinAvatarHeightMeters;
             public float MaxAvatarHeightMeters;
-            public PanelTextField MaxDatabaseEntriesField;
-            public PanelTextField MaxDatabaseNameLengthField;
-            public PanelTextField MaxDatabasePayloadEntriesField;
             public PanelTextField MaxContentSpheresField;
             public PanelTextField ReductionIntervalField;
             public PanelTextField ReductionBaseMultiplierField;
@@ -1094,11 +1070,8 @@ namespace Basis.BasisUI
                 if (MaxAvatarHeightSlider != null) MaxAvatarHeightSlider.SetValueWithoutNotify(maxMeters);
             }
 
-            private void OnResourceLimitsChanged(int entries, int nameLength, int payloadEntries, int spheres)
+            private void OnResourceLimitsChanged(int spheres)
             {
-                if (MaxDatabaseEntriesField != null) MaxDatabaseEntriesField.SetValueWithoutNotify(entries.ToString());
-                if (MaxDatabaseNameLengthField != null) MaxDatabaseNameLengthField.SetValueWithoutNotify(nameLength.ToString());
-                if (MaxDatabasePayloadEntriesField != null) MaxDatabasePayloadEntriesField.SetValueWithoutNotify(payloadEntries.ToString());
                 if (MaxContentSpheresField != null) MaxContentSpheresField.SetValueWithoutNotify(spheres.ToString());
             }
 

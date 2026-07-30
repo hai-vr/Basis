@@ -52,7 +52,7 @@ public class BasisFrameTimingWindow : EditorWindow
     string _filter = "Basis";
     Vector2 _scroll;
 
-    [MenuItem("Basis/Debug/Frame Timing")]
+    [MenuItem("Basis/Debug/Frame Timing", false, 620)]
     static void Open()
     {
         GetWindow<BasisFrameTimingWindow>("Frame Timing");
@@ -187,6 +187,9 @@ public class BasisFrameTimingWindow : EditorWindow
 
     void OnGUI()
     {
+        BasisEditorUI.Header("Frame Timing",
+            "Where the frame goes — main thread, jobs and render, sampled live.");
+
         using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
         {
             _record = GUILayout.Toggle(_record, "Record", EditorStyles.toolbarButton, GUILayout.Width(60));

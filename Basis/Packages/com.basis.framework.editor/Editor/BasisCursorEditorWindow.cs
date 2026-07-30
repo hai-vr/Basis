@@ -17,7 +17,7 @@ public class BasisCursorEditorWindow : EditorWindow
         BasisLocks.Crouching
     };
 
-    [MenuItem("Basis/Settings/Cursor")]
+    [MenuItem("Basis/Settings/Cursor", false, 401)]
     public static void Open()
     {
         GetWindow<BasisCursorEditorWindow>("Basis Cursor");
@@ -37,7 +37,9 @@ public class BasisCursorEditorWindow : EditorWindow
 
     private void OnGUI()
     {
-        EditorGUILayout.LabelField("Basis Cursor Management", EditorStyles.boldLabel);
+        BasisEditorUI.Header("Cursor",
+            "How the desktop cursor is locked, shown and warped while the client has focus.");
+
         EditorGUILayout.Space();
 
         DrawRuntimeInfo();
@@ -56,7 +58,7 @@ public class BasisCursorEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Runtime State", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Runtime State");
 
             EditorGUILayout.LabelField("Cursor Lock State",
                 BasisCursorManagement.ActiveLockState().ToString());
@@ -73,7 +75,7 @@ public class BasisCursorEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Active Cursor Unlock Requests", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Active Cursor Unlock Requests");
 
             IReadOnlyList<string> requests = BasisCursorManagement.CursorUnlockRequestsDebug;
 
@@ -96,7 +98,7 @@ public class BasisCursorEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Basis Locks", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Basis Locks");
 
             locksScroll = EditorGUILayout.BeginScrollView(locksScroll, GUILayout.MaxHeight(260));
 
@@ -143,7 +145,7 @@ public class BasisCursorEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Editor Actions", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Editor Actions");
 
             if (GUILayout.Button("Force Unlock & Clear Cursor Requests"))
             {

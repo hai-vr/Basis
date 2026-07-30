@@ -26,7 +26,7 @@ namespace Basis.Editor
             ("Packages/com.basis.sdk/Fonts/", FontsGroup, BundledAssetGroupSchema.BundlePackingMode.PackTogether),
         };
 
-        [MenuItem("Basis/Build/Addressables/Organize Groups")]
+        [MenuItem("Basis/Build/Addressables/Organize Groups", false, 340)]
         public static void OrganizeMenu()
         {
             AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;

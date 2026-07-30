@@ -3,7 +3,7 @@ using UnityEditor;
 
 public class RevealHiddenObjects : Editor
 {
-    [MenuItem("Basis/Tools/Reveal Hidden Objects")]
+    [MenuItem("Basis/Tools/Reveal Hidden Objects", false, 521)]
     private static void RevealHiddenObjectsInHierarchy()
     {
         // Get all GameObjects in the scene, including inactive ones

@@ -27,7 +27,7 @@ public class BasisAvatarRecorderWindow : EditorWindow
     private float[] _rotY;      // rotation around Y (in degrees)
     private float[] _scales;
 
-    [MenuItem("Basis/Avatar/Recorder")]
+    [MenuItem("Basis/Avatar/Recorder", false, 140)]
     public static void ShowWindow()
     {
         var window = GetWindow<BasisAvatarRecorderWindow>("Avatar Recorder");
@@ -42,10 +42,13 @@ public class BasisAvatarRecorderWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Avatar Recorder",
+            "Record the local avatar's pose stream to a clip for offline comparison.");
+
         DrawRecordingControls();
 
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Recordings on Disk", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Recordings on Disk");
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -81,14 +84,14 @@ public class BasisAvatarRecorderWindow : EditorWindow
         using (new EditorGUILayout.HorizontalScope())
         {
             GUI.enabled = !BasisAvatarRecorderDriver.IsBusy;
-            if (GUILayout.Button("Start Recording", GUILayout.Height(28)))
+            if (BasisEditorUI.PrimaryButton("Start Recording", 28f))
             {
                 BasisAvatarRecorderDriver.RequestStart(0f, false, 0f);
                 RefreshFileList();
             }
 
             GUI.enabled = BasisAvatarRecorderDriver.IsBusy;
-            if (GUILayout.Button("Stop Recording", GUILayout.Height(28)))
+            if (BasisEditorUI.PrimaryButton("Stop Recording", 28f))
             {
                 BasisAvatarRecorderDriver.RequestStop();
                 RefreshFileList();
@@ -181,7 +184,7 @@ public class BasisAvatarRecorderWindow : EditorWindow
         long bytes = 0;
         try { bytes = fi.Length; } catch { }
 
-        EditorGUILayout.LabelField("Selected Recording", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Selected Recording");
         EditorGUILayout.LabelField("Path:", fi.FullName);
         EditorGUILayout.LabelField("Size:", EditorUtility.FormatBytes(bytes));
         EditorGUILayout.LabelField("Frames:", _frameCount.ToString());
@@ -252,7 +255,7 @@ public class BasisAvatarRecorderWindow : EditorWindow
         }
 
         EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Visualisation (by frame index)", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Visualisation (by frame index)");
 
         _graphScroll = EditorGUILayout.BeginScrollView(_graphScroll);
 

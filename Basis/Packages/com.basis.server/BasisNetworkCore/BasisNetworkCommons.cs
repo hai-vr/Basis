@@ -894,11 +894,16 @@ namespace Basis.Network.Core
         public const int PingInterval = 1500;
         public const int ReceivePollingTime = 50000;
         /// <summary>
-        /// LiteNetLib packet pool size. Must be large enough to avoid allocating new NetPacket
-        /// objects during high-throughput send loops. With 1000 players at ~4M sends/sec,
-        /// packets cycle through pool rapidly. 65536 keeps the pool warm and avoids GC pressure.
+        /// LiteNetLib packet pool FLOOR. The effective cap scales with population
+        /// (PacketPoolSizePerPeer, default 48/peer, capped by PacketPoolSizeMax); this floor only
+        /// rules below ~170 players. It used to be 65536, which meant every server — including an
+        /// idle or 20-player one — slowly ratcheted its pool up to 65536 x ~1.4 KB ≈ 96 MB of
+        /// permanently retained full-MTU buffers (receive rents always upsize a pooled buffer to
+        /// MaxPacketSize, and nothing ever trims the pool). 8192 (~12 MB worst case) covers
+        /// small-population bursts; the per-peer term takes over before the old figure mattered:
+        /// 1000 players still get 48,000 packets.
         /// </summary>
-        public const int PacketPoolSize = 65536;
+        public const int PacketPoolSize = 8192;
         /// <summary>
         /// when adding a new message we need to increase this
         /// will function up to 64
@@ -1050,11 +1055,8 @@ namespace Basis.Network.Core
         /// <summary>Developer hook — data only delivered to the server</summary>
         public const byte ServerBoundChannel = 31;
 
-        // ── Database & admin ─────────────────────────────────────────────────
-        /// <summary>Store data to the server-side database</summary>
-        public const byte StoreDatabaseChannel = 32;
-        /// <summary>Request data from the server-side database by id</summary>
-        public const byte RequestStoreDatabaseChannel = 33;
+        // ── Admin ────────────────────────────────────────────────────────────
+        // Channels 32 & 33 are free (held the removed server-side database).
         /// <summary>Admin messages from client</summary>
         public const byte AdminChannel = 34;
 

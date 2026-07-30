@@ -93,7 +93,6 @@ public static class BasisNetworkLifeCycle
             BasisNetworkConnection.LocalPlayerIsConnected = false;
             BasisNetworkManagement.LocalAccessTransmitter = null;
             BasisNetworkConnection.LocalPlayerPeer = null;
-            BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
             if (DisplayReason)
             {
                 BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
@@ -146,7 +145,6 @@ public static class BasisNetworkLifeCycle
         BasisNetworkPlayer.OnRemotePlayerLeft = null;
         BasisNetworkManagement.OnEnableInstanceCreate = null;
         BasisNetworkConnection.LocalPlayerPeer = null;
-        BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
         BasisNetworkManagement.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
         BasisNetworkManagement.NetworkRunning = false;

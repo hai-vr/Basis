@@ -36,7 +36,7 @@ namespace Basis.Scripts.BasisSdk.Players.Editor
                 return;
 
             EditorGUILayout.Space(6);
-            EditorGUILayout.LabelField("Preview Parameters", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Preview Parameters");
 
             if (GUILayout.Button("Stop Preview"))
             {

@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text;
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
@@ -1493,103 +1492,6 @@ public class ControlAndResourceMessageRoundTripTests
         var back = new UshortUniqueIDMessage();
         back.Deserialize(EmptyReader());
         Assert.Equal((ushort)0, back.UniqueIDUshort);
-    }
-
-    // ── DatabasePrimativeMessage / DataBaseRequest ──────────────────────────
-
-    [Fact]
-    public void DatabasePrimativeMessage_RoundTripsEveryValueType()
-    {
-        var payload = new ConcurrentDictionary<string, object>();
-        payload["s"] = "héllo 世界";
-        payload["i"] = 42;
-        payload["b"] = true;
-        payload["f"] = 1.5f;
-        payload["d"] = 2.25;
-        payload["l"] = 123456789012345L;
-        payload["ul"] = ulong.MaxValue;
-        payload["sh"] = (short)-1234;
-        payload["us"] = ushort.MaxValue;
-        payload["by"] = (byte)255;
-        payload["sb"] = (sbyte)-128;
-        payload["ch"] = 'Ω';
-        payload["de"] = 1234567.8912m;
-        payload["nul"] = null!;
-
-        var msg = new DatabasePrimativeMessage { Name = "db-Ψ", jsonPayload = payload };
-        var writer = new NetDataWriter();
-        msg.Serialize(writer);
-
-        var back = new DatabasePrimativeMessage();
-        back.Deserialize(ReaderFor(writer));
-        Assert.Equal("db-Ψ", back.Name);
-        Assert.Equal(14, back.jsonPayload.Count);
-        Assert.Equal("héllo 世界", Assert.IsType<string>(back.jsonPayload["s"]));
-        Assert.Equal(42, Assert.IsType<int>(back.jsonPayload["i"]));
-        Assert.True(Assert.IsType<bool>(back.jsonPayload["b"]));
-        Assert.Equal(1.5f, Assert.IsType<float>(back.jsonPayload["f"]));
-        Assert.Equal(2.25, Assert.IsType<double>(back.jsonPayload["d"]));
-        Assert.Equal(123456789012345L, Assert.IsType<long>(back.jsonPayload["l"]));
-        Assert.Equal(ulong.MaxValue, Assert.IsType<ulong>(back.jsonPayload["ul"]));
-        Assert.Equal((short)-1234, Assert.IsType<short>(back.jsonPayload["sh"]));
-        Assert.Equal(ushort.MaxValue, Assert.IsType<ushort>(back.jsonPayload["us"]));
-        Assert.Equal((byte)255, Assert.IsType<byte>(back.jsonPayload["by"]));
-        Assert.Equal((sbyte)-128, Assert.IsType<sbyte>(back.jsonPayload["sb"]));
-        Assert.Equal('Ω', Assert.IsType<char>(back.jsonPayload["ch"]));
-        Assert.Equal(1234567.8912m, Assert.IsType<decimal>(back.jsonPayload["de"]));
-        Assert.Null(back.jsonPayload["nul"]);
-    }
-
-    [Fact]
-    public void DatabasePrimativeMessage_NullPayload_RoundTripsToEmptyDictionary()
-    {
-        var msg = new DatabasePrimativeMessage { Name = "empty-db", jsonPayload = null! };
-        var writer = new NetDataWriter();
-        msg.Serialize(writer);
-
-        var back = new DatabasePrimativeMessage();
-        back.Deserialize(ReaderFor(writer));
-        Assert.Equal("empty-db", back.Name);
-        Assert.NotNull(back.jsonPayload);
-        Assert.Empty(back.jsonPayload);
-    }
-
-    [Theory]
-    [InlineData(1_000_000)]
-    [InlineData(-5)]
-    public void DatabasePrimativeMessage_BadEntryCount_ThrowsArgumentException(int declaredCount)
-    {
-        var writer = new NetDataWriter();
-        writer.Put("db");
-        writer.Put(declaredCount);
-
-        var back = new DatabasePrimativeMessage();
-        NetDataReader reader = ReaderFor(writer);
-        Assert.Throws<ArgumentException>(() => back.Deserialize(reader));
-    }
-
-    [Fact]
-    public void DataBaseRequest_RoundTrips()
-    {
-        var msg = new DataBaseRequest { DatabaseID = "request-φ" };
-        var writer = new NetDataWriter();
-        msg.Serialize(writer);
-
-        var back = new DataBaseRequest();
-        back.Deserialize(ReaderFor(writer));
-        Assert.Equal("request-φ", back.DatabaseID);
-    }
-
-    [Fact]
-    public void DataBaseRequest_NullId_RoundTripsAsEmpty()
-    {
-        var msg = new DataBaseRequest { DatabaseID = null! };
-        var writer = new NetDataWriter();
-        msg.Serialize(writer);
-
-        var back = new DataBaseRequest();
-        back.Deserialize(ReaderFor(writer));
-        Assert.Equal(string.Empty, back.DatabaseID);
     }
 
     // ── ContentShare messages ───────────────────────────────────────────────

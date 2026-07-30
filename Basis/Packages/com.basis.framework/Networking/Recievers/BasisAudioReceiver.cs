@@ -82,11 +82,8 @@ namespace Basis.Scripts.Networking.Receivers
         public volatile int SilenceInjectedCount;
         /// <summary>Frames reconstructed from Opus FEC data embedded in the NEXT packet (diagnostic counter).</summary>
         public volatile int FecRecoveredCount;
-        /// <summary>Drain ticks where buffered packets were held back by the initial-fill gate (diagnostic counter).</summary>
-        public volatile int GateBlockedCount;
         /// <summary>Times the idle-reset rearmed the initial-fill gate (diagnostic counter).</summary>
         public volatile int RearmCount;
-        private int _gateLogThrottle;
 
         /// <summary>
         /// Maximum consecutive missing slots that trigger Opus PLC.
@@ -399,18 +396,6 @@ namespace Basis.Scripts.Networking.Receivers
                     }
                     OnDecode(data, length);
                     _lastDrainDecoded = true;
-                }
-            }
-
-            if (!_lastDrainDecoded && VoiceBuffer.Started
-                && VoiceBuffer.EncodedBufferedCount > 0
-                && VoiceBuffer.ReceivedSinceStart < VoiceBuffer.InitialBufferDepth)
-            {
-                GateBlockedCount++;
-                if ((_gateLogThrottle++ % 50) == 0)
-                {
-                    int pid = BasisNetworkReceiver != null ? BasisNetworkReceiver.playerId : -1;
-                    BasisDebug.Log($"[VoiceGate] player {pid} stalled: receivedSinceStart={VoiceBuffer.ReceivedSinceStart} < JitterBufferSize={VoiceBuffer.InitialBufferDepth}, encodedBuffered={VoiceBuffer.EncodedBufferedCount}, rearms={RearmCount}");
                 }
             }
         }

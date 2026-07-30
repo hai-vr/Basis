@@ -9,7 +9,8 @@
         "Unity.Collections",
         "OpusSharp",
         "BasisNetworkCore",
-        "BasisSettings"
+        "BasisSettings",
+        "BasisSDKEditor"
     ],
     "includePlatforms": [
         "Editor"

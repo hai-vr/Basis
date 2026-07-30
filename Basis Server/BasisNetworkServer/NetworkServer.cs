@@ -59,10 +59,15 @@ public static class NetworkServer
         if (_writerPool.TryDequeue(out var writer)) return writer;
         return new NetDataWriter(true, initialCapacity);
     }
+    // Reset() only rewinds the cursor; the backing array keeps its high-water size forever. One
+    // oversized serialization (a join batch, a resource blob) would otherwise park a permanently
+    // inflated writer in the pool, and with enough of them the pool converges to
+    // MaxPooledWriters x largest-payload-ever. Oversized writers are dropped instead.
+    private const int MaxPooledWriterCapacity = 64 * 1024;
     public static void ReturnWriter(NetDataWriter writer)
     {
         writer.Reset();
-        if (_writerPool.Count < MaxPooledWriters)
+        if (writer.Capacity <= MaxPooledWriterCapacity && _writerPool.Count < MaxPooledWriters)
         {
             _writerPool.Enqueue(writer);
         }
@@ -118,6 +123,11 @@ public static class NetworkServer
             BNL.LogWarning($"NetworkServer.StopServer failed: {ex.Message}");
         }
         BasisNetworkUdpDropMonitor.Stop();
+        // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
+        // the static OnAuthReceived event — pinned forever, and handling every auth packet twice.
+        // Left non-null so a straggling disconnect event can still resolve UUIDs while stopping.
+        try { AuthIdentity?.DeInitialize(); }
+        catch (Exception ex) { BNL.LogWarning($"AuthIdentity.DeInitialize failed: {ex.Message}"); }
         Server = null;
         Listener = null;
         AuthenticatedPeers.Clear();

@@ -40,7 +40,7 @@ public static class BasisDocGenerator
         "com.basis.visualtrackers",
     };
 
-    [MenuItem("Basis/Tools/Rebuild Doc Database")]
+    [MenuItem("Basis/Tools/Rebuild Doc Database", false, 500)]
     public static void Rebuild()
     {
         var projectRoot = GetProjectRoot();

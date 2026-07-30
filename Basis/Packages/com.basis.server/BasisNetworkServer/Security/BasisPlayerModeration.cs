@@ -845,18 +845,12 @@ namespace BasisNetworkServer.Security
 
         private static void HandleResourceLimitsSet(NetPeer peer, NetPacketReader reader)
         {
-            int maxDatabaseEntries = reader.GetInt();
-            int maxDatabaseNameLength = reader.GetInt();
-            int maxDatabasePayloadEntries = reader.GetInt();
             int maxContentSpheresPerPlayer = reader.GetInt();
-            BasisResourceLimitManager.SetLimits(maxDatabaseEntries, maxDatabaseNameLength, maxDatabasePayloadEntries, maxContentSpheresPerPlayer);
-            NetworkServer.Configuration.MaxDatabaseEntries = BasisResourceLimitManager.MaxDatabaseEntries;
-            NetworkServer.Configuration.MaxDatabaseNameLength = BasisResourceLimitManager.MaxDatabaseNameLength;
-            NetworkServer.Configuration.MaxDatabasePayloadEntries = BasisResourceLimitManager.MaxDatabasePayloadEntries;
+            BasisResourceLimitManager.SetLimits(maxContentSpheresPerPlayer);
             NetworkServer.Configuration.MaxContentSpheresPerPlayer = BasisResourceLimitManager.MaxContentSpheresPerPlayer;
             SaveConfig();
             BasisResourceLimitManager.BroadcastState();
-            SendBackMessage(peer, $"Resource limits set: db entries {BasisResourceLimitManager.MaxDatabaseEntries}, name length {BasisResourceLimitManager.MaxDatabaseNameLength}, payload entries {BasisResourceLimitManager.MaxDatabasePayloadEntries}, spheres/player {BasisResourceLimitManager.MaxContentSpheresPerPlayer}.");
+            SendBackMessage(peer, $"Resource limits set: spheres/player {BasisResourceLimitManager.MaxContentSpheresPerPlayer}.");
         }
 
         private static void HandleReductionSettingsSet(NetPeer peer, NetPacketReader reader)

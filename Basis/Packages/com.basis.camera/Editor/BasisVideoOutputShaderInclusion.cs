@@ -25,7 +25,7 @@ namespace Basis.HandHeldCamera.Editor
 
         public void OnPreprocessBuild(BuildReport report) => EnsureIncluded();
 
-        [MenuItem("Basis/Camera/Include Video Output Shaders")]
+        [MenuItem("Basis/Build/Shaders/Include Video Output Shaders", false, 362)]
         private static void EnsureIncluded()
         {
             SerializedObject graphics = new SerializedObject(GraphicsSettings.GetGraphicsSettings());

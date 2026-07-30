@@ -2,7 +2,6 @@ using Basis.Network;
 using Basis.Network.Server;
 using BasisNetworkConsole;
 using BasisNetworking.InitialData;
-using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 namespace Basis
 {
@@ -90,7 +89,6 @@ namespace Basis
 #if !UNITY_2017_1_OR_NEWER
                 Api?.Dispose();
 #endif
-                BasisPersistentDatabase.Shutdown();
                 BasisServerReductionSystemEvents.Shutdown();
                 if (config.EnableStatistics) BasisStatistics.StopWorkerThread();
                 await BasisServerSideLogging.ShutdownAsync();

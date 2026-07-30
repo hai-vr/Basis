@@ -12,6 +12,7 @@ namespace BasisNetworkCore
     {
         public static ConcurrentDictionary<string, ushort> UshortNetworkDatabase = new ConcurrentDictionary<string, ushort>();
         private static int counter = -1; // Start at -1 so the first increment becomes 0
+        private static int exhaustedLogged;
         public static void AddOrFindNetworkID(NetPeer NetPeer, string UniqueStringID)
         {
             if (UshortNetworkDatabase.TryGetValue(UniqueStringID, out ushort Value)) // This should basically never happen!
@@ -40,9 +41,14 @@ namespace BasisNetworkCore
                 if (newCounter > ushort.MaxValue)
                 {
                     Interlocked.Decrement(ref counter); // Roll back
-                    string errorMessage = $"Error: Cannot assign a new NetID for {UniqueStringID}. Maximum ID limit of {ushort.MaxValue} reached.";
-                    BNL.Log(errorMessage);
-                    throw new InvalidOperationException(errorMessage);
+                    // Log-and-drop, never throw: ids arrive per client message, so at the ceiling a
+                    // throw per request became an exception storm (stack trace string per message)
+                    // through the message processor. The requester simply gets no assignment.
+                    if (Interlocked.Exchange(ref exhaustedLogged, 1) == 0)
+                    {
+                        BNL.LogError($"NetID space exhausted ({ushort.MaxValue} ids assigned since the server was last empty); dropping request for {UniqueStringID}.");
+                    }
+                    return;
                 }
 
                 ushort newID = (ushort)newCounter;
@@ -108,6 +114,7 @@ namespace BasisNetworkCore
             BNL.Log("Resetting BasisNetworkIDDatabase...");
             UshortNetworkDatabase.Clear();
             Interlocked.Exchange(ref counter, -1);
+            Interlocked.Exchange(ref exhaustedLogged, 0);
             BNL.Log("Database reset complete. Counter set to -1.");
         }
     }

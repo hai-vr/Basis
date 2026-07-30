@@ -3,7 +3,8 @@
     "rootNamespace": "Basis.Integration.SlimeVR.Editor",
     "references": [
         "Basis.Integration.SlimeVR",
-        "Basis Framework"
+        "Basis Framework",
+        "BasisSDKEditor"
     ],
     "includePlatforms": [
         "Editor"

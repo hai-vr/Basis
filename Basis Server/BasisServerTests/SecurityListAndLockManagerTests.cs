@@ -785,30 +785,25 @@ public class BasisGlobalLockManagerTests
 }
 
 /// <summary>
-/// Persistent-database / content-share DoS caps: sanitization to defaults and
-/// absolute maxima, change reporting, and the GlobalGetResourceLimits payload.
+/// Content-share DoS caps: sanitization to defaults and absolute maxima,
+/// change reporting, and the GlobalGetResourceLimits payload.
 /// </summary>
 public class BasisResourceLimitManagerTests
 {
-    private static void RestoreDefaults() => BasisResourceLimitManager.SetLimits(10000, 256, 1000, 32);
+    private static void RestoreDefaults() => BasisResourceLimitManager.SetLimits(32);
 
     [Theory]
-    [InlineData(5, 10, 20, 40, 5, 10, 20, 40)]
-    [InlineData(1, 1, 1, 1, 1, 1, 1, 1)]
-    [InlineData(0, 0, 0, 0, 10000, 256, 1000, 32)]
-    [InlineData(-7, -7, -7, -7, 10000, 256, 1000, 32)]
-    [InlineData(1000000, 8192, 100000, 4096, 1000000, 8192, 100000, 4096)]
-    [InlineData(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue, 1000000, 8192, 100000, 4096)]
-    public void SetLimits_SanitizesEachCap(
-        int entries, int nameLength, int payloadEntries, int spheres,
-        int expectedEntries, int expectedNameLength, int expectedPayloadEntries, int expectedSpheres)
+    [InlineData(40, 40)]
+    [InlineData(1, 1)]
+    [InlineData(0, 32)]
+    [InlineData(-7, 32)]
+    [InlineData(4096, 4096)]
+    [InlineData(int.MaxValue, 4096)]
+    public void SetLimits_SanitizesTheCap(int spheres, int expectedSpheres)
     {
         try
         {
-            BasisResourceLimitManager.SetLimits(entries, nameLength, payloadEntries, spheres);
-            Assert.Equal(expectedEntries, BasisResourceLimitManager.MaxDatabaseEntries);
-            Assert.Equal(expectedNameLength, BasisResourceLimitManager.MaxDatabaseNameLength);
-            Assert.Equal(expectedPayloadEntries, BasisResourceLimitManager.MaxDatabasePayloadEntries);
+            BasisResourceLimitManager.SetLimits(spheres);
             Assert.Equal(expectedSpheres, BasisResourceLimitManager.MaxContentSpheresPerPlayer);
         }
         finally
@@ -821,11 +816,11 @@ public class BasisResourceLimitManagerTests
     public void SetLimits_ReportsWhetherAnythingActuallyChanged()
     {
         RestoreDefaults();
-        Assert.False(BasisResourceLimitManager.SetLimits(10000, 256, 1000, 32));
-        Assert.False(BasisResourceLimitManager.SetLimits(0, -1, 0, -1)); // sanitized straight back to the defaults
-        Assert.True(BasisResourceLimitManager.SetLimits(10000, 256, 1000, 33));
-        Assert.True(BasisResourceLimitManager.SetLimits(10000, 256, 1000, 32));
-        Assert.False(BasisResourceLimitManager.SetLimits(10000, 256, 1000, 32));
+        Assert.False(BasisResourceLimitManager.SetLimits(32));
+        Assert.False(BasisResourceLimitManager.SetLimits(-1)); // sanitized straight back to the default
+        Assert.True(BasisResourceLimitManager.SetLimits(33));
+        Assert.True(BasisResourceLimitManager.SetLimits(32));
+        Assert.False(BasisResourceLimitManager.SetLimits(32));
     }
 
     [Fact]
@@ -835,14 +830,8 @@ public class BasisResourceLimitManagerTests
         {
             BasisResourceLimitManager.InitializeFromConfig(new Configuration
             {
-                MaxDatabaseEntries = 12345,
-                MaxDatabaseNameLength = 512,
-                MaxDatabasePayloadEntries = 2048,
                 MaxContentSpheresPerPlayer = 64,
             });
-            Assert.Equal(12345, BasisResourceLimitManager.MaxDatabaseEntries);
-            Assert.Equal(512, BasisResourceLimitManager.MaxDatabaseNameLength);
-            Assert.Equal(2048, BasisResourceLimitManager.MaxDatabasePayloadEntries);
             Assert.Equal(64, BasisResourceLimitManager.MaxContentSpheresPerPlayer);
         }
         finally
@@ -852,19 +841,16 @@ public class BasisResourceLimitManagerTests
     }
 
     [Fact]
-    public void SendStateToPeer_WritesModeByteThenFourInts()
+    public void SendStateToPeer_WritesModeByteThenTheCap()
     {
         try
         {
-            BasisResourceLimitManager.SetLimits(11111, 300, 2222, 44);
+            BasisResourceLimitManager.SetLimits(44);
             var peer = new SecurityTestPeer(2);
             BasisResourceLimitManager.SendStateToPeer(peer);
 
             var reader = new NetDataReader(Assert.Single(peer.Sent));
             Assert.Equal((byte)AdminRequestMode.GlobalGetResourceLimits, reader.GetByte());
-            Assert.Equal(11111, reader.GetInt());
-            Assert.Equal(300, reader.GetInt());
-            Assert.Equal(2222, reader.GetInt());
             Assert.Equal(44, reader.GetInt());
             Assert.Equal(0, reader.AvailableBytes);
             Assert.Equal(BasisNetworkCommons.AdminChannel, peer.LastChannel);

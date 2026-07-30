@@ -5,12 +5,12 @@ namespace Basis.Scripts.Device_Management.Editor
 {
     public static class BasisDeviceManagementEditor
     {
-        [MenuItem("Basis/Debug/Force Load XR")]
+        [MenuItem("Basis/Debug/Device/Force Load XR", false, 640)]
         public static async Task ForceLoadXR()
         {
           await  BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
         }
-        [MenuItem("Basis/Debug/Force Set Desktop")]
+        [MenuItem("Basis/Debug/Device/Force Set Desktop", false, 641)]
         public static async Task ForceSetDesktop()
         {
           await  BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);

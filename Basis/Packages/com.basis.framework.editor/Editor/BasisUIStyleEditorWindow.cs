@@ -19,7 +19,7 @@ public class BasisUIStyleEditorWindow : EditorWindow
     private bool showLabelStyles = false;
     private bool showSelectableStyles = false;
 
-    [MenuItem("Basis/Settings/UI Style Editor")]
+    [MenuItem("Basis/Settings/UI Style Editor", false, 402)]
     public static void Open()
     {
         GetWindow<BasisUIStyleEditorWindow>("UI Style Editor");
@@ -40,9 +40,12 @@ public class BasisUIStyleEditorWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("UI Style",
+            "The runtime palette and style library every in-world panel is drawn from.");
+
         if (palette == null || library == null)
         {
-            EditorGUILayout.HelpBox("Could not load StylePalette or StyleLibrary asset.", MessageType.Error);
+            BasisEditorUI.Help("Could not load StylePalette or StyleLibrary asset.", MessageType.Error);
             if (GUILayout.Button("Retry"))
                 LoadAssets();
             return;
@@ -50,7 +53,7 @@ public class BasisUIStyleEditorWindow : EditorWindow
 
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-        EditorGUILayout.LabelField("Style Palette", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Style Palette");
         EditorGUILayout.HelpBox(
             "Changes here modify the asset defaults directly. " +
             "Use the in-game UI Style tab for runtime-only overrides.",
@@ -63,7 +66,7 @@ public class BasisUIStyleEditorWindow : EditorWindow
         DrawPaletteSection();
 
         EditorGUILayout.Space(10);
-        EditorGUILayout.LabelField("Style Library", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Style Library");
         EditorGUILayout.Space();
 
         Undo.RecordObject(library, "UI Style Library Change");

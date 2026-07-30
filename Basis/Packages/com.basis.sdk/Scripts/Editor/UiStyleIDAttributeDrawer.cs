@@ -40,7 +40,7 @@ namespace Basis.BasisUI.Styling
             EditorGUILayout.EndHorizontal();
 
             bool hasStyle = Array.IndexOf(titles, property.stringValue) != -1;
-            if (!hasStyle) EditorGUILayout.HelpBox(BasisEditorLocalization.Get("sdk.uiStyle.id.notFound"), MessageType.Warning);
+            if (!hasStyle) BasisEditorUI.Help(BasisEditorLocalization.Get("sdk.uiStyle.id.notFound"), MessageType.Warning);
 
             EditorGUI.EndProperty();
 

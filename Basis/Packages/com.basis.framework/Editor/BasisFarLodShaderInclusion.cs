@@ -19,7 +19,7 @@ namespace Basis.Scripts.Editor
 
         public void OnPreprocessBuild(BuildReport report) => EnsureIncluded();
 
-        [MenuItem("Basis/Avatar/Include Far LOD Shader")]
+        [MenuItem("Basis/Build/Shaders/Include Far LOD Shader", false, 361)]
         private static void EnsureIncluded()
         {
             Shader shader = Shader.Find(FarLodShaderName);

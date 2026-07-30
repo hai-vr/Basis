@@ -33,7 +33,7 @@ namespace Basis.Editor
             EnsureGltfShadersAlwaysIncluded();
         }
 
-        [MenuItem("Basis/Content/Ensure glTF Shaders Included")]
+        [MenuItem("Basis/Build/Shaders/Include glTF Shaders", false, 360)]
         public static void EnsureGltfShadersAlwaysIncluded()
         {
             var graphicsSettings = AssetDatabase.LoadAssetAtPath<Object>("ProjectSettings/GraphicsSettings.asset");

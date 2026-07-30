@@ -43,7 +43,6 @@ namespace Basis.Scripts.Profiler
         public const string ContentShareMessageText = "Content Share Message";
         public const string ContentShareCleanupMessageText = "Content Share Cleanup Message";
         public const string ChatMessageText = "Chat Message";
-        public const string StoreDatabaseMessageText = "Store Database Message";
         public const string ServerStatisticsMessageText = "Server Statistics Message";
         public const string CameraPIPStateMessageText = "Camera PIP State Message";
         public const string CameraPIPPositionMessageText = "Camera PIP Position Message";
@@ -88,7 +87,6 @@ namespace Basis.Scripts.Profiler
         private static readonly ProfilerCounter<long> ContentShareMessageCounter = new(Category, ContentShareMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> ContentShareCleanupMessageCounter = new(Category, ContentShareCleanupMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> ChatMessageCounter = new(Category, ChatMessageText, ProfilerMarkerDataUnit.Bytes);
-        private static readonly ProfilerCounter<long> StoreDatabaseMessageCounter = new(Category, StoreDatabaseMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> ServerStatisticsMessageCounter = new(Category, ServerStatisticsMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> CameraPIPStateMessageCounter = new(Category, CameraPIPStateMessageText, ProfilerMarkerDataUnit.Bytes);
         private static readonly ProfilerCounter<long> CameraPIPPositionMessageCounter = new(Category, CameraPIPPositionMessageText, ProfilerMarkerDataUnit.Bytes);
@@ -143,7 +141,6 @@ namespace Basis.Scripts.Profiler
             SampleAndReset(ContentShareMessageCounter, BasisNetworkProfilerCounter.ContentShare);
             SampleAndReset(ContentShareCleanupMessageCounter, BasisNetworkProfilerCounter.ContentShareCleanup);
             SampleAndReset(ChatMessageCounter, BasisNetworkProfilerCounter.Chat);
-            SampleAndReset(StoreDatabaseMessageCounter, BasisNetworkProfilerCounter.StoreDatabase);
             SampleAndReset(ServerStatisticsMessageCounter, BasisNetworkProfilerCounter.ServerStatistics);
             SampleAndReset(CameraPIPStateMessageCounter, BasisNetworkProfilerCounter.CameraPIPState);
             SampleAndReset(CameraPIPPositionMessageCounter, BasisNetworkProfilerCounter.CameraPIPPosition);

@@ -25,7 +25,7 @@ public class BasisFarLodTesterWindow : EditorWindow
     private const string Base64BytesSessionKey = "BasisFarLodTester.Base64Bytes";
     private const string ScenePreviewPrefix = "Far avatar Preview (";
 
-    [MenuItem("Basis/Avatar/Far Avatar Tester")]
+    [MenuItem("Basis/Avatar/Far Avatar Tester", false, 141)]
     public static void Open()
     {
         BasisFarLodTesterWindow window = GetWindow<BasisFarLodTesterWindow>("Far Avatar Tester");
@@ -110,6 +110,9 @@ public class BasisFarLodTesterWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Far Avatar Tester",
+            "Preview what a distant player collapses to at each far-LOD level.");
+
         _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
         DrawSourceSection();
@@ -135,7 +138,7 @@ public class BasisFarLodTesterWindow : EditorWindow
 
     private void DrawSourceSection()
     {
-        EditorGUILayout.LabelField("Source", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Source");
         _avatar = (BasisAvatar)EditorGUILayout.ObjectField("Avatar (scene)", _avatar, typeof(BasisAvatar), true);
         if (_avatar == null && Selection.activeGameObject != null && Selection.activeGameObject.TryGetComponent(out BasisAvatar selected))
         {
@@ -150,18 +153,18 @@ public class BasisFarLodTesterWindow : EditorWindow
             new[] { "128", "256", "512", "1024", "2048" }, new[] { 128, 256, 512, 1024, 2048 });
         if (BasisFarLodGenerator.AtlasSize > 1024)
         {
-            EditorGUILayout.HelpBox($"{BasisFarLodGenerator.AtlasSize}px atlas: expect a noticeably slower bake, higher transient memory, and a payload of several MB riding every connector download.", MessageType.Info);
+            BasisEditorUI.Help($"{BasisFarLodGenerator.AtlasSize}px atlas: expect a noticeably slower bake, higher transient memory, and a payload of several MB riding every connector download.", MessageType.Info);
         }
 
         bool persistent = _avatar != null && EditorUtility.IsPersistent(_avatar);
         if (persistent)
         {
-            EditorGUILayout.HelpBox("Drop a scene instance of the avatar (drag the prefab into a scene first) — generation renders it with its real materials.", MessageType.Info);
+            BasisEditorUI.Help("Drop a scene instance of the avatar (drag the prefab into a scene first) — generation renders it with its real materials.", MessageType.Info);
         }
 
         using (new EditorGUI.DisabledScope(_avatar == null || persistent))
         {
-            if (GUILayout.Button("Generate", GUILayout.Height(30)))
+            if (BasisEditorUI.PrimaryButton("Generate", 30f))
             {
                 Generate();
                 GUIUtility.ExitGUI();
@@ -173,7 +176,7 @@ public class BasisFarLodTesterWindow : EditorWindow
     {
         if (!string.IsNullOrEmpty(_lastError))
         {
-            EditorGUILayout.HelpBox(_lastError, MessageType.Error);
+            BasisEditorUI.Help(_lastError, MessageType.Error);
         }
 
         if (_report == null || _report.Entries.Count == 0)
@@ -266,7 +269,7 @@ public class BasisFarLodTesterWindow : EditorWindow
     {
         if (_previewMesh == null || _previewMaterial == null)
         {
-            EditorGUILayout.HelpBox("No preview mesh built.", MessageType.Warning);
+            BasisEditorUI.Help("No preview mesh built.", MessageType.Warning);
             return;
         }
 
@@ -303,7 +306,7 @@ public class BasisFarLodTesterWindow : EditorWindow
             GUI.DrawTexture(rect, result, ScaleMode.StretchToFill, false);
         }
 
-        EditorGUILayout.LabelField("Drag to orbit, scroll to zoom. Rest pose — use the scene copy below for posed/mirrored viewing.", EditorStyles.miniLabel);
+        BasisEditorUI.Note("Drag to orbit, scroll to zoom. Rest pose — use the scene copy below for posed/mirrored viewing.");
     }
 
     private PreviewRenderUtility CreatePreviewRender()
@@ -339,23 +342,23 @@ public class BasisFarLodTesterWindow : EditorWindow
     {
         if (_previewTexture == null)
         {
-            EditorGUILayout.HelpBox("No atlas texture decoded.", MessageType.Warning);
+            BasisEditorUI.Help("No atlas texture decoded.", MessageType.Warning);
             return;
         }
         float side = Mathf.Clamp(position.width - 24f, 200f, 460f);
         Rect rect = GUILayoutUtility.GetRect(side, side, GUILayout.ExpandWidth(false));
         EditorGUI.DrawPreviewTexture(rect, _previewTexture);
-        EditorGUILayout.LabelField($"Decoded as {_previewTexture.format}, {_previewTexture.width}x{_previewTexture.height}, {_previewTexture.mipmapCount} mips", EditorStyles.miniLabel);
+        BasisEditorUI.Note($"Decoded as {_previewTexture.format}, {_previewTexture.width}x{_previewTexture.height}, {_previewTexture.mipmapCount} mips");
         for (int i = 0; i < _payload.Textures.Length; i++)
         {
             var texture = _payload.Textures[i];
-            EditorGUILayout.LabelField($"Payload [{texture.Format}] {texture.Width}x{texture.Height}, {texture.MipCount} mips — {texture.Data.Length / 1024f:0.0} KB", EditorStyles.miniLabel);
+            BasisEditorUI.Note($"Payload [{texture.Format}] {texture.Width}x{texture.Height}, {texture.MipCount} mips — {texture.Data.Length / 1024f:0.0} KB");
         }
     }
 
     private void DrawInfoTab()
     {
-        EditorGUILayout.LabelField("Payload", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Payload");
         EditorGUILayout.LabelField("Triangles", _payload.TriangleCount.ToString());
         EditorGUILayout.LabelField("Vertices", _payload.VertexCount.ToString());
         EditorGUILayout.LabelField("Bones", _payload.BoneCount.ToString());
@@ -378,7 +381,7 @@ public class BasisFarLodTesterWindow : EditorWindow
                     HumanBodyBones bone = (HumanBodyBones)_payload.BoneHumanBodyBone[i];
                     byte parent = _payload.BoneParentIndex[i];
                     string parentName = parent == 0xFF ? "(root)" : ((HumanBodyBones)_payload.BoneHumanBodyBone[parent]).ToString();
-                    EditorGUILayout.LabelField($"{bone} ← {parentName}", EditorStyles.miniLabel);
+                    BasisEditorUI.Note($"{bone} ← {parentName}");
                 }
             }
         }
@@ -495,7 +498,7 @@ public class BasisFarLodTesterWindow : EditorWindow
     private void DrawScenePreviewSection()
     {
         EditorGUILayout.Space(6);
-        EditorGUILayout.LabelField("Scene Copy", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Scene Copy");
         if (_previewRoot == null)
         {
             if (_avatar != null && _previewMesh != null && GUILayout.Button("Spawn Scene Copy"))
@@ -504,13 +507,13 @@ public class BasisFarLodTesterWindow : EditorWindow
             }
             else
             {
-                EditorGUILayout.LabelField("Not spawned.", EditorStyles.miniLabel);
+                BasisEditorUI.Note("Not spawned.");
             }
             return;
         }
         _mirrorPose = EditorGUILayout.Toggle("Mirror Source Pose", _mirrorPose);
         _previewOffset = EditorGUILayout.FloatField("Offset (0 = auto)", _previewOffset);
-        EditorGUILayout.LabelField("Mirroring pauses while a copy transform is selected, so you can pose the copy by hand.", EditorStyles.miniLabel);
+        BasisEditorUI.Note("Mirroring pauses while a copy transform is selected, so you can pose the copy by hand.");
         DrawPoseAudit();
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Select In Scene"))
@@ -540,7 +543,7 @@ public class BasisFarLodTesterWindow : EditorWindow
         float worst = 0f;
         string worstBone = null;
         int shown = 0;
-        EditorGUILayout.LabelField("Pose Audit (world-rotation error vs source)", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Pose Audit (world-rotation error vs source)");
         for (int i = 0; i < _previewBones.Length; i++)
         {
             Transform source = _sourceBones[i];
@@ -557,7 +560,7 @@ public class BasisFarLodTesterWindow : EditorWindow
             }
             if (angle > 1f && shown < 10)
             {
-                EditorGUILayout.LabelField($"{(HumanBodyBones)_payload.BoneHumanBodyBone[i]}: {angle:0.0}°", EditorStyles.miniLabel);
+                BasisEditorUI.Note($"{(HumanBodyBones)_payload.BoneHumanBodyBone[i]}: {angle:0.0}°");
                 shown++;
             }
         }

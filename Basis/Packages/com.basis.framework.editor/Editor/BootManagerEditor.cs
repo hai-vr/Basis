@@ -9,7 +9,7 @@ namespace Basis.Scripts.Boot_Sequence
     {
         private static bool isBootSequenceEnabled;
 
-        [MenuItem("Basis/Debug/Toggle Boot Sequence")]
+        [MenuItem("Basis/Debug/Toggle Boot Sequence", false, 643)]
         public static void ShowWindow() => GetWindow<BootManagerEditor>("Boot Sequence Toggle");
 
         private void OnEnable()
@@ -20,7 +20,7 @@ namespace Basis.Scripts.Boot_Sequence
         private void OnGUI()
         {
             GUILayout.Label("Boot Sequence Control", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox("Enable or disable the Boot Sequence at runtime.", MessageType.Info);
+            BasisEditorUI.Help("Enable or disable the Boot Sequence at runtime.", MessageType.Info);
 
             bool newVal = EditorGUILayout.Toggle("Enable Booting", isBootSequenceEnabled);
             if (newVal != isBootSequenceEnabled)

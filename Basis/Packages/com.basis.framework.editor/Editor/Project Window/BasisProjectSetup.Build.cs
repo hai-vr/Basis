@@ -201,10 +201,10 @@ public partial class BasisProjectSetup : EditorWindow
         else
         {
             if (_choice == PlatformChoice.Android && _hasAndroid != true)
-                EditorGUILayout.HelpBox(Tr("projectSetup.buildModules.errAndroidMissing", "Android Build Support is missing. Install it in Unity Hub to build for Quest."), MessageType.Error);
+                BasisEditorUI.Help(Tr("projectSetup.buildModules.errAndroidMissing", "Android Build Support is missing. Install it in Unity Hub to build for Quest."), MessageType.Error);
 
             if (_choice == PlatformChoice.Android && _hasIl2cppAndroid != true && _enforceIl2cpp)
-                EditorGUILayout.HelpBox(Tr("projectSetup.buildModules.errAndroidIl2cppMissing", "Android IL2CPP is not available. Install Android Build Support (includes IL2CPP) in Unity Hub."), MessageType.Error);
+                BasisEditorUI.Help(Tr("projectSetup.buildModules.errAndroidIl2cppMissing", "Android IL2CPP is not available. Install Android Build Support (includes IL2CPP) in Unity Hub."), MessageType.Error);
         }
 
         if (Application.platform == RuntimePlatform.LinuxEditor)

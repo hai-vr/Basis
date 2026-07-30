@@ -1067,6 +1067,9 @@ namespace BasisPermissions
                 // Ensure saved
                 Manager.SaveToXmlDebounced();
 
+                // Init runs on every StartServer against a process-lifetime Manager; -= first so a
+                // restart cannot stack a second subscription (each would resend every update).
+                Manager.OnPermissionsChanged -= HandlePermissionsChanged;
                 Manager.OnPermissionsChanged += HandlePermissionsChanged;
             }
             public static void InitWithoutDisc()
@@ -1074,6 +1077,7 @@ namespace BasisPermissions
                 // Optional defaults if file was empty/nonexistent
                 Manager.EnsureDefaults();
 
+                Manager.OnPermissionsChanged -= HandlePermissionsChanged;
                 Manager.OnPermissionsChanged += HandlePermissionsChanged;
             }
 
@@ -1177,6 +1181,7 @@ namespace BasisPermissions
                 NetDataWriter writer = NetworkServer.RentWriter();
                 msg.Serialize(writer);
                 NetworkServer.TrySend(peer, writer, BasisNetworkCommons.metaDataChannel, DeliveryMethod.ReliableOrdered);
+                NetworkServer.ReturnWriter(writer);
             }
         }
     }

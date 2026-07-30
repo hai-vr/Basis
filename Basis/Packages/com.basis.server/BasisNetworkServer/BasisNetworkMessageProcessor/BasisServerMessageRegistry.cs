@@ -320,12 +320,6 @@ public static class BasisServerMessageRegistry
             reader.Recycle(); // recycles here
         });
 
-        RegisterCore(BasisNetworkCommons.StoreDatabaseChannel, (peer, reader, channel, dm) =>
-            BasisServerHandleEvents.HandleStoreDatabase(reader, peer)); // recycles inside
-
-        RegisterCore(BasisNetworkCommons.RequestStoreDatabaseChannel, (peer, reader, channel, dm) =>
-            BasisServerHandleEvents.HandleRequestStoreDatabase(reader, peer)); // recycles inside
-
         RegisterCore(BasisNetworkCommons.ServerStatisticsChannel, (peer, reader, channel, dm) =>
         {
             // Permission-gated stats

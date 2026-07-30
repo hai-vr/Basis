@@ -10175,27 +10175,21 @@
       "value": "Resource Limits"
     },
     {
-      "key": "settings.admin.title.maxDatabaseEntries",
       "value": "Max Database Entries"
     },
     {
-      "key": "settings.admin.title.maxDatabaseEntries.description",
       "value": "Maximum number of stored persistent-database entries across all players."
     },
     {
-      "key": "settings.admin.title.maxDatabaseNameLength",
       "value": "Max Database Name Length"
     },
     {
-      "key": "settings.admin.title.maxDatabaseNameLength.description",
       "value": "Maximum character length of a persistent-database entry name."
     },
     {
-      "key": "settings.admin.title.maxDatabasePayloadEntries",
       "value": "Max Database Payload Entries"
     },
     {
-      "key": "settings.admin.title.maxDatabasePayloadEntries.description",
       "value": "Maximum number of key/value entries in a single persistent-database payload."
     },
     {

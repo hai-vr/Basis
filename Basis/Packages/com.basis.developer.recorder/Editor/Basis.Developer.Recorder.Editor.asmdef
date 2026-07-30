@@ -2,7 +2,8 @@
     "name": "Basis.Developer.Recorder.Editor",
     "rootNamespace": "",
     "references": [
-        "Basis.Developer.Recorder"
+        "Basis.Developer.Recorder",
+        "BasisSDKEditor"
     ],
     "includePlatforms": [
         "Editor"

@@ -21,7 +21,7 @@ namespace Basis.Editor
     /// </summary>
     public static class BasisAddressableDependencyReport
     {
-        [MenuItem("Basis/Build/Addressables/Dependency Report")]
+        [MenuItem("Basis/Build/Addressables/Dependency Report", false, 342)]
         public static void Generate()
         {
             AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;

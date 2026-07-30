@@ -37,7 +37,7 @@ public class BasisPoseStreamWindow : EditorWindow
     string _anchorInfo = "";
     string _calibInfo = "";
 
-    [MenuItem("Basis/Debug/Pose Stream")]
+    [MenuItem("Basis/Debug/Pose Stream", false, 622)]
     public static void Open()
     {
         GetWindow<BasisPoseStreamWindow>("Pose Stream").Show();
@@ -145,6 +145,9 @@ public class BasisPoseStreamWindow : EditorWindow
 
     void OnGUI()
     {
+        BasisEditorUI.Header("Pose Stream",
+            "The bone pose actually being sent and received, frame by frame.");
+
         using (new EditorGUILayout.HorizontalScope())
         {
             if (GUILayout.Button("Refresh", GUILayout.Width(80)))
@@ -162,7 +165,7 @@ public class BasisPoseStreamWindow : EditorWindow
             }
         }
 
-        EditorGUILayout.HelpBox(_status, MessageType.None);
+        BasisEditorUI.Readout(_status);
         if (!string.IsNullOrEmpty(_anchorInfo))
         {
             EditorGUILayout.LabelField(_anchorInfo, EditorStyles.miniLabel);

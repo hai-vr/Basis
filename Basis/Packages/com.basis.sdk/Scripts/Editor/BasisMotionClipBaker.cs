@@ -15,7 +15,7 @@ public class BasisMotionClipBaker : EditorWindow
     [SerializeField] private GameObject _root;
     [SerializeField] private float _frameRate = 60f;
 
-    [MenuItem("Basis/Build/Bake Authored Motion Clip")]
+    [MenuItem("Basis/Build/Bake Authored Motion Clip", false, 320)]
     private static void Open() => GetWindow<BasisMotionClipBaker>(true, "Bake Authored Motion Clip");
 
     private void OnGUI()
@@ -31,7 +31,7 @@ public class BasisMotionClipBaker : EditorWindow
 
         using (new EditorGUI.DisabledScope(_clip == null || _root == null || _frameRate <= 0f))
         {
-            if (GUILayout.Button("Bake", GUILayout.Height(28))) Bake();
+            if (BasisEditorUI.PrimaryButton("Bake", 28f)) Bake();
         }
     }
 

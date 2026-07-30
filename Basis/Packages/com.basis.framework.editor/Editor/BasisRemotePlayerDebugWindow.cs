@@ -39,7 +39,7 @@ public class BasisRemotePlayerDebugWindow : EditorWindow
     private bool _dirty = true;
     private bool _jumpToFirst;
 
-    [MenuItem("Basis/Debug/Remote Players")]
+    [MenuItem("Basis/Debug/Remote Players", false, 604)]
     public static void ShowWindow()
     {
         var w = GetWindow<BasisRemotePlayerDebugWindow>("Remote Players");

@@ -55,7 +55,7 @@ public static class BasisQualitySettingsGuard
         }
     }
 
-    [MenuItem("Basis/Settings/Quality Settings/Force Regenerate")]
+    [MenuItem("Basis/Settings/Quality Settings/Force Regenerate", false, 420)]
     public static void ForceRegenerate()
     {
         if (Regenerate())

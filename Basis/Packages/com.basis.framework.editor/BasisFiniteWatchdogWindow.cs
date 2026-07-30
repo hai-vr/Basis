@@ -10,7 +10,7 @@ public class BasisFiniteWatchdogWindow : EditorWindow
 {
     Vector2 _scroll;
 
-    [MenuItem("Basis/Debug/Finite Watchdog")]
+    [MenuItem("Basis/Debug/Finite Watchdog", false, 623)]
     static void Open()
     {
         var window = GetWindow<BasisFiniteWatchdogWindow>("Finite Watchdog");
@@ -19,6 +19,9 @@ public class BasisFiniteWatchdogWindow : EditorWindow
 
     void OnGUI()
     {
+        BasisEditorUI.Header("Finite Watchdog",
+            "Hunts the first non-finite value behind Invalid AABB / IsFinite spam.");
+
         EditorGUILayout.HelpBox(
             "Hunts the first NaN behind 'Invalid AABB' / 'IsFinite(distanceForSort)' spam. " +
             "While armed: cameras + local avatar root are checked every frame, every renderer's " +
@@ -47,7 +50,7 @@ public class BasisFiniteWatchdogWindow : EditorWindow
 
         if (!string.IsNullOrEmpty(BasisFiniteWatchdog.LastReport))
         {
-            EditorGUILayout.LabelField("Last report", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Last report");
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
             EditorGUILayout.TextArea(BasisFiniteWatchdog.LastReport, GUILayout.ExpandHeight(true));
             EditorGUILayout.EndScrollView();

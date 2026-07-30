@@ -35,7 +35,7 @@ namespace Basis.Tests.IK
     ///
     /// This is ISOLATED-SOLVER CHARACTERIZATION only -- every test passes and just prints the gain tables.
     /// The live IK pipeline conditions this sensitivity away (forward knee hint + foot/knee smoothing): the
-    /// in-editor BasisIKSweepRunnerWindow leg gates pass, incl. "stance flicker" (0 oscillations at reach
+    /// in-editor IK Sweeps window's Run All leg gates pass, incl. "stance flicker" (0 oscillations at reach
     /// 0.99) and "temporal+footnoise" (knee jitter 7mm well-conditioned vs 68mm raw). So these numbers show
     /// where the raw two-bone solve is touchy near full extension, NOT a live bug -- the foot DRIVER, not
     /// this solver, owns standing-idle foot behaviour (see BasisFootIKSweep).

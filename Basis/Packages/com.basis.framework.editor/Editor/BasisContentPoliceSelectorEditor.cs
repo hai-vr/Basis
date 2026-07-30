@@ -37,7 +37,7 @@ public class BasisContentPoliceSelectorEditor : Editor
 
     public override void OnInspectorGUI()
     {
-        EditorGUILayout.LabelField("Allowed Components Used On Avatars", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Allowed Components Used On Avatars");
 
         // 🔍 Search bar
         EditorGUILayout.BeginHorizontal();

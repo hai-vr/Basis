@@ -186,8 +186,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     {
         private static readonly CancellationTokenSource cts = new();
         // Initial capacity for PeerTracking array on PlayerState.
-        // Grows if a player ID exceeds this.
-        private const int InitialPlayerArrayCapacity = 2048;
+        // Grows if a player ID exceeds this (doubling, lock-guarded, in the distance and send
+        // loops). Peer ids are recycled so the high-water id tracks peak concurrent players: a
+        // flat 2048 charged every player 64 KB of tracking up front regardless of population —
+        // ~6 MB of dead weight at 100 players. 256 (8 KB) covers a small instance outright and a
+        // growing one doubles a handful of times on its way up, which is a one-time copy of a
+        // few-KB array per step.
+        private const int InitialPlayerArrayCapacity = 256;
 
         /// <summary>
         /// Default worker cap for the tick's parallel phases.
@@ -1317,13 +1322,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 removalsThisTick++;
                 _uplinkStates.TryRemove(id, out _);
+                // Admin bypass is per-player-session; LiteNetLib recycles ids, so a stale entry
+                // would silently grant the next player on this id full-quality broadcast.
+                _bypassReductionIds.TryRemove(id, out _);
                 if (playerStates.TryRemove(id, out var removedState))
                 {
                     removedState.IsActive = false;
 
                     // Return pooled arrays to ArrayPool
                     if (removedState.AvatarHigh.array != null)
+                    {
                         ArrayPool<byte>.Shared.Return(removedState.AvatarHigh.array);
+                        removedState.AvatarHigh.array = null;
+                    }
                     if (removedState.BundleRawScratch != null)
                     {
                         ArrayPool<byte>.Shared.Return(removedState.BundleRawScratch);
@@ -2482,6 +2493,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             var pos = BasisNetworkCompressionExtensions.ReadPosition(ref poolMsg.array);
+
+            // A message can outlive its sender: removals drain at MaxRemovalsPerTick, and a stale
+            // frame drained after its player's removal used to recreate PlayerState around the dead
+            // NetPeer — pinning the peer (channels, merge buffer) plus a fresh 64 KB tracking array
+            // until the id happened to be reused. Only ever create state for the peer that
+            // currently owns the id.
+            if (!playerStates.TryGetValue(id, out _) &&
+                (!NetworkServer.AuthenticatedPeers.TryGetValue(id, out NetPeer livePeer) || !ReferenceEquals(livePeer, message.FromPeer)))
+            {
+                QueuedMessagePool.Return(message);
+                return;
+            }
 
             // Deep-copy the avatar payload so state.AvatarHigh owns its own buffer.
             // Without this copy, QueuedMessagePool.Return() preserves the byte[] and

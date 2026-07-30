@@ -25,7 +25,7 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
     private Label _diagPath, _diagSnapshots;
     private Button _diagAttach, _diagStart, _diagStop, _diagFlush, _diagReveal;
 
-    [MenuItem("Basis/Debug/Media Player Debug")]
+    [MenuItem("Basis/Debug/Media Player", false, 606)]
     public static void ShowWindow()
     {
         var w = GetWindow<BasisMediaPlayerDebugWindow>("Media Player Debug");

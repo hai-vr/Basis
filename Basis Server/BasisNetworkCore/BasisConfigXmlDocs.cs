@@ -172,8 +172,6 @@ namespace Basis.Network.Core
             t.Fields.Add(new FieldDoc("HowManyDuplicateAuthCanExist", " How many connections sharing the same auth identity may exist at once. int. "));
             t.Fields.Add(new FieldDoc("AuthValidationTimeOutMiliseconds", " Time a client has to complete auth validation before being dropped. int (ms). "));
             t.Fields.Add(new FieldDoc("EnableConsole", " Enable the interactive server console (CLI input). Set false for headless/daemon deployments. true|false. ", " ===== Console / persistence ===== "));
-            t.Fields.Add(new FieldDoc("DisableWriteUnlessAdminPersistentFlag", " Reject writes to the persistent key/value store unless the caller is an admin. true|false. "));
-            t.Fields.Add(new FieldDoc("DisableReadUnlessAdminPersistentFlag", " Reject reads from the persistent key/value store unless the caller is an admin. true|false. "));
             t.Fields.Add(new FieldDoc("EnableAvatarBundleCompression", " Bundle per-receiver avatar messages and send them compressed (falls back to uncompressed per-message when not worthwhile); clients must support the matching decoder. true|false. ", " ===== Avatar bundle compression ===== "));
             t.Fields.Add(new FieldDoc("AvatarBundleMinMessages", " Minimum queued avatar messages to one receiver before a bundle is attempted. int. "));
             t.Fields.Add(new FieldDoc("AvatarBundleMinBytes", " Minimum uncompressed bundle size (bytes) before compression is attempted. int. "));

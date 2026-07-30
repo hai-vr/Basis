@@ -42,7 +42,10 @@ public static class BasisAvatarFarLOD
     /// </summary>
     public static void Tick(BasisRemotePlayer remote, ref int transitionBudget)
     {
-        if (remote == null || transitionBudget <= 0)
+        // IsDestroyed: a leaving player is still in this tick's transmit snapshot after the
+        // factory unloaded their avatar — the null-avatar branch below would try to install
+        // a fallback on the torn-down player ("Missing Object during calibration").
+        if (remote == null || remote.IsDestroyed || transitionBudget <= 0)
         {
             return;
         }
@@ -99,18 +102,7 @@ public static class BasisAvatarFarLOD
         }
 
         bool wearingFar = remote.IsFarLodActive;
-        // No avatar-range check here: the far avatar IS the beyond-range representation, so
-        // a range of zero simply means everyone wears their far avatar. UseAvatarFarLod off
-        // is the switch that drops players to the loading dummy instead.
-        bool wantsFar = Enabled &&
-            !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
-            (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally || remote.IsLoadingAnAvatar);
-        if (remote.AlwaysShowAvatar && !remote.IsLoadingAnAvatar && !remote.HasFailedAvatarLoadGlobally)
-        {
-            // "Show me this player" wants the real avatar; the far avatar only bridges
-            // downloads and dead loads for them.
-            wantsFar = false;
-        }
+        bool wantsFar = WantsFarAvatar(remote);
 
         if (wantsFar && !wearingFar)
         {
@@ -129,15 +121,49 @@ public static class BasisAvatarFarLOD
             transitionBudget--;
             remote.ReloadAvatar();
         }
-        else if (!wantsFar && !wearingFar && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
+        else if (Enabled && !wantsFar && !wearingFar && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
                  remote.IsConsideredFallBackAvatar && remote.HasFarLodPayload &&
                  Time.unscaledTime >= remote.FarLodNextFetchRetryTime)
         {
             // Payload in hand, player out of range on the dummy, yet no far avatar wanted —
-            // one of the gates is refusing; name it instead of sitting silent.
+            // one of the gates is refusing; name it instead of sitting silent. The master
+            // switch being off is a setting, not a refusal — no warning for it.
             remote.FarLodNextFetchRetryTime = Time.unscaledTime + 10f;
             BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} has a payload but is gated: enabled={Enabled} blocked={remote.IsEffectivelyBlocked} alwaysShow={remote.AlwaysShowAvatar}", BasisDebug.LogTag.Avatar);
         }
+    }
+
+    /// <summary>
+    /// Should this player be wearing the far avatar right now? No avatar-range check beyond
+    /// the InAvatarRange flag: the far avatar IS the beyond-range representation, so a range
+    /// of zero simply means everyone wears their far avatar; UseAvatarFarLod off is the
+    /// switch that drops players to the loading dummy instead. For AlwaysShowAvatar players
+    /// the far avatar only bridges downloads and dead loads.
+    /// </summary>
+    public static bool WantsFarAvatar(BasisRemotePlayer remote)
+    {
+        bool wantsFar = Enabled &&
+            !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
+            (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally || remote.IsLoadingAnAvatar);
+        if (remote.AlwaysShowAvatar && !remote.IsLoadingAnAvatar && !remote.HasFailedAvatarLoadGlobally)
+        {
+            wantsFar = false;
+        }
+        return wantsFar;
+    }
+
+    /// <summary>
+    /// CreateAvatar-side desire with the in-flight load projected as finished. MUST agree
+    /// with <see cref="WantsFarAvatar"/> once IsLoadingAnAvatar clears — a disagreement makes
+    /// the transmit tick reverse CreateAvatar's swap every pass, a full avatar install each
+    /// time, forever.
+    /// </summary>
+    public static bool WantsFarAvatarAfterLoad(BasisRemotePlayer remote)
+    {
+        return Enabled &&
+            !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
+            (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally) &&
+            !(remote.AlwaysShowAvatar && !remote.HasFailedAvatarLoadGlobally);
     }
 
     /// <summary>

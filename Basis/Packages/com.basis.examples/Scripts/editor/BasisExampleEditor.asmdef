@@ -1,7 +1,9 @@
 {
     "name": "BasisExampleEditor",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "BasisSDKEditor"
+    ],
     "includePlatforms": [
         "Editor"
     ],

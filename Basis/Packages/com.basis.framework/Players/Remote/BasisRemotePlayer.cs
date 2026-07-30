@@ -621,6 +621,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
                 else
                 {
+                    bool wearingDesiredFarAvatar = false;
                     if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked)
                     {
                         // Real avatar won't be loaded (out of range, over the visible cap, or
@@ -643,17 +644,43 @@ namespace Basis.Scripts.BasisSdk.Players
                             // null check would skip the fetch for every fresh joiner.
                             BasisAvatarFarLOD.RequestFarLodPayload(this, BasisLoadableBundle);
                         }
+
+                        // Swap straight to the far avatar instead of hopping through the
+                        // loading dummy: a version whose shared assets exist installs within
+                        // this frame; a first wearer parses on a worker thread while the
+                        // current avatar stays worn, then swaps once.
+                        if (BasisAvatarFarLOD.WantsFarAvatarAfterLoad(this))
+                        {
+                            wearingDesiredFarAvatar = await BasisFarAvatarBuilder.TryInstallAsync(this);
+                            // The parse can span frames — the player may be gone by now.
+                            if (IsDestroyed)
+                            {
+                                return;
+                            }
+                        }
                     }
                     else
                     {
                         // Hidden or blocked — never represent this player with a far LOD.
                         ClearFarLodStandIn();
                     }
-                    // The far avatar is fallback-classed and stays put; a real avatar, a far
-                    // avatar whose payload was just cleared, or a player wearing nothing at
-                    // all (fallback never actually loaded) drops to the dummy.
-                    bool wearingClearedFarAvatar = BasisAvatar != null && BasisAvatar.IsFarLodAvatar && string.IsNullOrEmpty(FarLodOverridePayload);
-                    if (!IsConsideredFallBackAvatar || BasisAvatar == null || wearingClearedFarAvatar)
+                    // The desired far avatar stays put (it is fallback-classed); a real
+                    // avatar, a player wearing nothing at all, or a far avatar that is no
+                    // longer wanted (hidden, blocked, far system disabled, payload refused,
+                    // or a version swap that failed to build — any of these left worn makes
+                    // the tick's !wantsFar-while-wearing reload churn forever) drops to the
+                    // dummy. When a newer request queued behind this one, leave the worn
+                    // avatar alone — the rerun re-decides, and flashing the dummy in between
+                    // is the hop this skips.
+                    bool farStillWanted = BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked &&
+                        BasisAvatarFarLOD.WantsFarAvatarAfterLoad(this);
+                    bool wearingUnwantedFarAvatar = BasisAvatar != null && BasisAvatar.IsFarLodAvatar && !farStillWanted;
+                    bool dropToDummy = !IsConsideredFallBackAvatar || BasisAvatar == null || wearingUnwantedFarAvatar;
+                    if (wearingDesiredFarAvatar || (_reloadQueuedDuringLoad && BasisAvatar != null))
+                    {
+                        dropToDummy = false;
+                    }
+                    if (dropToDummy)
                     {
                         BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
                     }

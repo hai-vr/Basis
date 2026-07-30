@@ -449,73 +449,157 @@ public class BasisFarLodPayload
     }
 
     /// <summary>
+    /// Quantized mesh data decoded to engine-ready arrays. Every field is plain managed data,
+    /// so the whole decode can run on a worker thread; the main thread only pays for the
+    /// engine-side copies and the GPU upload in <see cref="CreateMesh"/>.
+    /// </summary>
+    public sealed class DecodedMeshData
+    {
+        public Vector3[] Vertices;
+        public Vector3[] Normals;
+        public Vector2[] Uv;
+        public int[] Triangles;
+        public byte[] BonesPerVertex;
+        public BoneWeight1[] BoneWeights;
+        public Matrix4x4[] Bindposes;
+    }
+
+    private DecodedMeshData _decodedMesh;
+
+    /// <summary>
+    /// Decodes the quantized mesh into engine-ready arrays and caches the result. Pure managed
+    /// math — callable from a worker thread (the far avatar parse task does) as long as no
+    /// other thread touches this payload concurrently; the cached copy is then reused by
+    /// <see cref="CreateMesh"/> on the main thread.
+    /// </summary>
+    public DecodedMeshData PrepareDecodedMeshData()
+    {
+        if (_decodedMesh != null)
+        {
+            return _decodedMesh;
+        }
+
+        int vertexCount = VertexCount;
+        DecodedMeshData decoded = new DecodedMeshData
+        {
+            Vertices = new Vector3[vertexCount],
+            Normals = new Vector3[vertexCount],
+            Uv = new Vector2[vertexCount],
+            Triangles = new int[Indices.Length],
+            BonesPerVertex = new byte[vertexCount],
+        };
+        for (int i = 0; i < vertexCount; i++)
+        {
+            decoded.Vertices[i] = DequantizePosition(i);
+            decoded.Normals[i] = OctDecodeNormal(NormalsOct[i]);
+            decoded.Uv[i] = DequantizeUv(i);
+        }
+        for (int i = 0; i < decoded.Triangles.Length; i++)
+        {
+            decoded.Triangles[i] = Indices[i];
+        }
+
+        int influenceCount = 0;
+        for (int i = 0; i < vertexCount; i++)
+        {
+            influenceCount += BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255 ? 2 : 1;
+        }
+        decoded.BoneWeights = new BoneWeight1[influenceCount];
+        int cursor = 0;
+        for (int i = 0; i < vertexCount; i++)
+        {
+            float weightA = BoneWeightA[i] * (1f / 255f);
+            bool twoInfluences = BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255;
+            decoded.BonesPerVertex[i] = (byte)(twoInfluences ? 2 : 1);
+            if (twoInfluences)
+            {
+                decoded.BoneWeights[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = weightA };
+                decoded.BoneWeights[cursor++] = new BoneWeight1 { boneIndex = BoneIndexB[i], weight = 1f - weightA };
+            }
+            else
+            {
+                decoded.BoneWeights[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = 1f };
+            }
+        }
+
+        ComputeBoneRootSpace(out Vector3[] bonePositions, out Quaternion[] boneRotations);
+        decoded.Bindposes = new Matrix4x4[BoneCount];
+        for (int i = 0; i < BoneCount; i++)
+        {
+            decoded.Bindposes[i] = InverseRigidTRS(bonePositions[i], boneRotations[i]);
+        }
+
+        _decodedMesh = decoded;
+        return decoded;
+    }
+
+    /// <summary>
+    /// Inverse of a rigid TRS (unit scale) without the native Matrix4x4.TRS/.inverse calls:
+    /// R⁻¹ from the conjugate quaternion, translation −(R⁻¹·p). Exact for the unit rotations
+    /// stored in the payload, and safe on worker threads.
+    /// </summary>
+    public static Matrix4x4 InverseRigidTRS(Vector3 position, Quaternion rotation)
+    {
+        float x = -rotation.x, y = -rotation.y, z = -rotation.z, w = rotation.w;
+        float x2 = x + x, y2 = y + y, z2 = z + z;
+        float xx = x * x2, yy = y * y2, zz = z * z2;
+        float xy = x * y2, xz = x * z2, yz = y * z2;
+        float wx = w * x2, wy = w * y2, wz = w * z2;
+
+        Matrix4x4 m = default;
+        m.m00 = 1f - (yy + zz); m.m01 = xy - wz; m.m02 = xz + wy;
+        m.m10 = xy + wz; m.m11 = 1f - (xx + zz); m.m12 = yz - wx;
+        m.m20 = xz - wy; m.m21 = yz + wx; m.m22 = 1f - (xx + yy);
+        m.m03 = -(m.m00 * position.x + m.m01 * position.y + m.m02 * position.z);
+        m.m13 = -(m.m10 * position.x + m.m11 * position.y + m.m12 * position.z);
+        m.m23 = -(m.m20 * position.x + m.m21 * position.y + m.m22 * position.z);
+        m.m33 = 1f;
+        return m;
+    }
+
+    /// <summary>
+    /// Drops the mesh/texture source data — quantized arrays, decoded cache, compressed
+    /// texture bytes — once the shared Mesh/Texture2D exist. The skeleton, anchors and
+    /// bounds stay (per-player skeleton builds read them). CreateMesh/CreateTexture and
+    /// Serialize are invalid after this; only the runtime builder calls it.
+    /// </summary>
+    public void ReleaseMeshSourceData()
+    {
+        PositionsQ = null;
+        NormalsOct = null;
+        UvQ = null;
+        BoneIndexA = null;
+        BoneIndexB = null;
+        BoneWeightA = null;
+        Indices = null;
+        Textures = Array.Empty<FarLodTexture>();
+        _decodedMesh = null;
+    }
+
+    /// <summary>
     /// Builds the skinned far avatar mesh from this payload — the single construction path shared
     /// by the runtime far avatar and the SDK tester. Returns null (with a log) on bad data.
+    /// The decode reuses <see cref="PrepareDecodedMeshData"/> when a worker thread already ran it.
     /// </summary>
     public Mesh CreateMesh()
     {
         try
         {
-            int vertexCount = VertexCount;
-            Vector3[] vertices = new Vector3[vertexCount];
-            Vector3[] normals = new Vector3[vertexCount];
-            Vector2[] uv = new Vector2[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-            {
-                vertices[i] = DequantizePosition(i);
-                normals[i] = OctDecodeNormal(NormalsOct[i]);
-                uv[i] = DequantizeUv(i);
-            }
-            int[] triangles = new int[Indices.Length];
-            for (int i = 0; i < triangles.Length; i++)
-            {
-                triangles[i] = Indices[i];
-            }
+            DecodedMeshData decoded = PrepareDecodedMeshData();
 
             Mesh mesh = new Mesh { name = "BasisFarLodMesh" };
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.uv = uv;
-            mesh.triangles = triangles;
+            mesh.vertices = decoded.Vertices;
+            mesh.normals = decoded.Normals;
+            mesh.uv = decoded.Uv;
+            mesh.triangles = decoded.Triangles;
 
-            int influenceCount = 0;
-            for (int i = 0; i < vertexCount; i++)
+            using (NativeArray<byte> bonesPerVertex = new NativeArray<byte>(decoded.BonesPerVertex, Allocator.Temp))
+            using (NativeArray<BoneWeight1> weights = new NativeArray<BoneWeight1>(decoded.BoneWeights, Allocator.Temp))
             {
-                influenceCount += BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255 ? 2 : 1;
-            }
-            using (NativeArray<byte> bonesPerVertex = new NativeArray<byte>(vertexCount, Allocator.Temp))
-            using (NativeArray<BoneWeight1> weights = new NativeArray<BoneWeight1>(influenceCount, Allocator.Temp))
-            {
-                // Struct copies of the using-declared arrays (same buffer) — a using variable
-                // is readonly, so its indexer can't be written through directly.
-                NativeArray<byte> bonesPerVertexWriter = bonesPerVertex;
-                NativeArray<BoneWeight1> weightWriter = weights;
-                int cursor = 0;
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float weightA = BoneWeightA[i] * (1f / 255f);
-                    bool twoInfluences = BoneIndexB[i] != BoneIndexA[i] && BoneWeightA[i] < 255;
-                    bonesPerVertexWriter[i] = (byte)(twoInfluences ? 2 : 1);
-                    if (twoInfluences)
-                    {
-                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = weightA };
-                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexB[i], weight = 1f - weightA };
-                    }
-                    else
-                    {
-                        weightWriter[cursor++] = new BoneWeight1 { boneIndex = BoneIndexA[i], weight = 1f };
-                    }
-                }
                 mesh.SetBoneWeights(bonesPerVertex, weights);
             }
 
-            ComputeBoneRootSpace(out Vector3[] bonePositions, out Quaternion[] boneRotations);
-            Matrix4x4[] bindposes = new Matrix4x4[BoneCount];
-            for (int i = 0; i < BoneCount; i++)
-            {
-                bindposes[i] = Matrix4x4.TRS(bonePositions[i], boneRotations[i], Vector3.one).inverse;
-            }
-            mesh.bindposes = bindposes;
+            mesh.bindposes = decoded.Bindposes;
             mesh.bounds = new Bounds(
                 (PositionBoundsMin + PositionBoundsMax) * 0.5f,
                 PositionBoundsMax - PositionBoundsMin);

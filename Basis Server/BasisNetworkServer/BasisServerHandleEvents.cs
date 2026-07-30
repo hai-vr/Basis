@@ -146,11 +146,35 @@ namespace BasisServerHandle
 
             internal static void Flush()
             {
+                // The batch payload ceiling is enforced HERE, on the snapshot, not inside Frame.
+                // Frame runs once per distinct receiver start-offset, so a per-Frame overflow
+                // re-queue duplicated the overflowing record once per offset — a sustained join
+                // ramp compounded that into unbounded growth of _pending (and duplicate spawn
+                // announcements). Taking a bounded oldest-first prefix leaves the tail queued
+                // exactly once and guarantees progress: at least one record per flush, and every
+                // Frame suffix of the prefix fits the cap by construction.
                 Record[] batch;
                 lock (_pending)
                 {
-                    batch = _pending.Count == 0 ? Array.Empty<Record>() : _pending.ToArray();
-                    _pending.Clear();
+                    if (_pending.Count == 0)
+                    {
+                        batch = Array.Empty<Record>();
+                    }
+                    else
+                    {
+                        _pending.Sort(static (a, b) => a.Seq.CompareTo(b.Seq));
+                        int take = 0;
+                        long payloadBytes = 0;
+                        while (take < _pending.Count)
+                        {
+                            payloadBytes += _pending[take].Payload.Length;
+                            if (take > 0 && payloadBytes > ServerReadyBatchMessage.MaxPayloadBytes) break;
+                            take++;
+                        }
+                        batch = new Record[take];
+                        _pending.CopyTo(0, batch, 0, take);
+                        _pending.RemoveRange(0, take);
+                    }
                 }
                 ushort[] leaves;
                 lock (_pendingLeaves)
@@ -159,7 +183,6 @@ namespace BasisServerHandle
                     _pendingLeaves.Clear();
                 }
                 if (batch.Length == 0 && leaves.Length == 0) return;
-                Array.Sort(batch, static (a, b) => a.Seq.CompareTo(b.Seq));
 
                 NetPeer[] peers = NetworkServer.PeerSnapshot;
                 if (peers == null || peers.Length == 0) return;
@@ -258,13 +281,6 @@ namespace BasisServerHandle
                     ushort count = 0;
                     for (int i = start; i < batch.Length; i++)
                     {
-                        // Respect the batch payload ceiling; anything beyond it rides the next flush
-                        // rather than producing an oversized packet.
-                        if (count > 0 && payload.Length + batch[i].Payload.Length > ServerReadyBatchMessage.MaxPayloadBytes)
-                        {
-                            lock (_pending) { _pending.Add(batch[i]); }
-                            continue;
-                        }
                         payload.Put(batch[i].Payload);
                         count++;
                     }
@@ -331,7 +347,20 @@ namespace BasisServerHandle
         /// </summary>
         private static bool CleanupPeerSubsystems(NetPeer peer, int id)
         {
-            if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
+            // The auth-identity map is the primary UUID source, but it is empty when
+            // UseAuthIdentity is off and can already be evicted on a reconnect collision. The
+            // stored connect metadata carries the same server-computed UUID (OnNetworkAccepted
+            // overwrites the client-supplied one before storing), and it is still present here —
+            // BasisSavedState.RemovePlayer runs below. Without the fallback, every UUID-keyed
+            // store in this block was orphaned for the life of the process in those modes.
+            if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) || string.IsNullOrEmpty(uuid))
+            {
+                if (BasisSavedState.GetLastPlayerMetaData(peer, out ClientMetaDataMessage meta) && !string.IsNullOrEmpty(meta.playerUUID))
+                {
+                    uuid = meta.playerUUID;
+                }
+            }
+            if (!string.IsNullOrEmpty(uuid))
             {
                 PermissionIntegration.RemovePlayerMeta(uuid);
                 PermissionIntegration.EvictPermissionCache(uuid);
@@ -950,25 +979,32 @@ namespace BasisServerHandle
             byte channel = largeId ? BasisNetworkCommons.VoiceLargeChannel : BasisNetworkCommons.VoiceChannel;
 
             // Serialize once into a byte[], then send raw to each peer — skips N writer→packet copies.
+            // try/finally: this runs per voice packet, so a single throw mid-fanout must not eat the
+            // rented snapshot and writer — lost writers permanently drain the shared pool.
             var writer = NetworkServer.RentWriter();
-            audioSegment.Serialize(writer, largeId);
-            int len = writer.Length;
-            byte[] data = writer.Data;
-
-            for (int i = 0; i < snapshotCount; i++)
+            try
             {
-                NetPeer client = snapshot[i];
-                if (client == null) continue;
-                if (BasisNetworkServer.BasisServerP2PBroker.IsP2POffloaded(sender.Id, client.Id))
-                {
-                    continue;
-                }
-                client.SendUnreliableRawMerge(data, 0, len, channel);
-                BasisNetworkStatistics.RecordOutbound(channel, len);
-            }
+                audioSegment.Serialize(writer, largeId);
+                int len = writer.Length;
+                byte[] data = writer.Data;
 
-            NetworkServer.ReturnWriter(writer);
-            ArrayPool<NetPeer>.Shared.Return(snapshot, clearArray: true);
+                for (int i = 0; i < snapshotCount; i++)
+                {
+                    NetPeer client = snapshot[i];
+                    if (client == null) continue;
+                    if (BasisNetworkServer.BasisServerP2PBroker.IsP2POffloaded(sender.Id, client.Id))
+                    {
+                        continue;
+                    }
+                    client.SendUnreliableRawMerge(data, 0, len, channel);
+                    BasisNetworkStatistics.RecordOutbound(channel, len);
+                }
+            }
+            finally
+            {
+                NetworkServer.ReturnWriter(writer);
+                ArrayPool<NetPeer>.Shared.Return(snapshot, clearArray: true);
+            }
         }
         public static void UpdateVoiceReceivers(NetPacketReader Reader, NetPeer Peer, bool largeCount)
         {
@@ -1417,51 +1453,5 @@ namespace BasisServerHandle
             BasisNetworkResourceManagement.SetStatic(modifyResource, Peer);
         }
         #endregion
-        public static void HandleStoreDatabase(NetPacketReader reader, NetPeer peer)
-        {
-            if (NetworkServer.Configuration.DisableWriteUnlessAdminPersistentFlag)
-            {
-                if (!PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
-                {
-                    return;
-                }
-            }
-            var dataMessage = new DatabasePrimativeMessage();
-            dataMessage.Deserialize(reader);
-            reader.Recycle();
-
-            var basisData = new BasisData(dataMessage.Name, dataMessage.jsonPayload);
-            BasisPersistentDatabase.AddOrUpdate(basisData);
-        }
-
-        public static void HandleRequestStoreDatabase(NetPacketReader reader, NetPeer peer)
-        {
-            if(NetworkServer.Configuration.DisableReadUnlessAdminPersistentFlag)
-            {
-                if(!PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
-                {
-                    return;
-                }
-            }
-            var dataRequest = new DataBaseRequest();
-            dataRequest.Deserialize(reader);
-            reader.Recycle();
-            if (!BasisPersistentDatabase.GetByName(dataRequest.DatabaseID, out var db))
-            {
-                db = new BasisData(dataRequest.DatabaseID, new System.Collections.Concurrent.ConcurrentDictionary<string, object>());
-            }
-
-            var msg = new DatabasePrimativeMessage
-            {
-                Name = db.Name,
-                jsonPayload = db.JsonPayload
-            };
-
-            var writer = NetworkServer.RentWriter();
-            msg.Serialize(writer);
-            BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.StoreDatabaseChannel, writer.Length);
-            peer.Send(writer, BasisNetworkCommons.StoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
-            NetworkServer.ReturnWriter(writer);
-        }
     }
 }

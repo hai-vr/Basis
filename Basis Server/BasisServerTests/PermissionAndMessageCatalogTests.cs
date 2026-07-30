@@ -634,8 +634,6 @@ public class MessageCatalogTests
         (29, "basis.core.contentshare"),
         (30, "basis.core.avatar.delta"),
         (31, "basis.core.serverbound"),
-        (32, "basis.core.database.store"),
-        (33, "basis.core.database.request"),
         (34, "basis.core.admin"),
         (35, "basis.core.statistics"),
         (36, "basis.core.camera.pip.state"),
@@ -666,10 +664,10 @@ public class MessageCatalogTests
     };
 
     [Fact]
-    public void Core_CoversChannels0Through60_Exactly()
+    public void Core_CoversChannels0Through60_ExceptFreed()
     {
         SerializableBasis.BasisMessageDescriptor[] core = SerializableBasis.BasisMessageCatalog.BuildCore();
-        Assert.Equal(61, core.Length);
+        Assert.Equal(59, core.Length);
 
         HashSet<byte> channels = new();
         foreach (SerializableBasis.BasisMessageDescriptor descriptor in core)
@@ -678,8 +676,11 @@ public class MessageCatalogTests
         }
         for (byte channel = 0; channel <= 60; channel++)
         {
+            if (channel == 32 || channel == 33) continue; // freed by the database removal
             Assert.Contains(channel, channels);
         }
+        Assert.DoesNotContain((byte)32, channels);
+        Assert.DoesNotContain((byte)33, channels);
     }
 
     [Fact]
@@ -959,7 +960,8 @@ public class MessageManifestSerializationTests
 
 /// <summary>
 /// Pins the channel constant layout in BasisNetworkCommons: every named channel keeps its
-/// wire value, all 64 are distinct and below TotalChannels, and the helper mappings agree.
+/// wire value, all are distinct and below TotalChannels (32 and 33 are free), and the
+/// helper mappings agree.
 /// </summary>
 public class NetworkChannelConstantTests
 {
@@ -997,8 +999,6 @@ public class NetworkChannelConstantTests
         (nameof(BasisNetworkCommons.ContentShareChannel), BasisNetworkCommons.ContentShareChannel, 29),
         (nameof(BasisNetworkCommons.DeltaAvatarChannel), BasisNetworkCommons.DeltaAvatarChannel, 30),
         (nameof(BasisNetworkCommons.ServerBoundChannel), BasisNetworkCommons.ServerBoundChannel, 31),
-        (nameof(BasisNetworkCommons.StoreDatabaseChannel), BasisNetworkCommons.StoreDatabaseChannel, 32),
-        (nameof(BasisNetworkCommons.RequestStoreDatabaseChannel), BasisNetworkCommons.RequestStoreDatabaseChannel, 33),
         (nameof(BasisNetworkCommons.AdminChannel), BasisNetworkCommons.AdminChannel, 34),
         (nameof(BasisNetworkCommons.ServerStatisticsChannel), BasisNetworkCommons.ServerStatisticsChannel, 35),
         (nameof(BasisNetworkCommons.CameraPIPStateChannel), BasisNetworkCommons.CameraPIPStateChannel, 36),
@@ -1047,7 +1047,7 @@ public class NetworkChannelConstantTests
     }
 
     [Fact]
-    public void AllNamedChannels_AreDistinct_AndCoverZeroToSixtyThree()
+    public void AllNamedChannels_AreDistinct_AndCoverZeroToSixtyThreeExceptFreed()
     {
         HashSet<byte> seen = new();
         foreach ((string name, byte actual, _) in ChannelPins)
@@ -1055,7 +1055,10 @@ public class NetworkChannelConstantTests
             Assert.True(seen.Add(actual), $"{name} duplicates channel value {actual}");
             Assert.True(actual < BasisNetworkCommons.TotalChannels, $"{name} = {actual} exceeds TotalChannels");
         }
-        Assert.Equal(BasisNetworkCommons.TotalChannels, (byte)seen.Count);
+        // 32 & 33 are free (held the removed server-side database).
+        Assert.Equal(BasisNetworkCommons.TotalChannels - 2, (byte)seen.Count);
+        Assert.DoesNotContain((byte)32, seen);
+        Assert.DoesNotContain((byte)33, seen);
     }
 
     [Fact]

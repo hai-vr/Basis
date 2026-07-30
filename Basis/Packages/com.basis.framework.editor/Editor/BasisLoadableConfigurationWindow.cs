@@ -32,7 +32,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
     bool persist = true;
 
     // UI
-    [MenuItem("Basis/Settings/Loadable Config")]
+    [MenuItem("Basis/Settings/Loadable Config", false, 403)]
     public static void ShowWindow()
     {
         var win = GetWindow<BasisLoadableConfigurationWindow>("Basis Config");
@@ -41,7 +41,9 @@ public class BasisLoadableConfigurationWindow : EditorWindow
 
     void OnGUI()
     {
-        EditorGUILayout.LabelField("Basis Loadable Configuration", EditorStyles.boldLabel);
+        BasisEditorUI.Header("Loadable Config",
+            "The config file the client loads at boot — edit it here instead of by hand.");
+
         EditorGUILayout.Space();
 
         using (new EditorGUILayout.VerticalScope("box"))
@@ -57,7 +59,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
         EditorGUILayout.Space();
         using (new EditorGUILayout.VerticalScope("box"))
         {
-            EditorGUILayout.LabelField("Transform", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Transform");
             Selectedposition = EditorGUILayout.Vector3Field("Position (X,Y,Z)", Selectedposition);
 
             // Quaternion fields (explicit)
@@ -88,7 +90,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
         }
 
         EditorGUILayout.Space();
-        EditorGUILayout.HelpBox("Tip: This window writes the XML with the same comments and element order as your example.", MessageType.Info);
+        BasisEditorUI.Help("Tip: This window writes the XML with the same comments and element order as your example.", MessageType.Info);
     }
 
     static string DescribeMode(int mode)

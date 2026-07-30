@@ -36,7 +36,7 @@ public class BasisBulkBuildWindowEditor : EditorWindow
     private readonly List<Entry> entries = new List<Entry>();
     private bool isBuilding;
 
-    [MenuItem("Basis/Build/Bulk Build")]
+    [MenuItem("Basis/Build/Bulk Build", false, 300)]
     public static void Open()
     {
         var w = GetWindow<BasisBulkBuildWindowEditor>();
@@ -47,6 +47,9 @@ public class BasisBulkBuildWindowEditor : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Bulk Build",
+            "Build every selected avatar, prop and scene bundle in one pass.");
+
         using (new EditorGUI.DisabledScope(isBuilding))
         {
             DrawHeader();
@@ -58,7 +61,7 @@ public class BasisBulkBuildWindowEditor : EditorWindow
 
         if (isBuilding)
         {
-            EditorGUILayout.HelpBox(BasisEditorLocalization.Get("sdk.bulkBuild.building.help"), MessageType.Info);
+            BasisEditorUI.Help(BasisEditorLocalization.Get("sdk.bulkBuild.building.help"), MessageType.Info);
         }
     }
 
@@ -110,7 +113,7 @@ public class BasisBulkBuildWindowEditor : EditorWindow
 
             if (entries.Count == 0)
             {
-                EditorGUILayout.HelpBox(BasisEditorLocalization.Get("sdk.bulkBuild.items.empty"), MessageType.None);
+                BasisEditorUI.Readout(BasisEditorLocalization.Get("sdk.bulkBuild.items.empty"));
                 return;
             }
 
@@ -166,7 +169,7 @@ public class BasisBulkBuildWindowEditor : EditorWindow
             }
         }
 
-        EditorGUILayout.HelpBox(BasisEditorLocalization.Get("sdk.bulkBuild.help"), MessageType.Info);
+        BasisEditorUI.Help(BasisEditorLocalization.Get("sdk.bulkBuild.help"), MessageType.Info);
     }
 
     private bool PassesFilter(Entry e)

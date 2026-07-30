@@ -10,7 +10,7 @@ namespace Basis.Integration.SlimeVR.Editor
     {
         private Vector2 _scroll;
 
-        [MenuItem("Basis/Tests And Debug/SlimeVR Debug")]
+        [MenuItem("Basis/Debug/SlimeVR", false, 607)]
         public static void ShowWindow()
         {
             GetWindow<BasisSlimeVRDebugWindow>("SlimeVR Debug");
@@ -28,21 +28,24 @@ namespace Basis.Integration.SlimeVR.Editor
 
         private void OnGUI()
         {
+            BasisEditorUI.Header("SlimeVR",
+                "The SlimeVR bridge: connected trackers, their roles, and the poses they report.");
+
             if (!Application.isPlaying)
             {
-                EditorGUILayout.HelpBox("Enter play mode to talk to SlimeVR.", MessageType.Info);
+                BasisEditorUI.Help("Enter play mode to talk to SlimeVR.", MessageType.Info);
                 return;
             }
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
-            EditorGUILayout.LabelField("Connection", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Connection");
             EditorGUILayout.LabelField("Enabled", BasisSlimeVRSettings.Enable.RawValue ? "Yes" : "No");
             EditorGUILayout.LabelField("Connected", BasisSlimeVRBridge.IsConnected ? "Yes" : "No");
             EditorGUILayout.LabelField("Auto Apply", BasisSlimeVRSettings.ApplyBodyMeasurements.RawValue ? "Yes" : "No");
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Body Measurements", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Body Measurements");
             if (BasisSlimeVRBridge.HasBodyMetrics)
             {
                 var metrics = BasisSlimeVRBridge.LastBodyMetrics;
@@ -63,7 +66,7 @@ namespace Basis.Integration.SlimeVR.Editor
             if (config != null && config.Parts.Count > 0)
             {
                 EditorGUILayout.Space();
-                EditorGUILayout.LabelField($"Skeleton Parts ({config.Parts.Count})", EditorStyles.boldLabel);
+                BasisEditorUI.SectionTitle($"Skeleton Parts ({config.Parts.Count})");
                 foreach (var part in config.Parts)
                 {
                     EditorGUILayout.LabelField(part.Key.ToString(), $"{part.Value:F4} m");
@@ -71,7 +74,7 @@ namespace Basis.Integration.SlimeVR.Editor
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField($"Trackers ({BasisSlimeVRBridge.Trackers.Count})", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle($"Trackers ({BasisSlimeVRBridge.Trackers.Count})");
             foreach (var tracker in BasisSlimeVRBridge.Trackers)
             {
                 string name = !string.IsNullOrEmpty(tracker.CustomName) ? tracker.CustomName
@@ -106,7 +109,7 @@ namespace Basis.Integration.SlimeVR.Editor
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("FBT Offset Freshness", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("FBT Offset Freshness");
             EditorGUILayout.LabelField("Auto Recalibrate On Reset", BasisSlimeVRSettings.RecalibrateOnMountingChange.RawValue ? "Yes" : "No");
             EditorGUILayout.LabelField("Max Mounting Drift", $"{BasisSlimeVRBridge.MountingDriftDegrees:F1}°");
             EditorGUILayout.LabelField("Offsets Stale", BasisSlimeVRBridge.OffsetsStale ? "Yes — refreshing" : "No");
@@ -117,7 +120,7 @@ namespace Basis.Integration.SlimeVR.Editor
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("Server Tracker Source (Experimental)", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Server Tracker Source (Experimental)");
             EditorGUILayout.LabelField("Mode", BasisSlimeVRSettings.TrackerSource.RawValue);
             EditorGUILayout.LabelField("Sourced From Server", BasisSlimeVRTrackerSource.SourcedCount.ToString());
 

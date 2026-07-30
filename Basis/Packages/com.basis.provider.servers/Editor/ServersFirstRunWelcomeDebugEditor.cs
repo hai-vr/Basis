@@ -11,7 +11,7 @@ namespace Basis.BasisUI.EditorTools
         private static string SettingsPath => Path.Combine(Application.persistentDataPath, BasisSettingsSystem.SettingsJson);
         private static string BackupPath => SettingsPath + ".firstrun-backup";
 
-        [MenuItem("Basis/Servers/First-Run Welcome/Show Again")]
+        [MenuItem("Basis/Servers/First-Run Welcome/Show Again", false, 700)]
         public static void ShowAgain()
         {
             if (Application.isPlaying)
@@ -40,7 +40,7 @@ namespace Basis.BasisUI.EditorTools
             Debug.Log("First-run welcome re-armed. It will show on the Servers panel next Play.");
         }
 
-        [MenuItem("Basis/Servers/First-Run Welcome/Simulate Fresh Install (Backup Settings)")]
+        [MenuItem("Basis/Servers/First-Run Welcome/Simulate Fresh Install (Backup Settings)", false, 701)]
         public static void SimulateFreshInstall()
         {
             if (Application.isPlaying)
@@ -67,7 +67,7 @@ namespace Basis.BasisUI.EditorTools
             Debug.Log($"Settings backed up to {BackupPath}. Next Play is a fresh install (welcome, default language detect, default settings).");
         }
 
-        [MenuItem("Basis/Servers/First-Run Welcome/Restore Settings Backup")]
+        [MenuItem("Basis/Servers/First-Run Welcome/Restore Settings Backup", false, 702)]
         public static void RestoreSettingsBackup()
         {
             if (Application.isPlaying)

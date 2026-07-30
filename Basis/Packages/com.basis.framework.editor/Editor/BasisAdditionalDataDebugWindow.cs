@@ -36,7 +36,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
     private static readonly Color WarnColor = new Color(1f, 0.8f, 0.2f);
     private static readonly Color ErrorColor = new Color(1f, 0.3f, 0.3f);
 
-    [MenuItem("Basis/Debug/Additional Data (Face Tracking)")]
+    [MenuItem("Basis/Debug/Face Tracking Data", false, 605)]
     public static void ShowWindow()
     {
         var w = GetWindow<BasisAdditionalDataDebugWindow>("Additional Data");
@@ -83,6 +83,9 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Face Tracking Data",
+            "The additional-data channel per player: what arrives, what is dispatched, and where it stalls.");
+
         double now = BasisAdditionalDataDebugCapture.Now;
         _sampleThisFrame = now - _lastSample >= 0.5;
         float dt = (float)(now - _lastSample);
@@ -90,8 +93,8 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
 
         _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
 
-        EditorGUILayout.LabelField("AdditionalAvatarData Pipeline (face tracking, avatar behaviour params)", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Behaviour submit -> Transmitter -> Compress -> wire -> Decompress -> LinkedAvatarIndex gate -> Behaviour dispatch", EditorStyles.miniLabel);
+        BasisEditorUI.SectionTitle("AdditionalAvatarData Pipeline (face tracking, avatar behaviour params)");
+        BasisEditorUI.Note("Behaviour submit -> Transmitter -> Compress -> wire -> Decompress -> LinkedAvatarIndex gate -> Behaviour dispatch");
 
         EditorGUILayout.BeginHorizontal();
         if (_csv == null)
@@ -128,7 +131,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
 
         if (!Application.isPlaying)
         {
-            EditorGUILayout.HelpBox("Enter Play Mode to see live data.", MessageType.Info);
+            BasisEditorUI.Help("Enter Play Mode to see live data.", MessageType.Info);
             EditorGUILayout.EndScrollView();
             return;
         }
@@ -233,7 +236,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
         var players = BasisAdditionalDataDebugCapture.Players;
         if (players.IsEmpty)
         {
-            EditorGUILayout.HelpBox("No remote player has delivered an AdditionalAvatarData section since capture started.", MessageType.Info);
+            BasisEditorUI.Help("No remote player has delivered an AdditionalAvatarData section since capture started.", MessageType.Info);
             return;
         }
 
@@ -290,7 +293,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
                 anySlot = true;
                 DrawSlotRow((byte)Index, slot, keyBase | (0x100L << 16) | (long)Index, now, dt, BehaviourName(behaviours, Index));
             }
-            if (!anySlot) EditorGUILayout.LabelField("(no entries dispatched yet)", EditorStyles.miniLabel);
+            if (!anySlot) BasisEditorUI.Note("(no entries dispatched yet)");
 
             EditorGUILayout.LabelField("Avatar channel ch15", EditorStyles.miniBoldLabel);
             bool anyCh15Slot = false;
@@ -302,7 +305,7 @@ public class BasisAdditionalDataDebugWindow : EditorWindow
                 anyCh15Slot = true;
                 DrawSlotRow((byte)Index, slot, keyBase | (0x200L << 16) | (long)Index, now, dt, BehaviourName(behaviours, Index));
             }
-            if (!anyCh15Slot) EditorGUILayout.LabelField("(no ch15 messages dispatched yet)", EditorStyles.miniLabel);
+            if (!anyCh15Slot) BasisEditorUI.Note("(no ch15 messages dispatched yet)");
             EditorGUI.indentLevel--;
             EditorGUILayout.Space(2);
         }

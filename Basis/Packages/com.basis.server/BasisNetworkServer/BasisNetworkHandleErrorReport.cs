@@ -26,8 +26,16 @@ namespace BasisNetworkServer
         private const int MaxMessageChars = 2000;
         private const int MaxStackChars = 12000;
 
-        private static readonly ConcurrentDictionary<string, HashSet<string>> SeenPerUser =
-            new ConcurrentDictionary<string, HashSet<string>>();
+        // Dedup state is bounded on every axis: entries are 8-byte hashes (the key used to be the
+        // concatenated raw strings — multi-KB per distinct report, client-controlled), each user
+        // stops recording after MaxSeenPerUser distinct errors, and the whole table is wiped if
+        // the bucket count somehow reaches MaxTrackedUsers (reports landing under "unknown"
+        // belong to no disconnect, so that bucket would otherwise live forever).
+        private const int MaxSeenPerUser = 256;
+        private const int MaxTrackedUsers = 4096;
+
+        private static readonly ConcurrentDictionary<string, HashSet<long>> SeenPerUser =
+            new ConcurrentDictionary<string, HashSet<long>>();
         private static readonly object FileLock = new object();
 
         public static void RemoveUser(string uuid)
@@ -66,10 +74,20 @@ namespace BasisNetworkServer
                     platform = meta.playerPlatform ?? string.Empty;
                 }
 
-                string hash = ComputeHash(severity, system, message, stack);
-                HashSet<string> seen = SeenPerUser.GetOrAdd(uuid, _ => new HashSet<string>());
+                // Truncate before hashing so the dedup key and the written report agree.
+                if (message != null && message.Length > MaxMessageChars) message = message.Substring(0, MaxMessageChars);
+                if (stack != null && stack.Length > MaxStackChars) stack = stack.Substring(0, MaxStackChars);
+
+                if (SeenPerUser.Count >= MaxTrackedUsers && !SeenPerUser.ContainsKey(uuid))
+                {
+                    SeenPerUser.Clear();
+                }
+
+                long hash = ComputeHash(severity, system, message, stack);
+                HashSet<long> seen = SeenPerUser.GetOrAdd(uuid, _ => new HashSet<long>());
                 lock (seen)
                 {
+                    if (seen.Count >= MaxSeenPerUser) return;
                     if (!seen.Add(hash)) return;
                 }
 
@@ -85,19 +103,46 @@ namespace BasisNetworkServer
             }
         }
 
-        private static string ComputeHash(byte severity, string system, string message, string stack)
+        private static long ComputeHash(byte severity, string system, string message, string stack)
         {
             string firstStackLine = stack ?? string.Empty;
             int nl = firstStackLine.IndexOf('\n');
             if (nl >= 0) firstStackLine = firstStackLine.Substring(0, nl);
-            return severity + "|" + system + "|" + message + "|" + firstStackLine;
+
+            // FNV-1a 64. A collision only suppresses a duplicate report line; it never loses data.
+            long hash = unchecked((long)14695981039346656037UL);
+            hash = FnvMix(hash, severity);
+            hash = FnvMix(hash, system);
+            hash = FnvMix(hash, message);
+            hash = FnvMix(hash, firstStackLine);
+            return hash;
+        }
+
+        private static long FnvMix(long hash, byte value)
+        {
+            unchecked
+            {
+                return (hash ^ value) * (long)1099511628211UL;
+            }
+        }
+
+        private static long FnvMix(long hash, string value)
+        {
+            unchecked
+            {
+                hash = (hash ^ 0x1F) * (long)1099511628211UL;
+                if (string.IsNullOrEmpty(value)) return hash;
+                foreach (char c in value)
+                {
+                    hash = (hash ^ (byte)c) * (long)1099511628211UL;
+                    hash = (hash ^ (byte)(c >> 8)) * (long)1099511628211UL;
+                }
+                return hash;
+            }
         }
 
         private static void WriteReport(string uuid, string displayName, string platform, byte severity, string system, string message, string stack)
         {
-            if (message != null && message.Length > MaxMessageChars) message = message.Substring(0, MaxMessageChars);
-            if (stack != null && stack.Length > MaxStackChars) stack = stack.Substring(0, MaxStackChars);
-
             string dir = Path.Combine(AppContext.BaseDirectory, "CrashReports");
             string file = Path.Combine(dir, SanitizeFileName(uuid) + ".jsonl");
 

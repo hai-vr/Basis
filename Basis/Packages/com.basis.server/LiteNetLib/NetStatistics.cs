@@ -23,8 +23,16 @@ namespace LiteNetLib
         //
         // Two per core, floored so a tiny container still gets a usable table and capped so a very
         // large host does not allocate a pointless one.
-        private static readonly int StripeCount = ConcurrencyWidth(perCore: 2, min: 16, max: 1024);
-        private static readonly int StripeMask = StripeCount - 1;
+        private static readonly int MachineStripeCount = ConcurrencyWidth(perCore: 2, min: 16, max: 1024);
+
+        // Stripe width is per-INSTANCE: the manager-level object is hammered by every sending
+        // thread and gets the machine-wide table, but a per-peer object is only ever touched by
+        // the handful of threads that own that peer's send/receive path. Giving each of thousands
+        // of peers a machine-wide table cost 20 KB+ per peer on a 32-core host (5 arrays x
+        // stripes x cache line) and hundreds of KB on very wide ones, all churned on every
+        // connect/disconnect.
+        private readonly int _stripeCount;
+        private readonly int _stripeMask;
 
         /// <summary>
         /// Local copy of the shared sizing helper — LiteNetLib sits below Basis.Network.Core and
@@ -45,27 +53,46 @@ namespace LiteNetLib
         // share a line. Index i lives at i * Stride.
         private const int Stride = 8;
 
-        private readonly long[] _packetsSent = new long[StripeCount * Stride];
-        private readonly long[] _packetsReceived = new long[StripeCount * Stride];
-        private readonly long[] _bytesSent = new long[StripeCount * Stride];
-        private readonly long[] _bytesReceived = new long[StripeCount * Stride];
-        private readonly long[] _packetLoss = new long[StripeCount * Stride];
+        private readonly long[] _packetsSent;
+        private readonly long[] _packetsReceived;
+        private readonly long[] _bytesSent;
+        private readonly long[] _bytesReceived;
+        private readonly long[] _packetLoss;
+
+        /// <summary>Machine-wide table, for the manager-level instance every sending thread shares.</summary>
+        public NetStatistics() : this(MachineStripeCount)
+        {
+        }
+
+        /// <summary>Narrow table for lightly-contended instances (one per peer).</summary>
+        public NetStatistics(int stripesWanted)
+        {
+            int pow2 = 1;
+            while (pow2 < stripesWanted && pow2 < 1024) pow2 <<= 1;
+            _stripeCount = pow2;
+            _stripeMask = pow2 - 1;
+            _packetsSent = new long[_stripeCount * Stride];
+            _packetsReceived = new long[_stripeCount * Stride];
+            _bytesSent = new long[_stripeCount * Stride];
+            _bytesReceived = new long[_stripeCount * Stride];
+            _packetLoss = new long[_stripeCount * Stride];
+        }
 
         // Managed thread ids are dense and stable for a thread's lifetime, so this pins a thread
         // to one stripe without a ThreadStatic registry to maintain.
-        private static int StripeIndex => (Environment.CurrentManagedThreadId & StripeMask) * Stride;
+        private int StripeIndex => (Environment.CurrentManagedThreadId & _stripeMask) * Stride;
 
-        private static long Sum(long[] stripes)
+        private long Sum(long[] stripes)
         {
             long total = 0;
-            for (int i = 0; i < StripeCount; i++)
+            for (int i = 0; i < _stripeCount; i++)
                 total += Interlocked.Read(ref stripes[i * Stride]);
             return total;
         }
 
-        private static void Clear(long[] stripes)
+        private void Clear(long[] stripes)
         {
-            for (int i = 0; i < StripeCount; i++)
+            for (int i = 0; i < _stripeCount; i++)
                 Interlocked.Exchange(ref stripes[i * Stride], 0);
         }
 

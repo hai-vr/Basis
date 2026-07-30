@@ -22,7 +22,7 @@ public class BuildReportViewerWindow : EditorWindow
     private Button removePlatformButton;
     private VisualElement tabContent;
 
-    [MenuItem("Basis/Build/Build Report")]
+    [MenuItem("Basis/Build/Build Report", false, 301)]
     public static void ShowWindow()
     {
         GenerateWindow();

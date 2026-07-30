@@ -34,7 +34,6 @@ namespace Basis.Scripts.Profiler
         ContentShare,
         ContentShareCleanup,
         Chat,
-        StoreDatabase,
         ServerStatistics,
         CameraPIPState,
         CameraPIPPosition,

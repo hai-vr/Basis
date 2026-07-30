@@ -32,7 +32,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
 
     private float _budgetMs = 11.1f;
 
-    [MenuItem("Basis/Debug/Profiler/EventDriver Profiler")]
+    [MenuItem("Basis/Debug/EventDriver Profiler", false, 621)]
     public static void ShowWindow()
     {
         var w = GetWindow<BasisEventDriverProfilerWindow>("EventDriver Profiler");
@@ -53,14 +53,17 @@ public class BasisEventDriverProfilerWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("EventDriver Profiler",
+            "Per-callback cost of the central tick, so an expensive subscriber is obvious.");
+
         _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
 
-        EditorGUILayout.LabelField("BasisEventDriver Profiler", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Per-frame timing breakdown — deeper into Network Apply + Remote Face", EditorStyles.miniLabel);
+        BasisEditorUI.SectionTitle("BasisEventDriver Profiler");
+        BasisEditorUI.Note("Per-frame timing breakdown — deeper into Network Apply + Remote Face");
 
         if (!Application.isPlaying)
         {
-            EditorGUILayout.HelpBox("Enter Play Mode to see live data.", MessageType.Info);
+            BasisEditorUI.Help("Enter Play Mode to see live data.", MessageType.Info);
             EditorGUILayout.EndScrollView();
             return;
         }
@@ -91,7 +94,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             TimingRow("CompleteScheduledRemoteLerp", BasisEventDriverProfilerData.Net_CompleteRemoteLerpMs, 1f);
 
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("Inside SimulateNetworkApply:", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Inside SimulateNetworkApply:");
 
             TimingRow("  Interpolation Complete (stall)", BasisEventDriverProfilerData.Net_RemoteDriverApplyMs, 1f);
             JobStatusRow("  Interpolation Job (from Update)", BasisEventDriverProfilerData.Net_InterpolationJobWasIncomplete);
@@ -151,7 +154,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             InfoRow("LOD 3 (furthest)", BasisEventDriverProfilerData.PoseLod_Lod3.ToString());
 
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("This Frame:", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("This Frame:");
             InfoRow("SetHumanPose Applied", applied.ToString());
             InfoRow("SetHumanPose Skipped", skipped.ToString());
             if (total > 0)
@@ -193,7 +196,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             TimingRow("Apply Total", BasisEventDriverProfilerData.RemoteFaceApplyMs, 2f);
 
             EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("Inside Apply:", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Inside Apply:");
             TimingRow("  Job Complete (stall)", BasisEventDriverProfilerData.RemoteFace_JobCompleteMs, 1f);
             TimingRow("  Eye+Blink Write Loop", BasisEventDriverProfilerData.RemoteFace_EyeWriteMs, 1f);
             InfoRow("  Blink Mesh Writes", BasisEventDriverProfilerData.RemoteFace_BlinkWriteCount.ToString());
@@ -238,8 +241,8 @@ public class BasisEventDriverProfilerWindow : EditorWindow
             JobStatusRow("Remote Face Job", BasisEventDriverProfilerData.RemoteFaceJobWasIncomplete);
             JobStatusRow("NamePlate Job", BasisEventDriverProfilerData.NamePlateJobWasIncomplete);
             EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("STALLED = main thread waited for job to finish.", EditorStyles.miniLabel);
-            EditorGUILayout.LabelField("Ideally all jobs complete before their Apply call.", EditorStyles.miniLabel);
+            BasisEditorUI.Note("STALLED = main thread waited for job to finish.");
+            BasisEditorUI.Note("Ideally all jobs complete before their Apply call.");
         });
 
         // ── Graph ──
@@ -304,12 +307,12 @@ public class BasisEventDriverProfilerWindow : EditorWindow
         if (wasIncomplete)
         {
             GUI.color = WarnColor;
-            EditorGUILayout.LabelField("STALLED", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("STALLED");
         }
         else
         {
             GUI.color = GoodColor;
-            EditorGUILayout.LabelField("OK", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("OK");
         }
         GUI.color = prev;
         EditorGUILayout.EndHorizontal();

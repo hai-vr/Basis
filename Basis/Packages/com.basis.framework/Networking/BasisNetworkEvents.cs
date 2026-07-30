@@ -531,20 +531,6 @@ public static class BasisNetworkEvents
             }
         });
 
-        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.StoreDatabaseChannel, (peer, Reader, channel, deliveryMethod) =>
-        {
-            if (ValidateSize(Reader, peer, channel) == false)
-            {
-                Reader.Recycle();
-                return;
-            }
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.StoreDatabase, Reader.AvailableBytes);
-            DatabasePrimativeMessage DatabasePrimativeMessage = new DatabasePrimativeMessage();
-            DatabasePrimativeMessage.Deserialize(Reader);
-            Reader.Recycle();
-            BasisNetworkManagement.OnRequestServerSideDatabaseItem?.Invoke(DatabasePrimativeMessage);
-        });
-
         BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.ServerStatisticsChannel, (peer, Reader, channel, deliveryMethod) =>
         {
             if (ValidateSize(Reader, peer, channel) == false)

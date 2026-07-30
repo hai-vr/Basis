@@ -13,6 +13,11 @@ namespace Basis.Network.Server
     public sealed class BasisNetworkHealthCheck : IDisposable
     {
         private static readonly byte[] Empty = Array.Empty<byte>();
+        // Same backpressure as the REST handler: without it every probe spawned an uncapped
+        // Task.Run, so an aggressive scraper (or a scanner — this port has no auth) could fan out
+        // arbitrarily many in-flight contexts.
+        private const int MaxConcurrentRequests = 32;
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(MaxConcurrentRequests, MaxConcurrentRequests);
 
         private readonly HttpListener httpListener = new HttpListener();
         private readonly CancellationTokenSource cts = new CancellationTokenSource();
@@ -81,7 +86,18 @@ namespace Basis.Network.Server
                     continue;
                 }
 
-                _ = Task.Run(() => HandleRequest(context), token);
+                if (!_semaphore.Wait(0))
+                {
+                    try { context.Response.StatusCode = 503; context.Response.Close(Empty, false); } catch { }
+                    continue;
+                }
+
+                var captured = context;
+                _ = Task.Run(() =>
+                {
+                    try { HandleRequest(captured); }
+                    finally { _semaphore.Release(); }
+                }, token);
             }
         }
 
@@ -263,6 +279,7 @@ namespace Basis.Network.Server
             try { listenTask?.Wait(250); } catch { }
 
             cts.Dispose();
+            _semaphore.Dispose();
         }
     }
 }

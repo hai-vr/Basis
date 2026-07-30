@@ -40,7 +40,8 @@ public sealed class BasisWireSizeModel
 /// <summary>Shared Basis-styled building blocks for the synced-object / synced-transform inspectors.</summary>
 public static class BasisSyncInspectorUI
 {
-    public static readonly Color Accent = new Color(239f / 255f, 40f / 255f, 90f / 255f);
+    // One source of truth for the Basis pink, shared with the IMGUI windows in BasisEditorUI.
+    public static readonly Color Accent = BasisEditorUI.Accent;
     private static readonly Color HeaderBg = new Color(0f, 0f, 0f, 0.54f);
     private static readonly Color CardBg = new Color(0f, 0f, 0f, 0.30f);
     private static readonly Color Subtle = new Color(0.8f, 0.8f, 0.8f, 1f);

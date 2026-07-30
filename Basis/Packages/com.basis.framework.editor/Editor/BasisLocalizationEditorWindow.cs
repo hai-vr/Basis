@@ -54,7 +54,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
     private bool _showMissingFromCode = true;
     private bool _showUntranslated = true;
 
-    [MenuItem("Basis/Settings/Localization/Translation Editor")]
+    [MenuItem("Basis/Settings/Localization/Translation Editor", false, 440)]
     public static void Open()
     {
         GetWindow<BasisLocalizationEditorWindow>("Basis Localization");
@@ -76,6 +76,9 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Translations",
+            "Every localization key across the packages, and which languages still need it.");
+
         DrawToolbar();
         EditorGUILayout.Space(4);
 
@@ -182,7 +185,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void DrawEntriesTable()
     {
-        EditorGUILayout.LabelField("Entries", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Entries");
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -268,7 +271,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void DrawDiagnosticsPanel()
     {
-        EditorGUILayout.LabelField("Diagnostics", EditorStyles.boldLabel);
+        BasisEditorUI.SectionTitle("Diagnostics");
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -278,11 +281,11 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
         if (_lastScanTime == default)
         {
-            EditorGUILayout.HelpBox("Click \"Scan Code\" to search *.cs files for BasisLocalization.Get(\"...\") calls.", MessageType.None);
+            BasisEditorUI.Readout("Click \"Scan Code\" to search *.cs files for BasisLocalization.Get(\"...\") calls.");
         }
         else
         {
-            EditorGUILayout.LabelField($"Last scan: {_lastScanTime:HH:mm:ss} — {_referencedKeys.Count} keys referenced in code.", EditorStyles.miniLabel);
+            BasisEditorUI.Note($"Last scan: {_lastScanTime:HH:mm:ss} — {_referencedKeys.Count} keys referenced in code.");
         }
 
         var loadedKeys = new HashSet<string>(_loaded.entries
@@ -298,10 +301,10 @@ public class BasisLocalizationEditorWindow : EditorWindow
                 .OrderBy(k => k)
                 .ToList();
 
-            EditorGUILayout.LabelField($"Referenced in code but missing here ({missingFromCode.Count})", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle($"Referenced in code but missing here ({missingFromCode.Count})");
             if (missingFromCode.Count == 0)
             {
-                EditorGUILayout.LabelField("  (none)", EditorStyles.miniLabel);
+                BasisEditorUI.Note("  (none)");
             }
             else
             {
@@ -317,10 +320,10 @@ public class BasisLocalizationEditorWindow : EditorWindow
                 .OrderBy(k => k)
                 .ToList();
 
-            EditorGUILayout.LabelField($"In English but not in {_loaded.code} ({missingFromTranslation.Count})", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle($"In English but not in {_loaded.code} ({missingFromTranslation.Count})");
             if (missingFromTranslation.Count == 0)
             {
-                EditorGUILayout.LabelField("  (none)", EditorStyles.miniLabel);
+                BasisEditorUI.Note("  (none)");
             }
             else
             {

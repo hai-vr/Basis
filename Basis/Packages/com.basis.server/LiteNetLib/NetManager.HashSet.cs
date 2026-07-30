@@ -181,6 +181,7 @@ namespace LiteNetLib
 
                 _peersArray[peer.Id] = null;
                 _peerIds.Enqueue(peer.Id);
+                peer.RecycleQueuedPackets();
             }
             finally
             {

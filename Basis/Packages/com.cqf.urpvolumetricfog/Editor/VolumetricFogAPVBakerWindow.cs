@@ -21,7 +21,7 @@ public sealed class VolumetricFogAPVBakerWindow : EditorWindow
     private double _waitUntil;
     private bool _waiting;
 
-    [MenuItem("Basis/Tools/Bake Volumetric Fog APV Volume")]
+    [MenuItem("Basis/Tools/Bake Volumetric Fog APV Volume", false, 503)]
     private static void Open()
     {
         GetWindow<VolumetricFogAPVBakerWindow>("Bake APV Fog Volume").minSize = new Vector2(380, 180);

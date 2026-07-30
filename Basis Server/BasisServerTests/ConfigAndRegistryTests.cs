@@ -156,9 +156,6 @@ public class ServerConfigurationDefaultsTests
         Assert.Equal(10667, cfg.ApiPort);
         Assert.Equal("", cfg.ApiKey);
         Assert.True(cfg.CrashReportingEnabled);
-        Assert.Equal(10000, cfg.MaxDatabaseEntries);
-        Assert.Equal(256, cfg.MaxDatabaseNameLength);
-        Assert.Equal(1000, cfg.MaxDatabasePayloadEntries);
         Assert.Equal(32, cfg.MaxContentSpheresPerPlayer);
     }
 
@@ -889,8 +886,6 @@ public class ServerMessageRegistryBindingTableTests
         BasisNetworkCommons.ContentShareChannel,
         BasisNetworkCommons.DeltaAvatarChannel,
         BasisNetworkCommons.ServerBoundChannel,
-        BasisNetworkCommons.StoreDatabaseChannel,
-        BasisNetworkCommons.RequestStoreDatabaseChannel,
         BasisNetworkCommons.AdminChannel,
         BasisNetworkCommons.ServerStatisticsChannel,
         BasisNetworkCommons.CameraPIPStateChannel,

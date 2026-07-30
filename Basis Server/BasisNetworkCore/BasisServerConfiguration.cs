@@ -53,8 +53,6 @@ public class Configuration
     public int HowManyDuplicateAuthCanExist = 2;
     public int AuthValidationTimeOutMiliseconds = 9000;
     public bool EnableConsole = true;
-    public bool DisableWriteUnlessAdminPersistentFlag = true;
-    public bool DisableReadUnlessAdminPersistentFlag = false;
     /// <summary>
     /// When true, the avatar reduction system bundles per-receiver avatar messages
     /// and emits them deflated on CompressedAvatarBundleChannel. Falls back to
@@ -160,9 +158,6 @@ public class Configuration
     public float MaxHearingRangeMeters = 25f;
     public float MinAvatarEyeHeightMeters = 0.1f;
     public float MaxAvatarEyeHeightMeters = 100f;
-    public int MaxDatabaseEntries = 10000;
-    public int MaxDatabaseNameLength = 256;
-    public int MaxDatabasePayloadEntries = 1000;
     public int MaxContentSpheresPerPlayer = 32;
     public bool PlayspaceMoverLocked = false;
     public bool DirectConnectLocked = false;

@@ -38,7 +38,7 @@ public class ShaderVariantFinderWindow : EditorWindow
     // Material -> renderers that use it
     private readonly Dictionary<Material, HashSet<Renderer>> materialToRenderers = new();
 
-    [MenuItem("Basis/Tools/Shader Variant Browser")]
+    [MenuItem("Basis/Tools/Shader Variant Browser", false, 501)]
     public static void Open()
     {
         GetWindow<ShaderVariantFinderWindow>("Shader Variant Browser");
@@ -46,11 +46,14 @@ public class ShaderVariantFinderWindow : EditorWindow
 
     private void OnGUI()
     {
+        BasisEditorUI.Header("Shader Variant Browser",
+            "Which variants a shader actually compiles, and what is pulling them in.");
+
         EditorGUILayout.Space(4);
 
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Scan settings", EditorStyles.boldLabel);
+            BasisEditorUI.SectionTitle("Scan settings");
             includeInactive = EditorGUILayout.ToggleLeft("Include inactive objects", includeInactive);
             showKeywords = EditorGUILayout.ToggleLeft("Show keywords (variants)", showKeywords);
 
@@ -58,7 +61,7 @@ public class ShaderVariantFinderWindow : EditorWindow
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Scan Open Scenes", GUILayout.Height(24)))
+                if (BasisEditorUI.PrimaryButton("Scan Open Scenes", 24f))
                     Scan();
 
                 if (GUILayout.Button("Collapse All", GUILayout.Height(24), GUILayout.Width(110)))
@@ -199,7 +202,7 @@ public class ShaderVariantFinderWindow : EditorWindow
                                 using (new EditorGUILayout.HorizontalScope())
                                 {
                                     GUILayout.Space(18);
-                                    EditorGUILayout.LabelField("No renderers found (material might be unused in current open scenes).", EditorStyles.miniLabel);
+                                    BasisEditorUI.Note("No renderers found (material might be unused in current open scenes).");
                                 }
                             }
                         }

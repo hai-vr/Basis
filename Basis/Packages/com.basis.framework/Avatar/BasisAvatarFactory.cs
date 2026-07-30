@@ -119,8 +119,12 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
-            // Fallback can happen instantly, no restriction
-            RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
+            // The loading dummy only fronts a player wearing nothing at all — an avatar
+            // switch keeps the current avatar up while the new one loads, one swap not two.
+            if (Player.BasisAvatar == null)
+            {
+                RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
+            }
             try
             {
                 GameObject Output = null;
@@ -179,10 +183,12 @@ namespace Basis.Scripts.Avatar
 
                 token.ThrowIfCancellationRequested();
 
+                InitializePlayerAvatar(Player, Output, harvestedHeadChop);
+                // DeleteLastAvatar (inside the swap above) reads AvatarMetaData/AvatarLoadMode
+                // to de-increment the OUTGOING avatar's bundle — the incoming bundle must be
+                // assigned only after the swap.
                 Player.AvatarMetaData = BasisLoadableBundle;
                 Player.AvatarLoadMode = Mode;
-
-                InitializePlayerAvatar(Player, Output, harvestedHeadChop);
                 Player.AvatarSwitched();
             }
             catch (OperationCanceledException)
@@ -228,9 +234,9 @@ namespace Basis.Scripts.Avatar
                 return;
             }
 
-            // Instant fallback while the real avatar loads — skip only when a fallback-classed
-            // avatar is genuinely worn (the flag defaults to true even with no avatar at all).
-            if (!Player.IsConsideredFallBackAvatar || Player.BasisAvatar == null)
+            // The loading dummy only fronts a player wearing nothing at all — an old avatar,
+            // a far avatar, or the dummy itself stays up while the real avatar loads.
+            if (Player.BasisAvatar == null)
             {
                 RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
             }
@@ -289,9 +295,6 @@ namespace Basis.Scripts.Avatar
 
                 token.ThrowIfCancellationRequested();
 
-                Player.AvatarMetaData = BasisLoadableBundle;
-                Player.AvatarLoadMode = Mode;
-
                 // Throttle the ungated main-thread setup tail (trim + calibration + bone registration).
                 // The gate above only paced the bundle I/O and was released before this point; without
                 // this a bulk in-range transition lands every completed load's calibration on one frame.
@@ -304,6 +307,11 @@ namespace Basis.Scripts.Avatar
                 }
 
                 InitializePlayerAvatar(Player, Output, null);
+                // DeleteLastAvatar (inside the swap above) reads AvatarMetaData/AvatarLoadMode
+                // to de-increment the OUTGOING avatar's bundle — the incoming bundle must be
+                // assigned only after the swap.
+                Player.AvatarMetaData = BasisLoadableBundle;
+                Player.AvatarLoadMode = Mode;
                 Player.AvatarLoadErrorMessage = null;
                 Player.AvatarSwitched();
             }
@@ -325,10 +333,14 @@ namespace Basis.Scripts.Avatar
                     MarkRemoteLoadFailed(Player);
                     // The connector is platform-independent and usually already parsed even when
                     // the load failed (e.g. the bee has no section for this platform). If it
-                    // carries a far LOD, the player renders as their real silhouette on top of
-                    // the fallback skeleton instead of as the loading avatar.
+                    // carries a far LOD, the player renders as their real silhouette instead of
+                    // as the loading avatar — worn directly, no dummy hop in between.
                     BasisAvatarFarLOD.CaptureFarLodFallback(Player, BasisLoadableBundle);
-                    LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
+                    bool wearingFar = BasisAvatarFarLOD.Enabled && await BasisFarAvatarBuilder.TryInstallAsync(Player);
+                    if (!wearingFar && !Player.IsDestroyed)
+                    {
+                        LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
+                    }
                 }
             }
             finally

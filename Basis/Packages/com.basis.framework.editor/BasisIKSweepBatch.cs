@@ -8,7 +8,7 @@ namespace Basis.IK.Debugging
     /// window. The sweeps themselves are unchanged -- this only drives them.
     ///
     /// Why: BasisIKTestGates carries pass/fail thresholds that are only reachable through
-    /// BasisElbowProtectSweepWindow / BasisIKSweepRunnerWindow, i.e. by hand. That means the numbers
+    /// the IK Sweeps window (Elbow Protect / Run All), i.e. by hand. That means the numbers
     /// they encode drift out of date silently. ElbowMinClearedFraction is the worked example -- its
     /// comment claims a ~0.64 ceiling that was measured before several collider and arm-solve changes.
     ///

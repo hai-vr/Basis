@@ -527,59 +527,6 @@ namespace Basis.Scripts.Networking
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, payload.Length);
         }
 
-        /// <summary>
-        /// Sends a database item to the server for storage.
-        /// </summary>
-        /// <param name="DatabaseID">The ID of the database entry.</param>
-        /// <param name="jsonPayload">Key/value data for the item.</param>
-        public static void SendServerSideDatabaseItem(string DatabaseID, ConcurrentDictionary<string, object> jsonPayload)
-        {
-            var peer = LocalPlayerPeer;
-            if (peer == null)
-            {
-                BasisDebug.LogError("Local NetPeer was null!", BasisDebug.LogTag.Networking);
-                return;
-            }
-
-            DatabasePrimativeMessage databasePrimativeMessage = new DatabasePrimativeMessage
-            {
-                Name = DatabaseID,
-                jsonPayload = jsonPayload
-            };
-
-            NetDataWriter netDataWriter = new NetDataWriter();
-            databasePrimativeMessage.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.RequestStoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
-        }
-
-        /// <summary>
-        /// Requests a database item from the server by ID.
-        /// </summary>
-        /// <param name="DatabaseID">The ID of the requested database entry.</param>
-        public static void RequestServerSideDatabaseItem(string DatabaseID)
-        {
-            var peer = LocalPlayerPeer;
-            if (peer == null)
-            {
-                BasisDebug.LogError("Local NetPeer was null!", BasisDebug.LogTag.Networking);
-                return;
-            }
-
-            DataBaseRequest DataBaseRequest = new DataBaseRequest
-            {
-                DatabaseID = DatabaseID
-            };
-
-            NetDataWriter netDataWriter = new NetDataWriter();
-            DataBaseRequest.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.RequestStoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
-        }
-
-        /// <summary>
-        /// Event fired when a server-side database item is returned.
-        /// </summary>
-        public static Action<DatabasePrimativeMessage> OnRequestServerSideDatabaseItem;
-
         #endregion
 
         #region Peer Helpers

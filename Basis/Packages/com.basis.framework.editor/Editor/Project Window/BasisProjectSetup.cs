@@ -429,7 +429,7 @@ public partial class BasisProjectSetup : EditorWindow
             _enforceIl2cpp = EditorGUILayout.ToggleLeft(
                 Tr("projectSetup.platformQuality.enforceIl2cpp", "Enforce IL2CPP scripting backend when applying"), _enforceIl2cpp);
 
-            EditorGUILayout.HelpBox(Tr("projectSetup.platformQuality.qualityHelp", "Quality presets: Desktop (Windows/Linux/macOS), mobile tier for Android/Quest and iOS."), MessageType.None);
+            BasisEditorUI.Readout(Tr("projectSetup.platformQuality.qualityHelp", "Quality presets: Desktop (Windows/Linux/macOS), mobile tier for Android/Quest and iOS."));
 
             bool selectedModuleInstalled = PlatformModuleInstalled(_choice) == true;
             if (!selectedModuleInstalled)
@@ -1031,7 +1031,7 @@ public class ListenForLocalSpawn : MonoBehaviour
 
         if (EditorApplication.timeSinceStartup < _copiedToastUntil)
         {
-            EditorGUILayout.HelpBox(Tr("projectSetup.status.copied", "Copied to clipboard."), MessageType.None);
+            BasisEditorUI.Readout(Tr("projectSetup.status.copied", "Copied to clipboard."));
         }
     }
 
@@ -1066,7 +1066,7 @@ public class ListenForLocalSpawn : MonoBehaviour
             using (new EditorGUILayout.VerticalScope(GUILayout.Width(60)))
             {
                 GUILayout.Space(4);
-                if (GUILayout.Button("Copy", GUILayout.Height(24)))
+                if (BasisEditorUI.PrimaryButton("Copy", 24f))
                 {
                     EditorGUIUtility.systemCopyBuffer = code;
                     _copiedToastUntil = EditorApplication.timeSinceStartup + 1.25;

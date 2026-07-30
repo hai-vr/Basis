@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
@@ -40,8 +41,10 @@ public static class BasisFarAvatarBuilder
     /// <summary>
     /// Builds this player's far avatar and installs it as their current avatar through the
     /// normal factory path (old avatar deleted, remote calibration, bone-job registration).
-    /// Returns false when no usable payload exists or the build fails — the payload is then
-    /// marked unusable so the player stays on whatever avatar they have without retry spam.
+    /// Non-blocking: a version whose shared assets exist installs within this call; a first
+    /// wearer kicks the payload parse to a worker thread and returns false — the caller keeps
+    /// whatever is worn and retries once the parse lands. Returns false with the payload
+    /// marked unusable when it refuses to build, so there is no retry spam.
     /// </summary>
     public static bool TryInstall(BasisRemotePlayer remote)
     {
@@ -49,13 +52,90 @@ public static class BasisFarAvatarBuilder
         {
             return false;
         }
+        if (!ResolvePayload(remote, out string uniqueVersion, out string payloadBase64))
+        {
+            return false;
+        }
+        if (WornFarVersion(remote) == uniqueVersion)
+        {
+            return true;
+        }
+        if (SharedByVersion.ContainsKey(uniqueVersion))
+        {
+            return InstallWithPayload(remote, uniqueVersion, null);
+        }
+        Task<BasisFarLodPayload> parse = StartOrGetParse(uniqueVersion, payloadBase64);
+        if (!parse.IsCompleted)
+        {
+            return false;
+        }
+        return InstallWithPayload(remote, uniqueVersion, ConsumeParse(uniqueVersion, parse));
+    }
 
-        string uniqueVersion;
-        string payloadBase64;
+    /// <summary>
+    /// Awaitable install for callers that hold the player's load guard (CreateAvatar): a
+    /// cached version installs synchronously within the current frame; a first wearer awaits
+    /// the worker-thread parse — the player keeps wearing their current avatar meanwhile —
+    /// then installs. Returns true when the player ends up wearing the resolved far avatar.
+    /// </summary>
+    public static async Task<bool> TryInstallAsync(BasisRemotePlayer remote)
+    {
+        if (remote == null || remote.IsDestroyed)
+        {
+            return false;
+        }
+        if (!ResolvePayload(remote, out string uniqueVersion, out string payloadBase64))
+        {
+            return false;
+        }
+        if (WornFarVersion(remote) == uniqueVersion)
+        {
+            return true;
+        }
+        if (SharedByVersion.ContainsKey(uniqueVersion))
+        {
+            return InstallWithPayload(remote, uniqueVersion, null);
+        }
+
+        Task<BasisFarLodPayload> parse = StartOrGetParse(uniqueVersion, payloadBase64);
+        try
+        {
+            await parse;
+        }
+        catch
+        {
+            // Outcome is read from the task status in ConsumeParse.
+        }
+        if (remote.IsDestroyed)
+        {
+            return false;
+        }
+        // The avatar record may have changed while the parse ran, and the transmit tick may
+        // have installed (or a peer may have built) this version meanwhile.
+        if (!ResolvePayload(remote, out string currentVersion, out _) || currentVersion != uniqueVersion)
+        {
+            return false;
+        }
+        if (WornFarVersion(remote) == uniqueVersion)
+        {
+            return true;
+        }
+        if (SharedByVersion.ContainsKey(uniqueVersion))
+        {
+            return InstallWithPayload(remote, uniqueVersion, null);
+        }
+        return InstallWithPayload(remote, uniqueVersion, ConsumeParse(uniqueVersion, parse));
+    }
+
+    /// <summary>
+    /// The far avatar payload/version this player should be wearing: the override captured
+    /// off the original bundle's connector when present (the current AvatarMetaData may
+    /// already point at the loading avatar), else the current connector.
+    /// </summary>
+    private static bool ResolvePayload(BasisRemotePlayer remote, out string uniqueVersion, out string payloadBase64)
+    {
         if (!string.IsNullOrEmpty(remote.FarLodOverridePayload))
         {
-            // Captured off the original bundle's connector — the current AvatarMetaData may
-            // already point at the loading avatar.
             uniqueVersion = remote.FarLodOverrideVersion;
             payloadBase64 = remote.FarLodOverridePayload;
         }
@@ -65,12 +145,93 @@ public static class BasisFarAvatarBuilder
             uniqueVersion = connector?.UniqueVersion;
             payloadBase64 = connector?.FarLodBase64;
         }
-        if (string.IsNullOrEmpty(uniqueVersion) || string.IsNullOrEmpty(payloadBase64))
+        return !string.IsNullOrEmpty(uniqueVersion) && !string.IsNullOrEmpty(payloadBase64);
+    }
+
+    /// <summary>Version of the far avatar this player currently wears, or null.</summary>
+    public static string WornFarVersion(BasisRemotePlayer remote)
+    {
+        if (remote?.BasisAvatar != null && remote.BasisAvatar.IsFarLodAvatar &&
+            remote.BasisAvatar.TryGetComponent(out BasisFarAvatarInstance instance))
         {
-            return false;
+            return instance.SharedVersion;
+        }
+        return null;
+    }
+
+    /// <summary>Payload parses in flight, keyed by avatar version. Main-thread access only.</summary>
+    private static readonly Dictionary<string, Task<BasisFarLodPayload>> sParseInFlight = new Dictionary<string, Task<BasisFarLodPayload>>(4);
+
+    /// <summary>
+    /// Starts (or returns the running) worker-thread parse for a version. The parse itself is
+    /// pure managed data work — base64 decode, defensive struct parse, and the full mesh
+    /// decode to engine-ready arrays — which is exactly the part that used to hitch the main
+    /// thread on a first wearer.
+    /// </summary>
+    private static readonly List<string> sParseSweepScratch = new List<string>(4);
+
+    private static Task<BasisFarLodPayload> StartOrGetParse(string uniqueVersion, string payloadBase64)
+    {
+        if (sParseInFlight.TryGetValue(uniqueVersion, out Task<BasisFarLodPayload> parse))
+        {
+            return parse;
         }
 
-        SharedAssets shared = AcquireShared(uniqueVersion, payloadBase64);
+        // A parse whose player left before any caller consumed it would pin its decoded
+        // payload here forever; drop completed strays once a few stack up (re-parsing a
+        // swept version later is correct, just costs the worker again).
+        if (sParseInFlight.Count >= 8)
+        {
+            sParseSweepScratch.Clear();
+            foreach (KeyValuePair<string, Task<BasisFarLodPayload>> entry in sParseInFlight)
+            {
+                if (entry.Value.IsCompleted)
+                {
+                    sParseSweepScratch.Add(entry.Key);
+                }
+            }
+            for (int Index = 0; Index < sParseSweepScratch.Count; Index++)
+            {
+                sParseInFlight.Remove(sParseSweepScratch[Index]);
+            }
+        }
+
+        parse = Task.Run(() =>
+        {
+            BasisFarLodPayload payload = BasisFarLodPayload.TryParseBase64(payloadBase64);
+            payload?.PrepareDecodedMeshData();
+            return payload;
+        });
+        sParseInFlight[uniqueVersion] = parse;
+        return parse;
+    }
+
+    /// <summary>
+    /// Retires a completed parse task and returns its payload (null when the payload was
+    /// refused). TryParseBase64 catches its own failures, so a faulted task is exceptional;
+    /// its exception is observed here either way.
+    /// </summary>
+    private static BasisFarLodPayload ConsumeParse(string uniqueVersion, Task<BasisFarLodPayload> parse)
+    {
+        if (sParseInFlight.TryGetValue(uniqueVersion, out Task<BasisFarLodPayload> current) && current == parse)
+        {
+            sParseInFlight.Remove(uniqueVersion);
+        }
+        if (parse.Status != TaskStatus.RanToCompletion)
+        {
+            BasisDebug.LogError($"Far avatar payload parse task failed for version {uniqueVersion}: {parse.Exception?.GetBaseException().Message ?? "unknown"}", BasisDebug.LogTag.Avatar);
+            return null;
+        }
+        return parse.Result;
+    }
+
+    /// <summary>
+    /// Main-thread tail of an install: acquire (or build from a parsed payload) the shared
+    /// per-version assets, build the skeleton, and swap it in through the factory.
+    /// </summary>
+    private static bool InstallWithPayload(BasisRemotePlayer remote, string uniqueVersion, BasisFarLodPayload payload)
+    {
+        SharedAssets shared = AcquireShared(uniqueVersion, payload);
         if (shared == null)
         {
             remote.MarkFarLodPayloadUnusable();
@@ -265,7 +426,12 @@ public static class BasisFarAvatarBuilder
         }
     }
 
-    private static SharedAssets AcquireShared(string uniqueVersion, string base64)
+    /// <summary>
+    /// Acquires the per-version shared assets, building them from <paramref name="payload"/>
+    /// when this is the first wearer. The payload arrives pre-parsed (and pre-decoded) from
+    /// the worker thread; only texture/mesh construction and the humanoid rig remain here.
+    /// </summary>
+    private static SharedAssets AcquireShared(string uniqueVersion, BasisFarLodPayload payload)
     {
         if (SharedByVersion.TryGetValue(uniqueVersion, out SharedAssets existing))
         {
@@ -273,7 +439,6 @@ public static class BasisFarAvatarBuilder
             return existing;
         }
 
-        BasisFarLodPayload payload = BasisFarLodPayload.TryParseBase64(base64);
         if (payload == null)
         {
             return null;
@@ -318,6 +483,10 @@ public static class BasisFarAvatarBuilder
         shared.Material.SetTexture(BaseMapProperty, texture);
         shared.Material.SetFloat(MinBrightnessProperty, payload.MinBrightness);
         shared.Material.SetFloat(MaxBrightnessProperty, payload.MaxBrightness);
+
+        // Mesh and texture now exist as engine objects; the retained payload only feeds the
+        // per-player skeleton builds, which read none of the heavy arrays.
+        payload.ReleaseMeshSourceData();
 
         SharedByVersion[uniqueVersion] = shared;
         return shared;

@@ -93,7 +93,6 @@ namespace Basis.Scripts.Profiler.EditorTools
             BasisNetworkProfiler.ContentShareMessageText,
             BasisNetworkProfiler.ContentShareCleanupMessageText,
             BasisNetworkProfiler.ChatMessageText,
-            BasisNetworkProfiler.StoreDatabaseMessageText,
             BasisNetworkProfiler.ServerStatisticsMessageText,
             BasisNetworkProfiler.CameraPIPStateMessageText,
             BasisNetworkProfiler.CameraPIPPositionMessageText,

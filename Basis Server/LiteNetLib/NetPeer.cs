@@ -112,6 +112,8 @@ namespace LiteNetLib
             public readonly byte ChannelId;
             public int ReceivedCount;
             public int TotalSize;
+            /// <summary>Peer clock (ms) when a fragment last arrived for this set. See fragment sweep in Update.</summary>
+            public double LastTouchedMs;
 
             public IncomingFragments(ushort totalFragments, byte channelId)
             {
@@ -171,6 +173,18 @@ namespace LiteNetLib
         private readonly object _fragmentsLock = new object();
         private readonly Dictionary<ushort, IncomingFragments> _holdedFragments;
         private readonly Dictionary<ushort, ushort> _deliveredFragments;
+
+        /// <summary>
+        /// Reassembly sets an abandoned sender leaves behind used to live for the whole session —
+        /// up to MaxFragmentsInWindow x channels sets, each holding full NetPackets, per peer.
+        /// Fragments of a live transfer keep arriving (reliable resend refreshes the stamp), so a
+        /// set nothing has touched for this long can only belong to a sender that stopped
+        /// mid-message; recycle it. Sweep is amortized to once per FragmentSweepIntervalMs.
+        /// </summary>
+        private const double FragmentStaleMs = 30_000;
+        private const double FragmentSweepIntervalMs = 5_000;
+        private double _peerClockMs;
+        private double _nextFragmentSweepMs = FragmentSweepIntervalMs;
 
         //Merging
         private readonly NetPacket _mergeData;
@@ -285,7 +299,8 @@ namespace LiteNetLib
         internal NetPeer(NetManager netManager, IPEndPoint remoteEndPoint, int id) : base(remoteEndPoint.Address, remoteEndPoint.Port)
         {
             Id = id;
-            Statistics = new NetStatistics();
+            // A peer's counters see a handful of threads, not the whole machine — see NetStatistics.
+            Statistics = new NetStatistics(4);
             NetManager = netManager;
 
             _cachedSocketAddr = base.Serialize();
@@ -1095,6 +1110,7 @@ namespace LiteNetLib
                     incomingFragments.Set(p.FragmentPart, p);
                     incomingFragments.ReceivedCount++;
                     incomingFragments.TotalSize += p.Size - NetConstants.FragmentedHeaderTotalSize;
+                    incomingFragments.LastTouchedMs = _peerClockMs;
 
                     if (incomingFragments.ReceivedCount != incomingFragments.TotalFragments)
                         return;
@@ -1173,11 +1189,60 @@ namespace LiteNetLib
             }
         }
 
+        private void SweepStaleFragments()
+        {
+            lock (_fragmentsLock)
+            {
+                if (_holdedFragments.Count == 0) return;
+                List<ushort> stale = null;
+                foreach (var kv in _holdedFragments)
+                {
+                    if (_peerClockMs - kv.Value.LastTouchedMs > FragmentStaleMs)
+                    {
+                        if (stale == null)
+                            stale = new List<ushort>();
+                        stale.Add(kv.Key);
+                    }
+                }
+                if (stale == null) return;
+                foreach (ushort fragId in stale)
+                {
+                    _holdedFragments[fragId].RecycleAll(NetManager);
+                    _holdedFragments.Remove(fragId);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns everything this peer still has queued to the packet pool. Called once when the
+        /// peer is removed from the manager; without it every disconnect dropped up to a full
+        /// unreliable queue plus any partial reassembly sets on the GC floor, and the shared pool
+        /// replaced them with fresh allocations. Reliable-channel internals are deliberately left
+        /// to the GC: their packets can still be referenced by an in-flight ack pass.
+        /// </summary>
+        internal void RecycleQueuedPackets()
+        {
+            while (_unreliableChannel.TryDequeue(out NetPacket queued))
+            {
+                Interlocked.Decrement(ref _unreliableCount);
+                NetManager.PoolRecycle(queued);
+            }
+            lock (_fragmentsLock)
+            {
+                foreach (var frag in _holdedFragments.Values)
+                    frag.RecycleAll(NetManager);
+                _holdedFragments.Clear();
+            }
+        }
+
         private void ProcessMtuPacket(NetPacket packet)
         {
             //header + int
             if (packet.Size < NetConstants.PossibleMtu[0])
+            {
+                NetManager.PoolRecycle(packet);
                 return;
+            }
 
             //first stage check (mtu check and mtu ok)
             int receivedMtu = BitConverter.ToInt32(packet.RawData, 1);
@@ -1185,6 +1250,7 @@ namespace LiteNetLib
             if (receivedMtu != packet.Size || receivedMtu != endMtuCheck || receivedMtu > NetConstants.MaxPacketSize)
             {
                 NetDebug.WriteError($"[MTU] Broken packet. RMTU {receivedMtu}, EMTU {endMtuCheck}, PSIZE {packet.Size}");
+                NetManager.PoolRecycle(packet);
                 return;
             }
 
@@ -1194,23 +1260,26 @@ namespace LiteNetLib
                 //NetDebug.Write("[MTU] check. send back: " + receivedMtu);
                 packet.Property = PacketProperty.MtuOk;
                 NetManager.SendRawAndRecycle(packet, this);
+                return;
             }
-            else if (receivedMtu > _mtu && !_finishMtu) //MtuOk
+
+            //MtuOk
+            if (receivedMtu > _mtu && !_finishMtu)
             {
                 //invalid packet
-                if (receivedMtu != NetConstants.PossibleMtu[_mtuIdx + 1] - NetManager.ExtraPacketSizeForLayer)
-                    return;
-
-                lock (_mtuMutex)
+                if (receivedMtu == NetConstants.PossibleMtu[_mtuIdx + 1] - NetManager.ExtraPacketSizeForLayer)
                 {
-                    SetMtu(_mtuIdx + 1);
+                    lock (_mtuMutex)
+                    {
+                        SetMtu(_mtuIdx + 1);
+                    }
+                    //if maxed - finish.
+                    if (_mtuIdx == NetConstants.PossibleMtu.Length - 1)
+                        _finishMtu = true;
+                    //NetDebug.Write("[MTU] ok. Increase to: " + _mtu);
                 }
-                //if maxed - finish.
-                if (_mtuIdx == NetConstants.PossibleMtu.Length - 1)
-                    _finishMtu = true;
-                NetManager.PoolRecycle(packet);
-                //NetDebug.Write("[MTU] ok. Increase to: " + _mtu);
             }
+            NetManager.PoolRecycle(packet);
         }
 
         private void UpdateMtuLogic(float deltaTime)
@@ -1344,7 +1413,10 @@ namespace LiteNetLib
                         mergedPacket.Size = size;
 
                         if (!mergedPacket.Verify())
+                        {
+                            NetManager.PoolRecycle(mergedPacket);
                             break;
+                        }
 
                         pos += size;
                         ProcessPacket(mergedPacket);
@@ -1390,6 +1462,10 @@ namespace LiteNetLib
                         if (!channel.ProcessPacket(packet))
                             NetManager.PoolRecycle(packet);
                     }
+                    else
+                    {
+                        NetManager.PoolRecycle(packet);
+                    }
                     break;
 
                 //Simple packet without acks
@@ -1404,6 +1480,7 @@ namespace LiteNetLib
 
                 default:
                     NetDebug.WriteError("Error! Unexpected packet type: " + packet.Property);
+                    NetManager.PoolRecycle(packet);
                     break;
             }
         }
@@ -1504,6 +1581,13 @@ namespace LiteNetLib
                 original = _timeSinceLastPacket;
                 updated = original + deltaTime;
             } while (Interlocked.CompareExchange(ref _timeSinceLastPacket, updated, original) != original);
+
+            _peerClockMs += deltaTime;
+            if (_peerClockMs >= _nextFragmentSweepMs)
+            {
+                _nextFragmentSweepMs = _peerClockMs + FragmentSweepIntervalMs;
+                SweepStaleFragments();
+            }
             switch (_connectionState)
             {
                 case ConnectionState.Connected:

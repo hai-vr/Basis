@@ -100,7 +100,7 @@ public partial class BasisProjectSetup : EditorWindow
 
     // ─────────────────────────── Public-ish helper ───────────────────────────
 
-    [MenuItem("Basis/Community/OpenCollective Donations")]
+    [MenuItem("Basis/Support Basis (OpenCollective)", false, 900)]
     public static void ShowFundingTab()
     {
         var window = GetWindow<BasisProjectSetup>("Basis Project Setup");
@@ -127,7 +127,7 @@ public partial class BasisProjectSetup : EditorWindow
 
         if (!string.IsNullOrEmpty(_ocStatus))
         {
-            EditorGUILayout.HelpBox(_ocStatus, MessageType.Info);
+            BasisEditorUI.Help(_ocStatus, MessageType.Info);
             EditorGUILayout.Space(6);
         }
 

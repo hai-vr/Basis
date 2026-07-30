@@ -78,9 +78,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         [ThreadStatic] private static BSRThreadCounters _threadCounters;
 
-        // Every block handed out, so a window can sum them. Worker threads are pooled and
-        // long-lived, so this stabilises at roughly the core count and never grows unbounded.
-        private static readonly List<BSRThreadCounters> _allCounters = new();
+        // Every block handed out, so a window can sum them. Held weakly: the send loop runs on
+        // ThreadPool workers, and the pool retires idle threads and mints new ones as load
+        // oscillates — with strong references this list grew by one padded block per thread the
+        // process ever saw and never shrank. The thread-static keeps a live thread's block
+        // strongly rooted; a dead thread's block is collected and its entry pruned on the next
+        // window drain. Counts a dying thread had not yet drained are lost with it — diagnostics,
+        // not accounting.
+        private static readonly List<WeakReference<BSRThreadCounters>> _allCounters = new();
         private static readonly object _countersLock = new();
 
         /// <summary>
@@ -97,7 +102,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     c = new BSRThreadCounters();
                     _threadCounters = c;
-                    lock (_countersLock) _allCounters.Add(c);
+                    lock (_countersLock) _allCounters.Add(new WeakReference<BSRThreadCounters>(c));
                 }
                 return c;
             }
@@ -113,9 +118,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             lock (_countersLock)
             {
-                for (int i = 0; i < _allCounters.Count; i++)
+                for (int i = _allCounters.Count - 1; i >= 0; i--)
                 {
-                    var c = _allCounters[i];
+                    if (!_allCounters[i].TryGetTarget(out var c))
+                    {
+                        _allCounters.RemoveAt(i);
+                        continue;
+                    }
                     SendCount += Interlocked.Exchange(ref c.Sends, 0);
                     _preSerializations += Interlocked.Exchange(ref c.PreSerializations, 0);
                     _preSerializationsSkipped += Interlocked.Exchange(ref c.PreSerializationsSkipped, 0);
@@ -196,9 +205,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             _latest = null;
             lock (_countersLock)
             {
-                for (int i = 0; i < _allCounters.Count; i++)
+                for (int i = _allCounters.Count - 1; i >= 0; i--)
                 {
-                    var c = _allCounters[i];
+                    if (!_allCounters[i].TryGetTarget(out var c))
+                    {
+                        _allCounters.RemoveAt(i);
+                        continue;
+                    }
                     c.Sends = 0;
                     c.PreSerializations = 0;
                     c.PreSerializationsSkipped = 0;

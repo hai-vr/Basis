@@ -42,7 +42,7 @@ namespace Basis.Editor.Localization
         private const string LanguageLabel = "language"; // Must match BasisLocalization.LanguageLabel.
         private const string AddressPrefix = "Languages/";
 
-        [MenuItem("Basis/Settings/Localization/Register Languages as Addressable")]
+        [MenuItem("Basis/Settings/Localization/Register Languages as Addressable", false, 441)]
         public static void RegisterAllMenu()
         {
             int count = Register(logEach: true);

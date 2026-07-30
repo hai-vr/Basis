@@ -857,6 +857,15 @@ namespace LiteNetLib
         /// </summary>
         [ThreadStatic] private static SendBatcher t_batcher;
 
+        /// <summary>
+        /// This thread's idle batcher, kept between windows. A batcher owns ~390 KB of unmanaged
+        /// arenas; allocating and freeing that per window meant five AllocHGlobal/FreeHGlobal pairs
+        /// hundreds of times a second per worker — native-heap churn the managed profiler never
+        /// shows, plus one finalizable object per window. A retired thread's cached batcher is
+        /// reclaimed by its finalizer.
+        /// </summary>
+        [ThreadStatic] private static SendBatcher t_batcherCache;
+
         /// <summary>True while the calling thread is inside a batching window.</summary>
         internal static bool IsBatchingOnThisThread => t_batcher != null;
 
@@ -873,7 +882,9 @@ namespace LiteNetLib
         {
             if (!BatchSendWorthwhile || !owner.UseNativeSockets) return null;
 
-            var batcher = new SendBatcher { Owner = owner };
+            var batcher = t_batcherCache ?? new SendBatcher();
+            t_batcherCache = null;
+            batcher.Owner = owner;
             t_batcher = batcher;
             return batcher;
         }
@@ -884,7 +895,7 @@ namespace LiteNetLib
             batcher.Flush();
             batcher.Owner = null;
             t_batcher = null;
-            batcher.Dispose();
+            t_batcherCache = batcher;
         }
 
         /// <summary>
@@ -1246,6 +1257,7 @@ namespace LiteNetLib
             Marshal.FreeHGlobal((IntPtr)_entries);
             Marshal.FreeHGlobal((IntPtr)_headers);
             Marshal.FreeHGlobal((IntPtr)_iovecs);
+            GC.SuppressFinalize(this);
         }
 
         ~SendBatcher() => Dispose();
