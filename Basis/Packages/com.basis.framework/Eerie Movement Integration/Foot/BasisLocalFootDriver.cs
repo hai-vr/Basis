@@ -993,6 +993,9 @@ public partial class BasisLocalFootDriver
         };
         _jobHandle = job.Schedule();
         _jobScheduled = true;
+        // Without a kick the queued job does not start until CompleteSimulate's fence flushes the
+        // batch, and the join pays the whole job instead of the gather/filter window absorbing it.
+        JobHandle.ScheduleBatchedJobs();
     }
 
     /// <summary>

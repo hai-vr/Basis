@@ -51,61 +51,51 @@ namespace Basis.Scripts.BasisSdk.Players
         public byte AvatarLoadMode { get; set; }
         public BasisLoadableBundle AvatarMetaData { get; set; }
 
-        /// <summary>Distance far LOD for the current avatar, built lazily on first swap.</summary>
-        public BasisAvatarFarLodRenderer FarLod;
         // 0 = unknown, 1 = present, -1 = absent or failed to build (don't retry every tick).
         private sbyte _farLodPayloadState;
 
         /// <summary>
-        /// When true the far LOD stands in for the whole avatar — the bundle has no build for
-        /// this platform (or the load failed) but its connector carried a payload. It stays
-        /// active at every distance until a real avatar calibrates. The payload lives in
-        /// <see cref="FarLodOverridePayload"/> because AvatarMetaData now points at the
-        /// loading-avatar bundle.
+        /// Far avatar payload cached off the ORIGINAL bundle's connector — needed because
+        /// AvatarMetaData points at the loading-avatar bundle whenever the real avatar isn't
+        /// loaded (out of range, downloading, platform missing, failed).
         /// </summary>
-        public bool FarLodIsAvatar;
         public string FarLodOverridePayload;
         public string FarLodOverrideVersion;
         /// <summary>Bee URL the override payload was captured from — detects avatar changes.</summary>
         public string FarLodOverrideSource;
         public bool FarLodConnectorFetchInFlight;
-        /// <summary>One-shot guard so the "far avatar pinned by a failed load" diagnosis logs once.</summary>
-        public bool FarLodPinLogged;
-        /// <summary>Throttle for the far avatar distance-channel disagreement diagnostic.</summary>
-        public float FarLodNextDistanceCheckTime;
+        /// <summary>
+        /// True once the transmit tick has run the join-time representation pass for this
+        /// player. Out-of-range joiners get no range edge, so the tick fires one CreateAvatar
+        /// evaluation for them when this is still false.
+        /// </summary>
+        public bool FarLodInitialEvaluated;
 
         /// <summary>
-        /// Drops the stand-in payload and any built far LOD, e.g. when the player's avatar
-        /// record changed to a different bundle or the user hid this player.
+        /// Drops the cached far avatar payload, e.g. when the player's avatar record changed
+        /// to a different bundle or the user hid this player.
         /// </summary>
         public void ClearFarLodStandIn()
         {
-            if (FarLod != null)
-            {
-                if (FarLod.IsActive)
-                {
-                    FarLod.Deactivate(this);
-                }
-                FarLod.DestroyInstance();
-                FarLod = null;
-            }
-            FarLodIsAvatar = false;
             FarLodOverridePayload = null;
             FarLodOverrideVersion = null;
             FarLodOverrideSource = null;
             _farLodPayloadState = 0;
         }
 
-        public bool IsFarLodActive => FarLod != null && FarLod.IsActive;
+        /// <summary>True while the player's CURRENT avatar is the runtime-built far avatar.</summary>
+        public bool IsFarLodActive => BasisAvatar != null && BasisAvatar.IsFarLodAvatar;
 
-        /// <summary>True when a far LOD payload is available for this player.</summary>
+        /// <summary>True when a far avatar payload is available for this player.</summary>
         public bool HasFarLodPayload
         {
             get
             {
-                if (FarLodIsAvatar && !string.IsNullOrEmpty(FarLodOverridePayload))
+                if (!string.IsNullOrEmpty(FarLodOverridePayload))
                 {
-                    return true;
+                    // -1 = the payload was tried and refused to build (corrupt/old bake)
+                    // — the player stays on their current avatar; don't re-parse every tick.
+                    return _farLodPayloadState != -1;
                 }
                 if (_farLodPayloadState == 0)
                 {
@@ -116,66 +106,19 @@ namespace Basis.Scripts.BasisSdk.Players
             }
         }
 
-        /// <summary>
-        /// Swaps between the real avatar and its far LOD. Returns true when a transition
-        /// actually happened (callers budget these — each one costs a bone-job sync).
-        /// </summary>
-        public bool SetFarLodActive(bool active)
+        /// <summary>Latches the cached payload as unusable so builds aren't retried every tick.</summary>
+        public void MarkFarLodPayloadUnusable()
         {
-            if (active)
-            {
-                if (IsFarLodActive)
-                {
-                    return false;
-                }
-                // A world change can destroy the far avatar's scene root — rebuild instead of
-                // dead-ending on the stale instance.
-                if (FarLod != null && FarLod.Root == null)
-                {
-                    FarLod.DestroyInstance();
-                    FarLod = null;
-                }
-                if (FarLod == null)
-                {
-                    FarLod = BasisAvatarFarLodRenderer.TryCreate(this);
-                    if (FarLod == null)
-                    {
-                        _farLodPayloadState = -1;
-                        return false;
-                    }
-                }
-                return FarLod.Activate(this);
-            }
-            if (FarLod == null || !FarLod.IsActive)
-            {
-                return false;
-            }
-            return FarLod.Deactivate(this);
+            _farLodPayloadState = -1;
         }
 
         /// <summary>
-        /// Drops the far LOD built for the previous avatar. Called from the calibration seed —
-        /// a recalibration replaced this player's bone registration and may have changed the
-        /// avatar version the payload belongs to.
+        /// Re-evaluates payload availability after a calibration — a recalibration may have
+        /// changed the avatar version the payload belongs to.
         /// </summary>
         public void ResetFarLodForNewAvatar()
         {
-            if (FarLod != null)
-            {
-                FarLod.IsActive = false;
-                FarLod.DestroyInstance();
-                FarLod = null;
-            }
             _farLodPayloadState = 0;
-            // A real avatar calibrated — the stand-in override belonged to the failed load
-            // before it. A fallback calibration keeps it: that's the stand-in's skeleton host.
-            if (!IsConsideredFallBackAvatar)
-            {
-                FarLodIsAvatar = false;
-                FarLodOverridePayload = null;
-                FarLodOverrideVersion = null;
-                FarLodOverrideSource = null;
-            }
         }
 
         /// <summary>
@@ -567,7 +510,12 @@ namespace Basis.Scripts.BasisSdk.Players
                     AlwaysRequestedAvatar = BasisLoadedBundle;
                     AlwaysRequestedMode = CACM.loadMode;
 
-                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
+                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this, Vector3.zero, Quaternion.identity);
+
+                    // The transmit tick re-evaluates once the job's distance is in: in range
+                    // the range edge loads the full avatar; out of range it runs one
+                    // CreateAvatar pass that starts the far avatar (or keeps the fallback).
+                    FarLodInitialEvaluated = false;
                 }
                 else
                 {
@@ -697,7 +645,10 @@ namespace Basis.Scripts.BasisSdk.Players
                         // Hidden or blocked — never represent this player with a far LOD.
                         ClearFarLodStandIn();
                     }
-                    if (!IsConsideredFallBackAvatar)
+                    // The far avatar is fallback-classed and stays put; only a real avatar
+                    // (or a far avatar whose payload was just cleared) drops to the dummy.
+                    bool wearingClearedFarAvatar = BasisAvatar != null && BasisAvatar.IsFarLodAvatar && string.IsNullOrEmpty(FarLodOverridePayload);
+                    if (!IsConsideredFallBackAvatar || wearingClearedFarAvatar)
                     {
                         BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
                     }
@@ -705,11 +656,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 if (BasisAvatar != null)
                 {
-                    // While the far avatar renders in this player's place (distance swap or
-                    // stand-in for a failed/blocked load), the real or fallback avatar must
-                    // stay asleep — the stand-in activates during calibration inside this very
-                    // flow, and reactivating here would leave both bodies visible.
-                    bool shouldBeActive = !effectivelyBlocked && !IsFarLodActive;
+                    // Avatar GameObjects are never toggled for the far avatar swap — while a
+                    // stand-in fronts this player, the fallback stays ACTIVE with its renderers
+                    // Active state only tracks blocking — representation swaps replace the avatar.
+                    bool shouldBeActive = !effectivelyBlocked;
                     if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
                     {
                         BasisAvatar.gameObject.SetActive(shouldBeActive);
@@ -770,15 +720,6 @@ namespace Basis.Scripts.BasisSdk.Players
             // Unregister from the job system before any of this player's transforms are
             // destroyed — the job holds the nameplate and mouth transforms.
             RemoveFromBoneDriver();
-
-            // The far LOD skeleton is its own scene root; drop it now that the registration
-            // (which may have pointed at these transforms) is gone.
-            if (FarLod != null)
-            {
-                FarLod.IsActive = false;
-                FarLod.DestroyInstance();
-                FarLod = null;
-            }
 
             // Same constraint: JigglePhysics keys scene colliders off their Transform, so this
             // has to run while those transforms are still alive.

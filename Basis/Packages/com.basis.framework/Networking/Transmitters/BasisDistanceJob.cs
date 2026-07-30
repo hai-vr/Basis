@@ -186,7 +186,9 @@ public struct BasisAvatarCapJob : IJob
 
     public void Execute()
     {
-        if (MaxVisible <= 0 || ReceiverCount <= 0)
+        // The job only runs when the limiter is enabled, so 0 means "show zero real
+        // avatars", not unlimited — unlimited is the limiter toggle being off.
+        if (MaxVisible < 0 || ReceiverCount <= 0)
         {
             return;
         }

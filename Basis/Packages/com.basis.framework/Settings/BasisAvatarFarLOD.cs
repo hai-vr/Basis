@@ -2,26 +2,25 @@ using System.Threading;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using UnityEngine;
 
 /// <summary>
-/// Far avatars for remote players whose real avatar isn't loaded (see
-/// <see cref="BasisAvatarFarLodRenderer"/>): a ~20-bone, ~8k-triangle proxy baked into the
-/// bee connector, driven by the same networked bone data as the real avatar.
+/// Far avatars for remote players whose real avatar isn't loaded: a ~20-bone, ~8k-triangle
+/// proxy baked into the bee connector, built at runtime as a REAL <see cref="BasisAvatar"/>
+/// (see <see cref="BasisFarAvatarBuilder"/>) and installed through the exact same pipeline as
+/// every other avatar. Loading avatar, bundle avatar, glTF avatar and far avatar are all the
+/// same thing to the rest of the system — avatars are swapped, never hidden or disabled.
 ///
 /// The far avatar lives PAST the max avatar range slider: inside avatar range the real
-/// avatar always shows; beyond it the range system unloads the real avatar onto the fallback
-/// skeleton and the far avatar renders there instead of the loading dummy. The same stand-in
-/// path covers avatars that are still downloading, have no build for this platform, or are
-/// performance-blocked. Transitions are budgeted per transmit tick because each swap forces
-/// one bone-job sync, mirroring how avatar reloads are budgeted.
+/// avatar always shows; beyond it the range system unloads the real avatar and the far
+/// avatar replaces the loading dummy. It also fronts the player while their real avatar
+/// downloads, has no build for this platform, or failed to load.
 /// </summary>
 public static class BasisAvatarFarLOD
 {
     /// <summary>Master switch. When false, players without a real avatar show the loading dummy.</summary>
     public static bool Enabled;
 
-    /// <summary>Swaps admitted per transmit tick; each one costs a bone-job sync.</summary>
+    /// <summary>Avatar swaps admitted per transmit tick; each one costs a full avatar install.</summary>
     public static int MaxTransitionsPerTick = 4;
 
     public static void ApplyFromSettings()
@@ -35,9 +34,9 @@ public static class BasisAvatarFarLOD
     }
 
     /// <summary>
-    /// Per-remote evaluation, called from the transmit tick's merged post-processing loop.
-    /// Edge-triggered: does nothing while the desired state matches, and consumes one unit of
-    /// <paramref name="transitionBudget"/> on a swap.
+    /// Per-remote reconciliation, called from the transmit tick's merged post-processing
+    /// loop. Edge-triggered: does nothing while the current avatar kind matches the desired
+    /// one, and consumes one unit of <paramref name="transitionBudget"/> per swap.
     /// </summary>
     public static void Tick(BasisRemotePlayer remote, ref int transitionBudget)
     {
@@ -46,10 +45,9 @@ public static class BasisAvatarFarLOD
             return;
         }
 
-        // While a real avatar downloads, promote to stand-in as soon as the connector (which
-        // downloads first) carries a payload — the player shows as their own silhouette on the
-        // fallback skeleton instead of as the loading dummy.
-        if (remote.IsLoadingAnAvatar && !remote.FarLodIsAvatar)
+        // While a real avatar downloads, cache the payload as soon as the connector (which
+        // downloads first) carries one — the far avatar can then front the download.
+        if (remote.IsLoadingAnAvatar && string.IsNullOrEmpty(remote.FarLodOverridePayload))
         {
             BasisLoadableBundle loadingBundle = remote.AlwaysRequestedAvatar;
             if (loadingBundle?.BasisBundleConnector != null && !string.IsNullOrEmpty(loadingBundle.BasisBundleConnector.FarLodBase64))
@@ -58,86 +56,84 @@ public static class BasisAvatarFarLOD
             }
         }
 
-        // Self-heal a latched stand-in: a real, calibrated, non-fallback avatar means every
-        // stand-in reason (platform missing, downloading, out of range) has expired. The
-        // calibration seed normally clears this — if that edge was missed, the far avatar
-        // would otherwise stay up at ANY distance and never swap back on approach.
-        if (remote.FarLodIsAvatar && !remote.IsLoadingAnAvatar && !remote.IsConsideredFallBackAvatar && remote.BasisAvatar != null)
+        // Join-time evaluation, deferred to this loop so it uses the job's distance: joiners
+        // load only the fallback, and an out-of-range joiner never gets a range edge, so run
+        // one CreateAvatar pass for them — it reads visibility settings and either starts the
+        // far avatar fetch or keeps the fallback. In-range joiners are excluded (their range
+        // edge, pending or committed, loads the full avatar).
+        if (!remote.FarLodInitialEvaluated && !remote.InAvatarRange && !remote.PendingRangeActive &&
+            !remote.IsLoadingAnAvatar && remote.IsConsideredFallBackAvatar && !remote.IsFarLodActive &&
+            remote.AlwaysRequestedAvatar != null)
         {
-            remote.FarLodIsAvatar = false;
-            BasisDebug.Log($"Far avatar stand-in expired for {remote.DisplayName} (real avatar is loaded).", BasisDebug.LogTag.Avatar);
-        }
-
-        // A permanently pinned stand-in (real load failed) is BY DESIGN — but it looks
-        // identical to a broken swap-back, so say so once instead of staying silent.
-        if (remote.FarLodIsAvatar && remote.IsFarLodActive && remote.HasFailedAvatarLoadGlobally && !remote.FarLodPinLogged)
-        {
-            remote.FarLodPinLogged = true;
-            BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} is standing in at ALL distances because their real avatar FAILED to load (see the earlier 'Loading avatar failed' error). It will not swap to the full avatar until a working avatar arrives.", BasisDebug.LogTag.Avatar);
-        }
-
-        bool current = remote.IsFarLodActive;
-
-        // Range decisions are hips-fed for far players at the job-input level, but the
-        // registration's mouth output is still consumed elsewhere (voice positioning), so
-        // cross-check it against the network hips every few seconds. The transforms in the
-        // log separate a corrupt payload (sane farHead, huge offset lever) from a flung
-        // skeleton or a desynced job slot.
-        if (current && Time.unscaledTime >= remote.FarLodNextDistanceCheckTime)
-        {
-            remote.FarLodNextDistanceCheckTime = Time.unscaledTime + 5f;
-            var poseReceiver = remote.NetworkReceiver;
-            if (poseReceiver != null && RemoteBoneJobSystem.GetOutGoingMouth(poseReceiver.playerId, out var mouth))
-            {
-                poseReceiver.GetLatestNetworkPose(out var hipsWorldPos, out _, out _);
-                if (((Vector3)mouth - (Vector3)hipsWorldPos).sqrMagnitude > 100f)
-                {
-                    var farLod = remote.FarLod;
-                    string farState = farLod != null && farLod.Head != null && farLod.RootTransform != null
-                        ? $" farHead={farLod.Head.position} farRoot={farLod.RootTransform.position} farScale={farLod.RootTransform.lossyScale}"
-                        : " farState=<destroyed>";
-                    BasisDebug.LogError($"Far avatar mouth output broken for {remote.DisplayName}: mouth={(Vector3)mouth} vs network hips={(Vector3)hipsWorldPos} (standIn={remote.FarLodIsAvatar}).{farState}", BasisDebug.LogTag.Avatar);
-                }
-            }
-        }
-
-        // The far avatar only ever runs as the stand-in: past avatar range, mid-download,
-        // platform-missing, or perf-blocked — the range system owns the distance decision
-        // (its slider is the boundary), this system owns what shows beyond it.
-        bool desired = remote.FarLodIsAvatar && IsEligible(remote);
-        if (desired == current)
-        {
+            remote.FarLodInitialEvaluated = true;
+            transitionBudget--;
+            remote.ReloadAvatar();
             return;
         }
-        if (remote.SetFarLodActive(desired))
+
+        bool wearingFar = remote.IsFarLodActive;
+        // No avatar-range check here: the far avatar IS the beyond-range representation, so
+        // a range of zero simply means everyone wears their far avatar. UseAvatarFarLod off
+        // is the switch that drops players to the loading dummy instead.
+        bool wantsFar = Enabled &&
+            !remote.IsEffectivelyBlocked && remote.HasFarLodPayload &&
+            (!remote.InAvatarRange || remote.HasFailedAvatarLoadGlobally || remote.IsLoadingAnAvatar);
+        if (remote.AlwaysShowAvatar && !remote.IsLoadingAnAvatar && !remote.HasFailedAvatarLoadGlobally)
         {
-            transitionBudget--;
+            // "Show me this player" wants the real avatar; the far avatar only bridges
+            // downloads and dead loads for them.
+            wantsFar = false;
         }
-        else if (!desired)
+
+        if (wantsFar && !wearingFar)
         {
-            // A refused deactivation is the "won't swap back" symptom — say why.
-            BasisDebug.LogWarning($"Far avatar swap-back did not transition for {remote.DisplayName}: active={remote.IsFarLodActive} standIn={remote.FarLodIsAvatar} loading={remote.IsLoadingAnAvatar} fallback={remote.IsConsideredFallBackAvatar} avatar={(remote.BasisAvatar != null)} inBoneDriver={remote.RemoteAvatarDriver?.InBoneDriver}", BasisDebug.LogTag.Avatar);
+            // Far avatars only ever replace the fallback dummy — a live real avatar is the
+            // range machinery's to unload (its edge drops the player to the dummy first).
+            if (remote.IsConsideredFallBackAvatar && BasisFarAvatarBuilder.TryInstall(remote))
+            {
+                transitionBudget--;
+            }
+        }
+        else if (!wantsFar && wearingFar && !remote.IsLoadingAnAvatar)
+        {
+            // Back in range (or the far avatar became unwanted) — reload through the normal
+            // pipeline: in range loads the real avatar, hidden/blocked/disabled drops to the
+            // dummy. The range edge usually beats this branch; it covers missed edges.
+            transitionBudget--;
+            remote.ReloadAvatar();
         }
     }
 
     /// <summary>
-    /// Remembers the original bundle's far LOD payload when the real avatar can't be used
-    /// (no section for this platform, load failure, performance block). The fallback avatar
-    /// still loads and calibrates as usual — the far LOD then renders in its place at every
-    /// distance, driven by the same networked bone data.
+    /// Caches the original bundle's far avatar payload on the player. Used whenever the real
+    /// avatar isn't in hand: mid-download, no section for this platform, load failure, out of
+    /// range. The payload is a fixed small cost regardless of how heavy the real avatar is.
     /// </summary>
     public static void CaptureFarLodFallback(BasisRemotePlayer remote, BasisLoadableBundle bundle)
     {
         BasisBundleConnector connector = bundle?.BasisBundleConnector;
-        if (remote == null || connector == null ||
-            string.IsNullOrEmpty(connector.UniqueVersion) || string.IsNullOrEmpty(connector.FarLodBase64))
+        if (remote == null || connector == null)
         {
             return;
         }
-        remote.FarLodOverridePayload = connector.FarLodBase64;
-        remote.FarLodOverrideVersion = connector.UniqueVersion;
-        remote.FarLodOverrideSource = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-        remote.FarLodIsAvatar = true;
+        if (string.IsNullOrEmpty(connector.FarLodBase64))
+        {
+            BasisDebug.Log($"Avatar bee for {remote.DisplayName} carries no far avatar payload — staying on the fallback.", BasisDebug.LogTag.Avatar);
+            return;
+        }
+        if (string.IsNullOrEmpty(connector.UniqueVersion))
+        {
+            BasisDebug.LogWarning($"Far avatar capture for {remote.DisplayName} declined: connector has no UniqueVersion.", BasisDebug.LogTag.Avatar);
+            return;
+        }
+        string source = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+        if (remote.FarLodOverrideSource != source || string.IsNullOrEmpty(remote.FarLodOverridePayload))
+        {
+            remote.FarLodOverridePayload = connector.FarLodBase64;
+            remote.FarLodOverrideVersion = connector.UniqueVersion;
+            remote.FarLodOverrideSource = source;
+            remote.ResetFarLodForNewAvatar();
+        }
     }
 
     private static readonly SemaphoreSlim sConnectorFetchGate = new SemaphoreSlim(4);
@@ -145,8 +141,8 @@ public static class BasisAvatarFarLOD
     /// <summary>
     /// Fetches just the bee connector (two ranged requests, no bundle download) for a player
     /// whose avatar was never loaded — out-of-range players get their real silhouette without
-    /// ever paying for the full avatar. Fire-and-forget; the transmit tick activates the far
-    /// LOD once the payload lands.
+    /// ever paying for the full avatar. Fire-and-forget; the transmit tick installs the far
+    /// avatar once the payload lands.
     /// </summary>
     public static async void RequestFarLodPayload(BasisRemotePlayer remote, BasisLoadableBundle bundle)
     {
@@ -164,30 +160,41 @@ public static class BasisAvatarFarLOD
         remote.FarLodConnectorFetchInFlight = true;
         try
         {
+            BasisMetaLoadResult metaResult = BasisMetaLoadResult.Success;
             await sConnectorFetchGate.WaitAsync();
             try
             {
-                if (remote.IsDestroyed || bundle.BasisBundleConnector != null)
+                if (!remote.IsDestroyed && bundle.BasisBundleConnector == null)
                 {
-                    return;
+                    BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { LoadableBundle = bundle };
+                    metaResult = await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, new BasisProgressReport(), CancellationToken.None);
                 }
-                BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { LoadableBundle = bundle };
-                await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, new BasisProgressReport(), CancellationToken.None);
             }
             finally
             {
                 sConnectorFetchGate.Release();
             }
 
-            // The player may have disconnected or switched avatars during the fetch.
-            if (!remote.IsDestroyed && remote.AlwaysRequestedAvatar == bundle && bundle.BasisBundleConnector != null)
+            if (remote.IsDestroyed)
+            {
+                return;
+            }
+            // Identity by bee URL, not instance — a second avatar message during the fetch
+            // recreates AlwaysRequestedAvatar as a new object for the same bee.
+            string fetchedSource = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+            string currentSource = remote.AlwaysRequestedAvatar?.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+            if (bundle.BasisBundleConnector != null && fetchedSource == currentSource)
             {
                 CaptureFarLodFallback(remote, bundle);
+            }
+            else
+            {
+                BasisDebug.LogWarning($"Far avatar connector fetch for {remote.DisplayName} produced nothing to capture: connector={(bundle.BasisBundleConnector != null)} sameAvatar={fetchedSource == currentSource} loaded={metaResult.Loaded} transient={metaResult.IsTransient} error={metaResult.Error ?? "none"}", BasisDebug.LogTag.Avatar);
             }
         }
         catch (System.Exception e)
         {
-            BasisDebug.Log($"Far LOD connector fetch failed: {e.Message}", BasisDebug.LogTag.Avatar);
+            BasisDebug.LogWarning($"Far avatar connector fetch failed for {remote.DisplayName}: {e.Message}", BasisDebug.LogTag.Avatar);
         }
         finally
         {
@@ -196,32 +203,17 @@ public static class BasisAvatarFarLOD
     }
 
     /// <summary>
-    /// Seed hook, run at the end of remote calibration. Releases any far avatar built for the
-    /// previous avatar (a new calibration means a new avatar version) and, when this
-    /// calibration is the fallback skeleton hosting a stand-in, puts the far avatar up
-    /// immediately instead of waiting for the next transmit tick.
+    /// Seed hook, run at the end of remote calibration. A far avatar's own calibration is a
+    /// no-op here; any other avatar re-evaluates payload availability (a new calibration may
+    /// mean a new avatar version).
     /// </summary>
     public static void SeedAfterCalibration(BasisRemotePlayer remote)
     {
-        if (remote == null)
+        if (remote?.BasisAvatar == null || remote.BasisAvatar.IsFarLodAvatar)
         {
             return;
         }
         remote.ResetFarLodForNewAvatar();
-
-        if (remote.FarLodIsAvatar && IsEligible(remote))
-        {
-            remote.SetFarLodActive(true);
-        }
-    }
-
-    private static bool IsEligible(BasisRemotePlayer remote)
-    {
-        // Stand-ins run ON the fallback avatar (including mid-download), and AlwaysShowAvatar
-        // means "show me this player" — the far avatar is the best available representation.
-        return Enabled && !remote.IsEffectivelyBlocked &&
-               remote.RemoteAvatarDriver != null && remote.RemoteAvatarDriver.InBoneDriver &&
-               remote.HasFarLodPayload;
     }
 
     private static void ReapplyAllRemotes()
@@ -233,12 +225,11 @@ public static class BasisAvatarFarLOD
             {
                 continue;
             }
-            if (!Enabled && remote.IsFarLodActive)
+            if (!Enabled && remote.IsFarLodActive && !remote.IsLoadingAnAvatar)
             {
-                // FarLodIsAvatar stays latched, so re-enabling restores the stand-in on the
-                // next transmit tick — which owns the per-tick swap budget, so no bulk
-                // transition storm starts from here.
-                remote.SetFarLodActive(false);
+                // Reload routes them back to the dummy (or real avatar if in range). The
+                // payload cache stays, so re-enabling restores far avatars next tick.
+                remote.ReloadAvatar();
             }
         }
     }

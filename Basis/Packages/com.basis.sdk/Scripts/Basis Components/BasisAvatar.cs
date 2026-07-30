@@ -124,6 +124,14 @@ namespace Basis.Scripts.BasisSdk
         [SerializeField]
         public Renderer[] Renders;
 
+        /// <summary>
+        /// True when this avatar is a runtime-built far LOD proxy standing in for the real
+        /// avatar (out of range, downloading, or platform-missing). It goes through the exact
+        /// same load/calibration/registration pipeline as every other avatar.
+        /// </summary>
+        [System.NonSerialized]
+        public bool IsFarLodAvatar;
+
         [System.NonSerialized]
         public SkinnedMeshRenderer[] SkinnedMeshRenderers;
 

@@ -616,6 +616,24 @@ namespace Basis.Scripts.Avatar
         }
 
         /// <summary>
+        /// Installs a runtime-built far avatar as the player's current avatar through the
+        /// exact pipeline every other avatar uses (old avatar deleted, harvest, remote
+        /// calibration, bone-job registration). Fallback-classed: the range system treats the
+        /// player as not wearing their real avatar and reloads it on range entry.
+        /// </summary>
+        public static void SetupFarAvatar(BasisRemotePlayer Player, BasisAvatar avatar)
+        {
+            if (Player == null || Player.IsDestroyed || avatar == null)
+            {
+                return;
+            }
+            SetupPlayerAvatar(Player, avatar, isFallback: true, headChop: null);
+        }
+
+        /// <summary>Reentrancy guard for the calibration-failure recovery below.</summary>
+        private static bool sRecoveringRemoteSetup;
+
+        /// <summary>
         /// Configures remote player avatars after instantiation.
         /// </summary>
         public static void SetupRemoteAvatar(BasisRemotePlayer Player)
@@ -626,8 +644,37 @@ namespace Basis.Scripts.Avatar
             {
                 UnityEngine.Object.DontDestroyOnLoad(Player.BasisAvatar.gameObject);
             }
-            Player.RemoteAvatarDriver.RemoteCalibration(Player);
-            Player.BasisAvatar.NotifyAvatarReady(false);
+            try
+            {
+                Player.RemoteAvatarDriver.RemoteCalibration(Player);
+                Player.BasisAvatar.NotifyAvatarReady(false);
+            }
+            catch (Exception e)
+            {
+                // By this point the previous avatar is already deleted while the bone-job
+                // registration still points at its dying transforms — an abort here would
+                // crash the gather jobs at frame end (invalid TransformAccess). Unregister,
+                // drop the half-configured avatar, and recover onto the fallback.
+                BasisDebug.LogError($"Remote avatar setup failed for {Player.DisplayName}: {e}");
+                Player.RemoveFromBoneDriver();
+                if (Player.BasisAvatar != null)
+                {
+                    GameObject.Destroy(Player.BasisAvatar.gameObject);
+                    Player.BasisAvatar = null;
+                }
+                if (!sRecoveringRemoteSetup)
+                {
+                    sRecoveringRemoteSetup = true;
+                    try
+                    {
+                        RemoveOldAvatarAndLoadFallback(Player, Vector3.zero, Quaternion.identity);
+                    }
+                    finally
+                    {
+                        sRecoveringRemoteSetup = false;
+                    }
+                }
+            }
         }
 
         /// <summary>

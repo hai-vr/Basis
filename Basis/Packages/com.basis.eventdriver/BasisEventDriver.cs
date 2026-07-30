@@ -887,6 +887,15 @@ namespace Basis.EventDriver
                 BasisTrackerMarkerGizmos.Tick();
                 BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // One-shot NaN hunter for the Invalid AABB / IsFinite(distanceForSort) spam: names
+            // the first non-finite camera/renderer and disarms. Armed from Basis/Debug/Finite
+            // Watchdog; costs nothing while off.
+            if (BasisFiniteWatchdog.Enabled)
+            {
+                BasisFiniteWatchdog.Tick();
+            }
+#endif
             ProfileLateUpdateFinish();
         }
         /// <summary>

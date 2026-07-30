@@ -168,24 +168,30 @@ namespace Basis.Scripts.Drivers
                 }
             }
 
-            // Face visibility setup
+            // Face visibility setup. Not every avatar has a face mesh (far avatars, generic
+            // imports without face wiring) — those skip visibility tracking entirely.
             Player.FaceIsVisible = false;
             if (RemotePlayer.BasisAvatar == null)
             {
                 BasisDebug.LogError("Missing Avatar On Remote", BasisDebug.LogTag.Avatar);
             }
-            if (RemotePlayer.BasisAvatar.FaceVisemeMesh == null)
-            {
-                BasisDebug.Log("Missing Face for " + Player.DisplayName, BasisDebug.LogTag.Avatar);
-            }
-
-            Player.UpdateFaceVisibility(RemotePlayer.BasisAvatar.FaceVisemeMesh.isVisible);
+            SkinnedMeshRenderer faceVisemeMesh = RemotePlayer.BasisAvatar.FaceVisemeMesh;
             if (Player.FaceRenderer != null)
             {
                 GameObject.Destroy(Player.FaceRenderer);
+                Player.FaceRenderer = null;
             }
-            Player.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(RemotePlayer.BasisAvatar.FaceVisemeMesh.gameObject);
-            Player.FaceRenderer.Check += Player.UpdateFaceVisibility;
+            if (faceVisemeMesh != null)
+            {
+                Player.UpdateFaceVisibility(faceVisemeMesh.isVisible);
+                Player.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(faceVisemeMesh.gameObject);
+                Player.FaceRenderer.Check += Player.UpdateFaceVisibility;
+            }
+            else
+            {
+                BasisDebug.Log("Missing Face for " + Player.DisplayName, BasisDebug.LogTag.Avatar);
+                Player.UpdateFaceVisibility(false);
+            }
 
             // Blink + eyes
             // Initialize unconditionally — Initialize handles a missing blink mesh

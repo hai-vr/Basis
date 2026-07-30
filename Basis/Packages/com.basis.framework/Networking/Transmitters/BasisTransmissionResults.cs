@@ -215,17 +215,7 @@ public partial class BasisTransmissionResults
                 ushort id = remote.playerId;
                 var remotePlayer = remote.RemotePlayer;
 
-                if (remotePlayer.IsFarLodActive)
-                {
-                    // A far avatar owns this player's bone-job registration, and its mouth
-                    // output is composed from baked payload offsets — one bad bake (observed:
-                    // a stale bee parsing into a ~7km mouth lever) would pin every distance
-                    // consumer far, including the far LOD swap-back itself. The network hips
-                    // ARE what drives the far skeleton, so they're the exact target here.
-                    remote.GetLatestNetworkPose(out float3 hipsWorldPos, out _, out _);
-                    pTargetPositions[Index] = hipsWorldPos;
-                }
-                else if (RemoteBoneJobSystem.GetOutGoingMouth(id, out float3 outgoing))
+                if (RemoteBoneJobSystem.GetOutGoingMouth(id, out float3 outgoing))
                 {
                     pTargetPositions[Index] = outgoing;
                 }
@@ -555,12 +545,10 @@ public partial class BasisTransmissionResults
                 // missing). Edge-triggered; only actual swaps consume budget.
                 BasisAvatarFarLOD.Tick(remote, ref farLodTransitionBudget);
 
-                // Nameplate piggybacks on the distance swaps: once the avatar has been
-                // replaced by the far LOD or the out-of-range fallback, the plate is too
-                // far to read and is deactivated with it. Inherits their hysteresis and
-                // debounce. Stand-in mode keeps the plate — there the far LOD is the
-                // avatar itself, not a distance downgrade.
-                bool plateVisible = remote.InAvatarRange && !(remote.IsFarLodActive && !remote.FarLodIsAvatar);
+                // Nameplate follows avatar range: past it the player is a far avatar (or the
+                // dummy) and the plate is too far to read. Inherits the range hysteresis
+                // and debounce.
+                bool plateVisible = remote.InAvatarRange;
                 if (plateVisible != remote.InNamePlateRange)
                 {
                     remote.InNamePlateRange = plateVisible;
