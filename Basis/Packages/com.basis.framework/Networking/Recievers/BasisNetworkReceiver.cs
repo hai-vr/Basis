@@ -654,6 +654,16 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
+            // Single choke point for every decoded remote pose (keyframe and delta). One
+            // non-finite component would snap this player's skeleton (and everything keyed off
+            // it — far avatar root, mouth/eye outputs, nameplate) to NaN on every client that
+            // receives it, and the transforms never recover. Drop the pose and keep the last
+            // good one instead.
+            if (!IsFinite(avatarBuffer.Position) || !IsFinite(avatarBuffer.Rotation) || !IsFinite(avatarBuffer.Scale))
+            {
+                BasisDebug.LogErrorOnce($"Dropped a non-finite network pose for player {playerId}: pos={avatarBuffer.Position} rot={avatarBuffer.Rotation} scale={avatarBuffer.Scale}", BasisDebug.LogTag.Networking);
+                return;
+            }
             Interlocked.Increment(ref _poseVersion);
             _latestNetworkPosition = avatarBuffer.Position;
             _latestNetworkRotation = avatarBuffer.Rotation;
@@ -662,6 +672,10 @@ namespace Basis.Scripts.Networking.Receivers
             PayloadQueue.Enqueue(avatarBuffer);
             System.Threading.Interlocked.Increment(ref _pendingCount);
         }
+
+        static bool IsFinite(float3 v) => math.all(math.isfinite(v));
+
+        static bool IsFinite(quaternion q) => math.all(math.isfinite(q.value));
 
         public override void Initialize()
         {

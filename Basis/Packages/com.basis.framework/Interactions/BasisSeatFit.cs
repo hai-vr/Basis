@@ -273,7 +273,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 ? WrapDegrees(raw)
                 : Mathf.Clamp(raw, -limits.HalfRangeDegrees, limits.HalfRangeDegrees);
 
-            return ResolveOccupantYaw(newRawDegrees, limits);
+            float snap = limits.SnapDegrees;
+            if (snap <= 0f)
+            {
+                return ResolveOccupantYaw(newRawDegrees, limits);
+            }
+
+            // Smooth input accumulates in the raw yaw until it CROSSES a snap step (truncate
+            // toward zero). Direct sets round to the nearest step instead — see
+            // ResolveOccupantYaw; rounding here would advance half a step early every turn.
+            float snapped = (int)(newRawDegrees / snap) * snap;
+            if (limits.IsFullCircle)
+            {
+                return WrapDegrees(snapped);
+            }
+            float limit = limits.HalfRangeDegrees;
+            if (Mathf.Abs(snapped) > limit)
+            {
+                float steps = Mathf.Floor((limit + 1e-4f) / snap);
+                snapped = Mathf.Sign(snapped) * steps * snap;
+            }
+            return snapped;
         }
 
         public static float WrapDegrees(float degrees) => Mathf.DeltaAngle(0f, degrees);

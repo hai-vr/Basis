@@ -480,7 +480,12 @@ public class BasisSeatSync : BasisNetworkBehaviour
         {
             return 0;
         }
-        float wrapped = Mathf.Clamp(BasisSeatFit.WrapDegrees(degrees), -180f, 180f);
+        // Half-open wrap: DeltaAngle maps -180 to +180, which reads back as a 360 degree turn.
+        float wrapped = BasisSeatFit.WrapDegrees(degrees);
+        if (wrapped >= 180f)
+        {
+            wrapped -= 360f;
+        }
         return (short)Mathf.Clamp(Mathf.RoundToInt(wrapped * YawQuantizeScale), short.MinValue, short.MaxValue);
     }
 

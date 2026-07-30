@@ -131,11 +131,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public bool SetOccupantYaw(float degrees)
         {
+            if (float.IsNaN(degrees) || float.IsInfinity(degrees))
+            {
+                return false;
+            }
             BasisSeatRotationLimits limits = OccupantRotationLimits;
+            // Limited seats clamp the request as-is (a +1000 twist stops at +limit); wrapping
+            // first would flip which side of the range a large request lands on. Matches
+            // BasisSeatFit.AddOccupantYaw's raw handling.
             _occupantYawRaw = limits.AllowsRotation
                 ? (limits.IsFullCircle
                     ? BasisSeatFit.WrapDegrees(degrees)
-                    : Mathf.Clamp(BasisSeatFit.WrapDegrees(degrees), -limits.HalfRangeDegrees, limits.HalfRangeDegrees))
+                    : Mathf.Clamp(degrees, -limits.HalfRangeDegrees, limits.HalfRangeDegrees))
                 : 0f;
             return CommitOccupantYaw(BasisSeatFit.ResolveOccupantYaw(_occupantYawRaw, limits));
         }
