@@ -334,10 +334,17 @@ namespace Basis.Scripts.Avatar
                     // The connector is platform-independent and usually already parsed even when
                     // the load failed (e.g. the bee has no section for this platform). If it
                     // carries a far LOD, the player renders as their real silhouette instead of
-                    // as the loading avatar — worn directly, no dummy hop in between.
+                    // as the loading avatar. No install happens HERE — this catch runs on an
+                    // IO/task continuation; the transmit tick swaps at its safe point, so keep
+                    // whatever is worn as the host and only fall to the dummy when the player
+                    // wears nothing or has no far payload.
                     BasisAvatarFarLOD.CaptureFarLodFallback(Player, BasisLoadableBundle);
-                    bool wearingFar = BasisAvatarFarLOD.Enabled && await BasisFarAvatarBuilder.TryInstallAsync(Player);
-                    if (!wearingFar && !Player.IsDestroyed)
+                    bool farPending = BasisAvatarFarLOD.Enabled && Player.HasFarLodPayload && Player.BasisAvatar != null;
+                    if (farPending)
+                    {
+                        BasisFarAvatarBuilder.PrewarmParse(Player);
+                    }
+                    else if (!Player.IsDestroyed)
                     {
                         LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
                     }

@@ -466,6 +466,11 @@ namespace Basis.Scripts.Drivers
 
             if (LocalPlayer.FaceRenderer != null)
             {
+                // Mute before the deferred destroy: the outgoing avatar's renderer fires a
+                // final OnBecameInvisible during its end-of-frame teardown, and that late
+                // notification would stomp the visibility state just set up for the
+                // incoming avatar.
+                LocalPlayer.FaceRenderer.Check = null;
                 GameObject.Destroy(LocalPlayer.FaceRenderer);
             }
 

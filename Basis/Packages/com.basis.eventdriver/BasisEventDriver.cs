@@ -346,8 +346,12 @@ namespace Basis.EventDriver
         // throwing content hook abort every later subscriber — which silently killed all avatar
         // transmission. Invoke each subscriber under its own catch instead; the invocation list
         // is cached and only rebuilt when the delegate instance changes.
+        // The cache is Action[], not the Delegate[] GetInvocationList hands back: every avatar
+        // with an eye-tracking actuation subscribes, so this list is per-avatar long and runs
+        // every frame — a downcast per entry per frame is pure overhead when the element type
+        // is already known. The cast is paid once, on rebuild.
         private static Action _afterAvatarChangesCachedDelegate;
-        private static Delegate[] _afterAvatarChangesInvocationList = System.Array.Empty<Delegate>();
+        private static Action[] _afterAvatarChangesInvocationList = System.Array.Empty<Action>();
 
         private static void InvokeAfterAvatarChangesSafely()
         {
@@ -355,16 +359,29 @@ namespace Basis.EventDriver
             if (!ReferenceEquals(current, _afterAvatarChangesCachedDelegate))
             {
                 _afterAvatarChangesCachedDelegate = current;
-                _afterAvatarChangesInvocationList = current == null ? System.Array.Empty<Delegate>() : current.GetInvocationList();
+                if (current == null)
+                {
+                    _afterAvatarChangesInvocationList = System.Array.Empty<Action>();
+                }
+                else
+                {
+                    Delegate[] raw = current.GetInvocationList();
+                    Action[] typed = new Action[raw.Length];
+                    for (int Index = 0; Index < raw.Length; Index++)
+                    {
+                        typed[Index] = (Action)raw[Index];
+                    }
+                    _afterAvatarChangesInvocationList = typed;
+                }
             }
 
-            Delegate[] list = _afterAvatarChangesInvocationList;
+            Action[] list = _afterAvatarChangesInvocationList;
             int count = list.Length;
             for (int Index = 0; Index < count; Index++)
             {
                 try
                 {
-                    ((Action)list[Index])();
+                    list[Index]();
                 }
                 catch (Exception ex)
                 {

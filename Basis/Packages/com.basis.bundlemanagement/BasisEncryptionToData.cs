@@ -77,7 +77,6 @@ public static class BasisEncryptionToData
 
         if (decryptedMeta.Success)
         {
-            BasisDebug.Log("Converting decrypted meta file to BasisBundleInformation...", BasisDebug.LogTag.Event);
             return ConvertBytesToJson(decryptedMeta.Data, out var connector) ? connector : null;
         }
         else
@@ -97,7 +96,6 @@ public static class BasisEncryptionToData
             return false;
         }
 
-        BasisDebug.Log("Converting byte array to JSON string...", BasisDebug.LogTag.Event);
         try
         {
             connector = BasisSerialization.DeserializeValue<BasisBundleConnector>(data);
@@ -114,7 +112,6 @@ public static class BasisEncryptionToData
             return false;
         }
 
-        BasisDebug.Log("Converted byte array to JSON string...", BasisDebug.LogTag.Event);
         return true;
     }
 

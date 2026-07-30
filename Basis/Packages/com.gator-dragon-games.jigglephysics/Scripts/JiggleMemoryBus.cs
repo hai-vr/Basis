@@ -693,6 +693,8 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             }
             pendingSceneColliderRemove.Clear();
 
+            ReclaimDeadSceneColliderSlots(inPlace);
+
             for (int i = 0; i < pendingAddSceneColliderCount; i++) {
                 var collider = pendingSceneColliderAdd[i];
                 collider.collider.enabled = true;
@@ -744,6 +746,36 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             NativeArray<JiggleCollider>.Copy(sceneColliderArray, sceneColliders, sceneColliderCount);
             doubleBufferSceneColliderTransformAccessArray.Flip();
             commitSceneColliderState = CommitState.Idle;
+        }
+    }
+
+    // Full reclaim for slots whose transform died without a matching remove: frees the
+    // fragmenter entry, drops the transform->index mapping and parks a dummy in the slot, so
+    // the index is reusable. RetireDeadSceneColliderSlots below only disables such a slot,
+    // which left it allocated forever and grew sceneColliderCount for the whole session.
+    private void ReclaimDeadSceneColliderSlots(bool inPlace) {
+        var listCount = sceneColliderTransformAccessList.Count;
+        var scanCount = math.min(sceneColliderCount, listCount);
+        for (int i = 0; i < scanCount; i++) {
+            var slotTransform = sceneColliderTransformAccessList[i];
+            if (slotTransform) continue;
+            if (!sceneColliderMemoryFragmenter.GetIsAllocated(i)) continue;
+
+            sceneColliderMemoryFragmenter.Free(i, 1);
+            var deadCollider = sceneColliderArray[i];
+            deadCollider.enabled = false;
+            sceneColliderArray[i] = deadCollider;
+
+            if (!ReferenceEquals(slotTransform, null) &&
+                sceneColliderTransformToIndex.TryGetValue(slotTransform, out var mappedIndex) && mappedIndex == i) {
+                sceneColliderTransformToIndex.Remove(slotTransform);
+            }
+
+            var dummy = GetDummyTransform(i);
+            sceneColliderTransformAccessList[i] = dummy;
+            if (inPlace) {
+                doubleBufferSceneColliderTransformAccessArray.SetFront(i, dummy);
+            }
         }
     }
 

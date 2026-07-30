@@ -70,6 +70,14 @@ namespace Basis.Scripts.Drivers
         public BasisPlayer linkedPlayer;
 
         /// <summary>
+        /// The visibility check this driver actually subscribed to. The swap-time unsubscribe
+        /// must target it — by the time Initialize runs for the incoming avatar, the player's
+        /// FaceRenderer already points at the NEW check while the outgoing avatar's check
+        /// stays alive (and firing) until its end-of-frame destroy.
+        /// </summary>
+        private BasisMeshRendererCheck subscribedFaceRenderer;
+
+        /// <summary>
         /// Whether updates are currently enabled (e.g., face visible and renderer present).
         /// </summary>
         public bool IsEnabled;
@@ -106,12 +114,24 @@ namespace Basis.Scripts.Drivers
         /// <param name="avatar">Avatar providing blink mesh and viseme indices.</param>
         public void Initialize(BasisPlayer player, BasisAvatar avatar)
         {
+            // A blink-less successor early-returns below while the outgoing avatar's check
+            // still fires this driver during its end-of-frame destroy — unsubscribe it and
+            // reset every field that callback reads, or the stale count walks the cleared
+            // index list.
+            if (subscribedFaceRenderer != null)
+            {
+                subscribedFaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer = null;
+            }
             linkedPlayer = player;
             blendShapeIndices.Clear();
+            blendShapeCount = 0;
+            meshBlendShapeCount = 0;
+            meshRenderer = null;
+            IsEnabled = false;
 
             if (avatar == null || avatar.FaceBlinkMesh == null || avatar.BlinkViseme == null)
             {
-                IsEnabled = false;
                 return;
             }
 
@@ -133,7 +153,8 @@ namespace Basis.Scripts.Drivers
             // Observe face visibility
             if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
             {
-                linkedPlayer.FaceRenderer.Check += UpdateFaceVisibility;
+                subscribedFaceRenderer = linkedPlayer.FaceRenderer;
+                subscribedFaceRenderer.Check += UpdateFaceVisibility;
                 UpdateFaceVisibility(linkedPlayer.FaceIsVisible);
             }
 
@@ -253,9 +274,10 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
-            if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
+            if (subscribedFaceRenderer != null)
             {
-                linkedPlayer.FaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer = null;
             }
         }
 
@@ -276,7 +298,10 @@ namespace Basis.Scripts.Drivers
 
                 if (Override == false)
                 {
-                    for (int i = 0; i < blendShapeCount; i++)
+                    // Bounded by the live list, not the cached count — a destroy-window
+                    // notification must never outrun the driver's own state.
+                    int count = blendShapeIndices.Count;
+                    for (int i = 0; i < count; i++)
                     {
                         SafeSetBlendShape(blendShapeIndices[i], 0);
                     }

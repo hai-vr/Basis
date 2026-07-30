@@ -148,7 +148,6 @@ public static class BasisBundleManagement
         {
             return (null, "Cancelled before starting.");
         }
-        BasisDebug.Log("Reading connector from disk: " + readPath);
         BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(readPath, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess || result.Value is null)
@@ -164,8 +163,6 @@ public static class BasisBundleManagement
             return (null, connErr);
         }
 
-
-        BasisDebug.Log("Successfully recovered connector from disk (connector-only).");
         return (data.Connector, string.Empty);
     }
 

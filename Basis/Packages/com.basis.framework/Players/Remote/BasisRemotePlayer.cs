@@ -572,6 +572,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             IsLoadingAnAvatar = true;
             BasisPlayerSettingsData BasisPlayerSettingsData = default;
+            bool farInstallPending = false;
             try
             {
                 // Fetch per-player visibility settings.
@@ -621,7 +622,6 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
                 else
                 {
-                    bool wearingDesiredFarAvatar = false;
                     if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked)
                     {
                         // Real avatar won't be loaded (out of range, over the visible cap, or
@@ -645,18 +645,16 @@ namespace Basis.Scripts.BasisSdk.Players
                             BasisAvatarFarLOD.RequestFarLodPayload(this, BasisLoadableBundle);
                         }
 
-                        // Swap straight to the far avatar instead of hopping through the
-                        // loading dummy: a version whose shared assets exist installs within
-                        // this frame; a first wearer parses on a worker thread while the
-                        // current avatar stays worn, then swaps once.
+                        // Never install from here: CreateAvatar runs on IO/task
+                        // continuations, where the remote-bone/jiggle pipelines can have
+                        // in-flight jobs — an install would mutate their transform arrays
+                        // mid-flight. Warm the payload parse on a worker and keep the
+                        // current avatar worn; the transmit tick swaps at its safe point,
+                        // normally the next pass. The loading dummy never appears.
                         if (BasisAvatarFarLOD.WantsFarAvatarAfterLoad(this))
                         {
-                            wearingDesiredFarAvatar = await BasisFarAvatarBuilder.TryInstallAsync(this);
-                            // The parse can span frames — the player may be gone by now.
-                            if (IsDestroyed)
-                            {
-                                return;
-                            }
+                            BasisFarAvatarBuilder.PrewarmParse(this);
+                            farInstallPending = true;
                         }
                     }
                     else
@@ -676,7 +674,7 @@ namespace Basis.Scripts.BasisSdk.Players
                         BasisAvatarFarLOD.WantsFarAvatarAfterLoad(this);
                     bool wearingUnwantedFarAvatar = BasisAvatar != null && BasisAvatar.IsFarLodAvatar && !farStillWanted;
                     bool dropToDummy = !IsConsideredFallBackAvatar || BasisAvatar == null || wearingUnwantedFarAvatar;
-                    if (wearingDesiredFarAvatar || (_reloadQueuedDuringLoad && BasisAvatar != null))
+                    if ((farInstallPending && BasisAvatar != null) || (_reloadQueuedDuringLoad && BasisAvatar != null))
                     {
                         dropToDummy = false;
                     }
@@ -723,10 +721,12 @@ namespace Basis.Scripts.BasisSdk.Players
             }
 
             // If state drifted during the load, re-evaluate immediately.
-            // Otherwise set cooldown to prevent oscillation.
+            // Otherwise set cooldown to prevent oscillation. A pending far install keeps the
+            // real avatar up on purpose — the transmit tick owns that swap; re-running here
+            // would churn CreateAvatar every pass until the tick wins.
             bool effectiveInRange = InAvatarRange || AlwaysShowAvatar;
             bool stateMismatch = (effectiveInRange && IsConsideredFallBackAvatar) || (!effectiveInRange && !IsConsideredFallBackAvatar);
-            if (stateMismatch)
+            if (stateMismatch && !farInstallPending)
             {
                 ReloadAvatar();
             }

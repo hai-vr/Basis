@@ -76,8 +76,10 @@ public static class BasisNetworkHandleAvatar
         {
             ((BasisNetworkReceiver)player).ReceiveAvatarChangeRequest(msg);
         }
-        else
+        else if (!BasisNetworkPlayers.JoiningPlayers.ContainsKey(playerId))
         {
+            // Joining players race their own creation — silent; their spawn payload carries
+            // the avatar as of spawn time. Anything else is worth a line.
             BasisDebug.Log("Missing Player For Message " + playerId);
         }
     }

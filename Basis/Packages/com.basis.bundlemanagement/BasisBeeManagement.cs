@@ -77,7 +77,6 @@ public static class BasisBeeManagement
         (BasisBundleGenerated, byte[], string) output;
         if (shouldUseOnDiskMeta)
         {
-            BasisDebug.Log("Process On Disc Meta Data Async", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.LocalLoadBundleConnector(wrapper, MetaInfo.StoredLocal, report, cancellationToken);
         }
         else
@@ -313,7 +312,6 @@ public static class BasisBeeManagement
         (BasisBundleConnector Connector, string ErrorMessage) output;
         if (IsMetaOnDisc)
         {
-            BasisDebug.Log("Process On Disc Meta Data Async", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.ReadConnectorFile(wrapper, MetaInfo.StoredLocal, report, cancellationToken).ConfigureAwait(false);
         }
         else

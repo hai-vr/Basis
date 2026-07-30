@@ -73,6 +73,14 @@ namespace Basis.Scripts.Drivers
         public IBasisPlayer linkedPlayer;
 
         /// <summary>
+        /// The visibility check this driver actually subscribed to. The swap-time unsubscribe
+        /// must target it — by the time Initialize runs for the incoming avatar, the player's
+        /// FaceRenderer already points at the NEW check while the outgoing avatar's check
+        /// stays alive (and firing) until its end-of-frame destroy.
+        /// </summary>
+        private BasisMeshRendererCheck subscribedFaceRenderer;
+
+        /// <summary>
         /// Whether updates are currently enabled (e.g., face visible and renderer present).
         /// </summary>
         public bool BlinkingEnabled;
@@ -84,8 +92,21 @@ namespace Basis.Scripts.Drivers
         /// <param name="avatar">Avatar providing blink mesh and viseme indices.</param>
         public void Initialize(IBasisPlayer player, BasisAvatar avatar)
         {
+            // A blink-less successor (far avatar, generic import) early-returns below, and the
+            // outgoing avatar's check still fires this driver during its end-of-frame destroy
+            // — so unsubscribe it and reset EVERY field that callback reads, or the stale
+            // count walks the freshly-cleared index list.
+            if (subscribedFaceRenderer != null)
+            {
+                subscribedFaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer = null;
+            }
             linkedPlayer = player;
             blendShapeIndices.Clear();
+            blendShapeCount = 0;
+            meshBlendShapeCount = 0;
+            meshRenderer = null;
+            BlinkingEnabled = false;
 
             // Eye bones are not part of the network bone sync (LeftEye/RightEye are excluded
             // in BasisBoneRotationCompression). They're driven locally from the eye floats
@@ -95,7 +116,6 @@ namespace Basis.Scripts.Drivers
 
             if (avatar == null || avatar.FaceBlinkMesh == null || avatar.BlinkViseme == null)
             {
-                BlinkingEnabled = false;
                 return;
             }
 
@@ -118,7 +138,8 @@ namespace Basis.Scripts.Drivers
             // Observe face visibility
             if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
             {
-                linkedPlayer.FaceRenderer.Check += UpdateFaceVisibility;
+                subscribedFaceRenderer = linkedPlayer.FaceRenderer;
+                subscribedFaceRenderer.Check += UpdateFaceVisibility;
                 UpdateFaceVisibility(linkedPlayer.FaceIsVisible);
             }
 
@@ -129,9 +150,10 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
-            if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
+            if (subscribedFaceRenderer != null)
             {
-                linkedPlayer.FaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer.Check -= UpdateFaceVisibility;
+                subscribedFaceRenderer = null;
             }
         }
 
@@ -148,7 +170,10 @@ namespace Basis.Scripts.Drivers
             {
                 if (OverrideBlinking == false)
                 {
-                    for (int i = 0; i < blendShapeCount; i++)
+                    // Bounded by the live list, not the cached count — a destroy-window
+                    // notification must never outrun the driver's own state.
+                    int count = blendShapeIndices.Count;
+                    for (int i = 0; i < count; i++)
                     {
                         SafeSetBlendShape(blendShapeIndices[i], 0);
                     }

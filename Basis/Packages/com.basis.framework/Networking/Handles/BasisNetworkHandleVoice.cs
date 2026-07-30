@@ -14,6 +14,8 @@ public static class BasisNetworkHandleVoice
     private const int TimeoutMilliseconds = 1000;
     public static ConcurrentQueue<ServerAudioSegmentMessage> Message = new ConcurrentQueue<ServerAudioSegmentMessage>();
     public const int MaxStoredServerAudioSegmentMessage = 250;
+    /// <summary>Next Stopwatch timestamp an unknown-player drop may log (written under the semaphore).</summary>
+    private static long nextUnknownPlayerLogTimestamp;
 
     public static async Task HandleAudioUpdate(NetPacketReader Reader, bool largeId)
     {
@@ -49,9 +51,19 @@ public static class BasisNetworkHandleVoice
                         player.ReceiveNetworkAudio(audioUpdate);
                     }
                 }
-                else
+                else if (!BasisNetworkPlayers.JoiningPlayers.ContainsKey(audioUpdate.playerIdMessage.playerID))
                 {
-                    BasisDebug.Log("Missing Player For Message" + audioUpdate.playerIdMessage.playerID);
+                    // Voice outruns the budgeted player creation for every joiner — that case
+                    // is expected and silent (the receiver appears when creation completes;
+                    // realtime audio has nothing worth keeping). An id that is neither known
+                    // nor joining is a disconnect straggler or a real desync — say so, but
+                    // throttled: this arrives per voice packet.
+                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                    if (now >= nextUnknownPlayerLogTimestamp)
+                    {
+                        nextUnknownPlayerLogTimestamp = now + System.Diagnostics.Stopwatch.Frequency * 5;
+                        BasisDebug.Log($"Voice for unknown player {audioUpdate.playerIdMessage.playerID} (not joining) — dropping.", BasisDebug.LogTag.Voice);
+                    }
                 }
                 Message.Enqueue(audioUpdate);
                 while (Message.Count > MaxStoredServerAudioSegmentMessage)

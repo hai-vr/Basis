@@ -178,6 +178,11 @@ namespace Basis.Scripts.Drivers
             SkinnedMeshRenderer faceVisemeMesh = RemotePlayer.BasisAvatar.FaceVisemeMesh;
             if (Player.FaceRenderer != null)
             {
+                // Mute before the deferred destroy: the outgoing avatar's renderer fires a
+                // final OnBecameInvisible during its end-of-frame teardown, and that late
+                // notification would stomp the visibility state (and face driver) just set
+                // up for the incoming avatar.
+                Player.FaceRenderer.Check = null;
                 GameObject.Destroy(Player.FaceRenderer);
                 Player.FaceRenderer = null;
             }
@@ -630,11 +635,18 @@ namespace Basis.Scripts.Drivers
         /// Rebuilds jiggle rig colliders based on player settings (async).
         /// Removes existing colliders, fetches settings, then conditionally adds new ones.
         /// </summary>
+        private int JiggleColliderSetupGeneration;
+
         public async void SetupAvatarJiggleColliders()
         {
             RemoveJiggleRigColliders();
+            int generation = ++JiggleColliderSetupGeneration;
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
             if (Player == null || Player.IsDestroyed)
+            {
+                return;
+            }
+            if (generation != JiggleColliderSetupGeneration)
             {
                 return;
             }

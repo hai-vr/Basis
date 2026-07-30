@@ -298,8 +298,9 @@ public static class BasisNetworkGenericMessages
                 BasisDebug.LogError("Missing Avatar For Message " + SADM.playerIdMessage.playerID);
             }
         }
-        else
+        else if (!BasisNetworkPlayers.JoiningPlayers.ContainsKey(SADM.playerIdMessage.playerID))
         {
+            // Joining players race their own creation — silent. Anything else is worth a line.
             BasisDebug.Log("Missing Player For Message " + SADM.playerIdMessage.playerID);
         }
     }

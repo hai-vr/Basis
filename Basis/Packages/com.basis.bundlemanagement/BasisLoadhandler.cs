@@ -80,7 +80,13 @@ public static class BasisLoadHandler
             bool State = await Wrapper.UnloadIfReady();
             if (State)
             {
-                LoadedBundles.Remove(Key, out var data);
+                // Only remove OUR wrapper: a lookup during the unload continuation may have
+                // seen IsUnloaded, dropped the husk, and registered a fresh wrapper under the
+                // same key — removing blindly here would tear that replacement out.
+                if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper current) && ReferenceEquals(current, Wrapper))
+                {
+                    LoadedBundles.Remove(Key, out var data);
+                }
                 return;
             }
         }
@@ -99,20 +105,44 @@ public static class BasisLoadHandler
         string Key = GetBundleKey(loadableBundle);
         if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper wrapper))
         {
-            try
+            if (wrapper.IsUnloaded)
             {
-                await wrapper.WaitForBundleLoadAsync();
-
-                // ensure the bundle connector is updated from the wrapper
-                loadableBundle.BasisBundleConnector = wrapper.LoadableBundle.BasisBundleConnector;
-
-                return await BasisBundleLoadAsset.LoadFromWrapper(DisabledGameobject,wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
+                // Unload(true) already destroyed this wrapper's assets — instantiating from
+                // it produces an avatar whose Animator.avatar and meshes are dead. Drop the
+                // husk and load fresh.
+                if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper stale) && ReferenceEquals(stale, wrapper))
+                {
+                    LoadedBundles.Remove(Key, out var husk);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                BasisDebug.LogError($"Failed to load content: {ex}");
-                LoadedBundles.Remove(Key, out var data);
-                return null;
+                // Reserve BEFORE any await: the unload grace period re-checks the count, and
+                // the budgeted instantiate spans frames. Incrementing only at instantiate-end
+                // (the old LoadFromWrapper behavior) let the grace expire mid-load on a
+                // range-boundary re-entry and Unload(true) killed the clone's assets.
+                wrapper.Increment();
+                try
+                {
+                    await wrapper.WaitForBundleLoadAsync();
+
+                    // ensure the bundle connector is updated from the wrapper
+                    loadableBundle.BasisBundleConnector = wrapper.LoadableBundle.BasisBundleConnector;
+
+                    GameObject result = await BasisBundleLoadAsset.LoadFromWrapper(DisabledGameobject,wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
+                    if (result == null)
+                    {
+                        wrapper.DeIncrement();
+                    }
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    wrapper.DeIncrement();
+                    BasisDebug.LogError($"Failed to load content: {ex}");
+                    LoadedBundles.Remove(Key, out var data);
+                    return null;
+                }
             }
         }
 
@@ -123,7 +153,16 @@ public static class BasisLoadHandler
         await EnsureInitializationComplete();
 
         string Key = GetBundleKey(loadableBundle);
-        if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper wrapper))
+        if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper wrapper) && wrapper.IsUnloaded)
+        {
+            // Dead husk from a completed unload — drop it and take the first-load path.
+            if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper stale) && ReferenceEquals(stale, wrapper))
+            {
+                LoadedBundles.Remove(Key, out var husk);
+            }
+            wrapper = null;
+        }
+        if (wrapper != null)
         {
             BasisDebug.Log($"Bundle On Disc Loading", BasisDebug.LogTag.Networking);
             if (wrapper.AssetBundle == null)
@@ -191,14 +230,23 @@ public static class BasisLoadHandler
             return null;
         }
 
+        // The instantiate reservation, held from registration so the unload grace can never
+        // fire between the download completing and the budgeted instantiate finishing.
+        wrapper.Increment();
         try
         {
             await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
-            return await BasisBundleLoadAsset.LoadFromWrapper(DisabledGameobject, wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
+            GameObject result = await BasisBundleLoadAsset.LoadFromWrapper(DisabledGameobject, wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders, ChangeColidersToCorrectLayer, HarvestedHeadChop);
+            if (result == null)
+            {
+                wrapper.DeIncrement();
+            }
+            return result;
         }
         catch (Exception ex)
         {
             BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
+            wrapper.DeIncrement();
             wrapper.DidErrorOccur = true;
             if (wrapper.AssetBundle != null)
             {
@@ -275,6 +323,7 @@ public static class BasisLoadHandler
             {
                 try
                 {
+                    removed.IsUnloaded = true;
                     if (removed.AssetBundle != null)
                     {
                         BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);

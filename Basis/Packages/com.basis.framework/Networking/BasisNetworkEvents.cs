@@ -115,6 +115,11 @@ public static class BasisNetworkEvents
                     BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
                     ServerReadyMessage srm = new ServerReadyMessage();
                     srm.Deserialize(Reader);
+                    // Mark the player as joining the moment the spawn is KNOWN, not when the
+                    // budgeted queue finally runs it — per-player traffic (voice, avatar
+                    // data) races ahead of creation and consults this to drop quietly.
+                    // CreateRemotePlayer's finally clears it.
+                    BasisNetworkPlayers.JoiningPlayers.TryAdd(srm.playerIdMessage.playerID, 0);
                     BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
                     {
                         BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
@@ -163,6 +168,7 @@ public static class BasisNetworkEvents
                             BNL.LogError($"Dropping remote-player spawn batch at entry {i}/{batch.Count}: {ex.Message}");
                             break;
                         }
+                        BasisNetworkPlayers.JoiningPlayers.TryAdd(srm.playerIdMessage.playerID, 0);
                         BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
                         {
                             BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);

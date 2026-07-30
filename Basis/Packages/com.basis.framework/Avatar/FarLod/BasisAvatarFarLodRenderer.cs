@@ -73,58 +73,29 @@ public static class BasisFarAvatarBuilder
     }
 
     /// <summary>
-    /// Awaitable install for callers that hold the player's load guard (CreateAvatar): a
-    /// cached version installs synchronously within the current frame; a first wearer awaits
-    /// the worker-thread parse — the player keeps wearing their current avatar meanwhile —
-    /// then installs. Returns true when the player ends up wearing the resolved far avatar.
+    /// Starts the worker-thread payload parse for this player's resolved far avatar version
+    /// WITHOUT installing anything. Installs are transmit-tick-only: CreateAvatar and the
+    /// load error path run on IO/task continuations, where the remote-bone and jiggle
+    /// pipelines can have scheduled-but-unjoined jobs — an install there mutates their
+    /// TransformAccessArrays mid-flight (the flung-skeleton / Invalid-AABB class). Callers
+    /// keep the current avatar worn; the tick's <see cref="TryInstall"/> swaps at the safe
+    /// point once the parse lands.
     /// </summary>
-    public static async Task<bool> TryInstallAsync(BasisRemotePlayer remote)
+    public static void PrewarmParse(BasisRemotePlayer remote)
     {
         if (remote == null || remote.IsDestroyed)
         {
-            return false;
+            return;
         }
         if (!ResolvePayload(remote, out string uniqueVersion, out string payloadBase64))
         {
-            return false;
+            return;
         }
-        if (WornFarVersion(remote) == uniqueVersion)
+        if (SharedByVersion.ContainsKey(uniqueVersion) || WornFarVersion(remote) == uniqueVersion)
         {
-            return true;
+            return;
         }
-        if (SharedByVersion.ContainsKey(uniqueVersion))
-        {
-            return InstallWithPayload(remote, uniqueVersion, null);
-        }
-
-        Task<BasisFarLodPayload> parse = StartOrGetParse(uniqueVersion, payloadBase64);
-        try
-        {
-            await parse;
-        }
-        catch
-        {
-            // Outcome is read from the task status in ConsumeParse.
-        }
-        if (remote.IsDestroyed)
-        {
-            return false;
-        }
-        // The avatar record may have changed while the parse ran, and the transmit tick may
-        // have installed (or a peer may have built) this version meanwhile.
-        if (!ResolvePayload(remote, out string currentVersion, out _) || currentVersion != uniqueVersion)
-        {
-            return false;
-        }
-        if (WornFarVersion(remote) == uniqueVersion)
-        {
-            return true;
-        }
-        if (SharedByVersion.ContainsKey(uniqueVersion))
-        {
-            return InstallWithPayload(remote, uniqueVersion, null);
-        }
-        return InstallWithPayload(remote, uniqueVersion, ConsumeParse(uniqueVersion, parse));
+        StartOrGetParse(uniqueVersion, payloadBase64);
     }
 
     /// <summary>
@@ -157,6 +128,17 @@ public static class BasisFarAvatarBuilder
             return instance.SharedVersion;
         }
         return null;
+    }
+
+    /// <summary>
+    /// True when the worn far avatar matches the version the payload resolves to right now —
+    /// false for a far avatar left over from a previous avatar record (the tick then swaps
+    /// it like any other stale representation).
+    /// </summary>
+    public static bool IsWearingResolvedVersion(BasisRemotePlayer remote)
+    {
+        return remote != null && ResolvePayload(remote, out string uniqueVersion, out _) &&
+               WornFarVersion(remote) == uniqueVersion;
     }
 
     /// <summary>Payload parses in flight, keyed by avatar version. Main-thread access only.</summary>

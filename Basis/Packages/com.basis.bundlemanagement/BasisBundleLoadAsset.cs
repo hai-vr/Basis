@@ -109,9 +109,12 @@ public static class BasisBundleLoadAsset
         {
             createdAvatar.Harvest = harvest;
         }
-        bool Incremented = BasisLoadableBundle.Increment();
+        // The worn-instance reservation is taken by the LOAD entry points (BasisLoadHandler)
+        // BEFORE their first await — incrementing here, after the multi-frame budgeted
+        // instantiate, left a window where the unload grace re-check saw zero holders and
+        // Unload(true) destroyed the assets under this very clone.
         string InstanceID = BasisGenerateUniqueID.GenerateUniqueID();
-        CreatedCopy.name = InstanceID + Incremented;
+        CreatedCopy.name = InstanceID;
         return CreatedCopy;
     }
     public static async Task<Scene> LoadSceneFromBundleAsync(BasisTrackedBundleWrapper bundle, bool MakeActiveScene, BasisProgressReport progressCallback)

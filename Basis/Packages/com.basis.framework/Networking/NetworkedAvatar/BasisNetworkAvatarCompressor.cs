@@ -53,6 +53,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static NativeArray<int> sSlotRemap;
         static NativeArray<quaternion> sCurrentLocalRotations;
         static NativeArray<quaternion> sTposeNative;
+        static NativeArray<quaternion> sInverseTposeNative;
         static NativeArray<byte> sBpcNative;
         static NativeArray<float> sMaxComponentNative;
         static bool sJobArraysReady;
@@ -564,7 +565,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             var job = new BasisBoneDeltaAndCompressJob
             {
                 CurrentLocalRotations = sCurrentLocalRotations,
-                TposeLocalRotations = sTposeNative,
+                InverseTposeLocalRotations = sInverseTposeNative,
                 BitsPerComponent = sBpcNative,
                 MaxComponent = sMaxComponentNative,
                 OutputBuffer = sJobOutputBuffer,
@@ -656,12 +657,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             sCurrentLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
 
-            // T-pose rotations in BONE_WRITE_ORDER slot order
+            // T-pose rotations in BONE_WRITE_ORDER slot order, plus their inverses so the
+            // encode job multiplies by a stored constant instead of inverting per send.
             sTposeNative = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
+            sInverseTposeNative = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
             for (int slot = 0; slot < boneCount; slot++)
             {
                 int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
                 sTposeNative[slot] = sTposeLocalRotations[boneEnum];
+                sInverseTposeNative[slot] = sInverseTposeLocalRotations[boneEnum];
             }
 
             sBpcNative = new NativeArray<byte>(boneCount, Allocator.Persistent);
@@ -703,6 +707,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sSlotRemap.IsCreated) sSlotRemap.Dispose();
             if (sCurrentLocalRotations.IsCreated) sCurrentLocalRotations.Dispose();
             if (sTposeNative.IsCreated) sTposeNative.Dispose();
+            if (sInverseTposeNative.IsCreated) sInverseTposeNative.Dispose();
             if (sBpcNative.IsCreated) sBpcNative.Dispose();
             if (sMaxComponentNative.IsCreated) sMaxComponentNative.Dispose();
         }
@@ -736,6 +741,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sBoneDeltas.IsCreated) sBoneDeltas.Dispose();
             if (sJobOutputBuffer.IsCreated) sJobOutputBuffer.Dispose();
             sTposeLocalRotations = null;
+            // Cleared alongside the forward table: ExtractBoneDeltas guards on this one being
+            // null, and leaving it populated after teardown sends that guard down a path that
+            // then indexes the forward table it just nulled.
+            sInverseTposeLocalRotations = null;
             sLastSentPayload = null;
             sHasLastSent = false;
             sRawLastSent = null;

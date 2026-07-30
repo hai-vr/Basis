@@ -27,8 +27,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <summary>Current local rotations read from transforms. Length = SyncBoneCount.</summary>
         [ReadOnly] public NativeArray<quaternion> CurrentLocalRotations;
 
-        /// <summary>T-pose local rotations per bone slot. Length = SyncBoneCount.</summary>
-        [ReadOnly] public NativeArray<quaternion> TposeLocalRotations;
+        /// <summary>
+        /// Inverted T-pose local rotations per bone slot. Length = SyncBoneCount. Pre-inverted
+        /// at capture rather than per bone per tick here — the T-pose is fixed for the life of
+        /// the avatar, so inverting it inside the encode loop recomputes a constant every send.
+        /// </summary>
+        [ReadOnly] public NativeArray<quaternion> InverseTposeLocalRotations;
 
         /// <summary>Bits-per-component per slot. Length = SyncBoneCount.</summary>
         [ReadOnly] public NativeArray<byte> BitsPerComponent;
@@ -56,9 +60,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             for (int slot = 0; slot < BoneCount; slot++)
             {
                 // Delta = inverse(tpose) * current
-                quaternion tpose = TposeLocalRotations[slot];
+                quaternion inverseTpose = InverseTposeLocalRotations[slot];
                 quaternion current = CurrentLocalRotations[slot];
-                quaternion delta = math.mul(math.inverse(tpose), current);
+                quaternion delta = math.mul(inverseTpose, current);
 
                 // Normalize
                 float4 dv = delta.value;

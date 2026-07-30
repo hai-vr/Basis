@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
-using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using NUnit.Framework;
@@ -9,9 +8,9 @@ using UnityEngine;
 
 /// <summary>
 /// State-machine behavior of the far avatar builder around the worker-thread parse: the
-/// non-blocking tick path, the awaitable CreateAvatar path, refused-payload latching, and
-/// the already-wearing short-circuits. Install success paths (calibration, bone jobs) need
-/// a running player stack and stay out of edit mode.
+/// non-blocking tick-only install path, the CreateAvatar-side parse prewarm, refused-payload
+/// latching, and the already-wearing short-circuits. Install success paths (calibration,
+/// bone jobs) need a running player stack and stay out of edit mode.
 /// </summary>
 public class BasisFarAvatarBuilderStateTests
 {
@@ -38,12 +37,12 @@ public class BasisFarAvatarBuilderStateTests
     }
 
     [Test]
-    public void TryInstallAsync_WithoutAnyPayload_CompletesSynchronouslyFalse()
+    public void PrewarmParse_WithoutAnyPayload_IsANoOp()
     {
         BasisRemotePlayer remote = NewRemote();
-        Task<bool> install = BasisFarAvatarBuilder.TryInstallAsync(remote);
-        Assert.IsTrue(install.IsCompleted, "no-payload path must not go async");
-        Assert.IsFalse(install.Result);
+        Assert.DoesNotThrow(() => BasisFarAvatarBuilder.PrewarmParse(remote));
+        Assert.DoesNotThrow(() => BasisFarAvatarBuilder.PrewarmParse(null));
+        Assert.IsFalse(BasisFarAvatarBuilder.TryInstall(remote));
     }
 
     [Test]
@@ -70,13 +69,24 @@ public class BasisFarAvatarBuilderStateTests
     }
 
     [Test]
-    public async Task TryInstallAsync_RefusedPayload_AwaitsParseThenLatches()
+    public void PrewarmParse_RefusedPayload_TickInstallConsumesAndLatches()
     {
         BasisRemotePlayer remote = NewRemote();
         remote.FarLodOverridePayload = BasisFarLodTestPayloads.CreateRefusedBase64();
-        remote.FarLodOverrideVersion = $"refused-async-{Guid.NewGuid():N}";
+        remote.FarLodOverrideVersion = $"refused-prewarm-{Guid.NewGuid():N}";
 
-        bool installed = await BasisFarAvatarBuilder.TryInstallAsync(remote);
+        // CreateAvatar's role: warm the parse only, never install.
+        BasisFarAvatarBuilder.PrewarmParse(remote);
+
+        // The transmit tick's role: retry TryInstall until the parse resolves.
+        Stopwatch deadline = Stopwatch.StartNew();
+        bool installed = BasisFarAvatarBuilder.TryInstall(remote);
+        while (remote.HasFarLodPayload && deadline.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            Assert.IsFalse(installed, "a refused payload must never install");
+            Thread.Sleep(5);
+            installed = BasisFarAvatarBuilder.TryInstall(remote);
+        }
 
         Assert.IsFalse(installed);
         Assert.IsFalse(remote.HasFarLodPayload, "refused payload must be latched unusable");
@@ -100,10 +110,11 @@ public class BasisFarAvatarBuilderStateTests
             remote.FarLodOverrideVersion = version;
 
             Assert.IsTrue(BasisFarAvatarBuilder.TryInstall(remote), "wearing the resolved version is already success");
+            Assert.IsTrue(BasisFarAvatarBuilder.IsWearingResolvedVersion(remote), "tick sees the worn far avatar as the desired one");
 
-            Task<bool> install = BasisFarAvatarBuilder.TryInstallAsync(remote);
-            Assert.IsTrue(install.IsCompleted, "already-wearing path must not go async");
-            Assert.IsTrue(install.Result);
+            remote.FarLodOverrideVersion = $"changed-{Guid.NewGuid():N}";
+            Assert.IsFalse(BasisFarAvatarBuilder.IsWearingResolvedVersion(remote), "an avatar-record change makes the worn far avatar stale — the tick then swaps it");
+            remote.FarLodOverrideVersion = version;
 
             Assert.IsTrue(remote.HasFarLodPayload, "short-circuit must not touch payload state");
         }

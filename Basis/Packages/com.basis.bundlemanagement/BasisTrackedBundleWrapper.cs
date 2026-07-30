@@ -29,6 +29,13 @@ public class BasisTrackedBundleWrapper
     private int _requestedTimes = 0;
     public bool IsInUse => Volatile.Read(ref _requestedTimes) > 0;
     public bool DidErrorOccur = false;
+    /// <summary>
+    /// Set the moment Unload(true) destroys this wrapper's assets. The wrapper can outlive
+    /// the unload in the registry for a continuation gap — lookups must treat a flagged
+    /// wrapper as a MISS (drop it, load fresh), never instantiate from it.
+    /// </summary>
+    [System.NonSerialized]
+    public volatile bool IsUnloaded;
     public static TimeSpan TimeSpan = TimeSpan.FromSeconds(BasisBeeConstants.TimeUntilMemoryRemoval);
     /// <summary>
     /// for example this is the scene path. we can use this to see 
@@ -101,6 +108,7 @@ public class BasisTrackedBundleWrapper
                 if (isGltfContent)
                 {
                     BasisDebug.Log("Unloading generic (glTF) template " + (GltfTemplateHolder != null ? GltfTemplateHolder.name : "<destroyed>"));
+                    IsUnloaded = true;
                     UnloadGltfTemplate();
                     return true;
                 }
@@ -117,6 +125,12 @@ public class BasisTrackedBundleWrapper
                     return false;
                 }
                 BasisDebug.Log("Unloading Bundle " + AssetBundle.name);
+                // Flagged BEFORE the unload: the wrapper stays in the registry until the
+                // caller's continuation removes it, and a lookup in that gap must see a dead
+                // wrapper, not a loadable one — Unload(true) destroys every asset instances
+                // depend on (an instantiate from this wrapper afterwards produces an avatar
+                // whose Animator.avatar is null).
+                IsUnloaded = true;
                 AssetBundle.Unload(true);
                 #if UNITY_BUNDLEUNLOAD
                 AssetBundle = null;

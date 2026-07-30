@@ -203,7 +203,6 @@ public static class BasisIOManagement
 
         // 3) Parse connector
         BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
-        BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
             return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: Failed to parse connector metadata (null).");
@@ -367,7 +366,6 @@ public static class BasisIOManagement
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
 
         var connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorRes.Value.Data, progressCallback);
-        BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
         if (connector == null)
         {
             return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
@@ -443,7 +441,6 @@ public static class BasisIOManagement
         }
 
         BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback).ConfigureAwait(false);
-        BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
             return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
@@ -503,7 +500,6 @@ public static class BasisIOManagement
             return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
 
         BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback).ConfigureAwait(false);
-        BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
             return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
