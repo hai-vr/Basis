@@ -33,6 +33,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private BasisMenuPanel _panel;
         private RectTransform _scrollContent;
+        private BasisPanelSearch _search;
         private PanelDropdown _selector;
         private PanelElementDescriptor _emptyState;
         private PanelElementDescriptor _hiddenState;
@@ -65,6 +66,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelToggle _limitRenderRateToggle;
         private PanelSlider _renderRateSlider;
         private PanelButton _resetPageButton;
+        private PanelButton _resetTopButton;
         private PanelButton _timerButton;
         private int _lastCountdownShown = -1;
         private const string TimerIdleLabel = "Timer";
@@ -270,12 +272,37 @@ namespace Basis.BasisUI.HandHeldCamera
 
             BuildResetButton(_scrollContent);
 
+            BuildSearch();
+
             MakeSlidersLive(_scrollContent);
             AssignSliderResetDefaults();
 
             RebuildSelector();
 
             SetPanelTickSubscription(true);
+        }
+
+        /// <summary>
+        /// Adds the page's search field. Scoped to this panel by design — the camera's controls are
+        /// its own, and a query here is not meant to reach the main Settings tabs.
+        /// <para>
+        /// Built last so it can see the finished page, then lifted to just under the shot buttons.
+        /// The rows that say which camera is being driven are exempt: they frame the page rather than
+        /// belong to it, and a filtered page with no selector left on it would be unusable.
+        /// </para>
+        /// </summary>
+        private void BuildSearch()
+        {
+            _search = BasisPanelSearch.Attach(_scrollContent);
+            if (_search == null) return;
+
+            _search.KeepVisible(_topActions);
+            _search.KeepVisible(_selector);
+            _search.KeepVisible(_emptyState);
+            _search.KeepVisible(_hiddenState);
+
+            int topIndex = _topActions != null ? _topActions.GetSiblingIndex() + 1 : 0;
+            _search.Field.transform.SetSiblingIndex(topIndex);
         }
 
         /// <summary>
@@ -364,28 +391,30 @@ namespace Basis.BasisUI.HandHeldCamera
         {
             _resetPageButton = PanelButton.CreateNew(parent);
             _resetPageButton.Descriptor.SetTitle(BasisLocalization.Get("ui.resetPage.title", StaticTitle));
-            _resetPageButton.OnClicked += () =>
-            {
-                // Hold the camera across the dialogue: closing the panel clears _activeCamera.
-                BasisHandHeldCamera camera = _activeCamera;
-                if (camera == null) return;
+            _resetPageButton.OnClicked += PromptResetSettings;
+        }
 
-                BasisMainMenu.Instance.OpenDialogue(
-                    BasisLocalization.Get("ui.resetPage.title", StaticTitle),
-                    BasisLocalization.Get("ui.resetPage.confirm", StaticTitle),
-                    BasisLocalization.Get("ui.reset"),
-                    BasisLocalization.Get("ui.cancel"),
-                    confirmed =>
-                    {
-                        if (!confirmed || camera == null) return;
+        private void PromptResetSettings()
+        {
+            // Hold the camera across the dialogue: closing the panel clears _activeCamera.
+            BasisHandHeldCamera camera = _activeCamera;
+            if (camera == null) return;
 
-                        camera.HandHeld.ResetSettings();
-                        BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
-                        BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
-                        BasisMainMenu.Close();
-                        BasisMainMenu.OpenWithProvider(StaticTitle);
-                    });
-            };
+            BasisMainMenu.Instance.OpenDialogue(
+                BasisLocalization.Get("ui.resetPage.title", StaticTitle),
+                BasisLocalization.Get("ui.resetPage.confirm", StaticTitle),
+                BasisLocalization.Get("ui.reset"),
+                BasisLocalization.Get("ui.cancel"),
+                confirmed =>
+                {
+                    if (!confirmed || camera == null) return;
+
+                    camera.HandHeld.ResetSettings();
+                    BasisSettingsDefaults.LimitHandHeldCameraRate.ResetToDefault();
+                    BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
+                    BasisMainMenu.Close();
+                    BasisMainMenu.OpenWithProvider(StaticTitle);
+                });
         }
 
         /// <summary>
@@ -412,6 +441,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ClearCinematicReferences();
             _panel = null;
             _scrollContent = null;
+            _search = null;
             _selector = null;
             _emptyState = null;
             _hiddenState = null;
@@ -453,6 +483,7 @@ namespace Basis.BasisUI.HandHeldCamera
 #endif
             _followGroup = null;
             _resetPageButton = null;
+            _resetTopButton = null;
             _topActions = null;
             _timerButton = null;
             _lastCountdownShown = -1;
@@ -1266,6 +1297,9 @@ namespace Basis.BasisUI.HandHeldCamera
                 RefreshTimerLabel();
             };
 
+            _resetTopButton = PanelButton.CreateNew(_topActions);
+            _resetTopButton.Descriptor.SetTitle(BasisLocalization.Get("ui.reset"));
+            _resetTopButton.OnClicked += PromptResetSettings;
         }
 
         private void RebuildSelector()
@@ -1340,7 +1374,9 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_performanceSection, _performanceGroup, active);
             SetSectionActive(_gizmoSection, _gizmoGroup, active);
             if (_resetPageButton != null) _resetPageButton.gameObject.SetActive(active);
+            if (_search != null) _search.Field.gameObject.SetActive(active);
 
+            if (active) _search?.Refresh();
             ForceLayoutRebuild(null);
         }
 
@@ -1477,6 +1513,10 @@ namespace Basis.BasisUI.HandHeldCamera
             // Re-evaluate from scratch for the newly selected camera.
             _lastHiddenState = null;
             RefreshHiddenState();
+
+            // Swapping cameras re-shows the rows the previous one had hidden, so re-apply any query
+            // on top rather than leaving unrelated settings sitting in a filtered page.
+            _search?.Refresh();
         }
 
         private static int FindResolutionIndex(BasisHandHeldCameraMetaData metaData, int width, int height)
@@ -1774,6 +1814,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _apertureSlider?.gameObject.SetActive(bokeh);
             _dofFocalLengthSlider?.gameObject.SetActive(bokeh);
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);
+            _search?.Refresh();
             ForceLayoutRebuild(_dofGroup);
         }
 

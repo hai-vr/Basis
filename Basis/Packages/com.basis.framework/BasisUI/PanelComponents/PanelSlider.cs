@@ -134,6 +134,7 @@ namespace Basis.BasisUI
         private TweenGraphicColor _fillColorTween;
         private TweenScale _labelPunchTween;
         private bool _isDragging;
+        private bool _fillPainted;
 
         protected override bool SupportsResetGesture => true;
 
@@ -170,9 +171,6 @@ namespace Basis.BasisUI
         public override void OnCreateEvent()
         {
             base.OnCreateEvent();
-            ApplySliderSettings();
-            SliderComponent.onValueChanged.AddListener(OnSliderValueChanged);
-            SliderConfirmedListener.OnValueConfirmed += OnSliderConfirmed;
 
             // Cache handle rect for scale animations
             if (SliderComponent.handleRect != null)
@@ -195,6 +193,12 @@ namespace Basis.BasisUI
                     _roundedFrontGraphic = roundedFront.GetComponent<Graphic>();
                 }
             }
+
+            // After the graphics are cached — ApplySliderSettings paints the fill and value label,
+            // and can only do that once it knows what to paint.
+            ApplySliderSettings();
+            SliderComponent.onValueChanged.AddListener(OnSliderValueChanged);
+            SliderConfirmedListener.OnValueConfirmed += OnSliderConfirmed;
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -318,19 +322,31 @@ namespace Basis.BasisUI
             }
             _lastCurrentValueText = null;
             _hasLastFormattedValue = false;
+
+            // Paint the fill and the value label now. Nothing else calls ApplyValue until the
+            // value changes, so a slider that is never pushed a value — or is pushed one only
+            // after a section is first expanded — would otherwise sit on the prefab's authored
+            // fill colour and placeholder label until the user dragged it. Reading back from the
+            // Slider rather than Value also picks up the clamp the new min/max just applied.
+            Value = SliderComponent.value;
+            ApplyValue();
         }
 
         public override void SetValueWithoutNotify(float value)
         {
-            base.SetValueWithoutNotify(value);
-            if (SliderComponent != null)
-            {
-                SliderComponent.SetValueWithoutNotify(value);
-            }
-            else
+            if (SliderComponent == null)
             {
                 BasisDebug.LogError("Missing Slider Component!");
+                base.SetValueWithoutNotify(value);
+                return;
             }
+
+            // Move the Slider first, then take its value back: it clamps to min/max and rounds for
+            // wholeNumbers, and base.SetValueWithoutNotify paints from Value. Applying in the other
+            // order left an out-of-range push colouring the fill and labelling the value for a
+            // position the handle was never at.
+            SliderComponent.SetValueWithoutNotify(value);
+            base.SetValueWithoutNotify(SliderComponent.value);
         }
 
         protected override void ApplyValue()
@@ -346,9 +362,11 @@ namespace Basis.BasisUI
                     ? FillColorGradient.Evaluate(t)
                     : Color.Lerp(FillColorMin, FillColorMax, t);
 
-                if (_isDragging)
+                // Instant color while dragging for responsiveness, and on the first paint —
+                // a panel opening should not show every slider fading up from its prefab colour.
+                if (_isDragging || !_fillPainted)
                 {
-                    // Instant color while dragging for responsiveness
+                    _fillPainted = true;
                     FillGraphic.color = targetFillColor;
                     if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;
                 }

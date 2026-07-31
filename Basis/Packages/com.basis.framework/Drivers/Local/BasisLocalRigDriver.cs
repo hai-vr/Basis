@@ -1232,6 +1232,7 @@ namespace Basis.Scripts.Drivers
                 sMarkerIKDestAnimatorEval.Begin();
                 PlayableGraph.Evaluate(deltaTime);
                 sMarkerIKDestAnimatorEval.End();
+                BasisFiniteWatchdog.Checkpoint("IKDest/PostAnimatorEvaluate");
             }
             sMarkerIKDestLocoJoin.Begin();
             bool streamPrefilled = LocomotionPose.TryComplete(PoseSkeleton);
@@ -2051,6 +2052,7 @@ namespace Basis.Scripts.Drivers
                 sMarkerIKDestPoseScatter.Begin();
                 PoseSkeleton.ScatterNow();
                 sMarkerIKDestPoseScatter.End();
+                BasisFiniteWatchdog.Checkpoint("IKDest/PostPoseScatter (FBIK solve output)");
             }
 
             if (!_ikPublishPending)

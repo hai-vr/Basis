@@ -74,6 +74,22 @@ namespace Basis.BasisUI
             return _canvasGroup;
         }
 
+        /// <summary>
+        /// Hides the page at once, with no fade. For a page built without being selected — search
+        /// realizes every tab so it can look inside them — where fading out a page the user never
+        /// asked for would flash it over the one they are on.
+        /// </summary>
+        public void HideImmediate()
+        {
+            CanvasGroup cg = GetCanvasGroup();
+            if (_fadeTween != null && _fadeTween.Active && _fadeTween.Target == cg) _fadeTween.Reset();
+
+            cg.alpha = 0f;
+            cg.interactable = false;
+            cg.blocksRaycasts = false;
+            gameObject.SetActive(false);
+        }
+
         public void ShowPage(bool value)
         {
             if (!Application.isPlaying)

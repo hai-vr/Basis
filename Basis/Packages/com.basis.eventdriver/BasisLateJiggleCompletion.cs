@@ -55,6 +55,8 @@ namespace Basis.EventDriver
             {
                 JigglePhysics.CompletePose();
             }
+            BasisFiniteWatchdog.Checkpoint("PostJigglePose (deferred loop step)");
+            BasisFiniteWatchdog.CheckpointRemote("PostJigglePose (deferred loop step)");
         }
 
         private struct BasisJiggleCompleteStep { }

@@ -24,9 +24,11 @@ public class BasisFiniteWatchdogWindow : EditorWindow
 
         EditorGUILayout.HelpBox(
             "Hunts the first NaN behind 'Invalid AABB' / 'IsFinite(distanceForSort)' spam. " +
-            "While armed: cameras + local avatar root are checked every frame, every renderer's " +
-            "bounds on the sweep cadence. The first hit logs one [FiniteWatchdog] error naming " +
-            "the object and its ancestor chain, then the watchdog disarms.",
+            "While armed: every stage in the frame that writes transforms is bracketed by a " +
+            "local-space scan (local player + remote players), cameras + local avatar root are " +
+            "checked every frame, and every renderer's bounds on the sweep cadence. The first hit " +
+            "logs one [FiniteWatchdog] error naming the object, the stage that wrote it and its " +
+            "ancestor chain, then the watchdog disarms.",
             MessageType.Info);
 
         BasisFiniteWatchdog.Enabled = EditorGUILayout.ToggleLeft("Enabled (scans while in play mode)", BasisFiniteWatchdog.Enabled);
@@ -35,6 +37,17 @@ public class BasisFiniteWatchdogWindow : EditorWindow
         BasisFiniteWatchdog.FullSweepIntervalSeconds = EditorGUILayout.Slider(
             new GUIContent("Renderer sweep interval (s)", "How often the all-renderers bounds sweep runs. The per-frame camera/root checks are free."),
             BasisFiniteWatchdog.FullSweepIntervalSeconds, 0.25f, 10f);
+
+        BasisFiniteWatchdog.ScanRemotePlayers = EditorGUILayout.ToggleLeft(
+            new GUIContent("Scan remote players", "Include remote avatars, mouth markers and nameplates in the stage checkpoints. Remote and local avatars share slot-indexed job state, so a corrupt remote is usually how corruption reaches the local one."),
+            BasisFiniteWatchdog.ScanRemotePlayers);
+
+        using (new EditorGUI.DisabledScope(!BasisFiniteWatchdog.ScanRemotePlayers))
+        {
+            BasisFiniteWatchdog.RemotePlayersPerCheckpoint = EditorGUILayout.IntSlider(
+                new GUIContent("Remote players / checkpoint", "Remote avatars visited per remote checkpoint. The cursor carries across calls, so the whole lobby is still covered — just spread over frames. 0 scans everyone every time."),
+                BasisFiniteWatchdog.RemotePlayersPerCheckpoint, 0, 32);
+        }
 
         using (new EditorGUILayout.HorizontalScope())
         {
@@ -47,6 +60,11 @@ public class BasisFiniteWatchdogWindow : EditorWindow
                 BasisFiniteWatchdog.Rearm();
             }
         }
+
+        EditorGUILayout.LabelField("Coverage last frame",
+            $"{BasisFiniteWatchdog.CheckpointsLastFrame} checkpoints, {BasisFiniteWatchdog.TransformsScannedLastFrame} transforms read");
+        EditorGUILayout.LabelField("Last clean stage",
+            string.IsNullOrEmpty(BasisFiniteWatchdog.LastCleanStage) ? "—" : BasisFiniteWatchdog.LastCleanStage);
 
         if (!string.IsNullOrEmpty(BasisFiniteWatchdog.LastReport))
         {

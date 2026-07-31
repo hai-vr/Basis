@@ -755,6 +755,7 @@ namespace Basis.Scripts.Avatar
             Player.LocalAvatarDriver.InitialLocalCalibration(Player, headChop);
             Player.BasisAvatar.NotifyAvatarReady(true);
             BasisLocalAvatarDriver.CalibrationComplete?.Invoke();
+            BasisFiniteWatchdog.Checkpoint("LocalCalibration/Complete");
         }
 
         /// <summary>

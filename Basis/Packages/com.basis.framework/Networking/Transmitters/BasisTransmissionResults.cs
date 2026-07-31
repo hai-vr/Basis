@@ -39,14 +39,12 @@ public partial class BasisTransmissionResults
     [System.NonSerialized] public BasisAvatarCapJob avatarCapJob;
     [System.NonSerialized] public BasisAudioCapJob audioCapJob;
     [System.NonSerialized] public BasisDirectionalDampenJob dampenJob;
-    [System.NonSerialized] public BasisViewConeAvatarJob viewConeJob;
 
     [System.NonSerialized] public JobHandle distanceJobHandle;
     [System.NonSerialized] public JobHandle reduceJobHandle;
     [System.NonSerialized] public JobHandle avatarCapJobHandle;
     [System.NonSerialized] public JobHandle audioCapJobHandle;
     [System.NonSerialized] public JobHandle dampenJobHandle;
-    [System.NonSerialized] public JobHandle viewConeJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -317,27 +315,6 @@ public partial class BasisTransmissionResults
             audioCapJobHandle = distanceJobHandle;
         }
 
-        // View cone avatar job: filters AvatarRange to only show avatars in the
-        // direction the player is looking. Depends on distance + cap jobs.
-        if (SMModuleDistanceBasedReductions.UseViewConeAvatars)
-        {
-            float viewAngle = SMModuleDistanceBasedReductions.ViewConeAngle;
-            float halfConeRad = viewAngle * 0.5f * Mathf.Deg2Rad;
-            // 10° wider exit cone prevents flickering when camera wobbles near the boundary
-            float exitHalfConeRad = math.min(halfConeRad + 10f * Mathf.Deg2Rad, Mathf.PI);
-
-            viewConeJob.ListenerPosition = BasisLocalCameraDriver.Position;
-            viewConeJob.ListenerForward = BasisLocalCameraDriver.Forward();
-            viewConeJob.CosHalfCone = Mathf.Cos(halfConeRad);
-            viewConeJob.CosHalfConeExit = Mathf.Cos(exitHalfConeRad);
-
-            viewConeJobHandle = viewConeJob.Schedule(receiverCount, 64, avatarCapJobHandle);
-        }
-        else
-        {
-            viewConeJobHandle = avatarCapJobHandle;
-        }
-
         // Directional dampening job: only reads targetPositions (shared ReadOnly
         // with distance job) — no dependencies, runs in parallel with everything.
         float coneAngle = BasisSettingsDefaults.RAListenerConeAngle.RawValue;
@@ -365,8 +342,8 @@ public partial class BasisTransmissionResults
         // worker until something flushes it, and without this the first flush is the
         // Complete() below. That made the Compress call under it pure serial latency ahead of
         // a job chain that had not started: the main thread paid schedule + full chain +
-        // compress instead of overlapping the chain with compress. Four dependency stages deep
-        // (distance -> reduce/caps -> viewCone) at a full instance, that is the whole tick.
+        // compress instead of overlapping the chain with compress. Several dependency stages deep
+        // (distance -> reduce/caps) at a full instance, that is the whole tick.
         JobHandle.ScheduleBatchedJobs();
 
 #if UNITY_EDITOR
@@ -389,7 +366,7 @@ public partial class BasisTransmissionResults
         // Finish before consuming results — single sync point via CombineDependencies
         using (sMarkerJobComplete.Auto())
         {
-            var combined = JobHandle.CombineDependencies(reduceJobHandle, viewConeJobHandle, audioCapJobHandle);
+            var combined = JobHandle.CombineDependencies(reduceJobHandle, avatarCapJobHandle, audioCapJobHandle);
             if (dampenEnabled)
             {
                 combined = JobHandle.CombineDependencies(combined, dampenJobHandle);
@@ -655,8 +632,6 @@ public partial class BasisTransmissionResults
         distanceJob.AvatarRange = AvatarRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
         avatarCapJob.AvatarRange = AvatarRange;
-        viewConeJob.AvatarRange = AvatarRange;
-        viewConeJob.PrevInAvatarRange = PrevInAvatarRange;
 
         distanceJob.MeshLodLevel = MeshLodLevel;
         distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
@@ -934,10 +909,6 @@ public partial class BasisTransmissionResults
         audioCapJob.Entries = audioCapEntries;
         audioCapJob.StickinessBonus = 0.75f;
 
-        viewConeJob.TargetPositions = targetPositions;
-        viewConeJob.AvatarRange = AvatarRange;
-        viewConeJob.PrevInAvatarRange = PrevInAvatarRange;
-
         dampenJob.TargetPositions = targetPositions;
         dampenJob.Multipliers = directionalDampening;
 
@@ -993,7 +964,6 @@ public partial class BasisTransmissionResults
         if (!reduceJobHandle.IsCompleted) reduceJobHandle.Complete();
         if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
         if (!audioCapJobHandle.IsCompleted) audioCapJobHandle.Complete();
-        if (!viewConeJobHandle.IsCompleted) viewConeJobHandle.Complete();
         if (!dampenJobHandle.IsCompleted) dampenJobHandle.Complete();
 
         if (targetPositions.IsCreated) targetPositions.Dispose();

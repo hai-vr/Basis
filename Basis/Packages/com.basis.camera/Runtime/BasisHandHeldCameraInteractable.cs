@@ -721,12 +721,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         CanSelfSteal = false;
 
         // Desktop: lock player look/move for UI selection
-        string className = nameof(BasisHandHeldCameraInteractable);
-        bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
-        if (inDesktop)
-            LockPlayer(className);
-
-        BasisCursorManagement.UnlockCursor(nameof(BasisHandHeldCamera),false);
+        AcquireCursorLock();
 
         if (HHC.captureCamera == null)
         {
@@ -1144,6 +1139,37 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         isPlayerManuallyUnlocked = false;
     }
 
+    /// <summary>
+    /// Takes the camera's cursor-unlock request and, on desktop, its look/move locks, so the
+    /// panel is clickable. Paired with <see cref="ReleaseCursorLock"/>.
+    /// </summary>
+    public void AcquireCursorLock()
+    {
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            LockPlayer(nameof(BasisHandHeldCameraInteractable));
+        }
+
+        BasisCursorManagement.UnlockCursor(nameof(BasisHandHeldCamera), false);
+    }
+
+    /// <summary>
+    /// Drops the camera's cursor-unlock request. If someone else still wants the cursor free —
+    /// the main menu, most often — the cursor stays free and look has to stay blocked with it,
+    /// which is what the camera's own look lock was doing until it was released. Without this
+    /// the cursor is loose and mouse-look is live at the same time, so navigating the settings
+    /// UI spins the player.
+    /// </summary>
+    public void ReleaseCursorLock()
+    {
+        BasisCursorManagement.LockCursor(nameof(BasisHandHeldCamera));
+
+        if (BasisDeviceManagement.IsUserInDesktop() && Cursor.lockState != CursorLockMode.Locked)
+        {
+            LookLock.Add(nameof(BasisCursorManagement));
+        }
+    }
+
     /// <summary>Applies look/move locks to the player (desktop).</summary>
     private void LockPlayer(string className)
     {
@@ -1496,7 +1522,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         DisposeCinematics();
 
-        BasisCursorManagement.LockCursor(nameof(BasisHandHeldCamera));
+        ReleaseCursorLock();
         base.OnDestroy();
     }
 }

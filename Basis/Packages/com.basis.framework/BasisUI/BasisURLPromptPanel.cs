@@ -60,6 +60,10 @@ namespace Basis.BasisUI
             // to the notification center as a pending entry that can be brought back up.
             CloseButton.OnClicked += () => ReleaseInstance();
             OnInstanceReleased += CaptureIfUnresolved;
+
+            // A load request may have forced the menu open, which tore down the page and
+            // virtual keyboard the user had up; put them back now the prompt is done.
+            OnInstanceReleased += BasisMenuPromptRestore.RestoreAfterPrompt;
         }
 
         public void Setup(string url, Action<LoadResponse> callback)

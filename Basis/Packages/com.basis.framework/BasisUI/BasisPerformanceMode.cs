@@ -267,7 +267,7 @@ namespace Basis.BasisUI
         /// </summary>
         public static void DescribeLevel(BasisPerformanceLevel level,
             out float avatarRange, out float maxVisibleAvatars, out float poseLod,
-            out float avatarMeshLodPercent, out float viewConeAngle)
+            out float avatarMeshLodPercent)
         {
             EnsureInitialized();
 
@@ -275,7 +275,6 @@ namespace Basis.BasisUI
             maxVisibleAvatars = PreviewFloat(BasisSettingsDefaults.MaxVisibleAvatars, level);
             poseLod = PreviewFloat(BasisSettingsDefaults.PoseLOD, level);
             avatarMeshLodPercent = PreviewFloat(BasisSettingsDefaults.AvatarMeshLOD, level) * 100f;
-            viewConeAngle = PreviewFloat(BasisSettingsDefaults.ViewConeAngle, level);
         }
 
         internal static void EnsureInitialized()
@@ -675,7 +674,6 @@ namespace Basis.BasisUI
             {
                 Floats(BasisSettingsDefaults.AvatarRange, 25f, 18f, 12f),
                 Floats(BasisSettingsDefaults.MaxVisibleAvatars, 60f, 30f, 15f, zeroIsUnlimited: true),
-                Floats(BasisSettingsDefaults.ViewConeAngle, 180f, 150f, 120f),
                 Floats(BasisSettingsDefaults.PoseLOD, 2f, 3f, 5f, higherIsCheaper: true),
                 Floats(BasisSettingsDefaults.AvatarMeshLOD, 0.08f, 0.12f, 0.2f, higherIsCheaper: true),
                 Floats(BasisSettingsDefaults.GlobalMeshLOD, 20f, 40f, 60f, higherIsCheaper: true),
@@ -707,7 +705,6 @@ namespace Basis.BasisUI
             _boolRules = new[]
             {
                 Bools(BasisSettingsDefaults.UseMaxVisibleAvatars, true, true, true),
-                Bools(BasisSettingsDefaults.UseViewConeAvatars, true, true, true),
                 Bools(BasisSettingsDefaults.UseMaxAudioSources, true, true, true),
                 Bools(BasisSettingsDefaults.UseOpenLipSyncLimit, true, true, true),
 

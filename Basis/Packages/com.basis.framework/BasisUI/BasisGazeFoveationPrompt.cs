@@ -70,9 +70,15 @@ namespace Basis.BasisUI
 
             panel.OnInstanceReleased += () =>
             {
-                if (answered) return;
-                answered = true;
-                onDismissed?.Invoke();
+                if (!answered)
+                {
+                    answered = true;
+                    onDismissed?.Invoke();
+                }
+
+                // Opening the menu above tore down the page and virtual keyboard the user had
+                // up; put them back now the prompt is gone.
+                BasisMenuPromptRestore.RestoreAfterPrompt();
             };
 
             panel.Descriptor.ForceRebuild();

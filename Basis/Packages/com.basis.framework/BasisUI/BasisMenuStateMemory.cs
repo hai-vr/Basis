@@ -66,6 +66,13 @@ namespace Basis.BasisUI
             BasisSettingsSystem.SaveStringQuiet(ScrollPrefix + tabKey, value.ToString(CultureInfo.InvariantCulture));
         }
 
+        /// <summary>
+        /// While set, expanding or collapsing a section is not remembered. Panel search opens every
+        /// section to look inside it and closes them again when the query clears; those are not the
+        /// user's choices, so they must not overwrite the layout they left behind.
+        /// </summary>
+        public static bool SuppressSectionWrites;
+
         public static bool GetSection(string sectionKey, bool fallback)
         {
             return BasisSettingsSystem.HasSaveData(sectionKey)
@@ -75,6 +82,11 @@ namespace Basis.BasisUI
 
         public static void SetSection(string sectionKey, bool value)
         {
+            if (SuppressSectionWrites)
+            {
+                return;
+            }
+
             BasisSettingsSystem.SaveStringQuiet(sectionKey, value ? "true" : "false");
         }
 

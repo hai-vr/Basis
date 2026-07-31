@@ -166,15 +166,6 @@ namespace Basis.BasisUI
         /// </summary>
         public static BasisSettingsBinding<float> PoseLOD = new("poselod", new BasisPlatformDefault<float>(0));
 
-        public static BasisSettingsBinding<bool> UseViewConeAvatars = new("useviewconeavatars", new BasisPlatformDefault<bool>(false));
-
-        /// <summary>
-        /// Full cone angle in degrees for view-cone avatar visibility.
-        /// 180 = hemisphere in front, 360 = disabled (everything visible).
-        /// Default 180 degrees.
-        /// </summary>
-        public static BasisSettingsBinding<float> ViewConeAngle = new("viewconeangle", new BasisPlatformDefault<float>(180f));
-
         public static BasisSettingsBinding<float> SnapTurnAngle = new("snapturnangle", new BasisPlatformDefault<float>(25f));
 
         public static BasisSettingsBinding<float> mousesensitivty = new("mousesensitivty", new BasisPlatformDefault<float>(1));
@@ -1894,8 +1885,6 @@ namespace Basis.BasisUI
             UseOpenLipSyncLimit.LoadBindingValue();
             OpenLipSyncMaxSlots.LoadBindingValue();
             PoseLOD.LoadBindingValue();
-            UseViewConeAvatars.LoadBindingValue();
-            ViewConeAngle.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();

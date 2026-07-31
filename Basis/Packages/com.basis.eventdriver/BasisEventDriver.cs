@@ -406,12 +406,11 @@ namespace Basis.EventDriver
 
             ProfileLateUpdateInit();
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Bone-writing systems are fenced from each other through this method, so a local-space
             // scan between them narrows a bad value to the one that just ran. Costs nothing unless
             // the watchdog is armed from Basis/Debug/Finite Watchdog.
             BasisFiniteWatchdog.Checkpoint("FrameStart (animator / physics / previous frame)");
-#endif
+            BasisFiniteWatchdog.CheckpointRemote("FrameStart (animator / physics / previous frame)");
 
             if (StateOfOnRenderBefore)
             {
@@ -484,6 +483,7 @@ namespace Basis.EventDriver
                     Basis.Scripts.Networking.Sync.BasisSyncDriver.CompleteRemote();
                 }
                 ProfileEnd2(PROF_NET_COMPLETE_REMOTE_LERP);
+                BasisFiniteWatchdog.CheckpointRemote("PostSyncInterpolation (synced transforms)");
                 using (Prof.NetFireAfterRemoteSync.Auto())
                 {
                     BasisLocalPlayer.FireAfterRemoteSyncInterpolated();
@@ -496,6 +496,7 @@ namespace Basis.EventDriver
                 ProfileEnd2(PROF_NET_SIMULATE_APPLY);
                 ProfileEnd(PROF_NETWORK_APPLY);
             }
+            BasisFiniteWatchdog.CheckpointRemote("PostNetworkApply (remote pose apply)");
 
             // ── Device management ──
             ProfileBegin(PROF_DEVICE_MANAGEMENT);
@@ -507,6 +508,7 @@ namespace Basis.EventDriver
                 }
             }
             ProfileEnd(PROF_DEVICE_MANAGEMENT);
+            BasisFiniteWatchdog.Checkpoint("PostDeviceManagement (tracker / device poses)");
 
             // ── BTween ──
             ProfileBegin(PROF_BTWEEN);
@@ -533,6 +535,7 @@ namespace Basis.EventDriver
                 }
             }
             ProfileEnd(PROF_LOCAL_PLAYER);
+            BasisFiniteWatchdog.Checkpoint("PostLocalPlayerSimulate (FBIK solve in flight)");
 
             // Blink and viseme write local blendshape weights only — no pose reads, no jobs — so
             // they run inside the solve window as overlap rather than ahead of Simulate. They stay
@@ -554,6 +557,7 @@ namespace Basis.EventDriver
             {
                 BasisNetworkManagement.CompleteRemoteBoneJobSystemJobs();
             }
+            BasisFiniteWatchdog.CheckpointRemote("PostRemoteBoneJobs (skeleton / hips / mouth / nameplate write)");
 
             // Finger apply + eye schedule run inside the solve window: the head is the solve's
             // INPUT (head-pinned), and the eye driver reads only the render-latched camera statics
@@ -568,6 +572,7 @@ namespace Basis.EventDriver
                 {
                     localplayer.LocalHandDriver.Apply();
                 }
+                BasisFiniteWatchdog.Checkpoint("PostFingerApply");
                 using (Prof.LocalEyeSimulate.Auto())
                 {
                     localplayer.LocalEyeDriver.Simulate(DeltaTime);
@@ -578,6 +583,7 @@ namespace Basis.EventDriver
             {
                 Basis.Scripts.Networking.Sync.BasisSyncDriver.ReweldAttachedPickups();
             }
+            BasisFiniteWatchdog.Checkpoint("PostPickupReweld");
 
             // ── Schedule cluster: nameplate pulse, billboard, remote face ──
             // Grouped directly after the remote bone complete (the face eye-write TAA touches
@@ -622,6 +628,7 @@ namespace Basis.EventDriver
                 {
                     BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
                 }
+                BasisFiniteWatchdog.Checkpoint("PostEyeApply");
             }
 
             // ── Local player finish: IK solve join + post-IK tail ──
@@ -641,6 +648,7 @@ namespace Basis.EventDriver
                         BasisLocalCameraDriver.Instance.Simulate(DeltaTime);
                     }
                 }
+                BasisFiniteWatchdog.Checkpoint("PostLocalPlayerFinish (IK join + camera)");
             }
             else
             {
@@ -710,9 +718,8 @@ namespace Basis.EventDriver
             {
                 BasisAuthoredMotionSystem.Complete(authoredMotionJob);
             }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             BasisFiniteWatchdog.Checkpoint("PostAuthoredMotion");
-#endif
+            BasisFiniteWatchdog.CheckpointRemote("PostAuthoredMotion");
 
             // ── Constraints: resolve the BasisConstraint* components ──
             // Sits after authored motion (so a constraint may source an authored bone) and ahead of
@@ -794,6 +801,8 @@ namespace Basis.EventDriver
             {
                 Basis.Scripts.Avatar.BasisAvatarSetupBudget.RunQuietPoint();
             }
+            BasisFiniteWatchdog.Checkpoint("PostAvatarInstall (calibration / far-LOD swap)");
+            BasisFiniteWatchdog.CheckpointRemote("PostAvatarInstall (calibration / far-LOD swap)");
 
             ProfileBegin(PROF_NETWORK_TRANSMIT);
             using (Prof.AfterAvatarChanges.Auto())
@@ -811,17 +820,15 @@ namespace Basis.EventDriver
             // jiggle has prepared but not yet dispatched. A read here cannot stall on a
             // TransformAccessArray job, and a write here is picked up by JigglePhysics this frame
             // instead of next. Every entry runs under its own catch inside the registry.
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             BasisFiniteWatchdog.Checkpoint("PostConstraints (+ avatar install, transmit)");
-#endif
+            BasisFiniteWatchdog.CheckpointRemote("PostConstraints (+ avatar install, transmit)");
 
             using (Prof.FrameSync.Auto())
             {
                 BasisFrameSyncRegistry.Simulate();
             }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             BasisFiniteWatchdog.Checkpoint("PostFrameSync (pre jiggle dispatch)");
-#endif
+            BasisFiniteWatchdog.CheckpointRemote("PostFrameSync (pre jiggle dispatch)");
 
             if (jiggleReady)
             {
@@ -845,6 +852,7 @@ namespace Basis.EventDriver
                 BasisRemoteNamePlateDriver.CompleteNamePlates(TimeAsDouble);
             }
             ProfileEnd(PROF_NAMEPLATE_COMPLETE);
+            BasisFiniteWatchdog.CheckpointRemote("PostNamePlates");
 
 #if STEAMAUDIO_ENABLED
             // ── SteamAudio apply ──
@@ -905,9 +913,8 @@ namespace Basis.EventDriver
                 {
                     JigglePhysics.CompletePose();
                 }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                BasisFiniteWatchdog.Checkpoint("PostJigglePose");
-#endif
+                BasisFiniteWatchdog.Checkpoint("PostJigglePose (inline)");
+                BasisFiniteWatchdog.CheckpointRemote("PostJigglePose (inline)");
             }
             ProfileEnd(PROF_JIGGLE_COMPLETE_POSE);
 
@@ -944,15 +951,12 @@ namespace Basis.EventDriver
                 BasisTrackerMarkerGizmos.Tick();
                 BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             // One-shot NaN hunter for the Invalid AABB / IsFinite(distanceForSort) spam: names
             // the first non-finite camera/renderer and disarms. Armed from Basis/Debug/Finite
             // Watchdog; costs nothing while off.
-            if (BasisFiniteWatchdog.Enabled)
-            {
-                BasisFiniteWatchdog.Tick();
-            }
-#endif
+            BasisFiniteWatchdog.Checkpoint("LateUpdateTail");
+            BasisFiniteWatchdog.CheckpointRemote("LateUpdateTail");
+            BasisFiniteWatchdog.Tick();
             ProfileLateUpdateFinish();
         }
         /// <summary>
@@ -986,11 +990,13 @@ namespace Basis.EventDriver
             // be destroyed under it.
             try { using (Prof.RemoteFaceApply.Auto()) BasisRemoteFaceManagement.Apply(); }
             catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver remote-face apply failed: {ex}", BasisDebug.LogTag.Event); }
+            BasisFiniteWatchdog.CheckpointRemote("PostRemoteFaceApply (remote eye bones)");
 
             if (BasisLocalPlayer.PlayerReady)
             {
                 try { using (Prof.SimulateOnRender.Auto()) BasisLocalPlayer.Instance.SimulateOnRender(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver.SimulateOnRender failed: {ex}", BasisDebug.LogTag.Event); }
+                BasisFiniteWatchdog.Checkpoint("PostSimulateOnRender");
 
 
                 try { using (Prof.EyeTrackingSimulate.Auto()) Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
@@ -1008,6 +1014,8 @@ namespace Basis.EventDriver
             {
                 BasisLocalCameraDriver.RaiseBeforeRender();
             }
+            BasisFiniteWatchdog.Checkpoint("PostBeforeRenderCallbacks (last write before the render)");
+            BasisFiniteWatchdog.CheckpointRemote("PostBeforeRenderCallbacks (last write before the render)");
 
             StateOfOnRenderBefore = false;
 

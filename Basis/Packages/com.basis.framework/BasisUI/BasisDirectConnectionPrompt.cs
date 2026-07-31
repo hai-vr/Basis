@@ -111,11 +111,18 @@ namespace Basis.BasisUI
             // Closed before answering (menu closed, etc.) → recover from the bell.
             panel.OnInstanceReleased += () =>
             {
-                if (answered) return;
-                answered = true;
-                BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
-                    reopen: () => Show(displayName, uuid, respond, true),
-                    onDismiss: () => respond(false));
+                if (!answered)
+                {
+                    answered = true;
+                    BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Network,
+                        reopen: () => Show(displayName, uuid, respond, true),
+                        onDismiss: () => respond(false));
+                }
+
+                // Opening the menu above tore down the page and virtual keyboard the user had
+                // up; put them back now the prompt is gone. Runs after the pending entry is
+                // filed so a restored notification page already lists it.
+                BasisMenuPromptRestore.RestoreAfterPrompt();
             };
 
             panel.Descriptor.ForceRebuild();

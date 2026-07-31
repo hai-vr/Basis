@@ -488,6 +488,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         SetCameraHidden(false);
         SetAutoFollowEnabled(false);
         PinSpace = CameraPinSpace.HandHeld;
+        AcquireCursorLock();
     }
 
     /// <summary>Forward distance the camera spawns at, matching the Photo Camera catalog offset (0,0,0.5).</summary>

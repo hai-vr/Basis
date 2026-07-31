@@ -150,7 +150,7 @@ namespace Basis.BasisUI
             bool preConnect = continueConnect != null;
             BasisPerformanceMode.DescribeLevel(level,
                 out float avatarRange, out float maxVisibleAvatars, out float poseLodBias,
-                out float avatarMeshLodPercent, out float viewConeAngle);
+                out float avatarMeshLodPercent);
 
             string title = BasisLocalization.Get("settings.highPlayerCap.prompt.title");
             string body = BasisLocalization.Get(
@@ -159,8 +159,7 @@ namespace Basis.BasisUI
                 avatarRange,
                 maxVisibleAvatars,
                 poseLodBias,
-                avatarMeshLodPercent,
-                viewConeAngle);
+                avatarMeshLodPercent);
 
             string levelLine = BasisLocalization.Get("settings.highPlayerCap.prompt.levelLine",
                 BasisPerformanceMode.DisplayName(level));
@@ -247,16 +246,24 @@ namespace Basis.BasisUI
             // pre-connect → the user asked to connect, so the connection still proceeds.
             panel.OnInstanceReleased += () =>
             {
-                if (answered) return;
-                answered = true;
-                if (preConnect)
+                if (!answered)
                 {
-                    continueConnect.Invoke();
-                    return;
+                    answered = true;
+                    if (preConnect)
+                    {
+                        continueConnect.Invoke();
+                    }
+                    else
+                    {
+                        BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Information,
+                            reopen: () => ShowPrompt(threshold, level, true),
+                            onDismiss: () => { });
+                    }
                 }
-                BasisNotificationCenter.AddPending(title, body, AddressableAssets.Sprites.Information,
-                    reopen: () => ShowPrompt(threshold, level, true),
-                    onDismiss: () => { });
+
+                // Opening the menu above tore down the page and virtual keyboard the user had
+                // up; put them back now the prompt is gone.
+                BasisMenuPromptRestore.RestoreAfterPrompt();
             };
 
             panel.Descriptor.ForceRebuild();

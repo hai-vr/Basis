@@ -271,7 +271,6 @@ namespace Basis.BasisUI
             bitrateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("settings.admin.playerOpusBitrate"), 6000f, 128000f, true, 0, ValueDisplayMode.Compact));
             bitrateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.playerOpusBitrate.tooltip"));
-            bitrateSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.playerOpusBitrate.description"));
             bitrateSlider.SetValueWithoutNotify(DefaultPlayerOpusBitrate);
 
             PanelButton applyBitrate = PanelButton.CreateNew(voiceGroup.ContentParent);

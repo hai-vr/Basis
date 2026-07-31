@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.Text;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using UnityEngine;
 
 /// <summary>
@@ -12,7 +14,13 @@ using UnityEngine;
 /// the FIRST non-finite offender with its full ancestor chain — the deepest non-finite
 /// ancestor is where the NaN entered — and disarms so the report stays readable.
 ///
+/// The stage checkpoints are the sharper instrument: <see cref="Checkpoint"/> and
+/// <see cref="CheckpointRemote"/> are called on both sides of every system in the frame that
+/// writes transforms, so the first stage that trips names the writer rather than a victim.
+///
 /// Off unless <see cref="Enabled"/> is set — toggle it from Basis/Debug/Finite Watchdog.
+/// Every entry point is [Conditional], so the calls themselves are stripped outside the
+/// editor and development builds.
 /// </summary>
 public static class BasisFiniteWatchdog
 {
@@ -25,26 +33,52 @@ public static class BasisFiniteWatchdog
 
     /// <summary>The renderer sweep walks every renderer's bounds, so it runs on this cadence, not per frame.</summary>
     public static float FullSweepIntervalSeconds = 2f;
+    /// <summary>Include remote players in <see cref="CheckpointRemote"/>. Off makes every remote checkpoint free.</summary>
+    public static bool ScanRemotePlayers = true;
+    /// <summary>
+    /// Remote avatars visited per <see cref="CheckpointRemote"/> call. The cursor carries across
+    /// calls and frames, so a full lobby is still covered — just spread out, which keeps a
+    /// 200-player instance from costing 200 skeleton walks per checkpoint. 0 scans everyone.
+    /// </summary>
+    public static int RemotePlayersPerCheckpoint = 4;
     /// <summary>Beyond this a value is reported even when finite — culling breaks on absurd magnitudes too.</summary>
     const float k_AbsurdMagnitude = 1e12f;
+    /// <summary>Avatar swaps leave dead roots in the per-player skeleton cache; drop the lot once it grows past this.</summary>
+    const int k_RemoteCacheCap = 512;
 
     /// <summary>True once a report has fired; re-arm from the debug window to hunt again.</summary>
     public static bool Disarmed => sDisarmed;
     /// <summary>The full text of the last report, for the debug window.</summary>
     public static string LastReport { get; private set; } = string.Empty;
+    /// <summary>The last stage that scanned clean — the writer sits between it and the stage that tripped.</summary>
+    public static string LastCleanStage { get; private set; } = string.Empty;
+    /// <summary>Checkpoint calls that ran on the previous frame, so the window can show the coverage in place.</summary>
+    public static int CheckpointsLastFrame { get; private set; }
+    /// <summary>Transforms read on the previous frame — this is what arming the watchdog actually costs.</summary>
+    public static int TransformsScannedLastFrame { get; private set; }
+
+    static int sCheckpointCount;
+    static int sScannedCount;
 
     public static void Rearm()
     {
         sDisarmed = false;
         LastReport = string.Empty;
+        LastCleanStage = string.Empty;
     }
 
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
     public static void Tick()
     {
         if (!Enabled || sDisarmed)
         {
             return;
         }
+        CheckpointsLastFrame = sCheckpointCount;
+        TransformsScannedLastFrame = sScannedCount;
+        sCheckpointCount = 0;
+        sScannedCount = 0;
         try
         {
             if (!IsSane(BasisLocalCameraDriver.Position))
@@ -144,50 +178,26 @@ public static class BasisFiniteWatchdog
     }
 
     /// <summary>
-    /// Stage-tagged scan of the local avatar's own LOCAL transform values. A non-finite world
+    /// Stage-tagged scan of the LOCAL transform values the local player owns — the avatar
+    /// skeleton, the player/playspace chain above it, and the camera chain. A non-finite world
     /// position is inherited, so it only ever names a victim; a bad LOCAL value is always a direct
     /// write. Call it either side of each system that poses bones and the first stage that trips
     /// names the writer.
     /// </summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
     public static void Checkpoint(string stage)
     {
         if (!Enabled || sDisarmed)
         {
             return;
         }
+        sCheckpointCount++;
         try
         {
-            if (!BasisLocalPlayer.PlayerReady || BasisLocalPlayer.Instance == null)
+            if (!ScanLocal(stage))
             {
-                return;
-            }
-            var avatar = BasisLocalPlayer.Instance.BasisAvatar;
-            if (avatar == null || avatar.transform == null)
-            {
-                return;
-            }
-            Transform root = avatar.transform;
-            if (!ReferenceEquals(root, sCheckpointRoot) || sCheckpointTransforms == null)
-            {
-                sCheckpointRoot = root;
-                sCheckpointTransforms = root.GetComponentsInChildren<Transform>(true);
-            }
-            for (int i = 0; i < sCheckpointTransforms.Length; i++)
-            {
-                Transform t = sCheckpointTransforms[i];
-                if (t == null)
-                {
-                    continue;
-                }
-                Vector3 localPosition = t.localPosition;
-                Vector3 localScale = t.localScale;
-                Quaternion localRotation = t.localRotation;
-                if (IsSane(localPosition) && IsSane(localScale) && IsSaneRotation(localRotation))
-                {
-                    continue;
-                }
-                ReportCheckpoint(stage, t, localPosition, localRotation, localScale);
-                return;
+                LastCleanStage = stage;
             }
         }
         catch (System.Exception e)
@@ -197,15 +207,245 @@ public static class BasisFiniteWatchdog
         }
     }
 
+    /// <summary>
+    /// The same stage-tagged local-TRS scan, run over remote players instead: their avatar
+    /// skeletons plus the mouth marker and nameplate, which are job-positioned scene roots of
+    /// their own. Remote avatars share slot-indexed job state with the local one (the bone
+    /// pipeline and jiggle both index parallel arrays), so a corrupt remote is both a first-class
+    /// symptom and the usual way corruption reaches the local avatar — a local-only scan reports
+    /// the wrong end of that. Budgeted by <see cref="RemotePlayersPerCheckpoint"/>.
+    /// </summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointRemote(string stage)
+    {
+        if (!Enabled || sDisarmed || !ScanRemotePlayers)
+        {
+            return;
+        }
+        sCheckpointCount++;
+        try
+        {
+            if (!ScanRemote(stage))
+            {
+                LastCleanStage = stage;
+            }
+        }
+        catch (System.Exception e)
+        {
+            sDisarmed = true;
+            BasisDebug.LogError($"[FiniteWatchdog] remote checkpoint '{stage}' threw and disarmed: {e}", BasisDebug.LogTag.Core);
+        }
+    }
+
+    /// <summary>
+    /// Scans one named remote player instead of the round-robin slice. For the install paths —
+    /// calibration, far-LOD swap, bone-job (re)registration — where the player that was just
+    /// written is known and is the only one worth looking at.
+    /// </summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointRemote(string stage, BasisRemotePlayer remote)
+    {
+        if (!Enabled || sDisarmed || !ScanRemotePlayers || remote == null || remote.IsDestroyed)
+        {
+            return;
+        }
+        sCheckpointCount++;
+        try
+        {
+            if (!ScanRemotePlayer(stage, remote))
+            {
+                LastCleanStage = stage;
+            }
+        }
+        catch (System.Exception e)
+        {
+            sDisarmed = true;
+            BasisDebug.LogError($"[FiniteWatchdog] remote checkpoint '{stage}' threw and disarmed: {e}", BasisDebug.LogTag.Core);
+        }
+    }
+
     static Transform[] sCheckpointTransforms;
     static Transform sCheckpointRoot;
+    static readonly Dictionary<Transform, Transform[]> sRemoteTransforms = new Dictionary<Transform, Transform[]>();
+    static int sRemoteCursor;
 
-    static void ReportCheckpoint(string stage, Transform offender, Vector3 localPosition, Quaternion localRotation, Vector3 localScale)
+    static bool ScanLocal(string stage)
+    {
+        if (!BasisLocalPlayer.PlayerReady || BasisLocalPlayer.Instance == null)
+        {
+            return false;
+        }
+        var avatar = BasisLocalPlayer.Instance.BasisAvatar;
+        if (avatar == null || avatar.transform == null)
+        {
+            return false;
+        }
+        Transform root = avatar.transform;
+        if (!ReferenceEquals(root, sCheckpointRoot) || sCheckpointTransforms == null)
+        {
+            sCheckpointRoot = root;
+            sCheckpointTransforms = root.GetComponentsInChildren<Transform>(true);
+        }
+
+        if (ScanChainUp(stage, "local player chain", null, root.parent))
+        {
+            return true;
+        }
+
+        bool sawDestroyed = false;
+        if (ScanSet(stage, "local avatar", null, sCheckpointTransforms, ref sawDestroyed))
+        {
+            return true;
+        }
+        if (sawDestroyed)
+        {
+            sCheckpointTransforms = null;
+            sCheckpointRoot = null;
+        }
+
+        Camera cam = BasisLocalCameraDriver.CameraInstance;
+        if (cam != null && ScanChainUp(stage, "local camera chain", null, cam.transform))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    static bool ScanRemote(string stage)
+    {
+        int count = BasisNetworkPlayers.ReceiverCount;
+        var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+        if (snapshot == null || count <= 0)
+        {
+            return false;
+        }
+        if (count > snapshot.Length)
+        {
+            count = snapshot.Length;
+        }
+
+        int budget = RemotePlayersPerCheckpoint <= 0 ? count : Mathf.Min(count, RemotePlayersPerCheckpoint);
+        for (int scanned = 0; scanned < budget; scanned++)
+        {
+            if (sRemoteCursor >= count)
+            {
+                sRemoteCursor = 0;
+            }
+            var receiver = snapshot[sRemoteCursor];
+            sRemoteCursor++;
+            if (receiver == null)
+            {
+                continue;
+            }
+            BasisRemotePlayer remote = receiver.RemotePlayer;
+            if (remote == null || remote.IsDestroyed)
+            {
+                continue;
+            }
+            if (ScanRemotePlayer(stage, remote))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool ScanRemotePlayer(string stage, BasisRemotePlayer remote)
+    {
+        string name = string.IsNullOrEmpty(remote.SafeDisplayName) ? remote.UUID : remote.SafeDisplayName;
+
+        Transform mouth = remote.MouthTransform;
+        if (mouth != null && ScanChainUp(stage, "remote mouth marker", name, mouth))
+        {
+            return true;
+        }
+
+        Transform plate = remote.NamePlateTransformProvider?.Invoke();
+        if (plate != null && ScanChainUp(stage, "remote nameplate", name, plate))
+        {
+            return true;
+        }
+
+        var avatar = remote.BasisAvatar;
+        if (avatar == null || avatar.transform == null)
+        {
+            return false;
+        }
+        Transform root = avatar.transform;
+        if (!sRemoteTransforms.TryGetValue(root, out Transform[] set) || set == null)
+        {
+            if (sRemoteTransforms.Count > k_RemoteCacheCap)
+            {
+                sRemoteTransforms.Clear();
+            }
+            set = root.GetComponentsInChildren<Transform>(true);
+            sRemoteTransforms[root] = set;
+        }
+
+        bool sawDestroyed = false;
+        bool tripped = ScanSet(stage, "remote avatar", name, set, ref sawDestroyed);
+        if (sawDestroyed)
+        {
+            sRemoteTransforms.Remove(root);
+        }
+        return tripped;
+    }
+
+    static bool ScanSet(string stage, string ownerKind, string ownerName, Transform[] set, ref bool sawDestroyed)
+    {
+        for (int i = 0; i < set.Length; i++)
+        {
+            Transform t = set[i];
+            if (t == null)
+            {
+                sawDestroyed = true;
+                continue;
+            }
+            sScannedCount++;
+            t.GetLocalPositionAndRotation(out Vector3 localPosition, out Quaternion localRotation);
+            Vector3 localScale = t.localScale;
+            if (IsSane(localPosition) && IsSane(localScale) && IsSaneRotation(localRotation))
+            {
+                continue;
+            }
+            ReportCheckpoint(stage, ownerKind, ownerName, t, localPosition, localRotation, localScale);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Walks a transform and its ancestors. The avatar skeleton scan starts at the avatar root, so
+    /// anything above it — the player capsule, the playspace, a seat the player is parented to —
+    /// is invisible to it, and a NaN written there shows up as every bone's world position going
+    /// bad while every local value reads clean.
+    /// </summary>
+    static bool ScanChainUp(string stage, string ownerKind, string ownerName, Transform from)
+    {
+        for (Transform walk = from; walk != null; walk = walk.parent)
+        {
+            sScannedCount++;
+            walk.GetLocalPositionAndRotation(out Vector3 localPosition, out Quaternion localRotation);
+            Vector3 localScale = walk.localScale;
+            if (IsSane(localPosition) && IsSane(localScale) && IsSaneRotation(localRotation))
+            {
+                continue;
+            }
+            ReportCheckpoint(stage, ownerKind, ownerName, walk, localPosition, localRotation, localScale);
+            return true;
+        }
+        return false;
+    }
+
+    static void ReportCheckpoint(string stage, string ownerKind, string ownerName, Transform offender, Vector3 localPosition, Quaternion localRotation, Vector3 localScale)
     {
         sDisarmed = true;
         var sb = new StringBuilder(768);
-        sb.AppendLine($"[FiniteWatchdog] STAGE '{stage}' — first bad LOCAL transform value this frame. Whatever ran immediately before this checkpoint wrote it. Watchdog disarmed.");
-        sb.AppendLine($"  bone '{offender.name}' localPos={localPosition} localRot={DescribeRotation(localRotation)} localScale={localScale}");
+        sb.AppendLine($"[FiniteWatchdog] STAGE '{stage}' — first bad LOCAL transform value this frame. Whatever ran between '{(string.IsNullOrEmpty(LastCleanStage) ? "<no earlier clean stage this frame>" : LastCleanStage)}' and this checkpoint wrote it. Watchdog disarmed.");
+        sb.AppendLine($"  owner: {ownerKind}{(string.IsNullOrEmpty(ownerName) ? string.Empty : $" '{ownerName}'")}");
+        sb.AppendLine($"  transform '{offender.name}' localPos={localPosition} localRot={DescribeRotation(localRotation)} localScale={localScale}");
         sb.Append("  path: ");
         for (Transform walk = offender; walk != null; walk = walk.parent)
         {
@@ -302,6 +542,10 @@ public static class BasisFiniteWatchdog
         sDisarmed = true;
         var sb = new StringBuilder(512);
         sb.AppendLine($"[FiniteWatchdog] FIRST non-finite/absurd value detected: {what} = {value}. Watchdog disarmed — everything after this frame is downstream corruption, THIS is the injection site.");
+        if (!string.IsNullOrEmpty(LastCleanStage))
+        {
+            sb.AppendLine($"Last clean stage checkpoint: '{LastCleanStage}'.");
+        }
         if (offender != null)
         {
             sb.AppendLine("Ancestor chain (deepest non-finite ancestor is where the NaN entered):");
@@ -318,11 +562,27 @@ public static class BasisFiniteWatchdog
         BasisDebug.LogError(LastReport, BasisDebug.LogTag.Core);
     }
 #else
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
     public static void Tick()
     {
     }
 
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
     public static void Checkpoint(string stage)
+    {
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointRemote(string stage)
+    {
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointRemote(string stage, Basis.Scripts.BasisSdk.Players.BasisRemotePlayer remote)
     {
     }
 #endif

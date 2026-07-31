@@ -547,14 +547,6 @@
       "value": "The maximum number of other avatars rendered at the same time."
     },
     {
-      "key": "settings.general.viewCone.tooltip",
-      "value": "Only show avatars within the area you are looking at."
-    },
-    {
-      "key": "settings.general.viewConeAngle.tooltip",
-      "value": "How wide the view cone is for showing nearby avatars."
-    },
-    {
       "key": "settings.graphics.qualityLevel.tooltip",
       "value": "Overall graphics quality, trading visuals against performance."
     },
@@ -4343,18 +4335,6 @@
       "value": "Max Avatars"
     },
     {
-      "key": "settings.general.viewCone",
-      "value": "View Cone Avatars"
-    },
-    {
-      "key": "settings.general.viewCone.description",
-      "value": "Only show avatars in the direction you are looking."
-    },
-    {
-      "key": "settings.general.viewConeAngle",
-      "value": "View Cone Angle"
-    },
-    {
       "key": "settings.general.limitAudio",
       "value": "Limit Audio Sources"
     },
@@ -5005,6 +4985,102 @@
     {
       "key": "settings.graphics.frameRateCap.description",
       "value": "Used only when Vertical Sync is set to Capped."
+    },
+    {
+      "key": "settings.graphics.bottleneck.title",
+      "value": "Bottleneck"
+    },
+    {
+      "key": "settings.graphics.bottleneck.title.verdict",
+      "value": "{0} — {1}"
+    },
+    {
+      "key": "settings.graphics.bottleneck.tooltip",
+      "value": "Live comparison of how long each frame takes on the CPU versus the GPU, so you can tell which one is holding your frame rate back before you change any settings."
+    },
+    {
+      "key": "settings.graphics.bottleneck.measuring",
+      "value": "Measuring frame timings..."
+    },
+    {
+      "key": "settings.graphics.bottleneck.pending",
+      "value": "..."
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.measuring",
+      "value": "Measuring"
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.cpu",
+      "value": "CPU Limited"
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.gpu",
+      "value": "GPU Limited"
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.balanced",
+      "value": "CPU and GPU Together"
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.frameCap",
+      "value": "Frame Rate Cap"
+    },
+    {
+      "key": "settings.graphics.bottleneck.verdict.noGpuTimer",
+      "value": "GPU Timing Unavailable"
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.cpu",
+      "value": "Your CPU takes longer to finish a frame than your GPU does, so the GPU spends part of every frame waiting. Lowering resolution or shadow quality will not help much. Try lowering the avatar limit, avatar range, or the performance limits further down this page."
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.gpu",
+      "value": "Your GPU takes longer to finish a frame than your CPU does, so the CPU spends part of every frame waiting. Try lowering resolution, render scale, shadow quality, antialiasing, or mirror quality."
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.balanced",
+      "value": "Your CPU and GPU finish each frame at about the same time, so neither one has spare headroom. Easing off on both sides will give the biggest gain."
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.frameCap",
+      "value": "Both your CPU and your GPU finish well inside the frame budget and are waiting on the frame rate cap. Nothing is being held back — raise or remove the cap to render faster."
+    },
+    {
+      "key": "settings.graphics.bottleneck.advice.noGpuTimer",
+      "value": "Your graphics driver is not reporting GPU frame times, so the CPU and GPU cannot be compared. The CPU numbers below are still accurate."
+    },
+    {
+      "key": "settings.graphics.bottleneck.frame",
+      "value": "Frame"
+    },
+    {
+      "key": "settings.graphics.bottleneck.frame.value",
+      "value": "{0:0.0} ms   ({1:0} FPS)"
+    },
+    {
+      "key": "settings.graphics.bottleneck.frame.capped",
+      "value": "{0:0.0} ms   ({1:0} FPS)   Cap: {2:0} FPS"
+    },
+    {
+      "key": "settings.graphics.bottleneck.cpu",
+      "value": "CPU"
+    },
+    {
+      "key": "settings.graphics.bottleneck.cpu.value",
+      "value": "{0:0.0} ms of work\nMain thread {1:0.0} ms | Render thread {2:0.0} ms | Waiting {3:0.0} ms"
+    },
+    {
+      "key": "settings.graphics.bottleneck.gpu",
+      "value": "GPU"
+    },
+    {
+      "key": "settings.graphics.bottleneck.gpu.value",
+      "value": "{0:0.0} ms of work"
+    },
+    {
+      "key": "settings.graphics.bottleneck.gpu.unavailable",
+      "value": "Not reported by this graphics driver."
     },
     {
       "key": "settings.graphics.rendering.title",
@@ -7251,6 +7327,42 @@
       "value": "Gizmos"
     },
     {
+      "key": "settings.developer.group.gizmos",
+      "value": "Gizmos & Overlays"
+    },
+    {
+      "key": "settings.developer.group.tracking",
+      "value": "Tracking & Calibration"
+    },
+    {
+      "key": "settings.developer.group.rendering",
+      "value": "Rendering & Shaders"
+    },
+    {
+      "key": "settings.developer.group.network",
+      "value": "Network Tuning"
+    },
+    {
+      "key": "settings.developer.group.logging",
+      "value": "Logging & Notifications"
+    },
+    {
+      "key": "settings.developer.group.packages",
+      "value": "Package Tools"
+    },
+    {
+      "key": "settings.developer.group.remoteDebug",
+      "value": "Remote Player Debug"
+    },
+    {
+      "key": "settings.developer.group.trackingDiagnostics",
+      "value": "Tracking Diagnostics"
+    },
+    {
+      "key": "settings.developer.group.systemInfo",
+      "value": "System Info & Statistics"
+    },
+    {
       "key": "settings.developer.gizmos.description",
       "value": "Master toggle plus per-gizmo controls. Disable Show Gizmos to turn all of them off."
     },
@@ -7428,7 +7540,7 @@
     },
     {
       "key": "settings.highPlayerCap.prompt.body",
-      "value": "This instance has over {0} people. Turn on High Player Cap Performance Mode to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
+      "value": "This instance has over {0} people. Turn on High Player Cap Performance Mode to keep your frame rate up in the crowd?\n\nIt will:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n\nDistant and excess avatars are simplified or hidden. You can change any of this anytime in Settings → Graphics."
     },
     {
       "key": "settings.highPlayerCap.prompt.enable",
@@ -7440,7 +7552,7 @@
     },
     {
       "key": "settings.highPlayerCap.prompt.bodyPreConnect",
-      "value": "This server reports over {0} people online. Turn on Performance Mode before joining to keep your frame rate up in the crowd?\n\nHeadline changes:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n• Avatar view cone → {5}°\n\nIt also tightens audio, lip sync, jiggle and avatar cost limits. Nothing is lost — your own settings are put back the moment you turn Performance Mode off in Settings → Graphics."
+      "value": "This server reports over {0} people online. Turn on Performance Mode before joining to keep your frame rate up in the crowd?\n\nHeadline changes:\n• Avatar visibility range → {1} m\n• Maximum visible avatars → {2}\n• Pose update LOD bias → {3}\n• Avatar detail → {4}%\n\nIt also tightens audio, lip sync, jiggle and avatar cost limits. Nothing is lost — your own settings are put back the moment you turn Performance Mode off in Settings → Graphics."
     },
     {
       "key": "settings.highPlayerCap.prompt.enableConnect",
@@ -8835,8 +8947,28 @@
       "value": "Search..."
     },
     {
+      "key": "ui.search.tooltip",
+      "value": "Type to filter this page down to the settings that match."
+    },
+    {
       "key": "ui.search.label",
       "value": "Search"
+    },
+    {
+      "key": "ui.search.noResults",
+      "value": "No matches"
+    },
+    {
+      "key": "ui.search.noResults.description",
+      "value": "Nothing on this page matches that search."
+    },
+    {
+      "key": "settings.search.otherTabs",
+      "value": "Found in other tabs"
+    },
+    {
+      "key": "settings.search.otherTabs.more",
+      "value": "+{0} more not shown."
     },
     {
       "key": "ui.advanced",

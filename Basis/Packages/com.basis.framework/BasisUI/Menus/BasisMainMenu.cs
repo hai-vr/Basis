@@ -322,10 +322,15 @@ namespace Basis.BasisUI
 
             if (Instance)
             {
+                // Re-opening rebuilds the menu, taking the active page and the virtual
+                // keyboard with it. Snapshot them so an unsolicited prompt that forced the
+                // menu open can put them back when it closes.
+                BasisMenuPromptRestore.Capture();
                 Instance.Release();
             }
 
             Instance = new BasisMainMenu();
+            BasisMenuPromptRestore.SetOwner(Instance.MenuObjectInstance);
             BasisCursorManagement.UnlockCursor(nameof(BasisMainMenu));
             SetMicrophoneIconHudVisible(false);
             BasisMenuStateMemory.WasOpen = true;
@@ -364,6 +369,8 @@ namespace Basis.BasisUI
                 return;
             }
 
+            // Closing outright is the user's own decision — there is nothing left to put back.
+            BasisMenuPromptRestore.Clear();
             Instance.Release();
             Instance = null;
             BasisCursorManagement.LockCursor(nameof(BasisMainMenu));

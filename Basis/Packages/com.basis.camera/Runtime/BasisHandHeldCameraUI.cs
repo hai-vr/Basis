@@ -524,9 +524,9 @@ public partial class BasisHandHeldCameraUI
         var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
         cameraInteractable?.ReleasePlayerLocks();
 
-        // only hide the cursor if the basis main menu is not there
-        if(BasisMainMenu.Instance == null)
-            Cursor.visible = false;
+        // Hands the cursor back through the request list, so the menu keeping it free also keeps
+        // look blocked instead of leaving a free cursor with live mouse-look.
+        cameraInteractable?.ReleaseCursorLock();
     }
 
     /// <summary>

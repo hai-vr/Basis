@@ -384,6 +384,8 @@ namespace Basis.Scripts.Drivers
             // swap check is edge-triggered, so a far-away load would otherwise start at full
             // detail. Also drops any far LOD belonging to the previous avatar.
             BasisAvatarFarLOD.SeedAfterCalibration(RemotePlayer);
+
+            BasisFiniteWatchdog.CheckpointRemote("RemoteCalibration/Complete", RemotePlayer);
         }
 
         /// <summary>
@@ -477,6 +479,7 @@ namespace Basis.Scripts.Drivers
 
             if (!snapToNetworkPose)
             {
+                BasisFiniteWatchdog.CheckpointRemote("RemoteRegister/PostBoneJobRegistration", RemotePlayer);
                 return;
             }
 
@@ -504,6 +507,8 @@ namespace Basis.Scripts.Drivers
                 }
                 rig.Teleport(jiggleDelta);
             }
+
+            BasisFiniteWatchdog.CheckpointRemote("RemoteRegister/PostNetworkPoseSnap (far-LOD wake)", RemotePlayer);
         }
 
         /// <summary>

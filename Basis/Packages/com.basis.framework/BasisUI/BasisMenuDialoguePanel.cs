@@ -58,6 +58,11 @@ namespace Basis.BasisUI
             // notification center as a pending entry that can be brought back up,
             // instead of silently dropping the request.
             OnInstanceReleased += CaptureIfUnresolved;
+
+            // An incoming dialogue may have forced the menu open, which tore down the page
+            // and virtual keyboard the user had up; put them back now it is done. No-ops for
+            // the in-menu confirmations that never displaced anything.
+            OnInstanceReleased += BasisMenuPromptRestore.RestoreAfterPrompt;
         }
 
         private void Resolve(bool accepted)

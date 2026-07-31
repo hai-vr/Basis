@@ -14,8 +14,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static bool _UsemaxVisibleAvatars = false;
     private static int _maxAudioSources = 0;
     private static bool _useMaxAudioSources = false;
-    private static bool _useViewConeAvatars = false;
-    private static float _viewConeAngle = 180f;
 
     /// <summary>
     /// Per-LOD base skip rates. Multiplied by PoseLODBias to produce the actual skip counts.
@@ -62,8 +60,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static string K_USEMAX_VISIBLE_AVATARS => BasisSettingsDefaults.UseMaxVisibleAvatars.BindingKey; // "usemaxvisibleavatars"
     private static string K_MAX_AUDIO_SOURCES => BasisSettingsDefaults.MaxAudioSources.BindingKey; // "maxaudiosources"
     private static string K_USEMAX_AUDIO_SOURCES => BasisSettingsDefaults.UseMaxAudioSources.BindingKey; // "usemaxaudiosources"
-    private static string K_USE_VIEWCONE_AVATARS => BasisSettingsDefaults.UseViewConeAvatars.BindingKey; // "useviewconeavatars"
-    private static string K_VIEWCONE_ANGLE => BasisSettingsDefaults.ViewConeAngle.BindingKey; // "viewconeangle"
     public static event Action<float> OnMicrophoneRangeChanged;
     public static event Action<float> OnHearingRangeChanged;
     public static event Action<float> OnAvatarRangeChanged;
@@ -72,8 +68,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     public static event Action<bool> OnUseMaxVisibleAvatarsChanged;
     public static event Action<int> OnMaxAudioSourcesChanged;
     public static event Action<bool> OnUseMaxAudioSourcesChanged;
-    public static event Action<bool> OnUseViewConeAvatarsChanged;
-    public static event Action<float> OnViewConeAngleChanged;
     public static float MicrophoneRange
     {
         get => _microphoneRange;
@@ -177,23 +171,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             }
         }
     }
-    public static bool UseViewConeAvatars
-    {
-        get => _useViewConeAvatars;
-        private set
-        {
-            if (_useViewConeAvatars != value)
-            {
-                _useViewConeAvatars = value;
-                OnUseViewConeAvatarsChanged?.Invoke(value);
-            }
-        }
-    }
-    public static float ViewConeAngle
-    {
-        get => _viewConeAngle;
-        private set => SetAndNotify(ref _viewConeAngle, value, OnViewConeAngleChanged);
-    }
     private static void SetAndNotify(ref float field, float value, Action<float> changedEvent)
     {
         field = value;
@@ -270,20 +247,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     PoseLODBias = poseLodBias;
                     BasisDebug.Log($"Pose LOD Bias {poseLodBias} -> skip rates [{PoseSkipByLod[0]},{PoseSkipByLod[1]},{PoseSkipByLod[2]},{PoseSkipByLod[3]}]");
-                }
-                break;
-            case var s when s == K_USE_VIEWCONE_AVATARS:
-                if (bool.TryParse(optionValue, out bool useViewCone))
-                {
-                    UseViewConeAvatars = useViewCone;
-                    BasisDebug.Log($"Use View Cone Avatars {useViewCone}");
-                }
-                break;
-            case var s when s == K_VIEWCONE_ANGLE:
-                if (TryReadSlider(optionValue, out var coneAngle))
-                {
-                    ViewConeAngle = coneAngle;
-                    LogDistanceSetting("ViewConeAngle", coneAngle);
                 }
                 break;
         }

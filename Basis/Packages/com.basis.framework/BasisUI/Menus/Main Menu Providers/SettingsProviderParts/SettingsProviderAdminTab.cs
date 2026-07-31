@@ -42,7 +42,6 @@ namespace Basis.BasisUI
             PanelToggle shoutOnMenuBarToggle = PanelToggle.CreateNewEntry(container);
             shoutOnMenuBarToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar"));
             shoutOnMenuBarToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar.tooltip"));
-            shoutOnMenuBarToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.showShoutOnMenuBar.description"));
             shoutOnMenuBarToggle.AssignBinding(BasisSettingsDefaults.ShoutShowOnMenuBar);
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(shoutToggle, container, shoutStart, false, _ => descriptor.ForceRebuild());
@@ -55,42 +54,36 @@ namespace Basis.BasisUI
             PanelToggle avatarLock = PanelToggle.CreateNewEntry(container);
             avatarLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockAvatars"));
             avatarLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockAvatars.tooltip"));
-            avatarLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockAvatars.description"));
             avatarLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAvatarsLocked);
             avatarLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAvatars();
 
             PanelToggle propLock = PanelToggle.CreateNewEntry(container);
             propLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockProps"));
             propLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockProps.tooltip"));
-            propLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockProps.description"));
             propLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPropsLocked);
             propLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleProps();
 
             PanelToggle worldLock = PanelToggle.CreateNewEntry(container);
             worldLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockWorlds"));
             worldLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockWorlds.tooltip"));
-            worldLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockWorlds.description"));
             worldLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalWorldsLocked);
             worldLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleWorlds();
 
             PanelToggle serverShareLock = PanelToggle.CreateNewEntry(container);
             serverShareLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockServerSharing"));
             serverShareLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockServerSharing.tooltip"));
-            serverShareLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockServerSharing.description"));
             serverShareLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalServersLocked);
             serverShareLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleServers();
 
             PanelToggle headlessAudioToggle = PanelToggle.CreateNewEntry(container);
             headlessAudioToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.headlessAudioOff"));
             headlessAudioToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.headlessAudioOff.tooltip"));
-            headlessAudioToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.headlessAudioOff.description"));
             headlessAudioToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessAudioOff);
             headlessAudioToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessAudio(value);
 
             PanelToggle disallowHeadlessToggle = PanelToggle.CreateNewEntry(container);
             disallowHeadlessToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowHeadless"));
             disallowHeadlessToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowHeadless.tooltip"));
-            disallowHeadlessToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowHeadless.description"));
             disallowHeadlessToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessDisallowed);
             disallowHeadlessToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessDisallow(value);
 
@@ -100,77 +93,66 @@ namespace Basis.BasisUI
             PanelToggle thirdPersonLock = PanelToggle.CreateNewEntry(container);
             thirdPersonLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera"));
             thirdPersonLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera.tooltip"));
-            thirdPersonLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disableThirdPersonCamera.description"));
             thirdPersonLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalThirdPersonDisabled);
             thirdPersonLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleThirdPerson();
 
             PanelToggle additionalAvatarDataLock = PanelToggle.CreateNewEntry(container);
             additionalAvatarDataLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData"));
             additionalAvatarDataLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData.tooltip"));
-            additionalAvatarDataLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.stripAdditionalAvatarData.description"));
             additionalAvatarDataLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalAdditionalAvatarDataLock);
             additionalAvatarDataLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleAdditionalAvatarDataLock();
 
             PanelToggle playspaceMoverLock = PanelToggle.CreateNewEntry(container);
             playspaceMoverLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover"));
             playspaceMoverLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover.tooltip"));
-            playspaceMoverLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockPlayspaceMover.description"));
             playspaceMoverLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPlayspaceMoverLocked);
             playspaceMoverLock.OnValueChanged += _ => BasisNetworkModeration.GlobalTogglePlayspaceMover();
 
             PanelToggle directConnectLock = PanelToggle.CreateNewEntry(container);
             directConnectLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockDirectConnect"));
             directConnectLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockDirectConnect.tooltip"));
-            directConnectLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockDirectConnect.description"));
             directConnectLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalDirectConnectLocked);
             directConnectLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleDirectConnect();
 
             PanelToggle cilboxLock = PanelToggle.CreateNewEntry(container);
             cilboxLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCilbox"));
             cilboxLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCilbox.tooltip"));
-            cilboxLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockCilbox.description"));
             cilboxLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCilboxLocked);
             cilboxLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCilbox();
 
             PanelToggle imagesLock = PanelToggle.CreateNewEntry(container);
             imagesLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockSharedImages"));
             imagesLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockSharedImages.tooltip"));
-            imagesLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockSharedImages.description"));
             imagesLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalImagesLocked);
             imagesLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleImages();
 
             PanelToggle textChatLock = PanelToggle.CreateNewEntry(container);
             textChatLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockTextChat"));
             textChatLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockTextChat.tooltip"));
-            textChatLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockTextChat.description"));
             textChatLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalTextChatLocked);
             textChatLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleTextChat();
 
             PanelToggle voiceChatLock = PanelToggle.CreateNewEntry(container);
             voiceChatLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockVoiceChat"));
             voiceChatLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockVoiceChat.tooltip"));
-            voiceChatLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockVoiceChat.description"));
             voiceChatLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalVoiceChatLocked);
             voiceChatLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleVoiceChat();
 
             PanelToggle mediaPlayerLock = PanelToggle.CreateNewEntry(container);
             mediaPlayerLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockMediaPlayer"));
             mediaPlayerLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockMediaPlayer.tooltip"));
-            mediaPlayerLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockMediaPlayer.description"));
             mediaPlayerLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalMediaPlayerLocked);
             mediaPlayerLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleMediaPlayer();
 
             PanelToggle cameraCaptureLock = PanelToggle.CreateNewEntry(container);
             cameraCaptureLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockCameraCapture"));
             cameraCaptureLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockCameraCapture.tooltip"));
-            cameraCaptureLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockCameraCapture.description"));
             cameraCaptureLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalCameraCaptureLocked);
             cameraCaptureLock.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleCameraCapture();
 
             PanelToggle propGrabbingLock = PanelToggle.CreateNewEntry(container);
             propGrabbingLock.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lockPropGrabbing"));
             propGrabbingLock.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lockPropGrabbing.tooltip"));
-            propGrabbingLock.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lockPropGrabbing.description"));
             propGrabbingLock.SetValueWithoutNotify(BasisNetworkModeration.GlobalPropGrabbingLocked);
             propGrabbingLock.OnValueChanged += _ => BasisNetworkModeration.GlobalTogglePropGrabbing();
 
@@ -179,7 +161,6 @@ namespace Basis.BasisUI
             PanelToggle endEffectorIKToggle = PanelToggle.CreateNewEntry(container);
             endEffectorIKToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.remoteEndEffectorIK"));
             endEffectorIKToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.remoteEndEffectorIK.tooltip"));
-            endEffectorIKToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.remoteEndEffectorIK.description"));
             endEffectorIKToggle.SetValueWithoutNotify(!BasisNetworkModeration.GlobalEndEffectorIKDisabled);
             endEffectorIKToggle.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleEndEffectorIK();
 
@@ -212,24 +193,19 @@ namespace Basis.BasisUI
             audioToggle.SetTitle(BasisLocalization.Get("settings.admin.title.voiceAudioLimits"));
             int audioStart = container.childCount;
 
-            PanelButton audioApplyTop = MakeApplyButton(container, audioDirty);
-
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
             opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
-            opusPacketLossSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusFecLoss.description"));
             opusPacketLossSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusPacketLossPercent);
 
             PanelToggle opusBitrateOverrideToggle = PanelToggle.CreateNewEntry(container);
             opusBitrateOverrideToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusBitrate.override"));
             opusBitrateOverrideToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusBitrate.override.tooltip"));
-            opusBitrateOverrideToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusBitrate.override.description"));
             opusBitrateOverrideToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0);
 
             PanelSlider opusBitrateSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             opusBitrateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.opusBitrate"), 6000f, 128000f, true, 0, ValueDisplayMode.Compact));
             opusBitrateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusBitrate.tooltip"));
-            opusBitrateSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusBitrate.description"));
             opusBitrateSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0 ? BasisNetworkModeration.GlobalOpusBitrate : DefaultOpusBitrate);
             opusBitrateSlider.Descriptor.SetActive(BasisNetworkModeration.GlobalOpusBitrate > 0);
             opusBitrateOverrideToggle.OnValueChanged += on =>
@@ -243,20 +219,17 @@ namespace Basis.BasisUI
             PanelDropdown opusFrameDurationDropdown = PanelDropdown.CreateNewEntry(container);
             opusFrameDurationDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusFrameDuration"));
             opusFrameDurationDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFrameDuration.tooltip"));
-            opusFrameDurationDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusFrameDuration.description"));
             opusFrameDurationDropdown.AssignEntries(new List<string>(OpusFrameDurationNames));
             opusFrameDurationDropdown.SetValueWithoutNotify(FrameDurationToName(BasisNetworkModeration.GlobalOpusFrameDurationMs));
 
             PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             maxMicrophoneRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxMicrophoneRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
             maxMicrophoneRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxMicrophoneRange.tooltip"));
-            maxMicrophoneRangeSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.maxMicrophoneRange.description"));
             maxMicrophoneRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxMicrophoneRangeMeters);
 
             PanelSlider maxHearingRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             maxHearingRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxHearingRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
             maxHearingRangeSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxHearingRange.tooltip"));
-            maxHearingRangeSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.maxHearingRange.description"));
             maxHearingRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxHearingRangeMeters);
 
             void ApplyAudioLimits()
@@ -268,8 +241,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalAudioRangeLimits(maxMicrophoneRangeSlider.Value, maxHearingRangeSlider.Value);
             }
 
-            audioApplyTop.OnClicked += ApplyAudioLimits;
-            MakeApplyButton(container, audioDirty).OnClicked += ApplyAudioLimits;
+            PanelButton audioApply = MakeApplyButton(container, audioDirty);
+            audioApply.OnClicked += ApplyAudioLimits;
 
             PanelElementDescriptor audioBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
                 audioToggle, container, audioStart, false, visible =>
@@ -307,18 +280,14 @@ namespace Basis.BasisUI
             avatarLimitsToggle.SetTitle(BasisLocalization.Get("settings.admin.title.avatarLimits"));
             int avatarLimitsStart = container.childCount;
 
-            PanelButton avatarLimitsApplyTop = MakeApplyButton(container, avatarLimitsDirty);
-
             PanelSlider minAvatarHeightSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             minAvatarHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.minAvatarHeight"), 0.1f, 10f, false, 2, ValueDisplayMode.Meters));
             minAvatarHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.minAvatarHeight.tooltip"));
-            minAvatarHeightSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.minAvatarHeight.description"));
             minAvatarHeightSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMinAvatarEyeHeightMeters);
 
             PanelSlider maxAvatarHeightSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             maxAvatarHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxAvatarHeight"), 0.1f, 100f, false, 2, ValueDisplayMode.Meters));
             maxAvatarHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.maxAvatarHeight.tooltip"));
-            maxAvatarHeightSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.maxAvatarHeight.description"));
             maxAvatarHeightSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters);
 
             void ApplyAvatarLimits()
@@ -326,8 +295,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalAvatarScaleLimits(minAvatarHeightSlider.Value, maxAvatarHeightSlider.Value);
             }
 
-            avatarLimitsApplyTop.OnClicked += ApplyAvatarLimits;
-            MakeApplyButton(container, avatarLimitsDirty).OnClicked += ApplyAvatarLimits;
+            PanelButton avatarLimitsApply = MakeApplyButton(container, avatarLimitsDirty);
+            avatarLimitsApply.OnClicked += ApplyAvatarLimits;
 
             PanelElementDescriptor avatarLimitsBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
                 avatarLimitsToggle, container, avatarLimitsStart, false, _ => descriptor.ForceRebuild());
@@ -346,11 +315,9 @@ namespace Basis.BasisUI
             resourceLimitsToggle.SetTitle(BasisLocalization.Get("settings.admin.title.resourceLimits"));
             int resourceLimitsStart = container.childCount;
 
-            PanelButton resourceApplyTop = MakeApplyButton(container, resourceDirty);
-
             PanelTextField maxContentSpheresField = PanelTextField.CreateNewEntry(container);
             maxContentSpheresField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer"));
-            maxContentSpheresField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer.description"));
+            maxContentSpheresField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer.description"));
             maxContentSpheresField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxContentSpheresPerPlayer.ToString());
 
             void ApplyResourceLimits()
@@ -359,10 +326,10 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalResourceLimits(spheres);
             }
 
-            resourceApplyTop.OnClicked += ApplyResourceLimits;
-            MakeApplyButton(container, resourceDirty).OnClicked += ApplyResourceLimits;
-
             controller.MaxContentSpheresField = maxContentSpheresField;
+
+            PanelButton resourceApply = MakeApplyButton(container, resourceDirty);
+            resourceApply.OnClicked += ApplyResourceLimits;
 
             PanelElementDescriptor resourceBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
                 resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
@@ -377,63 +344,61 @@ namespace Basis.BasisUI
             reductionToggle.SetTitle(BasisLocalization.Get("settings.admin.title.avatarReductionSystem"));
             int reductionStart = container.childCount;
 
-            PanelButton reductionApplyTop = MakeApplyButton(container, reductionDirty);
-
             PanelTextField reductionIntervalField = PanelTextField.CreateNewEntry(container);
             reductionIntervalField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.defaultSendIntervalMs"));
-            reductionIntervalField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.defaultSendIntervalMs.description"));
+            reductionIntervalField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.defaultSendIntervalMs.description"));
             reductionIntervalField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval.ToString());
 
             PanelTextField reductionBaseMultiplierField = PanelTextField.CreateNewEntry(container);
             reductionBaseMultiplierField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.baseMultiplier"));
-            reductionBaseMultiplierField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.baseMultiplier.description"));
+            reductionBaseMultiplierField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.baseMultiplier.description"));
             reductionBaseMultiplierField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRBaseMultiplier.ToString());
 
             PanelTextField reductionIncreaseRateField = PanelTextField.CreateNewEntry(container);
             reductionIncreaseRateField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.distanceIncreaseRate"));
-            reductionIncreaseRateField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.distanceIncreaseRate.description"));
+            reductionIncreaseRateField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.distanceIncreaseRate.description"));
             reductionIncreaseRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSIncreaseRate.ToString());
 
             PanelTextField reductionSlowestSendRateField = PanelTextField.CreateNewEntry(container);
             reductionSlowestSendRateField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.slowestSendRateNewJoins"));
-            reductionSlowestSendRateField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.slowestSendRateNewJoins.description"));
+            reductionSlowestSendRateField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.slowestSendRateNewJoins.description"));
             reductionSlowestSendRateField.SetValueWithoutNotify(BasisNetworkModeration.ServerBSRSlowestSendRate.ToString());
 
             PanelTextField reductionHighDistanceField = PanelTextField.CreateNewEntry(container);
             reductionHighDistanceField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.highQualityDistanceM"));
-            reductionHighDistanceField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.highQualityDistanceM.description"));
+            reductionHighDistanceField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.highQualityDistanceM.description"));
             reductionHighDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerHighQualityDistance.ToString());
 
             PanelTextField reductionMediumDistanceField = PanelTextField.CreateNewEntry(container);
             reductionMediumDistanceField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.mediumQualityDistanceM"));
-            reductionMediumDistanceField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.mediumQualityDistanceM.description"));
+            reductionMediumDistanceField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.mediumQualityDistanceM.description"));
             reductionMediumDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerMediumQualityDistance.ToString());
 
             PanelTextField reductionLowDistanceField = PanelTextField.CreateNewEntry(container);
             reductionLowDistanceField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.lowQualityDistanceM"));
-            reductionLowDistanceField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.lowQualityDistanceM.description"));
+            reductionLowDistanceField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.lowQualityDistanceM.description"));
             reductionLowDistanceField.SetValueWithoutNotify(BasisNetworkModeration.ServerLowQualityDistance.ToString());
 
             PanelToggle reductionBundleToggle = PanelToggle.CreateNewEntry(container);
             reductionBundleToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.avatarBundleCompression"));
-            reductionBundleToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.avatarBundleCompression.description"));
+            reductionBundleToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.avatarBundleCompression.description"));
             reductionBundleToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableAvatarBundleCompression);
             controller.ReductionBundleCompression = BasisNetworkModeration.ServerEnableAvatarBundleCompression;
             reductionBundleToggle.OnValueChanged += value => controller.ReductionBundleCompression = value;
 
             PanelTextField reductionBundleMinMessagesField = PanelTextField.CreateNewEntry(container);
             reductionBundleMinMessagesField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.bundleMinMessages"));
-            reductionBundleMinMessagesField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.bundleMinMessages.description"));
+            reductionBundleMinMessagesField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.bundleMinMessages.description"));
             reductionBundleMinMessagesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinMessages.ToString());
 
             PanelTextField reductionBundleMinBytesField = PanelTextField.CreateNewEntry(container);
             reductionBundleMinBytesField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.bundleMinBytes"));
-            reductionBundleMinBytesField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.bundleMinBytes.description"));
+            reductionBundleMinBytesField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.bundleMinBytes.description"));
             reductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
 
             PanelToggle reductionProfilingToggle = PanelToggle.CreateNewEntry(container);
             reductionProfilingToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.bsrProfiling"));
-            reductionProfilingToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.bsrProfiling.description"));
+            reductionProfilingToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.bsrProfiling.description"));
             reductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
             controller.ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
             reductionProfilingToggle.OnValueChanged += value => controller.ReductionProfiling = value;
@@ -452,9 +417,6 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.SetGlobalReductionSettings(interval, baseMultiplier, increaseRate, slowest, high, medium, low, controller.ReductionBundleCompression, minMessages, minBytes, controller.ReductionProfiling);
             }
 
-            reductionApplyTop.OnClicked += ApplyReductionSettings;
-            MakeApplyButton(container, reductionDirty).OnClicked += ApplyReductionSettings;
-
             controller.ReductionIntervalField = reductionIntervalField;
             controller.ReductionBaseMultiplierField = reductionBaseMultiplierField;
             controller.ReductionIncreaseRateField = reductionIncreaseRateField;
@@ -466,6 +428,9 @@ namespace Basis.BasisUI
             controller.ReductionBundleMinMessagesField = reductionBundleMinMessagesField;
             controller.ReductionBundleMinBytesField = reductionBundleMinBytesField;
             controller.ReductionProfilingToggle = reductionProfilingToggle;
+
+            PanelButton reductionApply = MakeApplyButton(container, reductionDirty);
+            reductionApply.OnClicked += ApplyReductionSettings;
 
             PanelElementDescriptor reductionBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
                 reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
@@ -492,32 +457,26 @@ namespace Basis.BasisUI
             PanelToggle camTagPeople = PanelToggle.CreateNewEntry(container);
             camTagPeople.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowTaggingPeople"));
             camTagPeople.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowTaggingPeople.tooltip"));
-            camTagPeople.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowTaggingPeople.description"));
 
             PanelToggle camPersonDetails = PanelToggle.CreateNewEntry(container);
             camPersonDetails.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowPerPersonDetails"));
             camPersonDetails.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowPerPersonDetails.tooltip"));
-            camPersonDetails.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowPerPersonDetails.description"));
 
             PanelToggle camExif = PanelToggle.CreateNewEntry(container);
             camExif.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowCameraSettingsExif"));
             camExif.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowCameraSettingsExif.tooltip"));
-            camExif.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowCameraSettingsExif.description"));
 
             PanelToggle camCapture = PanelToggle.CreateNewEntry(container);
             camCapture.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowCaptureInfo"));
             camCapture.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowCaptureInfo.tooltip"));
-            camCapture.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowCaptureInfo.description"));
 
             PanelToggle camPhotographer = PanelToggle.CreateNewEntry(container);
             camPhotographer.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowPhotographer"));
             camPhotographer.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowPhotographer.tooltip"));
-            camPhotographer.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowPhotographer.description"));
 
             PanelToggle camWorld = PanelToggle.CreateNewEntry(container);
             camWorld.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.disallowWorldViewpoint"));
             camWorld.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.disallowWorldViewpoint.tooltip"));
-            camWorld.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.disallowWorldViewpoint.description"));
 
             byte BuildCameraMask()
             {
@@ -559,12 +518,9 @@ namespace Basis.BasisUI
             serverToggle.SetTitle(BasisLocalization.Get("settings.admin.title.serverConfiguration"));
             int serverStart = container.childCount;
 
-            PanelButton serverApplyTop = MakeApplyButton(container, serverDirty);
-
             PanelTextField serverNameField = PanelTextField.CreateNewEntry(container);
             serverNameField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.serverName"));
             serverNameField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.serverName.tooltip"));
-            serverNameField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.serverName.description"));
 
             TMP_InputField serverNameInput = serverNameField.GetComponentInChildren<TMP_InputField>(true);
             if (serverNameInput)
@@ -576,7 +532,6 @@ namespace Basis.BasisUI
             PanelTextField serverMotdField = PanelTextField.CreateNewEntry(container);
             serverMotdField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.motd"));
             serverMotdField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.motd.tooltip"));
-            serverMotdField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.motd.description"));
 
             TMP_InputField motdInput = serverMotdField.GetComponentInChildren<TMP_InputField>(true);
             if (motdInput)
@@ -599,7 +554,6 @@ namespace Basis.BasisUI
             PanelDropdown restrictionDropdown = PanelDropdown.CreateNewEntry(container);
             restrictionDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.joinRestriction"));
             restrictionDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.joinRestriction.tooltip"));
-            restrictionDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.joinRestriction.description"));
             restrictionDropdown.AssignLocalizedEntries(
                 new List<string>(RestrictionModeNames),
                 new List<string>(RestrictionModeLocalizationKeys));
@@ -608,7 +562,6 @@ namespace Basis.BasisUI
             PanelToggle crashReportingToggle = PanelToggle.CreateNewEntry(container);
             crashReportingToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.crashReporting"));
             crashReportingToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.crashReporting.tooltip"));
-            crashReportingToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.crashReporting.description"));
             crashReportingToggle.SetValueWithoutNotify(BasisNetworkModeration.CrashReportingEnabled);
 
             void ApplyServerConfiguration()
@@ -642,16 +595,12 @@ namespace Basis.BasisUI
                 serverDirty.Reevaluate();
             }
 
-            serverApplyTop.OnClicked += ApplyServerConfiguration;
-            MakeApplyButton(container, serverDirty).OnClicked += ApplyServerConfiguration;
-
             controller.RestrictionDropdown = restrictionDropdown;
             controller.CrashReportingToggle = crashReportingToggle;
 
             PanelTextField allowlistUuidField = PanelTextField.CreateNewEntry(container);
             allowlistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistUuid"));
             allowlistUuidField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.allowlistUuid.tooltip"));
-            allowlistUuidField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.allowlistUuid.description"));
 
             PanelButton addAllowListButton = PanelButton.CreateNew(container);
             addAllowListButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToAllowList"));
@@ -673,6 +622,9 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.RemoveAllowlist(uuid);
             };
 
+            PanelButton serverApply = MakeApplyButton(container, serverDirty);
+            serverApply.OnClicked += ApplyServerConfiguration;
+
             PanelElementDescriptor serverBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
                 serverToggle, container, serverStart, false, _ => descriptor.ForceRebuild());
 
@@ -691,13 +643,11 @@ namespace Basis.BasisUI
             PanelButton requestLogsButton = PanelButton.CreateNew(container);
             requestLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.requestAllLogs"));
             requestLogsButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.requestAllLogs.tooltip"));
-            requestLogsButton.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.requestAllLogs.description"));
             requestLogsButton.OnClicked += () => BasisNetworkModeration.RequestAllLogs();
 
             PanelButton resetLogsButton = PanelButton.CreateNew(container);
             resetLogsButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.resetAllLogs"));
             resetLogsButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.resetAllLogs.tooltip"));
-            resetLogsButton.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.resetAllLogs.description"));
             resetLogsButton.OnClicked += () => WithConfirm(
                 BasisLocalization.Get("settings.admin.title.resetAllLogs"),
                 "Permanently delete the server's logs and crash reports? This cannot be undone.",
@@ -752,8 +702,8 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// Adds an Apply button for a staged section and registers it with that section's dirty
-        /// tracker, so it greys out while there is nothing to save. Sections carry one of these at
-        /// the top and one at the bottom — a long section shouldn't need scrolling to commit.
+        /// tracker, so it greys out while there is nothing to save. Call this last, after the
+        /// section's controls, so Apply sits at the bottom — you reach it having read the section.
         /// The caller wires <see cref="PanelButton.OnClicked"/> once the controls it reads exist.
         /// </summary>
         private static PanelButton MakeApplyButton(RectTransform container, PanelSectionDirtyState dirty)
@@ -827,24 +777,20 @@ namespace Basis.BasisUI
             PanelTextField urlField = PanelTextField.CreateNewEntry(container);
             urlField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.beeUrl"));
             urlField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.beeUrl.tooltip"));
-            urlField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.beeUrl.description"));
 
             PanelTextField passwordField = PanelTextField.CreateNewEntry(container);
             passwordField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.password"));
             passwordField.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.password.tooltip"));
-            passwordField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.password.description"));
 
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(container);
             modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.type"));
             modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.type.tooltip"));
-            modeDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.type.description"));
             modeDropdown.AssignEntries(new List<string>(DefaultLibraryModeNames));
             modeDropdown.SetValueWithoutNotify(DefaultLibraryModeNames[0]);
 
             PanelButton addButton = PanelButton.CreateNew(container);
             addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.addToServerDefaults"));
             addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.addToServerDefaults.tooltip"));
-            addButton.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.addToServerDefaults.description"));
             addButton.OnClicked += async () =>
             {
                 string rawUrl = urlField.Value ?? string.Empty;
@@ -898,7 +844,6 @@ namespace Basis.BasisUI
             PanelButton removeButton = PanelButton.CreateNew(container);
             removeButton.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.removeFromServerDefaults"));
             removeButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.removeFromServerDefaults.tooltip"));
-            removeButton.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.removeFromServerDefaults.description"));
             removeButton.OnClicked += () =>
             {
                 string rawUrl = urlField.Value ?? string.Empty;

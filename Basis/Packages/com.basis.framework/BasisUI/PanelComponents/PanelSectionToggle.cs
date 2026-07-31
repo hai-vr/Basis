@@ -192,6 +192,29 @@ namespace Basis.BasisUI
             }
         }
 
+        /// <summary>
+        /// Fills <paramref name="results"/> with the containers registered as this section's content.
+        /// Containers destroyed since they were registered — a lazy section's box after it collapsed —
+        /// are skipped, so an empty result means the section currently has nothing built under it.
+        /// </summary>
+        public void GetContentContainers(List<Transform> results)
+        {
+            if (results == null)
+            {
+                return;
+            }
+
+            results.Clear();
+            for (int i = 0; i < _contentMarkers.Count; i++)
+            {
+                PanelSectionContentMarker marker = _contentMarkers[i];
+                if (marker != null)
+                {
+                    results.Add(marker.transform);
+                }
+            }
+        }
+
         protected override void ApplyValue()
         {
             base.ApplyValue();
