@@ -295,6 +295,50 @@ and that a late joiner receives it too. Worth a pass on a peer with
 `AutoPlayOnSourceAssigned` unticked, which is the case that relies on the owner's advertised
 state rather than local autoplay.
 
+**Audio source controls and filters** — `AudioSource.volume` and `.mute` are per output, not
+per player: with a stream playing, drag one output's `Volume` to zero and back and only that
+source's level moves, and `Mute` silences that source alone. The player-wide controls are
+`BasisMediaPlayerAudio`'s `VolumeGain` / `Mute` (what the panel slider drives), and the three
+multiply. The multichannel prefab is the row that matters here — set each of the eight outputs
+to a different level and confirm the balance holds, rather than one slider dragging the rest
+with it. Then add an `Audio Low Pass Filter` (or Reverb / Chorus) to one of the output
+GameObjects and confirm it colours that output. Unity applies filters in component order and
+the `BasisMediaPlayerAudioTap` is what generates the audio, so a filter moved **above** the tap
+is expected to do nothing; the check is that one added normally, below it, is heard. Drag a
+filter above the tap and both the tap's own inspector and the owning `BasisMediaPlayerAudio`
+should say so and offer to fix it, without either needing a reselect to notice. On a prefab
+instance the tap itself can't move, so the fix lowers the filters below it instead — with two
+filters stacked, check they keep their order relative to each other, since swapping them
+changes the chain. Only when neither move is allowed should the notice say to open the prefab.
+That notice is also what a hand-built output rig relies on, so add a bare AudioSource with a
+filter on it to `Outputs` and confirm it's flagged. A rig assembled in code can't be reordered
+at all once play starts, so build one that way (AudioSource plus a filter, added to `Outputs`
+from a script) and confirm the player logs a warning naming the filter rather than failing
+quietly. Two AudioSource controls are expected to
+misbehave and shouldn't be reported as regressions: `Pitch` does nothing, and ticking `Bypass
+Effects` or unticking `Spatialize Post Effects` drops spatialisation to flat 2D, because the
+spatialiser then runs ahead of the tap and its output is overwritten.
+
+**Audio analysis feed** — Unity's per-source readback (`AudioSource.GetOutputData` and the
+spectrum calls behind it) only reflects clip playback, so an output the tap drives reads back as
+silence and anything sampling that AudioSource — AudioLink, VU meters, spectrum-driven world
+scripts — sees nothing. `Analysis Feed` on that output's `BasisMediaAudioChannel` swaps it to a clip the
+player writes, which Unity does read back. The row to run is AudioLink: add its `AudioLinkInput`
+AudioSource to `Outputs` with a `BasisMediaAudioChannel` set to `Stereo (downmix)` and
+`Analysis Feed` ticked, point AudioLink's `audioSource` at it, and confirm the AudioLink texture
+tracks the stream. Untick it and reactivity should stop, which is the control for the whole
+mechanism. Only that output changes: the speakers stay on the tap, so check A/V sync on them is
+no different with the feed on. The feed runs `Feed Delay` behind the tap-driven outputs, so
+reactivity trails the sound by that much — check it looks in time at the default and lower it
+until it breaks up to find the floor on the platform under test. It's written once a frame, so
+the floor moves with the frame rate; a rig that holds at 0.02s on desktop may need more on a
+headset. The filter-order notices don't apply to
+an analysis output, since it isn't generating into the DSP block, so confirm a filter added there
+is heard and isn't flagged. The analyser still won't hear that filter: the readback is taken from
+clip playback, upstream of the filter chain, so a low pass on an analysis output colours what you
+hear and nothing of what AudioLink sees. Worth one pass on Quest, where the DSP runs at a different rate to
+the stream and the clip path leans on Unity's own resampling rather than the tap's.
+
 **Panel UI** ("Media Players" panel, `Runtime/UI/BasisMediaPlayerPanelProvider.cs`) — URL
 load, transport buttons, seek slider (VOD only), volume, bitrate dropdown (HLS multi-variant),
 audio-track dropdown (multi-audio content), captions toggle + opacity sliders, subtitles

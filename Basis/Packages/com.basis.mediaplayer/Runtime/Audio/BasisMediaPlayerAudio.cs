@@ -108,6 +108,98 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         public int OutChannels;
         public bool Primary;
         public BasisMediaPlayerAudioTap FilterTap;   // per-output OnAudioFilterRead tap
+        public AnalysisFeed Feed;                    // set instead of FilterTap on an analysis output
+    }
+
+    // Feeds an analysis output by writing the splitter's audio into a looping
+    // AudioClip a little ahead of that AudioSource's own playhead, topped up from
+    // Update.
+    //
+    // A streaming clip (AudioClip.Create with a PCM callback) is the obvious way to
+    // do this and is the wrong one: Unity keeps its own buffer between the callback
+    // and the speaker, it runs about a second whatever length the clip is declared,
+    // and it isn't reachable from the callback. That puts an analyser a second behind
+    // the audio everyone can hear. Writing the clip's samples directly puts the delay
+    // back under our control -- it becomes the lead we write at, plus the output
+    // buffer.
+    //
+    // Chunks are a fixed size and the clip an exact multiple of it, so a write never
+    // straddles the loop point and never needs to allocate.
+    private sealed class AnalysisFeed
+    {
+        private const int ChunkFrames = 1024;
+
+        private readonly AudioSource source;
+        private readonly BasisMultiChannelPcmSplitter splitter;
+        private readonly BasisMultiChannelPcmSplitter.Reader reader;
+        private readonly BasisMultiChannelPcmSplitter.Tap[] taps;
+        private readonly int channels;
+        private readonly int lengthFrames;
+        private readonly int leadFrames;
+        private readonly float[] scratch;
+        private readonly Func<float> gainProvider;
+        private int writeCursor;
+        private bool active;
+
+        public readonly AudioClip Clip;
+
+        public AnalysisFeed(AudioSource src, BasisMultiChannelPcmSplitter s, BasisMultiChannelPcmSplitter.Tap[] t,
+                            int outChannels, int rate, float leadSeconds, string clipName, Func<float> gain)
+        {
+            source = src;
+            splitter = s;
+            reader = s?.CreateReader();
+            taps = t;
+            channels = Mathf.Max(1, outChannels);
+            gainProvider = gain;
+
+            // The lead is the delay. Floored at two chunks so a frame hitch doesn't
+            // let the playhead overtake the writer, and kept to a quarter of the clip
+            // so the overtake check below can tell a large gap from a wrapped one.
+            int wanted = Mathf.Max(Mathf.RoundToInt(rate * leadSeconds), ChunkFrames * 2);
+            int chunks = Mathf.Max(4, Mathf.CeilToInt(wanted / (float)ChunkFrames) * 4);
+            lengthFrames = chunks * ChunkFrames;
+            leadFrames = Mathf.Min(wanted, lengthFrames / 4);
+
+            scratch = new float[ChunkFrames * channels];
+            Clip = AudioClip.Create(clipName, lengthFrames, channels, rate, false);
+            active = s != null && t != null && reader != null && src != null;
+        }
+
+        public void Release() => active = false;
+
+        // Main thread, once a frame. Tops the clip back up to `leadFrames` ahead of
+        // the playhead, which is what holds the delay steady.
+        public void Pump()
+        {
+            if (!active || source == null || Clip == null || !source.isPlaying) return;
+
+            int play = source.timeSamples;
+            int gap = writeCursor - play;
+            if (gap < 0) gap += lengthFrames;
+
+            // A gap past halfway means the playhead has overtaken the writer (a hitch,
+            // or playback restarting), not that we are miles ahead. Drop back into
+            // position rather than waiting for it to lap us.
+            if (gap > lengthFrames / 2)
+            {
+                // Kept on a chunk boundary, so a write still can't straddle the loop.
+                int target = (play + leadFrames) % lengthFrames;
+                writeCursor = target - (target % ChunkFrames);
+                gap = writeCursor - play;
+                if (gap < 0) gap += lengthFrames;
+            }
+
+            for (int guard = 0; gap < leadFrames && guard < lengthFrames / ChunkFrames; guard++)
+            {
+                Array.Clear(scratch, 0, scratch.Length);
+                splitter.ReadMixed(reader, scratch, ChunkFrames, channels, taps,
+                                   gainProvider != null ? gainProvider() : 1f);
+                Clip.SetData(scratch, writeCursor);
+                writeCursor = (writeCursor + ChunkFrames) % lengthFrames;
+                gap += ChunkFrames;
+            }
+        }
     }
 
     private BasisMultiChannelPcmSplitter splitter;
@@ -169,6 +261,13 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             rebuildRequested = false;
             Rebuild();
         }
+
+        // Analysis outputs are written from here rather than an audio callback, so
+        // they have to be topped up every frame to stay ahead of their playhead.
+        if (bindings != null)
+        {
+            foreach (var b in bindings) b.Feed?.Pump();
+        }
     }
 
     private void OnDestroy()
@@ -201,6 +300,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
         lastPcmRms = 0f;
 
         var built = new List<Binding>(outputs.Length);
+        bool primaryAssigned = false;
         for (int i = 0; i < outputs.Length; i++)
         {
             AudioSource src = outputs[i];
@@ -239,7 +339,49 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             }
 
             var b = new Binding { Source = src, Splitter = splitter, OutChannels = outChannels, Taps = taps };
-            b.Primary = built.Count == 0;
+            bool analysis = sel != null && sel.AnalysisFeed;
+            // The metrics are documented as audio-thread figures from the primary
+            // output, and an analysis feed is written from Update, ahead of its own
+            // playhead, so it can't stand in for one -- it would report bursts of
+            // audio that hasn't played yet. A set with nothing but analysis outputs
+            // reports no metrics, which is the honest answer: nothing is consuming
+            // on the audio thread.
+            b.Primary = !primaryAssigned && !analysis;
+            if (b.Primary) primaryAssigned = true;
+            bool primary = b.Primary;
+            src.loop = true;
+            src.spatializePostEffects = true;
+
+            if (analysis)
+            {
+                // Unity's per-source readback (AudioSource.GetOutputData, and the
+                // spectrum calls behind it) only reflects clip playback: audio a
+                // script writes in OnAudioFilterRead reaches the listener but never
+                // enters the buffer those read. Analysers that sample an AudioSource
+                // -- AudioLink among them -- therefore see silence from the tap. An
+                // output flagged for analysis plays a clip this component writes
+                // instead, which Unity does read back. It runs its configured delay
+                // behind the tap-driven outputs, which is why it isn't the default.
+                //
+                // Unlike the tap, Unity applies this AudioSource's volume and mute to
+                // clip playback itself, so neither is folded into the gain here or it
+                // would land twice.
+                var feed = new AnalysisFeed(src, splitter, taps, outChannels, rate,
+                                            Mathf.Clamp(sel.AnalysisFeedLatency,
+                                                        BasisMediaAudioChannel.MinAnalysisFeedLatency,
+                                                        BasisMediaAudioChannel.MaxAnalysisFeedLatency),
+                                            $"BasisMediaPlayerAudio_{i}_analysis",
+                                            () => EffectiveVolumeGain);
+                b.Feed = feed;
+                b.Clip = feed.Clip;
+                src.clip = b.Clip;
+                // A tap left over from a previous build (or authored on the prefab)
+                // would clear the block and overwrite the clip, so drop its binding.
+                if (src.TryGetComponent(out BasisMediaPlayerAudioTap stale)) stale.Unbind();
+                built.Add(b);
+                continue;
+            }
+
             // A short silent looping clip keeps the source's DSP chain active; the tap
             // overwrites each block from the splitter each DSP block (~tens of ms of
             // latency vs a streaming clip's ~half-second buffer). SpatializePostEffects
@@ -247,11 +389,18 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             // audio is spatialised / occluded / transmitted normally.
             b.Clip = AudioClip.Create($"BasisMediaPlayerAudio_{i}_keepalive", Mathf.Max(256, rate / 10), 1, rate, false);
             src.clip = b.Clip;
-            src.loop = true;
-            src.spatializePostEffects = true;
             if (!src.TryGetComponent(out BasisMediaPlayerAudioTap tap)) tap = src.gameObject.AddComponent<BasisMediaPlayerAudioTap>();
             b.FilterTap = tap;
-            bool primary = b.Primary;
+            // A tap added here appends, so it lands below anything already on the
+            // object. Component order is fixed at runtime, so this is a warning
+            // rather than something we can put right; the editor offers the reorder.
+            Component bypassed = BasisMediaPlayerAudioTap.FirstBypassedFilter(src);
+            if (bypassed != null)
+            {
+                BasisDebug.LogWarning(
+                    $"BasisMediaPlayerAudio: '{src.name}' has a {bypassed.GetType().Name} above its BasisMediaPlayerAudioTap, so that filter never hears the stream. Move it below the tap.",
+                    BasisDebug.LogTag.Video);
+            }
             // Source frames per output frame: the tap renders straight into DSP
             // blocks, so rate conversion happens in the splitter read (Quest runs
             // the DSP at 24kHz against 48kHz sources; desktop is typically 1:1).
@@ -336,6 +485,7 @@ public sealed class BasisMediaPlayerAudio : MonoBehaviour, IBasisMediaClockSourc
             foreach (var b in bindings)
             {
                 if (b.FilterTap != null) b.FilterTap.Unbind();
+                if (b.Feed != null) b.Feed.Release();
                 if (b.Source != null && b.Source.clip == b.Clip) { b.Source.Stop(); b.Source.clip = null; }
                 if (b.Clip != null) Destroy(b.Clip);
             }

@@ -871,6 +871,7 @@ GameObject:
   m_Component:
   - component: {fileID: 284369164929462608}
   - component: {fileID: 8492380507994031485}
+  - component: {fileID: 4700000000000000001}
   - component: {fileID: 5029848432392392423}
   m_Layer: 0
   m_Name: Channel 6 - Back Right
@@ -913,7 +914,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -1015,6 +1016,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6394943730414216791}
   - component: {fileID: 1169068719169778331}
+  - component: {fileID: 4700000000000000002}
   - component: {fileID: 9188990892457773809}
   m_Layer: 0
   m_Name: Channel 2 - Front Right
@@ -1057,7 +1059,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -1367,6 +1369,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2174438926814300381}
   - component: {fileID: 6734675154905328036}
+  - component: {fileID: 4700000000000000003}
   - component: {fileID: 7699144265348857292}
   m_Layer: 0
   m_Name: Channel 5 - Back Left
@@ -1409,7 +1412,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -1601,6 +1604,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4148955688040547278}
   - component: {fileID: 5253027019616493262}
+  - component: {fileID: 4700000000000000004}
   - component: {fileID: 153497546933995149}
   m_Layer: 0
   m_Name: Channel 7 - Side Left
@@ -1643,7 +1647,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -1835,6 +1839,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7025231822000820434}
   - component: {fileID: 4708977768835521612}
+  - component: {fileID: 4700000000000000005}
   - component: {fileID: 5356243225140337869}
   m_Layer: 0
   m_Name: Channel 8 - Side Right
@@ -1877,7 +1882,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -2019,6 +2024,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5137532306463264051}
   - component: {fileID: 8225461348031970565}
+  - component: {fileID: 4700000000000000006}
   - component: {fileID: 2684115064595991151}
   m_Layer: 0
   m_Name: Channel 3 - Front Centre
@@ -2060,7 +2066,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -2162,6 +2168,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3681285666842893386}
   - component: {fileID: 5816047855775780060}
+  - component: {fileID: 4700000000000000007}
   - component: {fileID: 5750983338186741599}
   m_Layer: 0
   m_Name: Channel 1 - Front Left
@@ -2204,7 +2211,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -2306,6 +2313,7 @@ GameObject:
   m_Component:
   - component: {fileID: 754076941067710568}
   - component: {fileID: 2687526597242759347}
+  - component: {fileID: 4700000000000000008}
   - component: {fileID: 5436737240109758080}
   m_Layer: 0
   m_Name: Channel 4 - LFE
@@ -2347,7 +2355,7 @@ AudioSource:
   Loop: 0
   Mute: 0
   Spatialize: 1
-  SpatializePostEffects: 0
+  SpatializePostEffects: 1
   Priority: 128
   DopplerLevel: 1
   MinDistance: 1
@@ -2696,3 +2704,99 @@ MonoBehaviour:
   player: {fileID: 8757368325675487334}
   label: {fileID: 6815530408632593247}
   background: {fileID: 6625954625511748195}
+--- !u!114 &4700000000000000001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1006988167474170037}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2565437961886034552}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4067286564769727513}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6086984266641354651}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000005
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6556824477466809312}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000006
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6895909008755713970}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000007
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7106499004218466471}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
+--- !u!114 &4700000000000000008
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7370652399459993111}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd4d9af99b4353142af4b7bdd5c2b853, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisMediaPlayer::BasisMediaPlayerAudioTap
