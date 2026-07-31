@@ -60,6 +60,10 @@ public class BasisFiniteWatchdogWindow : EditorWindow
                 BasisFiniteWatchdog.PrimeFrames, 1, 240);
         }
 
+        Basis.Scripts.Drivers.BasisLocomotionPoseSystem.LogLocomotionContributions = EditorGUILayout.ToggleLeft(
+            new GUIContent("Log locomotion blend", "Logs VelocityX/VelocityZ and every contributing clip with its weight each time the locomotion pose steps. Use it to see which clips a direction actually blends."),
+            Basis.Scripts.Drivers.BasisLocomotionPoseSystem.LogLocomotionContributions);
+
         using (new EditorGUILayout.HorizontalScope())
         {
             string state = !BasisFiniteWatchdog.Enabled ? "Off"

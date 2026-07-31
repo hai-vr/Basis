@@ -168,6 +168,7 @@ namespace Basis.Scripts.Drivers
                 {
                     _contributionsNative[i] = _contributionsManaged[i];
                 }
+                LogContributions(in stepParams);
             }
 
             if (_contributionCount == 0)
@@ -203,6 +204,40 @@ namespace Basis.Scripts.Drivers
         /// Called where the manual PlayableGraph.Evaluate used to run. True means the stream already
         /// holds this frame's base pose, so ScheduleIKSolve must skip its transform gather.
         /// </summary>
+        public static bool LogLocomotionContributions;
+        static readonly System.Text.StringBuilder sContributionLog = new System.Text.StringBuilder();
+
+        void LogContributions(in BasisLocoParams stepParams)
+        {
+            if (!LogLocomotionContributions)
+            {
+                return;
+            }
+            float velocityX = stepParams.VelocityX;
+            float velocityZ = stepParams.VelocityZ;
+            if (velocityX * velocityX + velocityZ * velocityZ < 0.04f)
+            {
+                return;
+            }
+
+            sContributionLog.Clear();
+            sContributionLog.Append("[Loco] V=(").Append(velocityX.ToString("F2"))
+                .Append(", ").Append(velocityZ.ToString("F2")).Append(") ").Append(_sim.Current);
+            for (int i = 0; i < _contributionCount; i++)
+            {
+                BasisLocoContribution c = _contributionsManaged[i];
+                if (c.Weight < 0.01f)
+                {
+                    continue;
+                }
+                string name = (uint)c.Clip < (uint)BasisLocomotionGraph.ClipNames.Length
+                    ? BasisLocomotionGraph.ClipNames[c.Clip].Replace("Armature.001|", string.Empty)
+                    : c.Clip.ToString();
+                sContributionLog.Append(" | ").Append(name).Append(' ').Append(c.Weight.ToString("F2"));
+            }
+            BasisDebug.LogInternal(sContributionLog.ToString(), BasisDebug.LogTag.IK, BasisDebug.MessageType.Info);
+        }
+
         public bool TryComplete(BasisPoseSkeleton skeleton)
         {
             if (!_scheduled)

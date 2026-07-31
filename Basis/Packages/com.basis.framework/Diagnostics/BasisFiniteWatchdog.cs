@@ -494,6 +494,31 @@ public static class BasisFiniteWatchdog
     static Transform sCheckpointRoot;
     static readonly Dictionary<Transform, Transform[]> sRemoteTransforms = new Dictionary<Transform, Transform[]>();
     static int sRemoteCursor;
+    static int sCacheBuildFrame = -1;
+    static int sCacheBuildsThisFrame;
+
+    /// <summary>
+    /// Caps skeleton-cache rebuilds per frame. A cache miss costs a
+    /// <c>GetComponentsInChildren</c> over a whole avatar, and the checkpoints run dozens of times
+    /// a frame — so an avatar-swap burst (turning around reloads every far LOD at once) would
+    /// otherwise turn every one of those calls into a hierarchy walk plus an allocation. A skipped
+    /// player is simply visited on a later frame; the round-robin cursor already spreads coverage.
+    /// </summary>
+    static bool CanBuildCache()
+    {
+        int frame = Time.frameCount;
+        if (frame != sCacheBuildFrame)
+        {
+            sCacheBuildFrame = frame;
+            sCacheBuildsThisFrame = 0;
+        }
+        if (sCacheBuildsThisFrame >= 2)
+        {
+            return false;
+        }
+        sCacheBuildsThisFrame++;
+        return true;
+    }
 
     static bool ScanLocal(string stage)
     {
@@ -509,6 +534,10 @@ public static class BasisFiniteWatchdog
         Transform root = avatar.transform;
         if (!ReferenceEquals(root, sCheckpointRoot) || sCheckpointTransforms == null)
         {
+            if (!CanBuildCache())
+            {
+                return false;
+            }
             sCheckpointRoot = root;
             sCheckpointTransforms = root.GetComponentsInChildren<Transform>(true);
         }
@@ -600,6 +629,10 @@ public static class BasisFiniteWatchdog
         Transform root = avatar.transform;
         if (!sRemoteTransforms.TryGetValue(root, out Transform[] set) || set == null)
         {
+            if (!CanBuildCache())
+            {
+                return false;
+            }
             if (sRemoteTransforms.Count > k_RemoteCacheCap)
             {
                 sRemoteTransforms.Clear();

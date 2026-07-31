@@ -50,9 +50,9 @@ namespace Basis.BasisUI
             enableToggle.SetValueWithoutNotify(false);
 
             PanelTextField summaryField = CreateField(parent, "settings.developer.bugReport.summary", "settings.developer.bugReport.summary.tooltip", false, 120);
-            PanelTextField describeField = CreateField(parent, "settings.developer.bugReport.describe", "settings.developer.bugReport.describe.tooltip");
-            PanelTextField reproField = CreateField(parent, "settings.developer.bugReport.repro", "settings.developer.bugReport.repro.tooltip");
-            PanelTextField expectedField = CreateField(parent, "settings.developer.bugReport.expected", "settings.developer.bugReport.expected.tooltip");
+            PanelTextField describeField = CreateRequiredField(parent, "settings.developer.bugReport.describe", "settings.developer.bugReport.describe.tooltip");
+            PanelTextField reproField = CreateRequiredField(parent, "settings.developer.bugReport.repro", "settings.developer.bugReport.repro.tooltip");
+            PanelTextField expectedField = CreateRequiredField(parent, "settings.developer.bugReport.expected", "settings.developer.bugReport.expected.tooltip");
             PanelTextField contextField = CreateField(parent, "settings.developer.bugReport.context", "settings.developer.bugReport.context.tooltip");
 
             PanelButton submitButton = PanelButton.CreateNew(parent);
@@ -105,20 +105,40 @@ namespace Basis.BasisUI
             return field;
         }
 
+        /// <summary>
+        /// A field the report cannot be sent without. It stays neutral until the reporter types in it
+        /// or presses a send button, at which point the ones actually missing light up — the generic
+        /// "fill in the required fields" notice never said which.
+        /// </summary>
+        private static PanelTextField CreateRequiredField(RectTransform parent, string titleKey, string tooltipKey, bool multiline = true, int charLimit = FieldCharLimit)
+        {
+            PanelTextField field = CreateField(parent, titleKey, tooltipKey, multiline, charLimit);
+            field.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed", BasisLocalization.Get(titleKey)),
+                gradeImmediately: false);
+            return field;
+        }
+
+        private static bool ValidateRequired(PanelTextField describe, PanelTextField repro, PanelTextField expected)
+        {
+            bool describeOk = describe.Validate();
+            bool reproOk = repro.Validate();
+            bool expectedOk = expected.Validate();
+            return describeOk && reproOk && expectedOk;
+        }
+
         private static void Submit(
             PanelTextField summary, PanelTextField describe, PanelTextField repro, PanelTextField expected,
             PanelTextField context)
         {
-            string describeText = Read(describe);
-            string reproText = Read(repro);
-            string expectedText = Read(expected);
-
-            if (string.IsNullOrWhiteSpace(describeText) || string.IsNullOrWhiteSpace(reproText) ||
-                string.IsNullOrWhiteSpace(expectedText))
+            if (!ValidateRequired(describe, repro, expected))
             {
                 Notify("settings.developer.bugReport.missingFields");
                 return;
             }
+
+            string describeText = Read(describe);
+            string reproText = Read(repro);
+            string expectedText = Read(expected);
 
             string url = BuildPrefillUrl(Read(summary), describeText, reproText, expectedText,
                 GatherBuildInfo(), GatherRecentLogs(), Read(context), out bool trimmed);
@@ -136,12 +156,7 @@ namespace Basis.BasisUI
             PanelTextField summary, PanelTextField describe, PanelTextField repro, PanelTextField expected,
             PanelTextField context)
         {
-            string describeText = Read(describe);
-            string reproText = Read(repro);
-            string expectedText = Read(expected);
-
-            if (string.IsNullOrWhiteSpace(describeText) || string.IsNullOrWhiteSpace(reproText) ||
-                string.IsNullOrWhiteSpace(expectedText))
+            if (!ValidateRequired(describe, repro, expected))
             {
                 Notify("settings.developer.bugReport.missingFields");
                 return;
@@ -160,7 +175,7 @@ namespace Basis.BasisUI
             }
 
             string summaryText = Read(summary);
-            string headline = string.IsNullOrWhiteSpace(summaryText) ? describeText : summaryText;
+            string headline = string.IsNullOrWhiteSpace(summaryText) ? Read(describe) : summaryText;
             string report = BuildMarkdown(summary, describe, repro, expected, context);
 
             BasisErrorReportSender.Report(ServerReportSeverity, ServerReportSystem, headline, report);

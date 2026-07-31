@@ -24,23 +24,26 @@ public static class SettingsProviderTrustedUrls
         PanelTextField addField = PanelTextField.CreateNewEntry(addGroup.ContentParent);
         addField.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.field"));
         addField.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.add.field.tooltip"));
+        addField.SetValidator(text =>
+        {
+            string trimmed = text?.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return BasisLocalization.Get("ui.validation.required");
+            }
+            return trimmed.StartsWith("https://")
+                ? null
+                : BasisLocalization.Get("settings.trustedUrls.add.invalid.https");
+        }, gradeImmediately: false);
 
         PanelButton addButton = PanelButton.CreateNew(addGroup.ContentParent);
         addButton.Descriptor.SetTitle(BasisLocalization.Get("settings.trustedUrls.add.button"));
         addButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.trustedUrls.add.button.tooltip"));
         addButton.OnClicked += () =>
         {
+            if (!addField.Validate()) return;
+
             string candidate = addField.Value?.Trim();
-            if (string.IsNullOrEmpty(candidate)) return;
-            if (!candidate.StartsWith("https://"))
-            {
-                BasisMainMenu.Instance.OpenDialogue(
-                    BasisLocalization.Get("settings.trustedUrls.add.invalid.title"),
-                    BasisLocalization.Get("settings.trustedUrls.add.invalid.https"),
-                    BasisLocalization.Get("ui.ok"),
-                    _ => { });
-                return;
-            }
             BasisTrustedUrls.Add(candidate);
             BasisMainMenu.Close();
             SettingsProvider.OpenToTab(ownerTabKey);

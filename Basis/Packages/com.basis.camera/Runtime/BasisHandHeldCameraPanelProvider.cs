@@ -130,6 +130,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelDropdown _videoResolutionDropdown;
         private PanelSlider _videoFrameRateSlider;
         private PanelSlider _webQualitySlider;
+        /// <summary>Matches the clamp BasisHandHeldCameraVideoOutput.SetWebStreamPort applies.</summary>
+        private const int WebPortMin = 1024;
+        private const int WebPortMax = 65500;
+
         private PanelTextField _webPortField;
         private PanelButton _openStreamButton;
         private PanelTextField _videoSenderNameField;
@@ -894,6 +898,14 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _webPortField = PanelTextField.CreateNewEntry(content);
             _webPortField.Descriptor.SetTitle(BasisLocalization.Get("camera.streamPort"));
+            _webPortField.SetValidator(text =>
+            {
+                if (int.TryParse(text, out int port) && port >= WebPortMin && port <= WebPortMax)
+                {
+                    return null;
+                }
+                return BasisLocalization.Get("ui.validation.port", WebPortMin, WebPortMax);
+            });
             _webPortField.OnValueChanged = v =>
             {
                 if (_activeCamera == null || !int.TryParse(v, out int port)) return;
@@ -909,6 +921,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _videoSenderNameField = PanelTextField.CreateNewEntry(content);
             _videoSenderNameField.Descriptor.SetTitle(BasisLocalization.Get("camera.senderName"));
+            _videoSenderNameField.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed",
+                BasisLocalization.Get("camera.senderName")));
             _videoSenderNameField.OnValueChanged = v =>
             {
                 if (_activeCamera == null || string.IsNullOrWhiteSpace(v)) return;

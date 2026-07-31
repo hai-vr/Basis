@@ -8943,6 +8943,18 @@
       "value": "Cancel"
     },
     {
+      "key": "ui.validation.required",
+      "value": "Required - this cannot be left empty."
+    },
+    {
+      "key": "ui.validation.requiredNamed",
+      "value": "{0} is required and cannot be left empty."
+    },
+    {
+      "key": "ui.validation.port",
+      "value": "Enter a port number between {0} and {1}."
+    },
+    {
       "key": "ui.search",
       "value": "Search..."
     },

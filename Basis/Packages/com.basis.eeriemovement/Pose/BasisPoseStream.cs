@@ -180,23 +180,36 @@ namespace Basis.IK
         /// infinity passes, and the normalize branch then evaluates x * rsqrt(inf) = x * 0. Inverting
         /// a near-zero rotation produces components large enough to do that, and a zero quaternion is
         /// finite, so every isfinite check downstream passes it through to the transform.
+        /// Dividing by the largest component first keeps the overflow case pointing the right way
+        /// instead of dropping the frame, so a healthy solve is bit-stable through this.
         /// </summary>
-        public static quaternion SafeNormalize(quaternion q, quaternion fallback)
+        public static quaternion SafeNormalize(quaternion q)
         {
-            float lengthSq = math.lengthsq(q.value);
-            if (!math.isfinite(lengthSq) || lengthSq < 1e-12f)
+            float4 x = q.value;
+            float lengthSq = math.lengthsq(x);
+            if (math.isfinite(lengthSq))
             {
-                return fallback;
+                return lengthSq > math.FLT_MIN_NORMAL
+                    ? new quaternion(x * math.rsqrt(lengthSq))
+                    : quaternion.identity;
             }
-            quaternion normalized = new quaternion(q.value * math.rsqrt(lengthSq));
-            float normalizedLengthSq = math.lengthsq(normalized.value);
-            return math.isfinite(normalizedLengthSq) && normalizedLengthSq > 1e-8f ? normalized : fallback;
+
+            float scale = math.cmax(math.abs(x));
+            if (!math.isfinite(scale) || scale <= 0f)
+            {
+                return quaternion.identity;
+            }
+            x /= scale;
+            float rescaledLengthSq = math.lengthsq(x);
+            return math.isfinite(rescaledLengthSq) && rescaledLengthSq > math.FLT_MIN_NORMAL
+                ? new quaternion(x * math.rsqrt(rescaledLengthSq))
+                : quaternion.identity;
         }
 
         public void SetWorldRotation(int index, Quaternion rotation)
         {
             GetParentWorld(index, out _, out quaternion parentRotation, out _);
-            LocalRotation[index] = SafeNormalize(math.mul(math.inverse(parentRotation), (quaternion)rotation), LocalRotation[index]);
+            LocalRotation[index] = SafeNormalize(math.mul(math.inverse(parentRotation), (quaternion)rotation));
         }
 
         public void SetWorldPosition(int index, Vector3 position)

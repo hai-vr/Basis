@@ -69,6 +69,8 @@ namespace Basis.BasisUI
             URL.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.beeFileUrl"));
             URL.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
             URL.Descriptor.SetDescription(Basis.BasisUI.BasisLocalization.Get("library.dialog.add.urlDescription"));
+            URL.SetRequired(Basis.BasisUI.BasisLocalization.Get("ui.validation.requiredNamed",
+                Basis.BasisUI.BasisLocalization.Get("library.beeFileUrl")), gradeImmediately: false);
 
             PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, panelGroup.TabButtonParent);
             Password._placeholderField.text = Basis.BasisUI.BasisLocalization.Get("library.dialog.add.passwordPlaceholder");
@@ -119,6 +121,7 @@ namespace Basis.BasisUI
             yesPanel.OnClicked += async () =>
             {
                 if (newItemDialogBox.IsBusy) return;
+                if (!URL.Validate()) return;
                 newItemDialogBox.IsBusy = true;
 
                 // update interactability for fields based on dialog busy
