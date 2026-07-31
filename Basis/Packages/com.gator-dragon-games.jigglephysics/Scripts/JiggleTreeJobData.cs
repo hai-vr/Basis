@@ -171,6 +171,10 @@ public unsafe struct JiggleTreeJobData {
             if (!point.GetIsValid((int)pointCount, out failReason)) {
                 return false;
             }
+            if (!parameters[i].GetIsValid(out failReason)) {
+                failReason = $"Parameter {i} of tree {rootID}: {failReason}";
+                return false;
+            }
         }
 
         failReason = "All good!";

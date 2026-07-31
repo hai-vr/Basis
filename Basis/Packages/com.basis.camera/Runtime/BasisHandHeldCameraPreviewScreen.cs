@@ -95,10 +95,10 @@ public partial class BasisHandHeldCamera
         // Auto-follow deliberately does NOT auto-show the screen — the follow puck already marks
         // where the camera went, and toggling follow flipping the screen on/off was unwanted. The
         // manual panel toggle (previewScreenOverride) is the way to show it while following.
-        // Flying still auto-shows because the camera is off in the world with no other marker.
+        // Flying still auto-shows in VR because the camera is off in the world with no other marker.
         bool shouldShow = previewScreenOverride ?? (BasisSettingsDefaults.CameraHud.RawValue
-            && (IsFlying
-                || (BasisDeviceManagement.IsCurrentModeVR() && IsOverridingDesktopView)));
+            && BasisDeviceManagement.IsCurrentModeVR()
+            && (IsFlying || IsOverridingDesktopView));
 
         if (shouldShow)
         {

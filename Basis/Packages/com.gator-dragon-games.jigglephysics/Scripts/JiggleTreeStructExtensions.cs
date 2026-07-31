@@ -43,7 +43,7 @@ public static class JiggleTreeStructExtensions {
         old.pose = pose;
         old.rootOffset = SanitizeOutput(rootOffset);
         old.rootPosition = SanitizeOutput(rootPosition);
-        old.rootSnapStrength = rootSnapStrength;
+        old.rootSnapStrength = math.isfinite(rootSnapStrength) ? rootSnapStrength : 0f;
 
         outputPoses[index + (int)self.transformIndexOffset] = old;
     }

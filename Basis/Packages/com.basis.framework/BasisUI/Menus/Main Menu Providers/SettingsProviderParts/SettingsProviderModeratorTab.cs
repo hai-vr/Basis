@@ -17,6 +17,9 @@ namespace Basis.BasisUI
     /// </summary>
     public static class SettingsProviderModeratorTab
     {
+        /// <summary>Bitrate the per-player override slider starts on before an admin moves it.</summary>
+        private const int DefaultPlayerOpusBitrate = 32000;
+
         public static PanelTabPage ModeratorTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -165,6 +168,20 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.UnBan(uuid);
                 });
 
+            // An IP ban is stored against the banned UUID's recorded address, so lifting it needs
+            // its own command — a plain Unban leaves the address blocked.
+            PanelButton unIpBan = PanelButton.CreateNew(actionsGroup.ContentParent);
+            unIpBan.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.unIpBanUuid"));
+            unIpBan.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.unIpBanUuid.tooltip"));
+            GuardedClick(unIpBan, "Remove IP ban?",
+                "Lift the IP ban recorded for this UUID? Every account banned on that address is unbanned.", "Remove IP Ban",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid)) { BasisDebug.LogError("UUID is empty."); return; }
+                    BasisNetworkModeration.UnIpBan(uuid);
+                });
+
             // Messaging
             PanelButton sendMessage = PanelButton.CreateNew(actionsGroup.ContentParent);
             sendMessage.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.sendMessageUuid"));
@@ -241,6 +258,44 @@ namespace Basis.BasisUI
                     BasisNetworkPlayer target = controller.GetEffectivePlayer();
                     if (target == null) { BasisDebug.LogError("No player available."); return; }
                     BasisNetworkModeration.SetFullQualityBroadcast(target.playerId, false);
+                });
+
+            // --- Per-player voice bitrate ---
+            // Targets the runtime player id rather than a UUID, so it only applies to someone
+            // currently connected. A per-user override wins over the server-wide bitrate.
+            PanelElementDescriptor voiceGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            voiceGroup.SetTitle(BasisLocalization.Get("settings.admin.playerVoice"));
+
+            PanelSlider bitrateSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, voiceGroup.ContentParent);
+            bitrateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("settings.admin.playerOpusBitrate"), 6000f, 128000f, true, 0, ValueDisplayMode.Compact));
+            bitrateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.playerOpusBitrate.tooltip"));
+            bitrateSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.playerOpusBitrate.description"));
+            bitrateSlider.SetValueWithoutNotify(DefaultPlayerOpusBitrate);
+
+            PanelButton applyBitrate = PanelButton.CreateNew(voiceGroup.ContentParent);
+            applyBitrate.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.playerOpusBitrate.apply"));
+            applyBitrate.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.playerOpusBitrate.apply.tooltip"));
+            GuardedClick(applyBitrate, "Override this player's voice bitrate?",
+                "Force the selected player's Opus encoder to this bitrate for the rest of the session?", "Override",
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisNetworkModeration.SetUserOpusBitrate(target.playerId, Mathf.RoundToInt(bitrateSlider.Value));
+                });
+
+            PanelButton clearBitrate = PanelButton.CreateNew(voiceGroup.ContentParent);
+            clearBitrate.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.playerOpusBitrate.clear"));
+            clearBitrate.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.playerOpusBitrate.clear.tooltip"));
+            GuardedClick(clearBitrate, "Clear the bitrate override?",
+                "Return the selected player to the server-wide bitrate?", "Clear",
+                () =>
+                {
+                    BasisNetworkPlayer target = controller.GetEffectivePlayer();
+                    if (target == null) { BasisDebug.LogError("No player available."); return; }
+                    BasisNetworkModeration.SetUserOpusBitrate(target.playerId, 0);
                 });
 
             controller.RebuildPlayerList();

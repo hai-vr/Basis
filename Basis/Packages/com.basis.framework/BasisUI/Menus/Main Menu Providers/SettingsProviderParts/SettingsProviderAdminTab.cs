@@ -183,12 +183,42 @@ namespace Basis.BasisUI
             endEffectorIKToggle.SetValueWithoutNotify(!BasisNetworkModeration.GlobalEndEffectorIKDisabled);
             endEffectorIKToggle.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleEndEffectorIK();
 
+            controller.AvatarLockToggle = avatarLock;
+            controller.PropLockToggle = propLock;
+            controller.WorldLockToggle = worldLock;
+            controller.ServerShareLockToggle = serverShareLock;
+            controller.ThirdPersonLockToggle = thirdPersonLock;
+            controller.AdditionalAvatarDataLockToggle = additionalAvatarDataLock;
+            controller.HeadlessAudioToggle = headlessAudioToggle;
+            controller.HeadlessDisallowToggle = disallowHeadlessToggle;
+            controller.PlayspaceMoverLockToggle = playspaceMoverLock;
+            controller.DirectConnectLockToggle = directConnectLock;
+            controller.CilboxLockToggle = cilboxLock;
+            controller.ImagesLockToggle = imagesLock;
+            controller.TextChatLockToggle = textChatLock;
+            controller.VoiceChatLockToggle = voiceChatLock;
+            controller.MediaPlayerLockToggle = mediaPlayerLock;
+            controller.CameraCaptureLockToggle = cameraCaptureLock;
+            controller.PropGrabbingLockToggle = propGrabbingLock;
+            controller.EndEffectorIKToggle = endEffectorIKToggle;
+
+            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(lockToggle, container, lockStart, false, _ => descriptor.ForceRebuild());
+
+            // --- Voice & audio limits (staged; committed by this section's Apply) ---
+            // Everything here is a tuning value rather than an emergency switch, so it edits
+            // locally and only reaches the server on Apply. The section tints while unsaved.
+            PanelSectionDirtyState audioDirty = new PanelSectionDirtyState();
+            PanelSectionToggle audioToggle = PanelSectionToggle.CreateNewEntry(container);
+            audioToggle.SetTitle(BasisLocalization.Get("settings.admin.title.voiceAudioLimits"));
+            int audioStart = container.childCount;
+
+            PanelButton audioApplyTop = MakeApplyButton(container, audioDirty);
+
             PanelSlider opusPacketLossSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             opusPacketLossSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("settings.admin.opusFecLoss")));
             opusPacketLossSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFecLoss.tooltip"));
             opusPacketLossSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusFecLoss.description"));
             opusPacketLossSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusPacketLossPercent);
-            opusPacketLossSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusPacketLoss(Mathf.RoundToInt(value));
 
             PanelToggle opusBitrateOverrideToggle = PanelToggle.CreateNewEntry(container);
             opusBitrateOverrideToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusBitrate.override"));
@@ -200,15 +230,22 @@ namespace Basis.BasisUI
             opusBitrateSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.opusBitrate"), 6000f, 128000f, true, 0, ValueDisplayMode.Compact));
             opusBitrateSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusBitrate.tooltip"));
             opusBitrateSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusBitrate.description"));
-            opusBitrateSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0 ? BasisNetworkModeration.GlobalOpusBitrate : 32000);
+            opusBitrateSlider.SetValueWithoutNotify(BasisNetworkModeration.GlobalOpusBitrate > 0 ? BasisNetworkModeration.GlobalOpusBitrate : DefaultOpusBitrate);
             opusBitrateSlider.Descriptor.SetActive(BasisNetworkModeration.GlobalOpusBitrate > 0);
-            opusBitrateSlider.OnValueChanged += value => BasisNetworkModeration.SetGlobalOpusBitrate(Mathf.RoundToInt(value));
             opusBitrateOverrideToggle.OnValueChanged += on =>
             {
                 opusBitrateSlider.Descriptor.SetActive(on);
-                BasisNetworkModeration.SetGlobalOpusBitrate(on ? Mathf.RoundToInt(opusBitrateSlider.Value) : 0);
                 descriptor.ForceRebuild();
             };
+
+            // Only 20 and 40 ms are valid on the wire; a dropdown makes that explicit where a
+            // slider would offer values SetGlobalOpusFrameDuration rejects outright.
+            PanelDropdown opusFrameDurationDropdown = PanelDropdown.CreateNewEntry(container);
+            opusFrameDurationDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.opusFrameDuration"));
+            opusFrameDurationDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.opusFrameDuration.tooltip"));
+            opusFrameDurationDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.opusFrameDuration.description"));
+            opusFrameDurationDropdown.AssignEntries(new List<string>(OpusFrameDurationNames));
+            opusFrameDurationDropdown.SetValueWithoutNotify(FrameDurationToName(BasisNetworkModeration.GlobalOpusFrameDurationMs));
 
             PanelSlider maxMicrophoneRangeSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             maxMicrophoneRangeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.maxMicrophoneRange"), 1f, 200f, true, 0, ValueDisplayMode.Meters));
@@ -222,6 +259,56 @@ namespace Basis.BasisUI
             maxHearingRangeSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.maxHearingRange.description"));
             maxHearingRangeSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxHearingRangeMeters);
 
+            void ApplyAudioLimits()
+            {
+                BasisNetworkModeration.SetGlobalOpusPacketLoss(Mathf.RoundToInt(opusPacketLossSlider.Value));
+                BasisNetworkModeration.SetGlobalOpusBitrate(
+                    opusBitrateOverrideToggle.Value ? Mathf.RoundToInt(opusBitrateSlider.Value) : 0);
+                BasisNetworkModeration.SetGlobalOpusFrameDuration(NameToFrameDuration(opusFrameDurationDropdown.Value));
+                BasisNetworkModeration.SetGlobalAudioRangeLimits(maxMicrophoneRangeSlider.Value, maxHearingRangeSlider.Value);
+            }
+
+            audioApplyTop.OnClicked += ApplyAudioLimits;
+            MakeApplyButton(container, audioDirty).OnClicked += ApplyAudioLimits;
+
+            PanelElementDescriptor audioBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                audioToggle, container, audioStart, false, visible =>
+                {
+                    if (visible)
+                    {
+                        opusBitrateSlider.Descriptor.SetActive(opusBitrateOverrideToggle.Value);
+                    }
+                    descriptor.ForceRebuild();
+                });
+
+            audioDirty.Attach(audioToggle, audioBox);
+            audioDirty.WatchSlider(opusPacketLossSlider, () => BasisNetworkModeration.GlobalOpusPacketLossPercent);
+            audioDirty.WatchToggle(opusBitrateOverrideToggle, () => BasisNetworkModeration.GlobalOpusBitrate > 0);
+            // A cleared override leaves the slider parked on its last shown value, which is not a
+            // pending edit — only compare it while the override is actually on.
+            audioDirty.WatchSlider(opusBitrateSlider, () => BasisNetworkModeration.GlobalOpusBitrate > 0
+                ? BasisNetworkModeration.GlobalOpusBitrate
+                : opusBitrateSlider.Value);
+            audioDirty.WatchDropdown(opusFrameDurationDropdown, () => FrameDurationToName(BasisNetworkModeration.GlobalOpusFrameDurationMs));
+            audioDirty.WatchSlider(maxMicrophoneRangeSlider, () => BasisNetworkModeration.ServerMaxMicrophoneRangeMeters);
+            audioDirty.WatchSlider(maxHearingRangeSlider, () => BasisNetworkModeration.ServerMaxHearingRangeMeters);
+
+            controller.OpusPacketLossSlider = opusPacketLossSlider;
+            controller.OpusBitrateOverrideToggle = opusBitrateOverrideToggle;
+            controller.OpusBitrateSlider = opusBitrateSlider;
+            controller.OpusFrameDurationDropdown = opusFrameDurationDropdown;
+            controller.MaxMicrophoneRangeSlider = maxMicrophoneRangeSlider;
+            controller.MaxHearingRangeSlider = maxHearingRangeSlider;
+            controller.DirtySections.Add(audioDirty);
+
+            // --- Avatar scale limits (staged; committed by this section's Apply) ---
+            PanelSectionDirtyState avatarLimitsDirty = new PanelSectionDirtyState();
+            PanelSectionToggle avatarLimitsToggle = PanelSectionToggle.CreateNewEntry(container);
+            avatarLimitsToggle.SetTitle(BasisLocalization.Get("settings.admin.title.avatarLimits"));
+            int avatarLimitsStart = container.childCount;
+
+            PanelButton avatarLimitsApplyTop = MakeApplyButton(container, avatarLimitsDirty);
+
             PanelSlider minAvatarHeightSlider = PanelSlider.CreateNew(PanelSlider.SliderStyles.Entry, container);
             minAvatarHeightSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.admin.minAvatarHeight"), 0.1f, 10f, false, 2, ValueDisplayMode.Meters));
             minAvatarHeightSlider.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.minAvatarHeight.tooltip"));
@@ -234,92 +321,63 @@ namespace Basis.BasisUI
             maxAvatarHeightSlider.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.maxAvatarHeight.description"));
             maxAvatarHeightSlider.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters);
 
-            controller.AvatarLockToggle = avatarLock;
-            controller.PropLockToggle = propLock;
-            controller.WorldLockToggle = worldLock;
-            controller.ServerShareLockToggle = serverShareLock;
-            controller.ThirdPersonLockToggle = thirdPersonLock;
-            controller.AdditionalAvatarDataLockToggle = additionalAvatarDataLock;
-            controller.HeadlessAudioToggle = headlessAudioToggle;
-            controller.HeadlessDisallowToggle = disallowHeadlessToggle;
-            controller.OpusPacketLossSlider = opusPacketLossSlider;
-            controller.OpusBitrateOverrideToggle = opusBitrateOverrideToggle;
-            controller.OpusBitrateSlider = opusBitrateSlider;
-            controller.MaxMicrophoneRangeSlider = maxMicrophoneRangeSlider;
-            controller.MaxHearingRangeSlider = maxHearingRangeSlider;
-            controller.MaxMicrophoneRangeMeters = BasisNetworkModeration.ServerMaxMicrophoneRangeMeters;
-            controller.MaxHearingRangeMeters = BasisNetworkModeration.ServerMaxHearingRangeMeters;
-            maxMicrophoneRangeSlider.OnValueChanged += value =>
+            void ApplyAvatarLimits()
             {
-                controller.MaxMicrophoneRangeMeters = value;
-                BasisNetworkModeration.SetGlobalAudioRangeLimits(controller.MaxMicrophoneRangeMeters, controller.MaxHearingRangeMeters);
-            };
-            maxHearingRangeSlider.OnValueChanged += value =>
-            {
-                controller.MaxHearingRangeMeters = value;
-                BasisNetworkModeration.SetGlobalAudioRangeLimits(controller.MaxMicrophoneRangeMeters, controller.MaxHearingRangeMeters);
-            };
+                BasisNetworkModeration.SetGlobalAvatarScaleLimits(minAvatarHeightSlider.Value, maxAvatarHeightSlider.Value);
+            }
 
-            controller.PlayspaceMoverLockToggle = playspaceMoverLock;
-            controller.DirectConnectLockToggle = directConnectLock;
-            controller.CilboxLockToggle = cilboxLock;
-            controller.ImagesLockToggle = imagesLock;
-            controller.TextChatLockToggle = textChatLock;
-            controller.VoiceChatLockToggle = voiceChatLock;
-            controller.MediaPlayerLockToggle = mediaPlayerLock;
-            controller.CameraCaptureLockToggle = cameraCaptureLock;
-            controller.PropGrabbingLockToggle = propGrabbingLock;
-            controller.EndEffectorIKToggle = endEffectorIKToggle;
+            avatarLimitsApplyTop.OnClicked += ApplyAvatarLimits;
+            MakeApplyButton(container, avatarLimitsDirty).OnClicked += ApplyAvatarLimits;
+
+            PanelElementDescriptor avatarLimitsBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                avatarLimitsToggle, container, avatarLimitsStart, false, _ => descriptor.ForceRebuild());
+
+            avatarLimitsDirty.Attach(avatarLimitsToggle, avatarLimitsBox);
+            avatarLimitsDirty.WatchSlider(minAvatarHeightSlider, () => BasisNetworkModeration.ServerMinAvatarEyeHeightMeters);
+            avatarLimitsDirty.WatchSlider(maxAvatarHeightSlider, () => BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters);
+
             controller.MinAvatarHeightSlider = minAvatarHeightSlider;
             controller.MaxAvatarHeightSlider = maxAvatarHeightSlider;
-            controller.MinAvatarHeightMeters = BasisNetworkModeration.ServerMinAvatarEyeHeightMeters;
-            controller.MaxAvatarHeightMeters = BasisNetworkModeration.ServerMaxAvatarEyeHeightMeters;
-            minAvatarHeightSlider.OnValueChanged += value =>
-            {
-                controller.MinAvatarHeightMeters = value;
-                BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
-            };
-            maxAvatarHeightSlider.OnValueChanged += value =>
-            {
-                controller.MaxAvatarHeightMeters = value;
-                BasisNetworkModeration.SetGlobalAvatarScaleLimits(controller.MinAvatarHeightMeters, controller.MaxAvatarHeightMeters);
-            };
-
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(lockToggle, container, lockStart, false, visible =>
-            {
-                if (visible)
-                {
-                    opusBitrateSlider.Descriptor.SetActive(opusBitrateOverrideToggle.Value);
-                }
-                descriptor.ForceRebuild();
-            });
+            controller.DirtySections.Add(avatarLimitsDirty);
 
             // --- Resource limits (per-player DoS caps; persisted to config.xml) ---
+            PanelSectionDirtyState resourceDirty = new PanelSectionDirtyState();
             PanelSectionToggle resourceLimitsToggle = PanelSectionToggle.CreateNewEntry(container);
             resourceLimitsToggle.SetTitle(BasisLocalization.Get("settings.admin.title.resourceLimits"));
             int resourceLimitsStart = container.childCount;
+
+            PanelButton resourceApplyTop = MakeApplyButton(container, resourceDirty);
 
             PanelTextField maxContentSpheresField = PanelTextField.CreateNewEntry(container);
             maxContentSpheresField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer"));
             maxContentSpheresField.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.maxContentSpheresPerPlayer.description"));
             maxContentSpheresField.SetValueWithoutNotify(BasisNetworkModeration.ServerMaxContentSpheresPerPlayer.ToString());
 
-            PanelButton applyResourceLimits = PanelButton.CreateNew(container);
-            applyResourceLimits.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyResourceLimits"));
-            applyResourceLimits.OnClicked += () =>
+            void ApplyResourceLimits()
             {
                 if (!int.TryParse(maxContentSpheresField.Value, out int spheres)) spheres = BasisNetworkModeration.ServerMaxContentSpheresPerPlayer;
                 BasisNetworkModeration.SetGlobalResourceLimits(spheres);
-            };
+            }
+
+            resourceApplyTop.OnClicked += ApplyResourceLimits;
+            MakeApplyButton(container, resourceDirty).OnClicked += ApplyResourceLimits;
 
             controller.MaxContentSpheresField = maxContentSpheresField;
 
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
+            PanelElementDescriptor resourceBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                resourceLimitsToggle, container, resourceLimitsStart, false, _ => descriptor.ForceRebuild());
+
+            resourceDirty.Attach(resourceLimitsToggle, resourceBox);
+            resourceDirty.WatchNumericText(maxContentSpheresField, () => BasisNetworkModeration.ServerMaxContentSpheresPerPlayer);
+            controller.DirtySections.Add(resourceDirty);
 
             // --- Avatar reduction (BSR) tuning; persisted to config.xml, re-applied live ---
+            PanelSectionDirtyState reductionDirty = new PanelSectionDirtyState();
             PanelSectionToggle reductionToggle = PanelSectionToggle.CreateNewEntry(container);
             reductionToggle.SetTitle(BasisLocalization.Get("settings.admin.title.avatarReductionSystem"));
             int reductionStart = container.childCount;
+
+            PanelButton reductionApplyTop = MakeApplyButton(container, reductionDirty);
 
             PanelTextField reductionIntervalField = PanelTextField.CreateNewEntry(container);
             reductionIntervalField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.defaultSendIntervalMs"));
@@ -380,9 +438,7 @@ namespace Basis.BasisUI
             controller.ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
             reductionProfilingToggle.OnValueChanged += value => controller.ReductionProfiling = value;
 
-            PanelButton applyReductionSettings = PanelButton.CreateNew(container);
-            applyReductionSettings.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyReductionSettings"));
-            applyReductionSettings.OnClicked += () =>
+            void ApplyReductionSettings()
             {
                 if (!int.TryParse(reductionIntervalField.Value, out int interval)) interval = BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval;
                 if (!int.TryParse(reductionBaseMultiplierField.Value, out int baseMultiplier)) baseMultiplier = BasisNetworkModeration.ServerBSRBaseMultiplier;
@@ -394,7 +450,10 @@ namespace Basis.BasisUI
                 if (!int.TryParse(reductionBundleMinMessagesField.Value, out int minMessages)) minMessages = BasisNetworkModeration.ServerAvatarBundleMinMessages;
                 if (!int.TryParse(reductionBundleMinBytesField.Value, out int minBytes)) minBytes = BasisNetworkModeration.ServerAvatarBundleMinBytes;
                 BasisNetworkModeration.SetGlobalReductionSettings(interval, baseMultiplier, increaseRate, slowest, high, medium, low, controller.ReductionBundleCompression, minMessages, minBytes, controller.ReductionProfiling);
-            };
+            }
+
+            reductionApplyTop.OnClicked += ApplyReductionSettings;
+            MakeApplyButton(container, reductionDirty).OnClicked += ApplyReductionSettings;
 
             controller.ReductionIntervalField = reductionIntervalField;
             controller.ReductionBaseMultiplierField = reductionBaseMultiplierField;
@@ -408,7 +467,22 @@ namespace Basis.BasisUI
             controller.ReductionBundleMinBytesField = reductionBundleMinBytesField;
             controller.ReductionProfilingToggle = reductionProfilingToggle;
 
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
+            PanelElementDescriptor reductionBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                reductionToggle, container, reductionStart, false, _ => descriptor.ForceRebuild());
+
+            reductionDirty.Attach(reductionToggle, reductionBox);
+            reductionDirty.WatchNumericText(reductionIntervalField, () => BasisNetworkModeration.ServerBSRSMillisecondDefaultInterval);
+            reductionDirty.WatchNumericText(reductionBaseMultiplierField, () => BasisNetworkModeration.ServerBSRBaseMultiplier);
+            reductionDirty.WatchNumericText(reductionIncreaseRateField, () => BasisNetworkModeration.ServerBSRSIncreaseRate);
+            reductionDirty.WatchNumericText(reductionSlowestSendRateField, () => BasisNetworkModeration.ServerBSRSlowestSendRate);
+            reductionDirty.WatchNumericText(reductionHighDistanceField, () => BasisNetworkModeration.ServerHighQualityDistance);
+            reductionDirty.WatchNumericText(reductionMediumDistanceField, () => BasisNetworkModeration.ServerMediumQualityDistance);
+            reductionDirty.WatchNumericText(reductionLowDistanceField, () => BasisNetworkModeration.ServerLowQualityDistance);
+            reductionDirty.WatchToggle(reductionBundleToggle, () => BasisNetworkModeration.ServerEnableAvatarBundleCompression);
+            reductionDirty.WatchNumericText(reductionBundleMinMessagesField, () => BasisNetworkModeration.ServerAvatarBundleMinMessages);
+            reductionDirty.WatchNumericText(reductionBundleMinBytesField, () => BasisNetworkModeration.ServerAvatarBundleMinBytes);
+            reductionDirty.WatchToggle(reductionProfilingToggle, () => BasisNetworkModeration.ServerEnableBSRProfiling);
+            controller.DirtySections.Add(reductionDirty);
 
             // --- Camera photo metadata policy (per-category disallow; default allowed) ---
             PanelSectionToggle cameraPolicyToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -479,10 +553,13 @@ namespace Basis.BasisUI
 
             PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(cameraPolicyToggle, container, cameraPolicyStart, false, _ => descriptor.ForceRebuild());
 
-            // --- Server configuration (persisted to config.xml on every change) ---
+            // --- Server configuration (staged; each Apply persists to config.xml) ---
+            PanelSectionDirtyState serverDirty = new PanelSectionDirtyState();
             PanelSectionToggle serverToggle = PanelSectionToggle.CreateNewEntry(container);
             serverToggle.SetTitle(BasisLocalization.Get("settings.admin.title.serverConfiguration"));
             int serverStart = container.childCount;
+
+            PanelButton serverApplyTop = MakeApplyButton(container, serverDirty);
 
             PanelTextField serverNameField = PanelTextField.CreateNewEntry(container);
             serverNameField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.serverName"));
@@ -495,14 +572,6 @@ namespace Basis.BasisUI
                 serverNameInput.lineType = TMP_InputField.LineType.MultiLineSubmit;
                 serverNameField.gameObject.AddComponent<PanelTextFieldAutoHeight>().Initialize(serverNameInput);
             }
-
-            PanelButton applyServerName = PanelButton.CreateNew(container);
-            applyServerName.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyServerName"));
-            applyServerName.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.applyServerName.tooltip"));
-            applyServerName.OnClicked += () =>
-            {
-                BasisNetworkModeration.SetServerName(serverNameField.Value ?? string.Empty);
-            };
 
             PanelTextField serverMotdField = PanelTextField.CreateNewEntry(container);
             serverMotdField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.motd"));
@@ -517,46 +586,67 @@ namespace Basis.BasisUI
                 serverMotdField.gameObject.AddComponent<PanelTextFieldAutoHeight>().Initialize(motdInput);
             }
 
-            PanelButton applyServerMotd = PanelButton.CreateNew(container);
-            applyServerMotd.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.applyMotd"));
-            applyServerMotd.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.applyMotd.tooltip"));
-            applyServerMotd.OnClicked += () =>
-            {
-                BasisNetworkModeration.SetServerMotd(serverMotdField.Value ?? string.Empty);
-            };
-
             // Pre-populate the Server Name and MOTD fields with whatever the
             // connected server is currently advertising, so the admin can see
             // and tweak the live values instead of typing into blank fields.
+            // The probe result also becomes the baseline the dirty tint compares against.
             // Fire-and-forget; failure is silent (the fields just stay blank).
-            _ = PrefillServerInfoFieldsAsync(serverNameField, serverMotdField);
+            _ = PrefillServerInfoFieldsAsync(serverNameField, serverMotdField, controller, serverDirty);
 
-            PanelToggle allowlistToggle = PanelToggle.CreateNewEntry(container);
-            allowlistToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistOnly"));
-            allowlistToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.allowlistOnly.tooltip"));
-            allowlistToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.allowlistOnly.description"));
-            allowlistToggle.SetValueWithoutNotify(
-                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.AllowList);
-            allowlistToggle.OnValueChanged += value =>
+            // Normal / AllowList / RejoinOnly is one tri-state on the wire. It used to be driven by
+            // two independent bool toggles, which could both read ON until the server echo corrected
+            // them; a dropdown can only ever express one mode.
+            PanelDropdown restrictionDropdown = PanelDropdown.CreateNewEntry(container);
+            restrictionDropdown.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.joinRestriction"));
+            restrictionDropdown.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.joinRestriction.tooltip"));
+            restrictionDropdown.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.joinRestriction.description"));
+            restrictionDropdown.AssignLocalizedEntries(
+                new List<string>(RestrictionModeNames),
+                new List<string>(RestrictionModeLocalizationKeys));
+            restrictionDropdown.SetValueWithoutNotify(RestrictionModeToName(BasisNetworkModeration.GlobalUserRestrictionMode));
+
+            PanelToggle crashReportingToggle = PanelToggle.CreateNewEntry(container);
+            crashReportingToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.crashReporting"));
+            crashReportingToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.crashReporting.tooltip"));
+            crashReportingToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.crashReporting.description"));
+            crashReportingToggle.SetValueWithoutNotify(BasisNetworkModeration.CrashReportingEnabled);
+
+            void ApplyServerConfiguration()
             {
-                BasisNetworkModeration.SetAllowlistMode(
-                    value ? BasisUserRestrictionMode.AllowList : BasisUserRestrictionMode.Normal);
-            };
+                string name = serverNameField.Value ?? string.Empty;
+                string motd = serverMotdField.Value ?? string.Empty;
 
-            PanelToggle rejoinLockToggle = PanelToggle.CreateNewEntry(container);
-            rejoinLockToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.rejoinLockOnly"));
-            rejoinLockToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.title.rejoinLockOnly.tooltip"));
-            rejoinLockToggle.Descriptor.SetDescription(BasisLocalization.Get("settings.admin.title.rejoinLockOnly.description"));
-            rejoinLockToggle.SetValueWithoutNotify(
-                BasisNetworkModeration.GlobalUserRestrictionMode == BasisUserRestrictionMode.RejoinOnly);
-            rejoinLockToggle.OnValueChanged += value =>
-            {
-                BasisNetworkModeration.SetAllowlistMode(
-                    value ? BasisUserRestrictionMode.RejoinOnly : BasisUserRestrictionMode.Normal);
-            };
+                // Server name and MOTD have no server→client echo, so the baseline the tint compares
+                // against is advanced here. Everything else clears when its broadcast arrives.
+                if (!string.Equals(name, controller.AppliedServerName, StringComparison.Ordinal))
+                {
+                    BasisNetworkModeration.SetServerName(name);
+                    controller.AppliedServerName = name;
+                }
+                if (!string.Equals(motd, controller.AppliedServerMotd, StringComparison.Ordinal))
+                {
+                    BasisNetworkModeration.SetServerMotd(motd);
+                    controller.AppliedServerMotd = motd;
+                }
 
-            controller.AllowlistToggle = allowlistToggle;
-            controller.RejoinLockToggle = rejoinLockToggle;
+                BasisUserRestrictionMode mode = NameToRestrictionMode(restrictionDropdown.Value);
+                if (mode != BasisNetworkModeration.GlobalUserRestrictionMode)
+                {
+                    BasisNetworkModeration.SetAllowlistMode(mode);
+                }
+                if (crashReportingToggle.Value != BasisNetworkModeration.CrashReportingEnabled)
+                {
+                    BasisNetworkModeration.SetGlobalCrashReporting(crashReportingToggle.Value);
+                }
+
+                serverDirty.Reevaluate();
+            }
+
+            serverApplyTop.OnClicked += ApplyServerConfiguration;
+            MakeApplyButton(container, serverDirty).OnClicked += ApplyServerConfiguration;
+
+            controller.RestrictionDropdown = restrictionDropdown;
+            controller.CrashReportingToggle = crashReportingToggle;
 
             PanelTextField allowlistUuidField = PanelTextField.CreateNewEntry(container);
             allowlistUuidField.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.title.allowlistUuid"));
@@ -583,7 +673,15 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.RemoveAllowlist(uuid);
             };
 
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(serverToggle, container, serverStart, false, _ => descriptor.ForceRebuild());
+            PanelElementDescriptor serverBox = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(
+                serverToggle, container, serverStart, false, _ => descriptor.ForceRebuild());
+
+            serverDirty.Attach(serverToggle, serverBox);
+            serverDirty.WatchText(serverNameField, () => controller.AppliedServerName);
+            serverDirty.WatchText(serverMotdField, () => controller.AppliedServerMotd);
+            serverDirty.WatchDropdown(restrictionDropdown, () => RestrictionModeToName(BasisNetworkModeration.GlobalUserRestrictionMode));
+            serverDirty.WatchToggle(crashReportingToggle, () => BasisNetworkModeration.CrashReportingEnabled);
+            controller.DirtySections.Add(serverDirty);
 
             // --- Server logs (admin pulls logs/ + CrashReports/ to disk) ---
             PanelSectionToggle logsToggle = PanelSectionToggle.CreateNewEntry(container);
@@ -619,13 +717,64 @@ namespace Basis.BasisUI
             return tab;
         }
 
+        /// <summary>Bitrate the slider starts on when no global override is set.</summary>
+        private const int DefaultOpusBitrate = 32000;
+
+        // Only 20 and 40 ms are accepted on the wire — see SetGlobalOpusFrameDuration.
+        private static readonly string[] OpusFrameDurationNames = { "20 ms", "40 ms" };
+
+        private static string FrameDurationToName(int ms) => ms == 40 ? OpusFrameDurationNames[1] : OpusFrameDurationNames[0];
+
+        private static int NameToFrameDuration(string name) => name == OpusFrameDurationNames[1] ? 40 : 20;
+
+        // Stable wire-order names for BasisUserRestrictionMode plus the keys their labels come from.
+        private static readonly string[] RestrictionModeNames = { "Normal", "AllowList", "RejoinOnly" };
+        private static readonly string[] RestrictionModeLocalizationKeys =
+        {
+            "settings.admin.joinRestriction.normal",
+            "settings.admin.joinRestriction.allowList",
+            "settings.admin.joinRestriction.rejoinOnly",
+        };
+
+        private static string RestrictionModeToName(BasisUserRestrictionMode mode) => mode switch
+        {
+            BasisUserRestrictionMode.AllowList => RestrictionModeNames[1],
+            BasisUserRestrictionMode.RejoinOnly => RestrictionModeNames[2],
+            _ => RestrictionModeNames[0],
+        };
+
+        private static BasisUserRestrictionMode NameToRestrictionMode(string name) => name switch
+        {
+            "AllowList" => BasisUserRestrictionMode.AllowList,
+            "RejoinOnly" => BasisUserRestrictionMode.RejoinOnly,
+            _ => BasisUserRestrictionMode.Normal,
+        };
+
+        /// <summary>
+        /// Adds an Apply button for a staged section and registers it with that section's dirty
+        /// tracker, so it greys out while there is nothing to save. Sections carry one of these at
+        /// the top and one at the bottom — a long section shouldn't need scrolling to commit.
+        /// The caller wires <see cref="PanelButton.OnClicked"/> once the controls it reads exist.
+        /// </summary>
+        private static PanelButton MakeApplyButton(RectTransform container, PanelSectionDirtyState dirty)
+        {
+            PanelButton button = PanelButton.CreateNew(container);
+            button.Descriptor.SetTitle(BasisLocalization.Get("settings.admin.apply"));
+            button.Descriptor.SetTooltip(BasisLocalization.Get("settings.admin.apply.tooltip"));
+            dirty.RegisterApplyButton(button);
+            return button;
+        }
+
         /// <summary>
         /// Fire a one-shot info-query against the currently connected server and
         /// drop the response's name/MOTD into the admin fields. Lets admins see
-        /// the live values instead of guessing what's in config.xml.
+        /// the live values instead of guessing what's in config.xml. The probed
+        /// values also become the baseline the section's unsaved tint compares
+        /// against, since neither field has a server→client echo.
         /// </summary>
         private static async System.Threading.Tasks.Task PrefillServerInfoFieldsAsync(
-            PanelTextField nameField, PanelTextField motdField)
+            PanelTextField nameField, PanelTextField motdField,
+            AdminTabController controller, PanelSectionDirtyState serverDirty)
         {
             if (!BasisNetworkManagement.IsInitialized) return;
             string ip = BasisNetworkManagement.Ip;
@@ -647,12 +796,18 @@ namespace Basis.BasisUI
                 {
                     nameField.SetValueWithoutNotify(result.Name ?? string.Empty);
                     nameField.GetComponent<PanelTextFieldAutoHeight>()?.Refresh();
+                    if (controller != null) controller.AppliedServerName = result.Name ?? string.Empty;
                 }
                 if (motdField != null && string.IsNullOrEmpty(motdField.Value))
                 {
                     motdField.SetValueWithoutNotify(result.Motd ?? string.Empty);
                     motdField.GetComponent<PanelTextFieldAutoHeight>()?.Refresh();
+                    if (controller != null) controller.AppliedServerMotd = result.Motd ?? string.Empty;
                 }
+
+                // The probe lands a frame or two after the section was built, so re-derive the
+                // tint against the values that just arrived rather than the blank fields.
+                serverDirty?.Reevaluate();
             }
             catch (Exception ex)
             {
@@ -803,15 +958,14 @@ namespace Basis.BasisUI
             public PanelToggle AdditionalAvatarDataLockToggle;
             public PanelToggle HeadlessAudioToggle;
             public PanelToggle HeadlessDisallowToggle;
-            public PanelToggle AllowlistToggle;
-            public PanelToggle RejoinLockToggle;
+            public PanelDropdown RestrictionDropdown;
+            public PanelToggle CrashReportingToggle;
             public PanelSlider OpusPacketLossSlider;
             public PanelToggle OpusBitrateOverrideToggle;
             public PanelSlider OpusBitrateSlider;
+            public PanelDropdown OpusFrameDurationDropdown;
             public PanelSlider MaxMicrophoneRangeSlider;
             public PanelSlider MaxHearingRangeSlider;
-            public float MaxMicrophoneRangeMeters;
-            public float MaxHearingRangeMeters;
             public PanelToggle PlayspaceMoverLockToggle;
             public PanelToggle DirectConnectLockToggle;
             public PanelToggle CilboxLockToggle;
@@ -824,8 +978,6 @@ namespace Basis.BasisUI
             public PanelToggle EndEffectorIKToggle;
             public PanelSlider MinAvatarHeightSlider;
             public PanelSlider MaxAvatarHeightSlider;
-            public float MinAvatarHeightMeters;
-            public float MaxAvatarHeightMeters;
             public PanelTextField MaxContentSpheresField;
             public PanelTextField ReductionIntervalField;
             public PanelTextField ReductionBaseMultiplierField;
@@ -841,6 +993,25 @@ namespace Basis.BasisUI
             public bool ReductionBundleCompression;
             public bool ReductionProfiling;
             public System.Action<byte> ApplyCameraMask;
+
+            /// <summary>
+            /// Server name/MOTD have no server→client echo, so the last value this client sent (or
+            /// the value the connect-time probe reported) stands in as the saved baseline that the
+            /// Server Configuration section's unsaved tint compares its fields against.
+            /// </summary>
+            public string AppliedServerName = string.Empty;
+            public string AppliedServerMotd = string.Empty;
+
+            /// <summary>Every staged section on this tab, re-derived whenever the server pushes new state.</summary>
+            public readonly List<PanelSectionDirtyState> DirtySections = new();
+
+            private void ReevaluateDirty()
+            {
+                for (int i = 0; i < DirtySections.Count; i++)
+                {
+                    DirtySections[i]?.Reevaluate();
+                }
+            }
 
             private void OnEnable()
             {
@@ -860,6 +1031,10 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged += OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
                 BasisNetworkModeration.OnGlobalOpusBitrateChanged += OnGlobalOpusBitrateChanged;
+                BasisNetworkModeration.OnGlobalOpusFrameDurationChanged -= OnGlobalOpusFrameDurationChanged;
+                BasisNetworkModeration.OnGlobalOpusFrameDurationChanged += OnGlobalOpusFrameDurationChanged;
+                BasisNetworkModeration.OnCrashReportingStateChanged -= OnCrashReportingStateChanged;
+                BasisNetworkModeration.OnCrashReportingStateChanged += OnCrashReportingStateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged += OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
@@ -905,6 +1080,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
+                BasisNetworkModeration.OnGlobalOpusFrameDurationChanged -= OnGlobalOpusFrameDurationChanged;
+                BasisNetworkModeration.OnCrashReportingStateChanged -= OnCrashReportingStateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
@@ -932,6 +1109,8 @@ namespace Basis.BasisUI
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalOpusPacketLossChanged -= OnGlobalOpusPacketLossChanged;
                 BasisNetworkModeration.OnGlobalOpusBitrateChanged -= OnGlobalOpusBitrateChanged;
+                BasisNetworkModeration.OnGlobalOpusFrameDurationChanged -= OnGlobalOpusFrameDurationChanged;
+                BasisNetworkModeration.OnCrashReportingStateChanged -= OnCrashReportingStateChanged;
                 BasisNetworkModeration.OnAudioRangeLimitsChanged -= OnAudioRangeLimitsChanged;
                 BasisNetworkModeration.OnGlobalCameraPolicyChanged -= OnGlobalCameraPolicyChanged;
                 BasisNetworkModeration.OnGlobalRestrictionModeChanged -= OnGlobalRestrictionModeChanged;
@@ -981,6 +1160,7 @@ namespace Basis.BasisUI
             private void OnGlobalOpusPacketLossChanged(int percent)
             {
                 if (OpusPacketLossSlider != null) OpusPacketLossSlider.SetValueWithoutNotify(percent);
+                ReevaluateDirty();
             }
 
             private void OnGlobalOpusBitrateChanged(int bps)
@@ -991,14 +1171,26 @@ namespace Basis.BasisUI
                     if (bps > 0) OpusBitrateSlider.SetValueWithoutNotify(bps);
                     OpusBitrateSlider.Descriptor.SetActive(bps > 0);
                 }
+                ReevaluateDirty();
+            }
+
+            private void OnGlobalOpusFrameDurationChanged(int ms)
+            {
+                if (OpusFrameDurationDropdown != null) OpusFrameDurationDropdown.SetValueWithoutNotify(FrameDurationToName(ms));
+                ReevaluateDirty();
+            }
+
+            private void OnCrashReportingStateChanged(bool enabled)
+            {
+                if (CrashReportingToggle != null) CrashReportingToggle.SetValueWithoutNotify(enabled);
+                ReevaluateDirty();
             }
 
             private void OnAudioRangeLimitsChanged(float microphoneMeters, float hearingMeters)
             {
-                MaxMicrophoneRangeMeters = microphoneMeters;
-                MaxHearingRangeMeters = hearingMeters;
                 if (MaxMicrophoneRangeSlider != null) MaxMicrophoneRangeSlider.SetValueWithoutNotify(microphoneMeters);
                 if (MaxHearingRangeSlider != null) MaxHearingRangeSlider.SetValueWithoutNotify(hearingMeters);
+                ReevaluateDirty();
             }
 
             private void OnGlobalCameraPolicyChanged(byte mask)
@@ -1008,8 +1200,8 @@ namespace Basis.BasisUI
 
             private void OnGlobalRestrictionModeChanged(BasisUserRestrictionMode mode)
             {
-                if (AllowlistToggle != null) AllowlistToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.AllowList);
-                if (RejoinLockToggle != null) RejoinLockToggle.SetValueWithoutNotify(mode == BasisUserRestrictionMode.RejoinOnly);
+                if (RestrictionDropdown != null) RestrictionDropdown.SetValueWithoutNotify(RestrictionModeToName(mode));
+                ReevaluateDirty();
             }
 
             private void OnGlobalPlayspaceMoverLockedChanged(bool locked)
@@ -1064,15 +1256,15 @@ namespace Basis.BasisUI
 
             private void OnAvatarScaleLimitsChanged(float minMeters, float maxMeters)
             {
-                MinAvatarHeightMeters = minMeters;
-                MaxAvatarHeightMeters = maxMeters;
                 if (MinAvatarHeightSlider != null) MinAvatarHeightSlider.SetValueWithoutNotify(minMeters);
                 if (MaxAvatarHeightSlider != null) MaxAvatarHeightSlider.SetValueWithoutNotify(maxMeters);
+                ReevaluateDirty();
             }
 
             private void OnResourceLimitsChanged(int spheres)
             {
                 if (MaxContentSpheresField != null) MaxContentSpheresField.SetValueWithoutNotify(spheres.ToString());
+                ReevaluateDirty();
             }
 
             private void OnReductionSettingsChanged()
@@ -1090,6 +1282,7 @@ namespace Basis.BasisUI
                 if (ReductionBundleMinBytesField != null) ReductionBundleMinBytesField.SetValueWithoutNotify(BasisNetworkModeration.ServerAvatarBundleMinBytes.ToString());
                 if (ReductionProfilingToggle != null) ReductionProfilingToggle.SetValueWithoutNotify(BasisNetworkModeration.ServerEnableBSRProfiling);
                 ReductionProfiling = BasisNetworkModeration.ServerEnableBSRProfiling;
+                ReevaluateDirty();
             }
         }
     }

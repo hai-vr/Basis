@@ -280,6 +280,10 @@ public class JiggleJobs {
             OnFinishSimulate?.Invoke(this, simulateTime);
         }
 
+        // Both chains are joined here — the pose chain by CompletePoses above, the simulate chain
+        // by the fence — so this is the only point where the guard flags can legally be read.
+        _memoryBus.ReportNonFiniteStages();
+
         Profiler.BeginSample("JiggleJobs.Simulate.Teleports");
         _memoryBus.ApplyPendingTeleports();
         Profiler.EndSample();

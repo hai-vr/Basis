@@ -11303,6 +11303,118 @@
     {
       "key": "camera.showGuides.description",
       "value": "Draws the free area, the limit and the target point over the preview so the framing numbers can be placed by eye."
+    },
+    {
+      "key": "settings.admin.apply",
+      "value": "Apply"
+    },
+    {
+      "key": "settings.admin.apply.tooltip",
+      "value": "Send this section's edits to the server and save them to the server config."
+    },
+    {
+      "key": "settings.admin.apply.nothingToSave",
+      "value": "No unsaved changes in this section."
+    },
+    {
+      "key": "settings.admin.unsavedSuffix",
+      "value": "(unsaved)"
+    },
+    {
+      "key": "settings.admin.title.voiceAudioLimits",
+      "value": "Voice & Audio Limits"
+    },
+    {
+      "key": "settings.admin.title.avatarLimits",
+      "value": "Avatar Limits"
+    },
+    {
+      "key": "settings.admin.opusFrameDuration",
+      "value": "Opus Frame Duration"
+    },
+    {
+      "key": "settings.admin.opusFrameDuration.tooltip",
+      "value": "How much audio every client packs into one voice packet."
+    },
+    {
+      "key": "settings.admin.opusFrameDuration.description",
+      "value": "Longer frames cut packet overhead and bandwidth but add that much latency to every voice stream. Only 20 ms and 40 ms are supported."
+    },
+    {
+      "key": "settings.admin.title.joinRestriction",
+      "value": "Join Restriction"
+    },
+    {
+      "key": "settings.admin.title.joinRestriction.tooltip",
+      "value": "Who is allowed to connect to this server."
+    },
+    {
+      "key": "settings.admin.title.joinRestriction.description",
+      "value": "Normal lets anyone who is not banned join. Allow list admits only UUIDs on BasisAllowList.txt. Rejoin only admits the players who were present when the mode was set, so a running event stays closed without banning anyone."
+    },
+    {
+      "key": "settings.admin.joinRestriction.normal",
+      "value": "Normal"
+    },
+    {
+      "key": "settings.admin.joinRestriction.allowList",
+      "value": "Allow list only"
+    },
+    {
+      "key": "settings.admin.joinRestriction.rejoinOnly",
+      "value": "Rejoin only"
+    },
+    {
+      "key": "settings.admin.title.crashReporting",
+      "value": "Client Crash Reporting"
+    },
+    {
+      "key": "settings.admin.title.crashReporting.tooltip",
+      "value": "Let connected clients send their errors and exceptions to this server."
+    },
+    {
+      "key": "settings.admin.title.crashReporting.description",
+      "value": "Off by default. While on, clients report unhandled errors so they land in the server's CrashReports folder alongside its own."
+    },
+    {
+      "key": "settings.admin.unIpBanUuid",
+      "value": "Remove IP Ban (UUID)"
+    },
+    {
+      "key": "settings.admin.unIpBanUuid.tooltip",
+      "value": "Lift the IP ban recorded against this UUID. A plain unban leaves the address blocked."
+    },
+    {
+      "key": "settings.admin.playerVoice",
+      "value": "Player Voice"
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate",
+      "value": "Voice Bitrate Override"
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.tooltip",
+      "value": "Force the selected player's voice encoder to a specific bitrate."
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.description",
+      "value": "Applies to the player selected above for the rest of their session, and wins over the server-wide bitrate. Useful for one player on a bad connection."
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.apply",
+      "value": "Override Player Bitrate"
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.apply.tooltip",
+      "value": "Send this bitrate to the selected player's encoder."
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.clear",
+      "value": "Clear Player Bitrate"
+    },
+    {
+      "key": "settings.admin.playerOpusBitrate.clear.tooltip",
+      "value": "Drop the override and return the player to the server-wide bitrate."
     }
   ]
 }

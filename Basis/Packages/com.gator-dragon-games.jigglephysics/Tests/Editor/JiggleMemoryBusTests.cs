@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -371,6 +372,38 @@ internal unsafe class JiggleMemoryBusTests {
         Assert.AreEqual(offsetC, Committed(c.rootID).transformIndexOffset);
     }
 
+    /// <summary>
+    /// A rig can be queued for removal twice inside one commit window: the segment dirties itself
+    /// (which schedules a remove) and then its bones die before the commit runs, so the dead-segment
+    /// prune schedules another. rootIDToTreeIndex still resolves the tree for both, so the slice
+    /// would be freed twice and then handed to two different trees at once.
+    /// </summary>
+    [Test]
+    public void RemoveScheduledTwiceBeforeTheCommit_FreesTheSliceOnce() {
+        var tree = NewTree(3, "a");
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        bus.ScheduleRemove(tree);
+        bus.ScheduleRemove(tree);
+        PumpTrees();
+
+        Assert.AreEqual(0, bus.treeCount);
+
+        var first = NewTree(3, "b");
+        var second = NewTree(3, "c");
+        bus.ScheduleAdd(first);
+        bus.ScheduleAdd(second);
+        PumpTrees();
+
+        var firstStart = Committed(first.rootID).transformIndexOffset;
+        var firstEnd = firstStart + Committed(first.rootID).pointCount;
+        var secondStart = Committed(second.rootID).transformIndexOffset;
+        var secondEnd = secondStart + Committed(second.rootID).pointCount;
+        Assert.IsTrue(firstEnd <= secondStart || secondEnd <= firstStart,
+            $"slices overlap: [{firstStart},{firstEnd}) and [{secondStart},{secondEnd})");
+    }
+
     // ------------------------------------------------------------- rejection
 
     [Test]
@@ -652,6 +685,28 @@ internal unsafe class JiggleMemoryBusTests {
         Assert.DoesNotThrow(() => bus.ScheduleTeleport(null, new float3(1f, 1f, 1f)));
     }
 
+    /// <summary>
+    /// The teleport is the one path that writes an outside caller's numbers straight into every
+    /// world space buffer, including the interpolated output the transform write consumes. Nothing
+    /// downstream sanitizes that output, and a bone posed to NaN reads back NaN next frame, so a
+    /// single bad delta would latch the avatar permanently.
+    /// </summary>
+    [Test]
+    public void NonFiniteTeleport_IsDroppedInsteadOfPoisoningThePoseBuffers() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+        var slot = (int)Committed(tree.rootID).transformIndexOffset + 1;
+        var before = bus.interpolationOutputPoses[slot].position;
+
+        LogAssert.Expect(LogType.Error, new Regex("non-finite teleport"));
+        bus.ScheduleTeleport(tree, new float3(float.NaN, 0f, 0f));
+        bus.ApplyPendingTeleports();
+
+        JiggleAssert.AreEqual(before, bus.interpolationOutputPoses[slot].position, Tolerance);
+        Assert.IsTrue(math.all(math.isfinite(Committed(tree.rootID).points[1].position)));
+    }
+
     // -------------------------------------------------------- scene colliders
 
     [Test]
@@ -776,6 +831,8 @@ internal unsafe class JiggleMemoryBusTests {
     /// The managed mirror is the writer for scene colliders, so it has to retire slots whose
     /// transform died without a matching remove. Otherwise the commit copies the stale entry back
     /// over the read job's self-heal and the collider keeps colliding from wherever it last was.
+    /// Which slot the replacement lands in is not part of that contract — the reclaim pass hands
+    /// the dead index straight back to the allocator, so assert on what survives, not on where.
     /// </summary>
     [Test]
     public void SceneCollider_WhoseTransformWasDestroyed_IsRetiredOnTheNextCommit() {
@@ -787,8 +844,13 @@ internal unsafe class JiggleMemoryBusTests {
         bus.ScheduleAdd(JiggleSceneFactory.SphereCollider(scene.Spawn("replacement")));
         PumpColliders();
 
-        Assert.IsFalse(bus.sceneColliders[0].enabled);
-        Assert.IsTrue(bus.sceneColliders[1].enabled);
+        int enabled = 0;
+        for (int i = 0; i < bus.sceneColliderCount; i++) {
+            if (bus.sceneColliders[i].enabled) {
+                enabled++;
+            }
+        }
+        Assert.AreEqual(1, enabled, "the dead collider must not keep colliding alongside the replacement");
     }
 
     // ----------------------------------------------------- personal colliders

@@ -21,6 +21,32 @@ public struct JigglePointParameters
     public float drag;
     public float ignoreRootMotion;
     public float collisionRadius;
+
+    /// <summary>
+    /// Nothing repairs this struct at runtime the way JiggleSimulatedPoint.Sanitize repairs a point,
+    /// and rootElasticity/airDrag reach the transforms through the interpolation's root snap, which
+    /// is not sanitized either — so a non-finite parameter is invisible everywhere else.
+    /// </summary>
+    public bool GetIsValid(out string failReason) {
+        if (!IsFinite(rootElasticity)) { failReason = "rootElasticity is not finite"; return false; }
+        if (!IsFinite(angleElasticity)) { failReason = "angleElasticity is not finite"; return false; }
+        if (!IsFinite(angleLimit)) { failReason = "angleLimit is not finite"; return false; }
+        if (!IsFinite(angleLimitSoften)) { failReason = "angleLimitSoften is not finite"; return false; }
+        if (!IsFinite(lengthElasticity)) { failReason = "lengthElasticity is not finite"; return false; }
+        if (!IsFinite(elasticitySoften)) { failReason = "elasticitySoften is not finite"; return false; }
+        if (!IsFinite(gravityMultiplier)) { failReason = "gravityMultiplier is not finite"; return false; }
+        if (!IsFinite(blend)) { failReason = "blend is not finite"; return false; }
+        if (!IsFinite(airDrag)) { failReason = "airDrag is not finite"; return false; }
+        if (!IsFinite(drag)) { failReason = "drag is not finite"; return false; }
+        if (!IsFinite(ignoreRootMotion)) { failReason = "ignoreRootMotion is not finite"; return false; }
+        if (!IsFinite(collisionRadius)) { failReason = "collisionRadius is not finite"; return false; }
+        failReason = "All good!";
+        return true;
+    }
+
+    private static bool IsFinite(float value) {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
 }
 
 [Serializable]

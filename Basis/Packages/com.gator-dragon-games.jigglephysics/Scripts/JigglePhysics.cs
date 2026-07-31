@@ -469,7 +469,7 @@ public static class JigglePhysics {
                 continue;
             }
             if (seg.transform == null || seg.jiggleRigData.rootBone == null) {
-                if (seg.jiggleTree != null) ScheduleRemoveJiggleTree(seg.jiggleTree);
+                if (seg.jiggleTree is { dirty: false }) ScheduleRemoveJiggleTree(seg.jiggleTree);
                 jiggleRootLookup.Remove(seg.transform);
                 rootJiggleTreeSegments.RemoveAt(i);
                 animatedRootsDirty = true;

@@ -108,7 +108,8 @@ public struct AuthoredMotionJob : IJobParallelForTransform
             case Kind.Rotate:
             {
                 float angle = math.radians((t * m.speedDeg) % 360f);
-                transform.localRotation = math.mul(m.restRotation, quaternion.AxisAngle(math.normalizesafe(m.axis), angle));
+                float3 rotateAxis = math.normalizesafe(m.axis, new float3(0f, 1f, 0f));
+                WriteLocalRotation(transform, math.mul(m.restRotation, quaternion.AxisAngle(rotateAxis, angle)), m.restRotation);
                 break;
             }
             case Kind.Orbit:
@@ -137,7 +138,7 @@ public struct AuthoredMotionJob : IJobParallelForTransform
                 // Ease out (release) when this cycle picks rest after being posed; ease in (attack) otherwise.
                 float ease = (!posedNow && posedPrev) ? m.release : m.attack;
                 float blend = ease > 1e-4f ? math.saturate(intoCycle / ease) : 1f;
-                transform.localRotation = math.mul(m.restRotation, math.slerp(prev, now, blend));
+                WriteLocalRotation(transform, math.mul(m.restRotation, math.slerp(prev, now, blend)), m.restRotation);
                 break;
             }
 
@@ -176,7 +177,7 @@ public struct AuthoredMotionJob : IJobParallelForTransform
 
                 quaternion q0 = new quaternion(RotationSamples[m.sampleStart + f0]);
                 quaternion q1 = new quaternion(RotationSamples[m.sampleStart + f1]);
-                transform.localRotation = math.slerp(q0, q1, frac);
+                WriteLocalRotation(transform, math.slerp(q0, q1, frac), m.restRotation);
                 break;
             }
 
@@ -210,15 +211,42 @@ public struct AuthoredMotionJob : IJobParallelForTransform
         switch ((Channel)m.channel)
         {
             case Channel.Rotation:
-                transform.localRotation = math.mul(m.restRotation, quaternion.AxisAngle(axis, math.radians(value)));
+                WriteLocalRotation(transform, math.mul(m.restRotation, quaternion.AxisAngle(axis, math.radians(value))), m.restRotation);
                 break;
             case Channel.Position:
-                transform.localPosition = m.restPosition + axis * value;
+            {
+                float3 position = m.restPosition + axis * value;
+                if (math.all(math.isfinite(position))) transform.localPosition = position;
                 break;
+            }
             case Channel.Scale:
-                transform.localScale = m.restScale + axis * value;
+            {
+                float3 scale = m.restScale + axis * value;
+                if (math.all(math.isfinite(scale))) transform.localScale = scale;
                 break;
+            }
         }
+    }
+
+    /// <summary>
+    /// A degenerate quaternion assigned through a TransformAccess skips the main-thread validation
+    /// Unity applies to transform.localRotation, and normalizing a zero quaternion when the matrix
+    /// is composed produces a NaN world matrix for the transform and everything under it. Movement
+    /// data is avatar-authored, so it cannot be assumed unit-length.
+    /// </summary>
+    static void WriteLocalRotation(TransformAccess transform, quaternion rotation, quaternion fallback)
+    {
+        float lengthSq = math.lengthsq(rotation.value);
+        if (math.isfinite(lengthSq) && lengthSq > 1e-12f)
+        {
+            transform.localRotation = math.normalize(rotation);
+            return;
+        }
+
+        float fallbackLengthSq = math.lengthsq(fallback.value);
+        transform.localRotation = math.isfinite(fallbackLengthSq) && fallbackLengthSq > 1e-12f
+            ? math.normalize(fallback)
+            : quaternion.identity;
     }
 
     // phase is in radians; pulseWidth is the square/pulse duty cycle (0–1).

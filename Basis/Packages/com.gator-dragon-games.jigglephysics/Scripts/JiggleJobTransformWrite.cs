@@ -1,5 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Mathematics;
 using UnityEngine.Jobs;
 
 namespace GatorDragonGames.JigglePhysics {
@@ -8,15 +10,18 @@ namespace GatorDragonGames.JigglePhysics {
 public struct JiggleJobTransformWrite : IJobParallelForTransform {
     public NativeArray<JiggleTransform> previousLocalPoses;
     [ReadOnly] public NativeArray<JiggleTransform> inputInterpolatedPoses;
+    [NativeDisableContainerSafetyRestriction] public NativeArray<int> nonFiniteStages;
 
     public JiggleJobTransformWrite(JiggleMemoryBus bus) {
         previousLocalPoses = bus.previousLocalRestPoseTransforms;
         inputInterpolatedPoses = bus.interpolationOutputPoses;
+        nonFiniteStages = bus.nonFiniteStages;
     }
 
     public void UpdateArrays(JiggleMemoryBus bus) {
         previousLocalPoses = bus.previousLocalRestPoseTransforms;
         inputInterpolatedPoses = bus.interpolationOutputPoses;
+        nonFiniteStages = bus.nonFiniteStages;
     }
 
     public void Execute(int index, TransformAccess transform) {
@@ -26,6 +31,11 @@ public struct JiggleJobTransformWrite : IJobParallelForTransform {
 
         var pose = inputInterpolatedPoses[index];
         if (pose.isVirtual) {
+            return;
+        }
+
+        if (!math.all(math.isfinite(pose.position)) || !math.all(math.isfinite(pose.rotation.value))) {
+            nonFiniteStages[JiggleMemoryBus.NonFiniteStageTransformWrite] = 1;
             return;
         }
 
