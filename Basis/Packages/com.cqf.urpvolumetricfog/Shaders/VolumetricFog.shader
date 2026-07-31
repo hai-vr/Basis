@@ -117,11 +117,12 @@ Shader "Hidden/VolumetricFog"
         Pass
         {
             Name "VolumetricFogUpsampleComposition"
-            
+
             ZTest Always
             ZWrite Off
             Cull Off
-            Blend Off
+            // Drawn straight onto the (possibly multisampled) camera color: dst * transmittance + fog.
+            Blend One SrcAlpha, Zero One
 
             HLSLPROGRAM
 
@@ -134,17 +135,11 @@ Shader "Hidden/VolumetricFog"
             #pragma vertex Vert
             #pragma fragment Frag
 
-            TEXTURE2D_X(_VolumetricFogTexture);
-            SAMPLER(sampler_BlitTexture);
-
             float4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                float4 volumetricFog = DepthAwareUpsample(input.texcoord, _VolumetricFogTexture);
-                float4 cameraColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_BlitTexture, input.texcoord);
-
-                return float4(cameraColor.rgb * volumetricFog.a + volumetricFog.rgb, cameraColor.a);
+                return DepthAwareUpsample(input.texcoord, _BlitTexture);
             }
 
             ENDHLSL
@@ -154,24 +149,24 @@ Shader "Hidden/VolumetricFog"
     SubShader
     {
         Tags
-        { 
+        {
             "RenderPipeline" = "UniversalPipeline"
         }
 
         UsePass "Hidden/VolumetricFog/VOLUMETRICFOGRENDER"
 
         UsePass "Hidden/VolumetricFog/VOLUMETRICFOGHORIZONTALBLUR"
-            
+
         UsePass "Hidden/VolumetricFog/VOLUMETRICFOGVERTICALBLUR"
 
         Pass
         {
             Name "VolumetricFogUpsampleComposition"
-            
+
             ZTest Always
             ZWrite Off
             Cull Off
-            Blend Off
+            Blend One SrcAlpha, Zero One
 
             HLSLPROGRAM
 
@@ -182,17 +177,11 @@ Shader "Hidden/VolumetricFog"
             #pragma vertex Vert
             #pragma fragment Frag
 
-            TEXTURE2D_X(_VolumetricFogTexture);
-            SAMPLER(sampler_BlitTexture);
-
             float4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                float4 volumetricFog = DepthAwareUpsample(input.texcoord, _VolumetricFogTexture);
-                float4 cameraColor = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_BlitTexture, input.texcoord);
-
-                return float4(cameraColor.rgb * volumetricFog.a + volumetricFog.rgb, cameraColor.a);
+                return DepthAwareUpsample(input.texcoord, _BlitTexture);
             }
 
             ENDHLSL

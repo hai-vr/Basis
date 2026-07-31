@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// Holds the baked APV in-scatter volume consumed by the volumetric fog's baked APV mode, and the
@@ -24,8 +25,12 @@ public static class VolumetricFogAPVBaker
 	/// <summary>1 / <see cref="BoundsSize"/>, precomputed for the shader's world-to-uvw mapping (0 on degenerate axes).</summary>
 	public static Vector3 BoundsInvSize { get; private set; }
 
-	/// <summary>True when a baked volume is available to sample.</summary>
-	public static bool IsReady => BakedVolume != null;
+	/// <summary>
+	/// True when a baked volume is available to sample. A RenderTexture whose native texture has been
+	/// lost (device reset, released by the editor) does not count as ready, so the self-healing rebake
+	/// in the renderer feature can rebuild it.
+	/// </summary>
+	public static bool IsReady => BakedVolume != null && (BakedVolume is not RenderTexture rt || rt.IsCreated());
 
 	/// <summary>
 	/// Assigns the baked volume and its world-space bounds. Called by the bake pass / editor baker.
@@ -63,6 +68,9 @@ public static class VolumetricFogAPVBaker
 	private const int BakeSettleFrames = 16;
 
 	private static int s_PendingBakeFrames;
+	private static int s_LastDispatchFrame = -1;
+	private static bool s_ForcingApvStreaming;
+	private static bool s_ApvStreamingValueBeforeForcing;
 
 	/// <summary>
 	/// Requests that the runtime baker (re)bake the APV in-scatter volume, then keep re-baking for a short
@@ -78,13 +86,28 @@ public static class VolumetricFogAPVBaker
 	public static bool BakeRequested => s_PendingBakeFrames > 0;
 
 	/// <summary>
-	/// The runtime baker calls this on each frame it actually dispatches a bake, advancing the settle
-	/// window. The window keeps the bake re-running while APV streams in; its final frame is authoritative.
+	/// Claims this frame's bake dispatch. Returns true at most once per rendered frame while a bake is
+	/// pending, so the settle window drains in real frames even when several cameras / fog feature
+	/// instances render per frame (and only one of them bakes). While the window runs, APV cell streaming
+	/// is forced to load everything; the previous streaming setting is restored when the window drains.
 	/// </summary>
-	public static void NotifyBakeServiced()
+	/// <param name="renderedFrame">The current Time.renderedFrameCount.</param>
+	public static bool TryBeginBakeDispatch(int renderedFrame)
 	{
+		if (s_PendingBakeFrames <= 0)
+			return false;
+		if (renderedFrame == s_LastDispatchFrame)
+			return false;
+
+		s_LastDispatchFrame = renderedFrame;
+		s_PendingBakeFrames--;
+
 		if (s_PendingBakeFrames > 0)
-			s_PendingBakeFrames--;
+			BeginApvStreamingForce();
+		else
+			ReleaseApvStreamingForce();
+
+		return true;
 	}
 
 	/// <summary>
@@ -95,6 +118,37 @@ public static class VolumetricFogAPVBaker
 	{
 		bool requested = s_PendingBakeFrames > 0;
 		s_PendingBakeFrames = 0;
+		ReleaseApvStreamingForce();
 		return requested;
+	}
+
+	private static void BeginApvStreamingForce()
+	{
+		if (s_ForcingApvStreaming)
+			return;
+
+		ProbeReferenceVolume apv = ProbeReferenceVolume.instance;
+		if (apv == null || !apv.isInitialized)
+			return;
+
+		// The editor defaults loadMaxCellsPerFrame to true, players to false - restore whatever was set,
+		// never a hardcoded value.
+		s_ApvStreamingValueBeforeForcing = apv.loadMaxCellsPerFrame;
+		apv.loadMaxCellsPerFrame = true;
+		s_ForcingApvStreaming = true;
+	}
+
+	/// <summary>
+	/// Hands APV cell streaming back to its pre-force setting. Safe to call when not currently forcing.
+	/// </summary>
+	public static void ReleaseApvStreamingForce()
+	{
+		if (!s_ForcingApvStreaming)
+			return;
+
+		s_ForcingApvStreaming = false;
+
+		if (ProbeReferenceVolume.instance != null)
+			ProbeReferenceVolume.instance.loadMaxCellsPerFrame = s_ApvStreamingValueBeforeForcing;
 	}
 }

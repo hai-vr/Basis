@@ -226,6 +226,10 @@ namespace Basis.BasisUI
             _usernameField.SetValueWithoutNotify(BasisDataStore.LoadString(BasisConnectionService.UsernameFileName, string.Empty));
             if (_usernameField._placeholderLabel != null)
                 _usernameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
+            // Graded on open: with no name you cannot connect to anything, so a blank one on first
+            // run is already-broken state rather than a box the user has yet to get to.
+            _usernameField.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed",
+                BasisLocalization.Get("menu.servers.username")));
             _usernameField._inputField.onSubmit.AddListener(_ => OnUsernameSubmitted());
 
             RectTransform headerActions = PanelElementDescriptor.BuildActionRow(container, "ServerRowActions");
@@ -238,6 +242,20 @@ namespace Basis.BasisUI
             _refreshAllButton.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.list.refreshAll"));
             _refreshAllButton.OnClicked += () => _ = RefreshAllAsync();
         }
+
+        /// <summary>
+        /// Mirrors the guard in the host port field's own OnValueChanged. The two have to agree, or a
+        /// value would read as accepted while being quietly discarded — the thing the tint is there
+        /// to stop.
+        /// </summary>
+        private static bool IsPortInRange(string text) =>
+            int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed)
+            && parsed > 0 && parsed <= ushort.MaxValue;
+
+        /// <summary>Mirrors the guard in the peer limit field's own OnValueChanged.</summary>
+        private static bool IsPeerLimitValid(string text) =>
+            int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed)
+            && parsed > 0;
 
         private void BuildAdvancedSection(RectTransform container)
         {
@@ -252,6 +270,8 @@ namespace Basis.BasisUI
             _hostServerNameField = PanelTextField.CreateNewEntry(container);
             _hostServerNameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostServerName"));
             _hostServerNameField.SetValueWithoutNotify(BasisDataStore.LoadString(HostServerNameFile, DefaultHostServerName));
+            _hostServerNameField.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed",
+                BasisLocalization.Get("menu.servers.hostServerName")));
             _hostServerNameField.OnValueChanged = value => BasisDataStore.SaveString(value ?? string.Empty, HostServerNameFile);
 
             _hostMotdField = PanelTextField.CreateNewEntry(container);
@@ -263,6 +283,9 @@ namespace Basis.BasisUI
             _hostPortField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPort"));
             _hostPortField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
             _hostPortField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPortFile, SavedServersDirectorySource.DefaultServerPort).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPortField.SetValidator(text => IsPortInRange(text)
+                ? null
+                : BasisLocalization.Get("ui.validation.port", 1, ushort.MaxValue));
             _hostPortField.OnValueChanged = value =>
             {
                 if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0 && parsed <= ushort.MaxValue)
@@ -280,6 +303,9 @@ namespace Basis.BasisUI
             _hostPeerLimitField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.hostPeerLimit"));
             _hostPeerLimitField._inputField.contentType = TMPro.TMP_InputField.ContentType.IntegerNumber;
             _hostPeerLimitField.SetValueWithoutNotify(BasisDataStore.LoadInt(HostPeerLimitFile, DefaultHostPeerLimit).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            _hostPeerLimitField.SetValidator(text => IsPeerLimitValid(text)
+                ? null
+                : BasisLocalization.Get("ui.validation.minimum", 1));
             _hostPeerLimitField.OnValueChanged = value =>
             {
                 if (int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int parsed) && parsed > 0)
@@ -970,12 +996,16 @@ namespace Basis.BasisUI
             nameField.Descriptor.SetTitle(BasisLocalization.Get("menu.servers.username"));
             if (nameField._placeholderLabel != null)
                 nameField._placeholderLabel.text = BasisLocalization.Get("menu.servers.username.hint");
+            // Held back until Connect is pressed — the dialog body already asks for a name, so it
+            // opens clean and only flags the box once the user tries to go on without one.
+            nameField.SetRequired(BasisLocalization.Get("ui.validation.requiredNamed",
+                BasisLocalization.Get("menu.servers.username")), gradeImmediately: false);
 
             void TryConfirm()
             {
                 if (dialog.IsBusy) return;
                 string typed = nameField._inputField.text;
-                if (string.IsNullOrWhiteSpace(typed))
+                if (!nameField.Validate())
                 {
                     nameField._inputField.Select();
                     nameField._inputField.ActivateInputField();

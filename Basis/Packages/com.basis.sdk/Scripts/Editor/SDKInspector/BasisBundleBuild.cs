@@ -370,6 +370,10 @@ public static class BasisBundleBuild
         meta.BonesCount = bonesCount;
         meta.TextureMemoryBytes = textureMemoryBytes;
         meta.GraphicsPipeline = DetectGraphicsPipeline();
+        if (root.TryGetComponent(out BasisProp prop))
+        {
+            meta.PropSpawn = prop.SpawnMetaData;
+        }
         meta.ComponentNames = componentCounts
             .Select(kvp => new BasisBundleConnector.BasisComponentName
             {

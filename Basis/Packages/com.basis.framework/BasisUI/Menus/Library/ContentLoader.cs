@@ -205,6 +205,55 @@ namespace Basis.BasisUI
             return false;
         }
 
+        /// <summary>
+        /// Resolves the local render bounds a placement needs to seat the prop on a surface.
+        /// Falls back to loading the prop once locally and measuring it when the bundle carries no
+        /// bounds, caching the result back onto the connector.
+        /// </summary>
+        private static async Task<BasisBounds> ResolvePlacementBounds(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalScale, bool admin, bool modifyScale)
+        {
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
+            {
+                return EmbeddedItems.GetBoundsForEmbeddedItem(item);
+            }
+
+            BasisBounds bounds = cached.BasisBundleConnector.Bounds;
+            if (bounds.extents != Vector3.zero) // if for whatever reason the basis bounds is zero spawn the object in
+            {
+                return bounds;
+            }
+
+            GameObject tempOject = await HandleLoadGameObjectWithBundle(
+                item,
+                cached,
+                desiredNetworkType,
+                Vector3.zero,
+                Quaternion.identity,
+                finalScale,
+                BasisDeviceManagement.Instance.transform,
+                admin,
+                modifyScale,
+                true // we are using this one for local purposes
+            );
+
+            if (tempOject == null)
+            {
+                return bounds;
+            }
+
+            // disable it
+            tempOject.SetActive(false);
+
+            // calculate the bounds
+            Bounds calculatedBounds = PlacementManager.CalculateLocalRenderBounds(tempOject);
+            BasisBounds newBounds = new BasisBounds(calculatedBounds.center, calculatedBounds.size);
+            cached.BasisBundleConnector.Bounds = newBounds;
+
+            GameObject.Destroy(tempOject);
+
+            return newBounds;
+        }
+
         public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool admin = false, bool modifyScale = false)
         {
             if (PropSpawnClaimed(item.Url)) return;
@@ -225,13 +274,20 @@ namespace Basis.BasisUI
                     return;
                 }
 
+                BasisPropSpawnMetaData spawnMeta = PropSpawnPlacement.Resolve(item, cached.BasisBundleConnector);
+
                 Vector3 finalPos = Vector3.zero;
                 Quaternion finalRot = Quaternion.identity;
-                Vector3 finalScale = Vector3.one;
-
-                switch (item.PlacementType)
+                Vector3 finalScale = Vector3.one * spawnMeta.ResolvedUniformScale;
+                if (spawnMeta.HasCustomScale)
                 {
-                    case BundledContentHolder.PlacementType.SpawnAtRaycast:
+                    modifyScale = true;
+                }
+
+                switch (spawnMeta.Placement)
+                {
+                    case BasisPropSpawnPlacement.Raycast:
+                    case BasisPropSpawnPlacement.Unspecified:
                         BasisDeviceManagement deviceInstance = BasisDeviceManagement.Instance;
 
                         if (!deviceInstance.FindDevice(out BasisInput input, BasisDominantHand.DominantRole) &&
@@ -242,41 +298,7 @@ namespace Basis.BasisUI
                             return;
                         }
 
-                        BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
-                        if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
-                        {
-                            FinalBounds = EmbeddedItems.GetBoundsForEmbeddedItem(item);
-                        }
-                        else
-                        {
-                            if (FinalBounds.extents == Vector3.zero) // if for whatever reason the basis bounds is zero spawn the object in
-                            {
-                                GameObject tempOject = await HandleLoadGameObjectWithBundle(
-                                    item,
-                                    cached,
-                                    desiredNetworkType,
-                                    Vector3.zero,
-                                    Quaternion.identity,
-                                    finalScale,
-                                    BasisDeviceManagement.Instance.transform,
-                                    admin,
-                                    modifyScale,
-                                    true // we are using this one for local purposes
-                                );
-
-                                // disable it
-                                tempOject.SetActive(false);
-
-                                // calculate the bounds
-                                Bounds calculatedBounds = PlacementManager.CalculateLocalRenderBounds(tempOject);
-                                BasisBounds newBounds = new BasisBounds(calculatedBounds.center, calculatedBounds.size);
-                                cached.BasisBundleConnector.Bounds = newBounds;
-                                FinalBounds = newBounds;
-
-                                GameObject.Destroy(tempOject);
-
-                            }
-                        }
+                        BasisBounds FinalBounds = await ResolvePlacementBounds(item, cached, desiredNetworkType, finalScale, admin, modifyScale);
                         //BasisDebug.Log($"{item.Url} -> finalbounds = {FinalBounds.extents} max = {FinalBounds.max} center = {FinalBounds.center}");
 
                         BasisDebug.Log("Forcefully closing the main menu");
@@ -285,7 +307,7 @@ namespace Basis.BasisUI
                         (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
                         try
                         {
-                            placementResult = await PlacementManager.BeginPlacement(input, FinalBounds.extents, FinalBounds.center);
+                            placementResult = await PlacementManager.BeginPlacement(input, Vector3.Scale(FinalBounds.extents, finalScale), Vector3.Scale(FinalBounds.center, finalScale));
                         }
                         catch (TaskCanceledException)
                         {
@@ -300,9 +322,8 @@ namespace Basis.BasisUI
 
                         finalPos = placementResult.spawnPos;
                         finalRot = placementResult.spawnRot;
-                        finalScale = placementResult.spawnScale;
                         break;
-                    case BundledContentHolder.PlacementType.SpawnInFrontOfPlayer:
+                    case BasisPropSpawnPlacement.InFrontOfPlayer:
                         // Spawn at the player's head ("eye height and in front of them", per the
                         // PlacementType doc). HeadPosition/HeadForward equal the camera pose in
                         // first-person, but in third-person they stay on the head bone instead of
@@ -316,14 +337,26 @@ namespace Basis.BasisUI
 
                         BasisMainMenu.Close();
                         break;
-                    case BundledContentHolder.PlacementType.SpawnAtPlayerOrigin:
+                    case BasisPropSpawnPlacement.AtPlayerOrigin:
                         finalPos = BasisLocalPlayer.Instance.PlayerSelf.position;
                         BasisMainMenu.Close();
                         break;
+                    case BasisPropSpawnPlacement.OnGround:
+                        BasisBounds groundBounds = await ResolvePlacementBounds(item, cached, desiredNetworkType, finalScale, admin, modifyScale);
+                        BasisMainMenu.Close();
+                        PropSpawnPlacement.ComputePose(spawnMeta, groundBounds, out finalPos, out finalRot, out finalScale);
+                        break;
+                    case BasisPropSpawnPlacement.InAirAtDistance:
+                    case BasisPropSpawnPlacement.InHand:
+                        BasisMainMenu.Close();
+                        PropSpawnPlacement.ComputePose(spawnMeta, default, out finalPos, out finalRot, out finalScale);
+                        break;
                     default:
-                        BasisDebug.LogError($"LoadProp was invoked for item = {item.Url} but has placementType = {item.PlacementType} which is not defined. Unable to spawn item");
+                        BasisDebug.LogError($"LoadProp was invoked for item = {item.Url} but resolved to placement = {spawnMeta.Placement} which is not defined. Unable to spawn item");
                         break;
                 }
+
+                bool handOff = spawnMeta.Placement == BasisPropSpawnPlacement.InHand;
 
                 switch (desiredNetworkType)
                 {
@@ -334,6 +367,10 @@ namespace Basis.BasisUI
                                 bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, admin, modifyScale, out LocalLoadResource syncResource, loadStrategy: 2);
                                 if (ok)
                                 {
+                                    if (handOff)
+                                    {
+                                        BasisSpawnedHandGrab.Request(syncResource.LoadedNetID, spawnMeta.Hand);
+                                    }
                                     BasisDebug.Log($"Requested synchronized load for {item.Url}, NetID={syncResource.LoadedNetID}", BasisDebug.LogTag.Networking);
                                 }
                                 else
@@ -399,6 +436,10 @@ namespace Basis.BasisUI
                                          out var embeddedinstance
                                     );
                                     BasisDebug.Log($"BasisRuntimeSpawnRegistry.AddGameObject instanceID = {embeddedinstance.InstanceId}, LoadedNetID = {embeddedinstance.LoadedNetID}");
+                                    if (handOff)
+                                    {
+                                        BasisSpawnedHandGrab.TryGrab(instance, spawnMeta.Hand);
+                                    }
                                 }
 
 
@@ -407,7 +448,7 @@ namespace Basis.BasisUI
                             {
                                 if (cached.BasisBundleConnector != null)
                                 {
-                                    await HandleLoadGameObjectWithBundle(
+                                    GameObject localProp = await HandleLoadGameObjectWithBundle(
                                         item,
                                         cached,
                                         desiredNetworkType,
@@ -418,6 +459,11 @@ namespace Basis.BasisUI
                                         admin,
                                         modifyScale
                                     );
+
+                                    if (handOff && localProp != null)
+                                    {
+                                        BasisSpawnedHandGrab.TryGrab(localProp, spawnMeta.Hand);
+                                    }
                                 }
                                 else
                                 {
@@ -436,6 +482,10 @@ namespace Basis.BasisUI
 
                                 if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
                                 {
+                                    if (handOff)
+                                    {
+                                        BasisSpawnedHandGrab.Request(loadedProp.LoadedNetID, spawnMeta.Hand);
+                                    }
                                     BasisDebug.Log($"Requested networked load for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
                                 }
                                 else

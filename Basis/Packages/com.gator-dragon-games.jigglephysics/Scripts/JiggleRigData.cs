@@ -155,7 +155,12 @@ public struct JiggleRigData {
         ValidateCurve(ref jiggleTreeInputParameters.airDrag.curve);
         ValidateCurve(ref jiggleTreeInputParameters.gravity.curve);
         ValidateCurve(ref jiggleTreeInputParameters.collisionRadius.curve);
-        BuildNormalizedDistanceFromRootList();
+        // Bones are mid-simulation in play mode; resampling would bake the jiggled pose into the serialized rest.
+        if (Application.isPlaying) {
+            RegenerateCacheLookup();
+        } else {
+            BuildNormalizedDistanceFromRootList();
+        }
         for (int i = 0; i < 100; i++) {
             if (!TryUpdateSerialization()) {
                 break;

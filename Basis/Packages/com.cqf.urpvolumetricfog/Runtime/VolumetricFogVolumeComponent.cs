@@ -120,8 +120,8 @@ public sealed class VolumetricFogVolumeComponent : VolumeComponent, IPostProcess
 	public VolumetricFogResolutionParameter resolution = new VolumetricFogResolutionParameter(VolumetricFogResolution.Half, true);
 	[Tooltip("Raymarching steps. Greater values will increase the fog quality at the expense of performance.")]
 	public ClampedIntParameter maxSteps = new ClampedIntParameter(128, 8, 256);
-	[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance.")]
-	public ClampedIntParameter blurIterations = new ClampedIntParameter(1, 1, 4);
+	[Tooltip("The number of times that the fog texture will be blurred. Higher values lead to softer volumetric god rays at the cost of some performance. 0 disables the blur entirely, which is usually fine when the main light contribution is off.")]
+	public ClampedIntParameter blurIterations = new ClampedIntParameter(1, 0, 4);
 	[Tooltip("Disabling this will completely remove any feature from the volumetric fog from being rendered at all.")]
 	public BoolParameter enabled = new BoolParameter(false, BoolParameter.DisplayType.Checkbox, true);
 

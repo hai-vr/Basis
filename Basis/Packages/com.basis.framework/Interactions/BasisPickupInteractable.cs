@@ -103,6 +103,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Multiplier applied to angular velocity when interaction ends.
         /// </summary>
         public float interactEndAngularVelocityMultiplier = 1.0f;
+
+        /// <summary>
+        /// Length of the motion window averaged into the release velocity. Longer smooths tracking noise,
+        /// shorter preserves sharp flicks.
+        /// </summary>
+        [Space(5)]
+        public float throwWindowSeconds = 0.05f;
+
+        /// <summary>
+        /// How far back from the release frame the throw estimate may place its window, covering the delay
+        /// between the peak of the swing and the release input registering.
+        /// </summary>
+        public float throwLookbackSeconds = 0.15f;
         #endregion
 
         #region Inspector: References
@@ -197,8 +210,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public List<Func<BasisInput, bool>> CanInteractInjected = new();
 
-        private Vector3 linearVelocity;
-        private Vector3 angularVelocity;
+        private struct BasisThrowSample
+        {
+            public Vector3 Linear;
+            public Vector3 Angular;
+            public float Delta;
+        }
+
+        private const int k_ThrowSampleCapacity = 16;
+        private readonly BasisThrowSample[] _throwSamples = new BasisThrowSample[k_ThrowSampleCapacity];
+        private int _throwSampleCount;
+        private int _throwSampleHead;
         private Vector3 _previousPosition;
         private Quaternion _previousRotation;
 
@@ -573,8 +595,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     transform.GetPositionAndRotation(out Vector3 ActivePosition, out Quaternion ActiveRotation);
                     _previousPosition = ActivePosition;
                     _previousRotation = ActiveRotation;
-                    linearVelocity = Vector3.zero;
-                    angularVelocity = Vector3.zero;
+                    _throwSampleCount = 0;
+                    _throwSampleHead = 0;
 
                     Vector3 offsetPos;
                     bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
@@ -696,13 +718,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Applies cached linear and angular velocities to the rigidbody on drop,
+        /// Applies the recorded release velocities to the rigidbody on drop,
         /// zeroing components that are below configured thresholds.
         /// </summary>
         private void OnDropVelocity()
         {
-            Vector3 linear = linearVelocity;
-            Vector3 angular = angularVelocity;
+            EvaluateThrow(out Vector3 linear, out Vector3 angular);
 
             if (linear.magnitude >= minLinearVelocity)
             {
@@ -725,25 +746,118 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Computes instantaneous linear and angular velocity based on current and previous pose.
+        /// Records instantaneous linear and angular velocity for this frame into the release history,
+        /// based on current and previous pose. Samples taken while lerping to the hand are discarded,
+        /// since that motion is the pickup closing on the grip rather than the player moving it.
         /// </summary>
         /// <param name="pos">Current world position.</param>
         /// <param name="rot">Current world rotation.</param>
         private void CalculateVelocity(Vector3 pos, Quaternion rot)
         {
-            // Instant linear velocity
-            linearVelocity = (pos - _previousPosition) / Time.deltaTime;
+            float delta = Time.deltaTime;
+            if (delta <= 0f)
+            {
+                return;
+            }
 
-            // Instant angular velocity
+            Vector3 linear = (pos - _previousPosition) / delta;
+
             Quaternion deltaRotation = rot * Quaternion.Inverse(_previousRotation);
             deltaRotation.ToAngleAxis(out float angle, out Vector3 axis);
 
-            angle = NormalizeAngle360(angle);
+            angle = NormalizeAngle180(angle);
 
-            angularVelocity = axis * (angle * Mathf.Deg2Rad) / Time.deltaTime;
+            Vector3 angular = axis * (angle * Mathf.Deg2Rad) / delta;
 
             _previousPosition = pos;
             _previousRotation = rot;
+
+            if (_lerping)
+            {
+                return;
+            }
+
+            _throwSamples[_throwSampleHead] = new BasisThrowSample { Linear = linear, Angular = angular, Delta = delta };
+            _throwSampleHead = (_throwSampleHead + 1) % k_ThrowSampleCapacity;
+            if (_throwSampleCount < k_ThrowSampleCapacity)
+            {
+                _throwSampleCount++;
+            }
+        }
+
+        /// <summary>
+        /// Picks the strongest short motion window out of the recorded hold samples. Releasing is a button
+        /// press that lands after the swing has peaked, so the frame the drop is detected on is usually the
+        /// slowest of the throw; scanning back over <see cref="throwLookbackSeconds"/> recovers the actual
+        /// swing instead of the follow-through.
+        /// </summary>
+        /// <param name="linear">Outputs the windowed linear velocity, or zero when no motion was recorded.</param>
+        /// <param name="angular">Outputs the windowed angular velocity, or zero when no motion was recorded.</param>
+        private void EvaluateThrow(out Vector3 linear, out Vector3 angular)
+        {
+            linear = Vector3.zero;
+            angular = Vector3.zero;
+
+            int count = _throwSampleCount;
+            if (count == 0)
+            {
+                return;
+            }
+
+            float window = Mathf.Max(throwWindowSeconds, 0.0001f);
+            float lookback = Mathf.Max(throwLookbackSeconds, window);
+            float bestSpeed = -1f;
+            float endAge = 0f;
+
+            for (int end = count - 1; end >= 0; end--)
+            {
+                if (end < count - 1)
+                {
+                    endAge += GetThrowSample(end + 1).Delta;
+                }
+                if (endAge > lookback)
+                {
+                    break;
+                }
+
+                Vector3 sumLinear = Vector3.zero;
+                Vector3 sumAngular = Vector3.zero;
+                float span = 0f;
+                for (int start = end; start >= 0; start--)
+                {
+                    BasisThrowSample sample = GetThrowSample(start);
+                    sumLinear += sample.Linear * sample.Delta;
+                    sumAngular += sample.Angular * sample.Delta;
+                    span += sample.Delta;
+                    if (span < window && start > 0)
+                    {
+                        continue;
+                    }
+
+                    Vector3 candidate = sumLinear / span;
+                    float speed = candidate.sqrMagnitude;
+                    if (speed > bestSpeed)
+                    {
+                        bestSpeed = speed;
+                        linear = candidate;
+                        angular = sumAngular / span;
+                    }
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads a recorded release sample, where index 0 is the oldest retained sample.
+        /// </summary>
+        private BasisThrowSample GetThrowSample(int index)
+        {
+            int slot = (_throwSampleHead - _throwSampleCount + index) % k_ThrowSampleCapacity;
+            if (slot < 0)
+            {
+                slot += k_ThrowSampleCapacity;
+            }
+            return _throwSamples[slot];
         }
 
         private static Vector3 SnapPositionToGrid(Vector3 position, float size)
@@ -768,14 +882,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Normalizes an angle into the [0, 360) range.
+        /// Normalizes an angle into the (-180, 180] range, so a small rotation the short way round is not
+        /// read as a near-full rotation the long way round.
         /// </summary>
         /// <param name="angle">Angle in degrees.</param>
-        /// <returns>Angle normalized to [0, 360).</returns>
-        private float NormalizeAngle360(float angle)
+        /// <returns>Angle normalized to (-180, 180].</returns>
+        private static float NormalizeAngle180(float angle)
         {
             angle %= 360f;
-            if (angle < 0)
+            if (angle > 180f)
+                angle -= 360f;
+            else if (angle < -180f)
                 angle += 360f;
             return angle;
         }

@@ -3811,6 +3811,66 @@
       "value": "Network Type"
     },
     {
+      "key": "library.placement",
+      "value": "Spawn Placement"
+    },
+    {
+      "key": "library.placement.automatic",
+      "value": "Automatic"
+    },
+    {
+      "key": "library.placement.automatic.description",
+      "value": "Spawns this the way the prop asks to be spawned, or by aiming if it does not ask for anything."
+    },
+    {
+      "key": "library.placement.raycast",
+      "value": "Aim And Place"
+    },
+    {
+      "key": "library.placement.raycast.description",
+      "value": "Point at a surface and pull the trigger to place this exactly where you want it."
+    },
+    {
+      "key": "library.placement.inHand",
+      "value": "In Your Hand"
+    },
+    {
+      "key": "library.placement.inHand.description",
+      "value": "Puts this straight into your hand once it finishes loading. On desktop it appears in front of you instead."
+    },
+    {
+      "key": "library.placement.inAir",
+      "value": "In The Air"
+    },
+    {
+      "key": "library.placement.inAir.description",
+      "value": "Spawns this floating a short distance in front of you, wherever you are looking."
+    },
+    {
+      "key": "library.placement.onGround",
+      "value": "On The Ground"
+    },
+    {
+      "key": "library.placement.onGround.description",
+      "value": "Drops this onto the floor in front of you, resting on whatever surface is below."
+    },
+    {
+      "key": "library.placement.inFront",
+      "value": "In Front Of You"
+    },
+    {
+      "key": "library.placement.inFront.description",
+      "value": "Spawns this at eye height directly in front of you."
+    },
+    {
+      "key": "library.placement.playerOrigin",
+      "value": "At Your Feet"
+    },
+    {
+      "key": "library.placement.playerOrigin.description",
+      "value": "Spawns this at your own position, on the ground you are standing on."
+    },
+    {
       "key": "library.ephemeralMode",
       "value": "Ephemeral Mode"
     },
@@ -8953,6 +9013,10 @@
     {
       "key": "ui.validation.port",
       "value": "Enter a port number between {0} and {1}."
+    },
+    {
+      "key": "ui.validation.minimum",
+      "value": "Enter a whole number of {0} or more."
     },
     {
       "key": "ui.search",

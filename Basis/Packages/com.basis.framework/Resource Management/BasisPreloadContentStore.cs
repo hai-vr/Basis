@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,6 +23,7 @@ public static class BasisPreloadContentStore
         public string Pass;
         public BundledContentHolder.Mode Mode;
         public BundledContentHolder.PlacementType PlacementType;
+        public BasisPropSpawnPlacement PlacementOverride;
 
         // Placed transform (world position/rotation + local scale) for props, so they restore where
         // they were put. Worlds have no placement and leave HasTransform false.
@@ -185,6 +186,7 @@ public static class BasisPreloadContentStore
                     Pass = (string)item.Element("Pass") ?? string.Empty,
                     Mode = ParseEnum(item.Element("Mode")?.Value, BundledContentHolder.Mode.World),
                     PlacementType = ParseEnum(item.Element("PlacementType")?.Value, BundledContentHolder.PlacementType.SpawnAtPlayerOrigin),
+                    PlacementOverride = ParseEnum(item.Element("PlacementOverride")?.Value, BasisPropSpawnPlacement.Unspecified),
                 };
 
                 XElement tf = item.Element("Transform");
@@ -217,7 +219,8 @@ public static class BasisPreloadContentStore
             new XElement("Url", e.Url ?? string.Empty),
             new XElement("Pass", e.Pass ?? string.Empty),
             new XElement("Mode", e.Mode.ToString()),
-            new XElement("PlacementType", e.PlacementType.ToString()));
+            new XElement("PlacementType", e.PlacementType.ToString()),
+            new XElement("PlacementOverride", e.PlacementOverride.ToString()));
 
         if (e.HasTransform)
         {

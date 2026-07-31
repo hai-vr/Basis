@@ -319,6 +319,7 @@ public static class BasisNetworkSpawnItem
             {
                 BasisRuntimeSpawnRegistry.SetStaticByLoadedNetId(localLoadResource.LoadedNetID, localLoadResource.Static, localLoadResource.StaticAdminLocked);
             }
+            BasisSpawnedHandGrab.TryRedeem(localLoadResource.LoadedNetID, reference);
 #if UNITY_SERVER
             BasisHeadlessManagement.StripTextureReferencesFromRoot(reference);
 #endif

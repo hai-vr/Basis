@@ -38,6 +38,12 @@ public class BasisBundleConnector
         // this field existed deserialize with null — display layer treats null/empty
         // as "Unknown".
         public string GraphicsPipeline;
+        // Placement the prop's BasisProp component asks for, harvested at build time so a client
+        // can honor it before the AssetBundle is downloaded. Older bundles built before this field
+        // existed deserialize with Placement = Unspecified, which clients treat as "no request"
+        // and place the prop exactly as they did before.
+        [SerializeField]
+        public BasisPropSpawnMetaData PropSpawn;
         [SerializeField]
         public BasisComponentName[] ComponentNames;
     }

@@ -1,4 +1,4 @@
-using Basis.BasisUI.Styling;
+﻿using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -1365,6 +1365,33 @@ namespace Basis.BasisUI
                 contentPersistenceToggle.SetInteractable(
                     !item.EmbeddedSettings.IsEmbedded,
                     item.EmbeddedSettings.IsEmbedded ? BasisLocalization.Get("library.disabled.embedded") : null);
+
+                // where a prop lands when spawned. Automatic defers to whatever the prop itself asks
+                // for, so this only needs touching to override the creator's choice.
+                if (item.Mode == BundledContentHolder.Mode.Prop)
+                {
+                    advancedActionsPanel.Descriptor.SetHeight(240);
+
+                    PanelDropdown placementDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
+                    placementDropDown.Descriptor.SetTitle(BasisLocalization.Get("library.placement"));
+                    placementDropDown.Descriptor.SetDescription(GetPlacementDescription(item.PlacementOverride));
+                    placementDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.TeleportTo);
+                    placementDropDown.AssignEntries(PlacementDisplayNames.Values.ToList());
+                    placementDropDown.Descriptor.SetSize(new Vector2(700, 80));
+                    placementDropDown.SetValueWithoutNotify(GetPlacementDisplayName(item.PlacementOverride));
+                    placementDropDown.OnValueChanged = async (val) =>
+                    {
+                        if (!TryParsePlacementFromDisplayName(val, out BasisPropSpawnPlacement selectedPlacement))
+                        {
+                            BasisDebug.LogError($"Could not parse placement from display name: {val}");
+                            return;
+                        }
+
+                        item.PlacementOverride = selectedPlacement;
+                        placementDropDown.Descriptor.SetDescription(GetPlacementDescription(selectedPlacement));
+                        await BasisDataStoreItemKeys.UpdatePlacementOverride(item, selectedPlacement);
+                    };
+                }
             }
 
             #endregion
@@ -1562,6 +1589,61 @@ namespace Basis.BasisUI
         };
 
         /// <summary>
+        /// Placements offered in the prop spawn dropdown. Unspecified leads and means "whatever the
+        /// prop asks for", so a creator's own choice is honoured unless the player overrides it here.
+        /// </summary>
+        private static Dictionary<BasisPropSpawnPlacement, string> PlacementDisplayNames => new()
+        {
+            [BasisPropSpawnPlacement.Unspecified] = BasisLocalization.Get("library.placement.automatic"),
+            [BasisPropSpawnPlacement.Raycast] = BasisLocalization.Get("library.placement.raycast"),
+            [BasisPropSpawnPlacement.InHand] = BasisLocalization.Get("library.placement.inHand"),
+            [BasisPropSpawnPlacement.InAirAtDistance] = BasisLocalization.Get("library.placement.inAir"),
+            [BasisPropSpawnPlacement.OnGround] = BasisLocalization.Get("library.placement.onGround"),
+            [BasisPropSpawnPlacement.InFrontOfPlayer] = BasisLocalization.Get("library.placement.inFront"),
+            [BasisPropSpawnPlacement.AtPlayerOrigin] = BasisLocalization.Get("library.placement.playerOrigin"),
+        };
+
+        private static string GetPlacementDisplayName(BasisPropSpawnPlacement placement)
+        {
+            return PlacementDisplayNames.TryGetValue(placement, out string name) ? name : placement.ToString();
+        }
+
+        private static bool TryParsePlacementFromDisplayName(string displayName, out BasisPropSpawnPlacement placement)
+        {
+            foreach (var kvp in PlacementDisplayNames)
+            {
+                if (kvp.Value == displayName)
+                {
+                    placement = kvp.Key;
+                    return true;
+                }
+            }
+            placement = default;
+            return false;
+        }
+
+        private static string GetPlacementDescription(BasisPropSpawnPlacement placement)
+        {
+            return placement switch
+            {
+                BasisPropSpawnPlacement.Raycast =>
+                    BasisLocalization.Get("library.placement.raycast.description"),
+                BasisPropSpawnPlacement.InHand =>
+                    BasisLocalization.Get("library.placement.inHand.description"),
+                BasisPropSpawnPlacement.InAirAtDistance =>
+                    BasisLocalization.Get("library.placement.inAir.description"),
+                BasisPropSpawnPlacement.OnGround =>
+                    BasisLocalization.Get("library.placement.onGround.description"),
+                BasisPropSpawnPlacement.InFrontOfPlayer =>
+                    BasisLocalization.Get("library.placement.inFront.description"),
+                BasisPropSpawnPlacement.AtPlayerOrigin =>
+                    BasisLocalization.Get("library.placement.playerOrigin.description"),
+                _ =>
+                    BasisLocalization.Get("library.placement.automatic.description"),
+            };
+        }
+
+        /// <summary>
         /// Network types offered in the load dropdown. Local and Load-on-Boot work offline; Networked
         /// only appears when connected to a server. Local-file content is never networkable (it does
         /// not exist on other clients), so it is restricted to Local and Load-on-Boot.
@@ -1688,6 +1770,7 @@ namespace Basis.BasisUI
                                 Pass = item.Pass,
                                 Mode = item.Mode,
                                 PlacementType = item.PlacementType,
+                                PlacementOverride = item.PlacementOverride,
                             });
                         }
                         await ContentLoader.LoadWorld(item, networkType, persistence, IsProtected);
@@ -1736,6 +1819,7 @@ namespace Basis.BasisUI
                     Pass = item.Pass,
                     Mode = item.Mode,
                     PlacementType = item.PlacementType,
+                    PlacementOverride = item.PlacementOverride,
                     HasTransform = true,
                     Position = t.position,
                     Rotation = t.rotation,
@@ -1762,6 +1846,7 @@ namespace Basis.BasisUI
                 {
                     Mode = item.Mode,
                     PlacementType = item.PlacementType,
+                    PlacementOverride = item.PlacementOverride,
                     Url = item.Url,
                     Pass = item.Pass,
                     EmbeddedSettings = item.EmbeddedSettings,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -133,8 +133,9 @@ public static class BasisBootContentLoader
             return;
         }
 
-        // No saved transform — fall back to spawning at the player origin.
-        item.PlacementType = BundledContentHolder.PlacementType.SpawnAtPlayerOrigin;
+        // No saved transform — fall back to spawning at the player origin, pinned so a prop that
+        // asks to arrive in a hand or under interactive placement cannot hijack the boot restore.
+        item.PlacementOverride = BasisPropSpawnPlacement.AtPlayerOrigin;
         await ContentLoader.LoadProp(item, BundledContentHolder.NetworkType.Local);
     }
 
@@ -146,6 +147,7 @@ public static class BasisBootContentLoader
             Pass = entry.Pass,
             Mode = entry.Mode,
             PlacementType = entry.PlacementType,
+            PlacementOverride = entry.PlacementOverride,
         };
     }
 

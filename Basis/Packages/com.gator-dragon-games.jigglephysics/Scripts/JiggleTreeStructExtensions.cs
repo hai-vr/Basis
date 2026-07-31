@@ -17,15 +17,12 @@ public static class JiggleTreeStructExtensions {
         return v;
     }
     
-    private static bool IsNormalized(quaternion q, float epsilon = 1e-5f) {
-        return math.abs(math.length(q.value) - 1f) < epsilon;
-    }
-    
     private static quaternion SanitizeOutput(quaternion v) {
         if (!math.all(math.isfinite(v.value))) {
             return quaternion.identity;
         }
-        return v;
+        // The written rotation is read back as next frame's input pose, so magnitude error compounds without this.
+        return math.normalizesafe(v, quaternion.identity);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

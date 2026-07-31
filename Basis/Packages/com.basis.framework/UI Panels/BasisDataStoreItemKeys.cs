@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -71,6 +71,11 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             public BundledContentHolder.Mode Mode;
             public BundledContentHolder.PlacementType PlacementType;
+            // The player's own placement choice for this entry, which wins over whatever the prop
+            // asks for. Unspecified (0) means "follow the prop", so entries saved before this field
+            // existed load as automatic and still fall back to PlacementType for props with no
+            // authored request.
+            public BasisPropSpawnPlacement PlacementOverride;
             public string Url;
             public string Pass;
             public EmbeddedSettings EmbeddedSettings = EmbeddedSettings.Default;
@@ -178,6 +183,32 @@ namespace Basis.Scripts.UI.UI_Panels
                     return false;
 
                 keys.Data[index].PinnedSettings = updatedPinnedSettings;
+
+                await SaveKeysToFile();
+                return true;
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Persists the player's spawn placement pick for a library entry. Entries that are not in
+        /// the local key store (embedded or server-provided) keep the choice for this session only.
+        /// </summary>
+        public static async Task<bool> UpdatePlacementOverride(ItemKey key, BasisPropSpawnPlacement placementOverride)
+        {
+            await EnsureLoaded();
+
+            await _lock.WaitAsync();
+            try
+            {
+                int index = IndexOfKey(key);
+                if (index < 0)
+                    return false;
+
+                keys.Data[index].PlacementOverride = placementOverride;
 
                 await SaveKeysToFile();
                 return true;
@@ -523,6 +554,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     {
                         Mode = item.Mode,
                         PlacementType = item.PlacementType,
+                        PlacementOverride = item.PlacementOverride,
                         Url = item.Url,
                         Pass = item.Pass,
                         EmbeddedSettings = item.EmbeddedSettings,

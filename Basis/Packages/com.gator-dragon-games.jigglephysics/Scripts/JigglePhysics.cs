@@ -236,6 +236,21 @@ public static class JigglePhysics {
         animatedRootsDirty = true;
     }
 
+    /// <summary>
+    /// Marks every registered tree for a rebuild. Rebuilding re-reads the serialized rest pose and
+    /// reseeds the verlet state from the current bone positions, discarding any stale simulation
+    /// state — e.g. after an editor undo has moved bones out from under the sim.
+    /// </summary>
+    public static void SetAllTreesDirty() {
+        if (rootJiggleTreeSegments == null) {
+            return;
+        }
+        int count = rootJiggleTreeSegments.Count;
+        for (int i = 0; i < count; i++) {
+            rootJiggleTreeSegments[i].SetDirty();
+        }
+    }
+
     // Roots whose provider animates parameters, rebuilt lazily from rootJiggleTreeSegments so the
     // per-frame parameter push iterates only them instead of interface-calling every root. Every
     // structural change funnels through SetGlobalDirty (or the prune below); runtime flag flips

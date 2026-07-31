@@ -46,7 +46,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	private RTHandle bakeRTHandle;
 	private Vector3Int bakeResolution;
 	private int bakeKernelIndex = -1;
-	private bool forcingApvStreaming;
+	private Vector3Int failedBakeResolution;
 
 	#endregion
 
@@ -94,7 +94,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	{
 		base.Dispose(disposing);
 
-		StopForcingApvStreaming();
+		VolumetricFogAPVBaker.ReleaseApvStreamingForce();
 		volumetricFogRenderPass?.Dispose();
 		volumetricFogAPVBakePass = null;
 		ReleaseBakeRenderTexture();
@@ -186,8 +186,9 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	}
 
 	/// <summary>
-	/// If a rebake has been requested and Unity's APV runtime holds data, ensures the target 3D texture
-	/// exists, publishes it to the baker, and enqueues the one-shot bake pass for this frame.
+	/// If a rebake has been requested (or the baked volume is missing while a fog volume wants baked APV)
+	/// and Unity's APV runtime holds data, ensures the target 3D texture exists, publishes it to the baker,
+	/// and enqueues the one-shot bake pass for this frame.
 	/// </summary>
 	/// <param name="renderer"></param>
 	/// <param name="cameraType"></param>
@@ -195,7 +196,7 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 	{
 		if (!isActive)
 		{
-			StopForcingApvStreaming();
+			VolumetricFogAPVBaker.ReleaseApvStreamingForce();
 			return;
 		}
 
@@ -205,7 +206,6 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		{
 			if (!ReferenceEquals(VolumetricFogAPVBaker.BakedVolume, bakedAPVVolumeAsset))
 				VolumetricFogAPVBaker.SetBakedVolume(bakedAPVVolumeAsset, bakeBoundsCenter - bakeBoundsSize * 0.5f, bakeBoundsSize);
-			StopForcingApvStreaming();
 			VolumetricFogAPVBaker.ConsumeBakeRequest();
 			return;
 		}
@@ -215,41 +215,37 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		if (cameraType == CameraType.Preview || cameraType == CameraType.Reflection)
 			return;
 
-		if (volumetricFogAPVBakePass == null || bakeKernelIndex < 0)
+		// Nothing to bake from until Unity's APV runtime is initialized with data. Hand cell streaming back
+		// and leave any request pending so the bake happens once a world's APV registers.
+		if (volumetricFogAPVBakePass == null || bakeKernelIndex < 0 || !ProbeReferenceVolume.instance.isInitialized)
 		{
-			StopForcingApvStreaming();
+			VolumetricFogAPVBaker.ReleaseApvStreamingForce();
 			return;
 		}
 
-		// Nothing to bake from until Unity's APV runtime is initialized with data. While no bake is pending
-		// (or the settle window has drained), hand cell streaming back to URP and leave the request pending
-		// so the bake happens once a world's APV registers.
-		if (!VolumetricFogAPVBaker.BakeRequested || !ProbeReferenceVolume.instance.isInitialized)
+		// Self-heal: domain reloads and feature teardowns (frequent in the editor) wipe the baker's static
+		// state and release the bake target, and nothing outside world-load code re-requests a bake. When a
+		// fog volume actively wants baked APV and no usable volume exists, arm a rebake ourselves.
+		if (!VolumetricFogAPVBaker.BakeRequested && !VolumetricFogAPVBaker.IsReady
+			&& ComputeBakeResolution() != failedBakeResolution && WantsBakedAPVContribution())
 		{
-			StopForcingApvStreaming();
-			return;
+			VolumetricFogAPVBaker.RequestRebake();
 		}
 
-		// APV GPU streaming uploads only a few cells per frame (default 1), nearest-camera-first, so a single
-		// bake taken the first frame APV registers captures only the cells around the camera and leaves the
-		// rest of the world un-baked. Force every cell to stream in for the few frames of the settle window,
-		// re-baking each frame, so the final bake covers the whole region. Handed back to URP's default by
-		// StopForcingApvStreaming once the window drains. NOTE: this takes effect from the next frame's
-		// UpdateCellStreaming (which runs before this feature's setup), which the settle window accounts for.
-		if (!forcingApvStreaming)
-		{
-			ProbeReferenceVolume.instance.loadMaxCellsPerFrame = true;
-			forcingApvStreaming = true;
-		}
+		// One dispatch per rendered frame, shared across all cameras and feature instances; the claim also
+		// forces APV streaming for the settle window and restores it when the window drains.
+		if (!VolumetricFogAPVBaker.TryBeginBakeDispatch(Time.renderedFrameCount))
+			return;
 
 		Vector3Int resolution = ComputeBakeResolution();
 		if (!EnsureBakeRenderTexture(resolution))
 		{
-			// Can't produce a target - abandon the window rather than forcing streaming forever.
-			StopForcingApvStreaming();
+			// Can't produce a target - abandon the window (and don't self-arm again at this resolution).
+			failedBakeResolution = resolution;
 			VolumetricFogAPVBaker.ConsumeBakeRequest();
 			return;
 		}
+		failedBakeResolution = default;
 
 		Vector3 boundsMin = bakeBoundsCenter - bakeBoundsSize * 0.5f;
 
@@ -265,26 +261,20 @@ public sealed class VolumetricFogRendererFeature : ScriptableRendererFeature
 		// BeforeRenderingOpaques) fills it on the GPU before the fog pass samples it. The volume converges to
 		// the full world over the settle window as more cells stream in each frame.
 		VolumetricFogAPVBaker.SetBakedVolume(bakeRenderTexture, boundsMin, bakeBoundsSize);
-		VolumetricFogAPVBaker.NotifyBakeServiced();
 
 		renderer.EnqueuePass(volumetricFogAPVBakePass);
 	}
 
 	/// <summary>
-	/// Hands APV cell streaming back to URP after a bake settle window, restoring the normal per-frame budget.
-	/// Safe to call when not currently forcing.
+	/// Whether the currently blended fog volume wants the baked APV contribution.
 	/// </summary>
-	private void StopForcingApvStreaming()
+	/// <returns></returns>
+	private static bool WantsBakedAPVContribution()
 	{
-		if (!forcingApvStreaming)
-			return;
+		VolumetricFogVolumeComponent fogVolume = VolumeManager.instance.stack.GetComponent<VolumetricFogVolumeComponent>();
 
-		forcingApvStreaming = false;
-
-		// Nothing else in the project changes loadMaxCellsPerFrame, so URP's default (false) is the correct
-		// value to restore.
-		if (ProbeReferenceVolume.instance != null)
-			ProbeReferenceVolume.instance.loadMaxCellsPerFrame = false;
+		return fogVolume != null && fogVolume.IsActive() && fogVolume.enableAPVContribution.value
+			&& fogVolume.APVContributionWeight.value > 0.0f && fogVolume.apvMode.value == VolumetricFogAPVMode.Baked;
 	}
 
 	/// <summary>

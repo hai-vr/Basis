@@ -6,5 +6,10 @@ using UnityEngine;
 /// </summary>
 public class BasisProp : BasisContentBase
 {
-
+    /// <summary>
+    /// How this prop asks to be placed when a player spawns it. Left at
+    /// <see cref="BasisPropSpawnPlacement.Unspecified"/> the spawning client places it the way it
+    /// always has, so existing props need no change.
+    /// </summary>
+    public BasisPropSpawnMetaData SpawnMetaData = BasisPropSpawnMetaData.Authoring;
 }

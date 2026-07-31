@@ -209,6 +209,13 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         private bool _autoSwapInProgress = false;
 
+        /// <summary>
+        /// Set when a presence change lands while a swap is already running. The presence hub only
+        /// fires on change, so such an edge would otherwise be dropped for good and leave the mode
+        /// disagreeing with the headset until the user takes it off and puts it back on.
+        /// </summary>
+        private bool _autoSwapPendingRecheck = false;
+
         #region Unity Lifecycle
 
         /// <summary>
@@ -1105,12 +1112,19 @@ namespace Basis.Scripts.Device_Management
 
         /// <summary>
         /// Reacts to headset presence changes. Only acts when the Auto Swap setting is enabled.
-        /// Each VR SDK polls presence natively (OpenVR activity level / OpenXR userPresence)
-        /// and reports into <see cref="BasisHMDPresence"/>; this handler triggers the soft swap.
+        /// Each VR SDK reports the headset's own worn signal into <see cref="BasisHMDPresence"/>
+        /// (proximity on both the OpenVR and OpenXR paths); this handler triggers the soft swap.
+        /// A swap takes long enough that presence can change while it runs, so the committed value
+        /// is re-read afterwards and the swap repeated until the mode matches the headset.
         /// </summary>
         private async void OnHMDPresenceChanged(bool isPresent)
         {
-            if (_autoSwapInProgress) return;
+            if (_autoSwapInProgress)
+            {
+                _autoSwapPendingRecheck = true;
+                return;
+            }
+
             string swapMode = BasisSettingsSystem.LoadString("swap_mode", BasisSettingsDefaults.SwapMode_Shutdown);
             if (!string.Equals(swapMode, BasisSettingsDefaults.SwapMode_AutoSwap, StringComparison.OrdinalIgnoreCase)) return;
 
@@ -1122,15 +1136,32 @@ namespace Basis.Scripts.Device_Management
             _autoSwapInProgress = true;
             try
             {
-                if (shouldSwitchToDesktop)
+                while (true)
                 {
-                    BasisDebug.Log("AutoSwap: Headset removed — switching to Desktop", BasisDebug.LogTag.Device);
-                    await SoftSwitchToDesktop();
-                }
-                else
-                {
-                    BasisDebug.Log("AutoSwap: Headset detected — switching to VR", BasisDebug.LogTag.Device);
-                    await SoftSwitchToVR();
+                    _autoSwapPendingRecheck = false;
+
+                    if (shouldSwitchToDesktop)
+                    {
+                        BasisDebug.Log("AutoSwap: Headset removed — switching to Desktop", BasisDebug.LogTag.Device);
+                        await SoftSwitchToDesktop();
+                    }
+                    else
+                    {
+                        BasisDebug.Log("AutoSwap: Headset detected — switching to VR", BasisDebug.LogTag.Device);
+                        await SoftSwitchToVR();
+                    }
+
+                    if (!_autoSwapPendingRecheck) break;
+
+                    // Presence moved while the swap was running and the guard above swallowed the
+                    // event. Take the committed value as the truth and settle against it.
+                    isPresent = BasisHMDPresence.IsPresent;
+                    shouldSwitchToDesktop = !isPresent && IsCurrentModeVR();
+                    shouldSwitchToVR = isPresent && IsSoftSwapped;
+
+                    if (!shouldSwitchToDesktop && !shouldSwitchToVR) break;
+
+                    BasisDebug.Log("AutoSwap: Presence changed mid-swap — reconciling", BasisDebug.LogTag.Device);
                 }
             }
             catch (Exception e)
@@ -1140,6 +1171,7 @@ namespace Basis.Scripts.Device_Management
             finally
             {
                 _autoSwapInProgress = false;
+                _autoSwapPendingRecheck = false;
             }
         }
 

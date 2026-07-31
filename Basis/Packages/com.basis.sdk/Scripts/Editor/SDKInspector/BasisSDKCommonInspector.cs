@@ -287,6 +287,198 @@ public static class BasisSDKCommonInspector
         }
     }
 
+    /// <summary>
+    /// Builds the "Spawn Placement" section for a prop: how the prop asks to arrive in the world.
+    /// Rows that do not apply to the chosen placement are hidden rather than disabled, so the
+    /// section only ever shows knobs that actually do something.
+    /// </summary>
+    public static void CreatePropSpawnFoldout(VisualElement parent, BasisProp prop)
+    {
+        if (prop == null) return;
+
+        Foldout foldout = new Foldout
+        {
+            text = BasisEditorLocalization.Get("sdk.propInspector.spawn.foldout"),
+            value = false,
+        };
+        parent.Add(foldout);
+
+        Label help = new Label(BasisEditorLocalization.Get("sdk.propInspector.spawn.help"))
+        {
+            style =
+            {
+                whiteSpace = WhiteSpace.Normal,
+                marginBottom = 6,
+                opacity = 0.85f,
+            },
+        };
+        foldout.Add(help);
+
+        EnumField placementField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), prop.SpawnMetaData.Placement);
+        foldout.Add(placementField);
+
+        Label placementHelp = new Label
+        {
+            style =
+            {
+                whiteSpace = WhiteSpace.Normal,
+                marginBottom = 6,
+                marginLeft = 4,
+                opacity = 0.7f,
+            },
+        };
+        foldout.Add(placementHelp);
+
+        EnumField handField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.hand"), prop.SpawnMetaData.Hand);
+        foldout.Add(handField);
+
+        Toggle distanceToggle = new Toggle(BasisEditorLocalization.Get("sdk.propInspector.spawn.overrideDistance"))
+        {
+            value = prop.SpawnMetaData.HasCustomDistance,
+        };
+        foldout.Add(distanceToggle);
+
+        FloatField distanceField = new FloatField(BasisEditorLocalization.Get("sdk.propInspector.spawn.distance"))
+        {
+            value = prop.SpawnMetaData.HasCustomDistance ? prop.SpawnMetaData.Distance : BasisPropSpawnMetaData.FallbackDistance,
+        };
+        foldout.Add(distanceField);
+
+        Toggle alignField = new Toggle(BasisEditorLocalization.Get("sdk.propInspector.spawn.alignToSurface"))
+        {
+            value = prop.SpawnMetaData.AlignToSurface,
+        };
+        foldout.Add(alignField);
+
+        Toggle faceField = new Toggle(BasisEditorLocalization.Get("sdk.propInspector.spawn.faceThePlayer"))
+        {
+            value = prop.SpawnMetaData.FaceThePlayer,
+        };
+        foldout.Add(faceField);
+
+        Toggle scaleToggle = new Toggle(BasisEditorLocalization.Get("sdk.propInspector.spawn.overrideScale"))
+        {
+            value = prop.SpawnMetaData.HasCustomScale,
+        };
+        foldout.Add(scaleToggle);
+
+        FloatField scaleField = new FloatField(BasisEditorLocalization.Get("sdk.propInspector.spawn.uniformScale"))
+        {
+            value = prop.SpawnMetaData.HasCustomScale && prop.SpawnMetaData.UniformScale > 0f ? prop.SpawnMetaData.UniformScale : 1f,
+        };
+        foldout.Add(scaleField);
+
+        void RefreshRows()
+        {
+            BasisPropSpawnPlacement placement = prop.SpawnMetaData.Placement;
+            bool inHand = placement == BasisPropSpawnPlacement.InHand;
+            bool onGround = placement == BasisPropSpawnPlacement.OnGround;
+            bool usesDistance = inHand || onGround || placement == BasisPropSpawnPlacement.InAirAtDistance;
+            bool usesFacing = onGround
+                || placement == BasisPropSpawnPlacement.InAirAtDistance
+                || placement == BasisPropSpawnPlacement.InFrontOfPlayer
+                || placement == BasisPropSpawnPlacement.AtPlayerOrigin;
+
+            placementHelp.text = SpawnPlacementHelp(placement);
+
+            SetRowVisible(handField, inHand);
+            SetRowVisible(distanceToggle, usesDistance);
+            SetRowVisible(distanceField, usesDistance && prop.SpawnMetaData.HasCustomDistance);
+            SetRowVisible(alignField, onGround);
+            SetRowVisible(faceField, usesFacing);
+            SetRowVisible(scaleToggle, true);
+            SetRowVisible(scaleField, prop.SpawnMetaData.HasCustomScale);
+        }
+
+        void Apply(Action mutate, string undoName)
+        {
+            Undo.RecordObject(prop, undoName);
+            mutate();
+            MarkContentDirty(prop);
+            RefreshRows();
+        }
+
+        placementField.RegisterValueChangedCallback(evt =>
+            Apply(() => prop.SpawnMetaData.Placement = (BasisPropSpawnPlacement)evt.newValue, "Change Prop Spawn Placement"));
+
+        handField.RegisterValueChangedCallback(evt =>
+            Apply(() => prop.SpawnMetaData.Hand = (BasisPropSpawnHand)evt.newValue, "Change Prop Spawn Hand"));
+
+        distanceToggle.RegisterValueChangedCallback(evt => Apply(() =>
+        {
+            prop.SpawnMetaData.HasCustomDistance = evt.newValue;
+            if (evt.newValue && prop.SpawnMetaData.Distance <= 0f)
+            {
+                prop.SpawnMetaData.Distance = BasisPropSpawnMetaData.FallbackDistance;
+                distanceField.SetValueWithoutNotify(prop.SpawnMetaData.Distance);
+            }
+        }, "Toggle Prop Spawn Distance Override"));
+
+        distanceField.RegisterValueChangedCallback(evt => Apply(() =>
+        {
+            float clamped = Mathf.Max(evt.newValue, 0.05f);
+            prop.SpawnMetaData.Distance = clamped;
+            if (!Mathf.Approximately(clamped, evt.newValue))
+            {
+                distanceField.SetValueWithoutNotify(clamped);
+            }
+        }, "Change Prop Spawn Distance"));
+
+        alignField.RegisterValueChangedCallback(evt =>
+            Apply(() => prop.SpawnMetaData.AlignToSurface = evt.newValue, "Toggle Prop Align To Surface"));
+
+        faceField.RegisterValueChangedCallback(evt =>
+            Apply(() => prop.SpawnMetaData.FaceThePlayer = evt.newValue, "Toggle Prop Face The Player"));
+
+        scaleToggle.RegisterValueChangedCallback(evt => Apply(() =>
+        {
+            prop.SpawnMetaData.HasCustomScale = evt.newValue;
+            if (evt.newValue && prop.SpawnMetaData.UniformScale <= 0f)
+            {
+                prop.SpawnMetaData.UniformScale = 1f;
+                scaleField.SetValueWithoutNotify(prop.SpawnMetaData.UniformScale);
+            }
+        }, "Toggle Prop Spawn Scale Override"));
+
+        scaleField.RegisterValueChangedCallback(evt => Apply(() =>
+        {
+            float clamped = Mathf.Max(evt.newValue, 0.001f);
+            prop.SpawnMetaData.UniformScale = clamped;
+            if (!Mathf.Approximately(clamped, evt.newValue))
+            {
+                scaleField.SetValueWithoutNotify(clamped);
+            }
+        }, "Change Prop Spawn Scale"));
+
+        RefreshRows();
+    }
+
+    private static void SetRowVisible(VisualElement row, bool visible)
+    {
+        row.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    private static string SpawnPlacementHelp(BasisPropSpawnPlacement placement)
+    {
+        switch (placement)
+        {
+            case BasisPropSpawnPlacement.Raycast:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.raycast");
+            case BasisPropSpawnPlacement.InFrontOfPlayer:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.inFront");
+            case BasisPropSpawnPlacement.AtPlayerOrigin:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.playerOrigin");
+            case BasisPropSpawnPlacement.InAirAtDistance:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.inAir");
+            case BasisPropSpawnPlacement.OnGround:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.onGround");
+            case BasisPropSpawnPlacement.InHand:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.inHand");
+            default:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placement.unspecified");
+        }
+    }
+
     public static void CreateBuildOptionsDropdown(VisualElement parent)
     {
         BasisAssetBundleObject assetBundleObject =

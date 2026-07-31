@@ -78,6 +78,7 @@ public class BasisPropSDKInspector : Editor
 
             // Content tags + build options
             BasisSDKCommonInspector.CreateContentTagsFoldout(uiElementsRoot, BasisProp);
+            BasisSDKCommonInspector.CreatePropSpawnFoldout(uiElementsRoot, BasisProp);
             BasisSDKCommonInspector.CreateBuildTargetOptions(uiElementsRoot);
             BasisSDKCommonInspector.CreateBuildOptionsDropdown(uiElementsRoot);
 

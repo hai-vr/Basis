@@ -48,6 +48,33 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         /// </summary>
         public static bool CutUnityXRInputSubsystems = false;
         /// <summary>
+        /// Which signal presence is being read from. Resolved on the first frame a source answers
+        /// and latched, so the choice is logged once rather than every frame.
+        /// </summary>
+        private enum HMDPresenceSource
+        {
+            /// <summary>Nothing has answered yet.</summary>
+            Unresolved,
+            /// <summary>Unity XR's userPresence feature on the head device.</summary>
+            UserPresenceFeature,
+            /// <summary>OpenVR user-interaction events on a headset that reports a proximity sensor.</summary>
+            ProximitySensorEvents,
+            /// <summary>No proximity-backed source exists on this headset.</summary>
+            NoProximitySignal
+        }
+        private HMDPresenceSource PresenceSource = HMDPresenceSource.Unresolved;
+        /// <summary>
+        /// Worn state carried between OpenVR's user-interaction events, used when the userPresence
+        /// feature is unavailable. Seeded worn — the SDK only starts with the user in the headset.
+        /// </summary>
+        private bool ProximityWorn = true;
+        private bool ProximitySensorResolved = false;
+        private bool ProximitySensorPresent = false;
+        /// <summary>
+        /// Reused by the per-frame userPresence query so the poll does not allocate.
+        /// </summary>
+        private static readonly List<UnityEngine.XR.InputDevice> HeadDevices = new List<UnityEngine.XR.InputDevice>();
+        /// <summary>
         /// Cadence for re-reading the compositor's recommended render target. Covers changes that
         /// arrive without a settings event, such as SteamVR's own automatic resolution adjustment
         /// and external tools writing the per-application resolution directly.
@@ -465,6 +492,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             SteamVR_Events.DeviceConnected.RemoveListener(OnDeviceConnected);
             SteamVR_Events.System(EVREventType.VREvent_SteamVRSectionSettingChanged).RemoveListener(OnResolutionSettingChanged);
             SteamVR_Events.System(EVREventType.VREvent_DashboardDeactivated).RemoveListener(OnResolutionSettingChanged);
+            SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceUserInteractionStarted).RemoveListener(OnHMDUserInteractionStarted);
+            SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceUserInteractionEnded).RemoveListener(OnHMDUserInteractionEnded);
         }
         public override async void StartSDK()
         {
@@ -487,9 +516,18 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             // Initialize SteamVR components
             SteamVR_Render = BasisHelpers.GetOrAddComponent<SteamVR_Render>(SteamVR_BehaviourGameobject);
 
+            // Presence is per-session: this object outlives a stop/start, so a stale source or a
+            // stale worn latch would otherwise carry into the next run.
+            PresenceSource = HMDPresenceSource.Unresolved;
+            ProximityWorn = true;
+            ProximitySensorResolved = false;
+            ProximitySensorPresent = false;
+
             // Register SteamVR events
             SteamVR_Events.DeviceConnected.Listen(OnDeviceConnected);
             SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceRoleChanged).Listen(OnTrackedDeviceRoleChanged);
+            SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceUserInteractionStarted).Listen(OnHMDUserInteractionStarted);
+            SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceUserInteractionEnded).Listen(OnHMDUserInteractionEnded);
             SteamVR_Events.System(EVREventType.VREvent_SteamVRSectionSettingChanged).Listen(OnResolutionSettingChanged);
             SteamVR_Events.System(EVREventType.VREvent_DashboardDeactivated).Listen(OnResolutionSettingChanged);
 
@@ -500,6 +538,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             if (State)
             {
                 BasisDebug.Log("SteamVR SDK started successfully.");
+                // The SDK only comes up with the user in the headset, so commit that without waiting
+                // on the debounce. Left at its default of not-present, the first real report would be
+                // a change into worn rather than out of it, and taking the headset off would then be
+                // the second edge rather than the first.
+                BasisHMDPresence.ForcePresence(true);
              //   BasisDynamicResolution.ExternalAllocationOwner = true;
              //   BasisDynamicResolution.OnAllocationScaleChanged += OnAllocationScaleChanged;
                // ApplyRecommendedRenderResolution();
@@ -798,17 +841,129 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         }
 
         /// <summary>
-        /// Queries OpenVR's activity level for device 0 (HMD) to determine user presence.
-        /// Reports into the static <see cref="BasisHMDPresence"/> hub every frame.
-        /// Runs even when <see cref="IsSuspended"/> — the runtime is alive during soft swap.
+        /// Reports whether the headset is actually being worn into <see cref="BasisHMDPresence"/>,
+        /// every frame. Sources are tried in order of trust and the first that answers wins:
+        /// Unity XR's userPresence feature, then OpenVR's user-interaction events on a headset that
+        /// reports a proximity sensor.
+        /// <para>
+        /// The activity level is deliberately not consulted. It is motion-based — the HMD drops to
+        /// <see cref="EDeviceActivityLevel.k_EDeviceActivityLevel_Idle"/> after roughly ten seconds
+        /// without movement — so a worn but still headset reads identically to one sitting on the
+        /// desk, and no debounce separates them because that idle state lasts as long as the user
+        /// holds still. Where no proximity-backed source exists, presence stays worn instead of
+        /// being guessed from movement: a missed swap is recoverable, a wrong one drops a user out
+        /// of VR mid-session.
+        /// </para>
+        /// Runs even when <see cref="IsSuspended"/> — the runtime is alive during soft swap, which
+        /// is what lets the headset going back on bring VR back.
         /// </summary>
         private void PollHMDPresence()
         {
             if (Valve.VR.OpenVR.System == null) return;
-            var level = Valve.VR.OpenVR.System.GetTrackedDeviceActivityLevel(0);
-            bool present = level == EDeviceActivityLevel.k_EDeviceActivityLevel_UserInteraction ||
-                           level == EDeviceActivityLevel.k_EDeviceActivityLevel_UserInteraction_Timeout;
-            BasisHMDPresence.ReportPresence(present);
+
+            if (TryReadUserPresenceFeature(out bool worn))
+            {
+                SetPresenceSource(HMDPresenceSource.UserPresenceFeature);
+                BasisHMDPresence.ReportPresence(worn);
+                return;
+            }
+
+            if (HasProximitySensor())
+            {
+                SetPresenceSource(HMDPresenceSource.ProximitySensorEvents);
+                BasisHMDPresence.ReportPresence(ProximityWorn);
+                return;
+            }
+
+            SetPresenceSource(HMDPresenceSource.NoProximitySignal);
+            BasisHMDPresence.ReportPresence(true);
+        }
+
+        /// <summary>
+        /// Reads the head device's userPresence feature — the same signal the OpenXR path uses, and
+        /// implemented by Valve's XR plugin, so it is preferred wherever it answers. It arrives
+        /// through the Unity XR input subsystem, so it goes quiet if
+        /// <see cref="CutUnityXRInputSubsystems"/> is ever turned on; the proximity-event path below
+        /// is what keeps presence working in that case.
+        /// </summary>
+        private static bool TryReadUserPresenceFeature(out bool worn)
+        {
+            HeadDevices.Clear();
+            UnityEngine.XR.InputDevices.GetDevicesAtXRNode(UnityEngine.XR.XRNode.Head, HeadDevices);
+            int Count = HeadDevices.Count;
+            for (int Index = 0; Index < Count; Index++)
+            {
+                if (HeadDevices[Index].TryGetFeatureValue(UnityEngine.XR.CommonUsages.userPresence, out worn))
+                {
+                    return true;
+                }
+            }
+            worn = false;
+            return false;
+        }
+
+        /// <summary>
+        /// Whether the HMD reports a proximity sensor. Latched only once the property reads cleanly,
+        /// so a failed read early in startup is retried rather than taken as "no sensor".
+        /// </summary>
+        private bool HasProximitySensor()
+        {
+            if (ProximitySensorResolved) return ProximitySensorPresent;
+
+            ETrackedPropertyError PropertyError = ETrackedPropertyError.TrackedProp_Success;
+            bool Present = Valve.VR.OpenVR.System.GetBoolTrackedDeviceProperty(
+                Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd,
+                ETrackedDeviceProperty.Prop_ContainsProximitySensor_Bool,
+                ref PropertyError);
+
+            if (PropertyError != ETrackedPropertyError.TrackedProp_Success)
+            {
+                return false;
+            }
+
+            ProximitySensorPresent = Present;
+            ProximitySensorResolved = true;
+            return ProximitySensorPresent;
+        }
+
+        /// <summary>
+        /// Latches the resolved source and logs it once, so a session that never swaps can be told
+        /// apart from one that had no usable signal.
+        /// </summary>
+        private void SetPresenceSource(HMDPresenceSource Source)
+        {
+            if (PresenceSource == Source) return;
+            PresenceSource = Source;
+            switch (Source)
+            {
+                case HMDPresenceSource.UserPresenceFeature:
+                    BasisDebug.Log("OpenVR: HMD presence read from the userPresence feature", BasisDebug.LogTag.Device);
+                    break;
+                case HMDPresenceSource.ProximitySensorEvents:
+                    BasisDebug.Log("OpenVR: HMD presence read from proximity sensor events (userPresence unavailable)", BasisDebug.LogTag.Device);
+                    break;
+                case HMDPresenceSource.NoProximitySignal:
+                    BasisDebug.Log("OpenVR: headset reports no proximity sensor and userPresence is unavailable — presence pinned worn, auto swap will not trigger", BasisDebug.LogTag.Device);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// OpenVR raises these for the HMD off its proximity sensor as the headset is put on and
+        /// taken off. They are edge-triggered, so <see cref="ProximityWorn"/> holds the state
+        /// between them.
+        /// </summary>
+        private void OnHMDUserInteractionStarted(VREvent_t vrEvent)
+        {
+            if (vrEvent.trackedDeviceIndex != Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd) return;
+            ProximityWorn = true;
+        }
+
+        /// <inheritdoc cref="OnHMDUserInteractionStarted"/>
+        private void OnHMDUserInteractionEnded(VREvent_t vrEvent)
+        {
+            if (vrEvent.trackedDeviceIndex != Valve.VR.OpenVR.k_unTrackedDeviceIndex_Hmd) return;
+            ProximityWorn = false;
         }
     }
 }

@@ -994,6 +994,34 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return false;
         }
 
+        /// <summary>
+        /// Drives a grab from code, as though the player had reached out and taken the object.
+        /// Used by the spawn path to put a freshly spawned prop straight into a hand.
+        /// </summary>
+        /// <param name="target">The interactable to hand over.</param>
+        /// <param name="input">The device that should end up holding it.</param>
+        /// <returns><c>true</c> when the grab was started.</returns>
+        public bool TryDirectGrab(BasisInteractableObject target, BasisInput input)
+        {
+            if (target == null || input == null || !target.CanDirectGrab(input))
+            {
+                return false;
+            }
+
+            for (int Index = 0; Index < InteractInputs.Length; Index++)
+            {
+                if (InteractInputs[Index].input == null || !InteractInputs[Index].IsInput(input))
+                {
+                    continue;
+                }
+
+                HandleDirectGrab(target, ref InteractInputs[Index]);
+                return true;
+            }
+
+            return false;
+        }
+
         public static bool IsDesktopCenterEye(BasisInput input)
         {
             return BasisDeviceManagement.IsUserInDesktop() &&
