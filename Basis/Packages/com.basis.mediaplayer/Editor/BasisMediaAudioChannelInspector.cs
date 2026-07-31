@@ -25,9 +25,23 @@ public class BasisMediaAudioChannelInspector : Editor
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         BindByName("ChannelField", "Channel");
+        BindByName("AnalysisFeedField", "AnalysisFeed");
+        BindByName("AnalysisFeedLatencyField", "AnalysisFeedLatency");
         _root.Bind(serializedObject);
 
+        // The buffer length and the note only mean anything once the feed is on.
+        var toggle = _root.Q<PropertyField>("AnalysisFeedField");
+        toggle?.RegisterValueChangeCallback(evt => ShowAnalysisFeedDetail(evt.changedProperty.boolValue));
+        ShowAnalysisFeedDetail(serializedObject.FindProperty("AnalysisFeed").boolValue);
+
         return _root;
+    }
+
+    private void ShowAnalysisFeedDetail(bool on)
+    {
+        DisplayStyle style = on ? DisplayStyle.Flex : DisplayStyle.None;
+        if (_root.Q<VisualElement>("AnalysisFeedLatencyField") is VisualElement latency) latency.style.display = style;
+        if (_root.Q<VisualElement>("AnalysisFeedHelp") is VisualElement help) help.style.display = style;
     }
 
     private void BindByName(string name, string property)

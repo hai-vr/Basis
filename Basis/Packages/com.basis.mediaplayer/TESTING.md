@@ -319,6 +319,26 @@ misbehave and shouldn't be reported as regressions: `Pitch` does nothing, and ti
 Effects` or unticking `Spatialize Post Effects` drops spatialisation to flat 2D, because the
 spatialiser then runs ahead of the tap and its output is overwritten.
 
+**Audio analysis feed** — Unity's per-source readback (`AudioSource.GetOutputData` and the
+spectrum calls behind it) only reflects clip playback, so an output the tap drives reads back as
+silence and anything sampling that AudioSource — AudioLink, VU meters, spectrum-driven world
+scripts — sees nothing. `Analysis Feed` on that output's `BasisMediaAudioChannel` swaps it to a clip the
+player writes, which Unity does read back. The row to run is AudioLink: add its `AudioLinkInput`
+AudioSource to `Outputs` with a `BasisMediaAudioChannel` set to `Stereo (downmix)` and
+`Analysis Feed` ticked, point AudioLink's `audioSource` at it, and confirm the AudioLink texture
+tracks the stream. Untick it and reactivity should stop, which is the control for the whole
+mechanism. Only that output changes: the speakers stay on the tap, so check A/V sync on them is
+no different with the feed on. The feed runs `Feed Delay` behind the tap-driven outputs, so
+reactivity trails the sound by that much — check it looks in time at the default and lower it
+until it breaks up to find the floor on the platform under test. It's written once a frame, so
+the floor moves with the frame rate; a rig that holds at 0.02s on desktop may need more on a
+headset. The filter-order notices don't apply to
+an analysis output, since it isn't generating into the DSP block, so confirm a filter added there
+is heard and isn't flagged. The analyser still won't hear that filter: the readback is taken from
+clip playback, upstream of the filter chain, so a low pass on an analysis output colours what you
+hear and nothing of what AudioLink sees. Worth one pass on Quest, where the DSP runs at a different rate to
+the stream and the clip path leans on Unity's own resampling rather than the tap's.
+
 **Panel UI** ("Media Players" panel, `Runtime/UI/BasisMediaPlayerPanelProvider.cs`) — URL
 load, transport buttons, seek slider (VOD only), volume, bitrate dropdown (HLS multi-variant),
 audio-track dropdown (multi-audio content), captions toggle + opacity sliders, subtitles

@@ -30,6 +30,15 @@ public sealed class BasisMediaAudioChannel : MonoBehaviour
     [Tooltip("Which decoded channel(s) this AudioSource plays. Channel N picks one decoded channel; Stereo plays a stereo downmix of the whole stream.")]
     public Selection Channel = Selection.Channel1;
 
+    [Tooltip("Play this output from a written AudioClip instead of the DSP tap, so AudioSource.GetOutputData can read it back. Needed by AudioLink and other per-source audio analysers, which cannot see audio a script generates. Costs this output a small delay behind the others, so use it for the analyser's own AudioSource rather than a speaker you listen to.")]
+    public bool AnalysisFeed = false;
+
+    public const float MinAnalysisFeedLatency = 0.02f;
+    public const float MaxAnalysisFeedLatency = 0.5f;
+
+    [Tooltip("How far behind the tap-driven outputs this one runs. Lower is tighter; too low and the feed breaks up when the frame rate dips, since it is written once a frame.")]
+    [Range(MinAnalysisFeedLatency, MaxAnalysisFeedLatency)] public float AnalysisFeedLatency = 0.05f;
+
     public bool IsStereo => Channel == Selection.Stereo;
 
     // Decoded-stream channel index a mono selection draws from (0-based).
