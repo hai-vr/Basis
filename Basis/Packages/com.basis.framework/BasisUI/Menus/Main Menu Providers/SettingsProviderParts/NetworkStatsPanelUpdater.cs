@@ -17,6 +17,21 @@ namespace Basis.BasisUI
         public PanelElementDescriptor BandwidthField;
         public PanelElementDescriptor MetaField;
 
+        [System.NonSerialized] public BasisPanelTint.Handle ConnectionTint;
+        [System.NonSerialized] public BasisPanelTint.Handle PingTint;
+        [System.NonSerialized] public BasisPanelTint.Handle BandwidthTint;
+
+        /// <summary>Round-trip milliseconds at which the ping card starts warning, then reads hot.</summary>
+        private const int PingCautionRtt = 120;
+        private const int PingHotRtt = 250;
+
+        /// <summary>Reported packet loss percentage at which the bandwidth card warns, then reads hot.</summary>
+        private const long LossCautionPercent = 2;
+        private const long LossHotPercent = 8;
+
+        private BasisPanelSeverity _pingSeverity;
+        private BasisPanelSeverity _lossSeverity;
+
         private long _lastBytesSent;
         private long _lastBytesReceived;
         private float _bandwidthTimer;
@@ -87,6 +102,9 @@ namespace Basis.BasisUI
                     string peerIdStr = peer != null ? peer.Id.ToString() : "?";
                     ConnectionField.SetDescription($"Connected (Peer ID: {peerIdStr})");
                 }
+
+                BasisPanelTint.Apply(ConnectionTint,
+                    connected ? BasisPanelSeverity.Calm : BasisPanelSeverity.Hot);
             }
 
             // Server
@@ -110,6 +128,7 @@ namespace Basis.BasisUI
                 if (peer == null)
                 {
                     PingField.SetDescription("N/A");
+                    BasisPanelTint.Apply(PingTint, BasisPanelSeverity.None);
                 }
                 else
                 {
@@ -119,6 +138,9 @@ namespace Basis.BasisUI
                     PingField.SetDescription(
                         $"Ping: {ping}ms | RTT: {rtt}ms\n" +
                         $"Last Packet: {lastPacket:F1}s ago");
+
+                    _pingSeverity = BasisPanelTint.Grade(rtt, PingCautionRtt, PingHotRtt, _pingSeverity);
+                    BasisPanelTint.Apply(PingTint, _pingSeverity);
                 }
             }
 
@@ -222,6 +244,7 @@ namespace Basis.BasisUI
                 if (!connected || BasisNetworkConnection.NetworkClient?.client == null)
                 {
                     BandwidthField.SetDescription("N/A");
+                    BasisPanelTint.Apply(BandwidthTint, BasisPanelSeverity.None);
                     _lastBytesSent = 0;
                     _lastBytesReceived = 0;
                     _bandwidthTimer = 0f;
@@ -247,7 +270,11 @@ namespace Basis.BasisUI
                         $"Sent: {FormatBytes(totalSent)} ({FormatRate(sentPerSec)})\n" +
                         $"Recv: {FormatBytes(totalRecv)} ({FormatRate(recvPerSec)})\n" +
                         $"Packets: {stats.PacketsSent} sent / {stats.PacketsReceived} recv\n" +
-                        $"Packet Loss: {stats.PacketLoss}");
+                        $"Packet Loss: {stats.PacketLoss} ({LossPercent(stats.PacketLoss, stats.PacketsSent)}%)");
+
+                    long lossPercent = LossPercent(stats.PacketLoss, stats.PacketsSent);
+                    _lossSeverity = BasisPanelTint.Grade(lossPercent, LossCautionPercent, LossHotPercent, _lossSeverity);
+                    BasisPanelTint.Apply(BandwidthTint, _lossSeverity);
                 }
             }
 
@@ -274,6 +301,12 @@ namespace Basis.BasisUI
                 }
             }
         }
+
+        /// <summary>
+        /// BasisNetworkCore's NetStatistics shell carries the raw counters only — LiteNetLib's own
+        /// PacketLossPercent is not mirrored across the wrapper, so the percentage is derived here.
+        /// </summary>
+        private static long LossPercent(long lost, long sent) => sent <= 0 ? 0 : lost * 100 / sent;
 
         private static string FormatBytes(long bytes)
         {

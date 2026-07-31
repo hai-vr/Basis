@@ -174,10 +174,29 @@ namespace Basis.IK
             rotation = r;
         }
 
+        /// <summary>
+        /// math.normalizesafe returns identity for a degenerate quaternion, but returns exactly
+        /// (0,0,0,0) when lengthsq overflows to infinity: its guard is len &gt; FLT_MIN_NORMAL, which
+        /// infinity passes, and the normalize branch then evaluates x * rsqrt(inf) = x * 0. Inverting
+        /// a near-zero rotation produces components large enough to do that, and a zero quaternion is
+        /// finite, so every isfinite check downstream passes it through to the transform.
+        /// </summary>
+        public static quaternion SafeNormalize(quaternion q, quaternion fallback)
+        {
+            float lengthSq = math.lengthsq(q.value);
+            if (!math.isfinite(lengthSq) || lengthSq < 1e-12f)
+            {
+                return fallback;
+            }
+            quaternion normalized = new quaternion(q.value * math.rsqrt(lengthSq));
+            float normalizedLengthSq = math.lengthsq(normalized.value);
+            return math.isfinite(normalizedLengthSq) && normalizedLengthSq > 1e-8f ? normalized : fallback;
+        }
+
         public void SetWorldRotation(int index, Quaternion rotation)
         {
             GetParentWorld(index, out _, out quaternion parentRotation, out _);
-            LocalRotation[index] = math.normalizesafe(math.mul(math.inverse(parentRotation), (quaternion)rotation));
+            LocalRotation[index] = SafeNormalize(math.mul(math.inverse(parentRotation), (quaternion)rotation), LocalRotation[index]);
         }
 
         public void SetWorldPosition(int index, Vector3 position)

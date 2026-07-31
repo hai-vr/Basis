@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
@@ -41,10 +41,24 @@ public static class BasisFiniteWatchdog
     /// 200-player instance from costing 200 skeleton walks per checkpoint. 0 scans everyone.
     /// </summary>
     public static int RemotePlayersPerCheckpoint = 4;
+    /// <summary>
+    /// Ignore values that were ALREADY bad when the watchdog started looking. An avatar that is
+    /// mid-explosion has permanently dead bones, and without this every arm re-reports the first of
+    /// them at the first checkpoint that runs — which names a victim, never a writer. The event
+    /// worth catching is a value that was finite and just became bad.
+    /// </summary>
+    public static bool IgnorePreexisting = true;
+    /// <summary>
+    /// Frames after arming during which bad values are recorded into the ignore set instead of
+    /// reported. Needs to outlast one full remote round-robin sweep, so the default is generous.
+    /// </summary>
+    public static int PrimeFrames = 30;
     /// <summary>Beyond this a value is reported even when finite — culling breaks on absurd magnitudes too.</summary>
     const float k_AbsurdMagnitude = 1e12f;
     /// <summary>Avatar swaps leave dead roots in the per-player skeleton cache; drop the lot once it grows past this.</summary>
     const int k_RemoteCacheCap = 512;
+    /// <summary>Destroyed bones linger as ignore-set keys; drop the lot rather than walk it looking for them.</summary>
+    const int k_IgnoreCap = 4096;
 
     /// <summary>True once a report has fired; re-arm from the debug window to hunt again.</summary>
     public static bool Disarmed => sDisarmed;
@@ -56,22 +70,122 @@ public static class BasisFiniteWatchdog
     public static int CheckpointsLastFrame { get; private set; }
     /// <summary>Transforms read on the previous frame — this is what arming the watchdog actually costs.</summary>
     public static int TransformsScannedLastFrame { get; private set; }
+    /// <summary>True while still recording pre-existing damage rather than reporting it.</summary>
+    public static bool Priming => IgnorePreexisting && Time.frameCount < sPrimeUntilFrame;
+    /// <summary>Frames left in the prime window, for the debug window.</summary>
+    public static int PrimeFramesRemaining => Mathf.Max(0, sPrimeUntilFrame - Time.frameCount);
+    /// <summary>How much already-broken state is being deliberately skipped.</summary>
+    public static int IgnoredCount => sIgnoredTransforms.Count + sIgnoredValues.Count;
 
     static int sCheckpointCount;
     static int sScannedCount;
+    static int sPrimeUntilFrame;
+    static bool sWasEnabled;
+    static readonly HashSet<Transform> sIgnoredTransforms = new HashSet<Transform>();
+    static readonly HashSet<string> sIgnoredValues = new HashSet<string>();
 
     public static void Rearm()
     {
         sDisarmed = false;
         LastReport = string.Empty;
         LastCleanStage = string.Empty;
+        sIgnoredTransforms.Clear();
+        sIgnoredValues.Clear();
+        BeginPrime();
+    }
+
+    static void BeginPrime()
+    {
+        sWasEnabled = true;
+        sPrimeUntilFrame = Time.frameCount + Mathf.Max(1, PrimeFrames);
+    }
+
+    /// <summary>
+    /// Opens the prime window on the frame the watchdog is switched on. Checkpoints run ahead of
+    /// <see cref="Tick"/> in the frame, so the edge cannot be detected there alone.
+    /// </summary>
+    static void EnsurePrimeWindow()
+    {
+        if (!sWasEnabled)
+        {
+            BeginPrime();
+        }
+    }
+
+    /// <summary>
+    /// False when this transform was already bad before the watchdog was watching — the caller
+    /// keeps scanning rather than reporting, so a genuinely fresh failure elsewhere still lands.
+    /// </summary>
+    static bool ShouldReport(Transform offender)
+    {
+        if (!IgnorePreexisting || offender == null)
+        {
+            return true;
+        }
+        if (sIgnoredTransforms.Contains(offender))
+        {
+            return false;
+        }
+        if (Time.frameCount < sPrimeUntilFrame)
+        {
+            if (sIgnoredTransforms.Count > k_IgnoreCap)
+            {
+                sIgnoredTransforms.Clear();
+            }
+            sIgnoredTransforms.Add(offender);
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>Same rule for the non-transform checks, keyed by the label the caller composed.</summary>
+    static bool ShouldReportValue(string what)
+    {
+        if (!IgnorePreexisting || what == null)
+        {
+            return true;
+        }
+        if (sIgnoredValues.Contains(what))
+        {
+            return false;
+        }
+        if (Time.frameCount < sPrimeUntilFrame)
+        {
+            if (sIgnoredValues.Count > k_IgnoreCap)
+            {
+                sIgnoredValues.Clear();
+            }
+            sIgnoredValues.Add(what);
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// The lead line of every report. With no stage having scanned clean since arming, the value
+    /// predates the watchdog and the stage that found it is not the stage that wrote it — saying so
+    /// is the difference between a lead and a wild goose chase.
+    /// </summary>
+    static string DescribeWindow(string stage)
+    {
+        if (string.IsNullOrEmpty(LastCleanStage))
+        {
+            return $"STAGE '{stage}' — NO checkpoint has scanned clean since the watchdog was armed, so this value was ALREADY bad before it started watching. This names a VICTIM, not the writer. Re-arm (the prime window ignores damage that is already there) and reproduce from a clean avatar to catch the write itself.";
+        }
+        return $"STAGE '{stage}' — whatever ran between '{LastCleanStage}' and this checkpoint wrote it.";
     }
 
     [System.Diagnostics.Conditional("UNITY_EDITOR")]
     [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
     public static void Tick()
     {
-        if (!Enabled || sDisarmed)
+        if (!Enabled)
+        {
+            sWasEnabled = false;
+            return;
+        }
+        EnsurePrimeWindow();
+        if (sDisarmed)
         {
             return;
         }
@@ -192,6 +306,7 @@ public static class BasisFiniteWatchdog
         {
             return;
         }
+        EnsurePrimeWindow();
         sCheckpointCount++;
         try
         {
@@ -223,6 +338,7 @@ public static class BasisFiniteWatchdog
         {
             return;
         }
+        EnsurePrimeWindow();
         sCheckpointCount++;
         try
         {
@@ -251,6 +367,7 @@ public static class BasisFiniteWatchdog
         {
             return;
         }
+        EnsurePrimeWindow();
         sCheckpointCount++;
         try
         {
@@ -264,6 +381,113 @@ public static class BasisFiniteWatchdog
             sDisarmed = true;
             BasisDebug.LogError($"[FiniteWatchdog] remote checkpoint '{stage}' threw and disarmed: {e}", BasisDebug.LogTag.Core);
         }
+    }
+
+    /// <summary>
+    /// Non-transform predicate for callers that hold the value in native/job state the watchdog
+    /// cannot reach on its own (filter slots, pose streams, bone-control data). Test with this and
+    /// only build the label for <see cref="ReportValue"/> on failure — an interpolated string per
+    /// slot per frame is the whole cost otherwise.
+    /// </summary>
+    public static bool IsNonFinite(Vector3 v) => !IsSane(v);
+
+    /// <summary>Rotation counterpart — a zero-length quaternion is finite but still degenerate.</summary>
+    public static bool IsNonFinite(Quaternion q) => !IsSaneRotation(q);
+
+    /// <summary>Reports a bad value that lives outside the transform hierarchy, then disarms.</summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void ReportValue(string stage, string what, string detail)
+    {
+        if (!Enabled || sDisarmed || !ShouldReportValue(what))
+        {
+            return;
+        }
+        sDisarmed = true;
+        var sb = new StringBuilder(512);
+        sb.AppendLine($"[FiniteWatchdog] {DescribeWindow(stage)} Non-finite value OUTSIDE the transform hierarchy. Watchdog disarmed.");
+        sb.AppendLine($"  {what} = {detail}");
+        sb.Append("  This value never reached a transform, so the transform scans would have named a victim instead of the writer.");
+        LastReport = sb.ToString();
+        BasisDebug.LogError(LastReport, BasisDebug.LogTag.Core);
+    }
+
+    /// <summary>
+    /// Scans the local bone controls' pose data — the IK's own inputs, which live in a native store
+    /// rather than on any transform. Splits the three stages apart (incoming device/virtual pose,
+    /// the chain job's outgoing local pose, and the world pose the rig driver actually samples), so
+    /// a bad head target is attributed to the device, the chain solve, or neither.
+    /// </summary>
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointBoneControls(string stage)
+    {
+        if (!Enabled || sDisarmed)
+        {
+            return;
+        }
+        EnsurePrimeWindow();
+        sCheckpointCount++;
+        try
+        {
+            if (!ScanBoneControls(stage))
+            {
+                LastCleanStage = stage;
+            }
+        }
+        catch (System.Exception e)
+        {
+            sDisarmed = true;
+            BasisDebug.LogError($"[FiniteWatchdog] bone-control checkpoint '{stage}' threw and disarmed: {e}", BasisDebug.LogTag.Core);
+        }
+    }
+
+    static bool ScanBoneControls(string stage)
+    {
+        if (!BasisLocalPlayer.PlayerReady || BasisLocalPlayer.Instance == null)
+        {
+            return false;
+        }
+        var driver = BasisLocalPlayer.Instance.LocalBoneDriver;
+        if (driver == null || !driver.HasControls || driver.Controls == null)
+        {
+            return false;
+        }
+        var controls = driver.Controls;
+        for (int i = 0; i < controls.Length; i++)
+        {
+            var control = controls[i];
+            if (control == null)
+            {
+                continue;
+            }
+            sScannedCount++;
+
+            var incoming = control.IncomingData;
+            if (!IsSane(incoming.position) || !IsSaneRotation(incoming.rotation))
+            {
+                ReportValue(stage, $"bone control '{control.name}' IncomingData (device / virtual pose)",
+                    $"position={incoming.position} rotation={DescribeRotation(incoming.rotation)}");
+                return true;
+            }
+
+            var outgoing = control.OutGoingData;
+            if (!IsSane(outgoing.position) || !IsSaneRotation(outgoing.rotation))
+            {
+                ReportValue(stage, $"bone control '{control.name}' OutGoingData (chain job local output)",
+                    $"position={outgoing.position} rotation={DescribeRotation(outgoing.rotation)}");
+                return true;
+            }
+
+            var world = control.OutgoingWorldData;
+            if (!IsSane(world.position) || !IsSaneRotation(world.rotation))
+            {
+                ReportValue(stage, $"bone control '{control.name}' OutgoingWorldData (the IK's raw target)",
+                    $"position={world.position} rotation={DescribeRotation(world.rotation)}");
+                return true;
+            }
+        }
+        return false;
     }
 
     static Transform[] sCheckpointTransforms;
@@ -410,6 +634,10 @@ public static class BasisFiniteWatchdog
             {
                 continue;
             }
+            if (!ShouldReport(t))
+            {
+                continue;
+            }
             ReportCheckpoint(stage, ownerKind, ownerName, t, localPosition, localRotation, localScale);
             return true;
         }
@@ -433,6 +661,10 @@ public static class BasisFiniteWatchdog
             {
                 continue;
             }
+            if (!ShouldReport(walk))
+            {
+                continue;
+            }
             ReportCheckpoint(stage, ownerKind, ownerName, walk, localPosition, localRotation, localScale);
             return true;
         }
@@ -443,7 +675,7 @@ public static class BasisFiniteWatchdog
     {
         sDisarmed = true;
         var sb = new StringBuilder(768);
-        sb.AppendLine($"[FiniteWatchdog] STAGE '{stage}' — first bad LOCAL transform value this frame. Whatever ran between '{(string.IsNullOrEmpty(LastCleanStage) ? "<no earlier clean stage this frame>" : LastCleanStage)}' and this checkpoint wrote it. Watchdog disarmed.");
+        sb.AppendLine($"[FiniteWatchdog] {DescribeWindow(stage)} First bad LOCAL transform value. Watchdog disarmed.");
         sb.AppendLine($"  owner: {ownerKind}{(string.IsNullOrEmpty(ownerName) ? string.Empty : $" '{ownerName}'")}");
         sb.AppendLine($"  transform '{offender.name}' localPos={localPosition} localRot={DescribeRotation(localRotation)} localScale={localScale}");
         sb.Append("  path: ");
@@ -539,6 +771,10 @@ public static class BasisFiniteWatchdog
 
     static void Report(string what, Transform offender, Vector3 value)
     {
+        if (!ShouldReportValue(what))
+        {
+            return;
+        }
         sDisarmed = true;
         var sb = new StringBuilder(512);
         sb.AppendLine($"[FiniteWatchdog] FIRST non-finite/absurd value detected: {what} = {value}. Watchdog disarmed — everything after this frame is downstream corruption, THIS is the injection site.");
@@ -585,5 +821,23 @@ public static class BasisFiniteWatchdog
     public static void CheckpointRemote(string stage, Basis.Scripts.BasisSdk.Players.BasisRemotePlayer remote)
     {
     }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void CheckpointBoneControls(string stage)
+    {
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    public static void ReportValue(string stage, string what, string detail)
+    {
+    }
+
+    // Callers test with these inside [Conditional] method bodies, which still compile in release —
+    // so unlike the reporting entry points these cannot live behind the #if.
+    public static bool IsNonFinite(Vector3 v) => false;
+
+    public static bool IsNonFinite(Quaternion q) => false;
 #endif
 }

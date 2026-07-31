@@ -42,6 +42,8 @@ namespace Basis.IK
         public bool IsCreated => _allocated;
         public int Count => _ordered.Length;
         public Transform Anchor => _anchor;
+        public int NonFiniteRestCaptureCount { get; private set; }
+        public string FirstNonFiniteRestBone { get; private set; }
 
         public void Build(Transform root, IReadOnlyList<Transform> bones)
         {
@@ -97,12 +99,20 @@ namespace Basis.IK
             var translationFree = new NativeArray<byte>(count, Allocator.Persistent);
             _authoredLocalPosition = new NativeArray<float3>(count, Allocator.Persistent);
             _fitScale = new NativeArray<float>(count, Allocator.Persistent);
+            NonFiniteRestCaptureCount = 0;
+            FirstNonFiniteRestBone = null;
             for (int i = 0; i < count; i++)
             {
-                Vector3 authored = _ordered[i].localPosition;
+                float3 authored = _ordered[i].localPosition;
+                if (!IsFinite(authored))
+                {
+                    NonFiniteRestCaptureCount++;
+                    FirstNonFiniteRestBone ??= _ordered[i].name;
+                    authored = float3.zero;
+                }
                 _authoredLocalPosition[i] = authored;
                 _fitScale[i] = 1f;
-                bindLength[i] = authored.magnitude;
+                bindLength[i] = math.length(authored);
                 translationFree[i] = (byte)(parent[i] < 0 ? 1 : 0);
             }
             _fitActive = false;
@@ -140,6 +150,22 @@ namespace Basis.IK
             _writeIndices = new NativeArray<int>(writableIndex.ToArray(), Allocator.Persistent);
 
             _allocated = true;
+            SeedStreamFromTransforms();
+        }
+
+        void SeedStreamFromTransforms()
+        {
+            SyncAnchor();
+            for (int i = 0; i < _ordered.Length; i++)
+            {
+                _ordered[i].GetLocalPositionAndRotation(out Vector3 position, out Quaternion rotation);
+                float3 localPosition = position;
+                quaternion localRotation = rotation;
+                float3 localScale = _ordered[i].localScale;
+                Stream.LocalPosition[i] = IsFinite(localPosition) ? localPosition : _authoredLocalPosition[i];
+                Stream.LocalRotation[i] = IsSaneRotation(localRotation) ? localRotation : quaternion.identity;
+                Stream.LocalScale[i] = IsFinite(localScale) ? localScale : new float3(1f, 1f, 1f);
+            }
         }
 
         static int DepthOf(Transform transform, HashSet<Transform> closure)
@@ -197,6 +223,20 @@ namespace Basis.IK
             _fitActive = false;
         }
 
+        static bool IsFinite(float3 value) => math.all(math.isfinite(value));
+
+        static bool IsSaneRotation(quaternion value)
+        {
+            float lengthSq = math.lengthsq(value.value);
+            return math.isfinite(lengthSq) && lengthSq > 1e-8f;
+        }
+
+        float3 FittedLocalPosition(int index)
+        {
+            float3 fitted = _authoredLocalPosition[index] * _fitScale[index];
+            return IsFinite(fitted) ? fitted : float3.zero;
+        }
+
         public void ApplyFit()
         {
             if (!_allocated || !_fitActive)
@@ -205,12 +245,11 @@ namespace Basis.IK
             }
             for (int i = 0; i < _fitScale.Length; i++)
             {
-                float scale = _fitScale[i];
-                if (Mathf.Approximately(scale, 1f))
+                if (Mathf.Approximately(_fitScale[i], 1f))
                 {
                     continue;
                 }
-                Stream.LocalPosition[i] = _authoredLocalPosition[i] * scale;
+                Stream.LocalPosition[i] = FittedLocalPosition(i);
             }
         }
 
@@ -222,7 +261,7 @@ namespace Basis.IK
             }
             for (int i = 0; i < _authoredLocalPosition.Length; i++)
             {
-                Stream.LocalPosition[i] = _authoredLocalPosition[i] * _fitScale[i];
+                Stream.LocalPosition[i] = FittedLocalPosition(i);
             }
             for (int i = 0; i < _writeIndices.Length; i++)
             {
@@ -230,7 +269,7 @@ namespace Basis.IK
                 Transform target = _ordered[bone];
                 if (target != null)
                 {
-                    target.localPosition = _authoredLocalPosition[bone] * _fitScale[bone];
+                    target.localPosition = FittedLocalPosition(bone);
                 }
             }
         }
@@ -249,7 +288,7 @@ namespace Basis.IK
             }
             for (int i = 0; i < _authoredLocalPosition.Length; i++)
             {
-                target[i] = _authoredLocalPosition[i] * _fitScale[i];
+                target[i] = FittedLocalPosition(i);
             }
         }
 

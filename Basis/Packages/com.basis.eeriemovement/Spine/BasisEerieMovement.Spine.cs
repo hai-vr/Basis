@@ -292,7 +292,10 @@ namespace Basis.IK
             // true parent rotations. The root end of the chain is commanded elsewhere, never solved here.
             for (int i = 0; i <= chainLen - 2; i++)
             {
-                stream.LocalRotation[nodeIdx[i]] = math.normalizesafe(math.mul(math.inverse((quaternion)parentRot[i]), (quaternion)wRot[i]));
+                int writeIdx = nodeIdx[i];
+                stream.LocalRotation[writeIdx] = BasisPoseStream.SafeNormalize(
+                    math.mul(math.inverse((quaternion)parentRot[i]), (quaternion)wRot[i]),
+                    stream.LocalRotation[writeIdx]);
             }
         }
         // The world-pose cache never outgrows its FixedList backing: GenerateHeadToSpine emits at most

@@ -722,6 +722,8 @@ namespace Basis.BasisUI
 
             _avatarRateSlider = sliderP2PRate;
             _networkingGroup = statusField;
+            _networkingTint = BasisPanelTint.Capture(statusField);
+            _avatarRateTint = BasisPanelTint.Capture(sliderP2PRate.Descriptor);
             _avatarRateLastFps = -1;
             _avatarRateLastRate = -1;
             _avatarRateWarnShown = false;
@@ -741,9 +743,11 @@ namespace Basis.BasisUI
                 {
                     _avatarRateWarnShown = false;
                 }
-                RefreshNetworkingStatus();
+                RefreshNetworkingStatus(_networkingStatusPainted);
+                _networkingStatusPainted = true;
                 statusField.ForceRebuild();
             }
+            _networkingStatusPainted = false;
             RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             toggleDirectConnections.OnValueChanged += (directOn) =>
             {
@@ -800,13 +804,16 @@ namespace Basis.BasisUI
 
         private static PanelSlider _avatarRateSlider;
         private static PanelElementDescriptor _networkingGroup;
+        private static BasisPanelTint.Handle _networkingTint;
+        private static BasisPanelTint.Handle _avatarRateTint;
         private static bool _avatarRateTickSubscribed;
+        private static bool _networkingStatusPainted;
         private static int _avatarRateLastFps = -1;
         private static int _avatarRateLastRate = -1;
         private static bool _avatarRateWarnShown;
         private const int AvatarRateWarningPollInterval = 15;
 
-        private static void RefreshNetworkingStatus()
+        private static void RefreshNetworkingStatus(bool animateTint = true)
         {
             PanelElementDescriptor group = _networkingGroup;
             if (group == null)
@@ -820,6 +827,13 @@ namespace Basis.BasisUI
                 status += "\n<color=#FFC747>"
                     + BasisLocalization.Get("settings.general.networking.p2pAvatarRate.fpsWarning", _avatarRateLastFps, _avatarRateLastRate)
                     + "</color>";
+                BasisPanelTint.Apply(_networkingTint, BasisPanelTint.Caution, animateTint);
+                BasisPanelTint.Apply(_avatarRateTint, BasisPanelTint.Caution, animateTint);
+            }
+            else
+            {
+                BasisPanelTint.Clear(_networkingTint, animateTint);
+                BasisPanelTint.Clear(_avatarRateTint, animateTint);
             }
             group.SetRichDescription(status);
         }

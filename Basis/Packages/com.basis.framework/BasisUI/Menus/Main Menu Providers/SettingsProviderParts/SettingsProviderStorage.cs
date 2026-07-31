@@ -82,6 +82,24 @@ public static class SettingsProviderStorage
         return tab;
     }
 
+    /// <summary>
+    /// Colour for the cache card: green while there is room, amber once the cache is mostly full,
+    /// red once it is at or over the limit and evictions are about to start.
+    /// </summary>
+    private static BasisPanelSeverity CacheFillSeverity(long totalBytes)
+    {
+        long limit = BasisStorageManagement.MaxCacheSizeBytes;
+        if (limit <= 0)
+        {
+            return BasisPanelSeverity.None;
+        }
+
+        double fill = (double)totalBytes / limit;
+        if (fill >= 1.0) return BasisPanelSeverity.Hot;
+        if (fill >= 0.85) return BasisPanelSeverity.Caution;
+        return BasisPanelSeverity.Calm;
+    }
+
     private static void PopulateStorageData(RectTransform container)
     {
         long totalBytes = BasisStorageManagement.GetTotalCacheSizeBytes();
@@ -102,6 +120,8 @@ public static class SettingsProviderStorage
         PanelPasswordField fileCountField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
         fileCountField.Descriptor.SetTitle(BasisLocalization.Get("settings.storage.storedFiles"));
         fileCountField.SetPassword(BasisLocalization.Get("settings.storage.fileCount", storedFiles.Count));
+
+        BasisPanelTint.Apply(BasisPanelTint.Capture(infoGroup), CacheFillSeverity(totalBytes), false);
 
         // Clear all cache button
         PanelButton clearAllButton = PanelButton.CreateNew(container);

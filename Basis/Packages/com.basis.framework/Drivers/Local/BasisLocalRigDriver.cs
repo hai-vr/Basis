@@ -107,6 +107,152 @@ namespace Basis.Scripts.Drivers
 
         public const int SlotCount = 15;
 
+        static readonly string[] SlotNames =
+        {
+            "Hips", "Head", "LeftFoot", "RightFoot", "Chest", "LeftLowerLeg", "RightLowerLeg",
+            "LeftHand", "RightHand", "LeftLowerArm", "RightLowerArm", "LeftToe", "RightToe",
+            "LeftShoulder", "RightShoulder",
+        };
+
+        /// <summary>
+        /// Finite check over the smoothing stage, which lives entirely in native slot arrays — no
+        /// transform carries it, so the watchdog's hierarchy scans cannot see it and a bad target
+        /// only surfaces frames later at the scatter. Reports the raw input, the one-euro state and
+        /// the filtered output separately: the euro state is a latch (its low-pass blends against
+        /// its own previous value), so a single bad input frame keeps that slot bad forever, and
+        /// telling "input is bad now" apart from "state went bad once" is the whole question.
+        /// </summary>
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private void WatchdogCheckFilterSlots(string stage)
+        {
+            if (!BasisFiniteWatchdog.Enabled || !_posInputs.IsCreated)
+            {
+                return;
+            }
+            for (int i = 0; i < SlotCount; i++)
+            {
+                string slot = i < SlotNames.Length ? SlotNames[i] : i.ToString();
+
+                if (BasisFiniteWatchdog.IsNonFinite((Vector3)_posInputs[i]))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw position input, slot '{slot}' (bone control OutgoingWorldData)", _posInputs[i].ToString());
+                    return;
+                }
+                if (BasisFiniteWatchdog.IsNonFinite((Quaternion)_rotInputs[i]))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK raw rotation input, slot '{slot}' (bone control OutgoingWorldData)", _rotInputs[i].ToString());
+                    return;
+                }
+
+                BasisEuroVec3State posState = _euroPosStates[i];
+                if (BasisFiniteWatchdog.IsNonFinite((Vector3)posState.hatX) || BasisFiniteWatchdog.IsNonFinite((Vector3)posState.hatDx))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK one-euro POSITION state latched, slot '{slot}' — raw input is finite, so this slot was poisoned on an earlier frame and can never recover",
+                        $"hatX={posState.hatX} hatDx={posState.hatDx} mode={_posModeNative[i]}");
+                    return;
+                }
+
+                BasisEuroQuatState rotState = _euroRotStates[i];
+                if (BasisFiniteWatchdog.IsNonFinite((Quaternion)rotState.prev)
+                    || BasisFiniteWatchdog.IsNonFinite((Vector3)rotState.logVecState.hatX)
+                    || BasisFiniteWatchdog.IsNonFinite((Vector3)rotState.logVecState.hatDx))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK one-euro ROTATION state latched, slot '{slot}'",
+                        $"prev={rotState.prev} hatX={rotState.logVecState.hatX} hatDx={rotState.logVecState.hatDx} mode={_rotModeNative[i]}");
+                    return;
+                }
+
+                if (BasisFiniteWatchdog.IsNonFinite((Vector3)_fallbackPosStates[i]))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK fallback position state, slot '{slot}'", _fallbackPosStates[i].ToString());
+                    return;
+                }
+
+                if (BasisFiniteWatchdog.IsNonFinite((Vector3)_posOutputs[i]))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK filtered position OUTPUT, slot '{slot}' — input and state are finite, so the filter produced it",
+                        $"{_posOutputs[i]} mode={_posModeNative[i]} tuning={_posTuning[i]}");
+                    return;
+                }
+                if (BasisFiniteWatchdog.IsNonFinite((Quaternion)_rotOutputs[i]))
+                {
+                    BasisFiniteWatchdog.ReportValue(stage, $"IK filtered rotation OUTPUT, slot '{slot}'",
+                        $"{_rotOutputs[i]} mode={_rotModeNative[i]} tuning={_rotTuning[i]}");
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finite check over the pose stream the solve writes and <c>ScatterNow</c> copies onto the
+        /// bones. Run between the two and a bad bone is attributed to the solver rather than to the
+        /// scatter that merely published it.
+        /// </summary>
+        System.IntPtr _watchdogStreamPtr;
+        string _watchdogStreamStage;
+
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private unsafe void WatchdogCheckPoseStream(string stage)
+        {
+            if (!BasisFiniteWatchdog.Enabled || !PoseSkeleton.IsCreated)
+            {
+                return;
+            }
+            var stream = PoseSkeleton.Stream;
+            Transform[] nodes = PoseSkeleton.DebugNodes;
+
+            // A rebuild between two checks swaps the whole stream out from under them, which reads
+            // as "the solve wrote garbage" when in fact the checks are looking at different buffers.
+            // The allocation address is the cheapest identity the stream has.
+            System.IntPtr streamPtr = (System.IntPtr)stream.LocalRotation.GetUnsafeReadOnlyPtr();
+            bool bufferReplaced = _watchdogStreamPtr != System.IntPtr.Zero && streamPtr != _watchdogStreamPtr;
+            string previousStage = _watchdogStreamStage;
+            _watchdogStreamPtr = streamPtr;
+            _watchdogStreamStage = stage;
+            System.Text.StringBuilder bad = null;
+            int badCount = 0;
+            string firstNode = null;
+            for (int i = 0; i < stream.Count; i++)
+            {
+                bool badPosition = BasisFiniteWatchdog.IsNonFinite((Vector3)stream.LocalPosition[i]);
+                bool badRotation = BasisFiniteWatchdog.IsNonFinite((Quaternion)stream.LocalRotation[i]);
+                if (!badPosition && !badRotation)
+                {
+                    continue;
+                }
+                string node = nodes != null && i < nodes.Length && nodes[i] != null ? nodes[i].name : i.ToString();
+                badCount++;
+                if (bad == null)
+                {
+                    bad = new System.Text.StringBuilder(512);
+                    firstNode = node;
+                }
+                // Every bad node, not just the first: one bad node means a solver pass wrote it,
+                // while a whole chain (or the entire stream) means the buffer itself was replaced
+                // or never seeded. The two need completely different fixes and the first-hit-only
+                // report cannot tell them apart.
+                if (badCount <= 12)
+                {
+                    bad.Append($"\n    [{i}] '{node}' localPosition={stream.LocalPosition[i]} localRotation={stream.LocalRotation[i]} "
+                        + $"translationFree={PoseSkeleton.TranslationFreeOf(i)} bindLength={PoseSkeleton.BindLengthOf(i)} "
+                        + $"fitScale={PoseSkeleton.FitScaleOf(i)} writable={PoseSkeleton.IsWritable(i)}");
+                }
+            }
+            if (bad == null)
+            {
+                return;
+            }
+            BasisFiniteWatchdog.ReportValue(stage, $"IK pose stream, first bad node '{firstNode}'",
+                $"{badCount}/{stream.Count} node(s) bad, fitActive={PoseSkeleton.FitActive}, "
+                + $"scatterPending={_ikScatterPending}, publishPending={_ikPublishPending}, solveScheduled={_ikSolveScheduled}"
+                + (bufferReplaced
+                    ? $"\n    ** THE STREAM BUFFER WAS REPLACED since '{previousStage}' — the rig was rebuilt mid-frame, so these values are fresh allocation memory, not solve output. **"
+                    : $"\n    (same stream buffer as '{previousStage ?? "<first check>"}')")
+                + bad);
+        }
+
         // Smoothing enable toggles (position + rotation)
         public static bool[] SmoothPos = new bool[SlotCount];
         public static bool[] SmoothRot = new bool[SlotCount];
@@ -253,7 +399,21 @@ namespace Basis.Scripts.Drivers
 
             LocomotionPose.CompleteIfPending();
             CompleteSolveIfPending();
+            // The rebuild below disposes the pose stream and allocates a new one, so any scatter or
+            // publish still owed from the solve scheduled earlier this frame refers to a buffer that
+            // no longer exists. CompleteSolveIfPending only retires the job handle; left set, these
+            // two send CompleteIKSolve on to scatter the FRESH stream, whose LocalRotation is
+            // zero-filled allocation memory that nothing in the rebuild path writes (RefreshBodyFit
+            // fills positions only). A zero quaternion is finite, so it passes every IsFinite guard
+            // and only turns into NaN when Unity normalizes it composing the bone's world matrix —
+            // which is the "Invalid AABB / IsFinite(distanceForSort)" storm.
+            _ikScatterPending = false;
+            _ikPublishPending = false;
             PoseSkeleton.Build(animator.transform, CollectIKBones(basisTransformMapping));
+            if (PoseSkeleton.NonFiniteRestCaptureCount > 0)
+            {
+                BasisDebug.LogError($"Rig build captured {PoseSkeleton.NonFiniteRestCaptureCount} non-finite rest local position(s), first '{PoseSkeleton.FirstNonFiniteRestBone}'. Substituted zero — those bones were already corrupt on the transforms before this build ran.", BasisDebug.LogTag.IK);
+            }
             PoseSkeleton.SetTranslationFree(basisTransformMapping.Hips);
             BasisEerieMovementSetup.Create(ref IKJob, PoseSkeleton, basisTransformMapping);
             IKJobCreated = true;
@@ -799,6 +959,7 @@ namespace Basis.Scripts.Drivers
             posJob.Run(SlotCount);
             rotJob.Run(SlotCount);
             sMarkerIKDestFilters.End();
+            WatchdogCheckFilterSlots("IKDest/PostFilters");
 
             // ── 6. Main-thread bookkeeping runs parallel with the foot job ──
             float leftBlendTarget = leftWantIK ? 1f : 0f;
@@ -1996,10 +2157,14 @@ namespace Basis.Scripts.Drivers
                 PoseSkeleton.GatherNow();
                 sMarkerIKDestPoseGather.End();
             }
+            WatchdogCheckPoseStream(streamPrefilled
+                ? "IKDest/PreFit (stream prefilled by locomotion pose)"
+                : "IKDest/PreFit (stream gathered from bones)");
 
             sMarkerIKDestApplyFit.Begin();
             PoseSkeleton.ApplyFit();
             sMarkerIKDestApplyFit.End();
+            WatchdogCheckPoseStream("IKDest/PostApplyFit (body-fit rest positions)");
 
             // Schedule instead of Run: every solve output lands in a native container
             // (poseStream, legDiagnostics), never back on this struct copy, so the solve runs on
@@ -2049,6 +2214,7 @@ namespace Basis.Scripts.Drivers
                     }
                 }
 
+                WatchdogCheckPoseStream("IKDest/PostSolve (stream, pre-scatter)");
                 sMarkerIKDestPoseScatter.Begin();
                 PoseSkeleton.ScatterNow();
                 sMarkerIKDestPoseScatter.End();

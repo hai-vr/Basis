@@ -11,6 +11,19 @@ namespace Basis.BasisUI
     /// the accent, so the styling the prefab shipped with is never lost and clearing always lands
     /// back exactly where it started. Transitions run through the tween system.</para>
     /// </summary>
+    /// <summary>
+    /// How much attention a live readout deserves. Panels that grade themselves — the frame
+    /// bottleneck, avatar cost, cache fill, connection quality — map their own numbers onto this
+    /// so the whole settings menu reads with one colour vocabulary.
+    /// </summary>
+    public enum BasisPanelSeverity
+    {
+        None,
+        Calm,
+        Caution,
+        Hot
+    }
+
     public static class BasisPanelTint
     {
         public const float Strength = 0.28f;
@@ -19,6 +32,63 @@ namespace Basis.BasisUI
         public static readonly Color Calm = new Color(0.45f, 0.82f, 0.55f, 1f);
         public static readonly Color Caution = new Color(1f, 0.78f, 0.35f, 1f);
         public static readonly Color Hot = new Color(1f, 0.48f, 0.35f, 1f);
+
+        public static Color AccentFor(BasisPanelSeverity severity)
+        {
+            switch (severity)
+            {
+                case BasisPanelSeverity.Calm: return Calm;
+                case BasisPanelSeverity.Caution: return Caution;
+                case BasisPanelSeverity.Hot: return Hot;
+                default: return Color.white;
+            }
+        }
+
+        /// <summary>Fraction of a threshold a value must fall back under before the grade relaxes.</summary>
+        public const double GradeReleaseFraction = 0.85;
+
+        /// <summary>
+        /// Grades a rising stat, holding <paramref name="previous"/> until the value has fallen a clear
+        /// margin back under the threshold it crossed. Live stats like ping and packet loss jitter
+        /// across a boundary constantly, and without the margin the card would retint — and replay its
+        /// fade — several times a second. Pass <see cref="BasisPanelSeverity.None"/> for a fresh grade.
+        /// </summary>
+        public static BasisPanelSeverity Grade(double value, double caution, double hot, BasisPanelSeverity previous)
+        {
+            if (value >= hot)
+            {
+                return BasisPanelSeverity.Hot;
+            }
+
+            if (value >= caution)
+            {
+                return previous == BasisPanelSeverity.Hot && value >= hot * GradeReleaseFraction
+                    ? BasisPanelSeverity.Hot
+                    : BasisPanelSeverity.Caution;
+            }
+
+            if (value >= caution * GradeReleaseFraction && previous != BasisPanelSeverity.Calm)
+            {
+                return BasisPanelSeverity.Caution;
+            }
+
+            return BasisPanelSeverity.Calm;
+        }
+
+        /// <summary>
+        /// Tints for a graded state, or clears back to plain when the state is
+        /// <see cref="BasisPanelSeverity.None"/>.
+        /// </summary>
+        public static void Apply(Handle handle, BasisPanelSeverity severity, bool animate = true)
+        {
+            if (severity == BasisPanelSeverity.None)
+            {
+                Clear(handle, animate);
+                return;
+            }
+
+            Apply(handle, AccentFor(severity), animate);
+        }
 
         public sealed class Handle
         {

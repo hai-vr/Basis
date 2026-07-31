@@ -162,6 +162,8 @@ namespace Basis.BasisUI
             AddInfoField(streamGroup, "Not Streaming", stats.NonStreamingTextureCount.ToString());
             AddInfoField(streamGroup, "Rating", stats.GetStreamingRating());
 
+            BasisPanelTint.Apply(BasisPanelTint.Capture(streamGroup), StreamingSeverity(stats), false);
+
             // --- Performance impact group ---
             PanelElementDescriptor perfGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -173,6 +175,8 @@ namespace Basis.BasisUI
             // Combined "cost to others" summary
             string costSummary = BuildCostSummary(stats, downloadBytes);
             AddInfoField(perfGroup, "Cost To Others", costSummary);
+
+            BasisPanelTint.Apply(BasisPanelTint.Capture(perfGroup), ImpactSeverity(stats), false);
 
             // --- Per-texture breakdown ---
             if (stats.Textures != null && stats.Textures.Count > 0)
@@ -196,6 +200,31 @@ namespace Basis.BasisUI
                     field.DisableIcons();
                 }
             }
+        }
+
+        /// <summary>
+        /// Colour for the mipmap-streaming card. Thresholds mirror
+        /// <see cref="BasisAvatarTextureStats.GetStreamingRating"/> so the tint and the wording agree.
+        /// </summary>
+        static BasisPanelSeverity StreamingSeverity(BasisAvatarTextureStats stats)
+        {
+            if (stats.TotalTextureCount == 0) return BasisPanelSeverity.None;
+            if (stats.StreamingPercentage >= 75f) return BasisPanelSeverity.Calm;
+            if (stats.StreamingPercentage >= 25f) return BasisPanelSeverity.Caution;
+            return BasisPanelSeverity.Hot;
+        }
+
+        /// <summary>
+        /// Colour for the performance-impact card. Thresholds mirror
+        /// <see cref="BasisAvatarTextureStats.GetPerformanceImpact"/>: Severe and High both read hot,
+        /// Moderate warns, No impact and Low stay calm.
+        /// </summary>
+        static BasisPanelSeverity ImpactSeverity(BasisAvatarTextureStats stats)
+        {
+            if (stats.NonStreamingTextureCount == 0) return BasisPanelSeverity.Calm;
+            if (stats.EstimatedSavingsBytes > 64L * 1024 * 1024) return BasisPanelSeverity.Hot;
+            if (stats.EstimatedSavingsBytes > 16L * 1024 * 1024) return BasisPanelSeverity.Caution;
+            return BasisPanelSeverity.Calm;
         }
 
         static string BuildCostSummary(BasisAvatarTextureStats stats, long downloadBytes)

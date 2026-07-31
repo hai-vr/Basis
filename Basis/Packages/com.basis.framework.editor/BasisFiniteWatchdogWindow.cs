@@ -49,16 +49,34 @@ public class BasisFiniteWatchdogWindow : EditorWindow
                 BasisFiniteWatchdog.RemotePlayersPerCheckpoint, 0, 32);
         }
 
+        BasisFiniteWatchdog.IgnorePreexisting = EditorGUILayout.ToggleLeft(
+            new GUIContent("Ignore pre-existing damage", "Arming an already-exploded avatar otherwise re-reports the same dead bone at the first checkpoint every time, which names a victim rather than a writer. With this on, everything already bad during the prime window is recorded and skipped, so the next report is a value that was finite and just became bad."),
+            BasisFiniteWatchdog.IgnorePreexisting);
+
+        using (new EditorGUI.DisabledScope(!BasisFiniteWatchdog.IgnorePreexisting))
+        {
+            BasisFiniteWatchdog.PrimeFrames = EditorGUILayout.IntSlider(
+                new GUIContent("Prime frames", "How long after arming to record bad values instead of reporting them. Must outlast a full remote round-robin sweep."),
+                BasisFiniteWatchdog.PrimeFrames, 1, 240);
+        }
+
         using (new EditorGUILayout.HorizontalScope())
         {
             string state = !BasisFiniteWatchdog.Enabled ? "Off"
                 : BasisFiniteWatchdog.Disarmed ? "TRIPPED — report below"
-                : Application.isPlaying ? "Armed, scanning" : "Armed, waiting for play mode";
+                : !Application.isPlaying ? "Armed, waiting for play mode"
+                : BasisFiniteWatchdog.Priming ? $"Priming — {BasisFiniteWatchdog.PrimeFramesRemaining} frames left"
+                : "Armed, scanning";
             EditorGUILayout.LabelField("State", state);
-            if (BasisFiniteWatchdog.Disarmed && GUILayout.Button("Re-arm", GUILayout.Width(80f)))
+            if (GUILayout.Button("Re-arm", GUILayout.Width(80f)))
             {
                 BasisFiniteWatchdog.Rearm();
             }
+        }
+
+        if (BasisFiniteWatchdog.IgnoredCount > 0)
+        {
+            EditorGUILayout.LabelField("Skipping (already bad)", $"{BasisFiniteWatchdog.IgnoredCount} value(s) recorded during priming");
         }
 
         EditorGUILayout.LabelField("Coverage last frame",

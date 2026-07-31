@@ -79,6 +79,9 @@ namespace Basis.BasisUI
             var holderGO = new GameObject("NetworkStatsUpdater");
             holderGO.transform.SetParent(netGroup.transform, false);
             updater = holderGO.AddComponent<NetworkStatsPanelUpdater>();
+            updater.ConnectionTint = BasisPanelTint.Capture(connectionField);
+            updater.PingTint = BasisPanelTint.Capture(pingField);
+            updater.BandwidthTint = BasisPanelTint.Capture(bandwidthField);
             updater.ConnectionField = connectionField;
             updater.ServerField = serverField;
             updater.PingField = pingField;

@@ -211,6 +211,11 @@ namespace Basis.EventDriver
         {
             using var updateScope = Prof.Update.Auto();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BasisFiniteWatchdog.Checkpoint("UpdateStart (render / physics / previous frame tail)");
+            BasisFiniteWatchdog.CheckpointRemote("UpdateStart (render / physics / previous frame tail)");
+#endif
+
             DeltaTime = Time.deltaTime;
             unscaledDeltaTime = Time.unscaledDeltaTime;
             realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
@@ -315,6 +320,11 @@ namespace Basis.EventDriver
                 InvokeEventCallbacks(OnUpdate, nameof(OnUpdate), ref _onUpdateCachedDelegate, ref _onUpdateInvocationList);
             }
             timeSinceLastUpdate += DeltaTime;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BasisFiniteWatchdog.Checkpoint("UpdateTail (pre-animator)");
+            BasisFiniteWatchdog.CheckpointRemote("UpdateTail (pre-animator)");
+#endif
         }
 
         /// <summary>
@@ -509,6 +519,7 @@ namespace Basis.EventDriver
             }
             ProfileEnd(PROF_DEVICE_MANAGEMENT);
             BasisFiniteWatchdog.Checkpoint("PostDeviceManagement (tracker / device poses)");
+            BasisFiniteWatchdog.CheckpointBoneControls("PostDeviceManagement (bone control pose data)");
 
             // ── BTween ──
             ProfileBegin(PROF_BTWEEN);

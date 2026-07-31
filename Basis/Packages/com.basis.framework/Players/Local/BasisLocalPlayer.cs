@@ -619,6 +619,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
             }
             BasisFiniteWatchdog.Checkpoint("LocalSim/PostBoneDriver");
+            BasisFiniteWatchdog.CheckpointBoneControls("LocalSim/PostBoneDriver (bone control pose data)");
 
             // moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)

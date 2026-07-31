@@ -234,21 +234,18 @@ namespace Basis.BasisUI
 
         private static void ApplyTint(BasisFrameBottleneckKind kind)
         {
+            BasisPanelTint.Apply(_tint, SeverityFor(kind));
+        }
+
+        private static BasisPanelSeverity SeverityFor(BasisFrameBottleneckKind kind)
+        {
             switch (kind)
             {
-                case BasisFrameBottleneckKind.FrameCap:
-                    BasisPanelTint.Apply(_tint, BasisPanelTint.Calm);
-                    break;
-                case BasisFrameBottleneckKind.Balanced:
-                    BasisPanelTint.Apply(_tint, BasisPanelTint.Caution);
-                    break;
+                case BasisFrameBottleneckKind.FrameCap: return BasisPanelSeverity.Calm;
+                case BasisFrameBottleneckKind.Balanced: return BasisPanelSeverity.Caution;
                 case BasisFrameBottleneckKind.Cpu:
-                case BasisFrameBottleneckKind.Gpu:
-                    BasisPanelTint.Apply(_tint, BasisPanelTint.Hot);
-                    break;
-                default:
-                    BasisPanelTint.Clear(_tint);
-                    break;
+                case BasisFrameBottleneckKind.Gpu: return BasisPanelSeverity.Hot;
+                default: return BasisPanelSeverity.None;
             }
         }
     }
