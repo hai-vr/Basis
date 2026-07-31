@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -30,6 +31,15 @@ public static class BasisFarAvatarBuilder
         public Avatar HumanoidRig;
         public int HipsIndex;
         public int RefCount;
+
+        /// <summary>
+        /// The fully wired far avatar for this version, built once and kept inactive under
+        /// <see cref="PrototypeHolder"/>. Every wearer after the first is a single
+        /// <see cref="Object.Instantiate"/> of it instead of ~23 GameObject creations, four
+        /// AddComponents and a 55-slot bone capture on the transmit tick.
+        /// </summary>
+        public GameObject Prototype;
+        public GameObject PrototypeHolder;
     }
 
     private static readonly Dictionary<string, SharedAssets> SharedByVersion = new Dictionary<string, SharedAssets>(8);
@@ -37,6 +47,13 @@ public static class BasisFarAvatarBuilder
     private static readonly int MinBrightnessProperty = Shader.PropertyToID("_MinBrightness");
     private static readonly int MaxBrightnessProperty = Shader.PropertyToID("_MaxBrightness");
     private static Shader sFarAvatarShader;
+
+    // Install phase markers. BasisAvatarFarLOD's FarLodInstall marker reports one number for the
+    // whole swap; these split it so a spike attributes to the stage that owns it — first-wearer
+    // asset construction, the per-player clone, or the factory swap and remote calibration.
+    static readonly ProfilerMarker sMarkerShared = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodShared");
+    static readonly ProfilerMarker sMarkerBuild = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodBuild");
+    static readonly ProfilerMarker sMarkerFactory = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodFactory");
 
     /// <summary>
     /// Builds this player's far avatar and installs it as their current avatar through the
@@ -213,14 +230,22 @@ public static class BasisFarAvatarBuilder
     /// </summary>
     private static bool InstallWithPayload(BasisRemotePlayer remote, string uniqueVersion, BasisFarLodPayload payload)
     {
-        SharedAssets shared = AcquireShared(uniqueVersion, payload);
+        SharedAssets shared;
+        using (sMarkerShared.Auto())
+        {
+            shared = AcquireShared(uniqueVersion, payload);
+        }
         if (shared == null)
         {
             remote.MarkFarLodPayloadUnusable();
             return false;
         }
 
-        BasisAvatar avatar = BuildAvatar(shared, remote.DisplayName);
+        BasisAvatar avatar;
+        using (sMarkerBuild.Auto())
+        {
+            avatar = BuildAvatar(shared, remote.DisplayName);
+        }
         if (avatar == null)
         {
             ReleaseShared(shared);
@@ -228,7 +253,10 @@ public static class BasisFarAvatarBuilder
             return false;
         }
 
-        BasisAvatarFactory.SetupFarAvatar(remote, avatar);
+        using (sMarkerFactory.Auto())
+        {
+            BasisAvatarFactory.SetupFarAvatar(remote, avatar);
+        }
         if (remote.BasisAvatar != avatar)
         {
             // Calibration failed and the factory recovered onto the fallback (the instance
@@ -241,15 +269,68 @@ public static class BasisFarAvatarBuilder
     }
 
     /// <summary>
-    /// Builds the far avatar GameObject: payload skeleton at its baked T-pose, shared skinned
-    /// mesh, humanoid rig, and a wired <see cref="BasisAvatar"/> — a complete avatar the
-    /// factory can install like any other. Returns null (and destroys partial state) on
-    /// failure.
+    /// This player's far avatar, ready for the factory. The first wearer of a version pays for
+    /// the prototype build; everyone after that is one <see cref="Object.Instantiate"/> — the
+    /// clone's serialized wiring (bone array, root bone, TransformStorage, renderer, animator
+    /// rig) is remapped into the copy by Unity, so nothing has to be re-resolved per player.
+    /// Returns null when the prototype refuses to build.
     /// </summary>
     private static BasisAvatar BuildAvatar(SharedAssets shared, string displayName)
     {
+        if (shared.Prototype == null && !BuildPrototype(shared, displayName))
+        {
+            return null;
+        }
+
+        GameObject clone = Object.Instantiate(shared.Prototype);
+        clone.SetActive(true);
+        Transform cloneTransform = clone.transform;
+        cloneTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+
+        if (!clone.TryGetComponent(out BasisAvatar avatar))
+        {
+            BasisDebug.LogError($"Far avatar clone for {displayName} lost its BasisAvatar component.", BasisDebug.LogTag.Avatar);
+            Object.Destroy(clone);
+            return null;
+        }
+
+        // IsFarLodAvatar is [NonSerialized], so the clone starts false — every far LOD gate
+        // (WornFarVersion, SeedAfterCalibration, the calibration TPose skip) reads it.
+        avatar.IsFarLodAvatar = true;
+        // The prototype deliberately carries no version: its OnDestroy must not release the
+        // shared assets it belongs to. Only real wearers hold a reference.
+        if (clone.TryGetComponent(out BasisFarAvatarInstance instance))
+        {
+            instance.SharedVersion = shared.UniqueVersion;
+        }
+        // Cloned by value from a hierarchy whose references were remapped, but an avatar built
+        // before the rig resolved would carry a null table — fall back rather than ship one.
+        if (avatar.TransformStorage?.HumanoidBones == null)
+        {
+            avatar.TransformStorage = BasisAvatarTransformStorage.CaptureFrom(avatar.Animator);
+        }
+        return avatar;
+    }
+
+    /// <summary>
+    /// Builds the per-version prototype: payload skeleton at its baked T-pose, shared skinned
+    /// mesh, humanoid rig, and a wired <see cref="BasisAvatar"/> — a complete avatar the factory
+    /// could install as-is. It is left inactive under its build holder and cloned from there for
+    /// every wearer. Returns false (and destroys partial state) on failure.
+    /// </summary>
+    private static bool BuildPrototype(SharedAssets shared, string displayName)
+    {
         BasisFarLodPayload payload = shared.Payload;
         int layer = BasisLayerMapper.RemoteAvatarLayer;
+
+        // A prototype whose root died without its holder (or the reverse) leaves the survivor
+        // orphaned; the fields are overwritten below, so drop it before it is unreachable.
+        if (shared.PrototypeHolder != null)
+        {
+            Object.Destroy(shared.PrototypeHolder);
+            shared.PrototypeHolder = null;
+            shared.Prototype = null;
+        }
 
         // The root name is part of the humanoid rig's skeleton description and the rig is
         // shared per version, so it must be deterministic — not player-named.
@@ -303,7 +384,8 @@ public static class BasisFarAvatarBuilder
                 if (shared.HumanoidRig == null)
                 {
                     Object.Destroy(root);
-                    return null;
+                    Object.Destroy(buildHolder);
+                    return false;
                 }
             }
             animator.avatar = shared.HumanoidRig;
@@ -320,20 +402,27 @@ public static class BasisFarAvatarBuilder
             avatar.TransformStorage = BasisAvatarTransformStorage.CaptureFrom(animator);
             avatar.HumanScale = animator.humanScale;
 
-            BasisFarAvatarInstance instance = root.AddComponent<BasisFarAvatarInstance>();
-            instance.SharedVersion = shared.UniqueVersion;
+            // SharedVersion is left null on the prototype: its OnDestroy runs like any other
+            // instance's, and a version there would release the shared assets it belongs to.
+            root.AddComponent<BasisFarAvatarInstance>();
 
-            rootTransform.SetParent(null, false);
-            rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-            Object.Destroy(buildHolder);
-            return avatar;
+            // Parked and inactive rather than unparented and shipped — the prototype is never
+            // worn, only cloned. Inactive keeps its renderer out of culling and its animator
+            // off; the holder keeps it out of the scene roots that get walked per frame.
+            // It outlives scene changes for the same reason the shared mesh/material do: an
+            // additive world switch would otherwise force a rebuild on the next swap.
+            root.SetActive(false);
+            Object.DontDestroyOnLoad(buildHolder);
+            shared.Prototype = root;
+            shared.PrototypeHolder = buildHolder;
+            return true;
         }
         catch (System.Exception e)
         {
             BasisDebug.LogError($"Far avatar build failed for {displayName}: {e}", BasisDebug.LogTag.Avatar);
             Object.Destroy(root);
             Object.Destroy(buildHolder);
-            return null;
+            return false;
         }
     }
 
@@ -467,7 +556,7 @@ public static class BasisFarAvatarBuilder
         shared.Material.SetFloat(MaxBrightnessProperty, payload.MaxBrightness);
 
         // Mesh and texture now exist as engine objects; the retained payload only feeds the
-        // per-player skeleton builds, which read none of the heavy arrays.
+        // per-version prototype build, which reads none of the heavy arrays.
         payload.ReleaseMeshSourceData();
 
         SharedByVersion[uniqueVersion] = shared;
@@ -482,6 +571,14 @@ public static class BasisFarAvatarBuilder
             return;
         }
         SharedByVersion.Remove(shared.UniqueVersion);
+        // The prototype goes first: it holds the mesh/material/rig below and its own
+        // BasisFarAvatarInstance is version-less, so destroying it releases nothing further.
+        if (shared.PrototypeHolder != null)
+        {
+            Object.Destroy(shared.PrototypeHolder);
+        }
+        shared.PrototypeHolder = null;
+        shared.Prototype = null;
         if (shared.Material != null)
         {
             Object.Destroy(shared.Material);

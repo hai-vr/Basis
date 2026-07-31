@@ -456,8 +456,11 @@ public partial class BasisTransmissionResults
         bool jiggleColliderLodEnabled = BasisJiggleColliderLOD.Enabled;
         // Per-tick budget of avatar (re)loads admitted below; reset each tick. See MaxAvatarReloadsPerTick.
         int avatarReloadsAdmitted = 0;
-        // Per-tick budget of far LOD swaps — each swap forces a bone-job sync.
+        // Per-tick budget of far LOD swaps — each swap forces a bone-job sync. Two ceilings:
+        // the count below, and a wall-clock budget opened here that bounds what those swaps are
+        // allowed to cost, since an install is a build plus a full remote calibration.
         int farLodTransitionBudget = BasisAvatarFarLOD.MaxTransitionsPerTick;
+        BasisAvatarFarLOD.BeginTickBudget();
         using (sMarkerPostProcess.Auto())
         unsafe
         {

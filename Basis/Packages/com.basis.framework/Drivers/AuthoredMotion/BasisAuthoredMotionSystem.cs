@@ -332,6 +332,12 @@ public static class BasisAuthoredMotionSystem
         sRegistrations.Add(reg);
         sLookup[component] = reg;
         component.EnabledStateChanged += OnEnabledStateChanged;
+        // Nothing else unregisters a destroyed component: OnDisable only flips the valid
+        // mask, and a same-length swap (one avatar destroyed, one registered in the same
+        // frame) slips past the Schedule() length resync. The token marks dirty at destroy
+        // so the next Schedule() rebuild prunes the row deterministically. (Unregister
+        // itself can't run here — a destroyed component fails its null guard.)
+        component.destroyCancellationToken.Register(static () => sDirty = true);
         sPendingAdds.Add(reg);   // appended incrementally next Schedule(); a pending rebuild (above) would absorb it instead
     }
 

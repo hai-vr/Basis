@@ -668,6 +668,11 @@ namespace SteamAudio
 #if STEAMAUDIO_ENABLED
         private void ScheduleInstance()
         {
+            // A throw between Schedule and Apply (LateUpdateBody swallows) can leave last
+            // frame's gather in flight; join it before the capacity ensures below dispose
+            // the pose buffers it writes. No-op on healthy frames.
+            combined.Complete();
+
             // Drain deferred SteamAudioSource inits (frame-budgeted).
             SteamAudioSource.ProcessPendingInits();
 
@@ -678,6 +683,7 @@ namespace SteamAudio
 
             // --- Gather transforms via jobs ---
             EnsureTransformArraysCreated();
+            RepairTransformArrayDesync();
             EnsureSourceCapacity(CurrentArraySource);
             EnsureListenerCapacity(CurrentArrayListener);
 
@@ -1546,8 +1552,77 @@ namespace SteamAudio
                 mListenerTransforms = new TransformAccessArray(4);
         }
 
+        // Joins the in-flight pose gather. Sources/listeners enable and disable inside the
+        // Schedule→Apply window (avatar swaps, far-LOD installs, world callbacks); mutating a
+        // TransformAccessArray or disposing a pose buffer while GatherPoseJob is running
+        // invalidates the array's hierarchy-sorted cache mid-execute.
+        private void CompletePendingGathers()
+        {
+            combined.Complete();
+        }
+
+        // A source/listener destroyed without its OnDisable running (already-inactive object)
+        // is auto-removed from the TransformAccessArray by Unity while the managed arrays keep
+        // their rows. Rebuild both sides back into index lockstep before scheduling over them.
+        private void RepairTransformArrayDesync()
+        {
+            if (mSourceTransforms.isCreated && mSourceTransforms.length != CurrentArraySource)
+            {
+                int live = 0;
+                for (int i = 0; i < CurrentArraySource; i++)
+                {
+                    SteamAudioSource source = mSources[i];
+                    if (source != null)
+                    {
+                        mSources[live] = source;
+                        live++;
+                    }
+                }
+                for (int i = live; i < CurrentArraySource; i++)
+                {
+                    mSources[i] = null;
+                }
+                CurrentArraySource = live;
+                mSourceSet.Clear();
+                mSourceTransforms.Dispose();
+                mSourceTransforms = new TransformAccessArray(Mathf.Max(8, live));
+                for (int i = 0; i < live; i++)
+                {
+                    mSourceSet.Add(mSources[i]);
+                    mSourceTransforms.Add(mSources[i].transform);
+                }
+            }
+
+            if (mListenerTransforms.isCreated && mListenerTransforms.length != CurrentArrayListener)
+            {
+                int live = 0;
+                for (int i = 0; i < CurrentArrayListener; i++)
+                {
+                    SteamAudioListener listener = mListeners[i];
+                    if (listener != null)
+                    {
+                        mListeners[live] = listener;
+                        live++;
+                    }
+                }
+                for (int i = live; i < CurrentArrayListener; i++)
+                {
+                    mListeners[i] = null;
+                }
+                CurrentArrayListener = live;
+                mListenerTransforms.Dispose();
+                mListenerTransforms = new TransformAccessArray(Mathf.Max(4, live));
+                for (int i = 0; i < live; i++)
+                {
+                    mListenerTransforms.Add(mListeners[i].transform);
+                }
+            }
+        }
+
         private void DisposeTransformAndPoseBuffers()
         {
+            CompletePendingGathers();
+
             if (mSourceTransforms.isCreated) mSourceTransforms.Dispose();
             if (mListenerTransforms.isCreated) mListenerTransforms.Dispose();
 
@@ -1557,6 +1632,14 @@ namespace SteamAudio
 
             mSourceCapacity = 0;
             mListenerCapacity = 0;
+
+            // The registries must empty with the arrays: stale CurrentArray* counts after a
+            // ShutDown would let the next ScheduleInstance dispatch over fresh empty arrays.
+            System.Array.Clear(mSources, 0, mSources.Length);
+            System.Array.Clear(mListeners, 0, mListeners.Length);
+            mSourceSet.Clear();
+            CurrentArraySource = 0;
+            CurrentArrayListener = 0;
         }
         public static void AddSource(SteamAudioSource source)
         {
@@ -1567,6 +1650,7 @@ namespace SteamAudio
             if (!s.mSourceSet.Add(source))
                 return;
 
+            s.CompletePendingGathers();
             s.EnsureTransformArraysCreated();
 
             int count = s.CurrentArraySource;
@@ -1589,6 +1673,8 @@ namespace SteamAudio
 
             if (!s.mSourceSet.Remove(source))
                 return;
+
+            s.CompletePendingGathers();
 
             var arr = s.mSources;
             int count = s.CurrentArraySource;
@@ -1629,6 +1715,8 @@ namespace SteamAudio
                     return;
             }
 
+            Singleton.CompletePendingGathers();
+
             EnsureCapacity(ref Singleton.mListeners, count + 1);
             Singleton.mListeners[count] = listener;
             Singleton.CurrentArrayListener++;
@@ -1649,6 +1737,8 @@ namespace SteamAudio
             {
                 if (arr[i] == listener)
                 {
+                    Singleton.CompletePendingGathers();
+
                     int last = count - 1;
 
                     arr[i] = arr[last];

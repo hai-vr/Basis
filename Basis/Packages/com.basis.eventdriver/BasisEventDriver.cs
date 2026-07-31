@@ -635,6 +635,14 @@ namespace Basis.EventDriver
                     }
                 }
             }
+            else
+            {
+                // The PIP driver's Simulate (its only steady-state fence) rides
+                // AfterSimulateOnLate inside FinishSimulate. While the local player is not
+                // ready its previously scheduled transform jobs would otherwise stay in
+                // flight across frames, with remote pucks free to be destroyed under them.
+                BasisNetworkPIPCameraDriver.CompletePending();
+            }
 
 #if STEAMAUDIO_ENABLED
             // Stays after the local eye apply: the listener/source gather TAA can share the local
@@ -765,6 +773,18 @@ namespace Basis.EventDriver
             // thread, which would force a sync on freshly-dispatched jiggle transform jobs over
             // the same avatar hierarchies. Constraints are fenced above, so this window is
             // job-free for those bones.
+            // Post-load avatar setup runs HERE rather than wherever its bundle-load continuation
+            // happened to resume. This is the frame's install-safe window (see the frame-sync
+            // note below): remote bone jobs joined, constraints fenced, jiggle prepared but not
+            // dispatched — so calibration's container mutation never blocks on an in-flight
+            // chain. Ahead of the transmit tick so the far LOD pass below sees this frame's
+            // freshly installed avatars. Loads only park for this when the wait is free; see
+            // BasisAvatarSetupBudget.
+            using (Prof.AvatarInstallPump.Auto())
+            {
+                Basis.Scripts.Avatar.BasisAvatarSetupBudget.RunQuietPoint();
+            }
+
             ProfileBegin(PROF_NETWORK_TRANSMIT);
             using (Prof.AfterAvatarChanges.Auto())
             {
@@ -940,6 +960,13 @@ namespace Basis.EventDriver
                 BasisGlobalNamePlateRenderer.FinishFrame();
             }
 
+            // Outside the PlayerReady gate on purpose: this is the fence for the eye transform
+            // job scheduled in LateUpdate. Skipping it while the local avatar reloads would
+            // leave that job in flight across the frame boundary with remote avatars free to
+            // be destroyed under it.
+            try { using (Prof.RemoteFaceApply.Auto()) BasisRemoteFaceManagement.Apply(); }
+            catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver remote-face apply failed: {ex}", BasisDebug.LogTag.Event); }
+
             if (BasisLocalPlayer.PlayerReady)
             {
                 try { using (Prof.SimulateOnRender.Auto()) BasisLocalPlayer.Instance.SimulateOnRender(); }
@@ -948,9 +975,6 @@ namespace Basis.EventDriver
 
                 try { using (Prof.EyeTrackingSimulate.Auto()) Basis.Scripts.Device_Management.EyeTracking.BasisEyeTrackingManager.Simulate(); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver eye-tracking simulate failed: {ex}", BasisDebug.LogTag.Event); }
-
-                try { using (Prof.RemoteFaceApply.Auto()) BasisRemoteFaceManagement.Apply(); }
-                catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver remote-face apply failed: {ex}", BasisDebug.LogTag.Event); }
 #if !BASIS_DISABLE_MICROPHONE
                 try { using (Prof.MicrophoneIcon.Auto()) BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); }
                 catch (Exception ex) { BasisDebug.LogErrorOnce($"BasisEventDriver microphone-icon simulate failed: {ex}", BasisDebug.LogTag.Event); }

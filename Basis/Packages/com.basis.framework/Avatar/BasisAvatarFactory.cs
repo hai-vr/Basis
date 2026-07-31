@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -23,6 +24,16 @@ namespace Basis.Scripts.Avatar
     /// </summary>
     public static class BasisAvatarFactory
     {
+        // The main-thread half of every avatar swap — load, reload, far LOD, range re-entry. It
+        // reported nothing at all before, so a load-in spike could only be attributed to whatever
+        // outer marker happened to contain it (transmit tick, bundle continuation, join).
+        static readonly ProfilerMarker sMarkerInstall = new ProfilerMarker("BasisDriver.Avatar.Install");
+        static readonly ProfilerMarker sMarkerUnregister = new ProfilerMarker("BasisDriver.Avatar.Install.UnregisterOld");
+        static readonly ProfilerMarker sMarkerDeleteLast = new ProfilerMarker("BasisDriver.Avatar.Install.DeleteLast");
+        static readonly ProfilerMarker sMarkerHarvest = new ProfilerMarker("BasisDriver.Avatar.Install.Harvest");
+        static readonly ProfilerMarker sMarkerCalibrateRemote = new ProfilerMarker("BasisDriver.Avatar.Calibrate");
+        static readonly ProfilerMarker sMarkerTrim = new ProfilerMarker("BasisDriver.Avatar.Install.PerfTrim");
+
         /// <summary>
         /// Cached prefab for the loading/fallback avatar. Loaded once, instantiated many times.
         /// </summary>
@@ -421,9 +432,13 @@ namespace Basis.Scripts.Avatar
                     // mirroring the Evaluate skip in BasisRemotePlayer.CreateAvatar.
                     // Leaving LastPerformanceInfo at its freshly-reset default lets
                     // the UI show a clean "no filter applied" state for this player.
-                    var trimInfo = remote.BypassPerformanceLimits
-                        ? default(BasisAvatarPerformanceLimits.PerformanceInfo)
-                        : BasisAvatarPerformanceLimits.TrimExcessComponents(Output, avatar.EnsureHarvest().Components);
+                    BasisAvatarPerformanceLimits.PerformanceInfo trimInfo;
+                    using (sMarkerTrim.Auto())
+                    {
+                        trimInfo = remote.BypassPerformanceLimits
+                            ? default
+                            : BasisAvatarPerformanceLimits.TrimExcessComponents(Output, avatar.EnsureHarvest().Components);
+                    }
 
                     // Only the success path (non-blocked, non-fallback) reaches here,
                     // so CreateAvatar's freshly-reset LastPerformanceInfo has Blocked
@@ -510,8 +525,10 @@ namespace Basis.Scripts.Avatar
             // and GameObject.Destroy only fires OnDisable at end-of-frame, which races with the
             // new avatar's JiggleRig registration below. Doing it here keeps tree state consistent.
             // The set was captured off the old avatar's harvest at its own load — no walk needed.
+            using var _installScope = sMarkerInstall.Auto();
             if (Player.BasisAvatar != null)
             {
+                using var _unregisterScope = sMarkerUnregister.Auto();
                 JiggleRig[] oldRigs = StoredJiggleRigsFor(Player);
                 for (int i = 0; i < oldRigs.Length; i++)
                 {
@@ -538,22 +555,28 @@ namespace Basis.Scripts.Avatar
                         break;
                 }
             }
-            DeleteLastAvatar(Player);
+            using (sMarkerDeleteLast.Auto())
+            {
+                DeleteLastAvatar(Player);
+            }
             Player.IsConsideredFallBackAvatar = isFallback;
             Player.BasisAvatar = avatar;
             Player.AvatarTransform = avatar.transform;
             Player.AvatarAnimatorTransform = avatar.Animator.transform;
-            var loadHarvest = avatar.EnsureHarvest();
-            Player.BasisAvatar.Renders = loadHarvest.Renderers != null
-                ? loadHarvest.Renderers.ToArray()
-                : avatar.GetComponentsInChildren<Renderer>(true);
-            Player.BasisAvatar.SkinnedMeshRenderers = loadHarvest.SkinnedMeshRenderers?.ToArray();
-            Player.BasisAvatar.AuthoredMotions = loadHarvest.AuthoredMotions != null
-                ? loadHarvest.AuthoredMotions.ToArray()
-                : avatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
-            StoreJiggleRigs(Player, loadHarvest, avatar);
-            avatar.Harvest = null;
-            loadHarvest.ReturnToPool();
+            using (sMarkerHarvest.Auto())
+            {
+                var loadHarvest = avatar.EnsureHarvest();
+                Player.BasisAvatar.Renders = loadHarvest.Renderers != null
+                    ? loadHarvest.Renderers.ToArray()
+                    : avatar.GetComponentsInChildren<Renderer>(true);
+                Player.BasisAvatar.SkinnedMeshRenderers = loadHarvest.SkinnedMeshRenderers?.ToArray();
+                Player.BasisAvatar.AuthoredMotions = loadHarvest.AuthoredMotions != null
+                    ? loadHarvest.AuthoredMotions.ToArray()
+                    : avatar.GetComponentsInChildren<BasisAuthoredMotion>(true);
+                StoreJiggleRigs(Player, loadHarvest, avatar);
+                avatar.Harvest = null;
+                loadHarvest.ReturnToPool();
+            }
             Player.BasisAvatar.IsOwnedLocally = Player.IsLocal;
 
             switch (Player)
@@ -632,6 +655,14 @@ namespace Basis.Scripts.Avatar
         {
             if (Player.BasisAvatar != null)
             {
+                // Same constraint as the jiggle-collider unregister above: the Destroy below
+                // lands at end-of-frame, inside the remote-face Simulate→Apply window, so the
+                // eye pair must be dropped while its transforms are still alive or Unity
+                // auto-compacts eyeTransforms under the in-flight eye write job.
+                if (Player is BasisRemotePlayer remoteFacePlayer)
+                {
+                    BasisRemoteFaceManagement.RemovePlayer(remoteFacePlayer.RemoteFaceDriver);
+                }
                 if (Player.IsConsideredFallBackAvatar)
                 {
                     GameObject.Destroy(Player.BasisAvatar.gameObject);
@@ -682,7 +713,10 @@ namespace Basis.Scripts.Avatar
             }
             try
             {
-                Player.RemoteAvatarDriver.RemoteCalibration(Player);
+                using (sMarkerCalibrateRemote.Auto())
+                {
+                    Player.RemoteAvatarDriver.RemoteCalibration(Player);
+                }
                 Player.BasisAvatar.NotifyAvatarReady(false);
             }
             catch (Exception e)

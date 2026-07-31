@@ -211,9 +211,15 @@ public class BasisLocalEyeDriver
 
     public static void Dispose()
     {
+        // The schedule flag and enable gate must fall with the buffers: left set, Simulate
+        // schedules over a disposed array (BasisLocalPlayer.OnDestroy path) and Apply
+        // completes a handle bound to it. Join unconditionally — not keyed on _state.
+        handle.Complete();
+        HasEyeSchedule = false;
+        IsEnabled = false;
+
         if (_state.IsCreated)
         {
-            handle.Complete();
             _state.Dispose();
         }
         if (_eyeTransforms.isCreated)
@@ -293,6 +299,13 @@ public class BasisLocalEyeDriver
     public void Simulate(float dt)
     {
         if (!IsEnabled || HasEyeSchedule != false)
+        {
+            return;
+        }
+
+        // Destroyed eye bones (the avatar-swap gap before Initialize reruns) auto-compact
+        // the array; scheduling over it then misindexes the per-eye state.
+        if (!_eyeTransforms.isCreated || _eyeTransforms.length != 2)
         {
             return;
         }

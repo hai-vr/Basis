@@ -205,6 +205,15 @@ public class JiggleJobs {
         if (hasHandleTransformWrite) {
             handleTransformWrite.Complete();
         }
+        // The first-pose branch in SchedulePoses schedules the reset with no dependency
+        // edge back into the write chain, so join the earlier pose stages explicitly
+        // rather than relying on transitivity. No-ops when already covered.
+        if (hasHandleRootRead) {
+            handleRootRead.Complete();
+        }
+        if (hasHandleBulkReset) {
+            handleBulkReset.Complete();
+        }
     }
 
     public void FreeOnComplete(IntPtr pointer) {
@@ -238,6 +247,11 @@ public class JiggleJobs {
     }
 
     public void Simulate(double simulateTime, double realTime, int substeps, JobHandle externalDependency = default) {
+        // CommitTrees/CommitColliders (and the buffer rotation below) mutate the transform
+        // access arrays and buffers the pose chain is scheduled over. The host's pose fence
+        // can be skipped on an exception frame, and hosts may call ScheduleSimulate between
+        // SchedulePoses and CompletePose — join the pose chain first. No-op on healthy frames.
+        CompletePoses();
         if (_memoryBus.transformCount == 0) {
             _memoryBus.CommitTrees();
             _memoryBus.CommitColliders();

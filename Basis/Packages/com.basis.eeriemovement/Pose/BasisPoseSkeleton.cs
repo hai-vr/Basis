@@ -307,6 +307,25 @@ namespace Basis.IK
                 return;
             }
             SyncAnchor();
+            // A destroyed bone silently compacts the access array (same hazard ScatterNow
+            // documents) — the inline job would then write shifted rows into the stream.
+            // Gather on the main thread by stable index until the next Build.
+            if (!_access.isCreated || _access.length != _ordered.Length)
+            {
+                for (int i = 0; i < _ordered.Length; i++)
+                {
+                    Transform bone = _ordered[i];
+                    if (bone == null)
+                    {
+                        continue;
+                    }
+                    bone.GetLocalPositionAndRotation(out Vector3 position, out Quaternion rotation);
+                    Stream.LocalPosition[i] = position;
+                    Stream.LocalRotation[i] = rotation;
+                    Stream.LocalScale[i] = bone.localScale;
+                }
+                return;
+            }
             new BasisPoseGatherJob
             {
                 LocalPosition = Stream.LocalPosition,

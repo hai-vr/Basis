@@ -356,6 +356,10 @@ namespace Basis.Scripts.Networking
 #endif
             BasisRemoteNetworkDriver.Apply(); // completes interpolation job
             BasisRemoteNetworkDriver.BeginRead();
+            // Interpolation output is readable from here, and the skeleton compose depends on
+            // nothing the receiver loop below writes — kicking it now runs it ACROSS that loop
+            // instead of leaving the workers parked until Schedule() at the bottom.
+            RemoteBoneJobSystem.ScheduleSkeletonCompute();
 #if UNITY_EDITOR
             if (p)
             {
@@ -422,6 +426,9 @@ namespace Basis.Scripts.Networking
                 if (skipPtr != null && receiver.playerId < BasisRemoteNetworkDriver.FixedCapacity) skipPtr[receiver.playerId] = 0;
                 if (endEffectorIK) receiver.WriteEffectorJobInputs();
             }
+            // The loop above is the last writer of the filtered hips overrides this job reads, so
+            // this is the earliest legal kick. Everything after it was main-thread latency.
+            RemoteBoneJobSystem.ScheduleHipsDerive();
 #if UNITY_EDITOR
             if (p)
             {

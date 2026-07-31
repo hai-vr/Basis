@@ -589,7 +589,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// </summary>
         static void ReadBoneTransforms()
         {
-            if (sJobArraysReady && sBoneTransformAccess.isCreated)
+            if (sJobArraysReady && sBoneTransformAccess.isCreated && sBoneTransformAccess.length > 0)
             {
                 // Batch-read bone local rotations. RunReadOnly executes the Burst job on this
                 // thread — the old Schedule().Complete() dispatched to a worker and blocked on

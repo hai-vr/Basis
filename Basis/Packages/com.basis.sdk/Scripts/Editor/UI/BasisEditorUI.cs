@@ -327,14 +327,18 @@ public static class BasisEditorUI
         GUI.Label(r, content, _pill);
     }
 
-    /// <summary>A labelled progress/level bar with the value printed on the right.</summary>
-    public static void Bar(string label, float fill01, string value, Color? fillColor = null)
+    /// <summary>
+    /// A labelled progress/level bar with the value printed on the right. Widen
+    /// <paramref name="labelWidth"/> when the labels are long enough to clip — a table of them reads
+    /// as one column only if they all use the same width.
+    /// </summary>
+    public static void Bar(string label, float fill01, string value, Color? fillColor = null, float labelWidth = 130f)
     {
         Init();
         EditorGUILayout.BeginHorizontal();
         if (!string.IsNullOrEmpty(label))
         {
-            EditorGUILayout.LabelField(label, _label, GUILayout.Width(130f));
+            EditorGUILayout.LabelField(label, _label, GUILayout.Width(labelWidth));
         }
 
         Rect track = GUILayoutUtility.GetRect(40f, 14f, GUILayout.ExpandWidth(true));

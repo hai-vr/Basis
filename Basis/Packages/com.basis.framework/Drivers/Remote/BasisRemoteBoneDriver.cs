@@ -10,6 +10,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -593,6 +594,30 @@ public static class RemoteBoneJobSystem
     static JobHandle sGatherHead;
     static JobHandle sGatherHips;
     static bool sGathersScheduled;
+
+    // Pre-scheduled dependency-free work. Both jobs used to be scheduled inside Schedule(), at
+    // the tail of SimulateNetworkApply, even though neither depends on anything that runs
+    // between BeginRead() and there — so the workers sat idle through the receiver loop waiting
+    // on the MAIN THREAD to reach the schedule call, not on data. They are now kicked at the
+    // earliest point each is legal and Schedule() consumes the handles.
+    static JobHandle sSkeletonCompute;
+    static bool sSkeletonComputeScheduled;
+    /// <summary>Bone count the pre-scheduled compute was sized for; a mismatch at consume time discards it.</summary>
+    static int sSkeletonComputeBones;
+    static JobHandle sHipsDerive;
+    static bool sHipsDeriveScheduled;
+
+    /// <summary>
+    /// Drops every pre-scheduled handle. Callers must have run <see cref="CompletePending"/>
+    /// first — the handles are folded into sPending, so that fences them — otherwise a layout
+    /// change would land under a job still in flight.
+    /// </summary>
+    static void ClearPreScheduled()
+    {
+        sGathersScheduled = false;
+        sSkeletonComputeScheduled = false;
+        sHipsDeriveScheduled = false;
+    }
     /// <summary>Initialization flag.</summary>
     static bool sInitialized;
 
@@ -680,7 +705,7 @@ public static class RemoteBoneJobSystem
     public static void Dispose()
     {
         CompletePending();
-        sGathersScheduled = false;
+        ClearPreScheduled();
 
         if (sAuthoring.IsCreated) sAuthoring.Dispose();
         if (sScale.IsCreated) sScale.Dispose();
@@ -728,6 +753,14 @@ public static class RemoteBoneJobSystem
         sPending.Complete();
         sPending = default;
     }
+
+    /// <summary>
+    /// True when nothing this system scheduled is still running, so a caller about to mutate the
+    /// SoA/TAA containers would not actually block in <see cref="CompletePending"/>. Non-blocking
+    /// (JobHandle.IsCompleted) — used to decide whether deferring an avatar install to the frame's
+    /// safe window buys anything, since deferring one that would not have fenced is pure latency.
+    /// </summary>
+    public static bool IsQuiet => sPending.IsCompleted;
 
     /// <summary>
     /// Registers a remote avatar into the job system and returns the same key for convenience.
@@ -786,14 +819,17 @@ public static class RemoteBoneJobSystem
              TposeScale = TposedScale
         };
 
-        // Snapshot the bone TPose rotations: the source NativeArray is owned by the
-        // receiver and may be disposed/recreated on a recalibration before this op is
-        // committed, so the reference can't be held across the defer.
-        quaternion[] boneTpose = (boneTransforms != null && boneTPoseLocal.IsCreated)
-            ? boneTPoseLocal.ToArray()
-            : null;
+        bool hasBoneSource = boneTransforms != null && boneTPoseLocal.IsCreated;
+        bool isUpdate = sInitialized && (uint)key < (uint)sKeyToIndex.Length && sKeyToIndex[key] >= 0;
 
-        sPendingAdds.Add(new PendingAdd
+        // Snapshot the bone TPose rotations for the DEFERRED path only: the source NativeArray is
+        // owned by the receiver and may be disposed/recreated on a recalibration before the add
+        // commits, so the reference can't be held across the defer. The in-place update below
+        // consumes it synchronously and reads the source directly, skipping a SyncBoneCount
+        // managed array per avatar swap.
+        quaternion[] boneTpose = (hasBoneSource && !isUpdate) ? boneTPoseLocal.ToArray() : null;
+
+        PendingAdd pending = new PendingAdd
         {
             Key = key,
             Authoring = a,
@@ -809,8 +845,97 @@ public static class RemoteBoneJobSystem
             Mouth = MouthTransform,
             BoneTpose = boneTpose,
             BoneTransforms = boneTransforms,
-        });
+        };
+
+        // Already registered — this is a re-registration (avatar swap, far LOD install, range
+        // re-entry), not a join. The row keeps the same index and the same SyncBoneCount skeleton
+        // slots, so it is re-pointed at the new transforms in place. The old path removed the
+        // entry and re-added it, which cost SyncBoneCount RemoveAtSwapBack calls against
+        // sSkeletonBones — the largest TransformAccessArray in the system at SyncBoneCount x
+        // players — and measured 11.28ms on a crowded instance.
+        //
+        // Synchronous rather than queued, for the same reason RemoveRemotePlayer is: the caller's
+        // OLD avatar transforms are destroyed at end of frame, and Unity auto-drops destroyed
+        // transforms from a TransformAccessArray. Deferring past that would let the TAA shrink out
+        // from under the parallel SoA lists. Writing the live replacements now closes that window
+        // instead of opening it. CompletePending fences the bone jobs first, exactly as the remove
+        // path did.
+        if (isUpdate)
+        {
+            CompletePending();
+            ClearPreScheduled();
+            // Any add still queued for this key is an older calibration than this one.
+            RemovePendingAdd(key);
+            if (!CommitUpdateInternal(pending, sKeyToIndex[key], hasBoneSource ? boneTPoseLocal : default))
+            {
+                // The incoming transforms are unusable, so the row cannot be re-pointed and
+                // would otherwise keep pointing at the outgoing avatar's dying hierarchy.
+                RemoveRemotePlayerInternal(key);
+            }
+            return key;
+        }
+
+        sPendingAdds.Add(pending);
         return key;
+    }
+
+    /// <summary>
+    /// Re-points an already-registered row at a new avatar's transforms without touching the
+    /// container lengths: same index, same skeleton slots, no add/remove churn and no reshuffle of
+    /// sKeyToIndex. Caller must have fenced the bone jobs. Returns false when the incoming
+    /// transforms are unusable, in which case nothing was written.
+    /// </summary>
+    static bool CommitUpdateInternal(in PendingAdd p, int idx, NativeArray<quaternion> boneTpose)
+    {
+        if (p.Root == null || p.Head == null || p.Hips == null)
+        {
+            return false;
+        }
+        if ((uint)idx >= (uint)sAuthoring.Length)
+        {
+            return false;
+        }
+
+        sAuthoring[idx] = p.Authoring;
+        sScale[idx] = new RemoteScaleCache();
+        sOut[idx] = default;
+        sMouthPositions[idx] = default;
+
+        sTPoseHeadRot[idx] = p.TposeHeadRot;
+        sTPoseHipsRot[idx] = p.TposeHipsRot;
+        sTPoseHipsLocalPos[idx] = p.TposeHipsLocalPos;
+        sTPoseHipsLocalRot[idx] = p.TposeHipsLocalRot;
+
+        sRoots[idx] = p.Root;
+        sHeads[idx] = p.Head;
+        sHips[idx] = p.Hips;
+        sNamePlate[idx] = p.NamePlate;
+        sAvatarScale[idx] = p.AvatarScale;
+        sMouth[idx] = p.Mouth;
+
+        int boneCount = BasisBoneRotationCompression.SyncBoneCount;
+        int baseIdx = idx * boneCount;
+        bool hasBones = p.BoneTransforms != null && boneTpose.IsCreated;
+        for (int b = 0; b < boneCount; b++)
+        {
+            Transform bone = hasBones ? p.BoneTransforms[b] : null;
+            int slot = baseIdx + b;
+            if (bone != null)
+            {
+                sSkeletonBones[slot] = bone;
+                sSkeletonTpose[slot] = boneTpose[b];
+                sSkeletonValid[slot] = 1;
+            }
+            else
+            {
+                sSkeletonBones[slot] = sDummyBone;
+                sSkeletonTpose[slot] = quaternion.identity;
+                sSkeletonValid[slot] = 0;
+            }
+        }
+
+        // sKeyToIndex[p.Key] and sKeyArray[idx] already hold this key — the row never moved.
+        return true;
     }
 
     /// <summary>
@@ -904,7 +1029,7 @@ public static class RemoteBoneJobSystem
     {
         if (!sInitialized) return false;
         CompletePending();
-        sGathersScheduled = false;
+        ClearPreScheduled();
         RemovePendingAdd(key);
         return RemoveRemotePlayerInternal(key);
     }
@@ -1004,13 +1129,22 @@ public static class RemoteBoneJobSystem
     /// Commits all queued registrations. Caller must have completed any in-flight bone jobs first
     /// so the SoA/TAA mutations are safe.
     /// </summary>
+    static readonly ProfilerMarker sMarkerCommitAdds = new ProfilerMarker("BasisDriver.Network.CommitAvatarAdds");
+
     static void DrainPendingAdds()
     {
         int n = sPendingAdds.Count;
         if (n == 0) return;
-        for (int i = 0; i < n; i++)
+        // The registration marker on the calibration side only covers QUEUEING an add; the
+        // SyncBoneCount TransformAccessArray Adds per avatar actually land here, one frame stage
+        // later and under a completely different parent marker. Attributed so a load-in spike
+        // isn't split between two places that look unrelated.
+        using (sMarkerCommitAdds.Auto())
         {
-            CommitAddInternal(sPendingAdds[i]);
+            for (int i = 0; i < n; i++)
+            {
+                CommitAddInternal(sPendingAdds[i]);
+            }
         }
         sPendingAdds.Clear();
     }
@@ -1112,6 +1246,25 @@ public static class RemoteBoneJobSystem
             sAvatarScale.capacity = newCap;
             sMouth.capacity = newCap;
         }
+
+        // sSkeletonBones was absent here while every other TAA was reserved: it takes
+        // SyncBoneCount Adds per player with no reserve at all, so past the initial capacity
+        // each avatar load walked it into repeated growth reallocations — 54 Adds against the
+        // largest array in the system (SyncBoneCount x players). Reserved on the same doubling
+        // policy as the rest.
+        int skeletonNeeded = needed * BasisBoneRotationCompression.SyncBoneCount;
+        if (sSkeletonBones.isCreated && sSkeletonBones.capacity < skeletonNeeded)
+        {
+            sSkeletonBones.capacity = math.max(skeletonNeeded, sSkeletonBones.capacity * 2);
+        }
+        if (sSkeletonTpose.IsCreated && sSkeletonTpose.Capacity < skeletonNeeded)
+        {
+            sSkeletonTpose.Capacity = math.max(skeletonNeeded, sSkeletonTpose.Capacity * 2);
+        }
+        if (sSkeletonValid.IsCreated && sSkeletonValid.Capacity < skeletonNeeded)
+        {
+            sSkeletonValid.Capacity = math.max(skeletonNeeded, sSkeletonValid.Capacity * 2);
+        }
     }
 
     /// <summary>
@@ -1156,7 +1309,7 @@ public static class RemoteBoneJobSystem
         // containers, so committing avatar-load adds here costs no extra stall.
         DrainPendingAdds();
 
-        sGathersScheduled = false;
+        ClearPreScheduled();
         if (AuthoringLength == 0)
         {
             return;
@@ -1193,6 +1346,94 @@ public static class RemoteBoneJobSystem
     }
 
     /// <summary>
+    /// Grow-only with slack: totalBones changes by SyncBoneCount on every join/leave, and an
+    /// exact-length check meant disposing and reallocating ~800 KB each time. Both consumers
+    /// take an explicit length (totalBones) or run over a TransformAccessArray, so the trailing
+    /// slack is never read.
+    /// </summary>
+    static void EnsureSkeletonRotationBuffer(int totalBones)
+    {
+        if (!sSkeletonRotations.IsCreated
+            || sSkeletonRotations.Length < totalBones
+            || sSkeletonRotations.Length > totalBones * 4 + 64)
+        {
+            if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
+            sSkeletonRotations = new NativeArray<quaternion>(GrowCapacity(totalBones), Allocator.Persistent);
+        }
+    }
+
+    /// <summary>
+    /// Kicks the skeleton delta compose (network bone deltas × cached T-pose locals) as soon as
+    /// the interpolation output is readable — i.e. straight after
+    /// <c>BasisRemoteNetworkDriver.BeginRead()</c>, AHEAD of the per-receiver loop. It reads
+    /// <c>_outBoneRotations</c> and the T-pose cache and writes its own buffer; the receiver loop
+    /// touches neither (it writes the skip flags, which only the NEXT frame's Compute reads, the
+    /// filtered hips overrides, which only the hips derive reads, and the effector inputs). This
+    /// is the largest independent job in the stretch — players × SyncBoneCount elements — so it
+    /// is what actually fills the window instead of leaving workers parked.
+    ///
+    /// Requires the gathers to have been pre-scheduled: that call owns DrainPendingAdds, and
+    /// without it Schedule()'s fallback could resize sSkeletonTpose under the in-flight job.
+    /// </summary>
+    public static void ScheduleSkeletonCompute(int maxBatchSize = 64)
+    {
+        sSkeletonComputeScheduled = false;
+        if (!sInitialized || !sGathersScheduled)
+        {
+            return;
+        }
+
+        int totalBones = sSkeletonTpose.Length;
+        if (totalBones == 0)
+        {
+            return;
+        }
+
+        EnsureSkeletonRotationBuffer(totalBones);
+
+        int workerCount = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+        int boneBatch = math.max(1, math.min(maxBatchSize, (totalBones + workerCount - 1) / workerCount));
+
+        sSkeletonCompute = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
+            sKeyArray, totalBones, BasisBoneRotationCompression.SyncBoneCount,
+            sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
+            boneBatch);
+
+        sSkeletonComputeBones = totalBones;
+        sPending = JobHandle.CombineDependencies(sPending, sSkeletonCompute);
+        sSkeletonComputeScheduled = true;
+
+        JobHandle.ScheduleBatchedJobs();
+    }
+
+    /// <summary>
+    /// Kicks the hips fan-out + root derive at the earliest point it is legal: straight after the
+    /// per-receiver loop. That loop is a genuine ordering constraint — <c>SetFilteredHipsOverride</c>
+    /// writes the very <c>_filteredPositions</c> slots this job reads (see the seat/vehicle path) —
+    /// but nothing after it is, so waiting for Schedule() was pure main-thread latency.
+    /// </summary>
+    public static void ScheduleHipsDerive()
+    {
+        sHipsDeriveScheduled = false;
+        if (!sInitialized || !sGathersScheduled || AuthoringLength == 0)
+        {
+            return;
+        }
+
+        sHipsDerive = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsAndDerive(
+            sKeyArray, AuthoringLength,
+            sTPoseHipsLocalPos.AsDeferredJobArray(), sTPoseHipsLocalRot.AsDeferredJobArray(),
+            sTmpHipsWorldPos, sTmpHipsWorldRot,
+            sTmpAvatarScales, sTmpScaleChanged,
+            sTmpRootDerivedPos, sTmpRootDerivedRot);
+
+        sPending = JobHandle.CombineDependencies(sPending, sHipsDerive);
+        sHipsDeriveScheduled = true;
+
+        JobHandle.ScheduleBatchedJobs();
+    }
+
+    /// <summary>
     /// Schedules the entire simulation pipeline for the current set of avatars:
     /// gather → simulate → apply (nameplate/mouth/hips/skeleton).
     /// </summary>
@@ -1218,6 +1459,13 @@ public static class RemoteBoneJobSystem
             return default;
         }
         sGathersScheduled = false;
+
+        // Taken as locals and cleared up front so no pre-scheduled handle can survive this call
+        // and be consumed a second time against a later frame's data.
+        bool havePreScheduledSkeleton = sSkeletonComputeScheduled;
+        bool havePreScheduledHipsDerive = sHipsDeriveScheduled;
+        sSkeletonComputeScheduled = false;
+        sHipsDeriveScheduled = false;
 
         // sKeyArray is maintained directly by Add/RemoveRemotePlayer, so no per-frame snapshot
         // is needed. The previous code copied each entry out of a managed List<int> via
@@ -1267,12 +1515,23 @@ public static class RemoteBoneJobSystem
         //    Replaces what used to be three separate dispatches (bulk hips+scale,
         //    bulk hips deltas, derive-root). At thousand-player scale this
         //    saves dispatch overhead and keeps each player's data hot in cache.
-        var bulkAndDeriveJob = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsAndDerive(
-            sKeyArray, AuthoringLength,
-            sTPoseHipsLocalPos.AsDeferredJobArray(), sTPoseHipsLocalRot.AsDeferredJobArray(),
-            sTmpHipsWorldPos, sTmpHipsWorldRot,
-            sTmpAvatarScales, sTmpScaleChanged,
-            sTmpRootDerivedPos, sTmpRootDerivedRot);
+        //    Normally already in flight — ScheduleHipsDerive kicked it right after the receiver
+        //    loop, which is the earliest point its input (the filtered hips overrides) is final.
+        //    The inline path covers direct callers that never pre-scheduled.
+        JobHandle bulkAndDeriveJob;
+        if (havePreScheduledHipsDerive)
+        {
+            bulkAndDeriveJob = sHipsDerive;
+        }
+        else
+        {
+            bulkAndDeriveJob = BasisRemoteNetworkDriver.ScheduleBulkCopyHipsAndDerive(
+                sKeyArray, AuthoringLength,
+                sTPoseHipsLocalPos.AsDeferredJobArray(), sTPoseHipsLocalRot.AsDeferredJobArray(),
+                sTmpHipsWorldPos, sTmpHipsWorldRot,
+                sTmpAvatarScales, sTmpScaleChanged,
+                sTmpRootDerivedPos, sTmpRootDerivedRot);
+        }
 
         JobHandle.ScheduleBatchedJobs();
 
@@ -1306,28 +1565,29 @@ public static class RemoteBoneJobSystem
         int totalBones = sSkeletonTpose.Length;
         if (totalBones > 0)
         {
-            // Grow-only with slack: totalBones changes by SyncBoneCount on every join/leave, and an
-            // exact-length check meant disposing and reallocating ~800 KB each time. Both consumers
-            // below take an explicit length (totalBones) or run over a TransformAccessArray, so the
-            // trailing slack is never read.
-            if (!sSkeletonRotations.IsCreated
-                || sSkeletonRotations.Length < totalBones
-                || sSkeletonRotations.Length > totalBones * 4 + 64)
+            // Normally already in flight — ScheduleSkeletonCompute kicked it right after
+            // BeginRead(), so it has been running across the whole receiver loop. The inline path
+            // covers direct callers, and the bone-count check discards a pre-scheduled handle
+            // whose layout no longer matches (a join/leave landed in between).
+            JobHandle computeRotationsJob;
+            if (havePreScheduledSkeleton && sSkeletonComputeBones == totalBones)
             {
-                if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
-                sSkeletonRotations = new NativeArray<quaternion>(GrowCapacity(totalBones), Allocator.Persistent);
+                computeRotationsJob = sSkeletonCompute;
             }
+            else
+            {
+                EnsureSkeletonRotationBuffer(totalBones);
 
-            // Adaptive batch — same reasoning as BoneSimulation: a fixed batch leaves
-            // small bone counts running on a single worker.
-            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-            int boneBatch = math.max(1, math.min(maxBatchSize,
-                (totalBones + workerCount - 1) / workerCount));
+                // Adaptive batch — same reasoning as BoneSimulation: a fixed batch leaves
+                // small bone counts running on a single worker.
+                int boneBatch = math.max(1, math.min(maxBatchSize,
+                    (totalBones + workerCount - 1) / workerCount));
 
-            var computeRotationsJob = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
-                sKeyArray, totalBones, boneCount,
-                sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
-                boneBatch);
+                computeRotationsJob = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
+                    sKeyArray, totalBones, BasisBoneRotationCompression.SyncBoneCount,
+                    sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
+                    boneBatch);
+            }
 
             skeletonJob = new ApplySkeletonRotationsJob
             {

@@ -178,6 +178,18 @@ public static class BasisNetworkPIPCameraDriver
         ClearRemotePIPsInternal();
     }
 
+    /// <summary>
+    /// Joins any in-flight PIP transform jobs. Simulate is the steady-state fence but only
+    /// runs while the local player is ready; the event driver calls this on not-ready frames
+    /// so the jobs never span a frame boundary with pucks free to be destroyed under them.
+    /// </summary>
+    public static void CompletePending()
+    {
+        if (!initialized) return;
+
+        pipHandle.Complete();
+    }
+
     public static void ApplyPipNamePlateSettingsFromUI()
     {
         if (!initialized) return;

@@ -119,6 +119,15 @@ public class BasisLocalHandDriver
     /// </summary>
     public void ReInitialize(Animator OriginalAnimator)
     {
+        // Both paths below rebuild _nativePoseGrid, which the in-flight finger job reads.
+        // Join it here — the join inside RebuildTransformAccess comes after the grid has
+        // already been disposed under the job.
+        if (_hasScheduledJob)
+        {
+            _fingerJobHandle.Complete();
+            _hasScheduledJob = false;
+        }
+
         EntityId cacheKey = BasisAvatarModelCache.GetKey(OriginalAnimator);
 
         // --- Cache hit: copy pose grid data without instantiating a copy ---
@@ -389,6 +398,10 @@ public class BasisLocalHandDriver
     public unsafe void Simulate(float DeltaTime)
     {
         if (_validJointCount == 0) return;
+
+        // _validJointCount freezes at build time; destroyed finger bones (avatar-swap gap
+        // before ReInitialize) auto-compact the array and would misalign JointMapping rows.
+        if (!_fingerTransforms.isCreated || _fingerTransforms.length != _validJointCount) return;
 
         // Defensive: complete previous frame if Apply wasn't called
         if (_hasScheduledJob)

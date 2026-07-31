@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -21,6 +22,25 @@ namespace Basis.Scripts.Drivers
     [System.Serializable]
     public class BasisRemoteAvatarDriver : BasisAvatarDriver
     {
+        // Remote calibration is the main-thread half of every avatar load, reload, far LOD swap
+        // and range re-entry, and it reported one number for ~20 different stages. These split it
+        // so a load-in spike attributes to the stage that owns it instead of "calibration".
+        static readonly ProfilerMarker sMarkerCalibrate = new ProfilerMarker("BasisDriver.Avatar.Calibrate");
+        static readonly ProfilerMarker sMarkerTpose = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Tpose");
+        static readonly ProfilerMarker sMarkerDetect = new ProfilerMarker("BasisDriver.Avatar.Calibrate.DetectReferences");
+        static readonly ProfilerMarker sMarkerBoneData = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneData");
+        static readonly ProfilerMarker sMarkerBodyFit = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BodyFit");
+        static readonly ProfilerMarker sMarkerFace = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Face");
+        static readonly ProfilerMarker sMarkerRenderers = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Renderers");
+        static readonly ProfilerMarker sMarkerRegister = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister");
+        // BoneJobRegister measured as ~92% of calibration, so it gets split again. Three
+        // candidates live under it and they have completely different fixes: a main-thread job
+        // fence, TransformAccessArray mutation of the SyncBoneCount x players skeleton array, and
+        // the per-player interpolation slot seed (which fences the interpolation job separately).
+        static readonly ProfilerMarker sMarkerRegisterSlot = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister.SlotSeed");
+        static readonly ProfilerMarker sMarkerRegisterAdd = new ProfilerMarker("BasisDriver.Avatar.Calibrate.BoneJobRegister.Add");
+        static readonly ProfilerMarker sMarkerJiggle = new ProfilerMarker("BasisDriver.Avatar.Calibrate.Jiggle");
+
         /// <summary>
         /// Invoked after calibration completes successfully.
         /// </summary>
@@ -125,7 +145,19 @@ namespace Basis.Scripts.Drivers
                 }
             }
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
-            PutAvatarIntoTPose();
+            // Far avatars are skipped: BasisFarLodGenerator captures the payload skeleton under the
+            // same "Animated TPose" controller this would apply, and BuildAvatar writes those baked
+            // locals straight onto the bones — the hierarchy is already in the pose before we get
+            // here. The pair costs two runtimeAnimatorController assignments (an animator rebind
+            // each) plus a full humanoid Animator.Update, per install, on the transmit tick.
+            NeedsTposeReset = !Player.BasisAvatar.IsFarLodAvatar;
+            if (NeedsTposeReset)
+            {
+                using (sMarkerTpose.Auto())
+                {
+                    PutAvatarIntoTPose();
+                }
+            }
 
             RemotePlayer.BasisAvatar.HumanScale = RemotePlayer.BasisAvatar.Animator.humanScale;
             RemotePlayer.BasisAvatar.Animator.applyRootMotion = false;
@@ -142,21 +174,30 @@ namespace Basis.Scripts.Drivers
             // segments, and the twist helpers sit partway along those segments. Scaling the arm without
             // moving the twists leaves them at the wrong fraction of a now-longer bone, which shows up as
             // mesh distortion around the elbow. Cost is a one-time child-name search per arm at load.
-            BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: true, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
-            BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
+            using (sMarkerDetect.Auto())
+            {
+                BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, Player.BasisAvatar.Animator.transform, ref References, detectArmTwist: true, humanoidBones: Player.BasisAvatar.TransformStorage?.HumanoidBones);
+                BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
+            }
 
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
-            CaptureReceiverBoneData(RemotePlayer);
+            using (sMarkerBoneData.Auto())
+            {
+                CaptureReceiverBoneData(RemotePlayer);
+            }
 
             // Capture the fresh authored bind, then apply this player's body fit. Order matters: the
             // rest capture must see authored local positions, so it runs before any fit is written.
             // Seeding from CACM covers every path that supplies an avatar record — a live avatar change,
             // initial load, and the server's late-join replay all set it before calibration runs — while
             // a fit-only update that arrived since is already in AppliedBodyFit and survives the reseed.
-            SeedBodyFitFromAvatarRecord(RemotePlayer);
-            CaptureBodyFitRestLocal();
-            ApplyRemoteBodyFit();
+            using (sMarkerBodyFit.Auto())
+            {
+                SeedBodyFitFromAvatarRecord(RemotePlayer);
+                CaptureBodyFitRestLocal();
+                ApplyRemoteBodyFit();
+            }
 
             // Register authored motion (drives non-humanoid transforms the bone job / IK don't touch); rest captured at the current TPose.
             var authoredMotions = RemotePlayer.BasisAvatar.AuthoredMotions;
@@ -176,42 +217,48 @@ namespace Basis.Scripts.Drivers
                 BasisDebug.LogError("Missing Avatar On Remote", BasisDebug.LogTag.Avatar);
             }
             SkinnedMeshRenderer faceVisemeMesh = RemotePlayer.BasisAvatar.FaceVisemeMesh;
-            if (Player.FaceRenderer != null)
+            using (sMarkerFace.Auto())
             {
-                // Mute before the deferred destroy: the outgoing avatar's renderer fires a
-                // final OnBecameInvisible during its end-of-frame teardown, and that late
-                // notification would stomp the visibility state (and face driver) just set
-                // up for the incoming avatar.
-                Player.FaceRenderer.Check = null;
-                GameObject.Destroy(Player.FaceRenderer);
-                Player.FaceRenderer = null;
-            }
-            if (faceVisemeMesh != null)
-            {
-                Player.UpdateFaceVisibility(faceVisemeMesh.isVisible);
-                Player.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(faceVisemeMesh.gameObject);
-                Player.FaceRenderer.Check += Player.UpdateFaceVisibility;
-            }
-            else
-            {
-                BasisDebug.Log("Missing Face for " + Player.DisplayName, BasisDebug.LogTag.Avatar);
-                Player.UpdateFaceVisibility(false);
-            }
+                if (Player.FaceRenderer != null)
+                {
+                    // Mute before the deferred destroy: the outgoing avatar's renderer fires a
+                    // final OnBecameInvisible during its end-of-frame teardown, and that late
+                    // notification would stomp the visibility state (and face driver) just set
+                    // up for the incoming avatar.
+                    Player.FaceRenderer.Check = null;
+                    GameObject.Destroy(Player.FaceRenderer);
+                    Player.FaceRenderer = null;
+                }
+                if (faceVisemeMesh != null)
+                {
+                    Player.UpdateFaceVisibility(faceVisemeMesh.isVisible);
+                    Player.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(faceVisemeMesh.gameObject);
+                    Player.FaceRenderer.Check += Player.UpdateFaceVisibility;
+                }
+                else
+                {
+                    BasisDebug.Log("Missing Face for " + Player.DisplayName, BasisDebug.LogTag.Avatar);
+                    Player.UpdateFaceVisibility(false);
+                }
 
-            // Blink + eyes
-            // Initialize unconditionally — Initialize handles a missing blink mesh
-            // gracefully (sets BlinkingEnabled = false) and eye calibration still runs
-            // for avatars that only have eye bones.
-            RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
-            // Renderer perf flags
-            RemoteRenderMeshSettings(BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer);
-            // Seed the skin LOD for the distance this avatar loaded at — ChangeMeshLOD is only
-            // edge-triggered on LOD boundary crossings, so a reload at a stable distance never
-            // reaches these fresh renderers.
-            BasisAvatarSkinLOD.Apply(SkinnedMeshRenderer, SkinnedMeshRendererLength, RemotePlayer.CurrentLodLevel);
-            // Snapshot the authored shadow modes before anything reduces them, then seed the tier.
-            BasisAvatarShadowLOD.Capture(RemotePlayer);
-            BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentLodLevel);
+                // Blink + eyes
+                // Initialize unconditionally — Initialize handles a missing blink mesh
+                // gracefully (sets BlinkingEnabled = false) and eye calibration still runs
+                // for avatars that only have eye bones.
+                RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
+            }
+            using (sMarkerRenderers.Auto())
+            {
+                // Renderer perf flags
+                RemoteRenderMeshSettings(BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer);
+                // Seed the skin LOD for the distance this avatar loaded at — ChangeMeshLOD is only
+                // edge-triggered on LOD boundary crossings, so a reload at a stable distance never
+                // reaches these fresh renderers.
+                BasisAvatarSkinLOD.Apply(SkinnedMeshRenderer, SkinnedMeshRendererLength, RemotePlayer.CurrentLodLevel);
+                // Snapshot the authored shadow modes before anything reduces them, then seed the tier.
+                BasisAvatarShadowLOD.Capture(RemotePlayer);
+                BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentLodLevel);
+            }
 
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;
 
@@ -223,13 +270,25 @@ namespace Basis.Scripts.Drivers
             // Sampled before the network rescale below writes this same transform — jiggle collider
             // radii are authored in metres against this scale and rebased off it at build time.
             ColliderScaleReference = animatorRoot.localScale;
-            RegisterAvatarWithBoneJobSystem(RemotePlayer, snapToNetworkPose: false);
+            using (sMarkerRegister.Auto())
+            {
+                RegisterAvatarWithBoneJobSystem(RemotePlayer, snapToNetworkPose: false);
+            }
 
             // player.RemoteBoneDriver.InitializeFromAvatar(player);
             RemotePlayer.BasisAvatar.Animator.enabled = false;
 
-            SetupAvatarJiggleColliders();
-            ResetAvatarAnimator();
+            using (sMarkerJiggle.Auto())
+            {
+                SetupAvatarJiggleColliders();
+            }
+            if (NeedsTposeReset)
+            {
+                using (sMarkerTpose.Auto())
+                {
+                    ResetAvatarAnimator();
+                }
+            }
 
             // JiggleRigs is filtered out of the content-harvest snapshot by BasisAvatarFactory at
             // load — no walk here, and recalibrations reuse the same stored set. The set is
@@ -300,19 +359,22 @@ namespace Basis.Scripts.Drivers
             // BasisAvatarFactory.InitializePlayerAvatar), so by the time we get
             // here the tree has already been trimmed to the allowed count — this
             // loop just wires up whatever's left.
-            for (int Index = 0; Index < jiggleRigCount; Index++)
+            using (sMarkerJiggle.Auto())
             {
-                JiggleRig Rig = JiggleRigs[Index];
-                if (Rig == null || !Rig.gameObject.activeInHierarchy)
+                for (int Index = 0; Index < jiggleRigCount; Index++)
                 {
-                    continue;
-                }
-                Rig.HasAnimatedParameters = false;
-                Rig.OnInitialize();
-                var jiggleRoot = Rig.GetJiggleRigData().rootBone;
-                if (jiggleRoot != null)
-                {
-                    Rig.Teleport(jiggleRoot.position - jiggleRootsBeforeSnap[Index]);
+                    JiggleRig Rig = JiggleRigs[Index];
+                    if (Rig == null || !Rig.gameObject.activeInHierarchy)
+                    {
+                        continue;
+                    }
+                    Rig.HasAnimatedParameters = false;
+                    Rig.OnInitialize();
+                    var jiggleRoot = Rig.GetJiggleRigData().rootBone;
+                    if (jiggleRoot != null)
+                    {
+                        Rig.Teleport(jiggleRoot.position - jiggleRootsBeforeSnap[Index]);
+                    }
                 }
             }
 
@@ -338,17 +400,22 @@ namespace Basis.Scripts.Drivers
             if (receiver == null || RemotePlayer.BasisAvatar == null || References?.AnimatorRoot == null ||
                 receiver.BoneTransforms == null || !receiver.TposeLocalRotations.IsCreated)
             {
+                // The old avatar is already gone by the time re-registration runs (swap order
+                // destroys first). Aborting while still registered would leave every bone
+                // TransformAccessArray pointing at the dying hierarchy — same recovery as the
+                // factory's catch path.
+                RemotePlayer.RemoveFromBoneDriver();
                 return;
             }
             Transform animatorRoot = References.AnimatorRoot;
             Vector3 animatorRootPos = animatorRoot.position;
 
-            // Ensure stale data is removed
-            if (InBoneDriver)
-            {
-                RemoteBoneJobSystem.RemoveRemotePlayer(receiver.playerId);
-                InBoneDriver = false;
-            }
+            // No remove here any more. A re-registration keeps the same row and the same
+            // SyncBoneCount skeleton slots, so AddRemotePlayer re-points them in place; tearing
+            // the entry down first cost SyncBoneCount RemoveAtSwapBack calls against the biggest
+            // TransformAccessArray in the system and measured 11.28ms on a crowded instance.
+            // AddRemotePlayer still falls back to a real remove if the incoming transforms are
+            // unusable, so a dying hierarchy can never stay registered.
 
             // TPose hips localPosition + localRotation feed the per-frame
             // BulkCopyHipsAndDeriveJob (the inline inverse derivation that
@@ -375,31 +442,37 @@ namespace Basis.Scripts.Drivers
             // BeginWrite's lazy init runs (LateUpdate tail), so a cached/fallback avatar that
             // calibrates within a frame of joining would otherwise be read from uninitialized
             // memory and pose as NaN.
-            BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
-            RemoteBoneJobSystem.AddRemotePlayer(
-                key: receiver.playerId,
-                remotePlayerRoot: animatorRoot,
-                head: References.head,
-                hips: References.Hips,
-                tposeHead: References.TposeFromRoot[HumanBodyBones.Head],
-                tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
-                tposeHipsLocalPos: tposeHipsLocalPos,
-                tposeHipsLocalRot: tposeHipsLocalRot,
-                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
-                    animatorRootPos
-                ),
-                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
-                    animatorRootPos
-                ),
-                NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
-                AvatarScale: animatorRoot,
-                MouthTransform: RemotePlayer.MouthTransform,
-                TposedScale: AvatarInitialScale,
-                boneTPoseLocal: receiver.TposeLocalRotations,
-                boneTransforms: receiver.BoneTransforms
-            );
+            using (sMarkerRegisterSlot.Auto())
+            {
+                BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
+            }
+            using (sMarkerRegisterAdd.Auto())
+            {
+                RemoteBoneJobSystem.AddRemotePlayer(
+                    key: receiver.playerId,
+                    remotePlayerRoot: animatorRoot,
+                    head: References.head,
+                    hips: References.Hips,
+                    tposeHead: References.TposeFromRoot[HumanBodyBones.Head],
+                    tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
+                    tposeHipsLocalPos: tposeHipsLocalPos,
+                    tposeHipsLocalRot: tposeHipsLocalRot,
+                    authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
+                        BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
+                        animatorRootPos
+                    ),
+                    authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
+                        BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
+                        animatorRootPos
+                    ),
+                    NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
+                    AvatarScale: animatorRoot,
+                    MouthTransform: RemotePlayer.MouthTransform,
+                    TposedScale: AvatarInitialScale,
+                    boneTPoseLocal: receiver.TposeLocalRotations,
+                    boneTransforms: receiver.BoneTransforms
+                );
+            }
             InBoneDriver = true;
 
             if (!snapToNetworkPose)
@@ -445,14 +518,24 @@ namespace Basis.Scripts.Drivers
             var animator = remotePlayer.BasisAvatar.Animator;
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
 
-            // Dispose old data if re-calibrating
-            if (receiver.TposeLocalRotations.IsCreated)
+            // Reused across recalibrations rather than disposed and reallocated: boneCount is the
+            // constant SyncBoneCount, so the old buffers are always the right size, and every slot
+            // is overwritten below. Nothing holds these across the call — AddRemotePlayer snapshots
+            // the rotations with ToArray() and the transforms are only read during registration —
+            // so a swap avoids a Persistent alloc plus a 54-element managed array per avatar load,
+            // which at crowd load-in churn is the allocation, not the work.
+            if (!receiver.TposeLocalRotations.IsCreated || receiver.TposeLocalRotations.Length != boneCount)
             {
-                receiver.TposeLocalRotations.Dispose();
+                if (receiver.TposeLocalRotations.IsCreated)
+                {
+                    receiver.TposeLocalRotations.Dispose();
+                }
+                receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
             }
-
-            receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
-            receiver.BoneTransforms = new Transform[boneCount];
+            if (receiver.BoneTransforms == null || receiver.BoneTransforms.Length != boneCount)
+            {
+                receiver.BoneTransforms = new Transform[boneCount];
+            }
             quaternion* tposeOut = (quaternion*)receiver.TposeLocalRotations.GetUnsafePtr();
             Transform[] boneTransforms = receiver.BoneTransforms;
             int[] writeOrder = BasisBoneRotationCompression.BONE_WRITE_ORDER;
@@ -493,6 +576,17 @@ namespace Basis.Scripts.Drivers
                             tposeOut[slot] = quaternion.identity;
                             boneTransforms[slot] = null;
                         }
+                    }
+                    else
+                    {
+                        // The avatar has no transform for this humanoid bone. This branch used to
+                        // be absent and the slot was left at the fresh allocation's zero-init — an
+                        // invalid (0,0,0,0) rotation that only stayed harmless because the null
+                        // transform drove sSkeletonValid to 0. The buffers are reused now, so an
+                        // unwritten slot would register the PREVIOUS avatar's bone transform with
+                        // valid = 1 and drive a dead hierarchy. Write the empty slot explicitly.
+                        tposeOut[slot] = quaternion.identity;
+                        boneTransforms[slot] = null;
                     }
                 }
 
@@ -584,6 +678,12 @@ namespace Basis.Scripts.Drivers
         /// True while the avatar is temporarily swapped to a TPose animator.
         /// </summary>
         public bool CurrentlyTposing;
+
+        /// <summary>
+        /// Set by <see cref="RemoteCalibration"/> when it swapped the animator into TPose, so the
+        /// restore at the end of calibration is skipped for avatars that never needed the swap.
+        /// </summary>
+        private bool NeedsTposeReset;
 
         /// <summary>
         /// Stores the original animator controller while TPose is active.

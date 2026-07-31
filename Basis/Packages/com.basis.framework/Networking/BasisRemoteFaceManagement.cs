@@ -133,6 +133,16 @@ public static class BasisRemoteFaceManagement
 
     public static void Simulate(double t, float dt)
     {
+        // Apply can be skipped (count hit 0, PlayerReady gate), leaving last frame's chain
+        // live. Join it before the early-return and the schedules below — rescheduling over
+        // eyeTransforms while the old job still holds it would race its sorted cache.
+        if (HasJob)
+        {
+            handle.Complete();
+            HasJob = false;
+            eyeTransformJobScheduled = false;
+        }
+
         snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         count = BasisNetworkPlayers.ReceiverCount;
         if (count <= 0)
@@ -143,7 +153,11 @@ public static class BasisRemoteFaceManagement
         EnsureArrays(count, t, snapshot);
         EnsureManagedCaches(count);
 
-        bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count;
+        // length != pairCount*2 means Unity auto-dropped a destroyed eye transform that
+        // bypassed RemovePlayer — force the reconcile so the resync check there can repair
+        // the registry instead of scheduling over a skewed array.
+        bool needRebuild = !eyeTransforms.isCreated || lastBuiltCount != count
+            || eyeTransforms.length != eyeTransformPairCount * 2;
         bool fullScan = needRebuild || BasisNetworkPlayers.SnapshotVersion != lastSnapshotVersion;
         unsafe
         {
@@ -418,6 +432,33 @@ public static class BasisRemoteFaceManagement
         }
     }
 
+    /// <summary>
+    /// Synchronously drops a departing driver's eye pair while its transforms are still alive.
+    /// Same constraint as the bone/jiggle teardown paths: the avatar's Destroy lands at
+    /// end-of-frame, inside the Simulate→Apply window, and Unity auto-removing a destroyed
+    /// transform from eyeTransforms would mutate it under the in-flight write job and skew
+    /// the pair registry. Main-thread only.
+    /// </summary>
+    public static void RemovePlayer(BasisRemoteFaceDriver face)
+    {
+        if (face == null)
+        {
+            return;
+        }
+        int p = face.EyePairIndex;
+        if ((uint)p >= (uint)eyeTransformPairCount || !ReferenceEquals(pairDriver[p], face))
+        {
+            return;
+        }
+        if (HasJob)
+        {
+            handle.Complete();
+            HasJob = false;
+            eyeTransformJobScheduled = false;
+        }
+        RemovePairSwapBack(p);
+    }
+
     // Removes pair p by moving the last pair into its place (two transform indices), keeping the array dense.
     static void RemovePairSwapBack(int p)
     {
@@ -493,10 +534,6 @@ public static class BasisRemoteFaceManagement
 
     public static void Apply()
     {
-        if (count <= 0)
-        {
-            return;
-        }
         if (!HasJob)
         {
             return;
@@ -506,8 +543,14 @@ public static class BasisRemoteFaceManagement
         System.Diagnostics.Stopwatch _fs = null;
         if (_fp) _fs = System.Diagnostics.Stopwatch.StartNew();
 #endif
+        // Join before the count check: on the frame the last remote leaves, the chain from
+        // Simulate is still live and its eye transforms are the ones being destroyed.
         handle.Complete();
         HasJob = false;
+        if (count <= 0)
+        {
+            return;
+        }
 #if UNITY_EDITOR
         if (_fp) { _fs.Stop(); BasisEventDriverProfilerData.RemoteFace_JobCompleteMs = _fs.Elapsed.TotalMilliseconds; _fs.Restart(); }
         int _blinkWrites = 0;

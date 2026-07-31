@@ -28,11 +28,52 @@ public static class BasisAvatarFarLOD
     /// <summary>Avatar swaps admitted per transmit tick; each one costs a full avatar install.</summary>
     public static int MaxTransitionsPerTick = 4;
 
+    /// <summary>
+    /// Wall-clock ceiling on the swaps admitted per transmit tick. The count above bounds how
+    /// many installs run, not what they cost — an install is a build plus a full remote
+    /// calibration, and a heavy one drags the whole tick with it. This measures the swaps
+    /// themselves (never the per-player flag reconciliation) and stops admitting more once the
+    /// budget is gone; the rest stay pending and commit on later ticks, exactly as an exhausted
+    /// count budget does.
+    /// </summary>
+    public static float MaxTransitionMillisecondsPerTick = 2f;
+
     // Tick runs under the transmit marker, which reports one number for the whole loop. These
     // separate the budgeted swaps — the only work here that costs milliseconds — from the
     // per-player flag reconciliation, so a spike says which one it was.
     static readonly ProfilerMarker sMarkerFarInstall = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodInstall");
     static readonly ProfilerMarker sMarkerFarReload = new ProfilerMarker("BasisDriver.Network.Transmit.FarLodReload");
+
+    private static readonly System.Diagnostics.Stopwatch sTransitionClock = new System.Diagnostics.Stopwatch();
+    private static long sTransitionBudgetTicks = long.MaxValue;
+
+    /// <summary>
+    /// Opens a fresh swap-time budget. Called once at the top of the transmit tick's merged
+    /// post-processing loop, before any <see cref="Tick"/>.
+    /// </summary>
+    public static void BeginTickBudget()
+    {
+        sTransitionClock.Reset();
+        sTransitionBudgetTicks = (long)(MaxTransitionMillisecondsPerTick * (System.Diagnostics.Stopwatch.Frequency / 1000.0));
+    }
+
+    /// <summary>True once this tick has spent its swap budget. ElapsedTicks, not Elapsed — the
+    /// guard runs once per remote per tick and TimeSpan construction is not free at crowd scale.</summary>
+    private static bool BudgetSpent => sTransitionClock.ElapsedTicks >= sTransitionBudgetTicks;
+
+    /// <summary>
+    /// Reload through the normal pipeline, charged against the per-tick swap budget. Every
+    /// branch below that reloads goes through here so nothing escapes the accounting.
+    /// </summary>
+    private static void ChargedReload(BasisRemotePlayer remote)
+    {
+        sTransitionClock.Start();
+        using (sMarkerFarReload.Auto())
+        {
+            remote.ReloadAvatar();
+        }
+        sTransitionClock.Stop();
+    }
 
     public static void ApplyFromSettings()
     {
@@ -54,7 +95,7 @@ public static class BasisAvatarFarLOD
         // IsDestroyed: a leaving player is still in this tick's transmit snapshot after the
         // factory unloaded their avatar — the null-avatar branch below would try to install
         // a fallback on the torn-down player ("Missing Object during calibration").
-        if (remote == null || remote.IsDestroyed || transitionBudget <= 0)
+        if (remote == null || remote.IsDestroyed || transitionBudget <= 0 || BudgetSpent)
         {
             return;
         }
@@ -76,10 +117,12 @@ public static class BasisAvatarFarLOD
         if (remote.BasisAvatar == null && !remote.IsLoadingAnAvatar)
         {
             transitionBudget--;
+            sTransitionClock.Start();
             using (sMarkerFarReload.Auto())
             {
                 BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(remote, Vector3.zero, Quaternion.identity);
             }
+            sTransitionClock.Stop();
             return;
         }
 
@@ -94,10 +137,7 @@ public static class BasisAvatarFarLOD
         {
             remote.FarLodInitialEvaluated = true;
             transitionBudget--;
-            using (sMarkerFarReload.Auto())
-            {
-                remote.ReloadAvatar();
-            }
+            ChargedReload(remote);
             return;
         }
 
@@ -145,10 +185,12 @@ public static class BasisAvatarFarLOD
                 if (canInstall)
                 {
                     bool installed;
+                    sTransitionClock.Start();
                     using (sMarkerFarInstall.Auto())
                     {
                         installed = BasisFarAvatarBuilder.TryInstall(remote);
                     }
+                    sTransitionClock.Stop();
                     if (installed)
                     {
                         transitionBudget--;
@@ -162,10 +204,7 @@ public static class BasisAvatarFarLOD
             // pipeline: in range loads the real avatar, hidden/blocked/disabled drops to the
             // dummy. The range edge usually beats this branch; it covers missed edges.
             transitionBudget--;
-            using (sMarkerFarReload.Auto())
-            {
-                remote.ReloadAvatar();
-            }
+            ChargedReload(remote);
         }
         else if (!wantsFar && !wearingFar && !remote.IsConsideredFallBackAvatar && !remote.IsLoadingAnAvatar &&
                  ((!remote.InAvatarRange && !remote.AlwaysShowAvatar) || remote.HasFailedAvatarLoadGlobally))
@@ -174,10 +213,7 @@ public static class BasisAvatarFarLOD
             // (refused parse / cleared) — without this it would stay loaded past the range
             // boundary forever. Reload routes it to the dummy through the normal pipeline.
             transitionBudget--;
-            using (sMarkerFarReload.Auto())
-            {
-                remote.ReloadAvatar();
-            }
+            ChargedReload(remote);
         }
         else if (Enabled && !wantsFar && !wearingFar && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
                  remote.IsConsideredFallBackAvatar && remote.HasFarLodPayload &&
