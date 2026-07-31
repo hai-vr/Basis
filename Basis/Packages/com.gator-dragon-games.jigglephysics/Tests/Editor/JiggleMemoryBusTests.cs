@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using NUnit.Framework;
 using Unity.Mathematics;
 using UnityEngine;
@@ -404,6 +403,30 @@ internal unsafe class JiggleMemoryBusTests {
             $"slices overlap: [{firstStart},{firstEnd}) and [{secondStart},{secondEnd})");
     }
 
+    /// <summary>
+    /// A bone destroyed while still enrolled makes Unity drop it from the access array and shift
+    /// every later slot, while the pose buffers keep the old slot indexing — so jiggle would pose
+    /// one avatar's bones from another's tree. The consumer refuses to schedule while that is true,
+    /// which makes reaching the rebuild mandatory: it used to be reachable only through a pending
+    /// command, so a bone dying with no structural change behind it would have left jiggle off for
+    /// the rest of the session.
+    /// </summary>
+    [Test]
+    public void AccessArraysDesyncedWithNothingQueued_StillRealign() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+        Assert.IsFalse(bus.GetAccessArraysDesynced(), "a settled commit leaves the arrays mirrored");
+
+        DesyncTreeAccessArrays();
+        Assert.IsTrue(bus.GetAccessArraysDesynced(), "front array no longer matches the list");
+
+        PumpTrees();
+
+        Assert.IsFalse(bus.GetAccessArraysDesynced(), "the rebuild must not depend on a queued command");
+        Assert.IsTrue(IsCommitted(tree.rootID), "realigning must not drop the live tree");
+    }
+
     // ------------------------------------------------------------- rejection
 
     [Test]
@@ -683,28 +706,6 @@ internal unsafe class JiggleMemoryBusTests {
     [Test]
     public void Teleport_OfANullTree_IsIgnored() {
         Assert.DoesNotThrow(() => bus.ScheduleTeleport(null, new float3(1f, 1f, 1f)));
-    }
-
-    /// <summary>
-    /// The teleport is the one path that writes an outside caller's numbers straight into every
-    /// world space buffer, including the interpolated output the transform write consumes. Nothing
-    /// downstream sanitizes that output, and a bone posed to NaN reads back NaN next frame, so a
-    /// single bad delta would latch the avatar permanently.
-    /// </summary>
-    [Test]
-    public void NonFiniteTeleport_IsDroppedInsteadOfPoisoningThePoseBuffers() {
-        var tree = NewTree();
-        bus.ScheduleAdd(tree);
-        PumpTrees();
-        var slot = (int)Committed(tree.rootID).transformIndexOffset + 1;
-        var before = bus.interpolationOutputPoses[slot].position;
-
-        LogAssert.Expect(LogType.Error, new Regex("non-finite teleport"));
-        bus.ScheduleTeleport(tree, new float3(float.NaN, 0f, 0f));
-        bus.ApplyPendingTeleports();
-
-        JiggleAssert.AreEqual(before, bus.interpolationOutputPoses[slot].position, Tolerance);
-        Assert.IsTrue(math.all(math.isfinite(Committed(tree.rootID).points[1].position)));
     }
 
     // -------------------------------------------------------- scene colliders

@@ -126,6 +126,106 @@ public static class BasisFiniteWatchdog
     }
 
     /// <summary>
+    /// A zero-length quaternion is entirely finite, so a component-wise IsFinite check calls it
+    /// healthy — but Unity normalizes the rotation when it composes the matrix, so it yields a NaN
+    /// world matrix for the transform and every descendant. Degeneracy has to be checked too, or
+    /// the scan reports the victims and calls the writer's own bone "ok".
+    /// </summary>
+    static bool IsSaneRotation(Quaternion q)
+    {
+        float lengthSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        return float.IsFinite(lengthSq) && lengthSq > 1e-8f;
+    }
+
+    static string DescribeRotation(Quaternion q)
+    {
+        float lengthSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        return $"({q.x:F4},{q.y:F4},{q.z:F4},{q.w:F4}) lengthSq={lengthSq:F6}";
+    }
+
+    /// <summary>
+    /// Stage-tagged scan of the local avatar's own LOCAL transform values. A non-finite world
+    /// position is inherited, so it only ever names a victim; a bad LOCAL value is always a direct
+    /// write. Call it either side of each system that poses bones and the first stage that trips
+    /// names the writer.
+    /// </summary>
+    public static void Checkpoint(string stage)
+    {
+        if (!Enabled || sDisarmed)
+        {
+            return;
+        }
+        try
+        {
+            if (!BasisLocalPlayer.PlayerReady || BasisLocalPlayer.Instance == null)
+            {
+                return;
+            }
+            var avatar = BasisLocalPlayer.Instance.BasisAvatar;
+            if (avatar == null || avatar.transform == null)
+            {
+                return;
+            }
+            Transform root = avatar.transform;
+            if (!ReferenceEquals(root, sCheckpointRoot) || sCheckpointTransforms == null)
+            {
+                sCheckpointRoot = root;
+                sCheckpointTransforms = root.GetComponentsInChildren<Transform>(true);
+            }
+            for (int i = 0; i < sCheckpointTransforms.Length; i++)
+            {
+                Transform t = sCheckpointTransforms[i];
+                if (t == null)
+                {
+                    continue;
+                }
+                Vector3 localPosition = t.localPosition;
+                Vector3 localScale = t.localScale;
+                Quaternion localRotation = t.localRotation;
+                if (IsSane(localPosition) && IsSane(localScale) && IsSaneRotation(localRotation))
+                {
+                    continue;
+                }
+                ReportCheckpoint(stage, t, localPosition, localRotation, localScale);
+                return;
+            }
+        }
+        catch (System.Exception e)
+        {
+            sDisarmed = true;
+            BasisDebug.LogError($"[FiniteWatchdog] checkpoint '{stage}' threw and disarmed: {e}", BasisDebug.LogTag.Core);
+        }
+    }
+
+    static Transform[] sCheckpointTransforms;
+    static Transform sCheckpointRoot;
+
+    static void ReportCheckpoint(string stage, Transform offender, Vector3 localPosition, Quaternion localRotation, Vector3 localScale)
+    {
+        sDisarmed = true;
+        var sb = new StringBuilder(768);
+        sb.AppendLine($"[FiniteWatchdog] STAGE '{stage}' — first bad LOCAL transform value this frame. Whatever ran immediately before this checkpoint wrote it. Watchdog disarmed.");
+        sb.AppendLine($"  bone '{offender.name}' localPos={localPosition} localRot={DescribeRotation(localRotation)} localScale={localScale}");
+        sb.Append("  path: ");
+        for (Transform walk = offender; walk != null; walk = walk.parent)
+        {
+            sb.Append('/').Append(walk.name);
+        }
+        sb.AppendLine();
+        sb.AppendLine("  ancestors (deepest BAD is the true origin; a degenerate rotation NaNs every descendant):");
+        for (Transform walk = offender.parent; walk != null; walk = walk.parent)
+        {
+            Vector3 lp = walk.localPosition;
+            Quaternion lr = walk.localRotation;
+            Vector3 ls = walk.localScale;
+            bool ok = IsSane(lp) && IsSaneRotation(lr) && IsSane(ls);
+            sb.AppendLine($"    {(ok ? "ok " : "BAD")} '{walk.name}' localPos={lp} localRot={DescribeRotation(lr)} localScale={ls}");
+        }
+        LastReport = sb.ToString();
+        BasisDebug.LogError(LastReport, BasisDebug.LogTag.Core);
+    }
+
+    /// <summary>
     /// NaN world bounds with a finite root bone + finite ancestors means the bounds came from
     /// the skinned vertex path — the culprit is a skeleton bone outside the ancestor chain, a
     /// blendshape weight, or the mesh data itself. Enumerate exactly which, so the report names
@@ -154,19 +254,18 @@ public static class BasisFiniteWatchdog
             Vector3 wp = bone.position;
             Vector3 ls = bone.localScale;
             Quaternion lr = bone.localRotation;
-            bool ok = IsSane(wp) && IsSane(ls)
-                && float.IsFinite(lr.x) && float.IsFinite(lr.y) && float.IsFinite(lr.z) && float.IsFinite(lr.w);
+            bool ok = IsSane(wp) && IsSane(ls) && IsSaneRotation(lr);
             if (!ok && badBones < 12)
             {
-                detail.Append($"\n  BONE[{i}] BAD '{bone.name}' worldPos={wp} localRot=({lr.x:F3},{lr.y:F3},{lr.z:F3},{lr.w:F3}) localScale={ls}");
+                detail.Append($"\n  BONE[{i}] BAD '{bone.name}' worldPos={wp} localRot={DescribeRotation(lr)} localScale={ls}");
                 for (Transform walk = bone.parent; walk != null; walk = walk.parent)
                 {
                     Vector3 plp = walk.localPosition;
                     Quaternion plr = walk.localRotation;
-                    bool pOk = IsSane(plp) && float.IsFinite(plr.x) && float.IsFinite(plr.y) && float.IsFinite(plr.z) && float.IsFinite(plr.w) && IsSane(walk.localScale);
+                    bool pOk = IsSane(plp) && IsSaneRotation(plr) && IsSane(walk.localScale);
                     if (!pOk)
                     {
-                        detail.Append($" ← parent BAD '{walk.name}' localPos={plp}");
+                        detail.Append($" ← parent BAD '{walk.name}' localPos={plp} localRot={DescribeRotation(plr)}");
                     }
                 }
             }
@@ -211,10 +310,8 @@ public static class BasisFiniteWatchdog
                 Vector3 lp = walk.localPosition;
                 Quaternion lr = walk.localRotation;
                 Vector3 ls = walk.localScale;
-                bool ok = IsSane(lp)
-                    && float.IsFinite(lr.x) && float.IsFinite(lr.y) && float.IsFinite(lr.z) && float.IsFinite(lr.w)
-                    && IsSane(ls);
-                sb.AppendLine($"  {(ok ? "ok " : "BAD")} '{walk.name}' localPos={lp} localRot=({lr.x:F3},{lr.y:F3},{lr.z:F3},{lr.w:F3}) localScale={ls}");
+                bool ok = IsSane(lp) && IsSaneRotation(lr) && IsSane(ls);
+                sb.AppendLine($"  {(ok ? "ok " : "BAD")} '{walk.name}' localPos={lp} localRot={DescribeRotation(lr)} localScale={ls}");
             }
         }
         LastReport = sb.ToString();
@@ -222,6 +319,10 @@ public static class BasisFiniteWatchdog
     }
 #else
     public static void Tick()
+    {
+    }
+
+    public static void Checkpoint(string stage)
     {
     }
 #endif

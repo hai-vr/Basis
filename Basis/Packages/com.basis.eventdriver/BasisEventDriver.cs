@@ -406,6 +406,13 @@ namespace Basis.EventDriver
 
             ProfileLateUpdateInit();
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // Bone-writing systems are fenced from each other through this method, so a local-space
+            // scan between them narrows a bad value to the one that just ran. Costs nothing unless
+            // the watchdog is armed from Basis/Debug/Finite Watchdog.
+            BasisFiniteWatchdog.Checkpoint("FrameStart (animator / physics / previous frame)");
+#endif
+
             if (StateOfOnRenderBefore)
             {
                 OnBeforeRender();
@@ -703,6 +710,9 @@ namespace Basis.EventDriver
             {
                 BasisAuthoredMotionSystem.Complete(authoredMotionJob);
             }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BasisFiniteWatchdog.Checkpoint("PostAuthoredMotion");
+#endif
 
             // ── Constraints: resolve the BasisConstraint* components ──
             // Sits after authored motion (so a constraint may source an authored bone) and ahead of
@@ -801,10 +811,17 @@ namespace Basis.EventDriver
             // jiggle has prepared but not yet dispatched. A read here cannot stall on a
             // TransformAccessArray job, and a write here is picked up by JigglePhysics this frame
             // instead of next. Every entry runs under its own catch inside the registry.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BasisFiniteWatchdog.Checkpoint("PostConstraints (+ avatar install, transmit)");
+#endif
+
             using (Prof.FrameSync.Auto())
             {
                 BasisFrameSyncRegistry.Simulate();
             }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            BasisFiniteWatchdog.Checkpoint("PostFrameSync (pre jiggle dispatch)");
+#endif
 
             if (jiggleReady)
             {
@@ -888,6 +905,9 @@ namespace Basis.EventDriver
                 {
                     JigglePhysics.CompletePose();
                 }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                BasisFiniteWatchdog.Checkpoint("PostJigglePose");
+#endif
             }
             ProfileEnd(PROF_JIGGLE_COMPLETE_POSE);
 

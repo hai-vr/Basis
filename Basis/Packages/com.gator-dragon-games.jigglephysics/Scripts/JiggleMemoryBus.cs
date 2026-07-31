@@ -105,28 +105,6 @@ public class JiggleMemoryBus {
 
     public NativeArray<JiggleColliderBroadPhaseEntry> broadPhaseEntries;
 
-    // One flag per guarded job stage. The jobs drop non-finite values silently to keep the avatar
-    // alive; without this the frame that first went bad leaves no trace at all. Plain stores, never
-    // increments — every writer stores the same 1, so the race between workers is benign.
-    public const int NonFiniteStageCount = 6;
-    public const int NonFiniteStageTransformWrite = 0;
-    public const int NonFiniteStageRootRead = 1;
-    public const int NonFiniteStageResetLocalPose = 2;
-    public const int NonFiniteStageMergedRead = 3;
-    public const int NonFiniteStageResetJobLocalPose = 4;
-    public const int NonFiniteStageRead = 5;
-    public NativeArray<int> nonFiniteStages;
-    private int reportedNonFiniteStages;
-
-    private static readonly string[] NonFiniteStageDescriptions = {
-        "the interpolated pose handed to the transform write",
-        "a jiggle root bone's world position",
-        "a bone's local pose read by the merged read/reset",
-        "a bone's world pose read by the merged read/reset",
-        "a bone's local pose read by the reset job",
-        "a bone's world pose read by the read job",
-    };
-
     private List<Transform> transformAccessList;
     private List<Transform> transformRootAccessList;
     private List<Transform> personalColliderTransformAccessList;
@@ -306,6 +284,27 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         return dummyTransforms[index];
     }
 
+    /// <summary>
+    /// True when a front access array no longer mirrors its list, which happens when a registered
+    /// transform is destroyed while still enrolled: Unity drops it and shifts every later slot
+    /// down, while the pose buffers keep the old slot indexing. Jobs scheduled over that write one
+    /// avatar's pose onto another avatar's bones. The commit realigns it, but the commit can be
+    /// several frames out under a swap storm, so the pipeline has to sit out the frames in between.
+    /// </summary>
+    public bool GetAccessArraysDesynced() {
+        return GetTreeAccessArraysDesynced() || GetSceneColliderAccessArrayDesynced();
+    }
+
+    private bool GetTreeAccessArraysDesynced() {
+        return doubleBufferTransformAccessArray.FrontLength != transformAccessList.Count
+            || doubleBufferTransformRootAccessArray.FrontLength != transformRootAccessList.Count
+            || doubleBufferPersonalColliderTransformAccessArray.FrontLength != personalColliderTransformAccessList.Count;
+    }
+
+    private bool GetSceneColliderAccessArrayDesynced() {
+        return doubleBufferSceneColliderTransformAccessArray.FrontLength != sceneColliderTransformAccessList.Count;
+    }
+
     public TransformAccessArray GetTransformAccessArray() => doubleBufferTransformAccessArray.GetTransformAccessArray();
     public TransformAccessArray GetTransformRootAccessArray() => doubleBufferTransformRootAccessArray.GetTransformAccessArray();
     public TransformAccessArray GetPersonalColliderTransformAccessArray() => doubleBufferPersonalColliderTransformAccessArray.GetTransformAccessArray();
@@ -458,29 +457,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         broadPhaseMap = new NativeHashMap<int2, JiggleGridCell>(128, Allocator.Persistent);
         globalCell = new NativeReference<JiggleGridCell>(Allocator.Persistent);
         globalCell.Value = new JiggleGridCell(JiggleJobBroadPhase.MAX_COLLIDERS);
-        nonFiniteStages = new NativeArray<int>(NonFiniteStageCount, Allocator.Persistent);
-    }
-
-    /// <summary>
-    /// Drains the guarded-stage flags. Only legal once every jiggle job has been joined, which is
-    /// why it runs off the simulate fence rather than per stage.
-    /// </summary>
-    public void ReportNonFiniteStages() {
-        if (!nonFiniteStages.IsCreated) {
-            return;
-        }
-        for (int i = 0; i < NonFiniteStageCount; i++) {
-            if (nonFiniteStages[i] == 0) {
-                continue;
-            }
-            nonFiniteStages[i] = 0;
-            var bit = 1 << i;
-            if ((reportedNonFiniteStages & bit) != 0) {
-                continue;
-            }
-            reportedNonFiniteStages |= bit;
-            Debug.LogError($"JigglePhysics: dropped a non-finite value at {NonFiniteStageDescriptions[i]}. This is the first time this session; the value was discarded rather than posed, so the avatar survives, but something upstream produced it.");
-        }
     }
 
     private void ReadIn<T>(NativeArray<T> native, T[] array, int count) where T : struct {
@@ -671,24 +647,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         return true;
     }
 
-    private static bool GetIsFinite(float3 position, quaternion rotation) {
-        return math.all(math.isfinite(position)) && math.all(math.isfinite(rotation.value));
-    }
-
-    /// <summary>
-    /// The commit reads live bone poses, and every buffer it seeds from them — the interpolated
-    /// output, the root positions and the rest pose — is written straight back onto the transforms
-    /// with no downstream validation. A non-finite read here therefore poisons the whole tree at
-    /// once, so name the bone rather than letting it disappear into the buffers. One line per tree.
-    /// </summary>
-    private static void ReportNonFiniteSeed(ref bool reported, int rootID, int point, Transform bone, string what, float3 position, quaternion rotation) {
-        if (reported) {
-            return;
-        }
-        reported = true;
-        Debug.LogError($"JigglePhysics: tree {rootID} point {point} bone '{(bone ? bone.name : "<null>")}' committed a non-finite {what} (position {position}, rotation {rotation.value}). Substituting a safe pose.", bone);
-    }
-
     private void AddTreeToSlice(JiggleTree jiggleTree) {
         var jiggleTreeJobData = jiggleTree.GetStruct();
         int index = (int)jiggleTreeJobData.transformIndexOffset;
@@ -707,11 +665,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             root = GetDummyTransform(index);
         }
         float3 rootPos = root.position;
-        bool reported = false;
-        if (!math.all(math.isfinite(rootPos))) {
-            ReportNonFiniteSeed(ref reported, jiggleTreeJobData.rootID, 0, root, "root position", rootPos, quaternion.identity);
-            rootPos = float3.zero;
-        }
         for (int o = 0; o < jiggleTreeJobData.pointCount; o++) {
             unsafe {
                 var point = jiggleTreeJobData.points[o];
@@ -721,21 +674,7 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                 if (!hasBone) {
                     bone = GetDummyTransform(index + o);
                 }
-                bone.GetPositionAndRotation(out var worldPosition, out var worldRotation);
-                float3 pos = worldPosition;
-                quaternion rot = worldRotation;
-                if (!GetIsFinite(pos, rot)) {
-                    ReportNonFiniteSeed(ref reported, jiggleTreeJobData.rootID, o, bone, "world pose", pos, rot);
-                    pos = math.all(math.isfinite(point.position)) ? point.position : rootPos;
-                    rot = quaternion.identity;
-                }
-                float3 restPosition = jiggleTree.restPositions[o];
-                quaternion restRotation = jiggleTree.restRotations[o];
-                if (!GetIsFinite(restPosition, restRotation)) {
-                    ReportNonFiniteSeed(ref reported, jiggleTreeJobData.rootID, o, bone, "rest pose", restPosition, restRotation);
-                    restPosition = float3.zero;
-                    restRotation = quaternion.identity;
-                }
+                bone.GetPositionAndRotation(out var pos, out var rot);
                 var pose = new JiggleTransform() {
                     isVirtual = !hasTransform,
                     position = pos,
@@ -743,8 +682,8 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
                 };
                 var localPose = new JiggleTransform() {
                     isVirtual = !hasTransform,
-                    position = restPosition,
-                    rotation = restRotation,
+                    position = jiggleTree.restPositions[o],
+                    rotation = jiggleTree.restRotations[o],
                 };
                 simulateInputPoses[index + o] = pose;
                 restPoseTransforms[index + o] = localPose;
@@ -775,6 +714,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             var pendingRemoveSceneColliderCount = pendingSceneColliderRemove.Count;
 
             if (pendingAddSceneColliderCount == 0 && pendingRemoveSceneColliderCount == 0) {
+                if (GetSceneColliderAccessArrayDesynced()) {
+                    ReclaimDeadSceneColliderSlots(false);
+                    currentSceneColliderTransformAccessIndex = 0;
+                    commitSceneColliderState = CommitState.ProcessingTransformAccess;
+                }
                 return;
             }
 
@@ -923,6 +867,15 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
             var commandCount = pendingCommands.Count;
             if (commandCount == 0) {
                 deferredTreeCommits = 0;
+                // A bone can die with no structural change queued behind it, and the rebuild is
+                // otherwise only ever reached through a pending command — so without this kick the
+                // arrays would stay shifted until the next rig add or remove happened to arrive.
+                if (GetTreeAccessArraysDesynced()) {
+                    currentTransformAccessIndex = 0;
+                    currentRootTransformAccessIndex = 0;
+                    currentPersonalColliderTransformAccessIndex = 0;
+                    commitTreeState = CommitState.ProcessingTransformAccess;
+                }
                 return;
             }
 
@@ -1255,10 +1208,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         if (tree == null) {
             return;
         }
-        if (!math.all(math.isfinite(teleport.translation)) || !math.all(math.isfinite(teleport.rotation.value))) {
-            Debug.LogError($"JigglePhysics: dropped a non-finite teleport (translation {teleport.translation}, rotation {teleport.rotation.value}).");
-            return;
-        }
         var rootID = tree.rootID;
         if (!rootIDToTreeIndex.ContainsKey(rootID)) {
             tree.TransformRigid(teleport.rotation, teleport.translation);
@@ -1380,9 +1329,6 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
         broadPhaseMap.Dispose();
         globalCell.Dispose();
-        if (nonFiniteStages.IsCreated) {
-            nonFiniteStages.Dispose();
-        }
 
         doubleBufferTransformAccessArray?.Dispose();
         doubleBufferTransformRootAccessArray?.Dispose();

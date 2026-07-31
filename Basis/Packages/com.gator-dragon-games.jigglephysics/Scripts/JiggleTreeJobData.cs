@@ -172,7 +172,6 @@ public unsafe struct JiggleTreeJobData {
                 return false;
             }
             if (!parameters[i].GetIsValid(out failReason)) {
-                failReason = $"Parameter {i} of tree {rootID}: {failReason}";
                 return false;
             }
         }

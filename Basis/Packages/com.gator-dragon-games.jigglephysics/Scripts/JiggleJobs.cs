@@ -163,8 +163,10 @@ public class JiggleJobs {
         _memoryBus.Dispose();
     }
 
+    private bool accessArraysDesynced;
+
     public JobHandle SchedulePoses(double timeAsDouble) {
-        if (_memoryBus.transformCount == 0) {
+        if (_memoryBus.transformCount == 0 || accessArraysDesynced) {
             return default;
         }
         jobBulkTransformReset.UpdateArrays(_memoryBus);
@@ -280,10 +282,6 @@ public class JiggleJobs {
             OnFinishSimulate?.Invoke(this, simulateTime);
         }
 
-        // Both chains are joined here — the pose chain by CompletePoses above, the simulate chain
-        // by the fence — so this is the only point where the guard flags can legally be read.
-        _memoryBus.ReportNonFiniteStages();
-
         Profiler.BeginSample("JiggleJobs.Simulate.Teleports");
         _memoryBus.ApplyPendingTeleports();
         Profiler.EndSample();
@@ -299,6 +297,15 @@ public class JiggleJobs {
         _memoryBus.CommitTrees();
         _memoryBus.CommitColliders();
         Profiler.EndSample();
+
+        // A bone destroyed while still enrolled shifts every later slot of the access arrays, so
+        // until the commit rebuilds them the slot indexing the pose buffers use is wrong and every
+        // transform job would cross avatar boundaries. Sitting the frame out costs a frame of
+        // jiggle; scheduling over it poses one player's bones from another player's tree.
+        accessArraysDesynced = _memoryBus.GetAccessArraysDesynced();
+        if (accessArraysDesynced) {
+            return;
+        }
 
         jobSimulate.UpdateArrays(_memoryBus);
         jobSimulate.substeps = substeps;
