@@ -445,6 +445,37 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Rebuilds outward from a container whose contents just changed height, hitting every ancestor
+        /// that actually carries a layout controller, innermost first, so each outer pass sees the
+        /// corrected inner height. Rows revealed or hidden inside a nested group otherwise leave every
+        /// group above them at its stale height — the group keeps the size it had, so the rows below it
+        /// never move and the page looks like it ignored the toggle. Rebuilding the page root instead
+        /// does not fix it: that pass measures the inner group before the group has resized itself.
+        /// <para>
+        /// Stops at <paramref name="stopAt"/> — pass the tab page's content so one reveal does not
+        /// rebuild the whole menu.
+        /// </para>
+        /// </summary>
+        public static void RebuildLayoutChain(RectTransform from, RectTransform stopAt)
+        {
+            RectTransform current = from;
+            while (current != null)
+            {
+                if (current.GetComponent<ILayoutController>() != null)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(current);
+                }
+
+                if (current == stopAt)
+                {
+                    return;
+                }
+
+                current = current.parent as RectTransform;
+            }
+        }
+
+        /// <summary>
         /// Promotes this descriptor's subtree onto its own nested <see cref="Canvas"/> so geometry
         /// changes inside it (live stats, meters) only re-batch this group, not the whole open menu.
         /// Pair with <see cref="FreezeLayoutSize"/> on the live fields: freeze stops the per-tick

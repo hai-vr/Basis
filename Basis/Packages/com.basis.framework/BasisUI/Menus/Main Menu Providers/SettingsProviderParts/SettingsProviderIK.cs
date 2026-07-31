@@ -1889,22 +1889,7 @@ public static class SettingsProviderIK
     /// </summary>
     private static void RebuildLayoutChain(RectTransform from, PanelElementDescriptor tabDesc)
     {
-        RectTransform stop = tabDesc != null ? tabDesc.ContentParent : null;
-        RectTransform current = from;
-        while (current != null)
-        {
-            if (current.GetComponent<UnityEngine.UI.ILayoutController>() != null)
-            {
-                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(current);
-            }
-
-            if (current == stop)
-            {
-                return;
-            }
-
-            current = current.parent as RectTransform;
-        }
+        PanelElementDescriptor.RebuildLayoutChain(from, tabDesc != null ? tabDesc.ContentParent : null);
     }
 
     private static void AddSmoothingGroup(PanelElementDescriptor tabDesc, RectTransform parent, BasisSettingsDefaults.SmoothingGroupBindings group)

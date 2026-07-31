@@ -71,6 +71,7 @@ namespace Basis.BasisUI
         private struct Node
         {
             public Transform Transform;
+            public RectTransform Rect;
             public GameObject Object;
             public PanelElementDescriptor Descriptor;
             public PanelComponent Control;
@@ -82,6 +83,9 @@ namespace Basis.BasisUI
             public int End;
             public bool Managed;
             public bool Exempt;
+
+            /// <summary>Carries a layout group or fitter, so its height has to be recomputed by hand.</summary>
+            public bool HasLayout;
         }
 
         private readonly RectTransform _page;
@@ -95,6 +99,7 @@ namespace Basis.BasisUI
 
         private Node[] _nodes = Array.Empty<Node>();
         private bool[] _visible = Array.Empty<bool>();
+        private bool[] _dirty = Array.Empty<bool>();
         private int _count;
         private bool _indexed;
         private bool _prepared;
@@ -382,6 +387,7 @@ namespace Basis.BasisUI
         /// <summary>Puts the page back the way it was found and drops everything search cached.</summary>
         private void Restore()
         {
+            bool changed = _hidden.Count > 0;
             foreach (GameObject hidden in _hidden)
             {
                 if (hidden != null) hidden.SetActive(true);
@@ -424,6 +430,10 @@ namespace Basis.BasisUI
                 }
             }
 
+            // Every row coming back at once grows the cards that were holding them; without this the
+            // page keeps the compact shape it had while filtered and the rows overlap.
+            if (changed && _indexed) RebuildAllLayout();
+
             _indexed = false;
         }
 
@@ -442,7 +452,12 @@ namespace Basis.BasisUI
 
             AppendChildren(_page, -1);
 
-            if (_visible.Length < _count) _visible = new bool[Mathf.NextPowerOfTwo(Mathf.Max(64, _count))];
+            if (_visible.Length < _count)
+            {
+                int size = Mathf.NextPowerOfTwo(Mathf.Max(64, _count));
+                _visible = new bool[size];
+                _dirty = new bool[size];
+            }
 
             BuildSectionContents();
 
@@ -479,7 +494,9 @@ namespace Basis.BasisUI
             _nodes[index] = new Node
             {
                 Transform = transform,
+                Rect = transform as RectTransform,
                 Object = go,
+                HasLayout = transform.GetComponent<ILayoutController>() != null,
                 Descriptor = descriptor,
                 Control = control,
                 Section = section,
@@ -633,6 +650,10 @@ namespace Basis.BasisUI
 
             ApplyVisibility();
             ApplySections();
+            RebuildChangedLayout();
+
+            // Last: the empty-state card is a direct child of the page, and creating it the first time
+            // re-indexes — which would leave the pass above nothing to work from.
             ShowNoResults(_matchCount == 0);
         }
 
@@ -650,12 +671,12 @@ namespace Basis.BasisUI
                 bool visible;
                 if (node.Exempt)
                 {
-                    if (_hidden.Remove(node.Object)) node.Object.SetActive(true);
+                    ShowIfHidden(i);
                     visible = true;
                 }
                 else if (node.Managed)
                 {
-                    visible = SetManagedVisible(node.Object, _visible[i]);
+                    visible = SetManagedVisible(i, _visible[i]);
                 }
                 else
                 {
@@ -664,6 +685,42 @@ namespace Basis.BasisUI
 
                 _visible[i] = visible;
                 if (visible && node.Parent >= 0) _visible[node.Parent] = true;
+            }
+        }
+
+        /// <summary>
+        /// Resizes the groups whose contents changed, innermost first. Hiding a row inside a card
+        /// leaves that card at its old height unless it is rebuilt before whatever holds it measures
+        /// again — which is why this runs deepest-first, and why rebuilding the page root instead does
+        /// not work. Only the branches that actually changed are touched.
+        /// </summary>
+        private void RebuildChangedLayout()
+        {
+            for (int i = _count - 1; i >= 0; i--)
+            {
+                if (!_dirty[i]) continue;
+                _dirty[i] = false;
+
+                ref Node node = ref _nodes[i];
+                if (node.HasLayout && node.Rect != null && node.Object != null && node.Object.activeInHierarchy)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(node.Rect);
+                }
+
+                if (node.Parent >= 0) _dirty[node.Parent] = true;
+            }
+        }
+
+        /// <summary>Bottom-up rebuild of the whole page, for when the filter comes off in one go.</summary>
+        private void RebuildAllLayout()
+        {
+            for (int i = _count - 1; i >= 0; i--)
+            {
+                ref Node node = ref _nodes[i];
+                if (node.HasLayout && node.Rect != null && node.Object != null && node.Object.activeInHierarchy)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(node.Rect);
+                }
             }
         }
 
@@ -694,7 +751,7 @@ namespace Basis.BasisUI
                 }
 
                 bool show = titleMatch || contentVisible;
-                SetManagedVisible(node.Object, show);
+                SetManagedVisible(index, show);
                 if (show && !node.Section.Expanded) node.Section.SetExpandedWithoutNotify(true);
             }
         }
@@ -702,13 +759,16 @@ namespace Basis.BasisUI
         /// <summary>
         /// Applies a visibility decision, but only ever undoes this search's own hiding — a row the
         /// page turned off stays off, so filtering cannot reveal a control the page means to keep out
-        /// of reach.
+        /// of reach. Flags the row for a layout pass when the state actually moved.
         /// </summary>
-        private bool SetManagedVisible(GameObject go, bool visible)
+        private bool SetManagedVisible(int index, bool visible)
         {
+            GameObject go = _nodes[index].Object;
+            if (go == null) return false;
+
             if (visible)
             {
-                if (_hidden.Remove(go)) go.SetActive(true);
+                ShowIfHidden(index);
                 return go.activeSelf;
             }
 
@@ -716,8 +776,18 @@ namespace Basis.BasisUI
             {
                 go.SetActive(false);
                 _hidden.Add(go);
+                _dirty[index] = true;
             }
             return false;
+        }
+
+        private void ShowIfHidden(int index)
+        {
+            GameObject go = _nodes[index].Object;
+            if (go == null || !_hidden.Remove(go)) return;
+
+            go.SetActive(true);
+            _dirty[index] = true;
         }
 
         private void ShowSubtree(int index)
@@ -725,8 +795,7 @@ namespace Basis.BasisUI
             int end = _nodes[index].End;
             for (int i = index; i < end; i++)
             {
-                GameObject go = _nodes[i].Object;
-                if (go != null && _hidden.Remove(go)) go.SetActive(true);
+                ShowIfHidden(i);
             }
         }
 

@@ -53,6 +53,16 @@ namespace Basis.BasisUI
                 sliderTransparency.Descriptor.SetActive(enabled);
             }
 
+            // These rows sit inside the section's own card, so rebuilding the tab root measures that
+            // card before it has resized and the page keeps its old shape. Rebuild from the card
+            // outwards instead.
+            void RebuildAroundRows()
+            {
+                PanelElementDescriptor.RebuildLayoutChain(
+                    toggleMenuOnly != null ? toggleMenuOnly.transform.parent as RectTransform : null,
+                    tabDescriptor != null ? tabDescriptor.ContentParent : null);
+            }
+
             PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
                 BasisLocalization.Get("settings.nameplates.title"), () =>
             {
@@ -88,7 +98,7 @@ namespace Basis.BasisUI
                 toggleEnabled.OnValueChanged += (val) =>
                 {
                     ApplyAppearanceVisibility(val);
-                    tabDescriptor?.ForceRebuild();
+                    RebuildAroundRows();
                 };
             }, false, visible =>
             {
@@ -96,6 +106,7 @@ namespace Basis.BasisUI
                 if (visible)
                 {
                     ApplyAppearanceVisibility(BasisSettingsDefaults.NPEnabled.RawValue);
+                    RebuildAroundRows();
                 }
                 tabDescriptor?.ForceRebuild();
             });
