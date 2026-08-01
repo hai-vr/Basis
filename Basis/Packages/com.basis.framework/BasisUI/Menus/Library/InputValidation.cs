@@ -125,15 +125,83 @@ namespace Basis.BasisUI
         }
         
         /// <summary>
+        /// Quote characters that only ever turn up wrapping a pasted URL. Windows' "Copy as path"
+        /// hands over <c>"C:\folder\thing.bee"</c>, chat clients wrap links the same way, and a phone
+        /// keyboard swaps in the curly forms. Apostrophes and backticks are in the set because they
+        /// are only ever peeled off the ends — one inside a path segment is left alone.
+        /// </summary>
+        private static bool IsWrappingQuote(char c)
+        {
+            switch (c)
+            {
+                case '"':
+                case '\'':
+                case '`':
+                case '\u201C': // “
+                case '\u201D': // ”
+                case '\u2018': // ‘
+                case '\u2019': // ’
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Peels wrapping quotes off a pasted URL, so a copied path or link that arrived with them
+        /// attached is not rejected as a malformed URL. Both ends are stripped independently — a lone
+        /// leading quote is just as broken as a matched pair — and whitespace sitting inside the
+        /// quotes is trimmed afterwards.
+        /// </summary>
+        public static string StripSurroundingQuotes(string rawUrl)
+        {
+            string value = (rawUrl ?? string.Empty).Trim();
+            if (value.Length == 0) return value;
+
+            int start = 0;
+            int end = value.Length;
+
+            while (start < end && IsWrappingQuote(value[start])) start++;
+            while (end > start && IsWrappingQuote(value[end - 1])) end--;
+
+            if (start == 0 && end == value.Length) return value;
+
+            return value.Substring(start, end - start).Trim();
+        }
+
+        /// <summary>
+        /// TMP_InputField character filter for the BEE URL box. A double quote is never legal
+        /// unencoded in a URL or a Windows path, so one arriving can only have come from a wrapped
+        /// paste — drop it as it lands rather than leaving the user staring at a field that looks
+        /// right and refuses to load. This only covers in-place editing (typing, Ctrl+V); the virtual
+        /// keyboard's paste assigns <c>.text</c> directly, which TMP does not run through this, so
+        /// <see cref="StripSurroundingQuotes"/> is what guarantees the quotes are gone by validation.
+        /// </summary>
+        public static char RejectQuoteCharacter(string text, int charIndex, char addedChar)
+        {
+            switch (addedChar)
+            {
+                case '"':
+                case '\u201C': // “
+                case '\u201D': // ”
+                    return '\0';
+                default:
+                    return addedChar;
+            }
+        }
+
+        /// <summary>
         /// Splits an optional <c>url#base64password</c> fragment off the URL. If the
         /// caller passed a non-empty <paramref name="rawPassword"/>, that takes
         /// precedence over the fragment; otherwise the fragment is base64-decoded into
         /// the returned password. Used by both the in-game add dialog and the admin
         /// "default library" add path so the two stay in lockstep.
+        /// <para>Wrapping quotes come off before the fragment is split, so a trailing quote on a
+        /// pasted <c>"url#pass"</c> share string does not end up corrupting the base64 decode.</para>
         /// </summary>
         public static void SplitUrlFragmentPassword(string rawUrl, string rawPassword, out string url, out string password)
         {
-            url = (rawUrl ?? string.Empty).Trim();
+            url = StripSurroundingQuotes(rawUrl);
             password = (rawPassword ?? string.Empty).Trim();
 
             int hashIndex = url.IndexOf('#');

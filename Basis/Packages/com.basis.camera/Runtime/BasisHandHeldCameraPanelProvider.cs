@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Basis.BasisUI.Styling;
 using Basis.Scripts.Device_Management;
@@ -32,21 +33,27 @@ namespace Basis.BasisUI.HandHeldCamera
         public override bool Hidden => BasisHandHeldCameraRegistry.Count == 0;
 
         private BasisMenuPanel _panel;
-        private RectTransform _scrollContent;
-        private BasisPanelSearch _search;
+        private PanelTabGroup _tabGroup;
+        private RectTransform _navColumn;
+        private readonly List<RectTransform> _pageContents = new List<RectTransform>();
+        private readonly List<BasisPanelSearch> _searches = new List<BasisPanelSearch>();
+
+        /// <summary>Tab the panel was left on, so reopening it lands back where the user was.</summary>
+        private static int _lastTabIndex;
+
         private PanelDropdown _selector;
         private PanelElementDescriptor _emptyState;
         private PanelElementDescriptor _hiddenState;
         private PanelButton _bringBackButton;
         private bool? _lastHiddenState;
         private PanelElementDescriptor _previewGroup;
+        private LayoutElement _previewLayout;
         private PanelElementDescriptor _lensGroup;
         private PanelElementDescriptor _dofGroup;
         private PanelElementDescriptor _colorGroup;
         private PanelElementDescriptor _effectsGroup;
         private PanelElementDescriptor _outputGroup;
         private PanelElementDescriptor _actionGroup;
-        private PanelSectionToggle _previewSection;
         private PanelSectionToggle _lensSection;
         private PanelSectionToggle _dofSection;
         private PanelSectionToggle _colorSection;
@@ -70,7 +77,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelButton _timerButton;
         private int _lastCountdownShown = -1;
         private const string TimerIdleLabel = "Timer";
-        private RectTransform _topActions;
+        private readonly List<PanelButton> _topButtons = new List<PanelButton>();
         private RawImage _previewImage;
 
         private PanelSlider _fovSlider;
@@ -205,109 +212,218 @@ namespace Basis.BasisUI.HandHeldCamera
 
             panel.OnInstanceReleased += OnPanelClosed;
 
-            RectTransform container = panel.Descriptor.ContentParent;
-            PanelElementDescriptor scroll = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
-            _scrollContent = scroll.ContentParent;
+            _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
+            _navColumn = _tabGroup.ExtrasContainer;
+            _pageContents.Clear();
+            _searches.Clear();
 
-            // The shared scroll-view prefab ships a bare, zero-anchored viewport
-            // with no mask, so content taller than the panel draws straight past
-            // its bounds. Bound the viewport to the scroll rect and mask it.
-            if (scroll.TryGetComponent(out ScrollRect scrollRect) && scrollRect.viewport != null)
+            BuildNavigationColumn(_navColumn);
+
+            AddTab("camera.capture", content =>
             {
-                RectTransform viewport = scrollRect.viewport;
-                viewport.anchorMin = Vector2.zero;
-                viewport.anchorMax = Vector2.one;
-                viewport.offsetMin = Vector2.zero;
-                viewport.offsetMax = new Vector2(-25f, 0f);
-                if (!viewport.TryGetComponent(out RectMask2D _))
-                {
-                    viewport.gameObject.AddComponent<RectMask2D>();
-                }
-            }
+                BuildActionsGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
+            });
 
-            BuildTopActions(_scrollContent);
+            AddTab("camera.tab.image", content =>
+            {
+                BuildLensGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_lensSection, _lensGroup, true, OnSectionExpanded);
 
-            _selector = PanelDropdown.CreateNewEntry(_scrollContent);
-            _selector.Descriptor.SetTitle(BasisLocalization.Get("camera.selector"));
-            _selector.OnValueChanged = _ => OnSelectionChanged();
+                BuildDofGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dofSection, _dofGroup, false, OnSectionExpanded);
 
-            _emptyState = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, _scrollContent);
-            _emptyState.SetTitle(BasisLocalization.Get("camera.noCamerasOpen"));
-            _emptyState.SetDescription(BasisLocalization.Get("camera.noCamerasOpen.description"));
+                BuildColorGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_colorSection, _colorGroup, false, OnSectionExpanded);
 
-            BuildHiddenState(_scrollContent);
+                BuildEffectsGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_effectsSection, _effectsGroup, false, OnSectionExpanded);
+            });
 
-            BuildPreviewGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_previewSection, _previewGroup, true, OnSectionExpanded);
+            AddTab("camera.output", content =>
+            {
+                BuildOutputGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, true, OnSectionExpanded);
+            });
 
-            BuildLensGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_lensSection, _lensGroup, false, OnSectionExpanded);
+            AddTab("camera.follow", content =>
+            {
+                BuildFollowGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, true, OnSectionExpanded);
+            });
 
-            BuildDofGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_dofSection, _dofGroup, false, OnSectionExpanded);
+            AddTab("camera.cinematic", BuildCinematicSections);
 
-            BuildColorGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_colorSection, _colorGroup, false, OnSectionExpanded);
+            AddTab("camera.tab.advanced", content =>
+            {
+                BuildLayersGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, true, OnSectionExpanded);
 
-            BuildEffectsGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_effectsSection, _effectsGroup, false, OnSectionExpanded);
+                BuildPerformanceGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
 
-            BuildOutputGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_outputSection, _outputGroup, false, OnSectionExpanded);
+                BuildGizmoGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gizmoSection, _gizmoGroup, false, OnSectionExpanded);
 
-            BuildFollowGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_followSection, _followGroup, false, OnSectionExpanded);
+                BuildResetButton(content);
+            });
 
-            BuildCinematicSections(_scrollContent);
-
-            BuildActionsGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
-
-            BuildLayersGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_layersSection, _layersGroup, false, OnSectionExpanded);
-
-            BuildPerformanceGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_performanceSection, _performanceGroup, false, OnSectionExpanded);
-
-            BuildGizmoGroup(_scrollContent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_gizmoSection, _gizmoGroup, false, OnSectionExpanded);
-
-            BuildResetButton(_scrollContent);
-
-            BuildSearch();
-
-            MakeSlidersLive(_scrollContent);
+            MakeSlidersLive((RectTransform)_tabGroup.transform);
             AssignSliderResetDefaults();
 
             RebuildSelector();
+
+            if (_lastTabIndex > 0 && _lastTabIndex < _tabGroup.SelectionButtons.Count)
+            {
+                _tabGroup.SelectionButtons[_lastTabIndex]?.OnClicked?.Invoke();
+            }
 
             SetPanelTickSubscription(true);
         }
 
         /// <summary>
-        /// Adds the page's search field. Scoped to this panel by design — the camera's controls are
-        /// its own, and a query here is not meant to reach the main Settings tabs.
-        /// <para>
-        /// Built last so it can see the finished page, then lifted to just under the shot buttons.
-        /// The rows that say which camera is being driven are exempt: they frame the page rather than
-        /// belong to it, and a filtered page with no selector left on it would be unusable.
-        /// </para>
+        /// The column down the left of the panel: the tab buttons, then the rows that frame every
+        /// page rather than belong to one. The preview lives here so the feed — and the composition
+        /// guides drawn over it — stay in view whichever tab is being edited.
         /// </summary>
-        private void BuildSearch()
+        private void BuildNavigationColumn(RectTransform parent)
         {
-            _search = BasisPanelSearch.Attach(_scrollContent);
-            if (_search == null) return;
+            BuildPreviewGroup(parent);
 
-            _search.KeepVisible(_topActions);
-            _search.KeepVisible(_selector);
-            _search.KeepVisible(_emptyState);
-            _search.KeepVisible(_hiddenState);
+            BuildTopActions(parent);
 
-            int topIndex = _topActions != null ? _topActions.GetSiblingIndex() + 1 : 0;
-            _search.Field.transform.SetSiblingIndex(topIndex);
+            // The label-carrying entry prefab reserves 500 units for its control beside the title,
+            // which does not fit the navigation column at all. The no-title variant drops that
+            // reservation — the same one the Library panel uses in this container.
+            _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, parent);
+            _selector.Descriptor.SetSize(new Vector2(60, 80));
+            FitToNavColumn(_selector.Descriptor, releaseControlSlot: false);
+            _selector.OnValueChanged = _ => OnSelectionChanged();
+
+            _emptyState = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, parent);
+            _emptyState.SetTitle(BasisLocalization.Get("camera.noCamerasOpen"));
+            _emptyState.SetDescription(BasisLocalization.Get("camera.noCamerasOpen.description"));
+            FitToNavColumn(_emptyState, releaseControlSlot: true);
+
+            BuildHiddenState(parent);
+            FitToNavColumn(_hiddenState, releaseControlSlot: true);
         }
+
+        /// <summary>
+        /// Card prefabs keep an icon slot and a control slot beside their labels, both sized for the
+        /// full-width page. Together they are wider than the navigation column, so the layout falls
+        /// back to minimums and hands the labels a width of zero — which renders their text one
+        /// character per line. Drop the icon, and on the cards that carry no control, the slot too.
+        /// </summary>
+        private static void FitToNavColumn(PanelElementDescriptor element, bool releaseControlSlot)
+        {
+            if (element == null) return;
+
+            if (element.IconBackground != null) element.IconBackground.SetActive(false);
+            if (!releaseControlSlot || element.Header == null) return;
+
+            Transform slot = element.Header.Find("Title/Element");
+            if (slot != null) slot.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Builds one tab and files it under the left-hand navigation. The page is populated before
+        /// it is handed to the group, so every row is instantiated while the page is still active and
+        /// its deferred Awake cannot come back later and overwrite the titles set here.
+        /// </summary>
+        private void AddTab(string tabKey, Action<RectTransform> build)
+        {
+            PanelTabPage page = PanelTabPage.CreateVertical(_tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = page.Descriptor;
+            descriptor.SetIcon(AddressableAssets.Sprites.CameraSettings);
+            descriptor.SetTitle(BasisLocalization.Get(tabKey));
+
+            RectTransform content = descriptor.ContentParent;
+            ClampScrollViewport(content);
+            string scope = "camera/" + tabKey;
+
+            BasisMenuStateMemory.BeginScope(scope);
+            try
+            {
+                build(content);
+            }
+            finally
+            {
+                BasisMenuStateMemory.EndScope();
+            }
+
+            int index = _tabGroup.Pages.Count;
+            _pageContents.Add(content);
+
+            BasisPanelSearch search = BasisPanelSearch.Attach(content);
+            _searches.Add(search);
+            if (search != null)
+            {
+                search.OnQueryChanged += query => MirrorSearchQuery(search, query);
+            }
+
+            PanelScrollMemory.Attach(content, scope);
+            _tabGroup.AddTab(BasisLocalization.Get(tabKey), () => OnTabShown(index), page);
+        }
+
+        /// <summary>
+        /// The shared scroll-view prefab ships a bare, zero-anchored viewport with no mask, so
+        /// content taller than the page draws straight past its bounds (Page-style panels have no
+        /// panel-level mask to catch it). Bound the viewport to the scroll rect and mask it — the
+        /// standard scroll-view construction — so a tab clips and scrolls like the settings pages.
+        /// </summary>
+        private static void ClampScrollViewport(RectTransform content)
+        {
+            if (content == null) return;
+
+            ScrollRect scroll = content.GetComponentInParent<ScrollRect>();
+            if (scroll == null || scroll.viewport == null) return;
+
+            RectTransform viewport = scroll.viewport;
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = new Vector2(-25f, 0f);
+            if (!viewport.TryGetComponent(out RectMask2D _))
+            {
+                viewport.gameObject.AddComponent<RectMask2D>();
+            }
+        }
+
+        /// <summary>
+        /// Search is scoped to this panel by design — the camera's controls are its own, and a query
+        /// here is not meant to reach the main Settings tabs. Each tab carries its own field; typing
+        /// in one carries the query to the others, which only record it and filter when shown.
+        /// </summary>
+        private void MirrorSearchQuery(BasisPanelSearch source, string query)
+        {
+            for (int Index = 0; Index < _searches.Count; Index++)
+            {
+                BasisPanelSearch other = _searches[Index];
+                if (other != null && other != source) other.SetQueryDeferred(query);
+            }
+        }
+
+        private void OnTabShown(int index)
+        {
+            _lastTabIndex = index;
+            if (index >= 0 && index < _searches.Count) _searches[index]?.ApplyPendingQuery();
+        }
+
+        private BasisPanelSearch ActiveSearch()
+        {
+            if (_tabGroup == null || _searches.Count == 0) return null;
+            return _searches[Mathf.Clamp(_tabGroup.Value, 0, _searches.Count - 1)];
+        }
+
+        private RectTransform ActivePageContent()
+        {
+            if (_tabGroup == null || _pageContents.Count == 0) return null;
+            return _pageContents[Mathf.Clamp(_tabGroup.Value, 0, _pageContents.Count - 1)];
+        }
+
+        private void RefreshSearch() => ActiveSearch()?.Refresh();
 
         /// <summary>
         /// Makes this page's sliders apply while being dragged instead of on release.
@@ -444,14 +560,17 @@ namespace Basis.BasisUI.HandHeldCamera
             SetPanelTickSubscription(false);
             ClearCinematicReferences();
             _panel = null;
-            _scrollContent = null;
-            _search = null;
+            _tabGroup = null;
+            _navColumn = null;
+            _pageContents.Clear();
+            _searches.Clear();
             _selector = null;
             _emptyState = null;
             _hiddenState = null;
             _bringBackButton = null;
             _lastHiddenState = null;
             _previewGroup = null;
+            _previewLayout = null;
             _lensGroup = null;
             _dofGroup = null;
             _colorGroup = null;
@@ -488,10 +607,9 @@ namespace Basis.BasisUI.HandHeldCamera
             _followGroup = null;
             _resetPageButton = null;
             _resetTopButton = null;
-            _topActions = null;
+            _topButtons.Clear();
             _timerButton = null;
             _lastCountdownShown = -1;
-            _previewSection = null;
             _lensSection = null;
             _dofSection = null;
             _colorSection = null;
@@ -563,8 +681,9 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void BuildPreviewGroup(RectTransform parent)
         {
-            _previewSection = PanelSectionToggle.CreateNewEntry(parent);
-            _previewGroup = PanelSectionToggleHelpers.CreateCollapsibleContentGroup( _previewSection, parent, BasisLocalization.Get("camera.preview"), false);
+            _previewGroup = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.Group, parent);
+            if (_previewGroup.Header != null) _previewGroup.Header.gameObject.SetActive(false);
 
             // A live RenderTexture can only be drawn by a RawImage, and the element's base
             // image is a UnityEngine.UI.Image, which draws sprites only. Graphic is
@@ -574,7 +693,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // rather than Destroy: a deferred destroy would still hold the slot when
             // AddComponent runs later in this frame.
             RectTransform card = (RectTransform)_previewGroup.transform;
-            if (card.TryGetComponent(out UiStyleImage styleImage)) Object.DestroyImmediate(styleImage);
+            if (card.TryGetComponent(out UiStyleImage styleImage)) UnityEngine.Object.DestroyImmediate(styleImage);
 
             // Take the card's material with us: it's the overlay-variant UI material the rest
             // of the menu draws with, so the preview keeps sorting on top the way the card
@@ -584,7 +703,7 @@ namespace Basis.BasisUI.HandHeldCamera
             if (card.TryGetComponent(out Graphic baseGraphic))
             {
                 cardMaterial = baseGraphic.material;
-                Object.DestroyImmediate(baseGraphic);
+                UnityEngine.Object.DestroyImmediate(baseGraphic);
             }
 
             _previewImage = card.gameObject.AddComponent<RawImage>();
@@ -595,6 +714,10 @@ namespace Basis.BasisUI.HandHeldCamera
             // this group, so its fitter would collapse the preview flat. Own the height and
             // let ApplyPreviewAspect drive it from the feed.
             if (card.TryGetComponent(out ContentSizeFitter fitter)) fitter.enabled = false;
+            // The navigation column drives its children's heights, so the height has to be
+            // published as a layout preference as well as written to the rect.
+            if (!card.TryGetComponent(out _previewLayout)) _previewLayout = card.gameObject.AddComponent<LayoutElement>();
+            _previewLayout.preferredHeight = PreviewFallbackHeight;
             card.sizeDelta = new Vector2(card.sizeDelta.x, PreviewFallbackHeight);
         }
 
@@ -1293,15 +1416,20 @@ namespace Basis.BasisUI.HandHeldCamera
             SetGroupsActive(!dismissed);
         }
 
+        /// <summary>
+        /// The shot buttons. They stack down the navigation column rather than sharing a row: split
+        /// three ways the column leaves each button about as wide as two characters.
+        /// </summary>
         private void BuildTopActions(RectTransform parent)
         {
-            _topActions = PanelElementDescriptor.BuildActionRow(parent, "CameraTopActions");
+            _topButtons.Clear();
 
-            PanelButton photoButton = PanelButton.CreateNew(_topActions);
+            PanelButton photoButton = PanelButton.CreateNew(parent);
             photoButton.Descriptor.SetTitle(BasisLocalization.Get("camera.takePhoto"));
             photoButton.OnClicked += () => _activeCamera?.CapturePhoto();
+            _topButtons.Add(photoButton);
 
-            _timerButton = PanelButton.CreateNew(_topActions);
+            _timerButton = PanelButton.CreateNew(parent);
             _timerButton.Descriptor.SetTitle(TimerIdleLabel);
             _timerButton.OnClicked += () =>
             {
@@ -1310,10 +1438,12 @@ namespace Basis.BasisUI.HandHeldCamera
                 _activeCamera.Timer();
                 RefreshTimerLabel();
             };
+            _topButtons.Add(_timerButton);
 
-            _resetTopButton = PanelButton.CreateNew(_topActions);
+            _resetTopButton = PanelButton.CreateNew(parent);
             _resetTopButton.Descriptor.SetTitle(BasisLocalization.Get("ui.reset"));
             _resetTopButton.OnClicked += PromptResetSettings;
+            _topButtons.Add(_resetTopButton);
         }
 
         private void RebuildSelector()
@@ -1369,8 +1499,17 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void SetGroupsActive(bool active)
         {
-            if (_topActions != null) _topActions.gameObject.SetActive(active);
-            SetSectionActive(_previewSection, _previewGroup, active);
+            for (int Index = 0; Index < _topButtons.Count; Index++)
+            {
+                PanelButton button = _topButtons[Index];
+                if (button != null) button.gameObject.SetActive(active);
+            }
+            if (_previewGroup != null) _previewGroup.SetActive(active);
+            // The pages have nothing to drive without a camera, so the navigation goes with them.
+            if (_tabGroup != null && _tabGroup.TabButtonParent != null)
+            {
+                _tabGroup.TabButtonParent.gameObject.SetActive(active);
+            }
             SetSectionActive(_lensSection, _lensGroup, active);
             SetSectionActive(_dofSection, _dofGroup, active);
             SetSectionActive(_colorSection, _colorGroup, active);
@@ -1388,9 +1527,13 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_performanceSection, _performanceGroup, active);
             SetSectionActive(_gizmoSection, _gizmoGroup, active);
             if (_resetPageButton != null) _resetPageButton.gameObject.SetActive(active);
-            if (_search != null) _search.Field.gameObject.SetActive(active);
+            for (int Index = 0; Index < _searches.Count; Index++)
+            {
+                BasisPanelSearch search = _searches[Index];
+                if (search != null) search.Field.gameObject.SetActive(active);
+            }
 
-            if (active) _search?.Refresh();
+            if (active) RefreshSearch();
             ForceLayoutRebuild(null);
         }
 
@@ -1530,7 +1673,7 @@ namespace Basis.BasisUI.HandHeldCamera
 
             // Swapping cameras re-shows the rows the previous one had hidden, so re-apply any query
             // on top rather than leaving unrelated settings sitting in a filtered page.
-            _search?.Refresh();
+            RefreshSearch();
         }
 
         private static int FindResolutionIndex(BasisHandHeldCameraMetaData metaData, int width, int height)
@@ -1592,8 +1735,23 @@ namespace Basis.BasisUI.HandHeldCamera
 
         private void ForceLayoutRebuild(PanelElementDescriptor group)
         {
-            group?.ForceRebuild();
-            _panel?.Descriptor?.ForceRebuild();
+            RectTransform page = ActivePageContent();
+
+            if (group != null)
+            {
+                // Out from the rows that changed: the group's own root is measured by its parent
+                // before its content has resized, so rebuilding that alone leaves the page holding
+                // the stale height. The page root carries no layout controller, so the chain stops
+                // at the scroll content, which is the rect the rows actually sit in.
+                PanelElementDescriptor.RebuildLayoutChain(group.ContentParent, page);
+            }
+            else
+            {
+                if (page != null) LayoutRebuilder.ForceRebuildLayoutImmediate(page);
+                _panel?.Descriptor?.ForceRebuild();
+            }
+
+            if (_navColumn != null) LayoutRebuilder.ForceRebuildLayoutImmediate(_navColumn);
         }
 
         /// <summary>
@@ -1662,7 +1820,15 @@ namespace Basis.BasisUI.HandHeldCamera
 
             float aspect = (feed != null && feed.height > 0) ? (float)feed.width / feed.height : 16f / 9f;
             float height = width / aspect;
-            if (Mathf.Abs(rect.sizeDelta.y - height) < 0.5f) return;
+            if (_previewLayout != null)
+            {
+                if (Mathf.Abs(_previewLayout.preferredHeight - height) < 0.5f) return;
+                _previewLayout.preferredHeight = height;
+            }
+            else if (Mathf.Abs(rect.sizeDelta.y - height) < 0.5f)
+            {
+                return;
+            }
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
         }
 
@@ -1828,7 +1994,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _apertureSlider?.gameObject.SetActive(bokeh);
             _dofFocalLengthSlider?.gameObject.SetActive(bokeh);
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);
-            _search?.Refresh();
+            RefreshSearch();
             ForceLayoutRebuild(_dofGroup);
         }
 

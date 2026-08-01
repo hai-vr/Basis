@@ -105,7 +105,7 @@ namespace Basis.BasisUI.HandHeldCamera
         private void BuildCinematicSections(RectTransform parent)
         {
             BuildCinematicGroup(parent);
-            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_cinematicSection, _cinematicGroup, false, OnSectionExpanded);
+            PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_cinematicSection, _cinematicGroup, true, OnSectionExpanded);
 
             BuildCompositionGroup(parent);
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_compositionSection, _compositionGroup, false, OnSectionExpanded);

@@ -20,7 +20,16 @@ namespace Basis.BasisUI.MediaPlayer
         public override bool Hidden => BasisMediaPlayerRegistry.Count == 0;
 
         private BasisMenuPanel _panel;
-        private RectTransform _scrollContent;
+        private PanelTabGroup _tabGroup;
+        private RectTransform _navColumn;
+        private readonly List<RectTransform> _pageContents = new List<RectTransform>();
+        private int _playbackTabIndex = -1;
+        private int _adminTabIndex = -1;
+        private int _debugTabIndex = -1;
+
+        /// <summary>Tab the panel was left on, so reopening it lands back where the user was.</summary>
+        private static int _lastTabIndex;
+
         private PanelDropdown _selector;
         private PanelElementDescriptor _controlGroup;
         private PanelElementDescriptor _userGroup;
@@ -131,50 +140,189 @@ namespace Basis.BasisUI.MediaPlayer
 
             panel.OnInstanceReleased += OnPanelClosed;
 
-            RectTransform container = panel.Descriptor.ContentParent;
-            PanelElementDescriptor scroll = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
-            _scrollContent = scroll.ContentParent;
+            _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
+            _navColumn = _tabGroup.ExtrasContainer;
+            _pageContents.Clear();
 
-            // The shared scroll-view prefab ships a bare, zero-anchored viewport
-            // with no mask, so content taller than the panel draws straight past
-            // its bounds (Page-style panels have no panel-level mask to catch
-            // it). Bound the viewport to the scroll rect and mask it — the
-            // standard scroll-view construction — so this panel's content clips
-            // and scrolls like the settings pages.
-            if (scroll.TryGetComponent(out ScrollRect scrollRect) && scrollRect.viewport != null)
-            {
-                RectTransform viewport = scrollRect.viewport;
-                viewport.anchorMin = Vector2.zero;
-                viewport.anchorMax = Vector2.one;
-                viewport.offsetMin = Vector2.zero;
-                viewport.offsetMax = new Vector2(-25f, 0f); // clear of the vertical scrollbar
-                if (!viewport.TryGetComponent(out RectMask2D _))
-                {
-                    viewport.gameObject.AddComponent<RectMask2D>();
-                }
-            }
-
-            _selector = PanelDropdown.CreateNewEntry(_scrollContent);
-            _selector.Descriptor.SetTitle(BasisLocalization.Get("mediaPlayer.player"));
+            // The label-carrying entry prefab reserves 500 units for its control beside the title,
+            // which does not fit the navigation column at all. The no-title variant drops that
+            // reservation — the same one the Library panel uses in this container.
+            _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, _navColumn);
+            _selector.Descriptor.SetSize(new Vector2(60, 80));
+            FitToNavColumn(_selector.Descriptor, releaseControlSlot: false);
             _selector.OnValueChanged = _ => OnSelectionChanged();
 
             _emptyState = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, _scrollContent);
+                PanelElementDescriptor.ElementStyles.Group, _navColumn);
             _emptyState.SetTitle(BasisLocalization.Get("mediaPlayer.noMediaPlayers"));
             _emptyState.SetDescription(BasisLocalization.Get("mediaPlayer.noMediaPlayers.description"));
+            FitToNavColumn(_emptyState, releaseControlSlot: true);
 
-            BuildStatusGroup(_scrollContent);
-            BuildControlGroup(_scrollContent);
-            BuildUserGroup(_scrollContent);
-            BuildAdminGroup(_scrollContent);
-            BuildDebugGroup(_scrollContent);
+            // The status line frames every page rather than belonging to one, so it sits in the
+            // navigation column and stays readable while the other tabs are being used.
+            BuildStatusGroup(_navColumn);
+            FitToNavColumn(_statusGroup, releaseControlSlot: true);
+
+            _playbackTabIndex = AddTab("mediaPlayer.playback", BuildControlGroup);
+            AddTab("mediaPlayer.mySettings", BuildUserGroup);
+            _adminTabIndex = AddTab("mediaPlayer.admin", BuildAdminGroup);
+            _debugTabIndex = AddTab("mediaPlayer.debug", BuildDebugGroup);
+
+            // Both are opt-in: Admin needs the permission and a networked player, Debug is behind
+            // the Advanced toggle. They are shown again by ApplyActivePlayerToControls / that toggle.
+            SetTabVisible(_adminTabIndex, false);
+            SetTabVisible(_debugTabIndex, false);
 
             RebuildSelector();
+
+            if (_lastTabIndex > 0 && _lastTabIndex < _tabGroup.SelectionButtons.Count &&
+                _tabGroup.SelectionButtons[_lastTabIndex] != null &&
+                _tabGroup.SelectionButtons[_lastTabIndex].gameObject.activeSelf)
+            {
+                _tabGroup.SelectionButtons[_lastTabIndex].OnClicked?.Invoke();
+            }
 
             // One frame-clock request for the panel's lifetime keeps the Status line
             // live (Connecting → Buffering → Playing/Error are polled, not evented).
             SetPanelTickSubscription(true);
+        }
+
+        /// <summary>
+        /// Builds one tab and files it under the left-hand navigation, returning its index so the
+        /// tabs that come and go with permissions can be shown and hidden by it. The page is
+        /// populated before it is handed to the group, so every row is instantiated while the page
+        /// is still active and its deferred Awake cannot overwrite the titles set here.
+        /// </summary>
+        private int AddTab(string tabKey, System.Action<RectTransform> build)
+        {
+            PanelTabPage page = PanelTabPage.CreateVertical(_tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = page.Descriptor;
+            descriptor.SetIcon(AddressableAssets.Sprites.Camera);
+            descriptor.SetTitle(BasisLocalization.Get(tabKey));
+
+            ClampScrollViewport(descriptor.ContentParent);
+            build(descriptor.ContentParent);
+            _pageContents.Add(descriptor.ContentParent);
+
+            int index = _tabGroup.Pages.Count;
+            PanelScrollMemory.Attach(descriptor.ContentParent, "mediaplayer/" + tabKey);
+            _tabGroup.AddTab(BasisLocalization.Get(tabKey), () => _lastTabIndex = index, page);
+            return index;
+        }
+
+        /// <summary>
+        /// The shared scroll-view prefab ships a bare, zero-anchored viewport with no mask, so
+        /// content taller than the page draws straight past its bounds (Page-style panels have no
+        /// panel-level mask to catch it). Bound the viewport to the scroll rect and mask it — the
+        /// standard scroll-view construction — so a tab clips and scrolls like the settings pages.
+        /// </summary>
+        private static void ClampScrollViewport(RectTransform content)
+        {
+            if (content == null) return;
+
+            ScrollRect scroll = content.GetComponentInParent<ScrollRect>();
+            if (scroll == null || scroll.viewport == null) return;
+
+            RectTransform viewport = scroll.viewport;
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = new Vector2(-25f, 0f); // clear of the vertical scrollbar
+            if (!viewport.TryGetComponent(out RectMask2D _))
+            {
+                viewport.gameObject.AddComponent<RectMask2D>();
+            }
+        }
+
+        /// <summary>
+        /// Card prefabs keep an icon slot and a control slot beside their labels, both sized for the
+        /// full-width page. Together they are wider than the navigation column, so the layout falls
+        /// back to minimums and hands the labels a width of zero — which renders their text one
+        /// character per line. Drop the icon, and on the cards that carry no control, the slot too.
+        /// </summary>
+        private static void FitToNavColumn(PanelElementDescriptor element, bool releaseControlSlot)
+        {
+            if (element == null) return;
+
+            if (element.IconBackground != null) element.IconBackground.SetActive(false);
+            if (!releaseControlSlot || element.Header == null) return;
+
+            Transform slot = element.Header.Find("Title/Element");
+            if (slot != null) slot.gameObject.SetActive(false);
+        }
+
+        private RectTransform ActivePageContent()
+        {
+            if (_tabGroup == null || _pageContents.Count == 0) return null;
+            return _pageContents[Mathf.Clamp(_tabGroup.Value, 0, _pageContents.Count - 1)];
+        }
+
+        /// <summary>
+        /// Reflows a page after rows inside it were shown or hidden. Rebuilding the group on its own
+        /// leaves every card above it at its stale height, and the page root carries no layout
+        /// controller at all — so the pass has to walk out from what changed to the scroll content.
+        /// </summary>
+        private void RebuildPage(PanelElementDescriptor group)
+        {
+            if (group == null) return;
+            PanelElementDescriptor.RebuildLayoutChain(group.ContentParent, ActivePageContent());
+        }
+
+        /// <summary>
+        /// Same, for the navigation column: the status card grows and shrinks with the text in it, so
+        /// the column has to be measured again or the rows under it keep the old spacing.
+        /// </summary>
+        private void RebuildNavColumn(PanelElementDescriptor card = null)
+        {
+            if (_navColumn == null) return;
+
+            // From the label out: the text sits three layout groups deep inside the card, and every
+            // one of them has to be measured again before the card knows how tall it now is.
+            RectTransform from = card != null && card.DescriptionLabel != null
+                ? card.DescriptionLabel.rectTransform
+                : _navColumn;
+            PanelElementDescriptor.RebuildLayoutChain(from, _navColumn);
+        }
+
+        /// <summary>
+        /// Shows or hides a tab button. A tab the user is standing on can be taken away — losing
+        /// control of a player closes Playback — so the selection moves to the first one left.
+        /// </summary>
+        private void SetTabVisible(int index, bool visible)
+        {
+            if (_tabGroup == null || index < 0 || index >= _tabGroup.SelectionButtons.Count) return;
+
+            PanelButton button = _tabGroup.SelectionButtons[index];
+            if (button == null || button.gameObject.activeSelf == visible) return;
+
+            button.gameObject.SetActive(visible);
+            if (!visible && _tabGroup.Value == index) SelectFirstVisibleTab();
+
+            if (_tabGroup.TabButtonParent != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_tabGroup.TabButtonParent);
+            }
+            RebuildNavColumn();
+        }
+
+        private bool IsTabVisible(int index)
+        {
+            if (_tabGroup == null || index < 0 || index >= _tabGroup.SelectionButtons.Count) return false;
+
+            PanelButton button = _tabGroup.SelectionButtons[index];
+            return button != null && button.gameObject.activeSelf;
+        }
+
+        private void SelectFirstVisibleTab()
+        {
+            for (int Index = 0; Index < _tabGroup.SelectionButtons.Count; Index++)
+            {
+                PanelButton button = _tabGroup.SelectionButtons[Index];
+                if (button == null || !button.gameObject.activeSelf) continue;
+
+                button.OnClicked?.Invoke();
+                return;
+            }
         }
 
         private void OnPanelClosed()
@@ -187,7 +335,12 @@ namespace Basis.BasisUI.MediaPlayer
             // singleton) always repaints its fresh "—" status group on first tick.
             _lastStatus = (BasisMediaPlayerStatus)(-1);
             _panel = null;
-            _scrollContent = null;
+            _tabGroup = null;
+            _navColumn = null;
+            _pageContents.Clear();
+            _playbackTabIndex = -1;
+            _adminTabIndex = -1;
+            _debugTabIndex = -1;
             _selector = null;
             _controlGroup = null;
             _userGroup = null;
@@ -418,6 +571,7 @@ namespace Basis.BasisUI.MediaPlayer
                 _statusGroup?.SetActive(false);
                 SetGroupsActive(false);
                 _activePlayer = null;
+                RebuildNavColumn();
                 return;
             }
 
@@ -433,6 +587,7 @@ namespace Basis.BasisUI.MediaPlayer
             _selector.SetValueWithoutNotify(labels[idx]);
 
             ApplyActivePlayerToControls();
+            RebuildNavColumn();
         }
 
         private void OnSelectionChanged()
@@ -492,17 +647,19 @@ namespace Basis.BasisUI.MediaPlayer
                 _activePlayer.TryGetComponent(out _activeNetworking);
             }
 
-            bool canControl = CanControlActivePlayer();
-            _controlGroup?.SetActive(canControl);
+            // A player selected after the panel opened empty brings the navigation back with it.
             _userGroup?.SetActive(true);
+            if (_tabGroup != null && _tabGroup.TabButtonParent != null)
+            {
+                _tabGroup.TabButtonParent.gameObject.SetActive(true);
+            }
+
+            bool canControl = CanControlActivePlayer();
+            SetTabVisible(_playbackTabIndex, canControl);
+            SetTabVisible(_debugTabIndex, _advancedToggle != null && _advancedToggle.Value);
 
             bool showAdmin = IsAdmin() && _activeNetworking != null;
-            if (_adminGroup != null && _adminGroup.gameObject.activeSelf != showAdmin)
-            {
-                _adminGroup.gameObject.SetActive(showAdmin);
-                _adminGroup.ForceRebuild();
-                _panel?.Descriptor?.ForceRebuild();
-            }
+            SetTabVisible(_adminTabIndex, showAdmin);
 
             if (showAdmin)
             {
@@ -549,7 +706,11 @@ namespace Basis.BasisUI.MediaPlayer
             int sel = _activePlayer.SelectedBitrateIndex;
             int row = sel >= 0 && sel < tracks.Count ? sel + 1 : 0;
             if (row < labels.Count) _bitrateDropdown.SetValueWithoutNotify(labels[row]);
-            _bitrateDropdown.gameObject.SetActive(tracks.Count > 0);
+
+            bool show = tracks.Count > 0;
+            if (_bitrateDropdown.gameObject.activeSelf == show) return;
+            _bitrateDropdown.gameObject.SetActive(show);
+            RebuildPage(_controlGroup);
         }
 
         private void RebuildAudioTrackDropdown()
@@ -569,7 +730,11 @@ namespace Basis.BasisUI.MediaPlayer
             _audioTrackDropdown.AssignEntries(labels);
             int sel = _activePlayer.SelectedAudioTrackIndex;
             if (sel >= 0 && sel < labels.Count) _audioTrackDropdown.SetValueWithoutNotify(labels[sel]);
-            _audioTrackDropdown.gameObject.SetActive(tracks.Count > 0);
+
+            bool show = tracks.Count > 0;
+            if (_audioTrackDropdown.gameObject.activeSelf == show) return;
+            _audioTrackDropdown.gameObject.SetActive(show);
+            RebuildPage(_controlGroup);
         }
 
         private void RebuildSubtitleDropdown()
@@ -600,30 +765,28 @@ namespace Basis.BasisUI.MediaPlayer
         }
 
         // Anyone Can Control is network-synced policy, so the gate can flip while
-        // the panel is open — repaint the group instead of waiting for a reopen.
+        // the panel is open — repaint the tab instead of waiting for a reopen.
         private void RefreshControlGating()
         {
-            if (_controlGroup == null || _activePlayer == null) return;
+            if (_tabGroup == null || _activePlayer == null) return;
 
             bool canControl = CanControlActivePlayer();
-            if (_controlGroup.gameObject.activeSelf == canControl) return;
+            if (IsTabVisible(_playbackTabIndex) == canControl) return;
 
-            _controlGroup.SetActive(canControl);
+            SetTabVisible(_playbackTabIndex, canControl);
             if (canControl) SyncUrlFieldToActivePlayer();
-            _panel?.Descriptor?.ForceRebuild();
         }
 
         private void SetGroupsActive(bool active)
         {
-            _controlGroup?.SetActive(active && CanControlActivePlayer());
+            SetTabVisible(_playbackTabIndex, active && CanControlActivePlayer());
+            SetTabVisible(_adminTabIndex, active && IsAdmin() && _activeNetworking != null);
+            SetTabVisible(_debugTabIndex, active && _advancedToggle != null && _advancedToggle.Value);
             _userGroup?.SetActive(active);
 
-            bool showAdmin = active && IsAdmin() && _activeNetworking != null;
-            if (_adminGroup != null && _adminGroup.gameObject.activeSelf != showAdmin)
+            if (_tabGroup != null && _tabGroup.TabButtonParent != null)
             {
-                _adminGroup.gameObject.SetActive(showAdmin);
-                _adminGroup.ForceRebuild();
-                _panel?.Descriptor?.ForceRebuild();
+                _tabGroup.TabButtonParent.gameObject.SetActive(active);
             }
         }
 
@@ -688,12 +851,6 @@ namespace Basis.BasisUI.MediaPlayer
 
                 _ = _activeNetworking.SetDriftSeekThresholdSeconds(v);
             };
-
-            // Deactivate AFTER children are built. PanelElementDescriptor.Awake calls
-            // SetTitle(DefaultTitle)/SetDescription(DefaultDescription); if a child is
-            // instantiated under an inactive parent its Awake fires later and would
-            // overwrite the labels set above.
-            _adminGroup.gameObject.SetActive(false);
         }
 
         private void BuildStatusGroup(RectTransform parent)
@@ -720,20 +877,11 @@ namespace Basis.BasisUI.MediaPlayer
                 if (v) RefreshDebugInfo();
                 else _debugGroup?.SetDescription(BasisLocalization.Get("mediaPlayer.debug.description"));
             };
-
-            // See BuildAdminGroup: deactivate after children so their Awake doesn't
-            // clobber the title above.
-            _debugGroup.gameObject.SetActive(false);
         }
 
         private void ApplyAdvancedVisibility(bool visible)
         {
-            if (_debugGroup != null)
-            {
-                _debugGroup.gameObject.SetActive(visible);
-                _debugGroup.ForceRebuild();
-            }
-            _controlGroup?.ForceRebuild();
+            SetTabVisible(_debugTabIndex, visible);
         }
 
         private void ApplyCaptionOptionsVisibility(bool visible)
@@ -750,7 +898,7 @@ namespace Basis.BasisUI.MediaPlayer
                 bool show = captionsOn && _activePlayer != null && _activePlayer.SubtitleTracks.Count > 0;
                 _subtitleDropdown.gameObject.SetActive(show);
             }
-            _userGroup?.ForceRebuild();
+            RebuildPage(_userGroup);
         }
 
         private void ApplyVerboseLoggingToActivePlayer(bool enabled)
@@ -793,7 +941,7 @@ namespace Basis.BasisUI.MediaPlayer
             if (_seekSlider.gameObject.activeSelf != seekable)
             {
                 _seekSlider.gameObject.SetActive(seekable);
-                _controlGroup?.ForceRebuild();
+                RebuildPage(_controlGroup);
             }
             if (!seekable)
             {
@@ -937,6 +1085,9 @@ namespace Basis.BasisUI.MediaPlayer
             if (string.Equals(_lastStatusMarkup, markup)) return;
             _lastStatusMarkup = markup;
             _statusGroup.SetRichDescription(markup);
+            // The card grows and shrinks with the line count — a title arriving, an error clearing —
+            // so the column it sits in has to be measured again or the rows below it keep the gap.
+            RebuildNavColumn(_statusGroup);
         }
 
         private static string StatusLabel(BasisMediaPlayerStatus status)

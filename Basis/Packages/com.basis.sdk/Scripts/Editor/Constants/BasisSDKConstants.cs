@@ -8,6 +8,21 @@ public class BasisSDKConstants
     private const string AvatarFile = "AvatarSDK.uxml";
     private const string PropFile = "PropSDK.uxml";
     private const string SceneFile = "SceneSDK.uxml";
+
+    // The "Settings" foldout and its field container, present under the same names in all three
+    // content UXMLs. Sections built in code are parented into it so they pick up its styling
+    // instead of hanging off the end of the inspector unstyled.
+    public static readonly string SettingsFoldout = "assignedinput";
+    public static readonly string SettingsFields = "Fields";
+
+    // Sibling blocks holding the build-time sections and the content tags, so publishing options
+    // and tagging each read as their own section rather than sitting among the content's own
+    // settings. Each block wraps an inner field container, matching the Settings foldout layout.
+    public static readonly string BuildOptionsSection = "buildoptions";
+    public static readonly string BuildOptionsFields = "BuildFields";
+    public static readonly string ContentTagsSection = "contenttags";
+    public static readonly string ContentTagsFields = "ContentTagFields";
+
     #region Avatar
     public static readonly string AvataruxmlPath = $"{BasePath}{AvatarFile}";
 

@@ -2,7 +2,6 @@ using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -174,20 +173,23 @@ public class BasisSceneValidator
     {
         if (Scene == null) return;
         Undo.RecordObject(Scene, "Set Default Bundle Name");
-        string name = Scene.gameObject.name.Trim();
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c, '_');
+        string name = BasisContentDefaults.ResolveName(Scene.gameObject, BasisEditorLocalization.Get("sdk.sceneValidator.bundleName.default"));
         Scene.BasisBundleDescription.AssetBundleName = name;
         EditorUtility.SetDirty(Scene);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.SceneName, name);
     }
 
     private void FixSetDefaultDescription()
     {
         if (Scene == null) return;
         Undo.RecordObject(Scene, "Set Default Description");
-        Scene.BasisBundleDescription.AssetBundleDescription =
-            $"Scene \"{Scene.gameObject.name}\"";
+        string name = string.IsNullOrEmpty(Scene.BasisBundleDescription.AssetBundleName)
+            ? BasisContentDefaults.ResolveName(Scene.gameObject, BasisEditorLocalization.Get("sdk.sceneValidator.bundleName.default"))
+            : Scene.BasisBundleDescription.AssetBundleName;
+        string description = BasisEditorLocalization.Get("sdk.sceneValidator.bundleDescription.default", name);
+        Scene.BasisBundleDescription.AssetBundleDescription = description;
         EditorUtility.SetDirty(Scene);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.SceneDescription, description);
     }
 
     private void FixAssignSpawnPoint()

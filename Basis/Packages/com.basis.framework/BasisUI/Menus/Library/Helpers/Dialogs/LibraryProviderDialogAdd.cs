@@ -41,7 +41,18 @@ namespace Basis.BasisUI
         /// <summary>
         /// Invoked on the add new content is pressed in the library provider menu, to prompt the user to enter new content with a dialog box
         /// </summary>
-        public static async Task<BasisDataStoreItemKeys.ItemKey> PromptUserForNewContent(BasisMenuPanel panel)
+        /// <param name="prefillUrl">Fills the URL field on open. Used by the BEE file drop, which
+        /// already knows the <c>file://</c> location of what the user dropped.</param>
+        /// <param name="prefillPassword">Fills the password field on open — the password a drop
+        /// found next to the file but could not use unattended.</param>
+        /// <param name="noticeTitle">Shown in the dialog's message row on open, so a drop can say
+        /// why it handed the entry back to the user instead of adding it silently.</param>
+        /// <param name="noticeBody">Body text for <paramref name="noticeTitle"/>.</param>
+        public static async Task<BasisDataStoreItemKeys.ItemKey> PromptUserForNewContent(BasisMenuPanel panel,
+            string prefillUrl = null,
+            string prefillPassword = null,
+            string noticeTitle = null,
+            string noticeBody = null)
         {
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> newItemDialogBox = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(930, 600),
@@ -64,6 +75,10 @@ namespace Basis.BasisUI
             PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, panelGroup.TabButtonParent);
             URL._placeholderLabel.text = Basis.BasisUI.BasisLocalization.Get("library.dialog.add.urlPlaceholder");
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
+            // Pasted links arrive wrapped in quotes often enough — Windows' "Copy as path", chat
+            // clients — that dropping them as they land is worth it, so the box shows the URL that
+            // will actually be fetched. ValidateEntry strips them again for the paths this misses.
+            URL._inputField.onValidateInput = InputValidation.RejectQuoteCharacter;
             URL.Descriptor.SetHeight(115);
             URL.Descriptor.SetWidth(700);
             URL.Descriptor.SetTitle(Basis.BasisUI.BasisLocalization.Get("library.beeFileUrl"));
@@ -92,6 +107,24 @@ namespace Basis.BasisUI
 
             validationMessageField.Descriptor.SetHeight(50);
             validationMessageField.Descriptor.SetWidth(700);
+
+            // A drop opens this dialog with what it already worked out. Assigning the input text
+            // runs the fields' own change handlers, so Value/Password and the required-field
+            // grading end up exactly where typing the same characters would have left them.
+            if (!string.IsNullOrEmpty(prefillUrl))
+            {
+                URL._inputField.text = prefillUrl;
+            }
+            if (!string.IsNullOrEmpty(prefillPassword))
+            {
+                Password._inputField.text = prefillPassword;
+            }
+            if (!string.IsNullOrEmpty(noticeTitle) || !string.IsNullOrEmpty(noticeBody))
+            {
+                validationMessageField.Descriptor.gameObject.SetActive(true);
+                validationMessageField.Descriptor.SetTitle(noticeTitle ?? string.Empty);
+                validationMessageField.Descriptor.SetDescription(noticeBody ?? string.Empty);
+            }
 
             // //load immediate
             // bool loadImmediate = false; // recommended to be false

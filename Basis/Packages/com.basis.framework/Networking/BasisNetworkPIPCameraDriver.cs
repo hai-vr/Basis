@@ -80,7 +80,8 @@ public static class BasisNetworkPIPCameraDriver
     private const float LerpSpeed = 12f;
 
     /// <summary>
-    /// Priority for AfterSimulateOnLate. Runs after the hand-held camera interactable (202).
+    /// Priority for AfterSimulateOnLate. Interpolates remote pucks only, so it does not depend on
+    /// the local hand-held camera, which moves in the render phase.
     /// </summary>
     private const int SimulatePriority = 203;
 

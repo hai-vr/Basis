@@ -1,7 +1,6 @@
 using Basis.Editor.Localization;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -174,19 +173,24 @@ public class BasisPropValidator
     private void FixSetDefaultBundleName()
     {
         if (Prop == null) return;
-        string name = Prop.gameObject.name.Trim();
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c, '_');
+        Undo.RecordObject(Prop, "Set Default Bundle Name");
+        string name = BasisContentDefaults.ResolveName(Prop.gameObject, BasisEditorLocalization.Get("sdk.propValidator.bundleName.default"));
         Prop.BasisBundleDescription.AssetBundleName = name;
         EditorUtility.SetDirty(Prop);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.PropName, name);
     }
 
     private void FixSetDefaultDescription()
     {
         if (Prop == null) return;
-        Prop.BasisBundleDescription.AssetBundleDescription =
-            $"Prop \"{Prop.gameObject.name}\"";
+        Undo.RecordObject(Prop, "Set Default Description");
+        string name = string.IsNullOrEmpty(Prop.BasisBundleDescription.AssetBundleName)
+            ? BasisContentDefaults.ResolveName(Prop.gameObject, BasisEditorLocalization.Get("sdk.propValidator.bundleName.default"))
+            : Prop.BasisBundleDescription.AssetBundleName;
+        string description = BasisEditorLocalization.Get("sdk.propValidator.bundleDescription.default", name);
+        Prop.BasisBundleDescription.AssetBundleDescription = description;
         EditorUtility.SetDirty(Prop);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.PropDescription, description);
     }
 
     private static void FixCollidersToInteractableLayer(BasisProp prop, int interactableLayer)

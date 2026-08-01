@@ -346,19 +346,24 @@ public class BasisAvatarValidator
     private void FixSetDefaultBundleName()
     {
         if (Avatar == null) return;
-        string name = Avatar.gameObject.name.Trim();
-        foreach (char c in Path.GetInvalidFileNameChars())
-            name = name.Replace(c, '_');
+        Undo.RecordObject(Avatar, "Set Default Bundle Name");
+        string name = BasisContentDefaults.ResolveName(Avatar.gameObject, BasisEditorLocalization.Get("sdk.avatarValidator.bundleName.default"));
         Avatar.BasisBundleDescription.AssetBundleName = name;
         EditorUtility.SetDirty(Avatar);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.AvatarName, name);
     }
 
     private void FixSetDefaultDescription()
     {
         if (Avatar == null) return;
-        Avatar.BasisBundleDescription.AssetBundleDescription =
-            $"Avatar \"{Avatar.gameObject.name}\"";
+        Undo.RecordObject(Avatar, "Set Default Description");
+        string name = string.IsNullOrEmpty(Avatar.BasisBundleDescription.AssetBundleName)
+            ? BasisContentDefaults.ResolveName(Avatar.gameObject, BasisEditorLocalization.Get("sdk.avatarValidator.bundleName.default"))
+            : Avatar.BasisBundleDescription.AssetBundleName;
+        string description = BasisEditorLocalization.Get("sdk.avatarValidator.bundleDescription.default", name);
+        Avatar.BasisBundleDescription.AssetBundleDescription = description;
         EditorUtility.SetDirty(Avatar);
+        BasisContentDefaults.SyncField(Root, BasisSDKConstants.AvatarDescription, description);
     }
 
     private void FixDisableDoNotAutoRenameBones()

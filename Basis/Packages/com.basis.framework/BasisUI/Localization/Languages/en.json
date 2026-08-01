@@ -39,6 +39,14 @@
       "value": "Preview"
     },
     {
+      "key": "camera.tab.image",
+      "value": "Image"
+    },
+    {
+      "key": "camera.tab.advanced",
+      "value": "Advanced"
+    },
+    {
       "key": "camera.lens",
       "value": "Lens"
     },
@@ -4185,6 +4193,38 @@
     {
       "key": "library.dialog.add.error.unknown",
       "value": "Unknown validation error."
+    },
+    {
+      "key": "library.drop.notice.noPassword",
+      "value": "Password needed"
+    },
+    {
+      "key": "library.drop.notice.noPassword.description",
+      "value": "No password was found next to {0}. Enter it below, or save it as dontuploadmepassword.txt beside the BEE file."
+    },
+    {
+      "key": "library.drop.notice.needsType",
+      "value": "Content type needed"
+    },
+    {
+      "key": "library.drop.notice.needsType.description",
+      "value": "{0} did not report what kind of content it holds. Press Add to choose, or correct the password first."
+    },
+    {
+      "key": "library.drop.notice.duplicate",
+      "value": "Already in your library"
+    },
+    {
+      "key": "library.drop.notice.duplicate.description",
+      "value": "{0} is already in your library."
+    },
+    {
+      "key": "library.drop.notice.unreadable",
+      "value": "Could not add that file"
+    },
+    {
+      "key": "library.drop.notice.unreadable.description",
+      "value": "{0} could not be added automatically. Check the details below."
     },
     {
       "key": "library.dialog.loading.title",

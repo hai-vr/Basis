@@ -744,8 +744,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         // scale camera to avatar size
         ApplyCameraScale();
 
-        // run after player movement
-        BasisLocalPlayer.AfterSimulateOnLate.AddAction(202, UpdateCamera);
+        // run after player movement and after every device transform has been applied
+        BasisLocalPlayer.AfterSimulateOnRender.AddAction(202, UpdateCamera);
 
         cameraPinConstraint = new BasisParentConstraint
         {
@@ -1501,7 +1501,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
         OnInteractStartEvent.RemoveListener(OnInteractDesktopTweak);
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
 
-        BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(202, UpdateCamera);
+        BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(202, UpdateCamera);
 
         if (pauseMove || isVRFlying)
         {

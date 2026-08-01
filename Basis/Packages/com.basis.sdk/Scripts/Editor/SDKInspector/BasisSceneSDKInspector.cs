@@ -67,12 +67,18 @@ public class BasisSceneSDKInspector : Editor
             SceneNameField.BindProperty(serializedObject.FindProperty("BasisBundleDescription.AssetBundleName"));
             SceneDescriptionField.BindProperty(serializedObject.FindProperty("BasisBundleDescription.AssetBundleDescription"));
 
-            // Icon field
+            // Icon field, plus the capture buttons that fill it in. Bound to the serialized
+            // property rather than written by hand so both routes land on the undo stack.
             ObjectField SceneIconField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.SceneIcon);
             SceneIconField.objectType = typeof(Texture2D);
             SceneIconField.allowSceneObjects = true;
-            SceneIconField.value = BasisScene.BasisBundleDescription.AssetBundleIcon;
-            SceneIconField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnIconFieldChanged);
+            BasisSDKCommonInspector.CreateIconTools(
+                SceneIconField,
+                serializedObject,
+                BasisScene,
+                BasisEditorLocalization.Get("sdk.scene.icon.generate"),
+                BasisEditorLocalization.Get("sdk.scene.icon.generate.tooltip"),
+                CaptureSceneIcon);
 
             // Spawn point field
             ObjectField SpawnPointField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.SpawnPointField);
@@ -108,13 +114,18 @@ public class BasisSceneSDKInspector : Editor
             spawnGizmoButton.text = BasisEditorLocalization.Get("sdk.scene.spawnGizmo.label", BoolToText(SpawnPointGizmoState));
             spawnGizmoButton.clicked += () => ClickedSpawnPointGizmoButton(spawnGizmoButton);
 
-            // Content tags + build options
-            BasisSDKCommonInspector.CreateContentTagsFoldout(uiElementsRoot, BasisScene);
-            BasisSDKCommonInspector.CreateBuildTargetOptions(uiElementsRoot);
-            BasisSDKCommonInspector.CreateBuildOptionsDropdown(uiElementsRoot);
+            // Parented into the UXML blocks so they pick up that styling rather than trailing off
+            // the end of the inspector: what the scene is goes under Settings, how it is published
+            // goes in the build block above the build button.
+            VisualElement buildContainer = BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot);
+            BasisSDKCommonInspector.CreateBuildTargetOptions(buildContainer);
+            BasisSDKCommonInspector.CreateBuildOptionsDropdown(buildContainer);
+
+            BasisSDKCommonInspector.CreateContentTagsFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), BasisScene);
 
             // Build Button
             Button buildButton = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.BuildButton);
+            BasisSDKCommonInspector.StyleBuildButton(buildButton);
 
             BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
             buildButton.clicked += () => Build(assetBundleObject.selectedTargets, BasisScene.BasisBundleDescription.AssetBundleIcon);
@@ -132,11 +143,20 @@ public class BasisSceneSDKInspector : Editor
         return rootElement;
     }
 
-    private void OnIconFieldChanged(ChangeEvent<UnityEngine.Object> evt)
+    /// <summary>
+    /// A scene can only be photographed from inside itself, so the icon comes from the camera the
+    /// author already nominated as the scene's own. Without one there is nothing to shoot from
+    /// except wherever they happen to be looking.
+    /// </summary>
+    private Texture2D CaptureSceneIcon()
     {
-        BasisScene.BasisBundleDescription.AssetBundleIcon = evt.newValue as Texture2D;
-        EditorUtility.SetDirty(BasisScene);
-        BasisDebug.Log($"Setting to {BasisScene.BasisBundleDescription.AssetBundleIcon}");
+        if (BasisScene.MainCamera != null)
+        {
+            return BasisIconCapture.CaptureFromCamera(BasisScene.MainCamera);
+        }
+
+        BasisDebug.Log(BasisEditorLocalization.Get("sdk.scene.icon.noMainCamera"), BasisDebug.LogTag.Editor);
+        return BasisIconCapture.CaptureFromSceneView();
     }
 
     private void OnMainCameraChanged(ChangeEvent<UnityEngine.Object> evt)

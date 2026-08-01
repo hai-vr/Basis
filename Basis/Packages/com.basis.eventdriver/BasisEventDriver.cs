@@ -8,6 +8,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
+using Basis.Scripts.Platform;
 using Basis.BasisUI;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.NamePlate;
@@ -314,6 +315,16 @@ namespace Basis.EventDriver
             {
                 BasisPerformanceMode.Simulate();
                 BasisHighPlayerCapPerformanceMode.Simulate();
+            }
+            // Replays OS file drops collected on the window procedure. Kept on the main thread and
+            // out of the WndProc itself: a drop lands in the middle of a native message pump, which
+            // is no place to spawn a prop or force a menu open.
+            if (!IsHeadlessClient)
+            {
+                using (Prof.DesktopFileDrop.Auto())
+                {
+                    BasisDesktopFileDrop.Dispatch();
+                }
             }
             using (Prof.OnUpdateCallbacks.Auto())
             {

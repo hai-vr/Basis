@@ -336,7 +336,6 @@ public partial class BasisAvatarSDKInspector : Editor
         animatorField.value = Avatar.Animator;
         faceBlinkMeshField.value = Avatar.FaceBlinkMesh;
         faceVisemeMeshField.value = Avatar.FaceVisemeMesh;
-        AvatarIconField.value = Avatar.BasisBundleDescription.AssetBundleIcon;
 
         AvatarNameField.value = Avatar.BasisBundleDescription.AssetBundleName;
         AvatarDescriptionField.value = Avatar.BasisBundleDescription.AssetBundleDescription;
@@ -356,11 +355,25 @@ public partial class BasisAvatarSDKInspector : Editor
         avatarAutomaticBlinkDetectionClick.clicked += AutomaticallyFindBlinking;
         AvatarTestInEditorClick.clicked += AvatarTestInEditorClickFunction;// unity editor window button
 
-        BasisSDKCommonInspector.CreateContentTagsFoldout(uiElementsRoot, Avatar);
-        BasisSDKCommonInspector.CreateBuildTargetOptions(uiElementsRoot);
-        BasisSDKCommonInspector.CreateBuildOptionsDropdown(uiElementsRoot);
+        // Parented into the UXML blocks so they pick up that styling rather than trailing off the
+        // end of the inspector: what the avatar is goes under Settings, how it is published goes in
+        // the build block above the build button.
+        VisualElement buildContainer = BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot);
+        BasisSDKCommonInspector.CreateBuildTargetOptions(buildContainer);
+        BasisSDKCommonInspector.CreateBuildOptionsDropdown(buildContainer);
+
+        BasisSDKCommonInspector.CreateContentTagsFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), Avatar);
+        BasisSDKCommonInspector.StyleBuildButton(avatarBundleButton);
         BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-        AvatarIconField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnIconFieldChanged);
+        // Icon field, plus the capture buttons that fill it in. Bound to the serialized property
+        // rather than written by hand so both routes land on the undo stack.
+        BasisSDKCommonInspector.CreateIconTools(
+            AvatarIconField,
+            serializedObject,
+            Avatar,
+            BasisEditorLocalization.Get("sdk.avatar.icon.generate"),
+            BasisEditorLocalization.Get("sdk.avatar.icon.generate.tooltip"),
+            () => BasisIconCapture.CaptureGameObject(Avatar.gameObject, BasisIconCapture.AvatarYaw, BasisIconCapture.AvatarPitch));
         avatarBundleButton.clicked += () => EventCallbackAvatarBundle(assetBundleObject.selectedTargets, Avatar.BasisBundleDescription.AssetBundleIcon);
 
 
@@ -376,12 +389,6 @@ public partial class BasisAvatarSDKInspector : Editor
         avatarMouthPositionClick.text = BasisEditorLocalization.Get("sdk.avatar.mouthGizmo.label", AvatarHelper.BoolToText(AvatarMouthPositionState));
     }
 
-    private void OnIconFieldChanged(ChangeEvent<UnityEngine.Object> evt)
-    {
-        Avatar.BasisBundleDescription.AssetBundleIcon = evt.newValue as Texture2D;
-        EditorUtility.SetDirty(Avatar);
-        BasisDebug.Log($"Setting to {Avatar.BasisBundleDescription.AssetBundleIcon}");
-    }
     private async void EventCallbackAvatarBundle(List<BuildTarget> targets, Texture2D Image)
     {
         if (targets == null || targets.Count == 0)

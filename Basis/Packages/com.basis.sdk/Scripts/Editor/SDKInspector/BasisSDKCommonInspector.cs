@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Basis.Editor.Localization;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -52,6 +53,246 @@ public static class BasisSDKCommonInspector
         return fixMeButton;
     }
 
+    /// <summary>
+    /// Resolves the container that code-built inspector sections should be parented into: the field
+    /// area of the UXML "Settings" foldout, so they inherit its styling. Falls back to the inspector
+    /// root if a content UXML has no such foldout.
+    /// </summary>
+    public static VisualElement ResolveSettingsContainer(VisualElement uiElementsRoot)
+    {
+        if (uiElementsRoot == null) return null;
+
+        Foldout settings = uiElementsRoot.Q<Foldout>(BasisSDKConstants.SettingsFoldout);
+        if (settings == null) return uiElementsRoot;
+
+        return settings.Q<VisualElement>(BasisSDKConstants.SettingsFields) ?? settings;
+    }
+
+    /// <summary>
+    /// Resolves the container for the build-time sections, which sit in their own block just above
+    /// the build button. Falls back to the inspector root if a content UXML has no such block.
+    /// </summary>
+    public static VisualElement ResolveBuildContainer(VisualElement uiElementsRoot)
+    {
+        return ResolveSectionContainer(uiElementsRoot, BasisSDKConstants.BuildOptionsSection, BasisSDKConstants.BuildOptionsFields);
+    }
+
+    /// <summary>
+    /// Resolves the container for the content tags, which sit in their own block at the very end of
+    /// the inspector. Falls back to the inspector root if a content UXML has no such block.
+    /// </summary>
+    public static VisualElement ResolveContentTagsContainer(VisualElement uiElementsRoot)
+    {
+        return ResolveSectionContainer(uiElementsRoot, BasisSDKConstants.ContentTagsSection, BasisSDKConstants.ContentTagsFields);
+    }
+
+    private static VisualElement ResolveSectionContainer(VisualElement uiElementsRoot, string sectionName, string fieldsName)
+    {
+        if (uiElementsRoot == null) return null;
+
+        VisualElement section = uiElementsRoot.Q<VisualElement>(sectionName);
+        if (section == null) return uiElementsRoot;
+
+        return section.Q<VisualElement>(fieldsName) ?? section;
+    }
+
+    // The Basis accent, matching the title text at the top of every content inspector.
+    private static readonly Color BuildAccent = new Color(239f / 255f, 40f / 255f, 90f / 255f, 1f);
+    private static readonly Color BuildAccentHover = new Color(255f / 255f, 74f / 255f, 120f / 255f, 1f);
+    private static readonly Color BuildAccentPressed = new Color(190f / 255f, 26f / 255f, 67f / 255f, 1f);
+    private static readonly Color BuildAccentShadow = new Color(150f / 255f, 20f / 255f, 53f / 255f, 1f);
+
+    /// <summary>
+    /// Dresses the "create .bee file" button as the primary action of the inspector: full-width
+    /// accent fill, raised edge, and hover/press feedback.
+    /// </summary>
+    public static void StyleBuildButton(Button buildButton)
+    {
+        if (buildButton == null) return;
+
+        IStyle style = buildButton.style;
+        style.backgroundColor = new StyleColor(BuildAccent);
+        style.color = new StyleColor(Color.white);
+        style.fontSize = 16;
+        style.unityFontStyleAndWeight = FontStyle.Bold;
+        style.unityTextAlign = TextAnchor.MiddleCenter;
+        style.height = 44;
+        style.flexGrow = 1;
+        style.marginTop = 2;
+        style.marginBottom = 2;
+        style.marginLeft = 4;
+        style.marginRight = 4;
+        style.paddingTop = 6;
+        style.paddingBottom = 6;
+        style.paddingLeft = 12;
+        style.paddingRight = 12;
+        style.borderTopLeftRadius = 8;
+        style.borderTopRightRadius = 8;
+        style.borderBottomLeftRadius = 8;
+        style.borderBottomRightRadius = 8;
+        style.borderLeftWidth = 0;
+        style.borderRightWidth = 0;
+        style.borderTopWidth = 0;
+        style.borderBottomWidth = 3;
+        style.borderBottomColor = new StyleColor(BuildAccentShadow);
+        style.backgroundImage = null;
+
+        buildButton.RegisterCallback<MouseEnterEvent>(evt =>
+        {
+            buildButton.style.backgroundColor = new StyleColor(BuildAccentHover);
+        });
+        buildButton.RegisterCallback<MouseLeaveEvent>(evt =>
+        {
+            buildButton.style.backgroundColor = new StyleColor(BuildAccent);
+            buildButton.style.borderBottomWidth = 3;
+            buildButton.style.marginTop = 2;
+        });
+        // Sink the button by the height of its raised edge while held, so a click reads as a press.
+        buildButton.RegisterCallback<MouseDownEvent>(evt =>
+        {
+            buildButton.style.backgroundColor = new StyleColor(BuildAccentPressed);
+            buildButton.style.borderBottomWidth = 0;
+            buildButton.style.marginTop = 5;
+        });
+        buildButton.RegisterCallback<MouseUpEvent>(evt =>
+        {
+            buildButton.style.backgroundColor = new StyleColor(BuildAccentHover);
+            buildButton.style.borderBottomWidth = 3;
+            buildButton.style.marginTop = 2;
+        });
+    }
+
+    /// <summary>
+    /// Binds the icon ObjectField to the serialized property and adds the capture buttons under it.
+    ///
+    /// <para>The binding is what makes Ctrl+Z work: an assignment written straight to the field —
+    /// which is what these inspectors used to do — never reaches the undo stack, and the field
+    /// keeps showing the old value when the user undoes something else.</para>
+    /// </summary>
+    /// <param name="primaryLabel">Label for the content-specific capture, e.g. "Generate Icon".</param>
+    /// <param name="primaryCapture">Renders the content. Returns null when there is nothing to shoot.</param>
+    public static void CreateIconTools(ObjectField iconField, SerializedObject serializedObject, BasisContentBase content, string primaryLabel, string primaryTooltip, Func<Texture2D> primaryCapture)
+    {
+        if (iconField == null || content == null) return;
+        if (content.BasisBundleDescription == null)
+        {
+            content.BasisBundleDescription = new BasisBundleDescription();
+        }
+
+        SerializedProperty iconProperty = serializedObject?.FindProperty(BasisIconCapture.IconPropertyPath);
+        if (iconProperty != null)
+        {
+            iconField.BindProperty(iconProperty);
+        }
+        else
+        {
+            iconField.value = content.BasisBundleDescription.AssetBundleIcon;
+        }
+
+        VisualElement row = new VisualElement
+        {
+            style = { flexDirection = FlexDirection.Row, marginTop = 2, marginBottom = 2 },
+        };
+
+        Label status = new Label
+        {
+            style =
+            {
+                whiteSpace = WhiteSpace.Normal,
+                unityFontStyleAndWeight = FontStyle.Normal,
+                unityTextAlign = TextAnchor.MiddleLeft,
+                opacity = 0.85f,
+                marginBottom = 4,
+                display = DisplayStyle.None,
+            },
+        };
+
+        // Both buttons share one undo label — which capture produced the icon is not what the
+        // author is looking for in the Edit menu, only that undoing puts the old icon back.
+        string undoName = BasisEditorLocalization.Get("sdk.commonInspector.icon.undo");
+
+        Button primary = new Button
+        {
+            text = primaryLabel,
+            tooltip = primaryTooltip,
+        };
+        primary.clicked += () => RunIconCapture(serializedObject, content, primaryCapture, undoName, status);
+
+        Button fromSceneView = new Button
+        {
+            text = BasisEditorLocalization.Get("sdk.commonInspector.icon.fromSceneView"),
+            tooltip = BasisEditorLocalization.Get("sdk.commonInspector.icon.fromSceneView.tooltip"),
+        };
+        fromSceneView.clicked += () => RunIconCapture(serializedObject, content, BasisIconCapture.CaptureFromSceneView, undoName, status);
+
+        StyleIconButton(primary);
+        StyleIconButton(fromSceneView);
+        row.Add(primary);
+        row.Add(fromSceneView);
+
+        // Sit directly under the icon field rather than at the end of the inspector, so the button
+        // and the field it fills in read as one control.
+        VisualElement parent = iconField.parent;
+        if (parent == null)
+        {
+            return;
+        }
+        int index = parent.IndexOf(iconField);
+        if (index < 0)
+        {
+            parent.Add(row);
+            parent.Add(status);
+            return;
+        }
+        parent.Insert(index + 1, row);
+        parent.Insert(index + 2, status);
+    }
+
+    private static void RunIconCapture(SerializedObject serializedObject, BasisContentBase content, Func<Texture2D> capture, string undoName, Label status)
+    {
+        (bool success, string message) = BasisIconCapture.GenerateAndAssign(serializedObject, content, capture, undoName);
+        if (string.IsNullOrEmpty(message))
+        {
+            status.style.display = DisplayStyle.None;
+            return;
+        }
+
+        status.text = message;
+        status.style.color = new StyleColor(success ? new Color(0.55f, 0.85f, 0.55f, 1f) : new Color(0.95f, 0.55f, 0.55f, 1f));
+        status.style.display = DisplayStyle.Flex;
+    }
+
+    private static void StyleIconButton(Button button)
+    {
+        IStyle style = button.style;
+        style.flexGrow = 1;
+        style.height = 22;
+        style.marginLeft = 2;
+        style.marginRight = 2;
+        style.unityFontStyleAndWeight = FontStyle.Normal;
+        style.borderTopLeftRadius = 4;
+        style.borderTopRightRadius = 4;
+        style.borderBottomLeftRadius = 4;
+        style.borderBottomRightRadius = 4;
+    }
+
+    /// <summary>
+    /// The Settings foldout is bold and centre-aligned, and both properties inherit, so paragraph
+    /// text parented into it has to opt back out.
+    /// </summary>
+    private static Label BodyLabel(string text)
+    {
+        return new Label(text)
+        {
+            style =
+            {
+                whiteSpace = WhiteSpace.Normal,
+                unityFontStyleAndWeight = FontStyle.Normal,
+                unityTextAlign = TextAnchor.MiddleLeft,
+            },
+        };
+    }
+
     public static void CreateContentTagsFoldout(VisualElement parent, BasisContentBase content)
     {
         if (content == null) return;
@@ -71,15 +312,9 @@ public static class BasisSDKCommonInspector
         };
         parent.Add(foldout);
 
-        Label help = new Label(BasisEditorLocalization.Get("sdk.commonInspector.contentTags.help"))
-        {
-            style =
-            {
-                whiteSpace = WhiteSpace.Normal,
-                marginBottom = 6,
-                opacity = 0.85f,
-            },
-        };
+        Label help = BodyLabel(BasisEditorLocalization.Get("sdk.commonInspector.contentTags.help"));
+        help.style.marginBottom = 6;
+        help.style.opacity = 0.85f;
         foldout.Add(help);
 
         Label presetLabel = new Label(BasisEditorLocalization.Get("sdk.commonInspector.contentTags.presets")) { style = { unityFontStyleAndWeight = FontStyle.Bold, marginTop = 4 } };
@@ -303,30 +538,18 @@ public static class BasisSDKCommonInspector
         };
         parent.Add(foldout);
 
-        Label help = new Label(BasisEditorLocalization.Get("sdk.propInspector.spawn.help"))
-        {
-            style =
-            {
-                whiteSpace = WhiteSpace.Normal,
-                marginBottom = 6,
-                opacity = 0.85f,
-            },
-        };
+        Label help = BodyLabel(BasisEditorLocalization.Get("sdk.propInspector.spawn.help"));
+        help.style.marginBottom = 6;
+        help.style.opacity = 0.85f;
         foldout.Add(help);
 
         EnumField placementField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), prop.SpawnMetaData.Placement);
         foldout.Add(placementField);
 
-        Label placementHelp = new Label
-        {
-            style =
-            {
-                whiteSpace = WhiteSpace.Normal,
-                marginBottom = 6,
-                marginLeft = 4,
-                opacity = 0.7f,
-            },
-        };
+        Label placementHelp = BodyLabel(string.Empty);
+        placementHelp.style.marginBottom = 6;
+        placementHelp.style.marginLeft = 4;
+        placementHelp.style.opacity = 0.7f;
         foldout.Add(placementHelp);
 
         EnumField handField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.hand"), prop.SpawnMetaData.Hand);

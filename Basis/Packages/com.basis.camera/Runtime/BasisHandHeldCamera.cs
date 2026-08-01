@@ -256,9 +256,9 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         SubscribePreviewScreen();
 
-        // Ordered late phase instead of Unity's LateUpdate, so this always runs after the camera
+        // Ordered render phase instead of Unity's LateUpdate, so this always runs after the camera
         // has been moved for the frame rather than racing it.
-        BasisLocalPlayer.AfterSimulateOnLate.AddAction(SimulateLatePriority, SimulateLate);
+        BasisLocalPlayer.AfterSimulateOnRender.AddAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
@@ -336,7 +336,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         }
         
 
-        BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(SimulateLatePriority, SimulateLate);
+        BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(SimulateLatePriority, SimulateLate);
 
         RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
@@ -1081,18 +1081,18 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public bool IsDirectToScreen => IsOverridingDesktopView;
     private BasisRenderRateLimiter renderRateLimiter;
 
-    /// <summary>Late-phase priority: after the camera has been moved (202) and the PIP driver (203).</summary>
+    /// <summary>Render-phase priority: after the camera has been moved (202).</summary>
     private const int SimulateLatePriority = 204;
 
     /// <summary>
-    /// Per-frame camera upkeep, run from <see cref="BasisLocalPlayer.AfterSimulateOnLate"/> rather
+    /// Per-frame camera upkeep, run from <see cref="BasisLocalPlayer.AfterSimulateOnRender"/> rather
     /// than a Unity LateUpdate.
     /// <para>
     /// Everything here reads the capture camera's pose — the preview screen, the detached marker,
-    /// and the networked PIP position. The camera is moved by UpdateCamera at priority 202 inside
-    /// the player's own late simulate, so a plain LateUpdate raced it: with no script execution
-    /// order set, this could run either side of the move and would intermittently publish and
-    /// place things from the previous frame's pose. That inconsistency read as jitter.
+    /// and the networked PIP position. The camera is moved by UpdateCamera at priority 202 in the
+    /// same render phase, so a plain LateUpdate raced it: with no script execution order set, this
+    /// could run either side of the move and would intermittently publish and place things from the
+    /// previous frame's pose. That inconsistency read as jitter.
     /// </para>
     /// </summary>
     private void SimulateLate()
