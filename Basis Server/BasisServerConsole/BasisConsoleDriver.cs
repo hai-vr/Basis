@@ -107,13 +107,19 @@ namespace BasisNetworkConsole
             lock (Gate)
             {
                 LineShown = false;
-                try
-                {
-                    Console.Clear();
-                }
-                catch (IOException)
-                {
-                }
+            }
+
+            try
+            {
+                Console.Clear();
+            }
+            catch (IOException)
+            {
+            }
+
+            lock (Gate)
+            {
+                LineShown = false;
                 Draw();
             }
         }

@@ -38,6 +38,37 @@ namespace Basis.IK
         /// error after it stops, which is the drift this replaces.</summary>
         private const float HeadBaselinePullRate = 200f;
 
+        /// <summary>Rate (s⁻¹) the support base creeps toward the head while the head is INSIDE the stance
+        /// radius. The step pull above only fires once the head is outside, so without this the base is frozen
+        /// wherever it last landed the moment the head comes back in — and the pelvis, which sits at the base
+        /// plus a fraction of the deviation, parks there with it. That is the "hips stay in the middle of the
+        /// play space" report: a sub-radius offset the user never leaves (a held lean, or a head that simply
+        /// rests off-baseline) became a PERMANENT pelvis offset, because nothing pulled the base back under the
+        /// head. Desktop could never show it — BasisDesktopEye pins the eye on the capsule axis, so the
+        /// deviation is identically zero and the pelvis is always exactly under the head.
+        /// 0.35 s⁻¹ is a ~2.9 s time constant: two orders slower than the step pull and slow enough that the
+        /// counterbalance of an actual lean is fully present while you are leaning (it resolves in well under a
+        /// second), but fast enough that a posture you HOLD becomes your standing spot instead of stranding the
+        /// pelvis. Set to 0 to restore the former frozen-base behaviour exactly.</summary>
+        private const float HeadBaselineSettleRate = 0.35f;
+
+        /// <summary>Fraction of the stance radius the base must get within before the step latch releases.
+        /// Small on purpose: the point of the latch is that a detected step runs to completion instead of
+        /// stopping at the detection threshold.</summary>
+        private const float StepReleaseFrac = 0.15f;
+
+        /// <summary>Head speed (m/s) at or below which the walker counts as having stopped, so the step latch
+        /// may release. Arrival alone is not enough: the stiff pull glues the base to the head within a couple
+        /// of frames, so releasing on distance released MID-STRIDE and handed the rest of the stride back to
+        /// the lean path, which then left the remainder of the step uncarried. Well under a walk (~1.2 m/s) and
+        /// well over the residual of a low-passed tracker.</summary>
+        private const float StepReleaseSpeed = 0.20f;
+
+        /// <summary>Time constant (s) of the head-velocity low-pass the release test reads. Filtering the
+        /// VECTOR and then taking its magnitude is what makes it immune to tracker jitter — jitter has a large
+        /// per-frame speed but no direction, so it averages to nothing, while a real stride does not.</summary>
+        private const float HeadVelocitySmoothing = 0.10f;
+
         /// <summary>How much hips track the head's deviation from baseline. 0 = pure counterbalance
         /// (hips never move from baseline), 1 = legacy "follow head fully". 0.25 keeps a small forward
         /// translation while still reading as a real spine bend.</summary>
@@ -145,6 +176,18 @@ namespace Basis.IK
         {
             public float3 HeadBaselineXZ;
             public byte HeadBaselineInitialized;
+            /// <summary>1 while a STEP is in progress — the support base has been released to chase the head
+            /// and the walker has not yet come to a stop. Latched on crossing the stance radius, released once
+            /// the base is inside StepReleaseFrac of it AND the head has stopped moving.</summary>
+            public byte HeadBaselineStepping;
+            /// <summary>Previous frame's head XZ, for the velocity the step-release test reads.</summary>
+            public float3 LastHeadXZ;
+            /// <summary>Low-passed head XZ velocity (m/s). Filtered as a VECTOR so tracker jitter cancels.</summary>
+            public float3 HeadVelocityXZ;
+            /// <summary>The user's OWN resting head height, used as the reference the crouch allowance
+            /// measures its drop against. Rise-only and capped at the avatar's standing head height — see
+            /// where it is maintained in the job for why it is not simply the T-pose head.</summary>
+            public float StandingHeadRefY;
 
             public byte TorsoYawInitialized;
             public float TorsoYawAnchorDeg;
@@ -235,7 +278,24 @@ namespace Basis.IK
                 // Crouch depth for the stance radius, measured off the HEAD (vertical drop is a head
                 // quantity) and lifted into the tracked frame exactly as ComputeHipsPosition does --
                 // otherwise a play-space lift reads as a permanent phantom crouch.
-                float stanceHeadDrop = math.max(0f, (P.StandingHeadLocalY + P.TrackingLiftY) - headPosWorld.y);
+                //
+                // The reference is the user's OWN resting head height, NOT the avatar's T-pose head. Measuring
+                // straight against the T-pose conflated two different things: a live squat (transient, and the
+                // reason CrouchLeanAllowanceFrac exists) and a CONSTANT gap between the tracked head and the
+                // avatar's authored one -- eye-height calibration drift, or a developer sat in a real chair.
+                // The constant gap is not a crouch, but it was read as one and inflated the stance radius by
+                // 0.70x it FOREVER: a 45 cm sit turns a 19 cm radius into ~51 cm, the support base then never
+                // concludes the user has stepped, and the pelvis is free to park anywhere inside half a metre.
+                // Rise-only, and capped at the calibrated standing height: it climbs to wherever the head
+                // actually rests (absorbing any constant offset within a frame) but can never exceed the T-pose
+                // head, so a correctly-calibrated standing user is bit-identical to before and a real squat
+                // still reads its full depth. Seeded with the baseline, so a height/scale change re-seeds it.
+                float standingHeadLifted = P.StandingHeadLocalY + P.TrackingLiftY;
+                float headRestCandidate = math.min(headPosWorld.y, standingHeadLifted);
+                s.StandingHeadRefY = s.HeadBaselineInitialized == 0
+                    ? headRestCandidate
+                    : math.max(s.StandingHeadRefY, headRestCandidate);
+                float stanceHeadDrop = math.max(0f, s.StandingHeadRefY - headPosWorld.y);
                 float3 desiredHipsXZ = ComputeRealisticHipsXZBurst(ref s, eyePosDevice, dt, P.StandingHeadLocalY, stanceHeadDrop, in torsoYawTarget, P.LeftFootPos, P.RightFootPos, P.LeftFootTracked != 0, P.RightFootTracked != 0, out float3 supportXZ);
                 float3 hipsArm = math.mul(torsoYawTarget, P.HipsAnchorOffsetLocal);
                 desiredHipsXZ += new float3(hipsArm.x, 0f, hipsArm.z);
@@ -435,6 +495,9 @@ namespace Basis.IK
             if (s.HeadBaselineInitialized == 0)
             {
                 s.HeadBaselineXZ = headXZ;
+                s.LastHeadXZ = headXZ;
+                s.HeadVelocityXZ = float3.zero;
+                s.HeadBaselineStepping = 0;
                 s.HeadBaselineInitialized = 1;
             }
             else
@@ -448,10 +511,51 @@ namespace Basis.IK
                 // does not resize it); only the crouch allowance uses the lifted drop, computed by the caller.
                 float radius = math.max(StanceRadiusFrac * standingHeadY + CrouchLeanAllowanceFrac * headDrop, 1e-3f);
 
-                float3 offset = headXZ - s.HeadBaselineXZ;
-                float over = math.max(0f, math.length(offset) - radius) / radius;
-                float alpha = 1f - math.exp(-HeadBaselinePullRate * over * over * safeDt);
-                s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, alpha);
+                float3 headVelRaw = (headXZ - s.LastHeadXZ) / safeDt;
+                s.LastHeadXZ = headXZ;
+                s.HeadVelocityXZ = math.lerp(s.HeadVelocityXZ, headVelRaw,
+                    1f - math.exp(-safeDt / HeadVelocitySmoothing));
+                bool headAtRest = math.length(s.HeadVelocityXZ) <= StepReleaseSpeed;
+
+                float dist = math.length(headXZ - s.HeadBaselineXZ);
+
+                // The radius decides WHETHER a step happened; it must not also decide where the base ends up.
+                // Driving the pull off (dist - radius) did both, so it stalled the instant the head was within
+                // one radius and every real step left the support base -- and the pelvis hanging off it -- up to
+                // a full stance radius (~19 cm) behind the walker, with nothing to close it. Latch on crossing
+                // out, and while latched pull to the HEAD; release once the base has actually arrived. The
+                // engagement threshold is unchanged, so a lean still never starts this.
+                if (s.HeadBaselineStepping == 0)
+                {
+                    if (dist > radius) s.HeadBaselineStepping = 1;
+                }
+                else if (dist < radius * StepReleaseFrac && headAtRest)
+                {
+                    s.HeadBaselineStepping = 0;
+                }
+
+                if (s.HeadBaselineStepping != 0)
+                {
+                    // Flat rate while latched. The squared exceedance this replaces was doing two jobs -- it
+                    // WAS the deadband as well as the rate -- and as the base closed in, its own factor went to
+                    // zero and stalled it a few centimetres short. The latch owns the deadband now, so the pull
+                    // is free to be what its rate always claimed: stiff enough to be done inside a couple of
+                    // frames. Anti-ratchet is structural rather than numeric here -- a lerp toward the head
+                    // cannot overshoot it, so jitter across the boundary can only ever seat the base ON the
+                    // head, never walk it outward.
+                    float alpha = 1f - math.exp(-HeadBaselinePullRate * safeDt);
+                    s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, alpha);
+                }
+
+                // ...and the always-on settle. The step pull above is a ONE-WAY leash: it fires only outside
+                // the radius, so inside it the base never moves and a sub-radius offset the user holds is
+                // permanent. Converging the base on the head means the resting pelvis ends up UNDER the head
+                // (dev -> 0) instead of stranded at whatever spot the base was last seeded at, while the
+                // counterbalance is untouched on the timescale a lean actually happens over.
+                // Deliberately applied to the base and not to the returned pelvis: the base is the "where the
+                // user is standing" estimate, and that is the thing that was wrong.
+                float settle = 1f - math.exp(-HeadBaselineSettleRate * safeDt);
+                s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, settle);
             }
 
             if (leftFootTracked && rightFootTracked)

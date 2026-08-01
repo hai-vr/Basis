@@ -603,6 +603,11 @@ namespace Basis.Scripts.Drivers
 
         private static bool IsHandHoldingObject(BasisInput device)
         {
+            // A jiggle grab holds no BasisInteractableObject on purpose, so it can't be seen through
+            // InteractInputs below — ask the grab driver directly or grip would pull the chain and
+            // drag the play space at the same time.
+            if (BasisJiggleGrabDriver.IsInputGrabbing(device)) return true;
+
             var interact = BasisPlayerInteract.Instance;
             if (interact == null) return false;
             var inputs = interact.InteractInputs;

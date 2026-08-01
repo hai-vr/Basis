@@ -1,10 +1,7 @@
 using System.Collections.Generic;
 using Basis.Scripts.BasisSdk.Interactions;
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 
 /// <summary>
@@ -37,6 +34,8 @@ public static class BasisJiggleGrabGizmos
     private const float LabelBaseScale = 0.02f;
     private const float LabelBaseHeight = 0.09f;
     private const int LimitRingSegments = 24;
+    // Relative to the pick radius, so the outline stays thin at any avatar scale.
+    private const float ReachRingWidth = 0.02f;
 
     private static readonly Color LocalGrabColor = new Color(1f, 0.55f, 0.12f, 1f);
     private static readonly Color RemoteGrabColor = new Color(0.35f, 0.75f, 1f, 1f);
@@ -54,6 +53,7 @@ public static class BasisJiggleGrabGizmos
     }
 
     private static readonly List<GrabVisual> _visuals = new List<GrabVisual>();
+    // Three line gizmos per hand — the rings of the wire sphere, kept flat in one list.
     private static readonly List<int> _reachSpheres = new List<int>();
     private static readonly Vector3[] _ringPoints = new Vector3[LimitRingSegments + 1];
     private static readonly System.Text.StringBuilder _text = new System.Text.StringBuilder(64);
@@ -156,12 +156,11 @@ public static class BasisJiggleGrabGizmos
     private static void UpdateReachSpheres(float scale)
     {
         int used = 0;
-        BasisLocalPlayer local = BasisLocalPlayer.Instance;
-        if (local != null && local.LocalBoneDriver != null && !BasisDeviceManagement.IsUserInDesktop())
+        if (!BasisDeviceManagement.IsUserInDesktop())
         {
             float radius = BasisPlayerInteract.AvatarScaledRange(BasisJiggleGrabDriver.GrabSearchRadius);
-            used += DrawReach(local, BasisBoneTrackedRole.LeftHand, radius, used);
-            used += DrawReach(local, BasisBoneTrackedRole.RightHand, radius, used);
+            used += DrawReach(0, radius, used);
+            used += DrawReach(1, radius, used);
         }
 
         while (_reachSpheres.Count > used)
@@ -171,26 +170,46 @@ public static class BasisJiggleGrabGizmos
         }
     }
 
-    private static int DrawReach(BasisLocalPlayer local, BasisBoneTrackedRole role, float radius, int slot)
+    /// <summary>
+    /// Asks the driver for the exact position a grab press searches from, rather than recomputing
+    /// it — the first version of this gizmo derived the hand pose itself and drew the sphere at the
+    /// wrist while claiming to show the pick volume.
+    ///
+    /// Drawn as three orthogonal rings rather than a sphere: a solid ball the size of the pick
+    /// radius swallows the hand it is meant to describe, and the whole point is to watch the hand
+    /// approach a chain. Returns how many gizmo slots it used.
+    /// </summary>
+    private static int DrawReach(byte hand, float radius, int slot)
     {
-        if (!local.LocalBoneDriver.FindBone(out BasisLocalBoneControl bone, role) || bone == null)
+        if (!BasisJiggleGrabDriver.TryGetHandSearchPosition(hand, out Vector3 position))
         {
             return 0;
         }
-        var ik = bone.IKWorldData;
-        bool posed = ik.rotation.x != 0f || ik.rotation.y != 0f || ik.rotation.z != 0f || ik.rotation.w != 0f;
-        Vector3 position = posed ? ik.position : bone.OutgoingWorldData.position;
+
+        DrawReachRing(slot + 0, position, radius, Vector3.right, Vector3.up);
+        DrawReachRing(slot + 1, position, radius, Vector3.right, Vector3.forward);
+        DrawReachRing(slot + 2, position, radius, Vector3.up, Vector3.forward);
+        return 3;
+    }
+
+    private static void DrawReachRing(int slot, Vector3 centre, float radius, Vector3 axisA, Vector3 axisB)
+    {
+        for (int Index = 0; Index <= LimitRingSegments; Index++)
+        {
+            float angle = Index / (float)LimitRingSegments * Mathf.PI * 2f;
+            _ringPoints[Index] = centre + (axisA * Mathf.Cos(angle) + axisB * Mathf.Sin(angle)) * radius;
+        }
 
         if (slot >= _reachSpheres.Count)
         {
-            if (BasisGizmoManager.CreateSphereGizmo("JiggleGrabReach", out int created, position, radius, ReachColor))
+            if (BasisGizmoManager.CreateLineGizmo("JiggleGrabReach", out int created, _ringPoints,
+                    ReachRingWidth * radius, ReachColor))
             {
                 _reachSpheres.Add(created);
             }
-            return 1;
+            return;
         }
-        BasisGizmoManager.UpdateSphereGizmo(_reachSpheres[slot], position, Vector3.one * radius);
-        return 1;
+        BasisGizmoManager.UpdateLineGizmo(_reachSpheres[slot], _ringPoints);
     }
 
     private static void BuildRing(Vector3 centre, float radius, Vector3 cameraPosition)

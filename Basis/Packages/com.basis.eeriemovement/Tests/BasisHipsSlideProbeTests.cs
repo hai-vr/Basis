@@ -172,29 +172,58 @@ namespace Basis.Tests.IK
 
         /// <summary>
         /// THE HEADLINE GATE. Lean the head 15 cm forward (INSIDE the 19.2 cm stance radius — the feet have
-        /// not moved) over 400 ms, then hold perfectly still for two seconds.
+        /// not moved) over 400 ms, then hold.
         ///
-        /// The pelvis must be DONE when the head is. Not "mostly done", not "settling" — done. There is
-        /// nothing left for it to chase, because the user is standing exactly where they were standing.
+        /// ⚠️ THIS GATE WAS INVERTED ON PURPOSE. It used to demand ZERO pelvis travel after the head stopped,
+        /// because the bug it was written for was a 1 Hz low-pass that kept dragging the pelvis for ~600 ms
+        /// after the motion ("the legs slide around way after the motion is complete"). The spatial leash fixed
+        /// that — but it fixed it by freezing the support base outright, and a base that only ever moves when
+        /// the head leaves the stance radius NEVER COMES BACK. A sub-radius offset the user simply rests at
+        /// became a permanent pelvis offset: "the hips stay in the middle of the play space" (VR, no hip
+        /// tracker — desktop pins the eye on the capsule axis so the deviation is always zero and it cannot be
+        /// seen there). HeadBaselineSettleRate converges the base on the head, so the contract is now about the
+        /// SHAPE of the settle, not its absence:
+        ///   (a) the counterbalance is fully present while you are leaning — nothing eaten during the motion;
+        ///   (b) a SHORT hold keeps almost all of it, so a bow-and-return still reads as a bow;
+        ///   (c) a LONG hold converges the pelvis under the head — the posture you hold becomes where you stand.
+        /// (a) and (b) are what stop this from being the old drift bug wearing a different hat.
         /// </summary>
         [Test]
-        public void ALean_LeavesNoPelvisDrift_OnceTheHeadHasStopped()
+        public void ALean_CounterbalancesThenConvergesUnderTheHead_NotInstantlyAndNotNever()
         {
             const int fps = 90;
-            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 2.0f, lean = 0.15f;
-            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
+            const float dt = 1f / fps, moveSecs = 0.40f, lean = 0.15f;
+            const float shortHold = 0.5f, longHold = 10.0f;
             int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+            int shortFrames = Mathf.RoundToInt((moveSecs + shortHold) * fps);
+            int longFrames = Mathf.RoundToInt((moveSecs + longHold) * fps);
 
             Assert.Less(lean, StanceRadius, "sanity: this test is only meaningful if the lean is INSIDE the radius");
 
-            (float drift, float restMs) = DriftAfterStop(RunSpine(dt, frames, Ramp(dt, moveSecs, lean), false), dt, stopFrame);
+            float3[] shortRun = RunSpine(dt, shortFrames, Ramp(dt, moveSecs, lean), false);
+            float3[] longRun = RunSpine(dt, longFrames, Ramp(dt, moveSecs, lean), false);
 
-            Assert.Less(drift, 0.005f,
-                $"the pelvis kept travelling {drift * 100f:F2} cm after the head had already stopped. The support "
-                + "base is being chased instead of held -- this is the 'legs slide around way after the motion is "
-                + "complete' report, and the legs hang off this pelvis.");
-            Assert.Less(restMs, 60f,
-                $"the pelvis took {restMs:F0} ms to come to rest after the head stopped.");
+            // (a) At the moment the head stops, the pelvis is still holding its counterbalance: it has carried
+            //     only a fraction of the lean, so the settle has taken nothing out of the motion itself.
+            float atStop = shortRun[stopFrame].z - shortRun[0].z;
+            Assert.Less(atStop, 0.55f * lean,
+                $"the pelvis had already carried {atStop * 100f:F2} cm of a {lean * 100f:F0} cm lean by the time the "
+                + "head stopped -- the settle is fast enough to be eating the counterbalance during the lean itself, "
+                + "which is the behaviour the spatial leash replaced.");
+
+            // (b) Half a second later it is still overwhelmingly there.
+            float heldShort = shortRun[shortFrames - 1].z - shortRun[0].z;
+            float retained = (lean - heldShort) / (lean - atStop);
+            Assert.Greater(retained, 0.65f,
+                $"only {retained * 100f:F0}% of the counterbalance survived a {shortHold:F1} s hold -- a bow you hold "
+                + "for half a second must still look like a bow, not collapse into the head.");
+
+            // (c) Ten seconds later the pelvis is under the head: the held posture IS the standing spot.
+            float residual = lean - (longRun[longFrames - 1].z - longRun[0].z);
+            Assert.Less(residual, 0.015f,
+                $"the pelvis was still {residual * 100f:F2} cm behind the head after holding the lean for "
+                + $"{longHold:F0} s. The support base is not converging, so a resting pelvis stays stranded wherever "
+                + "it was last seeded -- the 'hips stay in the middle of the play space' report.");
         }
 
         /// <summary>
@@ -208,14 +237,14 @@ namespace Basis.Tests.IK
         public void ALean_StillCounterbalances_TheFixIsNotJustAFrozenPelvis()
         {
             const int fps = 90;
-            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 2.0f, lean = 0.15f;
+            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 0.5f, lean = 0.15f;
             int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
             int stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
             float3[] hips = RunSpine(dt, frames, Ramp(dt, moveSecs, lean), false);
 
             float moved = hips[stopFrame].z - hips[0].z;
-            float expected = FollowFrac * lean;   // support base frozen => hips carry exactly this much
+            float expected = FollowFrac * lean;   // base barely settled this early => hips carry ~this much
 
             Assert.Greater(moved, 0.5f * expected,
                 $"the pelvis only moved {moved * 100f:F2} cm on a {lean * 100f:F0} cm lean -- it should carry "
@@ -226,22 +255,30 @@ namespace Basis.Tests.IK
                 + $"~{expected * 100f:F2} cm counterbalance. The support base is following the lean, which is "
                 + "exactly what it must not do.");
 
-            // ...and it must still be there two seconds later, not have crept into the head.
+            // ...and it must still be substantially there half a second later. It is no longer required to be
+            // UNCHANGED -- HeadBaselineSettleRate deliberately converges a HELD posture onto the head, which is
+            // what stops a resting pelvis being stranded (see the headline gate). What must not happen is the
+            // settle showing up on the timescale of the bow itself.
             float held = hips[frames - 1].z - hips[0].z;
-            Assert.AreEqual(moved, held, 0.005f,
-                $"the counterbalance decayed while the user simply held the lean: {moved * 100f:F2} cm at the stop, "
-                + $"{held * 100f:F2} cm two seconds later. A held lean must hold its posture.");
+            Assert.Less(held - moved, 0.35f * (lean - moved),
+                $"the counterbalance collapsed while the user merely held the lean for {holdSecs:F1} s: "
+                + $"{moved * 100f:F2} cm at the stop, {held * 100f:F2} cm after the hold. The settle is meant to take "
+                + "seconds, not to close the gap inside one bow.");
         }
 
         /// <summary>
-        /// THE PAIRED NEGATIVE FOR THE LAW ITSELF. Drives the 1 Hz low-pass that shipped and asserts it
-        /// FAILS the drift gate. If this ever stops failing, the gate above is measuring nothing.
+        /// THE PAIRED NEGATIVE FOR THE LAW ITSELF. Drives the 1 Hz low-pass that shipped and asserts it fails
+        /// the headline gate. Both laws converge the base on the head — the ONLY thing separating them is how
+        /// fast, so that is what this measures. At tau = 159 ms the old one is done inside the bow: it has
+        /// already given away most of the counterbalance by the time the head stops, and essentially all of it
+        /// half a second later. If this ever stops failing, HeadBaselineSettleRate has been turned up until it
+        /// IS the old bug and the gate above is measuring nothing.
         /// </summary>
         [Test]
         public void TheOldLowPass_Fails_SoTheGateCannotRotIntoATautology()
         {
             const int fps = 90;
-            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 2.0f, lean = 0.15f;
+            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 0.5f, lean = 0.15f;
             int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
             int stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
@@ -256,13 +293,18 @@ namespace Basis.Tests.IK
                 hips[i] = new float3(0f, 0f, Mathf.Lerp(baseline, headZ, FollowFrac));
             }
 
-            (float drift, float restMs) = DriftAfterStop(hips, dt, stopFrame);
+            float atStop = hips[stopFrame].z - hips[0].z;
+            float held = hips[frames - 1].z - hips[0].z;
+            float retained = (lean - held) / (lean - atStop);
 
-            Assert.Greater(drift, 0.005f,
-                $"the 1 Hz low-pass is supposed to keep dragging the pelvis after the head stops (it drifted "
-                + $"{drift * 100f:F2} cm) -- if it no longer does, this gate is testing nothing");
-            Assert.Greater(restMs, 60f,
-                $"the 1 Hz low-pass is supposed to take hundreds of ms to settle (it took {restMs:F0} ms)");
+            // Fails (a): the counterbalance is already mostly gone when the head stops.
+            Assert.Greater(atStop, 0.55f * lean,
+                $"the 1 Hz low-pass is supposed to have already carried most of the lean by the stop (it carried "
+                + $"{atStop * 100f:F2} cm of {lean * 100f:F0} cm) -- if it no longer does, this gate is testing nothing");
+            // Fails (b): and what is left does not survive half a second.
+            Assert.Less(retained, 0.65f,
+                $"the 1 Hz low-pass is supposed to lose the counterbalance within a {holdSecs:F1} s hold (it retained "
+                + $"{retained * 100f:F0}%) -- if it no longer does, this gate is testing nothing");
         }
 
         /// <summary>
@@ -368,6 +410,10 @@ namespace Basis.Tests.IK
             const int fps = 90;
             const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 1.0f, shift = 0.15f;
             int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
+            // Sampled at the STOP, not after the hold: HeadBaselineSettleRate converges a held posture onto the
+            // head on BOTH axes by design, so a long hold erases the anisotropy this gate exists to measure.
+            // The anisotropy is a property of the MOTION -- which is where it is felt -- so measure it there.
+            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
 
             Assert.Less(shift, StanceRadius, "sanity: the shift must be INSIDE the radius (a shift, not a step)");
 
@@ -378,7 +424,7 @@ namespace Basis.Tests.IK
                 return new float3(shift * t, StandingHeadY, 0f);
             }, bothFeetTracked: false);
 
-            float movedX = latHips[frames - 1].x - latHips[0].x;
+            float movedX = latHips[stopFrame].x - latHips[0].x;
 
             Assert.Greater(movedX, 0.6f * shift,
                 $"the hips carried only {movedX * 100f:F2} cm of a {shift * 100f:F0} cm sideways shift -- a weight "
@@ -388,7 +434,7 @@ namespace Basis.Tests.IK
 
             // (b) ANISOTROPY: the same magnitude move FORWARD must still counterbalance at ~25%.
             float3[] fwdHips = RunSpine(dt, frames, Ramp(dt, moveSecs, shift), bothFeetTracked: false);
-            float movedZ = fwdHips[frames - 1].z - fwdHips[0].z;   // forward bias is constant, so it cancels in the delta
+            float movedZ = fwdHips[stopFrame].z - fwdHips[0].z;   // forward bias is constant, so it cancels in the delta
             Assert.Less(movedZ, 0.5f * movedX,
                 $"forward follow ({movedZ * 100f:F2} cm) is not clearly less than lateral ({movedX * 100f:F2} cm) -- "
                 + "the follow is not anisotropic, it just moves more in every direction.");
@@ -400,6 +446,93 @@ namespace Basis.Tests.IK
             Assert.Greater(movedX, oldIsotropic + 0.04f,
                 $"the shipped hips ({movedX * 100f:F2} cm) are no better than the old isotropic 0.25 follow "
                 + $"({oldIsotropic * 100f:F2} cm) -- the anisotropic lateral follow is not in effect.");
+        }
+
+        /// <summary>
+        /// THE WALKING GATE. Take a 30 cm step and the support base must end up UNDER the walker, not at the
+        /// threshold that detected them.
+        ///
+        /// The pull used to be driven by (dist - radius), so the radius was deciding both WHETHER a step had
+        /// happened and WHERE the base stopped. Its own factor went to zero as the base closed in, stalling it
+        /// a full stance radius short — so every step left the pelvis ~19 cm behind the walker with nothing
+        /// able to close it, which is the "hips stay in the middle of the play space" report. The radius now
+        /// only latches; once latched the base runs to the head and releases when the walker stops.
+        /// </summary>
+        [Test]
+        public void AStep_LandsTheSupportBaseUnderTheWalker_NotAStanceRadiusShort()
+        {
+            const int fps = 90;
+            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 0.5f, step = 0.30f;
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
+
+            Assert.Greater(step, StanceRadius, "sanity: this test is only meaningful if the step is OUTSIDE the radius");
+
+            float3[] hips = RunSpine(dt, frames, Ramp(dt, moveSecs, step), false);
+            float carried = hips[frames - 1].z - hips[0].z;
+
+            Assert.Greater(carried, 0.95f * step,
+                $"the pelvis carried {carried * 100f:F2} cm of a {step * 100f:F0} cm step -- it must end up under the "
+                + "walker. A base that stops at the detection threshold leaves the pelvis (and the legs hanging off "
+                + "it) a stance radius behind, permanently.");
+
+            // PAIRED NEGATIVE: the deadband pull, reproduced inline. It stalls at head - radius, so it carries
+            // only baseline + FollowFrac*radius. Never call this from shipping code -- it is the bug.
+            float baseline = 0f;
+            for (int i = 0; i < frames; i++)
+            {
+                float headZ = Mathf.Clamp01(i * dt / moveSecs) * step;
+                float over = Mathf.Max(0f, Mathf.Abs(headZ - baseline) - StanceRadius) / StanceRadius;
+                baseline = Mathf.Lerp(baseline, headZ, 1f - Mathf.Exp(-200f * over * over * dt));
+            }
+            float oldCarried = Mathf.Lerp(baseline, step, FollowFrac);
+            Assert.Less(oldCarried, 0.85f * step,
+                $"the deadband pull is supposed to stall short of the walker (it carried {oldCarried * 100f:F2} cm of "
+                + $"{step * 100f:F0} cm) -- if it no longer does, this gate is testing nothing");
+        }
+
+        /// <summary>
+        /// THE SEATED / MIS-CALIBRATED GATE. A CONSTANT gap between the tracked head and the avatar's T-pose
+        /// head is not a crouch, and must not resize the stance radius.
+        ///
+        /// stanceHeadDrop used to be measured straight against the T-pose head, so eye-height calibration drift
+        /// — or a developer testing while sat in a real chair — read as a permanent 45 cm squat and inflated the
+        /// radius by CrouchLeanAllowanceFrac x that: 19 cm becomes ~51 cm. The support base then never concludes
+        /// the user has stepped at all, and the pelvis is free to sit anywhere inside half a metre. The
+        /// reference is now the user's OWN resting head height (rise-only, capped at the T-pose head).
+        ///
+        /// Two-sided on purpose: the radius must come back to 19 cm, not collapse to zero.
+        /// </summary>
+        [Test]
+        public void APersistentHeightOffset_DoesNotInflateTheStanceRadius()
+        {
+            const int fps = 90;
+            const float dt = 1f / fps, moveSecs = 0.40f, holdSecs = 0.5f;
+            const float seatedHeadY = StandingHeadY - 0.45f;
+            int frames = Mathf.RoundToInt((moveSecs + holdSecs) * fps);
+            int stopFrame = Mathf.RoundToInt(moveSecs * fps);
+
+            // (a) A 25 cm move is OUTSIDE the true 19.2 cm radius, so it is a step and must be carried. With the
+            //     T-pose-referenced radius (50.7 cm) it fell inside, and the pelvis carried only ~7.5 cm of it.
+            const float step = 0.25f;
+            Assert.Greater(step, StanceRadius, "sanity: the move must be outside the UN-inflated radius");
+            float3[] stepped = RunSpine(dt, frames, i =>
+                new float3(0f, seatedHeadY, step * Mathf.Clamp01(i * dt / moveSecs)), false);
+            float carried = stepped[stopFrame].z - stepped[0].z;
+            Assert.Greater(carried, 0.8f * step,
+                $"sat {(StandingHeadY - seatedHeadY) * 100f:F0} cm low, the pelvis carried only {carried * 100f:F2} cm "
+                + $"of a {step * 100f:F0} cm move. A constant head-height offset is being read as a crouch and "
+                + "inflating the stance radius, so the support base never follows.");
+
+            // (b) ...and a 15 cm move is still INSIDE it, so it is a lean and must still counterbalance. This is
+            //     what stops (a) from being satisfied by simply deleting the crouch allowance.
+            const float lean = 0.15f;
+            Assert.Less(lean, StanceRadius, "sanity: the lean must be inside the UN-inflated radius");
+            float3[] leaned = RunSpine(dt, frames, i =>
+                new float3(0f, seatedHeadY, lean * Mathf.Clamp01(i * dt / moveSecs)), false);
+            float leanCarried = leaned[stopFrame].z - leaned[0].z;
+            Assert.Less(leanCarried, 0.55f * lean,
+                $"the pelvis carried {leanCarried * 100f:F2} cm of a {lean * 100f:F0} cm lean -- the stance radius has "
+                + "collapsed rather than been un-inflated, and the counterbalance has gone with it.");
         }
     }
 }

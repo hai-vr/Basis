@@ -59,6 +59,19 @@ namespace Basis.IK
                             Vector3 spineDir = spineLen > k_Epsilon ? headToHips / spineLen : hipsTargetRot * Vector3.down;
                             hipsTargetPos = headTargetPos + spineDir * restDist;
                         }
+                        // LockHead's only constraint is that MINIMUM length -- there is no upper bound and no
+                        // lean cap, which is the point of the mode (the pelvis stays free, so
+                        // BasisPelvisPostureModel's squat coupling survives instead of being re-rigidified the
+                        // way LockBoth's ClampHipsAroundHead did). But "free" was also unbounded: when the mode
+                        // became the default it took ClampHipsAroundHead with it, and that clamp had been
+                        // quietly dragging the synthesized pelvis back under the head every frame. Without it a
+                        // stale support base passes straight through and the spine just stretches sideways to
+                        // reach. Bound the HORIZONTAL offset only -- the height stays whatever the posture model
+                        // said, which is the half LockBoth got wrong.
+                        if (!hasHipsTracker)
+                        {
+                            hipsTargetPos = ClampHipsUnderHead(headTargetPos, hipsTargetPos, restDist * HipsUnderHeadMaxLeanFrac, up);
+                        }
                     }
                     break;
 
@@ -805,6 +818,45 @@ namespace Basis.IK
 
             return headPos + dir * Mathf.Clamp(dist, minD, maxD);
         }
+        /// <summary>
+        /// How far the pelvis may sit HORIZONTALLY from the head, as a fraction of the rest spine, when the
+        /// pelvis is synthesized (no hips tracker). This is a sanity bound, not a posture knob: a genuine deep
+        /// forward bow legitimately puts the head a full trunk length ahead of the pelvis (and the trunk
+        /// counterbalance then adds ~0.38 of that again), so anything much below 1.0 would fight a real fold.
+        /// Its job is to make "the pelvis is parked somewhere else in the play space" unreachable, and to leave
+        /// every posture a human actually holds untouched.
+        /// </summary>
+        const float HipsUnderHeadMaxLeanFrac = 1.0f;
+
+        /// <summary>
+        /// Pulls the hips back toward the vertical axis through the head, capping the horizontal offset while
+        /// leaving the height EXACTLY alone. That split is the whole point: the pelvis's vertical answer is
+        /// BasisPelvisPostureModel's fitted squat/waist-bend coupling, and clamping it is what turned LockBoth
+        /// into a tortoise neck (its ClampHipsAroundHead pinned head->hips to within 5% of rest length, so a
+        /// deep squat lost ~22 cm of pelvis travel that the neck then had to find).
+        /// Direction only — the pelvis slides in along its own horizontal offset, so a forward-left drift is
+        /// answered back-right and the result is equivariant under yaw.
+        /// </summary>
+        public static Vector3 ClampHipsUnderHead(Vector3 headPos, Vector3 hipsPos, float maxHorizontal, Vector3 playerUp)
+        {
+            if (maxHorizontal <= 0f)
+            {
+                return hipsPos;
+            }
+
+            Vector3 up = playerUp.sqrMagnitude < k_SqrEpsilon ? Vector3.up : playerUp.normalized;
+            Vector3 diff = hipsPos - headPos;
+            Vector3 lateral = diff - up * Vector3.Dot(diff, up);
+            float lateralLen = lateral.magnitude;
+            if (lateralLen <= maxHorizontal || lateralLen < k_Epsilon)
+            {
+                return hipsPos;
+            }
+
+            // Slide in along the offset's own direction; the vertical component is carried through untouched.
+            return hipsPos - lateral * (1f - maxHorizontal / lateralLen);
+        }
+
         public static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg, Vector3 playerUp)
         {
             if (maxBendDeg <= 0f)

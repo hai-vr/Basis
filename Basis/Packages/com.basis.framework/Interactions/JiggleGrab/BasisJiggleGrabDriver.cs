@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
@@ -23,11 +24,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public const int MaxAppliedGrabs = JiggleGrabConstraint.MaxTotalGrabs;
         public const int MaxGrabsPerTree = JiggleGrabConstraint.MaxGrabsPerTree;
         public const float GrabStrength = 1f;
-        // Measured hand-centre to bone ORIGIN, and jiggle bone origins sit inside the mesh — unlike
-        // the pickup direct grab, which measures to a collider surface and can afford to be tighter.
-        public const float GrabSearchRadius = 0.2f;
+        // Measured palm to bone ORIGIN. This was three times larger while the search still ran from
+        // the wrist, where the slack was really paying for the offset to the palm rather than for
+        // any reach; from the palm itself a hand-sized volume is enough and is far less grabby.
+        public const float GrabSearchRadius = 0.0875f;
         // How far a hand may point to grab a chain it is not touching.
         public const float GrabRayLength = 3f;
+        // Analog triggers rarely report a clean 1, so the press is a threshold rather than equality.
+        public const float GrabTriggerThreshold = 0.5f;
         public const float ReleaseDistance = 1.25f;
         public const float TargetClampDistance = 2f;
         public const float ObserverSkipDistance = 3f;
@@ -106,16 +110,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
             initialized = false;
         }
 
+        /// <summary>
+        /// Our own network id. Must go through <see cref="BasisNetworkConnection.TryGetLocalPlayerID"/>:
+        /// that reads the peer's RemoteId, which is the id the SERVER assigned us. NetPeer.Id is the
+        /// local peer-list index of our connection to the server — effectively always 0 on a client,
+        /// so using it made us collide with whichever player the server numbered 0, and every
+        /// "is this me?" test in here silently answered yes for that player.
+        /// </summary>
         public static bool TryGetLocalPlayerId(out ushort id)
         {
-            id = 0;
-            var peer = BasisNetworkConnection.LocalPlayerPeer;
-            if (BasisNetworkConnection.LocalPlayerIsConnected && peer != null)
-            {
-                id = (ushort)peer.Id;
-                return true;
-            }
-            return false;
+            return BasisNetworkConnection.TryGetLocalPlayerID(out id);
         }
 
         public static uint HashBoneName(string name)
@@ -198,7 +202,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             else
             {
                 float radius = BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius);
-                SearchRigsAroundPoint(localId, GetSearchHandPosition(input), radius,
+                SearchRigsAroundPoint(localId, GetSearchHandPosition(input, hand), radius,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
 
                 // Nothing in the hand, so fall back to what the hand is pointing at. Near-touch wins
@@ -213,7 +217,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (bestPointIndex < 0)
             {
-                RecordMissedReach(desktop ? default : GetSearchHandPosition(input),
+                RecordMissedReach(desktop ? default : GetSearchHandPosition(input, hand),
                     BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius), desktop);
                 return false;
             }
@@ -225,9 +229,23 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return false;
             }
 
-            ushort targetId = bestTarget != null && BasisNetworkPlayers.PlayerToNetworkedPlayer(bestTarget, out BasisNetworkPlayer targetNet)
-                ? targetNet.playerId
-                : localId;
+            // Never fall back to "me" when a remote's id will not resolve. Two players in the same
+            // avatar have the same rig at the same index, so a silent fallback grabs the identical
+            // chain on your OWN body and looks like the grab landed on the wrong person.
+            ushort targetId;
+            if (bestTarget != null)
+            {
+                if (!BasisNetworkPlayers.PlayerToNetworkedPlayer(bestTarget, out BasisNetworkPlayer targetNet))
+                {
+                    RecordAttempt("could not resolve that player's network id");
+                    return false;
+                }
+                targetId = targetNet.playerId;
+            }
+            else
+            {
+                targetId = localId;
+            }
 
             Animator grabAnimatorCache = null;
             Transform grabHandCache = null;
@@ -259,7 +277,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 RecordAttempt("someone else already holds that point");
                 return false;
             }
-            RecordAttempt($"grabbed {tree.bones[bestPointIndex].name}");
+            RecordAttempt(bestTarget != null
+                ? $"grabbed {tree.bones[bestPointIndex].name} on #{targetId}"
+                : $"grabbed {tree.bones[bestPointIndex].name} on yourself");
             BasisNetworkHandleJiggleGrab.SendGrabStart(state.targetId, state.rigIndex, state.pointIndex, state.hand, state.boneNameHash, state.grabOffset);
             return true;
         }
@@ -307,13 +327,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
             RecordAttempt($"nearest chain was {distance:0.00}m away, needs {radius:0.00}m");
         }
 
+        /// <summary>
+        /// Other people's chains are searched FIRST and win outright when any is in reach, because
+        /// your own hair and sleeves hang around your own hands and would otherwise out-score the
+        /// person you are deliberately reaching for. Your own rigs are still searched when nobody
+        /// else's chain is within the radius, so grabbing your own hair keeps working.
+        /// </summary>
         private static void SearchRigsAroundPoint(ushort localId, Vector3 position, float radius,
             ref JiggleRig bestRig, ref BasisRemotePlayer bestTarget, ref byte bestRigIndex, ref int bestPointIndex,
             ref Vector3 bestPointPosition, ref float bestScore)
         {
-            ScoreRigArray(BasisLocalAvatarDriver.JiggleRigs, null, position, radius,
-                ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
-
             float candidateRange = BasisPlayerInteract.AvatarScaledRange(3f);
             float candidateRangeSq = candidateRange * candidateRange;
             foreach (KeyValuePair<ushort, BasisRemotePlayer> pair in BasisNetworkPlayers.RemotePlayers)
@@ -323,12 +346,23 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     continue;
                 }
-                Transform avatarTransform = remote.AvatarTransform;
-                if (avatarTransform == null || (avatarTransform.position - position).sqrMagnitude > candidateRangeSq)
+                // Proximity pre-filter so a crowd costs one distance check per player rather than a
+                // walk of everyone's chains — but a remote whose anchor cannot be read is NOT
+                // rejected. Silently skipping them would leave only the local rigs in the running,
+                // and in a lobby where two people wear the same avatar that reads as the grab
+                // landing on your own body.
+                Transform anchor = remote.AvatarAnimatorTransform != null ? remote.AvatarAnimatorTransform : remote.AvatarTransform;
+                if (anchor != null && (anchor.position - position).sqrMagnitude > candidateRangeSq)
                 {
                     continue;
                 }
                 ScoreRigArray(remote.RemoteAvatarDriver?.JiggleRigs, remote, position, radius,
+                    ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
+            }
+
+            if (bestPointIndex < 0)
+            {
+                ScoreRigArray(BasisLocalAvatarDriver.JiggleRigs, null, position, radius,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
             }
         }
@@ -411,13 +445,49 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Where to look for a chain in VR. The rendered hand is the post-IK pose, and the jiggle
-        /// bones the player is reaching for sit in rendered space too — the pre-IK controller target
-        /// can be a good few centimetres away once the arm IK clamps, which is enough to miss with a
-        /// radius this small. Falls back to the pre-IK target before the first solve publishes.
+        /// Where a hand grab searches from. The humanoid hand bone sits at the WRIST, so searching
+        /// there means reaching with the back of the hand — visibly behind the palm. The middle
+        /// finger's proximal knuckle marks the far side of the palm, and the midpoint of the two
+        /// reads as "in my hand".
+        ///
+        /// Both bones come straight off the rig driver's cached <see cref="BasisTransformMapping"/>,
+        /// which the avatar driver already rebuilds on every avatar change — no bone lookups and no
+        /// cache of our own to invalidate. The debug gizmo calls this same method, so the drawn pick
+        /// sphere can never sit somewhere the search does not.
         /// </summary>
-        private static Vector3 GetSearchHandPosition(BasisInput input)
+        public static bool TryGetHandSearchPosition(byte hand, out Vector3 position)
         {
+            position = default;
+            if (hand > 1)
+            {
+                return false;
+            }
+            BasisTransformMapping mapping = BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping;
+            if (mapping == null)
+            {
+                return false;
+            }
+            Transform wrist = hand == 0 ? mapping.leftHand : mapping.rightHand;
+            if (wrist == null)
+            {
+                return false;
+            }
+            Transform[] middle = hand == 0 ? mapping.LeftMiddle : mapping.RightMiddle;
+            Transform knuckle = middle != null && middle.Length > 0 ? middle[0] : null;
+            position = knuckle != null ? Vector3.Lerp(wrist.position, knuckle.position, 0.5f) : wrist.position;
+            return true;
+        }
+
+        /// <summary>
+        /// Palm first; the bone control's post-IK pose and then its pre-IK target stand in when the
+        /// avatar has no hand bones to read (a fallback avatar, or before the first solve).
+        /// </summary>
+        private static Vector3 GetSearchHandPosition(BasisInput input, byte hand)
+        {
+            if (TryGetHandSearchPosition(hand, out Vector3 palm))
+            {
+                return palm;
+            }
             BasisLocalBoneControl bone = input.Control;
             if (bone != null)
             {
@@ -429,6 +499,30 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return bone.OutgoingWorldData.position;
             }
             return input.RaycastCoord.position;
+        }
+
+        /// <summary>
+        /// Whether this input is currently holding a jiggle chain. Grip drives the play space mover
+        /// too, so the mover asks this to stop a grab from dragging the world as well as the chain —
+        /// it cannot infer it from the interaction system, because a jiggle grab deliberately never
+        /// becomes a BasisInteractableObject target.
+        /// </summary>
+        public static bool IsInputGrabbing(BasisInput input)
+        {
+            if (input == null)
+            {
+                return false;
+            }
+            int count = allGrabs.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                GrabState state = allGrabs[Index];
+                if (state.isLocalGrab && !state.isEditorGrab && ReferenceEquals(state.localInput, input))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static bool IsHandBusy(ushort localId, byte hand)
@@ -1145,6 +1239,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 #endif
 
+        /// <summary>
+        /// Held while EITHER button is down, matching the press: a hand can start a grab with grip
+        /// or trigger, and releasing only the one it did not start with must not drop the chain.
+        /// Desktop has no grip, so there it is the trigger alone.
+        /// </summary>
         private static bool IsLocalHoldHeld(GrabState state)
         {
             BasisInput input = state.localInput;
@@ -1152,11 +1251,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return false;
             }
+            bool triggerHeld = input.CurrentInputState.Trigger >= GrabTriggerThreshold;
             if (input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.CenterEye)
             {
-                return input.CurrentInputState.Trigger == 1;
+                return triggerHeld;
             }
-            return input.CurrentInputState.GripButton;
+            return triggerHeld || input.CurrentInputState.GripButton;
         }
     }
 }
