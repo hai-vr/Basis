@@ -69,8 +69,18 @@ public static class BasisSDKCommonInspector
     }
 
     /// <summary>
-    /// Resolves the container for the build-time sections, which sit in their own block just above
-    /// the build button. Falls back to the inspector root if a content UXML has no such block.
+    /// Resolves the container for the build target selection, which sits in its own block just
+    /// above the bundle options. Falls back to the inspector root if a content UXML has no such
+    /// block.
+    /// </summary>
+    public static VisualElement ResolveBuildTargetsContainer(VisualElement uiElementsRoot)
+    {
+        return ResolveSectionContainer(uiElementsRoot, BasisSDKConstants.BuildTargetsSection, BasisSDKConstants.BuildTargetsFields);
+    }
+
+    /// <summary>
+    /// Resolves the container for the bundle build options, which sit in their own block inside the
+    /// "Advanced" foldout. Falls back to the inspector root if a content UXML has no such block.
     /// </summary>
     public static VisualElement ResolveBuildContainer(VisualElement uiElementsRoot)
     {
@@ -78,8 +88,8 @@ public static class BasisSDKCommonInspector
     }
 
     /// <summary>
-    /// Resolves the container for the content tags, which sit in their own block at the very end of
-    /// the inspector. Falls back to the inspector root if a content UXML has no such block.
+    /// Resolves the container for the content tags, which sit in their own block inside the
+    /// "Advanced" foldout. Falls back to the inspector root if a content UXML has no such block.
     /// </summary>
     public static VisualElement ResolveContentTagsContainer(VisualElement uiElementsRoot)
     {

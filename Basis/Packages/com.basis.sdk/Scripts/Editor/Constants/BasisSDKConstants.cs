@@ -15,9 +15,13 @@ public class BasisSDKConstants
     public static readonly string SettingsFoldout = "assignedinput";
     public static readonly string SettingsFields = "Fields";
 
-    // Sibling blocks holding the build-time sections and the content tags, so publishing options
-    // and tagging each read as their own section rather than sitting among the content's own
-    // settings. Each block wraps an inner field container, matching the Settings foldout layout.
+    // Target selection is its own top-level block, since it is the one publishing choice an author
+    // revisits per build. Bundle options and content tags are set-once, so they live inside the
+    // "Advanced" foldout instead of competing for room at the top level. Each block wraps an inner
+    // field container, matching the Settings foldout layout; the resolvers find them by name at any
+    // depth, so nesting them does not change how sections are parented.
+    public static readonly string BuildTargetsSection = "buildtargets";
+    public static readonly string BuildTargetsFields = "BuildTargetFields";
     public static readonly string BuildOptionsSection = "buildoptions";
     public static readonly string BuildOptionsFields = "BuildFields";
     public static readonly string ContentTagsSection = "contenttags";

@@ -84,13 +84,12 @@ public class BasisPropSDKInspector : Editor
 
             // Parented into the UXML blocks so they pick up that styling rather than trailing off
             // the end of the inspector: what the prop is goes under Settings, how it is published
-            // goes in the build block above the build button.
+            // goes in the build blocks above the build button, each its own collapsible section.
             VisualElement settingsContainer = BasisSDKCommonInspector.ResolveSettingsContainer(uiElementsRoot);
             BasisSDKCommonInspector.CreatePropSpawnFoldout(settingsContainer, BasisProp);
 
-            VisualElement buildContainer = BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot);
-            BasisSDKCommonInspector.CreateBuildTargetOptions(buildContainer);
-            BasisSDKCommonInspector.CreateBuildOptionsDropdown(buildContainer);
+            BasisSDKCommonInspector.CreateBuildTargetOptions(BasisSDKCommonInspector.ResolveBuildTargetsContainer(uiElementsRoot));
+            BasisSDKCommonInspector.CreateBuildOptionsDropdown(BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot));
 
             BasisSDKCommonInspector.CreateContentTagsFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), BasisProp);
 

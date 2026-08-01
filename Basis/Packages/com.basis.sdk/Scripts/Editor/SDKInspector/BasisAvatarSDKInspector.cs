@@ -357,10 +357,9 @@ public partial class BasisAvatarSDKInspector : Editor
 
         // Parented into the UXML blocks so they pick up that styling rather than trailing off the
         // end of the inspector: what the avatar is goes under Settings, how it is published goes in
-        // the build block above the build button.
-        VisualElement buildContainer = BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot);
-        BasisSDKCommonInspector.CreateBuildTargetOptions(buildContainer);
-        BasisSDKCommonInspector.CreateBuildOptionsDropdown(buildContainer);
+        // the build blocks above the build button, each its own collapsible section.
+        BasisSDKCommonInspector.CreateBuildTargetOptions(BasisSDKCommonInspector.ResolveBuildTargetsContainer(uiElementsRoot));
+        BasisSDKCommonInspector.CreateBuildOptionsDropdown(BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot));
 
         BasisSDKCommonInspector.CreateContentTagsFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), Avatar);
         BasisSDKCommonInspector.StyleBuildButton(avatarBundleButton);
