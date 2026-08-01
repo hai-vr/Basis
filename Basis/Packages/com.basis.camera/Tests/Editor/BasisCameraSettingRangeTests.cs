@@ -80,6 +80,57 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void MotionBlurRanges_AreExactlyWhatUrpAccepts()
+        {
+            MotionBlur blur = ScriptableObject.CreateInstance<MotionBlur>();
+            try
+            {
+                // The panel offers the strength as a percentage of the 0..1 parameter and the
+                // length limit as a percentage of the frame, which is what URP's clamp already is.
+                Assert.That(BasisHandHeldCameraUI.MinMotionBlur, Is.EqualTo(blur.intensity.min).Within(1e-4f));
+                Assert.That(BasisHandHeldCameraUI.MaxMotionBlur, Is.EqualTo(blur.intensity.max).Within(1e-4f));
+                Assert.That(BasisHandHeldCameraUI.MinMotionBlurClamp, Is.EqualTo(blur.clamp.min).Within(1e-4f));
+                Assert.That(BasisHandHeldCameraUI.MaxMotionBlurClamp, Is.EqualTo(blur.clamp.max).Within(1e-4f),
+                    "Travel past the clamp is dead: the parameter's setter clamps before anything renders.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(blur);
+            }
+        }
+
+        [Test]
+        public void MotionBlurDropdownIndices_StillLineUpWithUrpsEnums()
+        {
+            // Both dropdowns store the picked index and cast it to the enum, so a member added or
+            // reordered upstream would silently select a different entry.
+            Assert.That((int)MotionBlurQuality.Low, Is.EqualTo(0));
+            Assert.That((int)MotionBlurQuality.Medium, Is.EqualTo(1));
+            Assert.That((int)MotionBlurQuality.High, Is.EqualTo(2));
+            Assert.That(Enum.GetValues(typeof(MotionBlurQuality)).Length, Is.EqualTo(3),
+                "The quality dropdown offers exactly three entries.");
+
+            Assert.That((int)MotionBlurMode.CameraOnly, Is.EqualTo(0));
+            Assert.That((int)MotionBlurMode.CameraAndObjects, Is.EqualTo(1));
+            Assert.That(Enum.GetValues(typeof(MotionBlurMode)).Length, Is.EqualTo(2),
+                "The mode dropdown offers exactly two entries.");
+        }
+
+        [Test]
+        public void MotionBlurDefault_LeavesTheShotAloneButIsReadyToUse()
+        {
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+
+            Assert.That(defaults.motionBlurIntensity, Is.Zero,
+                "A fresh camera adds nothing to the shot; motion blur is opted into.");
+            Assert.That(defaults.motionBlurClamp, Is.GreaterThan(0f),
+                "A zero length limit would leave the effect switched on and rendering nothing.");
+            Assert.That(defaults.motionBlurClamp, Is.LessThanOrEqualTo(BasisHandHeldCameraUI.MaxMotionBlurClamp));
+            Assert.That(defaults.motionBlurMode, Is.EqualTo((int)MotionBlurMode.CameraOnly),
+                "Camera And Objects costs a motion vector pass, so it is asked for rather than assumed.");
+        }
+
+        [Test]
         public void LensDistortionSlider_CoversBarrelAndPincushionAlike()
         {
             LensDistortion distortion = ScriptableObject.CreateInstance<LensDistortion>();

@@ -157,6 +157,7 @@ public partial class BasisHandHeldCameraUI
         HHC.MetaData.filmGrain = GetOrAddOverride<UnityEngine.Rendering.Universal.FilmGrain>();
         HHC.MetaData.whiteBalance = GetOrAddOverride<UnityEngine.Rendering.Universal.WhiteBalance>();
         HHC.MetaData.lensDistortion = GetOrAddOverride<UnityEngine.Rendering.Universal.LensDistortion>();
+        HHC.MetaData.motionBlur = GetOrAddOverride<UnityEngine.Rendering.Universal.MotionBlur>();
     }
 
     private T GetOrAddOverride<T>() where T : UnityEngine.Rendering.VolumeComponent
@@ -636,6 +637,10 @@ public partial class BasisHandHeldCameraUI
             whiteBalanceTemperature = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.temperature.value : 0f,
             whiteBalanceTint = HHC != null && HHC.MetaData.whiteBalance != null ? HHC.MetaData.whiteBalance.tint.value : 0f,
             lensDistortion = HHC != null && HHC.MetaData.lensDistortion != null ? HHC.MetaData.lensDistortion.intensity.value : 0f,
+            motionBlurIntensity = HHC != null && HHC.MetaData.motionBlur != null ? HHC.MetaData.motionBlur.intensity.value : 0f,
+            motionBlurClamp = HHC != null && HHC.MetaData.motionBlur != null ? HHC.MetaData.motionBlur.clamp.value : baseline.motionBlurClamp,
+            motionBlurQuality = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.quality.value : baseline.motionBlurQuality,
+            motionBlurMode = HHC != null && HHC.MetaData.motionBlur != null ? (int)HHC.MetaData.motionBlur.mode.value : baseline.motionBlurMode,
             autoFocusFollowSubject = HHC != null && HHC.autoFocusFollowSubject,
             autoFollowPositionOffset = HHC != null ? HHC.autoFollowPositionOffset : new Vector3(0.5f, 0f, 1.4f),
             autoFollowRotationOffset = HHC != null ? HHC.autoFollowRotationOffset : Vector3.zero,
@@ -948,6 +953,12 @@ public partial class BasisHandHeldCameraUI
         ChangeWhiteBalanceTemperature(settings.whiteBalanceTemperature);
         ChangeWhiteBalanceTint(settings.whiteBalanceTint);
         ChangeLensDistortion(settings.lensDistortion);
+        // Quality and mode before the strength: the strength owns whether the effect is on, so the
+        // shot is never rendered for a frame at the right strength with last session's quality.
+        SetMotionBlurQuality(settings.motionBlurQuality);
+        SetMotionBlurMode(settings.motionBlurMode);
+        ChangeMotionBlurClamp(settings.motionBlurClamp);
+        ChangeMotionBlur(settings.motionBlurIntensity);
 
         HHC.autoFocusFollowSubject = settings.autoFocusFollowSubject;
 
@@ -1029,6 +1040,17 @@ public partial class BasisHandHeldCameraUI
     /// <summary>Range URP clamps <c>DepthOfField.bladeCount</c> to.</summary>
     public const int MinBladeCount = 3;
     public const int MaxBladeCount = 9;
+
+    /// <summary>Range URP clamps <c>MotionBlur.intensity</c> to — a plain multiplier on velocity.</summary>
+    public const float MinMotionBlur = 0f;
+    public const float MaxMotionBlur = 1f;
+
+    /// <summary>
+    /// Range URP clamps <c>MotionBlur.clamp</c> to. It is the longest a streak may get, as a
+    /// fraction of the frame, so 0.2 is a fifth of the screen and there is nothing above it.
+    /// </summary>
+    public const float MinMotionBlurClamp = 0f;
+    public const float MaxMotionBlurClamp = 0.2f;
 
     public void DepthChangeFocusDistance(float value)
     {
@@ -1209,6 +1231,68 @@ public partial class BasisHandHeldCameraUI
             HHC.MetaData.lensDistortion.intensity.value = value;
             HHC.MetaData.lensDistortion.active = value != 0f;
         }
+    }
+
+    /// <summary>
+    /// Motion blur strength. Zero switches the override off outright: URP only runs the pass while
+    /// the intensity is above zero, and leaving an inactive effect overridden still costs the
+    /// depth texture the pass asks for.
+    /// </summary>
+    public void ChangeMotionBlur(float value)
+    {
+        if (HHC.MetaData.motionBlur != null)
+        {
+            HHC.MetaData.motionBlur.intensity.overrideState = true;
+            HHC.MetaData.motionBlur.intensity.value = Mathf.Clamp(value, MinMotionBlur, MaxMotionBlur);
+            HHC.MetaData.motionBlur.active = HHC.MetaData.motionBlur.intensity.value > 0f;
+        }
+    }
+
+    /// <summary>
+    /// The longest a streak may get, as a fraction of the frame. Kept separate from the strength
+    /// because it is what stops a fast whip-pan from smearing the whole shot into mush.
+    /// </summary>
+    public void ChangeMotionBlurClamp(float value)
+    {
+        if (HHC.MetaData.motionBlur != null)
+        {
+            HHC.MetaData.motionBlur.clamp.overrideState = true;
+            HHC.MetaData.motionBlur.clamp.value = Mathf.Clamp(value, MinMotionBlurClamp, MaxMotionBlurClamp);
+        }
+    }
+
+    /// <summary>Motion blur quality: 0 = Low, 1 = Medium, 2 = High. More samples per streak.</summary>
+    public int MotionBlurQuality => HHC != null && HHC.MetaData.motionBlur != null
+        ? (int)HHC.MetaData.motionBlur.quality.value
+        : 0;
+
+    public void SetMotionBlurQuality(int quality)
+    {
+        if (HHC == null || HHC.MetaData.motionBlur == null) return;
+
+        HHC.MetaData.motionBlur.quality.overrideState = true;
+        HHC.MetaData.motionBlur.quality.value =
+            (UnityEngine.Rendering.Universal.MotionBlurQuality)Mathf.Clamp(quality, 0, 2);
+    }
+
+    /// <summary>Motion blur mode: 0 = camera movement only, 1 = camera and moving objects.</summary>
+    public int MotionBlurMode => HHC != null && HHC.MetaData.motionBlur != null
+        ? (int)HHC.MetaData.motionBlur.mode.value
+        : 0;
+
+    /// <summary>
+    /// Camera And Objects blurs things that move in front of a still camera, at the cost of a
+    /// motion vector pass. URP decides whether to render that pass from the volume stack, which it
+    /// rebuilds per camera against this camera's own trigger and mask, so switching the mode here
+    /// is enough to get the pass — no renderer feature and no project-wide setting.
+    /// </summary>
+    public void SetMotionBlurMode(int mode)
+    {
+        if (HHC == null || HHC.MetaData.motionBlur == null) return;
+
+        HHC.MetaData.motionBlur.mode.overrideState = true;
+        HHC.MetaData.motionBlur.mode.value =
+            (UnityEngine.Rendering.Universal.MotionBlurMode)Mathf.Clamp(mode, 0, 1);
     }
 
     public void ChangeFOV(float value)

@@ -348,6 +348,67 @@ namespace Basis.Tests.Camera
         }
 
         [Test]
+        public void MotionBlur_ReachesTheOverrideAndSwitchesItselfOnAndOff()
+        {
+            _rig.UI.ChangeMotionBlur(0.6f);
+
+            Assert.That(_rig.MotionBlur.intensity.value, Is.EqualTo(0.6f).Within(1e-3f));
+            Assert.That(_rig.MotionBlur.intensity.overrideState, Is.True);
+            Assert.That(_rig.MotionBlur.active, Is.True);
+
+            _rig.UI.ChangeMotionBlur(0f);
+
+            Assert.That(_rig.MotionBlur.active, Is.False,
+                "URP skips the pass at zero strength, and an inactive override still asks for the depth texture.");
+        }
+
+        [Test]
+        public void MotionBlurClamp_ReachesTheOverrideWithoutTouchingTheStrength()
+        {
+            _rig.UI.ChangeMotionBlur(0.5f);
+            _rig.UI.ChangeMotionBlurClamp(0.15f);
+
+            Assert.That(_rig.MotionBlur.clamp.value, Is.EqualTo(0.15f).Within(1e-4f));
+            Assert.That(_rig.MotionBlur.clamp.overrideState, Is.True);
+            Assert.That(_rig.MotionBlur.intensity.value, Is.EqualTo(0.5f).Within(1e-3f),
+                "The length limit shapes the streak; it is not a second strength control.");
+        }
+
+        [Test]
+        public void MotionBlurQualityAndMode_ReachTheOverrideAsTheirEnums()
+        {
+            _rig.UI.SetMotionBlurQuality(2);
+            _rig.UI.SetMotionBlurMode(1);
+
+            Assert.That(_rig.MotionBlur.quality.value, Is.EqualTo(MotionBlurQuality.High));
+            Assert.That(_rig.MotionBlur.quality.overrideState, Is.True);
+            Assert.That(_rig.MotionBlur.mode.value, Is.EqualTo(MotionBlurMode.CameraAndObjects));
+            Assert.That(_rig.MotionBlur.mode.overrideState, Is.True,
+                "Camera And Objects is what makes URP render the motion vector pass — unoverridden it never reaches the stack.");
+
+            Assert.That(_rig.UI.MotionBlurQuality, Is.EqualTo(2));
+            Assert.That(_rig.UI.MotionBlurMode, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void MotionBlurQualityAndMode_ClampToTheEnumsTheyStandFor()
+        {
+            // Both arrive as an index from a dropdown, and a dropdown that gains or loses an entry
+            // would otherwise cast a number the enum has no member for.
+            _rig.UI.SetMotionBlurQuality(99);
+            _rig.UI.SetMotionBlurMode(99);
+
+            Assert.That(_rig.MotionBlur.quality.value, Is.EqualTo(MotionBlurQuality.High));
+            Assert.That(_rig.MotionBlur.mode.value, Is.EqualTo(MotionBlurMode.CameraAndObjects));
+
+            _rig.UI.SetMotionBlurQuality(-3);
+            _rig.UI.SetMotionBlurMode(-3);
+
+            Assert.That(_rig.MotionBlur.quality.value, Is.EqualTo(MotionBlurQuality.Low));
+            Assert.That(_rig.MotionBlur.mode.value, Is.EqualTo(MotionBlurMode.CameraOnly));
+        }
+
+        [Test]
         public void Bloom_IntensityAndThresholdBothReachTheOverride()
         {
             _rig.UI.ChangeBloomIntensity(2.5f);
@@ -557,6 +618,7 @@ namespace Basis.Tests.Camera
             metaData.filmGrain = null;
             metaData.whiteBalance = null;
             metaData.lensDistortion = null;
+            metaData.motionBlur = null;
 
             Assert.DoesNotThrow(() =>
             {
@@ -576,6 +638,10 @@ namespace Basis.Tests.Camera
                 _rig.UI.ChangeWhiteBalanceTemperature(10f);
                 _rig.UI.ChangeWhiteBalanceTint(10f);
                 _rig.UI.ChangeLensDistortion(0.2f);
+                _rig.UI.ChangeMotionBlur(0.2f);
+                _rig.UI.ChangeMotionBlurClamp(0.1f);
+                _rig.UI.SetMotionBlurQuality(2);
+                _rig.UI.SetMotionBlurMode(1);
                 _rig.UI.ChangeExposureCompensation(4f);
                 _rig.UI.ChangeVolumetricDensity(0.1f);
                 _rig.UI.SetDoFMode(2);

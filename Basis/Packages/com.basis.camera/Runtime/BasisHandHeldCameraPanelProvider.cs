@@ -22,6 +22,19 @@ namespace Basis.BasisUI.HandHeldCamera
         // Ordered to match BasisCameraDetachedMarker (Off / Puck / Wireframe).
         private static readonly string[] DetachedMarkerLabels = { "Off", "Puck", "Wireframe" };
 
+        // Ordered to match URP's MotionBlurQuality and MotionBlurMode, which the UI stores as their
+        // index — a label reordered here silently picks a different enum entry.
+        private static readonly string[] MotionBlurQualityLabels = { "Low", "Medium", "High" };
+        private static readonly string[] MotionBlurQualityKeys =
+        {
+            "camera.motionBlurQuality.low", "camera.motionBlurQuality.medium", "camera.motionBlurQuality.high"
+        };
+        private static readonly string[] MotionBlurModeLabels = { "Camera Only", "Camera And Objects" };
+        private static readonly string[] MotionBlurModeKeys =
+        {
+            "camera.motionBlurMode.cameraOnly", "camera.motionBlurMode.cameraAndObjects"
+        };
+
         /// <summary>Preview height used until the row has a laid-out width to derive one from.</summary>
         private const float PreviewFallbackHeight = 320f;
 
@@ -101,6 +114,10 @@ namespace Basis.BasisUI.HandHeldCamera
         private PanelSlider _whiteBalanceTempSlider;
         private PanelSlider _whiteBalanceTintSlider;
         private PanelSlider _lensDistortionSlider;
+        private PanelSlider _motionBlurSlider;
+        private PanelSlider _motionBlurClampSlider;
+        private PanelDropdown _motionBlurQualityDropdown;
+        private PanelDropdown _motionBlurModeDropdown;
         private PanelDropdown _msaaDropdown;
 #if Basis_VOLUMETRIC_SUPPORTED
         private PanelSlider _fogSlider;
@@ -528,6 +545,8 @@ namespace Basis.BasisUI.HandHeldCamera
             _chromaticSlider?.SetResetDefault(0f);
             _filmGrainSlider?.SetResetDefault(0f);
             _lensDistortionSlider?.SetResetDefault(0f);
+            _motionBlurSlider?.SetResetDefault(defaults.motionBlurIntensity * 100f);
+            _motionBlurClampSlider?.SetResetDefault(defaults.motionBlurClamp * 100f);
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider?.SetResetDefault(defaults.VolumetricFogVolumedensity);
 #endif
@@ -641,6 +660,10 @@ namespace Basis.BasisUI.HandHeldCamera
             _whiteBalanceTempSlider = null;
             _whiteBalanceTintSlider = null;
             _lensDistortionSlider = null;
+            _motionBlurSlider = null;
+            _motionBlurClampSlider = null;
+            _motionBlurQualityDropdown = null;
+            _motionBlurModeDropdown = null;
             _focusModeDropdown = null;
             _followTargetDropdown = null;
             _followTargetIds.Clear();
@@ -928,6 +951,47 @@ namespace Basis.BasisUI.HandHeldCamera
             _lensDistortionSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
                 BasisLocalization.Get("camera.lensDistortion"), -100f, 100f, false, 0, ValueDisplayMode.Raw));
             _lensDistortionSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeLensDistortion(v / 100f);
+
+            _motionBlurSlider = PanelSlider.CreateNew(content);
+            _motionBlurSlider.SetSliderSettings(PanelSlider.SliderSettings.Percentage(BasisLocalization.Get("camera.motionBlur")));
+            _motionBlurSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.motionBlur.description"));
+            _motionBlurSlider.OnValueChanged = v =>
+            {
+                _activeCamera?.HandHeld.ChangeMotionBlur(v / 100f);
+                RefreshMotionBlurVisibility();
+            };
+
+            // The shape controls only mean anything once there is blur to shape, so they follow the
+            // strength the way the depth of field controls follow its mode.
+            _motionBlurClampSlider = PanelSlider.CreateNew(content);
+            _motionBlurClampSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                BasisLocalization.Get("camera.motionBlurClamp"),
+                BasisHandHeldCameraUI.MinMotionBlurClamp * 100f, BasisHandHeldCameraUI.MaxMotionBlurClamp * 100f,
+                false, 1, ValueDisplayMode.Percentage));
+            _motionBlurClampSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.motionBlurClamp.description"));
+            _motionBlurClampSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeMotionBlurClamp(v / 100f);
+
+            _motionBlurQualityDropdown = PanelDropdown.CreateNewEntry(content);
+            _motionBlurQualityDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.motionBlurQuality"));
+            _motionBlurQualityDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.motionBlurQuality.description"));
+            _motionBlurQualityDropdown.AssignLocalizedEntries(
+                new List<string>(MotionBlurQualityLabels), new List<string>(MotionBlurQualityKeys));
+            _motionBlurQualityDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _motionBlurQualityDropdown == null) return;
+                _activeCamera.HandHeld.SetMotionBlurQuality(_motionBlurQualityDropdown.Index);
+            };
+
+            _motionBlurModeDropdown = PanelDropdown.CreateNewEntry(content);
+            _motionBlurModeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.motionBlurMode"));
+            _motionBlurModeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.motionBlurMode.description"));
+            _motionBlurModeDropdown.AssignLocalizedEntries(
+                new List<string>(MotionBlurModeLabels), new List<string>(MotionBlurModeKeys));
+            _motionBlurModeDropdown.OnValueChanged = _ =>
+            {
+                if (_activeCamera == null || _motionBlurModeDropdown == null) return;
+                _activeCamera.HandHeld.SetMotionBlurMode(_motionBlurModeDropdown.Index);
+            };
 
 #if Basis_VOLUMETRIC_SUPPORTED
             _fogSlider = PanelSlider.CreateNew(content);
@@ -1649,6 +1713,16 @@ namespace Basis.BasisUI.HandHeldCamera
             }
             if (metaData.lensDistortion != null)
                 _lensDistortionSlider?.SetValueWithoutNotify(metaData.lensDistortion.intensity.value * 100f);
+            if (metaData.motionBlur != null)
+            {
+                _motionBlurSlider?.SetValueWithoutNotify(metaData.motionBlur.intensity.value * 100f);
+                _motionBlurClampSlider?.SetValueWithoutNotify(metaData.motionBlur.clamp.value * 100f);
+                int quality = Mathf.Clamp(_activeCamera.HandHeld.MotionBlurQuality, 0, MotionBlurQualityLabels.Length - 1);
+                _motionBlurQualityDropdown?.SetValueWithoutNotify(MotionBlurQualityLabels[quality]);
+                int blurMode = Mathf.Clamp(_activeCamera.HandHeld.MotionBlurMode, 0, MotionBlurModeLabels.Length - 1);
+                _motionBlurModeDropdown?.SetValueWithoutNotify(MotionBlurModeLabels[blurMode]);
+            }
+            RefreshMotionBlurVisibility();
 
             if (_msaaDropdown != null)
             {
@@ -2039,6 +2113,25 @@ namespace Basis.BasisUI.HandHeldCamera
             _dofBladeCountSlider?.gameObject.SetActive(bokeh);
             RefreshSearch();
             ForceLayoutRebuild(_dofGroup);
+        }
+
+        /// <summary>
+        /// The clamp, quality and mode only describe blur that is already happening — at zero
+        /// strength URP does not run the pass at all, so leaving them on screen offers three
+        /// controls that visibly do nothing.
+        /// </summary>
+        private void RefreshMotionBlurVisibility()
+        {
+            if (_activeCamera == null) return;
+
+            bool blurring = _activeCamera.MetaData.motionBlur != null
+                && _activeCamera.MetaData.motionBlur.intensity.value > 0f;
+
+            _motionBlurClampSlider?.gameObject.SetActive(blurring);
+            _motionBlurQualityDropdown?.gameObject.SetActive(blurring);
+            _motionBlurModeDropdown?.gameObject.SetActive(blurring);
+            RefreshSearch();
+            ForceLayoutRebuild(_effectsGroup);
         }
 
         // PanelSlider.ApplyValue restarts a 0.15s fill-colour tween on every call, and the tween

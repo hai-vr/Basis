@@ -80,6 +80,11 @@ namespace Basis.BasisUI
                  + offset.z.ToString(CultureInfo.InvariantCulture);
         }
 
+        /// <summary>
+        /// Reads a stored placement. Six numbers is tolerated and its tail ignored: panels briefly
+        /// stored a tilt alongside the position, and a save written in that window should still put
+        /// the panel back where the user left it rather than being discarded whole.
+        /// </summary>
         private static Vector3 Parse(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -88,7 +93,7 @@ namespace Basis.BasisUI
             }
 
             string[] parts = value.Split(',');
-            if (parts.Length != 3)
+            if (parts.Length != 3 && parts.Length != 6)
             {
                 return Vector3.zero;
             }

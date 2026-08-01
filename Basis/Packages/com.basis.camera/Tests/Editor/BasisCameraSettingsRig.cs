@@ -38,6 +38,7 @@ namespace Basis.Tests.Camera
         public readonly FilmGrain FilmGrain;
         public readonly WhiteBalance WhiteBalance;
         public readonly LensDistortion LensDistortion;
+        public readonly MotionBlur MotionBlur;
 
         public readonly Slider FovSlider;
         public readonly Slider ExposureSlider;
@@ -69,6 +70,7 @@ namespace Basis.Tests.Camera
             FilmGrain = NewOverride<FilmGrain>();
             WhiteBalance = NewOverride<WhiteBalance>();
             LensDistortion = NewOverride<LensDistortion>();
+            MotionBlur = NewOverride<MotionBlur>();
 
             BasisHandHeldCameraMetaData metaData = Camera.MetaData;
             metaData.depthOfField = DepthOfField;
@@ -79,6 +81,7 @@ namespace Basis.Tests.Camera
             metaData.filmGrain = FilmGrain;
             metaData.whiteBalance = WhiteBalance;
             metaData.lensDistortion = LensDistortion;
+            metaData.motionBlur = MotionBlur;
 
             // Mirrors CachePostProcessingReferences: colour grading is always live, the added
             // effects start switched off so an unconfigured one never alters the shot.
@@ -88,6 +91,7 @@ namespace Basis.Tests.Camera
             FilmGrain.active = false;
             WhiteBalance.active = false;
             LensDistortion.active = false;
+            MotionBlur.active = false;
 
             // Ranges copied from SetupSliderRanges. A Slider defaults to 0..1, so without these
             // every value the settings carry would be clamped away on the way in.
@@ -147,6 +151,10 @@ namespace Basis.Tests.Camera
                 whiteBalanceTemperature = 18f,
                 whiteBalanceTint = -12f,
                 lensDistortion = 0.4f,
+                motionBlurIntensity = 0.6f,
+                motionBlurClamp = 0.12f,
+                motionBlurQuality = 2,
+                motionBlurMode = 1,
                 autoFocusFollowSubject = true,
                 autoFollowPositionOffset = new Vector3(1.25f, 0.6f, 2.4f),
                 autoFollowRotationOffset = new Vector3(11f, -23f, 0f),

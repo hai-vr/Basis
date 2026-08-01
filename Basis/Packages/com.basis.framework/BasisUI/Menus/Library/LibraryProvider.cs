@@ -469,32 +469,32 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// Groups entries that declare the same ContentGroupId into one stack, newest upload first.
-        /// Entries without an id (older bundles, embedded/addressable items, meta not cached yet)
-        /// stay a stack of one, so pre-ContentGroupId content behaves exactly as before.
+        /// Groups entries that belong to the same piece of content into one stack, newest first.
+        /// Entries that cannot be grouped (embedded/addressable items, meta not cached yet) stay a
+        /// stack of one, so they behave exactly as before.
         /// </summary>
         private static List<List<BasisDataStoreItemKeys.ItemKey>> BuildVersionStacks(List<BasisDataStoreItemKeys.ItemKey> items)
         {
             List<List<BasisDataStoreItemKeys.ItemKey>> stacks = new(items.Count);
-            Dictionary<string, List<BasisDataStoreItemKeys.ItemKey>> byGroupId = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, List<BasisDataStoreItemKeys.ItemKey>> byStackKey = new(StringComparer.Ordinal);
 
             foreach (var item in items)
             {
-                string groupId = GetContentGroupId(item);
-                if (string.IsNullOrEmpty(groupId))
+                string stackKey = GetVersionStackKey(item);
+                if (string.IsNullOrEmpty(stackKey))
                 {
                     stacks.Add(new List<BasisDataStoreItemKeys.ItemKey> { item });
                     continue;
                 }
 
-                if (byGroupId.TryGetValue(groupId, out var stack))
+                if (byStackKey.TryGetValue(stackKey, out var stack))
                 {
                     stack.Add(item);
                 }
                 else
                 {
                     stack = new List<BasisDataStoreItemKeys.ItemKey> { item };
-                    byGroupId[groupId] = stack;
+                    byStackKey[stackKey] = stack;
                     stacks.Add(stack);
                 }
             }
@@ -503,21 +503,65 @@ namespace Basis.BasisUI
             {
                 if (stack.Count > 1)
                 {
-                    stack.Sort((a, b) => GetItemCreatedUtc(b).CompareTo(GetItemCreatedUtc(a)));
+                    stack.Sort(CompareStackEntriesNewestFirst);
                 }
             }
 
             return stacks;
         }
 
-        private static string GetContentGroupId(BasisDataStoreItemKeys.ItemKey item)
+        /// <summary>
+        /// Newest first: creation date decides when both entries have one. Content built before the
+        /// connector carried a date has none at all, and that is exactly the older content the
+        /// name-based grouping below exists for — so the version read out of the name breaks the tie
+        /// rather than leaving the stack in arbitrary order.
+        /// </summary>
+        private static int CompareStackEntriesNewestFirst(BasisDataStoreItemKeys.ItemKey left, BasisDataStoreItemKeys.ItemKey right)
+        {
+            int byDate = GetItemCreatedUtc(right).CompareTo(GetItemCreatedUtc(left));
+            if (byDate != 0)
+            {
+                return byDate;
+            }
+
+            return BasisContentNameVersion.CompareVersionDescending(GetItemDisplayName(left), GetItemDisplayName(right));
+        }
+
+        /// <summary>
+        /// What decides whether two library entries are versions of one another.
+        ///
+        /// <para>An authored ContentGroupId is definitive and always wins. Nothing built before that
+        /// field existed carries one though, and that content is exactly what creators have been
+        /// re-uploading by hand as "My Avatar", "My Avatar v2" — so those fall back to the display
+        /// name with any trailing version token stripped, which also stacks entries that share a
+        /// name outright.</para>
+        ///
+        /// <para>The two key spaces are prefixed so a group id can never collide with a name.</para>
+        /// </summary>
+        private static string GetVersionStackKey(BasisDataStoreItemKeys.ItemKey item)
         {
             if (item == null || item.EmbeddedSettings.IsEmbedded) return null;
-            if (CachedMetaData.TryGetMeta(item.Url ?? string.Empty, out var meta))
+            if (!CachedMetaData.TryGetMeta(item.Url ?? string.Empty, out var meta)) return null;
+
+            if (!string.IsNullOrWhiteSpace(meta.ContentGroupId))
             {
-                return meta.ContentGroupId;
+                return "id:" + meta.ContentGroupId.Trim().ToLowerInvariant();
             }
-            return null;
+
+            // Grouping by name is a heuristic over creator-chosen text, so it is scoped to one
+            // content type: an avatar and a prop that happen to share a name are not versions of
+            // each other, and stacking them would hide one behind the other.
+            string nameKey = BasisContentNameVersion.GroupKeyFromName(meta.Name);
+            return string.IsNullOrEmpty(nameKey) ? null : $"name:{item.Mode}:{nameKey}";
+        }
+
+        private static string GetItemDisplayName(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item != null && CachedMetaData.TryGetMeta(item.Url ?? string.Empty, out var meta))
+            {
+                return meta.Name ?? string.Empty;
+            }
+            return string.Empty;
         }
 
         private static DateTime GetItemCreatedUtc(BasisDataStoreItemKeys.ItemKey item)

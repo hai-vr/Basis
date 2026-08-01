@@ -54,6 +54,13 @@ public partial class BasisHandHeldCameraUI
             useManualFocus = true;
             showExposureOnCamera = false;
 
+            // Off by default (a still photo of a moving world is not usually what is wanted), but
+            // with the shape of the effect already sane for the moment it is switched on.
+            motionBlurIntensity = 0f;
+            motionBlurClamp = 0.05f;
+            motionBlurQuality = 1;   // Medium
+            motionBlurMode = 0;      // Camera only — no motion vector pass
+
             VolumetricFogVolumedensity = 0.01f;
             VolumetricFogenableAPVContribution = true;
             VolumetricFogenableMainLightContribution = true;
@@ -107,6 +114,19 @@ public partial class BasisHandHeldCameraUI
         public float whiteBalanceTemperature;
         public float whiteBalanceTint;
         public float lensDistortion;
+
+        /// <summary>
+        /// Motion blur. The strength is the on/off — URP only runs the pass above zero — so the
+        /// shape settings below carry usable values even in a file that has the effect switched
+        /// off, and no migration is needed: JsonUtility leaves a field absent from an older file
+        /// holding the constructor default rather than zeroing it.
+        /// </summary>
+        public float motionBlurIntensity;
+        public float motionBlurClamp;
+        /// <summary>0 = Low, 1 = Medium, 2 = High.</summary>
+        public int motionBlurQuality;
+        /// <summary>0 = camera movement only, 1 = camera and moving objects.</summary>
+        public int motionBlurMode;
 
         public bool autoFocusFollowSubject;
 

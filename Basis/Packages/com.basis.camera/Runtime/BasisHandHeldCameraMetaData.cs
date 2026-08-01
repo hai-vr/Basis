@@ -86,4 +86,5 @@ public class BasisHandHeldCameraMetaData
     public FilmGrain filmGrain;
     public WhiteBalance whiteBalance;
     public LensDistortion lensDistortion;
+    public MotionBlur motionBlur;
 }

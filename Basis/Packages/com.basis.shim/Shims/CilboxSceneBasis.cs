@@ -300,6 +300,15 @@ namespace Cilbox
 				nameof(Basis.Shims.BasisVoiceRoutingShim.StopVoiceRoute),
 				nameof(Basis.Shims.BasisVoiceRoutingShim.StopAllRoutesFor),
 				} },
+			// Jiggle grab/touch events. Fetching the component is the opt-in and Rebind is only for
+			// proxies that appear late; the callbacks themselves are resolved by name off the script,
+			// so there is nothing else here for content to call.
+			{ typeof(Basis.Shims.BasisJiggleEventShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisJiggleEventShim.Rebind),
+				nameof(Basis.Shims.BasisJiggleEventShim.GetJiggleRigCount),
+				nameof(Basis.Shims.BasisJiggleEventShim.GetJiggleRigName),
+				nameof(Basis.Shims.BasisJiggleEventShim.FindJiggleRig),
+				} },
 			{ typeof(Basis.Scripts.BasisSdk.Interactions.BasisSeat), new HashSet<string>{
 				$"get_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",
 				$"set_{nameof(Basis.Scripts.BasisSdk.Interactions.BasisSeat.OccupantRotationRangeDegrees)}",

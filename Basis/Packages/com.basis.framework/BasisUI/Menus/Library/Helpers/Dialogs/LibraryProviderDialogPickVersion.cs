@@ -46,11 +46,29 @@ namespace Basis.BasisUI
 
                 string dateText = meta != null && meta.Created.HasValue
                     ? meta.Created.Value.ToString(CultureInfo.InvariantCulture) + " UTC"
-                    : BasisLocalization.Get("library.notAvailable");
+                    : null;
+
+                // Content built before the connector carried a creation date has none — and that is
+                // exactly the older content grouped by NAME, where the version lives in the name and
+                // nowhere else. Labelling those rows by date alone made every one of them read "not
+                // available", leaving the raw url as the only way to tell the versions apart.
+                string versionName = string.IsNullOrWhiteSpace(meta?.Name)
+                    ? null
+                    : LibraryProviderStrUtil.TitleToCase(meta.Name);
+
+                string label;
+                if (versionName != null && dateText != null)
+                {
+                    label = $"{versionName} — {dateText}";
+                }
+                else
+                {
+                    label = versionName ?? dateText ?? BasisLocalization.Get("library.notAvailable");
+                }
 
                 rowDescriptor.SetTitle(Index == 0
-                    ? string.Format(BasisLocalization.Get("library.stack.latestEntry"), dateText)
-                    : dateText);
+                    ? string.Format(BasisLocalization.Get("library.stack.latestEntry"), label)
+                    : label);
                 rowDescriptor.SetDescription(version.Url ?? string.Empty);
                 rowDescriptor.SetHeight(100);
                 rowDescriptor.SetWidth(880);

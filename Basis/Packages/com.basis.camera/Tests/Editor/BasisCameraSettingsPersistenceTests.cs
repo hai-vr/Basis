@@ -233,6 +233,7 @@ namespace Basis.Tests.Camera
             Assert.That(_rig.FilmGrain.active, Is.False);
             Assert.That(_rig.WhiteBalance.active, Is.False);
             Assert.That(_rig.LensDistortion.active, Is.False);
+            Assert.That(_rig.MotionBlur.active, Is.False);
             Assert.That(_rig.Camera.backgroundMode, Is.EqualTo(BasisCameraBackgroundMode.World),
                 "A fresh camera photographs the world, not a green screen.");
         }
@@ -245,6 +246,7 @@ namespace Basis.Tests.Camera
             _rig.UI.ChangeLensDistortion(0.9f);
             _rig.UI.ChangeChromaticAberration(0.9f);
             _rig.UI.ChangeWhiteBalanceTemperature(80f);
+            _rig.UI.ChangeMotionBlur(0.9f);
             _rig.Camera.SetBackgroundMode(BasisCameraBackgroundMode.Magenta);
 
             _rig.UI.ResetSettings();
@@ -254,6 +256,7 @@ namespace Basis.Tests.Camera
             Assert.That(_rig.LensDistortion.active, Is.False);
             Assert.That(_rig.ChromaticAberration.active, Is.False);
             Assert.That(_rig.WhiteBalance.active, Is.False);
+            Assert.That(_rig.MotionBlur.active, Is.False);
             Assert.That(_rig.Camera.backgroundMode, Is.EqualTo(BasisCameraBackgroundMode.World),
                 "Reset has to reach the whole camera, not only the sliders on the page it was pressed from.");
         }

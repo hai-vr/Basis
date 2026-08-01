@@ -32,6 +32,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public const float GrabRayLength = 3f;
         // Analog triggers rarely report a clean 1, so the press is a threshold rather than equality.
         public const float GrabTriggerThreshold = 0.5f;
+        // Ceiling on how much a larger target avatar may widen the pick radius.
+        public const float MaxTargetScaleRadiusMultiplier = 2f;
+        // A chain this much further than the pick radius still counts as "you were reaching for it",
+        // which suppresses the pointing fallback so a near miss cannot become a grab across the room.
+        public const float ReachIntentRadiusMultiplier = 3f;
         public const float ReleaseDistance = 1.25f;
         public const float TargetClampDistance = 2f;
         public const float ObserverSkipDistance = 3f;
@@ -57,6 +62,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             public Vector3 editorTarget;
             public float editorMaxStretchFactor;
             public bool applied;
+            public bool reportedToListeners;
             public BasisInput localInput;
 
             public JiggleTree tree;
@@ -190,35 +196,43 @@ namespace Basis.Scripts.BasisSdk.Interactions
             int bestPointIndex = -1;
             Vector3 bestPointPosition = default;
             float bestScore = float.MaxValue;
+            bool pointed = desktop;
 
+            float radius = BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius);
+            GrabQuery grasp = default;
             if (desktop)
             {
-                var ray = new Ray(input.RaycastCoord.position, input.RaycastCoord.rotation * Vector3.forward);
-                float rayLength = BasisPlayerInteract.AvatarScaledRange(BasisPlayerInteract.raycastDistance);
-                float radius = BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius);
-                SearchRigsAlongRay(localId, ray, rayLength, radius,
+                SearchRigs(localId, GrabQuery.Pointing(input.RaycastCoord.position,
+                        input.RaycastCoord.rotation * Vector3.forward,
+                        BasisPlayerInteract.AvatarScaledRange(BasisPlayerInteract.raycastDistance), radius),
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
             }
             else
             {
-                float radius = BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius);
-                SearchRigsAroundPoint(localId, GetSearchHandPosition(input, hand), radius,
+                GetHandGrasp(input, hand, out Vector3 palm, out Vector3 fingerTip);
+                grasp = GrabQuery.Grasp(palm, fingerTip, radius);
+                SearchRigs(localId, grasp,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
 
-                // Nothing in the hand, so fall back to what the hand is pointing at. Near-touch wins
-                // when both are available, which is what a hand physically reaching a chain expects.
-                if (bestPointIndex < 0)
+                // Nothing in the hand, so fall back to what the hand is pointing at. Closing on a
+                // chain wins when both are available, which is what reaching for one expects.
+                //
+                // Except when the hand is right next to a chain it simply missed: pointing is then
+                // almost certainly not what was meant, and letting the ray run turns a miss by a few
+                // centimetres into a grab on whatever the hand happened to point at metres away.
+                if (bestPointIndex < 0 && !IsReachingForNearbyChain(localId, grasp))
                 {
-                    var handRay = new Ray(input.RaycastCoord.position, input.RaycastCoord.rotation * Vector3.forward);
-                    SearchRigsAlongRay(localId, handRay, BasisPlayerInteract.AvatarScaledRange(GrabRayLength), radius,
+                    pointed = true;
+                    SearchRigs(localId, GrabQuery.Pointing(input.RaycastCoord.position,
+                            input.RaycastCoord.rotation * Vector3.forward,
+                            BasisPlayerInteract.AvatarScaledRange(GrabRayLength), radius),
                         ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
                 }
             }
 
             if (bestPointIndex < 0)
             {
-                RecordMissedReach(desktop ? default : GetSearchHandPosition(input, hand),
-                    BasisPlayerInteract.AvatarScaledRange(GrabSearchRadius), desktop);
+                RecordMissedReach(grasp, desktop);
                 return false;
             }
 
@@ -298,10 +312,47 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// Re-searches with a generous radius purely to report how far away the nearest chain was,
-        /// which turns "grabbing does not work" into a number. Fresh presses only.
+        /// One grab press's search volume: either the closing hand or the aim ray. Scoring lives in
+        /// <see cref="BasisJiggleGrabPicker"/> so the selection rules can be tested without a scene.
         /// </summary>
-        private static void RecordMissedReach(Vector3 handPosition, float radius, bool desktop)
+        private struct GrabQuery
+        {
+            public bool IsPointing;
+            public Vector3 Origin;
+            public Vector3 Target;
+            public float MaxDistance;
+            public float Radius;
+
+            public static GrabQuery Grasp(Vector3 palm, Vector3 fingerTip, float radius) => new GrabQuery
+            {
+                IsPointing = false, Origin = palm, Target = fingerTip, Radius = radius,
+            };
+
+            public static GrabQuery Pointing(Vector3 origin, Vector3 direction, float maxDistance, float radius) => new GrabQuery
+            {
+                IsPointing = true, Origin = origin, Target = direction, MaxDistance = maxDistance, Radius = radius,
+            };
+
+            public GrabQuery WithRadius(float radius)
+            {
+                GrabQuery copy = this;
+                copy.Radius = radius;
+                return copy;
+            }
+
+            public bool TryScore(Vector3 candidate, out float score)
+            {
+                return IsPointing
+                    ? BasisJiggleGrabPicker.TryScorePointing(candidate, Origin, Target, MaxDistance, Radius, out score)
+                    : BasisJiggleGrabPicker.TryScoreGrasp(candidate, Origin, Target, Radius, out score);
+            }
+        }
+
+        /// <summary>
+        /// Reports how far the nearest chain was, which turns "grabbing does not work" into a number.
+        /// Fresh presses only.
+        /// </summary>
+        private static void RecordMissedReach(GrabQuery grasp, bool desktop)
         {
             if (desktop)
             {
@@ -315,7 +366,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             int probePointIndex = -1;
             Vector3 probePosition = default;
             float probeScore = float.MaxValue;
-            SearchRigsAroundPoint(0, handPosition, 2f,
+            SearchRigs(0, grasp.WithRadius(2f),
                 ref probeRig, ref probeTarget, ref probeRigIndex, ref probePointIndex, ref probePosition, ref probeScore);
 
             if (probePointIndex < 0)
@@ -323,21 +374,37 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 RecordAttempt("no jiggle rig within 2m of the hand");
                 return;
             }
-            float distance = Vector3.Distance(probePosition, handPosition);
-            RecordAttempt($"nearest chain was {distance:0.00}m away, needs {radius:0.00}m");
+            RecordAttempt($"nearest chain was {probeScore:0.00}m from your grip, needs {grasp.Radius:0.00}m");
+        }
+
+        /// <summary>
+        /// Whether a chain sits just outside the grip — near enough that the press was a reach that
+        /// missed rather than an attempt to point at something further away.
+        /// </summary>
+        private static bool IsReachingForNearbyChain(ushort localId, GrabQuery grasp)
+        {
+            JiggleRig probeRig = null;
+            BasisRemotePlayer probeTarget = null;
+            byte probeRigIndex = 0;
+            int probePointIndex = -1;
+            Vector3 probePosition = default;
+            float probeScore = float.MaxValue;
+            SearchRigs(localId, grasp.WithRadius(grasp.Radius * ReachIntentRadiusMultiplier),
+                ref probeRig, ref probeTarget, ref probeRigIndex, ref probePointIndex, ref probePosition, ref probeScore);
+            return probePointIndex >= 0;
         }
 
         /// <summary>
         /// Other people's chains are searched FIRST and win outright when any is in reach, because
         /// your own hair and sleeves hang around your own hands and would otherwise out-score the
         /// person you are deliberately reaching for. Your own rigs are still searched when nobody
-        /// else's chain is within the radius, so grabbing your own hair keeps working.
+        /// else's chain is in reach, so grabbing your own hair keeps working.
         /// </summary>
-        private static void SearchRigsAroundPoint(ushort localId, Vector3 position, float radius,
+        private static void SearchRigs(ushort localId, GrabQuery query,
             ref JiggleRig bestRig, ref BasisRemotePlayer bestTarget, ref byte bestRigIndex, ref int bestPointIndex,
             ref Vector3 bestPointPosition, ref float bestScore)
         {
-            float candidateRange = BasisPlayerInteract.AvatarScaledRange(3f);
+            float candidateRange = BasisPlayerInteract.AvatarScaledRange(3f) + query.MaxDistance;
             float candidateRangeSq = candidateRange * candidateRange;
             foreach (KeyValuePair<ushort, BasisRemotePlayer> pair in BasisNetworkPlayers.RemotePlayers)
             {
@@ -352,39 +419,38 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 // and in a lobby where two people wear the same avatar that reads as the grab
                 // landing on your own body.
                 Transform anchor = remote.AvatarAnimatorTransform != null ? remote.AvatarAnimatorTransform : remote.AvatarTransform;
-                if (anchor != null && (anchor.position - position).sqrMagnitude > candidateRangeSq)
+                if (anchor != null && (anchor.position - query.Origin).sqrMagnitude > candidateRangeSq)
                 {
                     continue;
                 }
-                ScoreRigArray(remote.RemoteAvatarDriver?.JiggleRigs, remote, position, radius,
+                ScoreRigArray(remote.RemoteAvatarDriver?.JiggleRigs, remote, query,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
             }
 
             if (bestPointIndex < 0)
             {
-                ScoreRigArray(BasisLocalAvatarDriver.JiggleRigs, null, position, radius,
+                ScoreRigArray(BasisLocalAvatarDriver.JiggleRigs, null, query,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
             }
         }
 
         /// <summary>
-        /// Avatar scale as a plain multiplier, so the pick tolerance can follow whichever avatar is
-        /// bigger. A giant's chains are spaced far apart and a doll's are packed together, so a
-        /// radius calibrated only to the local player misses on one and over-grabs on the other.
+        /// Avatar size as a multiplier, so the pick tolerance can follow whichever avatar is bigger:
+        /// a giant's chains are spaced far apart and a doll's are packed together.
+        ///
+        /// Reads <see cref="BasisAvatar.HumanScale"/> (Unity's Animator.humanScale, mirrored on both
+        /// the local and remote drivers at calibration) and NOT the animator root's lossyScale — an
+        /// FBX unit conversion or an authored armature scale leaves lossyScale arbitrary, so two
+        /// avatars that look identical can report 0.01 and 100, and scaling a pick radius by that
+        /// reaches metres and grabs a chain across the room.
         /// </summary>
         public static float GetAvatarScaleFactor(IBasisPlayer player)
         {
-            Transform avatar = player?.AvatarAnimatorTransform != null ? player.AvatarAnimatorTransform : player?.AvatarTransform;
-            if (avatar == null)
-            {
-                return 1f;
-            }
-            Vector3 scale = avatar.lossyScale;
-            float average = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
-            return average > 0.0001f && !float.IsInfinity(average) && !float.IsNaN(average) ? average : 1f;
+            float scale = player?.BasisAvatar != null ? player.BasisAvatar.HumanScale : 1f;
+            return scale > 0.0001f && !float.IsInfinity(scale) && !float.IsNaN(scale) ? scale : 1f;
         }
 
-        private static void ScoreRigArray(JiggleRig[] rigs, BasisRemotePlayer owner, Vector3 position, float radius,
+        private static void ScoreRigArray(JiggleRig[] rigs, BasisRemotePlayer owner, GrabQuery query,
             ref JiggleRig bestRig, ref BasisRemotePlayer bestTarget, ref byte bestRigIndex, ref int bestPointIndex,
             ref Vector3 bestPointPosition, ref float bestScore)
         {
@@ -398,50 +464,115 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 float targetFactor = GetAvatarScaleFactor(owner);
                 if (targetFactor > localFactor && localFactor > 0.0001f)
                 {
-                    radius *= targetFactor / localFactor;
+                    // Hard ceiling as well as a sane measure: this only ever widens the tolerance a
+                    // little for a larger avatar, and can never turn a hand-sized pick into a reach.
+                    query = query.WithRadius(query.Radius * Mathf.Min(targetFactor / localFactor, MaxTargetScaleRadiusMultiplier));
                 }
             }
             int count = Mathf.Min(rigs.Length, byte.MaxValue);
             for (int Index = 0; Index < count; Index++)
             {
                 JiggleRig rig = rigs[Index];
-                if (rig == null || !rig.isActiveAndEnabled)
+                if (rig == null || !rig.isActiveAndEnabled || rig.GetLockedFromGrabbing())
                 {
                     continue;
                 }
-                if (!rig.TryGetClosestGrabPoint(position, radius, out int pointIndex, out Vector3 pointPosition))
+                JiggleTree tree = rig.GetJiggleTree();
+                if (tree == null || tree.dirty || tree.bones == null || tree.points == null)
                 {
                     continue;
                 }
-                float score = (pointPosition - position).sqrMagnitude;
-                if (score < bestScore)
+                // Scored here rather than through the rig's own nearest-point helper so every
+                // candidate goes through the same picker the tests exercise, and so a grasp can be
+                // measured against the whole hand instead of a single point.
+                int pointCount = Mathf.Min(tree.points.Length, tree.bones.Length);
+                for (int pointIndex = 1; pointIndex < pointCount; pointIndex++)
                 {
+                    if (!tree.points[pointIndex].hasTransform)
+                    {
+                        continue;
+                    }
+                    Transform bone = tree.bones[pointIndex];
+                    if (!bone)
+                    {
+                        continue;
+                    }
+                    Vector3 bonePosition = bone.position;
+                    if (!query.TryScore(bonePosition, out float score) || score >= bestScore)
+                    {
+                        continue;
+                    }
                     bestScore = score;
                     bestRig = rig;
                     bestTarget = owner;
                     bestRigIndex = (byte)Index;
                     bestPointIndex = pointIndex;
-                    bestPointPosition = pointPosition;
+                    bestPointPosition = bonePosition;
                 }
             }
         }
 
-        private static void SearchRigsAlongRay(ushort localId, Ray ray, float rayLength, float radius,
-            ref JiggleRig bestRig, ref BasisRemotePlayer bestTarget, ref byte bestRigIndex, ref int bestPointIndex,
-            ref Vector3 bestPointPosition, ref float bestScore)
+        /// <summary>
+        /// The span a closing hand sweeps: palm to fingertip. People grab with their fingers, so a
+        /// strand lying across them should be takeable while one floating behind the knuckles is
+        /// not — a sphere on the palm gets both of those wrong. Falls back to a short span along the
+        /// hand when the avatar has no finger bones.
+        /// </summary>
+        private static void GetHandGrasp(BasisInput input, byte hand, out Vector3 palm, out Vector3 fingerTip)
         {
-            float step = Mathf.Max(radius, 0.05f);
-            int samples = Mathf.Clamp(Mathf.CeilToInt(rayLength / step), 1, 64);
-            for (int sample = 0; sample <= samples; sample++)
+            if (TryGetGraspFromMapping(BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping, hand, out palm, out fingerTip))
             {
-                Vector3 position = ray.origin + ray.direction * (rayLength * sample / samples);
-                SearchRigsAroundPoint(localId, position, radius,
-                    ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
-                if (bestPointIndex >= 0)
+                return;
+            }
+            palm = GetSearchHandPosition(input, hand);
+            fingerTip = palm;
+        }
+
+        /// <summary>
+        /// The same grip span for any player, local or remote — touch reporting needs to ask about
+        /// other people's hands, and both drivers keep an equivalent cached bone mapping.
+        /// </summary>
+        public static bool TryGetPlayerGrasp(IBasisPlayer player, byte hand, out Vector3 palm, out Vector3 fingerTip)
+        {
+            palm = default;
+            fingerTip = default;
+            if (player == null || hand > 1)
+            {
+                return false;
+            }
+            BasisTransformMapping mapping = player is BasisRemotePlayer remote
+                ? remote.RemoteAvatarDriver?.References
+                : BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping;
+            return TryGetGraspFromMapping(mapping, hand, out palm, out fingerTip);
+        }
+
+        private static bool TryGetGraspFromMapping(BasisTransformMapping mapping, byte hand, out Vector3 palm, out Vector3 fingerTip)
+        {
+            palm = default;
+            fingerTip = default;
+            if (mapping == null)
+            {
+                return false;
+            }
+            Transform wrist = hand == 0 ? mapping.leftHand : mapping.rightHand;
+            if (wrist == null)
+            {
+                return false;
+            }
+            Transform[] middle = hand == 0 ? mapping.LeftMiddle : mapping.RightMiddle;
+            Transform knuckle = middle != null && middle.Length > 0 ? middle[0] : null;
+            palm = knuckle != null ? Vector3.Lerp(wrist.position, knuckle.position, 0.5f) : wrist.position;
+
+            Transform tip = null;
+            if (middle != null)
+            {
+                for (int Index = middle.Length - 1; Index >= 0 && tip == null; Index--)
                 {
-                    return;
+                    tip = middle[Index];
                 }
             }
+            fingerTip = tip != null ? tip.position : palm + (palm - wrist.position);
+            return true;
         }
 
         /// <summary>
@@ -636,6 +767,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 state.applied = false;
                 applied.Remove(state);
             }
+            if (state.reportedToListeners)
+            {
+                state.reportedToListeners = false;
+                if (BasisJiggleInteractionEvents.HasListeners
+                    && TryResolveRigForState(state, out JiggleRig rig))
+                {
+                    BasisJiggleInteractionEvents.ReportGrab(rig, state.grabberId, state.hand, BonePositionOf(state), false);
+                }
+            }
+        }
+
+        private static bool TryResolveRigForState(GrabState state, out JiggleRig rig)
+        {
+            TryGetLocalPlayerId(out ushort localId);
+            return TryResolveRig(state.targetId, localId, state.rigIndex, out rig);
         }
 
         private static void RemoveMatching(System.Predicate<GrabState> predicate)
@@ -840,7 +986,25 @@ namespace Basis.Scripts.BasisSdk.Interactions
             state.applied = true;
             state.unresolvedSince = 0f;
             applied.Add(state);
+            // Reported from here rather than from the press so that a remote's grab, a re-assert and
+            // a locally started grab all announce the same way, once, when it actually takes hold.
+            if (BasisJiggleInteractionEvents.HasListeners && !state.reportedToListeners)
+            {
+                state.reportedToListeners = true;
+                BasisJiggleInteractionEvents.ReportGrab(rig, state.grabberId, state.hand, BonePositionOf(state), true);
+            }
             return true;
+        }
+
+        private static Vector3 BonePositionOf(GrabState state)
+        {
+            JiggleTree tree = state.tree;
+            int index = state.resolvedPointIndex;
+            if (tree == null || tree.bones == null || index < 0 || index >= tree.bones.Length || !tree.bones[index])
+            {
+                return default;
+            }
+            return tree.bones[index].position;
         }
 
         /// <summary>
@@ -1208,7 +1372,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 Vector3 bestPointPosition = default;
                 float bestScore = float.MaxValue;
                 TryGetLocalPlayerId(out ushort localId);
-                SearchRigsAroundPoint(localId, position, radius,
+                SearchRigs(localId, GrabQuery.Grasp(position, position, radius),
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
                 if (bestPointIndex >= 0)
                 {

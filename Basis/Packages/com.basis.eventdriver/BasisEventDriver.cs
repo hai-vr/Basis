@@ -852,6 +852,9 @@ namespace Basis.EventDriver
             // Jiggle grab targets ride the same window: skeletons posed, nothing dispatched yet,
             // so the pin targets pushed here are sampled by this frame's simulate.
             Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.FrameTick();
+            // Touch reporting reads the same posed bones. Returns on a count check when no content
+            // has asked for jiggle events, which is the usual case.
+            Basis.Scripts.BasisSdk.Interactions.BasisJiggleInteractionEvents.FrameTick();
             BasisFiniteWatchdog.Checkpoint("PostFrameSync (pre jiggle dispatch)");
             BasisFiniteWatchdog.CheckpointRemote("PostFrameSync (pre jiggle dispatch)");
 

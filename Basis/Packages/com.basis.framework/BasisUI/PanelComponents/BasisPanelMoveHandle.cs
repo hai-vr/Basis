@@ -479,6 +479,7 @@ namespace Basis.BasisUI
                 MinGrabMetres * scale, MaxGrabMetres * scale);
             _grabLocalOffset = panelLocal - GetPointerLocal(parent, ray);
 
+
             _draggingInput = input;
             _dragging = true;
 
@@ -537,6 +538,7 @@ namespace Basis.BasisUI
             float scale = AvatarScale;
             _grabDistance = Mathf.Clamp(_grabDistance + ReadPushInput() * PushMetresPerSecond * scale * Time.unscaledDeltaTime,
                 MinGrabMetres * scale, MaxGrabMetres * scale);
+
 
             Ray ray = _draggingInput.BasisUIRaycast.BasisPointRaycaster.ray;
             Vector3 target = GetPointerLocal(parent, ray) + _grabLocalOffset;

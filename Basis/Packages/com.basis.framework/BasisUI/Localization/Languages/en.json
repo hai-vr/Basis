@@ -183,6 +183,58 @@
       "value": "Lens Distortion"
     },
     {
+      "key": "camera.motionBlur",
+      "value": "Motion Blur"
+    },
+    {
+      "key": "camera.motionBlur.description",
+      "value": "Smear the shot along the direction things are moving. Zero switches it off."
+    },
+    {
+      "key": "camera.motionBlurClamp",
+      "value": "Blur Length Limit"
+    },
+    {
+      "key": "camera.motionBlurClamp.description",
+      "value": "How long a streak may get, as a share of the frame. Lower keeps fast pans readable."
+    },
+    {
+      "key": "camera.motionBlurQuality",
+      "value": "Blur Quality"
+    },
+    {
+      "key": "camera.motionBlurQuality.description",
+      "value": "Samples taken along each streak. Higher is smoother and costs more."
+    },
+    {
+      "key": "camera.motionBlurQuality.low",
+      "value": "Low"
+    },
+    {
+      "key": "camera.motionBlurQuality.medium",
+      "value": "Medium"
+    },
+    {
+      "key": "camera.motionBlurQuality.high",
+      "value": "High"
+    },
+    {
+      "key": "camera.motionBlurMode",
+      "value": "Blur Source"
+    },
+    {
+      "key": "camera.motionBlurMode.description",
+      "value": "Camera Only blurs when the camera moves. Camera And Objects also blurs things moving in front of a still camera, and costs more."
+    },
+    {
+      "key": "camera.motionBlurMode.cameraOnly",
+      "value": "Camera Only"
+    },
+    {
+      "key": "camera.motionBlurMode.cameraAndObjects",
+      "value": "Camera And Objects"
+    },
+    {
       "key": "camera.volumetricFog",
       "value": "Volumetric Fog"
     },

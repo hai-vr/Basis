@@ -17,57 +17,43 @@ namespace Basis.IK
         // Hybrid hips XZ model — replaces the former HipsXZFollowBlend lerp with an anatomy-aware
         // counterbalance + foot-pendulum. See ComputeRealisticHipsXZBurst for details.
 
-        /// <summary>How far the head may get from the support base without the user having stepped, as a
-        /// fraction of their standing head height. Inside it the head is leaning and the support base holds;
-        /// beyond it the user must have stepped, so the base follows.</summary>
+        /// <summary>How far the head can get from the support base without the user having stepped, as a
+        /// fraction of their standing head height. No longer a threshold — it is the SCALE the follow law is
+        /// written in, so "a stance radius behind" means the same thing on every avatar and at every crouch
+        /// depth. See HeadBaselineFollowRateGain.</summary>
         private const float StanceRadiusFrac = 0.12f;
 
         /// <summary>Extra stance radius per metre the head has DESCENDED, so a crouch is not mistaken for a step.
         /// "A lean cannot reach past a stance radius" holds for a standing lean but NOT for a squat: a real one
         /// leans the trunk ~35 deg and carries the head ~0.16 of standing height forward with the feet planted,
-        /// well past the 0.12 radius. The base then concluded "stepped", followed the head at HeadBaselinePullRate,
-        /// and left the hips forward of the player once they stood back up -- permanently, since nothing pulls the
-        /// baseline back. Measured squat kinematics (Kasahara 2024 joint angles through sagittal FK) put the head's
+        /// well past the 0.12 radius, so the base concluded "stepped", chased the head, and left the hips forward
+        /// of the player once they stood back up. Widening the radius under a crouch now softens the follow law
+        /// rather than deferring a switch, but it buys the same thing. Measured squat kinematics (Kasahara 2024 joint angles through sagittal FK) put the head's
         /// forward travel at 0.55-0.70x its vertical drop across the whole depth range, so allowing the larger of
         /// those covers a legitimate crouch at any depth. Zero at standing height, so ordinary stepping is
         /// completely unaffected.</summary>
         private const float CrouchLeanAllowanceFrac = 0.70f;
 
-        /// <summary>Rate (s⁻¹) the support base follows the head once the head is a full stance radius outside
-        /// it. Stiff on purpose: a soft pull lags the head through a step and then creeps into the leftover
-        /// error after it stops, which is the drift this replaces.</summary>
-        private const float HeadBaselinePullRate = 200f;
+        /// <summary>Rate (s⁻¹) the support base follows the head when it is already sitting on it. This is the
+        /// floor of the follow law, and it is what keeps the base from being dragged around by tracker noise
+        /// and head micro-motion: at 2 s⁻¹ a stray centimetre takes about half a second to be adopted, so
+        /// jitter averages out instead of walking the base. Low, but never zero — zero is a dead zone, and a
+        /// dead zone is what stranded the pelvis in the first place.</summary>
+        private const float HeadBaselineFollowRateRest = 2f;
 
-        /// <summary>Rate (s⁻¹) the support base creeps toward the head while the head is INSIDE the stance
-        /// radius. The step pull above only fires once the head is outside, so without this the base is frozen
-        /// wherever it last landed the moment the head comes back in — and the pelvis, which sits at the base
-        /// plus a fraction of the deviation, parks there with it. That is the "hips stay in the middle of the
-        /// play space" report: a sub-radius offset the user never leaves (a held lean, or a head that simply
-        /// rests off-baseline) became a PERMANENT pelvis offset, because nothing pulled the base back under the
-        /// head. Desktop could never show it — BasisDesktopEye pins the eye on the capsule axis, so the
-        /// deviation is identically zero and the pelvis is always exactly under the head.
-        /// 0.35 s⁻¹ is a ~2.9 s time constant: two orders slower than the step pull and slow enough that the
-        /// counterbalance of an actual lean is fully present while you are leaning (it resolves in well under a
-        /// second), but fast enough that a posture you HOLD becomes your standing spot instead of stranding the
-        /// pelvis. Set to 0 to restore the former frozen-base behaviour exactly.</summary>
-        private const float HeadBaselineSettleRate = 0.35f;
+        /// <summary>Extra follow rate (s⁻¹) per stance radius the base has fallen behind the head. THE knob for
+        /// "the hips do not follow enough": raising it tightens the pelvis to the player everywhere at once,
+        /// with no threshold introduced anywhere, because the lag it produces is continuous in the distance
+        /// (it solves L·(rest + gain·L/radius) = v). Measured on the real job at 250: the pelvis trails a
+        /// 1.2 m/s walk by 1.5 cm and is back under the player 178 ms after a step ends, while a 1 cm head
+        /// nudge still only moves it 37% in the first frame — tight, but not welded. 120 gave 2.5 cm and
+        /// 333 ms; 350 buys 1.2 cm and 133 ms and starts to read as a snap. Raise if it feels dragged, lower
+        /// if the body feels stuck to the head.</summary>
+        private const float HeadBaselineFollowRateGain = 250f;
 
-        /// <summary>Fraction of the stance radius the base must get within before the step latch releases.
-        /// Small on purpose: the point of the latch is that a detected step runs to completion instead of
-        /// stopping at the detection threshold.</summary>
-        private const float StepReleaseFrac = 0.15f;
 
-        /// <summary>Head speed (m/s) at or below which the walker counts as having stopped, so the step latch
-        /// may release. Arrival alone is not enough: the stiff pull glues the base to the head within a couple
-        /// of frames, so releasing on distance released MID-STRIDE and handed the rest of the stride back to
-        /// the lean path, which then left the remainder of the step uncarried. Well under a walk (~1.2 m/s) and
-        /// well over the residual of a low-passed tracker.</summary>
-        private const float StepReleaseSpeed = 0.20f;
 
-        /// <summary>Time constant (s) of the head-velocity low-pass the release test reads. Filtering the
-        /// VECTOR and then taking its magnitude is what makes it immune to tracker jitter — jitter has a large
-        /// per-frame speed but no direction, so it averages to nothing, while a real stride does not.</summary>
-        private const float HeadVelocitySmoothing = 0.10f;
+
 
         /// <summary>How much hips track the head's deviation from baseline. 0 = pure counterbalance
         /// (hips never move from baseline), 1 = legacy "follow head fully". 0.25 keeps a small forward
@@ -176,14 +162,6 @@ namespace Basis.IK
         {
             public float3 HeadBaselineXZ;
             public byte HeadBaselineInitialized;
-            /// <summary>1 while a STEP is in progress — the support base has been released to chase the head
-            /// and the walker has not yet come to a stop. Latched on crossing the stance radius, released once
-            /// the base is inside StepReleaseFrac of it AND the head has stopped moving.</summary>
-            public byte HeadBaselineStepping;
-            /// <summary>Previous frame's head XZ, for the velocity the step-release test reads.</summary>
-            public float3 LastHeadXZ;
-            /// <summary>Low-passed head XZ velocity (m/s). Filtered as a VECTOR so tracker jitter cancels.</summary>
-            public float3 HeadVelocityXZ;
             /// <summary>The user's OWN resting head height, used as the reference the crouch allowance
             /// measures its drop against. Rise-only and capped at the avatar's standing head height — see
             /// where it is maintained in the job for why it is not simply the T-pose head.</summary>
@@ -477,9 +455,10 @@ namespace Basis.IK
         /// Anatomy-aware hips XZ. Two layers:
         ///   (1) Counterbalance: a leashed head-XZ baseline estimates the user's support base (where they are
         ///       standing). Hips sit at baseline + an axis-dependent fraction of the head's deviation: little of
-        ///       a FORWARD lean (a bend counter-balances — hips stay back and hold there) but most of a SIDEWAYS
-        ///       shift (a weight shift stays stacked over the feet), while stepping drags the base along and the
-        ///       hips follow.
+        ///       a FORWARD lean (a bend counter-balances — hips stay back) but most of a SIDEWAYS shift (a
+        ///       weight shift stays stacked over the feet), while stepping drags the base along and the hips
+        ///       follow. The base also settles onto the head over seconds, so the counterbalance is a response
+        ///       to a lean rather than a permanent offset — a posture you HOLD becomes where you are standing.
         ///   (2) Foot pendulum: if both feet are tracked, override with feet-midpoint + a small lean
         ///       toward the head — closer to a real inverted-pendulum stance. With roles on the feet the
         ///       support base is known outright, so no estimate is used.
@@ -495,67 +474,41 @@ namespace Basis.IK
             if (s.HeadBaselineInitialized == 0)
             {
                 s.HeadBaselineXZ = headXZ;
-                s.LastHeadXZ = headXZ;
-                s.HeadVelocityXZ = float3.zero;
-                s.HeadBaselineStepping = 0;
                 s.HeadBaselineInitialized = 1;
             }
             else
             {
-                // The support base only moves when the user STEPS, so the discriminator is spatial, not
-                // temporal: a lean and a step are indistinguishable in head-XZ-over-time (both move the head
-                // and leave it there), but a lean cannot reach past a stance radius. The pull scales with the
-                // SQUARED exceedance so tracker jitter across the boundary cannot ratchet the base outward.
+                // ONE CONTINUOUS LAW. The support base tracks the head at a rate that rises smoothly with how
+                // far it has been left behind -- no threshold, no latch, no dead zone, no mode.
+                //
+                // Every previous form here was a SWITCH, and that is what made the pelvis read as stop-start:
+                // a deadband pull did nothing at all until the head crossed a stance radius, and the latch that
+                // replaced it did nothing until the same crossing and then dragged the base over in two frames.
+                // Both are bang-bang controllers. You stand still and the pelvis is inert; you drift one
+                // centimetre past an invisible line and it lunges. There is no set of thresholds that makes a
+                // switch feel continuous -- the discontinuity IS the design -- so the switch is gone.
+                //
+                // The distance term is what used to be the mode. Near zero the base is soft, so tracker noise
+                // and micro-motion do not drag it around; the further behind it falls the harder it is pulled,
+                // so a real step or a walk is followed instead of triggering a state change. Same behaviour at
+                // both ends as the two-mode version, and everything in between is now defined rather than
+                // being a cliff. `dist` is normalised by the stance radius so the whole law scales with the
+                // avatar, and so a crouch (which widens the radius) softens the follow exactly as it should.
+                //
+                // ⚠️ The leash no longer holds a counterbalance offset -- it cannot, and follow this closely.
+                // That is deliberate: the postural counterbalance is BasisTrunkCounterbalanceCore's job, it is
+                // derived from segment masses, and it is driven by the gaze-invariant neck cue rather than by
+                // "the head moved horizontally". The leash was a second, cruder copy of it that could not tell
+                // a bend from a walk. This one estimates only WHERE THE USER IS STANDING.
                 float safeDt = math.max(dt, 1e-6f);
                 // The BASE radius stays un-lifted on purpose (see TrackingLiftY: the lift moves the body, it
                 // does not resize it); only the crouch allowance uses the lifted drop, computed by the caller.
                 float radius = math.max(StanceRadiusFrac * standingHeadY + CrouchLeanAllowanceFrac * headDrop, 1e-3f);
 
-                float3 headVelRaw = (headXZ - s.LastHeadXZ) / safeDt;
-                s.LastHeadXZ = headXZ;
-                s.HeadVelocityXZ = math.lerp(s.HeadVelocityXZ, headVelRaw,
-                    1f - math.exp(-safeDt / HeadVelocitySmoothing));
-                bool headAtRest = math.length(s.HeadVelocityXZ) <= StepReleaseSpeed;
-
                 float dist = math.length(headXZ - s.HeadBaselineXZ);
-
-                // The radius decides WHETHER a step happened; it must not also decide where the base ends up.
-                // Driving the pull off (dist - radius) did both, so it stalled the instant the head was within
-                // one radius and every real step left the support base -- and the pelvis hanging off it -- up to
-                // a full stance radius (~19 cm) behind the walker, with nothing to close it. Latch on crossing
-                // out, and while latched pull to the HEAD; release once the base has actually arrived. The
-                // engagement threshold is unchanged, so a lean still never starts this.
-                if (s.HeadBaselineStepping == 0)
-                {
-                    if (dist > radius) s.HeadBaselineStepping = 1;
-                }
-                else if (dist < radius * StepReleaseFrac && headAtRest)
-                {
-                    s.HeadBaselineStepping = 0;
-                }
-
-                if (s.HeadBaselineStepping != 0)
-                {
-                    // Flat rate while latched. The squared exceedance this replaces was doing two jobs -- it
-                    // WAS the deadband as well as the rate -- and as the base closed in, its own factor went to
-                    // zero and stalled it a few centimetres short. The latch owns the deadband now, so the pull
-                    // is free to be what its rate always claimed: stiff enough to be done inside a couple of
-                    // frames. Anti-ratchet is structural rather than numeric here -- a lerp toward the head
-                    // cannot overshoot it, so jitter across the boundary can only ever seat the base ON the
-                    // head, never walk it outward.
-                    float alpha = 1f - math.exp(-HeadBaselinePullRate * safeDt);
-                    s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, alpha);
-                }
-
-                // ...and the always-on settle. The step pull above is a ONE-WAY leash: it fires only outside
-                // the radius, so inside it the base never moves and a sub-radius offset the user holds is
-                // permanent. Converging the base on the head means the resting pelvis ends up UNDER the head
-                // (dev -> 0) instead of stranded at whatever spot the base was last seeded at, while the
-                // counterbalance is untouched on the timescale a lean actually happens over.
-                // Deliberately applied to the base and not to the returned pelvis: the base is the "where the
-                // user is standing" estimate, and that is the thing that was wrong.
-                float settle = 1f - math.exp(-HeadBaselineSettleRate * safeDt);
-                s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, settle);
+                float rate = HeadBaselineFollowRateRest + HeadBaselineFollowRateGain * (dist / radius);
+                float alpha = 1f - math.exp(-rate * safeDt);
+                s.HeadBaselineXZ = math.lerp(s.HeadBaselineXZ, headXZ, alpha);
             }
 
             if (leftFootTracked && rightFootTracked)
