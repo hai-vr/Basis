@@ -247,6 +247,12 @@ namespace Basis.BasisUI
             _tabKeyToIndex.Clear();
             ResetSearch(tabGroup);
 
+            // Search lives on the header, not on every page. The popup outlives nothing: switching to
+            // another provider tears this panel down, and a palette still listing its settings would
+            // navigate into a menu that is no longer there.
+            BasisPanelMoveHandle.SetPanelSearch(panel, Title, CollectSearchResults);
+            panel.OnInstanceReleased += BasisPanelSearchPopup.Close;
+
             // First tab is eager (shown immediately on open)
             const string generalKey = "settings.tab.general";
             _tabKeyToIndex[generalKey] = 0;
@@ -263,7 +269,6 @@ namespace Basis.BasisUI
             tabGroup.AddTab(BasisLocalization.Get(generalKey), () =>
             {
                 _lastSelectedTabKey = generalKey;
-                OnTabShown(generalKey);
                 BindPageReset(generalKey);
             }, generalPage);
             PanelScrollMemory.Attach(generalPage.Descriptor.ContentParent, generalKey);
@@ -377,7 +382,6 @@ namespace Basis.BasisUI
             {
                 _lastSelectedTabKey = tabKey;
                 RealizeTab(tabGroup, tab, forSearch: false);
-                OnTabShown(tabKey);
                 BindPageReset(tabKey);
             }, placeholder);
         }
@@ -520,6 +524,11 @@ namespace Basis.BasisUI
                 toggleDisableVRAutoHold.AssignBinding(BasisSettingsDefaults.DisableVRAutoHold);
                 toggleDisableVRAutoHold.Descriptor.SetTitle(BasisLocalization.Get("settings.general.disableVRAutoHold"));
                 toggleDisableVRAutoHold.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.disableVRAutoHold.tooltip"));
+
+                PanelToggle toggleJiggleGrabInteractions = PanelToggle.CreateNewEntry(container);
+                toggleJiggleGrabInteractions.AssignBinding(BasisSettingsDefaults.JiggleGrabInteractions);
+                toggleJiggleGrabInteractions.Descriptor.SetTitle(BasisLocalization.Get("settings.general.jiggleGrabInteractions"));
+                toggleJiggleGrabInteractions.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.jiggleGrabInteractions.tooltip"));
 
                 PanelToggle toggleUIHaptics = PanelToggle.CreateNewEntry(container);
                 toggleUIHaptics.AssignBinding(BasisSettingsDefaults.UIHaptics);
@@ -810,6 +819,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.DisablePropPickup.ResetToDefault();
             BasisSettingsDefaults.DisableVRAutoHold.ResetToDefault();
+            BasisSettingsDefaults.JiggleGrabInteractions.ResetToDefault();
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
             BasisSettingsDefaults.HideRemoteCameraPucks.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
@@ -2657,6 +2667,11 @@ namespace Basis.BasisUI
             toggleSeatTargets.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.seatTargets"));
             toggleSeatTargets.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.seatTargets.tooltip"));
             toggleSeatTargets.AssignBinding(BasisSettingsDefaults.GizmoSeatTargets);
+
+            PanelToggle toggleJiggleGrabGizmo = PanelToggle.CreateNewEntry(container);
+            toggleJiggleGrabGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleGrab"));
+            toggleJiggleGrabGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleGrab.tooltip"));
+            toggleJiggleGrabGizmo.AssignBinding(BasisSettingsDefaults.GizmoJiggleGrab);
 
             PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(container);
             toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));

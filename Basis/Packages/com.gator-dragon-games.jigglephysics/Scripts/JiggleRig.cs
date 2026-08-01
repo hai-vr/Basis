@@ -18,6 +18,54 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
 
     public JiggleRigData GetJiggleRigData() => jiggleRigData;
 
+    public JiggleTree GetJiggleTree() => segment?.jiggleTree;
+
+    public bool GetLockedFromGrabbing() => jiggleRigData.lockFromGrabbing;
+
+    /// <summary>
+    /// Resolved grab reach limit, as a multiple of a point's distance from the chain root.
+    /// Authored zero (including data serialized before the field existed) falls back to the default.
+    /// </summary>
+    public float GetMaxGrabStretch() =>
+        jiggleRigData.maxGrabStretch > 0f ? jiggleRigData.maxGrabStretch : JiggleGrabConstraint.DefaultMaxStretchFactor;
+
+    /// <summary>
+    /// Finds the closest simulated point to a world position, for external grab-style constraints.
+    /// Skips virtual points, which have no bone to grab; the root particle is included because a
+    /// single bone rig has nothing else, and the solver applies grabs after its root pin.
+    /// </summary>
+    public bool TryGetClosestGrabPoint(Vector3 worldPosition, float maxDistance, out int pointIndex, out Vector3 pointPosition) {
+        pointIndex = -1;
+        pointPosition = default;
+        if (jiggleRigData.lockFromGrabbing) {
+            return false;
+        }
+        var tree = segment?.jiggleTree;
+        if (tree == null || tree.dirty || tree.points == null || tree.bones == null) {
+            return false;
+        }
+        var points = tree.points;
+        var bones = tree.bones;
+        var count = Mathf.Min(points.Length, bones.Length);
+        var bestDistanceSq = maxDistance * maxDistance;
+        for (int i = 1; i < count; i++) {
+            if (!points[i].hasTransform) {
+                continue;
+            }
+            var bone = bones[i];
+            if (!bone) {
+                continue;
+            }
+            var distanceSq = (bone.position - worldPosition).sqrMagnitude;
+            if (distanceSq < bestDistanceSq) {
+                bestDistanceSq = distanceSq;
+                pointIndex = i;
+                pointPosition = bone.position;
+            }
+        }
+        return pointIndex >= 0;
+    }
+
     public JiggleTreeInputParameters GetInputParameters() => jiggleRigData.jiggleTreeInputParameters;
     
     

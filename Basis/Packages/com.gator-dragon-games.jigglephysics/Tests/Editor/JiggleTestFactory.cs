@@ -265,6 +265,7 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
     public NativeArray<JiggleCollider> sceneColliders;
     public NativeHashMap<int2, JiggleGridCell> broadPhaseMap;
     public NativeReference<JiggleGridCell> globalCell;
+    public NativeParallelMultiHashMap<int, JiggleGrabConstraint> grabConstraints;
 
     private readonly List<IntPtr> allocations = new List<IntPtr>();
     private readonly List<int2> gridCellKeys = new List<int2>();
@@ -300,6 +301,7 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
         sceneColliders = new NativeArray<JiggleCollider>(sceneColliderCapacity, Allocator.Persistent);
         broadPhaseMap = new NativeHashMap<int2, JiggleGridCell>(16, Allocator.Persistent);
         globalCell = new NativeReference<JiggleGridCell>(new JiggleGridCell(JiggleJobBroadPhase.MAX_COLLIDERS), Allocator.Persistent);
+        grabConstraints = new NativeParallelMultiHashMap<int, JiggleGrabConstraint>(JiggleGrabConstraint.MaxTotalGrabs, Allocator.Persistent);
 
         job = new JiggleJobSimulate();
         job.SetFixedDeltaTime(fixedDeltaTime);
@@ -316,6 +318,8 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
         job.sceneColliders = sceneColliders;
         job.broadPhaseMap = broadPhaseMap;
         job.globalCell = globalCell;
+        job.grabConstraints = grabConstraints;
+        job.grabConstraintCount = 0;
     }
 
     public JiggleTreeJobData Tree => trees[0];
@@ -392,6 +396,24 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
         }
     }
 
+    public void SetGrab(int pointIndex, float3 targetPosition, float strength = 1f, int? rootID = null,
+        float maxStretchFactor = 0f) {
+        var key = rootID ?? trees[0].rootID;
+        grabConstraints.Add(key, new JiggleGrabConstraint {
+            rootID = key,
+            pointIndex = pointIndex,
+            targetPosition = targetPosition,
+            strength = strength,
+            maxStretchFactor = maxStretchFactor,
+        });
+        job.grabConstraintCount = grabConstraints.Count();
+    }
+
+    public void ClearGrabs() {
+        grabConstraints.Clear();
+        job.grabConstraintCount = 0;
+    }
+
     public JiggleTransform Output(int index) => outputPoses[index].pose;
 
     public PoseData OutputData(int index) => outputPoses[index];
@@ -409,6 +431,7 @@ internal sealed unsafe class JiggleSimHarness : IDisposable {
             cell.Dispose();
             globalCell.Dispose();
         }
+        if (grabConstraints.IsCreated) grabConstraints.Dispose();
         if (broadPhaseMap.IsCreated) broadPhaseMap.Dispose();
         if (sceneColliders.IsCreated) sceneColliders.Dispose();
         if (personalColliders.IsCreated) personalColliders.Dispose();

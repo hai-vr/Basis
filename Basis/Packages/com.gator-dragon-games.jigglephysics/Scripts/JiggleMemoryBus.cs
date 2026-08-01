@@ -99,6 +99,12 @@ public class JiggleMemoryBus {
     public NativeHashMap<int2, JiggleGridCell> broadPhaseMap;
     public NativeReference<JiggleGridCell> globalCell;
 
+    public NativeParallelMultiHashMap<int, JiggleGrabConstraint> grabConstraints;
+    public int grabConstraintCount;
+    private JiggleGrabConstraint[] pendingGrabConstraints;
+    private int pendingGrabConstraintCount;
+    private bool pendingGrabConstraintsDirty;
+
     public NativeArray<JiggleCollider> personalColliders;
 
     public NativeArray<JiggleCollider> sceneColliders;
@@ -457,6 +463,11 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         broadPhaseMap = new NativeHashMap<int2, JiggleGridCell>(128, Allocator.Persistent);
         globalCell = new NativeReference<JiggleGridCell>(Allocator.Persistent);
         globalCell.Value = new JiggleGridCell(JiggleJobBroadPhase.MAX_COLLIDERS);
+        grabConstraints = new NativeParallelMultiHashMap<int, JiggleGrabConstraint>(JiggleGrabConstraint.MaxTotalGrabs, Allocator.Persistent);
+        grabConstraintCount = 0;
+        pendingGrabConstraints = new JiggleGrabConstraint[JiggleGrabConstraint.MaxTotalGrabs];
+        pendingGrabConstraintCount = 0;
+        pendingGrabConstraintsDirty = false;
     }
 
     private void ReadIn<T>(NativeArray<T> native, T[] array, int count) where T : struct {
@@ -1228,6 +1239,31 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingTeleports.Clear();
     }
 
+    public void SetGrabConstraints(JiggleGrabConstraint[] constraints, int count) {
+        count = math.min(count, JiggleGrabConstraint.MaxTotalGrabs);
+        for (int i = 0; i < count; i++) {
+            pendingGrabConstraints[i] = constraints[i];
+        }
+        pendingGrabConstraintCount = count;
+        pendingGrabConstraintsDirty = true;
+    }
+
+    // Staged like teleports: the native map is only rewritten at the fenced drain inside
+    // JiggleJobs.Simulate, after handleSimulate completes — never while the sim job may read it.
+    public void ApplyPendingGrabConstraints() {
+        if (!pendingGrabConstraintsDirty) return;
+        grabConstraints.Clear();
+        int applied = 0;
+        for (int i = 0; i < pendingGrabConstraintCount; i++) {
+            var constraint = pendingGrabConstraints[i];
+            if (!rootIDToTreeIndex.ContainsKey(constraint.rootID)) continue;
+            grabConstraints.Add(constraint.rootID, constraint);
+            applied++;
+        }
+        grabConstraintCount = applied;
+        pendingGrabConstraintsDirty = false;
+    }
+
     private void ApplyTeleport(int rootID, JiggleRigidTeleport teleport) {
         if (transformCount == 0) return;
         if (!rootIDToTreeIndex.TryGetValue(rootID, out var treeIndex)) return;
@@ -1329,6 +1365,9 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         }
         broadPhaseMap.Dispose();
         globalCell.Dispose();
+        if (grabConstraints.IsCreated) {
+            grabConstraints.Dispose();
+        }
 
         doubleBufferTransformAccessArray?.Dispose();
         doubleBufferTransformRootAccessArray?.Dispose();

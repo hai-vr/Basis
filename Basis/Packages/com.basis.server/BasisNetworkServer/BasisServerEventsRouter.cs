@@ -49,6 +49,10 @@ namespace BasisNetworkServer
                     BasisNetworkHandleVoiceRecord.HandleEvent(reader, peer, eventType);
                     break;
 
+                case BasisNetworkCommons.EventType_JiggleGrab:
+                    BasisNetworkHandleJiggleGrab.HandleEvent(reader, peer, eventType);
+                    break;
+
                 default:
                     BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                     reader.Recycle();

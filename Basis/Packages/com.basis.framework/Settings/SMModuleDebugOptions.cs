@@ -63,6 +63,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_INTERACTION_HOVER => BasisSettingsDefaults.GizmoInteractionHover.BindingKey;
     private static string K_GIZMO_FINGER_TOUCH => BasisSettingsDefaults.GizmoFingerTouch.BindingKey;
     private static string K_GIZMO_SEAT_TARGETS => BasisSettingsDefaults.GizmoSeatTargets.BindingKey;
+    private static string K_GIZMO_JIGGLE_GRAB => BasisSettingsDefaults.GizmoJiggleGrab.BindingKey;              // "gizmojigglegrab"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -273,6 +274,16 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_JIGGLE_GRAB)
+        {
+            if (bool.TryParse(optionValue, out BasisJiggleGrabGizmos.Show) && !BasisJiggleGrabGizmos.Show)
+            {
+                BasisJiggleGrabGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_NETWORK_SYNC)
         {
             if (bool.TryParse(optionValue, out BasisSyncGizmos.Show) && !BasisSyncGizmos.Show && !BasisSyncGizmos.ShowBandwidth)
@@ -334,6 +345,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             {
                 BasisAudioGizmos.ShowLabels = UseGizmoLabels;
                 BasisSyncGizmos.ShowLabels = UseGizmoLabels;
+                BasisJiggleGrabGizmos.ShowLabels = UseGizmoLabels;
                 BasisPlayerNetworkGizmos.ShowLabels = UseGizmoLabels;
                 if (!UseGizmoLabels)
                 {
@@ -366,6 +378,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             BasisAudioGizmos.ShowRanges ||
             BasisAudioGizmos.ShowListenerCone ||
             BasisAudioGizmos.ShowLevels ||
+            BasisJiggleGrabGizmos.Show ||
             BasisSyncGizmos.Show ||
             BasisSyncGizmos.ShowBandwidth ||
             BasisPlayerNetworkGizmos.Show ||
@@ -526,6 +539,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
             localPlayer.LocalSeatDriver?.UpdateSeatGizmos(UseSeatTargets, UseGizmoLabels, _camPos);
         }
 
+        BasisJiggleGrabGizmos.Tick(scale);
         BasisAudioGizmos.Tick(scale);
         BasisSyncGizmos.Tick(scale);
         BasisPlayerNetworkGizmos.Tick(scale);

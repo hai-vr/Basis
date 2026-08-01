@@ -414,6 +414,18 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool AlwaysShowAvatar;
 
         /// <summary>
+        /// Per-player override mirrored from <see cref="BasisPlayerSettingsData.AvatarInteraction"/>.
+        /// Master gate for this player's avatar interacting with ours (jiggle colliders and grabs).
+        /// </summary>
+        public bool AvatarInteractionAllowed = true;
+
+        /// <summary>
+        /// Per-player override mirrored from <see cref="BasisPlayerSettingsData.JiggleGrabAllowed"/>.
+        /// When false this player cannot grab our jiggle and we will not grab theirs.
+        /// </summary>
+        public bool JiggleGrabAllowed = true;
+
+        /// <summary>
         /// Effective block state: local persisted block OR remote session temp block.
         /// Performance blocks are deliberately not folded in here because they don't
         /// hide the player entirely — only swap the avatar mesh for the fallback.
@@ -589,6 +601,8 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 IsBlocked = BasisPlayerSettingsData.IsBlocked;
                 AlwaysShowAvatar = BasisPlayerSettingsData.AlwaysShowAvatar;
+                AvatarInteractionAllowed = BasisPlayerSettingsData.AvatarInteraction;
+                JiggleGrabAllowed = BasisPlayerSettingsData.JiggleGrabAllowed;
 
                 bool effectivelyBlocked = IsEffectivelyBlocked;
 

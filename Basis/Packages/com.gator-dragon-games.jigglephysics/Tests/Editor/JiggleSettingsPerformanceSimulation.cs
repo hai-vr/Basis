@@ -75,6 +75,7 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
         public NativeArray<JiggleCollider> personalColliders;
         public NativeHashMap<int2, JiggleGridCell> broadPhaseMap;
         public NativeReference<JiggleGridCell> globalCell;
+        public NativeParallelMultiHashMap<int, JiggleGrabConstraint> grabConstraints;
 
         public int colliderCount;
         public int treeCount;
@@ -123,6 +124,8 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
                 broadPhaseMap = new NativeHashMap<int2, JiggleGridCell>(4096, Allocator.Persistent),
                 globalCell = new NativeReference<JiggleGridCell>(
                     new JiggleGridCell(JiggleJobBroadPhase.MAX_COLLIDERS), Allocator.Persistent),
+                grabConstraints = new NativeParallelMultiHashMap<int, JiggleGrabConstraint>(
+                    JiggleGrabConstraint.MaxTotalGrabs, Allocator.Persistent),
             };
 
             crowd.treeSnapshots = new JiggleSimulatedPoint[avatarCount][];
@@ -230,6 +233,8 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
             job.sceneColliders = colliders;
             job.broadPhaseMap = broadPhaseMap;
             job.globalCell = globalCell;
+            job.grabConstraints = grabConstraints;
+            job.grabConstraintCount = 0;
             return job;
         }
 
@@ -305,6 +310,7 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
             if (inputPoses.IsCreated) inputPoses.Dispose();
             if (outputPoses.IsCreated) outputPoses.Dispose();
             if (personalColliders.IsCreated) personalColliders.Dispose();
+            if (grabConstraints.IsCreated) grabConstraints.Dispose();
             foreach (var pointer in allocations) {
                 UnsafeUtility.Free((void*)pointer, Allocator.Persistent);
             }

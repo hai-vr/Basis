@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "Basis Framework",
+        "BasisSDK",
         "BasisCommon",
         "BasisGizmos",
         "Unity.TextMeshPro",

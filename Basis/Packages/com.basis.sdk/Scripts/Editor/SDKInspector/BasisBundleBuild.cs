@@ -20,6 +20,7 @@ public static class BasisBundleBuild
 
     public static async Task<(bool, string)> GameObjectBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverriddenPassword = "")
     {
+        BasisContentGroupId.EnsurePersistent(BasisContentBase);
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
         {
@@ -159,6 +160,7 @@ public static class BasisBundleBuild
      bool useProvidedPassword = false,
      string OverriddenPassword = "")
     {
+        BasisContentGroupId.EnsurePersistent(BasisContentBase);
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
         {

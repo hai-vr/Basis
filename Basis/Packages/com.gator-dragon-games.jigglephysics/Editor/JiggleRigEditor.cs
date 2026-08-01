@@ -18,6 +18,8 @@ public class JiggleRigEditor : Editor {
         InspectorElement.FillDefaultInspector(visualElement, serializedObject, this);
 
         if (serializedObject.isEditingMultipleObjects) return visualElement;
+
+        JiggleRigInspectorExtensions.Invoke((JiggleRig)target, visualElement);
         
         var targetRig = (JiggleRig)target;
         var targetObject = targetRig.gameObject;

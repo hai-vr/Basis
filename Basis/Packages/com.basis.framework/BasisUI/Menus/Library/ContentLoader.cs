@@ -344,23 +344,29 @@ namespace Basis.BasisUI
 
                         BasisMainMenu.Close();
                         break;
-                    case BasisPropSpawnPlacement.AtPlayerOrigin:
-                        finalPos = BasisLocalPlayer.Instance.PlayerSelf.position;
-                        BasisMainMenu.Close();
-                        break;
                     case BasisPropSpawnPlacement.OnGround:
                         BasisBounds groundBounds = await ResolvePlacementBounds(item, cached, desiredNetworkType, finalScale, admin, modifyScale);
                         BasisMainMenu.Close();
                         PropSpawnPlacement.ComputePose(spawnMeta, groundBounds, out finalPos, out finalRot, out finalScale);
                         break;
+                    // AtPlayerOrigin belongs here rather than computing its own position: it used to
+                    // set finalPos alone and leave finalRot at identity, so the prop spawned
+                    // world-axis aligned and the author's FaceThePlayer was silently ignored for
+                    // this one placement. ComputePose already implements it (same position, plus
+                    // FacingRotation) — none of these three consult bounds, hence `default`.
+                    case BasisPropSpawnPlacement.AtPlayerOrigin:
                     case BasisPropSpawnPlacement.InAirAtDistance:
                     case BasisPropSpawnPlacement.InHand:
                         BasisMainMenu.Close();
                         PropSpawnPlacement.ComputePose(spawnMeta, default, out finalPos, out finalRot, out finalScale);
                         break;
                     default:
+                        // Must return, not break: falling through left finalPos/finalRot at their
+                        // defaults and spawned the prop at the world origin while this very line
+                        // claimed it had not been spawned. Unreachable while the switch covers every
+                        // BasisPropSpawnPlacement value, which is exactly when it would start lying.
                         BasisDebug.LogError($"LoadProp was invoked for item = {item.Url} but resolved to placement = {spawnMeta.Placement} which is not defined. Unable to spawn item");
-                        break;
+                        return;
                 }
 
                 bool handOff = spawnMeta.Placement == BasisPropSpawnPlacement.InHand;

@@ -34,6 +34,8 @@ namespace Basis.BasisUI
         public const string ResetKey = "menu.panel.reset";
         public const string ResetTooltipKey = "menu.panel.reset.tooltip";
         public const string ResetPositionKey = "menu.panel.reset.position";
+        public const string SearchKey = "menu.panel.search";
+        public const string SearchTooltipKey = "menu.panel.search.tooltip";
 
         /// <summary>
         /// Runs after the raycasters have refreshed their rays for this frame (BasisDesktopEye is
@@ -54,6 +56,7 @@ namespace Basis.BasisUI
         private RectTransform _panelRect;
         private PanelButton _moveButton;
         private PanelButton _resetButton;
+        private PanelButton _searchButton;
         private string _panelKey;
         private Vector3 _defaultLocalPosition;
 
@@ -89,6 +92,9 @@ namespace Basis.BasisUI
                 return null;
             }
 
+            // Search sits leftmost of the three so the destructive one stays furthest from it. It is
+            // built inactive: only panels that register something to search show it.
+            PanelButton search = CreateButton(host, inHeader, SearchKey, SearchTooltipKey, AddressableAssets.Sprites.Search, SearchStyle, "Search Button");
             PanelButton move = CreateButton(host, inHeader, MoveKey, MoveTooltipKey, AddressableAssets.Sprites.Move, MoveStyle, "Move Button");
             PanelButton reset = CreateButton(host, inHeader, ResetKey, ResetTooltipKey, AddressableAssets.Sprites.Reset, ResetStyle, "Reset Button");
             if (move == null)
@@ -96,9 +102,51 @@ namespace Basis.BasisUI
                 return null;
             }
 
+            if (search != null)
+            {
+                search.gameObject.SetActive(false);
+            }
+
             BasisPanelMoveHandle handle = move.gameObject.AddComponent<BasisPanelMoveHandle>();
-            handle.Bind(panel, move, reset, panelKey);
+            handle.Bind(panel, move, reset, search, panelKey);
             return handle;
+        }
+
+        /// <summary>
+        /// Points this panel's header Search at something to search. Until this is called the button
+        /// stays hidden, so a panel with nothing to look through does not offer to look through it.
+        /// Pass a null query to take it away again.
+        /// </summary>
+        public static void SetPanelSearch(BasisMenuPanel panel, string title, BasisPanelSearchQuery query)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            BasisPanelMoveHandle handle = panel.GetComponentInChildren<BasisPanelMoveHandle>(true);
+            if (handle == null)
+            {
+                return;
+            }
+
+            handle._searchTitle = title;
+            handle._search = query;
+            if (handle._searchButton != null)
+            {
+                handle._searchButton.gameObject.SetActive(query != null);
+            }
+        }
+
+        private string _searchTitle;
+        private BasisPanelSearchQuery _search;
+
+        private void OpenSearch()
+        {
+            if (_search != null)
+            {
+                BasisPanelSearchPopup.Open(_searchTitle, _search);
+            }
         }
 
         // Compact icon-only metrics for the overlay strip; the header variant keeps the Close
@@ -108,8 +156,9 @@ namespace Basis.BasisUI
         private const float OverlayMargin = 14f;
         private const float OverlaySpacing = 6f;
 
-        /// <summary>Accent blue: move is an ordinary adjustment the user can make freely.</summary>
+        /// <summary>Accent blue: move and search are ordinary things the user can do freely.</summary>
         private const string MoveStyle = "Button Standard";
+        private const string SearchStyle = "Button Standard";
 
         /// <summary>
         /// Danger red: reset throws away a placement the user arranged by hand and there is no undo,
@@ -192,12 +241,13 @@ namespace Basis.BasisUI
             return strip;
         }
 
-        private void Bind(BasisMenuPanel panel, PanelButton move, PanelButton reset, string panelKey)
+        private void Bind(BasisMenuPanel panel, PanelButton move, PanelButton reset, PanelButton search, string panelKey)
         {
             _panel = panel;
             _panelRect = (RectTransform)panel.transform;
             _moveButton = move;
             _resetButton = reset;
+            _searchButton = search;
             _panelKey = panelKey;
             _defaultLocalPosition = panel.Data.PanelPosition;
 
@@ -207,6 +257,10 @@ namespace Basis.BasisUI
             if (reset != null)
             {
                 reset.OnClicked += RequestReset;
+            }
+            if (search != null)
+            {
+                search.OnClicked += OpenSearch;
             }
 
             ApplyStoredOffset();
@@ -235,6 +289,10 @@ namespace Basis.BasisUI
             if (_resetButton != null)
             {
                 _resetButton.OnClicked -= RequestReset;
+            }
+            if (_searchButton != null)
+            {
+                _searchButton.OnClicked -= OpenSearch;
             }
         }
 

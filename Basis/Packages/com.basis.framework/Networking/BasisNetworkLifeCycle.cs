@@ -44,6 +44,7 @@ public static class BasisNetworkLifeCycle
         BasisJoinLeaveNotification.Create();
         BasisNetworkHandleTempBlock.Initialize();
         BasisNetworkHandleChatTyping.Initialize();
+        Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.Initialize();
 #if !UNITY_SERVER
         BasisNetworkPIPCameraDriver.Create();
 #endif
@@ -153,6 +154,7 @@ public static class BasisNetworkLifeCycle
         BasisJoinLeaveNotification.Shutdown();
         BasisNetworkHandleTempBlock.Shutdown();
         BasisNetworkHandleChatTyping.Shutdown();
+        Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.Shutdown();
 #if !UNITY_SERVER
         BasisNetworkPIPCameraDriver.Shutdown();
 #endif

@@ -286,6 +286,8 @@ public class JiggleJobs {
         _memoryBus.ApplyPendingTeleports();
         Profiler.EndSample();
 
+        _memoryBus.ApplyPendingGrabConstraints();
+
         _memoryBus.RotateBuffers();
         jobInterpolation.previousTimeStamp = jobInterpolation.timeStamp;
         jobInterpolation.timeStamp = jobSimulate.timeStamp;
@@ -396,6 +398,10 @@ public class JiggleJobs {
     public void Teleport(JiggleTree tree, float3 deltaPosition) {
         if (tree == null) return;
         _memoryBus.ScheduleTeleport(tree, deltaPosition);
+    }
+
+    public void SetGrabConstraints(JiggleGrabConstraint[] constraints, int count) {
+        _memoryBus.SetGrabConstraints(constraints, count);
     }
 
     public void Teleport(JiggleTree tree, quaternion deltaRotation, float3 pivot, float3 deltaPosition) {

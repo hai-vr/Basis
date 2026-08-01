@@ -26,6 +26,9 @@ public struct JiggleJobSimulate : IJobFor {
     [ReadOnly] public NativeHashMap<int2,JiggleGridCell> broadPhaseMap;
     [ReadOnly] public NativeReference<JiggleGridCell> globalCell;
 
+    [ReadOnly] public NativeParallelMultiHashMap<int, JiggleGrabConstraint> grabConstraints;
+    public int grabConstraintCount;
+
     public NativeArray<JiggleTreeJobData> jiggleTrees;
 
     private float deltaTimeSquared;
@@ -42,6 +45,8 @@ public struct JiggleJobSimulate : IJobFor {
         timeStamp = Time.timeAsDouble;
         broadPhaseMap = bus.broadPhaseMap;
         globalCell = bus.globalCell;
+        grabConstraints = bus.grabConstraints;
+        grabConstraintCount = bus.grabConstraintCount;
         gravity = Physics.gravity;
         sceneColliderCount = 0;
         deltaTimeSquared = fixedDeltaTime * fixedDeltaTime;
@@ -59,6 +64,8 @@ public struct JiggleJobSimulate : IJobFor {
         sceneColliderCount = bus.sceneColliderCount;
         broadPhaseMap = bus.broadPhaseMap;
         globalCell = bus.globalCell;
+        grabConstraints = bus.grabConstraints;
+        grabConstraintCount = bus.grabConstraintCount;
     }
     
     public void SetFixedDeltaTime(float fixedDeltaTime) {
@@ -378,7 +385,7 @@ public struct JiggleJobSimulate : IJobFor {
         }
         return false;
     }
-    private unsafe void Constrain(JiggleTreeJobData tree, int2 minExtentPosition, int2 maxExtentPosition) {
+    private unsafe void Constrain(JiggleTreeJobData tree, int2 minExtentPosition, int2 maxExtentPosition, JiggleGrabConstraint* treeGrabs, int treeGrabCount) {
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points+i;
             var pointParameters = tree.parameters + i;
@@ -435,6 +442,10 @@ public struct JiggleJobSimulate : IJobFor {
                 var child = tree.points[point->childrenIndices[0]];
                 point->workingPosition = point->workingPosition = math.lerp(point->workingPosition, point->pose,
                     pointParameters->rootElasticity * pointParameters->rootElasticity);
+                // Grabs apply here too, after the root pin: this branch continues past the regions
+                // below, and on a single bone rig (a breast chain, say) this is the ONLY real point,
+                // so skipping it would make the whole rig ungrabbable.
+                ApplyGrabs(point, i, treeGrabs, treeGrabCount);
                 var head = point->pose;
                 var tail = child.pose;
                 var diffasdf = head - tail;
@@ -555,11 +566,42 @@ public struct JiggleJobSimulate : IJobFor {
                         (correctionDir * angleCorrectionDistance) * (1f - parentParameters->angleLimitSoften * 0.5f);
                     point->workingPosition += angleCorrection;
                 }
-                
+
             }
 
             #endregion
-            
+
+            #region Grab Constraint
+
+            // Last region on purpose: the pin wins for this point, and children (higher indices)
+            // solve against the pinned position in this same pass.
+            ApplyGrabs(point, i, treeGrabs, treeGrabCount);
+
+            #endregion
+
+        }
+    }
+
+    private unsafe void ApplyGrabs(JiggleSimulatedPoint* point, int pointIndex, JiggleGrabConstraint* treeGrabs, int treeGrabCount) {
+        for (int g = 0; g < treeGrabCount; g++) {
+            if (treeGrabs[g].pointIndex != pointIndex) {
+                continue;
+            }
+            var grabTarget = treeGrabs[g].targetPosition;
+            // Reach is bounded against the animated pose and scaled by how far down the chain this
+            // point sits, so the same authored factor gives a long chain more travel than a short
+            // one and neither can be dragged into a rubber band. The root particle has no distance
+            // from root, so its own bone length stands in - otherwise it would be unbounded.
+            var stretchScale = math.max(point->distanceFromRoot, point->desiredLengthToParent);
+            var maxStretch = treeGrabs[g].maxStretchFactor * stretchScale;
+            if (maxStretch > 0f) {
+                var stretch = grabTarget - point->pose;
+                var stretchLength = math.length(stretch);
+                if (stretchLength > maxStretch) {
+                    grabTarget = point->pose + stretch * (maxStretch / stretchLength);
+                }
+            }
+            point->workingPosition = math.lerp(point->workingPosition, grabTarget, treeGrabs[g].strength);
         }
     }
 
@@ -646,7 +688,7 @@ public struct JiggleJobSimulate : IJobFor {
     }
     #endif
 
-    public void Execute(int index) {
+    public unsafe void Execute(int index) {
         var tree = jiggleTrees[index];
         #if UNITY_EDITOR && JIGGLE_VALIDATE
         if (!Validate(tree)) {
@@ -657,10 +699,19 @@ public struct JiggleJobSimulate : IJobFor {
         // the substep loop. Each substep is then a whole fixed step: two of them advance the sim by
         // exactly as much as two frames would, which is what makes the result frame rate independent.
         Cache(tree, out var minExtentPosition, out var maxExtentPosition);
+        var treeGrabs = stackalloc JiggleGrabConstraint[JiggleGrabConstraint.MaxGrabsPerTree];
+        var treeGrabCount = 0;
+        if (grabConstraintCount > 0 && grabConstraints.IsCreated && grabConstraints.TryGetFirstValue(tree.rootID, out var grab, out var grabIterator)) {
+            do {
+                if (grab.pointIndex > 0 && grab.pointIndex < tree.pointCount && treeGrabCount < JiggleGrabConstraint.MaxGrabsPerTree) {
+                    treeGrabs[treeGrabCount++] = grab;
+                }
+            } while (grabConstraints.TryGetNextValue(out grab, ref grabIterator));
+        }
         var stepCount = math.max(substeps, 1);
         for (int step = 0; step < stepCount; step++) {
             VerletIntegrate(tree);
-            Constrain(tree, minExtentPosition, maxExtentPosition);
+            Constrain(tree, minExtentPosition, maxExtentPosition, treeGrabs, treeGrabCount);
             FinishStep(tree);
         }
         // Repair BEFORE the pose write, not after: a NaN step otherwise leaks one frame of NaN

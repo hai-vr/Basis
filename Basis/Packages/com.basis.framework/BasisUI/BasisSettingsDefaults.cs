@@ -332,6 +332,10 @@ namespace Basis.BasisUI
         // Seated-pose solve targets (back/knee/foot) + axes.
         public static BasisSettingsBinding<bool> GizmoSeatTargets = new("gizmoseattargets", new BasisPlatformDefault<bool>(false));
 
+        // Jiggle grab-and-pull debug: grabbed bone, pull target, per-point reach limit, and the
+        // pick spheres a grab press searches from.
+        public static BasisSettingsBinding<bool> GizmoJiggleGrab = new("gizmojigglegrab", new BasisPlatformDefault<bool>(false));
+
         // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
         // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
         // pose action, and the line in your face is noisy.
@@ -796,6 +800,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> HideRemoteCameraPucks = new("hideremotecamerapucks", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisablePropPickup = new("disableproppickup", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DisableVRAutoHold = new("disablevrautohold", new BasisPlatformDefault<bool>(false));
+        // Master switch for jiggle grab-and-pull: off = never initiate, never be grabbed, never apply observed grabs.
+        public static BasisSettingsBinding<bool> JiggleGrabInteractions = new("jigglegrabinteractions", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UIHaptics = new("uihaptics", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> UIClickPressThreshold = new("uiclickpressthreshold", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> UIClickReleaseThreshold = new("uiclickreleasethreshold", new BasisPlatformDefault<float>(0.4f));
@@ -1948,6 +1954,7 @@ namespace Basis.BasisUI
             GizmoInteractionHover.LoadBindingValue();
             GizmoFingerTouch.LoadBindingValue();
             GizmoSeatTargets.LoadBindingValue();
+            GizmoJiggleGrab.LoadBindingValue();
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
             GizmoAudioLevels.LoadBindingValue();
@@ -2139,6 +2146,16 @@ namespace Basis.BasisUI
             HideRemoteCameraPucks.OnChanged += BasisNetworkPIPCameraDriver.SetHideRemoteCameraPucks;
             DisablePropPickup.LoadBindingValue();
             DisableVRAutoHold.LoadBindingValue();
+            JiggleGrabInteractions.LoadBindingValue();
+            Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabPermissions.MasterEnabled = JiggleGrabInteractions.RawValue;
+            JiggleGrabInteractions.OnChanged += on =>
+            {
+                Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabPermissions.MasterEnabled = on;
+                if (!on)
+                {
+                    Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.ReleaseLocalGrabs();
+                }
+            };
             UIHaptics.LoadBindingValue();
             UIClickPressThreshold.LoadBindingValue();
             UIClickReleaseThreshold.LoadBindingValue();

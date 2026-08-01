@@ -27,6 +27,21 @@ public class JiggleRigDataPropertyDrawer : PropertyDrawer {
         excludeRootToggleElement.tooltip =
             "Exclude the root from the jiggle simulation. Use this to coalesce many branching jiggles.";
 
+        var lockFromGrabbingToggle = new Toggle("Lock From Grabbing");
+        lockFromGrabbingToggle.BindProperty(property.FindPropertyRelative(nameof(JiggleRigData.lockFromGrabbing)));
+        lockFromGrabbingToggle.tooltip = "Prevents players from grabbing and pulling this jiggle chain.";
+        excludeRootToggleElement.parent.Insert(
+            excludeRootToggleElement.parent.IndexOf(excludeRootToggleElement) + 1, lockFromGrabbingToggle);
+
+        var maxGrabStretchField = new FloatField("Max Grab Stretch");
+        maxGrabStretchField.BindProperty(property.FindPropertyRelative(nameof(JiggleRigData.maxGrabStretch)));
+        maxGrabStretchField.tooltip =
+            "How far a grab may pull a bone from its animated pose, as a multiple of that bone's distance " +
+            "from the chain root — so the limit scales with chain length. 1 lets a chain be pulled roughly " +
+            "taut. 0 uses the default (" + JiggleGrabConstraint.DefaultMaxStretchFactor + ").";
+        lockFromGrabbingToggle.parent.Insert(
+            lockFromGrabbingToggle.parent.IndexOf(lockFromGrabbingToggle) + 1, maxGrabStretchField);
+
         var excludedTransformsElement = visualElement.Q<PropertyField>("IgnoredTransformsField");
         excludedTransformsElement.BindProperty(property.FindPropertyRelative(nameof(JiggleRigData.excludedTransforms)));
 

@@ -175,6 +175,7 @@ namespace Basis.BasisUI
             BasisMenuURLPromptPanel panel = CreateNew<BasisMenuURLPromptPanel>(DialogueStyles.Default, parent);
             panel.LoadData(UrlPromptPanelData);
             panel.Setup(url, callback);
+            panel.SetLayer(PanelLayer.Overlay);
             BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuURLPromptPanel));
             panel.transform.SetAsLastSibling();
 

@@ -362,6 +362,7 @@ public partial class BasisAvatarSDKInspector : Editor
         BasisSDKCommonInspector.CreateBuildOptionsDropdown(BasisSDKCommonInspector.ResolveBuildContainer(uiElementsRoot));
 
         BasisSDKCommonInspector.CreateContentTagsFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), Avatar);
+        BasisSDKCommonInspector.CreateContentGroupIdFoldout(BasisSDKCommonInspector.ResolveContentTagsContainer(uiElementsRoot), Avatar);
         BasisSDKCommonInspector.StyleBuildButton(avatarBundleButton);
         BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
         // Icon field, plus the capture buttons that fill it in. Bound to the serialized property
@@ -424,7 +425,10 @@ public partial class BasisAvatarSDKInspector : Editor
             try
             {
                 BasisDebug.Log($"Building Avatar Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
-                // Build from a stripped clone so the authored avatar stays untouched.
+                // Build from a stripped clone so the authored avatar stays untouched. The group id
+                // must be ensured on the ORIGINAL first — generating it on the clone would discard
+                // it when the clone is destroyed, breaking version stacking across uploads.
+                BasisContentGroupId.EnsurePersistent(Avatar);
                 buildRoot = GameObject.Instantiate(Avatar.gameObject);
                 buildRoot.TryGetComponent<BasisAvatar>(out Avatar);
                 //  if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)

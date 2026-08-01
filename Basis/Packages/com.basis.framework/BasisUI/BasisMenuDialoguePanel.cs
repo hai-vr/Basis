@@ -259,6 +259,7 @@ namespace Basis.BasisUI
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
             panel.Severity = severity;
+            panel.SetLayer(PanelLayer.Overlay);
             panel.FillDialogue(title, description, accept, deny);
             BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuDialoguePanel));
 

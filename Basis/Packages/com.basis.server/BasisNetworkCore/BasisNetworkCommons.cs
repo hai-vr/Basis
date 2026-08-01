@@ -1118,6 +1118,21 @@ namespace Basis.Network.Core
         // Wire (client→server): [eventType:1][targetId:2][state:1]
         // Wire (server→target): [eventType:1][responderId:2][state:1]
         public const byte EventType_VoiceRecordConsent = 9;
+        /// <summary>
+        /// Jiggle grab lifecycle between two players' avatars. Start is re-sent periodically
+        /// as a keepalive/late-join heal and is relevance-filtered by the server; Stop and
+        /// Deny broadcast. Deny is sent by the grab TARGET to kill a grab everywhere.
+        /// </summary>
+        // Wire Start (client→server): [eventType:1][op:1][targetId:2][rigIndex:1][pointIndex:2][hand:1][boneNameHash:4][offset:3xhalf]
+        // Wire Start (server→clients): [eventType:1][op:1][grabberId:2][targetId:2][rigIndex:1][pointIndex:2][hand:1][boneNameHash:4][offset:3xhalf]
+        // Wire Stop (client→server): [eventType:1][op:1][targetId:2][rigIndex:1][pointIndex:2]
+        // Wire Stop (server→clients): [eventType:1][op:1][grabberId:2][targetId:2][rigIndex:1][pointIndex:2]
+        // Wire Deny (client→server): [eventType:1][op:1][grabberId:2]
+        // Wire Deny (server→clients): [eventType:1][op:1][denierId:2][grabberId:2]
+        public const byte EventType_JiggleGrab = 10;
+        public const byte JiggleGrabOp_Start = 0;
+        public const byte JiggleGrabOp_Stop = 1;
+        public const byte JiggleGrabOp_Deny = 2;
 
         // ── Per-quality avatar channels (ushort playerID, for IDs >255) ──
         // Same layout as byte-ID channels: base + quality * 2 + hasAdditional

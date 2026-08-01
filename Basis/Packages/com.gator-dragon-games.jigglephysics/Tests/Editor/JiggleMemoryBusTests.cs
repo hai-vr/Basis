@@ -1006,6 +1006,76 @@ internal unsafe class JiggleMemoryBusTests {
         Assert.AreEqual(1, treeCount);
         Assert.AreEqual(tree.rootID, published[0].rootID);
     }
+
+    // ---------------------------------------------------------------- grab constraints
+
+    [Test]
+    public void GrabConstraints_DrainIntoTheMapForACommittedTree() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        bus.SetGrabConstraints(new[] {
+            new JiggleGrabConstraint { rootID = tree.rootID, pointIndex = 2, targetPosition = new float3(1f, 2f, 3f), strength = 1f },
+        }, 1);
+        bus.ApplyPendingGrabConstraints();
+
+        Assert.AreEqual(1, bus.grabConstraintCount);
+        Assert.IsTrue(bus.grabConstraints.TryGetFirstValue(tree.rootID, out var stored, out _));
+        Assert.AreEqual(2, stored.pointIndex);
+        JiggleAssert.AreEqual(new float3(1f, 2f, 3f), stored.targetPosition, Tolerance);
+    }
+
+    [Test]
+    public void GrabConstraints_ForUnknownRootIDs_ArePrefilteredAtTheDrain() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        bus.SetGrabConstraints(new[] {
+            new JiggleGrabConstraint { rootID = tree.rootID, pointIndex = 2, strength = 1f },
+            new JiggleGrabConstraint { rootID = 987654, pointIndex = 2, strength = 1f },
+        }, 2);
+        bus.ApplyPendingGrabConstraints();
+
+        Assert.AreEqual(1, bus.grabConstraintCount);
+        Assert.IsFalse(bus.grabConstraints.TryGetFirstValue(987654, out _, out _));
+    }
+
+    [Test]
+    public void GrabConstraints_ReplaceWholesale_AndClearWithCountZero() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        bus.SetGrabConstraints(new[] {
+            new JiggleGrabConstraint { rootID = tree.rootID, pointIndex = 2, strength = 1f },
+        }, 1);
+        bus.ApplyPendingGrabConstraints();
+        Assert.AreEqual(1, bus.grabConstraintCount);
+
+        bus.SetGrabConstraints(System.Array.Empty<JiggleGrabConstraint>(), 0);
+        bus.ApplyPendingGrabConstraints();
+
+        Assert.AreEqual(0, bus.grabConstraintCount);
+        Assert.IsFalse(bus.grabConstraints.TryGetFirstValue(tree.rootID, out _, out _));
+    }
+
+    [Test]
+    public void GrabConstraints_DrainWithoutNewStaging_IsANoOp() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        bus.SetGrabConstraints(new[] {
+            new JiggleGrabConstraint { rootID = tree.rootID, pointIndex = 2, strength = 1f },
+        }, 1);
+        bus.ApplyPendingGrabConstraints();
+        bus.ApplyPendingGrabConstraints();
+
+        Assert.AreEqual(1, bus.grabConstraintCount);
+        Assert.IsTrue(bus.grabConstraints.TryGetFirstValue(tree.rootID, out _, out _));
+    }
 }
 
 }

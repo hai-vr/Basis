@@ -23,7 +23,8 @@
         "Basis.OpenLipSync.Runtime",
         "BasisEventDriver",
         "Unity.TextMeshPro",
-        "glTFast"
+        "glTFast",
+        "com.gator-dragon-games.jigglephysics.editor"
     ],
     "includePlatforms": [
         "Editor"

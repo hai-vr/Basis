@@ -26,6 +26,7 @@ namespace Basis.BasisUI
             public bool OwnsSprite;
             public string DateOfCreation;
             public string UniqueVersion;
+            public string ContentGroupId;
 
             public BasisLoadableBundle BasisLoadableBundle;
             public BasisBundleConnector BasisBundleConnector;
@@ -196,6 +197,7 @@ namespace Basis.BasisUI
                 AssetBundleDescription = connector?.BasisBundleDescription?.AssetBundleDescription,
                 DateOfCreation = connector?.DateOfCreation,
                 UniqueVersion = connector?.UniqueVersion,
+                ContentGroupId = connector?.BasisBundleDescription?.ContentGroupId,
                 BasisBundleConnector = connector,
                 BasisLoadableBundle = wrapper.BasisLoadableBundle,
             };

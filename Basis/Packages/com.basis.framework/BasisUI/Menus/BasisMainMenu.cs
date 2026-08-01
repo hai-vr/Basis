@@ -42,6 +42,7 @@ namespace Basis.BasisUI
         public BasisMainMenu()
         {
             HotbarMenu = BasisMenuPanel.CreateNew(BasisMenuPanel.PanelData.Toolbar(MenuTitle), MenuObjectInstance.PanelRoot);
+            HotbarMenu.SetLayer(BasisMenuPanel.PanelLayer.MainMenu);
 
             HorizontalLayout = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewHorizontal, HotbarMenu.Descriptor.ContentParent);
             if(HorizontalLayout.ContentParent.TryGetComponent(out BasisHorizontalLayout Layout))

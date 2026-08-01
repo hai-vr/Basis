@@ -58,13 +58,20 @@ public struct BasisPlayerSettingsData
     public bool NormalizeLoudness;
 
     /// <summary>
+    /// Whether jiggle grab-and-pull is allowed between the local player and this player,
+    /// in both directions: when false they cannot grab our jiggle and we will not grab
+    /// theirs. Blocking always denies regardless of this value.
+    /// </summary>
+    public bool JiggleGrabAllowed;
+
+    /// <summary>
     /// Version number of the settings schema. Used to upgrade old files gracefully.
     /// A value of <c>0</c> after deserialization signals a missing/corrupt record.
     /// </summary>
     public int Version;
 
     /// <summary>Schema version written by this build.</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     /// <summary>
     /// Default settings (volume 1.0, avatar visible, avatar interaction enabled, chat visible, not blocked).
@@ -82,6 +89,10 @@ public struct BasisPlayerSettingsData
         if (Version < 6)
         {
             NormalizeLoudness = true;
+        }
+        if (Version < 7)
+        {
+            JiggleGrabAllowed = true;
         }
 
         Version = CurrentVersion;
@@ -107,6 +118,7 @@ public struct BasisPlayerSettingsData
         IsBlocked = isBlocked;
         AlwaysShowAvatar = alwaysShowAvatar;
         NormalizeLoudness = true;
+        JiggleGrabAllowed = true;
         Version = CurrentVersion;
     }
 

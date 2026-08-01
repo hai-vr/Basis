@@ -727,6 +727,10 @@ public static class JigglePhysics {
         jobs?.Teleport(tree, deltaRotation, pivot, deltaPosition);
     }
 
+    public static void SetGrabConstraints(JiggleGrabConstraint[] constraints, int count) {
+        jobs?.SetGrabConstraints(constraints, count);
+    }
+
     public static void RemoveJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {
         if (rootJiggleTreeSegments.Contains(jiggleTreeSegment)) {
             rootJiggleTreeSegments.Remove(jiggleTreeSegment);

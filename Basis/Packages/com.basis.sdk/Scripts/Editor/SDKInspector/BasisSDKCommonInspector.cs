@@ -422,6 +422,81 @@ public static class BasisSDKCommonInspector
         rebuildChips();
     }
 
+    /// <summary>
+    /// Builds the "Content Group ID" block: the stable identity that stacks every upload of this
+    /// content into one library card. Same id ⇒ same stack; a fresh id lists future uploads as a
+    /// separate item. Empty is fine — the build generates and persists one automatically.
+    /// </summary>
+    public static void CreateContentGroupIdFoldout(VisualElement parent, BasisContentBase content)
+    {
+        if (content == null) return;
+        if (content.BasisBundleDescription == null)
+        {
+            content.BasisBundleDescription = new BasisBundleDescription();
+        }
+
+        Foldout foldout = new Foldout
+        {
+            text = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.foldout"),
+            value = false,
+        };
+        parent.Add(foldout);
+
+        Label help = BodyLabel(BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.help"));
+        help.style.marginBottom = 6;
+        help.style.opacity = 0.85f;
+        foldout.Add(help);
+
+        TextField idField = new TextField
+        {
+            value = content.BasisBundleDescription.ContentGroupId ?? string.Empty,
+            isDelayed = true,
+            style = { flexGrow = 1 },
+        };
+        idField.textEdition.placeholder = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.placeholder");
+        idField.RegisterValueChangedCallback(evt =>
+        {
+            Undo.RecordObject(content, "Change Content Group ID");
+            content.BasisBundleDescription.ContentGroupId = evt.newValue == null ? string.Empty : evt.newValue.Trim();
+            MarkContentDirty(content);
+        });
+        foldout.Add(idField);
+
+        VisualElement buttonRow = new VisualElement
+        {
+            style = { flexDirection = FlexDirection.Row, marginTop = 4 },
+        };
+
+        Button generate = new Button
+        {
+            text = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.generate"),
+            tooltip = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.generate.tooltip"),
+        };
+        generate.clicked += () =>
+        {
+            Undo.RecordObject(content, "Change Content Group ID");
+            content.BasisBundleDescription.ContentGroupId = BasisGenerateUniqueID.GenerateUniqueID();
+            MarkContentDirty(content);
+            idField.SetValueWithoutNotify(content.BasisBundleDescription.ContentGroupId);
+        };
+
+        Button copy = new Button
+        {
+            text = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.copy"),
+            tooltip = BasisEditorLocalization.Get("sdk.commonInspector.contentGroupId.copy.tooltip"),
+        };
+        copy.clicked += () =>
+        {
+            EditorGUIUtility.systemCopyBuffer = content.BasisBundleDescription.ContentGroupId ?? string.Empty;
+        };
+
+        StyleIconButton(generate);
+        StyleIconButton(copy);
+        buttonRow.Add(generate);
+        buttonRow.Add(copy);
+        foldout.Add(buttonRow);
+    }
+
     private static VisualElement BuildTagChip(string label, Action onRemove)
     {
         VisualElement chip = new VisualElement

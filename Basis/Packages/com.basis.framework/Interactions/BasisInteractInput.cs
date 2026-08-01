@@ -17,6 +17,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         [System.NonSerialized]
         public bool wasGripDown;
         [System.NonSerialized]
+        public bool wasTriggerDown;
+        [System.NonSerialized]
         public bool suppressGrabUntilRelease;
 
         public bool IsInput(BasisInput IsInputInput)

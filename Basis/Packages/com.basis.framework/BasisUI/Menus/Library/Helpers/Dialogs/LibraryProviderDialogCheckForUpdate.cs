@@ -92,6 +92,23 @@ namespace Basis.BasisUI
                 return await ApplyRefresh(panel, item, title);
             }
 
+            // First ever check on this entry: there was no recorded version, so "unchanged" is an
+            // assumption rather than a comparison. Say that plainly and let the user force a refresh,
+            // because a re-upload made before this check looks identical to no change at all.
+            if (result.BaselineEstablished)
+            {
+                bool forceRefresh = await PromptYesNo(panel,
+                    BasisLocalization.Get("library.dialog.checkForUpdate.baseline.title"),
+                    BasisLocalization.Get("library.dialog.checkForUpdate.baseline.body", title));
+
+                if (!forceRefresh)
+                {
+                    return false;
+                }
+
+                return await ApplyRefresh(panel, item, title);
+            }
+
             if (!result.HasUpdate)
             {
                 await ShowNotice(panel,

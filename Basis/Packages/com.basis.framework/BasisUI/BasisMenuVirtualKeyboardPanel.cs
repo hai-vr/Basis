@@ -249,6 +249,7 @@ namespace Basis.BasisUI
             panel.InputField = inputField;
             panel.TMPInputField = tmpInputField;
 
+            panel.SetLayer(PanelLayer.Overlay);
             panel.BuildPanel();
             BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuVirtualKeyboardPanel));
 

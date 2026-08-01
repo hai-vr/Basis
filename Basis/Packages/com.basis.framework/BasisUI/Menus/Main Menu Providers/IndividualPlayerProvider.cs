@@ -1223,7 +1223,32 @@ namespace Basis.BasisUI
 
                 if (remotePlayer != null)
                 {
+                    remotePlayer.AvatarInteractionAllowed = s.AvatarInteraction;
+                    if (!s.AvatarInteraction && BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer interactionsNet))
+                    {
+                        Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.RevokePlayer(interactionsNet.playerId);
+                    }
                     remotePlayer.ReloadAvatar();
+                }
+            };
+
+            PanelToggle jiggleGrabToggle = PanelToggle.CreateNewEntry(avatarGroup.ContentParent);
+            jiggleGrabToggle.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.jiggleGrab"));
+            jiggleGrabToggle.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.jiggleGrab.description"));
+            jiggleGrabToggle.SetValueWithoutNotify(settings.JiggleGrabAllowed);
+            jiggleGrabToggle.OnValueChanged += async on =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.JiggleGrabAllowed = on;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                if (remotePlayer != null)
+                {
+                    remotePlayer.JiggleGrabAllowed = on;
+                    if (!on && BasisNetworkPlayers.PlayerToNetworkedPlayer(remotePlayer, out BasisNetworkPlayer jiggleGrabNet))
+                    {
+                        Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.RevokePlayer(jiggleGrabNet.playerId);
+                    }
                 }
             };
 

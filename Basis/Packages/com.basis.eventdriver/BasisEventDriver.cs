@@ -849,6 +849,9 @@ namespace Basis.EventDriver
             {
                 BasisFrameSyncRegistry.Simulate();
             }
+            // Jiggle grab targets ride the same window: skeletons posed, nothing dispatched yet,
+            // so the pin targets pushed here are sampled by this frame's simulate.
+            Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.FrameTick();
             BasisFiniteWatchdog.Checkpoint("PostFrameSync (pre jiggle dispatch)");
             BasisFiniteWatchdog.CheckpointRemote("PostFrameSync (pre jiggle dispatch)");
 

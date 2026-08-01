@@ -191,6 +191,12 @@ public class BasisBundleDescription
     // Older bundles built before this field existed deserialize with null, which client
     // filters should treat as "unknown / no tags declared".
     public string[] Tags = new string[0];
+    // Stable identity for this piece of content across rebuilds and re-uploads, generated
+    // once at build time and persisted on the authored asset (unlike UniqueVersion, which
+    // is new every build). Clients group library entries sharing this id into one stack.
+    // Older bundles built before this field existed deserialize with null — clients treat
+    // null/empty as "no group" and show the entry standalone.
+    public string ContentGroupId;
     public BasisBundleDescription()
     {
 

@@ -203,6 +203,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 bool gripPressedAgain = gripDown && !interactInput.wasGripDown;
                 interactInput.wasGripDown = gripDown;
 
+                bool triggerDown = interactInput.input.CurrentInputState.Trigger == 1;
+                bool triggerPressedAgain = triggerDown && !interactInput.wasTriggerDown;
+                interactInput.wasTriggerDown = triggerDown;
+
                 // After a grab-again drop, wait for grip release so the same press can't re-grab the pickup
                 if (interactInput.suppressGrabUntilRelease)
                 {
@@ -268,6 +272,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 else if (TryDetectDirectGrab(interactInput, gripPressedAgain, out BasisInteractableObject grabTarget))
                 {
                     HandleDirectGrab(grabTarget, ref interactInput);
+                }
+                // Jiggle grab: runs only when ray, hover and direct grab all missed, and never
+                // touches lastTarget, so pickup priority and the interact state machine hold.
+                else if (BasisJiggleGrabDriver.TryBeginGrab(interactInput.input,
+                    IsDesktopCenterEye(interactInput.input) ? triggerPressedAgain : gripPressedAgain))
+                {
                 }
                 // Hover missed entirely. Test for drop & clear hover
                 else

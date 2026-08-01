@@ -10,6 +10,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -457,15 +458,75 @@ namespace Basis.BasisUI
             return tab;
         }
 
-        private static void BuildItemsList(List<BasisDataStoreItemKeys.ItemKey> items, PanelTabPage tab)
+        private static void BuildItemsList(List<List<BasisDataStoreItemKeys.ItemKey>> stacks, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
             // List entries
-            for (int Index = 0; Index < items.Count; Index++)
+            for (int Index = 0; Index < stacks.Count; Index++)
             {
-                var item = items[Index];
-                CreateItemCard(item, container);
+                CreateItemCard(stacks[Index], container);
             }
+        }
+
+        /// <summary>
+        /// Groups entries that declare the same ContentGroupId into one stack, newest upload first.
+        /// Entries without an id (older bundles, embedded/addressable items, meta not cached yet)
+        /// stay a stack of one, so pre-ContentGroupId content behaves exactly as before.
+        /// </summary>
+        private static List<List<BasisDataStoreItemKeys.ItemKey>> BuildVersionStacks(List<BasisDataStoreItemKeys.ItemKey> items)
+        {
+            List<List<BasisDataStoreItemKeys.ItemKey>> stacks = new(items.Count);
+            Dictionary<string, List<BasisDataStoreItemKeys.ItemKey>> byGroupId = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in items)
+            {
+                string groupId = GetContentGroupId(item);
+                if (string.IsNullOrEmpty(groupId))
+                {
+                    stacks.Add(new List<BasisDataStoreItemKeys.ItemKey> { item });
+                    continue;
+                }
+
+                if (byGroupId.TryGetValue(groupId, out var stack))
+                {
+                    stack.Add(item);
+                }
+                else
+                {
+                    stack = new List<BasisDataStoreItemKeys.ItemKey> { item };
+                    byGroupId[groupId] = stack;
+                    stacks.Add(stack);
+                }
+            }
+
+            foreach (var stack in stacks)
+            {
+                if (stack.Count > 1)
+                {
+                    stack.Sort((a, b) => GetItemCreatedUtc(b).CompareTo(GetItemCreatedUtc(a)));
+                }
+            }
+
+            return stacks;
+        }
+
+        private static string GetContentGroupId(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item == null || item.EmbeddedSettings.IsEmbedded) return null;
+            if (CachedMetaData.TryGetMeta(item.Url ?? string.Empty, out var meta))
+            {
+                return meta.ContentGroupId;
+            }
+            return null;
+        }
+
+        private static DateTime GetItemCreatedUtc(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item != null && CachedMetaData.TryGetMeta(item.Url ?? string.Empty, out var meta) && meta.Created.HasValue)
+            {
+                return meta.Created.Value;
+            }
+            return DateTime.MinValue;
         }
 
         private static void ClearTabContent(RectTransform container)
@@ -648,7 +709,7 @@ namespace Basis.BasisUI
 
                     // Clear and rebuild the tab content
                     ClearTabContent(tab.Descriptor.ContentParent);
-                    BuildItemsList(data, tab);
+                    BuildItemsList(BuildVersionStacks(data), tab);
                     tab.Descriptor.ForceRebuild();
                 }
                 catch (Exception e)
@@ -737,10 +798,12 @@ namespace Basis.BasisUI
         #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
 
         /// <summary>
-        /// The item card displayed all around the library menu
+        /// The item card displayed all around the library menu. A stack with more than one entry
+        /// renders as a single card (newest upload in front) that opens a version picker on click.
         /// </summary>
-        private static void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
+        private static void CreateItemCard(List<BasisDataStoreItemKeys.ItemKey> stack, RectTransform container)
         {
+            BasisDataStoreItemKeys.ItemKey item = stack[0];
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
             var urlKey = item.Url ?? string.Empty;
             var desc = buttonPanel.Descriptor;
@@ -753,16 +816,39 @@ namespace Basis.BasisUI
             switch(item.Mode)
             {
                 case BundledContentHolder.Mode.Avatar:
-                    buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                    bool anyWorn = false;
+                    for (int Index = 0; Index < stack.Count; Index++)
+                    {
+                        if (stack[Index].Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation)
+                        {
+                            anyWorn = true;
+                            break;
+                        }
+                    }
+                    buttonPanel.ButtonStyling.ShowIndicator(anyWorn);
                 break;
                 case BundledContentHolder.Mode.World:
-                    int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+                    int spawnItemCount = 0;
+                    for (int Index = 0; Index < stack.Count; Index++)
+                    {
+                        spawnItemCount += BasisRuntimeSpawnRegistry.CountIgnoreCase(stack[Index].Url);
+                    }
                     buttonPanel.ButtonStyling.SetIndicatorStyle(Styling.UiStyleButton.SpawnedIndicatorStyle);
                     buttonPanel.ButtonStyling.ShowIndicator(spawnItemCount > 0);
                 break;
             }
 
-            if (item.PinnedSettings.IsPinned)
+            bool anyPinned = false;
+            for (int Index = 0; Index < stack.Count; Index++)
+            {
+                if (stack[Index].PinnedSettings.IsPinned)
+                {
+                    anyPinned = true;
+                    break;
+                }
+            }
+
+            if (anyPinned)
             {
                 // create an image for this card in top right with an offset of -35, -35
                 PanelImage pinnedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
@@ -810,6 +896,14 @@ namespace Basis.BasisUI
                 if (cachedMeta != null)
                 {
                     ApplyMetaDataToButton(buttonPanel, cachedMeta, urlKey);
+
+                    if (stack.Count > 1)
+                    {
+                        desc.SetDescription(string.Format(BasisLocalization.Get("library.stack.versions"), stack.Count));
+                        AddStackLayers(buttonPanel, stack);
+                        AddStackCountBadge(buttonPanel, stack.Count);
+                        desc.ForceRebuild();
+                    }
                 }
                 else
                 {
@@ -821,18 +915,126 @@ namespace Basis.BasisUI
                 }
             }
 
-            buttonPanel.OnClicked += () =>
+            buttonPanel.OnClicked += async () =>
             {
+                BasisDataStoreItemKeys.ItemKey chosen = item;
+                if (stack.Count > 1)
+                {
+                    chosen = await LibraryProviderDialogPickVersion.PromptUserToPickVersion(panel, stack);
+                    if (chosen == null) return;
+                }
+
                 try
                 {
-                    ShowItemOverlay(item);
+                    ShowItemOverlay(chosen);
                 }
                 catch (Exception ex)
                 {
-                    BasisDebug.LogError($"Item '{item?.Url}' failed to open and will be removed: {ex.Message}");
-                    _ = HandleBadItem(item);
+                    BasisDebug.LogError($"Item '{chosen?.Url}' failed to open and will be removed: {ex.Message}");
+                    _ = HandleBadItem(chosen);
                 }
             };
+        }
+
+        /// <summary>
+        /// Renders the stacked-collection look: up to two offset, slightly rotated image layers
+        /// behind the card's icon, like a pile of photos, using the older versions' thumbnails
+        /// when they are cached.
+        /// </summary>
+        private static void AddStackLayers(PanelButton buttonPanel, List<BasisDataStoreItemKeys.ItemKey> stack)
+        {
+            var desc = buttonPanel.Descriptor;
+            if (desc.IconBackground == null) return;
+            RectTransform iconRt = desc.IconBackground.transform as RectTransform;
+            if (iconRt == null || iconRt.parent == null) return;
+
+            Sprite faceSprite = null;
+            if (CachedMetaData.TryGetMeta(stack[0].Url ?? string.Empty, out var faceMeta))
+            {
+                faceSprite = CachedMetaData.CreateSpriteFromMetaData(faceMeta);
+            }
+
+            int layers = Mathf.Min(stack.Count - 1, 2);
+            for (int Index = layers; Index >= 1; Index--)
+            {
+                Sprite layerSprite = null;
+                if (CachedMetaData.TryGetMeta(stack[Index].Url ?? string.Empty, out var layerMeta))
+                {
+                    layerSprite = CachedMetaData.CreateSpriteFromMetaData(layerMeta);
+                }
+                if (layerSprite == null)
+                {
+                    layerSprite = faceSprite;
+                }
+
+                GameObject layerGo = new GameObject($"Stack Layer {Index}", typeof(RectTransform));
+                RectTransform rt = (RectTransform)layerGo.transform;
+                rt.SetParent(iconRt.parent, false);
+                rt.anchorMin = iconRt.anchorMin;
+                rt.anchorMax = iconRt.anchorMax;
+                rt.pivot = iconRt.pivot;
+                rt.anchoredPosition = iconRt.anchoredPosition + new Vector2(9f * Index, 7f * Index);
+                rt.sizeDelta = iconRt.sizeDelta;
+                rt.localRotation = Quaternion.Euler(0f, 0f, (Index % 2 == 0 ? -3f : 3f) * Index);
+                rt.localScale = Vector3.one * (1f - 0.05f * Index);
+
+                Image layerImage = layerGo.AddComponent<Image>();
+                layerImage.sprite = layerSprite;
+                float shade = 1f - 0.22f * Index;
+                layerImage.color = new Color(shade, shade, shade, 1f);
+                layerImage.raycastTarget = false;
+
+                LayoutElement layoutElement = layerGo.AddComponent<LayoutElement>();
+                layoutElement.ignoreLayout = true;
+
+                rt.SetSiblingIndex(iconRt.GetSiblingIndex());
+            }
+        }
+
+        /// <summary>
+        /// Small count badge in the card's top-left corner so a stack reads as "x3" at a glance.
+        /// Copies the card title's TMP font settings so it matches the UI style.
+        /// </summary>
+        private static void AddStackCountBadge(PanelButton buttonPanel, int count)
+        {
+            var desc = buttonPanel.Descriptor;
+
+            GameObject badgeGo = new GameObject("Stack Count", typeof(RectTransform));
+            RectTransform rt = (RectTransform)badgeGo.transform;
+            rt.SetParent(desc.rectTransform, false);
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(0, 1);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(45, -35);
+            rt.sizeDelta = new Vector2(64, 42);
+
+            Image background = badgeGo.AddComponent<Image>();
+            background.color = new Color(0f, 0f, 0f, 0.6f);
+            background.raycastTarget = false;
+
+            LayoutElement layoutElement = badgeGo.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            GameObject textGo = new GameObject("Count", typeof(RectTransform));
+            RectTransform textRt = (RectTransform)textGo.transform;
+            textRt.SetParent(rt, false);
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI label = textGo.AddComponent<TextMeshProUGUI>();
+            if (desc.TitleLabel != null)
+            {
+                label.font = desc.TitleLabel.font;
+                label.fontSharedMaterial = desc.TitleLabel.fontSharedMaterial;
+                label.color = desc.TitleLabel.color;
+            }
+            label.text = $"x{count}";
+            label.fontSize = 26;
+            label.alignment = TextAlignmentOptions.Center;
+            label.raycastTarget = false;
+            label.richText = false;
         }
 
         private static BasisDataStoreItemKeys.ItemKey _activeItem;

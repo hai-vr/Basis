@@ -37,6 +37,8 @@ namespace Basis.BasisUI.HandHeldCamera
         private RectTransform _navColumn;
         private readonly List<RectTransform> _pageContents = new List<RectTransform>();
         private readonly List<BasisPanelSearch> _searches = new List<BasisPanelSearch>();
+        private readonly List<string> _searchTabKeys = new List<string>();
+        private readonly List<BasisPanelSearchHit> _searchHits = new List<BasisPanelSearchHit>();
 
         /// <summary>Tab the panel was left on, so reopening it lands back where the user was.</summary>
         private static int _lastTabIndex;
@@ -212,10 +214,16 @@ namespace Basis.BasisUI.HandHeldCamera
 
             panel.OnInstanceReleased += OnPanelClosed;
 
+            // Search lives on the header. The popup must not outlive this panel — it navigates into
+            // tabs that go away with it.
+            BasisPanelMoveHandle.SetPanelSearch(panel, Title, CollectSearchResults);
+            panel.OnInstanceReleased += BasisPanelSearchPopup.Close;
+
             _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
             _navColumn = _tabGroup.ExtrasContainer;
             _pageContents.Clear();
             _searches.Clear();
+            _searchTabKeys.Clear();
 
             BuildNavigationColumn(_navColumn);
 
@@ -356,12 +364,10 @@ namespace Basis.BasisUI.HandHeldCamera
             int index = _tabGroup.Pages.Count;
             _pageContents.Add(content);
 
-            BasisPanelSearch search = BasisPanelSearch.Attach(content);
-            _searches.Add(search);
-            if (search != null)
-            {
-                search.OnQueryChanged += query => MirrorSearchQuery(search, query);
-            }
+            // Headless: this page is searched from the panel header's Search button, so it keeps its
+            // whole height for controls instead of spending the first row on a field.
+            _searches.Add(BasisPanelSearch.AttachHeadless(content, page));
+            _searchTabKeys.Add(tabKey);
 
             PanelScrollMemory.Attach(content, scope);
             _tabGroup.AddTab(BasisLocalization.Get(tabKey), () => OnTabShown(index), page);
@@ -396,19 +402,56 @@ namespace Basis.BasisUI.HandHeldCamera
         /// here is not meant to reach the main Settings tabs. Each tab carries its own field; typing
         /// in one carries the query to the others, which only record it and filter when shown.
         /// </summary>
-        private void MirrorSearchQuery(BasisPanelSearch source, string query)
+        /// <summary>
+        /// Everything on this panel matching the query, for the header search popup. Scoped to the
+        /// camera's own tabs on purpose — a search opened here is about framing a shot, and should
+        /// not start turning up microphone settings.
+        /// </summary>
+        private void CollectSearchResults(string query, List<BasisPanelSearchResult> results)
         {
             for (int Index = 0; Index < _searches.Count; Index++)
             {
-                BasisPanelSearch other = _searches[Index];
-                if (other != null && other != source) other.SetQueryDeferred(query);
+                BasisPanelSearch search = _searches[Index];
+                if (search == null) continue;
+
+                search.Prepare();
+                search.CollectHits(query, _searchHits);
+
+                int tabIndex = Index;
+                string tabName = BasisLocalization.Get(_searchTabKeys[Index]);
+                for (int Hit = 0; Hit < _searchHits.Count; Hit++)
+                {
+                    BasisPanelSearchHit hit = _searchHits[Hit];
+                    string title = hit.Title;
+                    string section = hit.SectionTitle;
+                    PanelSectionToggle targetSection = hit.Section;
+
+                    results.Add(new BasisPanelSearchResult(
+                        title,
+                        string.IsNullOrEmpty(section) || section == title ? tabName : $"{tabName} › {section}",
+                        () => OpenSearchResult(tabIndex, targetSection, title)));
+                }
             }
+
+            _searchHits.Clear();
+        }
+
+        /// <summary>
+        /// Goes to the tab a result lives on and puts the row under the user's eye. Expanding comes
+        /// after the tab switch: a collapsed section rebuilds its rows on open, so the descriptor the
+        /// hit was collected from is already gone, which is why the scroll matches by title.
+        /// </summary>
+        private void OpenSearchResult(int tabIndex, PanelSectionToggle section, string title)
+        {
+            if (_tabGroup != null) _tabGroup.SetValue(tabIndex);
+            if (section != null) section.SetExpanded(true);
+
+            if (tabIndex >= 0 && tabIndex < _searches.Count) _searches[tabIndex]?.ScrollTo(title);
         }
 
         private void OnTabShown(int index)
         {
             _lastTabIndex = index;
-            if (index >= 0 && index < _searches.Count) _searches[index]?.ApplyPendingQuery();
         }
 
         private BasisPanelSearch ActiveSearch()
@@ -564,6 +607,7 @@ namespace Basis.BasisUI.HandHeldCamera
             _navColumn = null;
             _pageContents.Clear();
             _searches.Clear();
+            _searchTabKeys.Clear();
             _selector = null;
             _emptyState = null;
             _hiddenState = null;
@@ -1531,11 +1575,6 @@ namespace Basis.BasisUI.HandHeldCamera
             SetSectionActive(_performanceSection, _performanceGroup, active);
             SetSectionActive(_gizmoSection, _gizmoGroup, active);
             if (_resetPageButton != null) _resetPageButton.gameObject.SetActive(active);
-            for (int Index = 0; Index < _searches.Count; Index++)
-            {
-                BasisPanelSearch search = _searches[Index];
-                if (search != null) search.Field.gameObject.SetActive(active);
-            }
 
             if (active) RefreshSearch();
             ForceLayoutRebuild(null);

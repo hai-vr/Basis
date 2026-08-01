@@ -25,6 +25,12 @@ public struct JiggleRigData {
     [SerializeField] public string serializedVersion;
     [SerializeField] public Transform rootBone;
     [SerializeField] public bool excludeRoot;
+    // Inverted sense on purpose: absent in previously-serialized data -> false -> grabbable.
+    [SerializeField] public bool lockFromGrabbing;
+    // Zero means "use the shipped default", which is what data serialized before this field
+    // existed deserializes to — so old bundles get a sensible pull limit rather than a rigid
+    // chain (0) with no migration step. Use lockFromGrabbing to forbid grabbing outright.
+    [SerializeField] public float maxGrabStretch;
     [SerializeField] public JiggleTreeInputParameters jiggleTreeInputParameters;
     [SerializeField] public Transform[] excludedTransforms;
     [SerializeField, HideInInspector] public JiggleTransformCachedData[] transformCachedData;
@@ -334,6 +340,8 @@ public struct JiggleRigData {
             serializedVersion = "v0.0.2",
             hasSerializedData = true,
             excludeRoot = false,
+            lockFromGrabbing = false,
+            maxGrabStretch = JiggleGrabConstraint.DefaultMaxStretchFactor,
             jiggleTreeInputParameters = JiggleTreeInputParameters.Default(),
             excludedTransforms = Array.Empty<Transform>(),
             transformCachedData = Array.Empty<JiggleTransformCachedData>(),

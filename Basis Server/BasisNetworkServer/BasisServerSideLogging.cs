@@ -16,6 +16,7 @@ namespace Basis.Network
         private static Task _loggingTask;
         private static readonly BlockingCollection<string> LogQueue = new(new ConcurrentQueue<string>(), 200);
         private static readonly SemaphoreSlim FileWriteSemaphore = new(1, 1);
+        private static readonly object ScreenLock = new();
 
         static BasisServerSideLogging()
         {
@@ -135,9 +136,7 @@ namespace Basis.Network
             {
                 message = Sanitize(message);
                 string formattedMessage = FormatMessage("INFO", message);
-                WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan);
-                WriteColoredMessage("[INFO] ", ConsoleColor.DarkMagenta);
-                WriteColoredMessage($"{message}\n", ConsoleColor.Gray);
+                WriteScreenLine("[INFO] ", ConsoleColor.DarkMagenta, message);
 
                 if (UseLogging)
                 {
@@ -155,9 +154,7 @@ namespace Basis.Network
             {
                 message = Sanitize(message);
                 string formattedMessage = FormatMessage("WARNING", message);
-                WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan); // Timestamp in white
-                WriteColoredMessage("[WARNING] ", ConsoleColor.DarkYellow); // Level in yellow
-                WriteColoredMessage($"{message}\n", ConsoleColor.Gray); // Message in gray
+                WriteScreenLine("[WARNING] ", ConsoleColor.DarkYellow, message);
 
                 if (UseLogging)
                 {
@@ -176,9 +173,7 @@ namespace Basis.Network
             {
                 message = Sanitize(message);
                 string formattedMessage = FormatMessage("ERROR", message);
-                WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan); // Timestamp in white
-                WriteColoredMessage("[ERROR] ", ConsoleColor.DarkRed); // Level in red
-                WriteColoredMessage($"{message}\n", ConsoleColor.Gray); // Message in gray
+                WriteScreenLine("[ERROR] ", ConsoleColor.DarkRed, message);
 
 
                 if (UseLogging)
@@ -189,6 +184,20 @@ namespace Basis.Network
                         LogQueue.TryAdd(formattedMessage); // Retry adding the new message
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Writes one whole log line. The parts have to land together: they share the console's
+        /// colour state, so two threads interleaving here mix up both the colours and the text.
+        /// </summary>
+        private static void WriteScreenLine(string level, ConsoleColor levelColor, string message)
+        {
+            lock (ScreenLock)
+            {
+                WriteColoredMessage($"[{DateTime.Now:HH:mm}] ", ConsoleColor.DarkCyan);
+                WriteColoredMessage(level, levelColor);
+                WriteColoredMessage($"{message}\n", ConsoleColor.Gray);
             }
         }
 

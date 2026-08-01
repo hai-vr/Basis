@@ -701,6 +701,36 @@ public static class BasisNetworkEvents
                             BasisNetworkHandleVoiceRecord.OnRemoteConsentReceived(voiceRecResponderId, voiceRecState, voiceRecConsentPurpose);
                         });
                         break;
+                    case BasisNetworkCommons.EventType_JiggleGrab:
+                        byte jiggleGrabOp = Reader.GetByte();
+                        ushort jiggleGrabSenderId = Reader.GetUShort();
+                        ushort jiggleGrabPayloadId = Reader.GetUShort();
+                        byte jiggleGrabRigIndex = 0;
+                        ushort jiggleGrabPointIndex = 0;
+                        byte jiggleGrabHand = 0;
+                        uint jiggleGrabBoneHash = 0;
+                        UnityEngine.Vector3 jiggleGrabOffset = default;
+                        if (jiggleGrabOp != BasisNetworkCommons.JiggleGrabOp_Deny)
+                        {
+                            jiggleGrabRigIndex = Reader.GetByte();
+                            jiggleGrabPointIndex = Reader.GetUShort();
+                        }
+                        if (jiggleGrabOp == BasisNetworkCommons.JiggleGrabOp_Start)
+                        {
+                            jiggleGrabHand = Reader.GetByte();
+                            jiggleGrabBoneHash = Reader.GetUInt();
+                            jiggleGrabOffset = new UnityEngine.Vector3(
+                                UnityEngine.Mathf.HalfToFloat(Reader.GetUShort()),
+                                UnityEngine.Mathf.HalfToFloat(Reader.GetUShort()),
+                                UnityEngine.Mathf.HalfToFloat(Reader.GetUShort()));
+                        }
+                        Reader.Recycle();
+                        BasisDeviceManagement.EnqueueOnMainThread(() =>
+                        {
+                            BasisNetworkHandleJiggleGrab.OnRemoteJiggleGrabReceived(jiggleGrabOp, jiggleGrabSenderId, jiggleGrabPayloadId,
+                                jiggleGrabRigIndex, jiggleGrabPointIndex, jiggleGrabHand, jiggleGrabBoneHash, jiggleGrabOffset);
+                        });
+                        break;
                     default:
                         BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                         Reader.Recycle();

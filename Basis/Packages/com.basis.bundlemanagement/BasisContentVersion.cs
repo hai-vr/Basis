@@ -230,11 +230,11 @@ public static class BasisContentVersion
     /// Stamps the observed validator so a cache entry written before versioning stops reporting
     /// "unknown" after the first successful check.
     /// </summary>
-    public static void MarkValidated(string remoteUrl, string observedTag)
+    public static bool MarkValidated(string remoteUrl, string observedTag)
     {
         if (!BasisLoadHandler.IsMetaDataOnDisc(remoteUrl, out BasisBEEExtensionMeta meta) || meta == null)
         {
-            return;
+            return false;
         }
 
         meta.LastValidatedUnixUtc = NowUnixUtc();
@@ -246,8 +246,17 @@ public static class BasisContentVersion
             meta.CachedVersionTag = observedTag.Trim();
         }
 
-        // Fire and forget: this is bookkeeping, and a failed write only costs one redundant check.
+        // AddDiscInfo derives the meta filename from UniqueVersion and THROWS before its own
+        // try/catch when that is blank, so a fire-and-forget call would lose the baseline to an
+        // unobserved task exception and silently re-ask the host on every launch.
+        if (string.IsNullOrWhiteSpace(meta.UniqueVersion))
+        {
+            BasisDebug.LogWarning($"Recorded content version for {remoteUrl} in memory only; the cache entry has no UniqueVersion to file it under.", BasisDebug.LogTag.Event);
+            return false;
+        }
+
         _ = BasisLoadHandler.AddDiscInfo(meta);
+        return true;
     }
 
     /// <summary>Outcome of asking a host whether cached content is still current.</summary>
@@ -263,14 +272,22 @@ public static class BasisContentVersion
         /// user whether to refresh outright.
         /// </summary>
         public readonly bool VersioningUnavailable;
+        /// <summary>
+        /// This check had no recorded version to compare against and has just adopted the host's
+        /// current one as the baseline. "No update" is therefore an assumption, not a comparison —
+        /// the UI should say so and still offer a refresh, because a genuine re-upload made before
+        /// the very first check is indistinguishable from no change at all.
+        /// </summary>
+        public readonly bool BaselineEstablished;
         public readonly string ObservedTag;
         public readonly string Error;
 
-        public UpdateCheckResult(bool succeeded, bool hasUpdate, bool versioningUnavailable, string observedTag, string error)
+        public UpdateCheckResult(bool succeeded, bool hasUpdate, bool versioningUnavailable, string observedTag, string error, bool baselineEstablished = false)
         {
             Succeeded = succeeded;
             HasUpdate = hasUpdate;
             VersioningUnavailable = versioningUnavailable;
+            BaselineEstablished = baselineEstablished;
             ObservedTag = observedTag ?? string.Empty;
             Error = error;
         }
@@ -321,13 +338,20 @@ public static class BasisContentVersion
 
         string observed = validator.Tag;
 
-        // No baseline (entry predates versioning, or came from a connector-only fetch): there is
-        // nothing to compare against, so report an update and let one refresh establish the
-        // baseline. Deliberately matches CacheSatisfies' "unknown does not satisfy" rule — the two
-        // must agree or the button and the load path would disagree about the same entry.
+        // No baseline: the entry predates versioning, or was cached by a fetch that never saw a
+        // validator. EVERY entry cached before this feature existed lands here, and reporting an
+        // update would tell the user their whole library was out of date and re-download all of it
+        // on the strength of no evidence whatsoever. Adopt what the host currently serves as the
+        // baseline instead and report no update — the honest reading of "nothing says this changed".
+        //
+        // Deliberately NOT the same rule as CacheSatisfies, which treats unknown as stale: there a
+        // peer has actively asserted a different version, which IS evidence of a change. Here
+        // nobody has claimed anything. The cost of being wrong is one stale copy until the next
+        // check, and BaselineEstablished tells the UI to offer a refresh anyway.
         if (cachedTag.Length == 0)
         {
-            return new UpdateCheckResult(true, true, false, observed, null);
+            MarkValidated(remoteUrl, observed);
+            return new UpdateCheckResult(true, false, false, observed, null, baselineEstablished: true);
         }
 
         if (TagsMatch(cachedTag, observed))

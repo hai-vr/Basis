@@ -144,13 +144,34 @@ namespace Basis.BasisUI
             }
 
             PanelTextField field = PanelTextField.CreateNew(PanelTextField.TextFieldStyles.Entry, page);
-            return field == null ? null : new BasisPanelSearch(page, field, title, tooltip);
+            return field == null ? null : new BasisPanelSearch(page, field, null, title, tooltip);
         }
 
-        private BasisPanelSearch(RectTransform page, PanelTextField field, string title, string tooltip)
+        /// <summary>
+        /// Indexes a page without putting a field on it. For pages searched from somewhere else — the
+        /// header search popup drives the query and reads <see cref="CollectHits"/>, so the page keeps
+        /// its whole layout for content instead of spending its first row on a field.
+        /// <para><paramref name="host"/> is any live behaviour on the page, used to run the one-frame
+        /// settle before <see cref="ScrollTo"/> measures a row that a reopened section just rebuilt.</para>
+        /// </summary>
+        public static BasisPanelSearch AttachHeadless(RectTransform page, MonoBehaviour host)
+        {
+            if (page == null)
+            {
+                BasisDebug.LogError($"{nameof(BasisPanelSearch)} requires a page to index.");
+                return null;
+            }
+
+            return new BasisPanelSearch(page, null, host, null, null);
+        }
+
+        private BasisPanelSearch(RectTransform page, PanelTextField field, MonoBehaviour host, string title, string tooltip)
         {
             _page = page;
             _field = field;
+            _host = host;
+
+            if (_field == null) return;
 
             _field.Descriptor.SetTitle(title);
             _field.Descriptor.SetTooltip(tooltip);
@@ -161,6 +182,18 @@ namespace Basis.BasisUI
             // Hooked on the input field rather than PanelTextField.OnValueChanged: that one only
             // fires once the field is committed, and a search that waits for Enter reads as broken.
             _field._inputField.onValueChanged.AddListener(OnFieldEdited);
+        }
+
+        private readonly MonoBehaviour _host;
+
+        /// <summary>Whatever is alive on this page and can run a coroutine — the field, or the page itself.</summary>
+        private MonoBehaviour CoroutineHost
+        {
+            get
+            {
+                if (_field != null && _field.isActiveAndEnabled) return _field;
+                return _host != null && _host.isActiveAndEnabled ? _host : null;
+            }
         }
 
         /// <summary>
@@ -182,7 +215,7 @@ namespace Basis.BasisUI
         public void SetQuery(string query, bool notify = true)
         {
             string text = query ?? string.Empty;
-            _field.SetValueWithoutNotify(text);
+            if (_field != null) _field.SetValueWithoutNotify(text);
             RequestQuery(text, notify, defer: false);
         }
 
@@ -193,7 +226,7 @@ namespace Basis.BasisUI
         public void SetQueryDeferred(string query)
         {
             string text = query ?? string.Empty;
-            _field.SetValueWithoutNotify(text);
+            if (_field != null) _field.SetValueWithoutNotify(text);
             RequestQuery(text, notify: false, defer: true);
         }
 
@@ -258,13 +291,15 @@ namespace Basis.BasisUI
         {
             StopFilterRoutine();
 
-            if (_field == null || !_field.isActiveAndEnabled)
+            MonoBehaviour host = CoroutineHost;
+            if (host == null)
             {
                 ApplyNow(fromEdit: true);
                 return;
             }
 
-            _filterRoutine = _field.StartCoroutine(ApplyAfterDelay());
+            _filterHost = host;
+            _filterRoutine = host.StartCoroutine(ApplyAfterDelay());
         }
 
         private IEnumerator ApplyAfterDelay()
@@ -277,9 +312,13 @@ namespace Basis.BasisUI
         private void StopFilterRoutine()
         {
             if (_filterRoutine == null) return;
-            if (_field != null) _field.StopCoroutine(_filterRoutine);
+            // Stopped on whoever started it: the host can differ between passes once the field is gone.
+            if (_filterHost != null) _filterHost.StopCoroutine(_filterRoutine);
             _filterRoutine = null;
+            _filterHost = null;
         }
+
+        private MonoBehaviour _filterHost;
 
         private void ApplyNow(bool fromEdit)
         {
@@ -813,7 +852,7 @@ namespace Basis.BasisUI
 
             if (_noResults == null) return;
             _noResults.SetActive(show);
-            if (show) _noResults.transform.SetSiblingIndex(_field.transform.GetSiblingIndex() + 1);
+            if (show && _field != null) _noResults.transform.SetSiblingIndex(_field.transform.GetSiblingIndex() + 1);
         }
 
         // ------------------
@@ -829,9 +868,10 @@ namespace Basis.BasisUI
         {
             if (string.IsNullOrEmpty(title)) return;
 
-            if (_field != null && _field.isActiveAndEnabled)
+            MonoBehaviour host = CoroutineHost;
+            if (host != null)
             {
-                _field.StartCoroutine(ScrollToDeferred(title));
+                host.StartCoroutine(ScrollToDeferred(title));
                 return;
             }
 
