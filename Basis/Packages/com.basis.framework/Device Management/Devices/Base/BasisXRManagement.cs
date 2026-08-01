@@ -37,6 +37,12 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (ActiveOnModes.Contains(Mode))
             {
+                if (isLoading)
+                {
+                    BasisDebug.LogWarning($"XR load already in progress, ignoring request for {Mode}", BasisDebug.LogTag.Device);
+                    return true;
+                }
+                isLoading = true;
                 BasisDebug.Log($"Starting Attempt of load LoadXR {Mode}", BasisDebug.LogTag.Device);
                 List<XRLoader> Loaders = AvaliableLoaders;
 
@@ -64,21 +70,28 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public IEnumerator LoadXR()
         {
-            // Initialize the XR loader
-            yield return xRManagerSettings.InitializeLoader();
-
             string result = BasisConstants.Desktop;
 
-            // Check the result
-            if (xRManagerSettings.activeLoader != null)
+            try
             {
-                xRManagerSettings.StartSubsystems();
-                result = xRManagerSettings.activeLoader?.name;
+                // Initialize the XR loader
+                yield return xRManagerSettings.InitializeLoader();
+
+                // Check the result
+                if (xRManagerSettings.activeLoader != null)
+                {
+                    xRManagerSettings.StartSubsystems();
+                    result = xRManagerSettings.activeLoader?.name;
+                }
+                else
+                {
+                    BasisDebug.LogErrorUnreported("No Active Loader Present! falling back to desktop!");
+                    result = BasisConstants.Desktop;
+                }
             }
-            else
+            finally
             {
-                BasisDebug.LogErrorUnreported("No Active Loader Present! falling back to desktop!");
-                result = BasisConstants.Desktop;
+                isLoading = false;
             }
 
             BasisDebug.Log($"Found Loader {result}", BasisDebug.LogTag.Device);
@@ -108,6 +121,9 @@ namespace Basis.Scripts.Device_Management.Devices
             }
         }
         public List<XRLoader> AvaliableLoaders;
+
+        private bool isLoading;
+
         public void Initialize()
         {
             if (XRGeneralSettings.Instance != null)

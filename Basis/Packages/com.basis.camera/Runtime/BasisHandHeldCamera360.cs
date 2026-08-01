@@ -82,11 +82,16 @@ public partial class BasisHandHeldCamera
         bool savedBloom = MetaData.bloom != null && MetaData.bloom.active;
         bool savedDof = MetaData.depthOfField != null && MetaData.depthOfField.active;
         bool savedColor = MetaData.colorAdjustments != null && MetaData.colorAdjustments.active;
+        // RenderToCubemap swings the camera through six faces in one frame, so motion blur reads a
+        // near-180-degree turn between faces and smears every one of them — even from a camera that
+        // has not moved at all.
+        bool savedMotionBlur = MetaData.motionBlur != null && MetaData.motionBlur.active;
         TonemappingMode savedTone = MetaData.tonemapping != null ? MetaData.tonemapping.mode.value : TonemappingMode.None;
 
         if (MetaData.bloom != null) MetaData.bloom.active = false;
         if (MetaData.depthOfField != null) MetaData.depthOfField.active = false;
         if (MetaData.colorAdjustments != null) MetaData.colorAdjustments.active = false;
+        if (MetaData.motionBlur != null) MetaData.motionBlur.active = false;
         if (MetaData.tonemapping != null) MetaData.tonemapping.mode.value = TonemappingMode.None;
 
         captureCamera.usePhysicalProperties = false;
@@ -124,6 +129,7 @@ public partial class BasisHandHeldCamera
         if (MetaData.bloom != null) MetaData.bloom.active = savedBloom;
         if (MetaData.depthOfField != null) MetaData.depthOfField.active = savedDof;
         if (MetaData.colorAdjustments != null) MetaData.colorAdjustments.active = savedColor;
+        if (MetaData.motionBlur != null) MetaData.motionBlur.active = savedMotionBlur;
         if (MetaData.tonemapping != null) MetaData.tonemapping.mode.value = savedTone;
 
         ReleaseRT(cubeLeft);

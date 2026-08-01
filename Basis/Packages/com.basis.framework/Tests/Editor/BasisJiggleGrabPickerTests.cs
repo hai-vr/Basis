@@ -303,6 +303,22 @@ namespace Basis.Tests.Interactions
         // ── the reported failure, as a case ─────────────────────────────────
 
         [Test]
+        public void AChainAgainstTheHandIsFoundByTheWidenedPass_NotLeftToPointing()
+        {
+            // The search runs the grip volume, then the same volume widened, and only then the aim
+            // ray. A chain the hand is in contact with but slightly outside the tight volume must be
+            // caught by that middle pass — otherwise the press either does nothing or, worse, the ray
+            // takes something across the room.
+            float widened = Radius * BasisJiggleGrabDriver.ReachIntentRadiusMultiplier;
+            Vector3 justOutsideTheGrip = Vector3.Lerp(Palm, FingerTip, 0.5f) + Vector3.up * (Radius * 1.5f);
+
+            Assert.IsFalse(BasisJiggleGrabPicker.TryScoreGrasp(justOutsideTheGrip, Palm, FingerTip, Radius, out _),
+                "test setup: outside the tight grip volume");
+            Assert.IsTrue(BasisJiggleGrabPicker.TryScoreGrasp(justOutsideTheGrip, Palm, FingerTip, widened, out _),
+                "but still against the hand, so the widened pass takes it");
+        }
+
+        [Test]
         public void AChainInTheHandIsNotBeatenByOneAcrossTheRoom()
         {
             // What "sometimes it grabs one far away" looked like: the hand is holding one strand

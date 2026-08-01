@@ -34,8 +34,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public const float GrabTriggerThreshold = 0.5f;
         // Ceiling on how much a larger target avatar may widen the pick radius.
         public const float MaxTargetScaleRadiusMultiplier = 2f;
-        // A chain this much further than the pick radius still counts as "you were reaching for it",
-        // which suppresses the pointing fallback so a near miss cannot become a grab across the room.
+        // A chain this much further than the pick radius still counts as being against the hand, and
+        // is taken in preference to anything the hand merely points at.
         public const float ReachIntentRadiusMultiplier = 3f;
         public const float ReleaseDistance = 1.25f;
         public const float TargetClampDistance = 2f;
@@ -214,13 +214,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 SearchRigs(localId, grasp,
                     ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
 
-                // Nothing in the hand, so fall back to what the hand is pointing at. Closing on a
-                // chain wins when both are available, which is what reaching for one expects.
-                //
-                // Except when the hand is right next to a chain it simply missed: pointing is then
-                // almost certainly not what was meant, and letting the ray run turns a miss by a few
-                // centimetres into a grab on whatever the hand happened to point at metres away.
-                if (bestPointIndex < 0 && !IsReachingForNearbyChain(localId, grasp))
+                // Missed the tight volume, but a chain is still against the hand — take that one.
+                // Whatever the hand is in contact with is what the player believes they are grabbing,
+                // so refusing here (or worse, letting the ray pick something across the room) both
+                // read as the grab being broken.
+                if (bestPointIndex < 0)
+                {
+                    SearchRigs(localId, grasp.WithRadius(radius * ReachIntentRadiusMultiplier),
+                        ref bestRig, ref bestTarget, ref bestRigIndex, ref bestPointIndex, ref bestPointPosition, ref bestScore);
+                }
+
+                // Only with nothing whatsoever in the hand does pointing get a say.
+                if (bestPointIndex < 0)
                 {
                     pointed = true;
                     SearchRigs(localId, GrabQuery.Pointing(input.RaycastCoord.position,
@@ -374,24 +379,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 RecordAttempt("no jiggle rig within 2m of the hand");
                 return;
             }
-            RecordAttempt($"nearest chain was {probeScore:0.00}m from your grip, needs {grasp.Radius:0.00}m");
-        }
-
-        /// <summary>
-        /// Whether a chain sits just outside the grip — near enough that the press was a reach that
-        /// missed rather than an attempt to point at something further away.
-        /// </summary>
-        private static bool IsReachingForNearbyChain(ushort localId, GrabQuery grasp)
-        {
-            JiggleRig probeRig = null;
-            BasisRemotePlayer probeTarget = null;
-            byte probeRigIndex = 0;
-            int probePointIndex = -1;
-            Vector3 probePosition = default;
-            float probeScore = float.MaxValue;
-            SearchRigs(localId, grasp.WithRadius(grasp.Radius * ReachIntentRadiusMultiplier),
-                ref probeRig, ref probeTarget, ref probeRigIndex, ref probePointIndex, ref probePosition, ref probeScore);
-            return probePointIndex >= 0;
+            RecordAttempt($"nearest chain was {probeScore:0.00}m from your grip, needs {grasp.Radius * ReachIntentRadiusMultiplier:0.00}m");
         }
 
         /// <summary>
