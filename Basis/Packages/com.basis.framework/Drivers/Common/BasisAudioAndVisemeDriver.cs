@@ -242,7 +242,7 @@ namespace Basis.Scripts.Drivers
         }
         private bool _overrideZeroed;
 
-        public void Apply()
+        public void Apply(float DeltaTime)
         {
             if (Basis.BasisUI.BasisSettingsDefaults.DisableLipSyncForFaceTracking.RawValue
                 && Player is BasisRemotePlayer remote && remote.RemoteFaceDriver != null && remote.RemoteFaceDriver.OverrideViseme)
@@ -260,7 +260,7 @@ namespace Basis.Scripts.Drivers
 
             if (UseOpenLipSync && openLipSyncContext != null)
             {
-                openLipSyncContext.Apply();
+                openLipSyncContext.Apply(DeltaTime);
             }
         }
         /// <summary>

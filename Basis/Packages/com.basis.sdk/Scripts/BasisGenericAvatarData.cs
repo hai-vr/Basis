@@ -24,6 +24,8 @@ public class BasisGenericAvatarData
     public float EyeLiveliness = 0.5f;
     public float EyeAttentiveness = 0.5f;
     public int[] FaceVisemeMovement;
+    public BasisVisemeProfile[] FaceVisemeProfiles;
+    public BasisVisemeDriveConfig FaceVisemeDrive;
     public int[] BlinkViseme;
     public int LaughterBlendTarget = -1;
     public Vector3 AnimatorHumanScale = Vector3.one;
@@ -175,6 +177,8 @@ public class BasisGenericAvatarData
             EyeLiveliness = avatar.EyeLiveliness,
             EyeAttentiveness = avatar.EyeAttentiveness,
             FaceVisemeMovement = avatar.FaceVisemeMovement != null ? (int[])avatar.FaceVisemeMovement.Clone() : null,
+            FaceVisemeProfiles = avatar.FaceVisemeProfiles != null ? (BasisVisemeProfile[])avatar.FaceVisemeProfiles.Clone() : null,
+            FaceVisemeDrive = avatar.FaceVisemeDrive,
             BlinkViseme = avatar.BlinkViseme != null ? (int[])avatar.BlinkViseme.Clone() : null,
             LaughterBlendTarget = avatar.laughterBlendTarget,
             AnimatorHumanScale = avatar.AnimatorHumanScale,
@@ -356,6 +360,14 @@ public class BasisGenericAvatarData
         if (FaceVisemeMovement != null && FaceVisemeMovement.Length > 0)
         {
             avatar.FaceVisemeMovement = (int[])FaceVisemeMovement.Clone();
+        }
+        if (FaceVisemeProfiles != null && FaceVisemeProfiles.Length > 0)
+        {
+            avatar.FaceVisemeProfiles = (BasisVisemeProfile[])FaceVisemeProfiles.Clone();
+        }
+        if (FaceVisemeDrive != null)
+        {
+            avatar.FaceVisemeDrive = FaceVisemeDrive;
         }
         if (BlinkViseme != null && BlinkViseme.Length > 0)
         {

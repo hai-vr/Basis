@@ -216,7 +216,7 @@ namespace Basis.BasisUI
 
             // Page-level reset stays on tabRoot (not inside tuningGroup) so it
             // remains reachable when the advanced toggle hides the sliders.
-            SettingsProvider.AddResetPageButton(tabRoot, TabKey, ResetTrackerSettingsDefaults);
+            SettingsProvider.RegisterPageReset(TabKey, ResetTrackerSettingsDefaults);
 
             // Initial visibility + OnValueChanged gating. Two-step rebuild
             // (inner group, then tab descriptor) matches the existing pattern

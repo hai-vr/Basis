@@ -27,7 +27,7 @@ namespace Basis.BasisUI
             BuildNamePlateContent(container, descriptor);
 
             // ─────────────── RESET BUTTON ───────────────
-            SettingsProvider.AddResetPageButton(container, "settings.tab.nameplates", ResetNamePlateDefaults);
+            SettingsProvider.RegisterPageReset("settings.tab.nameplates", ResetNamePlateDefaults);
 
             descriptor.ForceRebuild();
             return tab;

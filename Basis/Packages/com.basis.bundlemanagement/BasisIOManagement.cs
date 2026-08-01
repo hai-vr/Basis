@@ -124,17 +124,80 @@ public static class BasisIOManagement
         return $"{uniqueVersion}.{normalizedPlatform}{extension}";
     }
 
+    /// <summary>
+    /// HTTP cache validators for a remote bee. These are what let a client ask "is the file at this
+    /// url still the one I cached?" without downloading it, which is the cheap half of supporting
+    /// content published to a static url.
+    /// </summary>
+    public readonly struct BasisRemoteValidator
+    {
+        public readonly string ETag;
+        public readonly string LastModified;
+        /// <summary>
+        /// The host answered a conditional request with 304, i.e. it confirmed the cached copy is
+        /// current. Stronger than comparing tags ourselves, and costs no body.
+        /// </summary>
+        public readonly bool NotModified;
+
+        public BasisRemoteValidator(string eTag, string lastModified, bool notModified = false)
+        {
+            ETag = eTag;
+            LastModified = lastModified;
+            NotModified = notModified;
+        }
+
+        public bool HasValue => !string.IsNullOrWhiteSpace(ETag) || !string.IsNullOrWhiteSpace(LastModified);
+
+        /// <summary>
+        /// The single opaque tag stored against cached bytes. ETag wins because it tracks content
+        /// exactly; Last-Modified only has one-second resolution and would miss an edit republished
+        /// within the same second, so it is the fallback. Prefixed so the two are never confused
+        /// and a stored tag can be turned back into the right conditional header.
+        /// </summary>
+        public string Tag
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(ETag))
+                {
+                    return ETag.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(LastModified))
+                {
+                    return BasisContentVersion.LastModifiedPrefix + LastModified.Trim();
+                }
+                return string.Empty;
+            }
+        }
+    }
+
+    private static BasisRemoteValidator ReadValidator(UnityWebRequest req)
+    {
+        if (req == null)
+        {
+            return default;
+        }
+        return new BasisRemoteValidator(req.GetResponseHeader("ETag"), req.GetResponseHeader("Last-Modified"));
+    }
+
     public sealed class BeeDownloadResult
     {
         public BasisBundleConnector Connector { get; }
         public string LocalPath { get; }
         public byte[] SectionData { get; }
+        /// <summary>
+        /// Validator the host reported for the bytes just fetched, or empty when it publishes none.
+        /// Recorded against the cache entry so a later load can tell "same url, new bytes" apart
+        /// from "same url, same bytes" — which url identity alone cannot express.
+        /// </summary>
+        public string ObservedVersionTag { get; }
 
-        public BeeDownloadResult(BasisBundleConnector connector, string localPath, byte[] sectionData)
+        public BeeDownloadResult(BasisBundleConnector connector, string localPath, byte[] sectionData, string observedVersionTag = null)
         {
             Connector = connector ?? throw new ArgumentNullException(nameof(connector));
             LocalPath = localPath ?? throw new ArgumentNullException(nameof(localPath));
             SectionData = sectionData ?? throw new ArgumentNullException(nameof(sectionData));
+            ObservedVersionTag = observedVersionTag ?? string.Empty;
         }
     }
 
@@ -154,6 +217,7 @@ public static class BasisIOManagement
     {
         public byte[] Data; // present when downloaded to memory
         public string Path; // present when downloaded to file
+        public BasisRemoteValidator Validator; // response cache validators, when the host sends any
     }
 
     /// <summary>
@@ -178,6 +242,10 @@ public static class BasisIOManagement
 
         if (headerRes.Value.Data.Length != BasisBeeConstants.RemoteHeaderSize)
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Remote header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize} bytes, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+
+        // Captured from the header request the loader already makes, so establishing the content
+        // version for this download costs no extra round trip.
+        string observedVersionTag = headerRes.Value.Validator.Tag;
 
         long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
         if (connectorLength <= 0)
@@ -320,33 +388,35 @@ public static class BasisIOManagement
         if (!writeRes.IsSuccess)
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: {writeRes.Error}");
 
-        return BeeResult<BeeDownloadResult>.Ok(new BeeDownloadResult(connector, localPath, platformSectionData));
+        return BeeResult<BeeDownloadResult>.Ok(new BeeDownloadResult(connector, localPath, platformSectionData, observedVersionTag));
     }
     /// <summary>
     /// Downloads only the connector bytes from the remote BEE (8-byte Int64 header) and parses them.
     /// </summary>
-    public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
+    public static async Task<BeeResult<(BasisBundleConnector, string, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         if (!ValidateUrl(url, out url, out var urlErr))
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
 
         // Header
         var headerRes = await DownloadRangeInternal(url, 0, BasisBeeConstants.RemoteHeaderSize - 1, null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
         if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
 
         if (headerRes.Value.Data.Length != BasisBeeConstants.RemoteHeaderSize)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+
+        string observedVersionTag = headerRes.Value.Validator.Tag;
 
         long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
         if (connectorLength <= 0)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
 
         if (connectorLength > BasisBeeConstants.MaxConnectorBytes)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
 
         // Connector bytes
         long start = BasisBeeConstants.RemoteHeaderSize;
@@ -356,26 +426,26 @@ public static class BasisIOManagement
 
         if (connectorRes.IsSuccess == false && connectorRes.Error != string.Empty)
         {
-            return BeeResult<(BasisBundleConnector, string)>.Fail(connectorRes.Error, connectorRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail(connectorRes.Error, connectorRes.ResponseCode);
         }
 
         if (!connectorRes.IsSuccess || connectorRes.Value?.Data == null)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
 
         if (connectorRes.Value.Data.LongLength != connectorLength)
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
 
         var connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorRes.Value.Data, progressCallback);
         if (connector == null)
         {
-            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
         }
 
         // 5) Write local .bec (Int32 header + connector only, no section)
         string fileName = Path.GetFileName(GetConnectorCacheFilePath(connector.UniqueVersion));
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Connector has no UniqueVersion / file extension.");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail("DownloadConnectorOnlyEx: Connector has no UniqueVersion / file extension.");
 
         }
         string localPath = GetConnectorCacheFilePath(connector.UniqueVersion);
@@ -385,11 +455,11 @@ public static class BasisIOManagement
 
         if (!writeRes.IsSuccess)
         {
-            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadBEEEx: {writeRes.Error}");
+            return BeeResult<(BasisBundleConnector, string, string)>.Fail($"DownloadBEEEx: {writeRes.Error}");
         }
-        (BasisBundleConnector, string) Data = new(connector, localPath);
+        (BasisBundleConnector, string, string) Data = new(connector, localPath, observedVersionTag);
 
-        return BeeResult<(BasisBundleConnector, string)>.Ok(Data);
+        return BeeResult<(BasisBundleConnector, string, string)>.Ok(Data);
     }
 
     /// <summary>
@@ -776,13 +846,21 @@ public static class BasisIOManagement
                 progress?.ReportProgress(requestId, 100, $"Error! {code}");
                 return BeeResult<DownloadPayload>.Fail($"Requested Range {startByte}-{(endByteInclusive?.ToString() ?? "end")} not satisfiable. The requested range may exceed the file size.", code);
 
+            case 304:
+                // This path never sends conditional headers itself, so a 304 here means an
+                // intermediary revalidated on our behalf and returned no body. Previously this fell
+                // through to "Unexpected response code", which hid the real cause behind a generic
+                // failure; the caller needs to know the bytes are simply absent, not corrupt.
+                progress?.ReportProgress(requestId, 100, $"Not Modified {code}");
+                return BeeResult<DownloadPayload>.Fail("Server returned 304 (not modified) for a byte-range request, so no content was returned. A caching proxy may be revalidating on our behalf.", code);
+
             default:
                 progress?.ReportProgress(requestId, 100, $"Error! {code}");
                 var details = BuildNetworkErrorDetail(req);
                 return BeeResult<DownloadPayload>.Fail($"Unexpected response code: {code}. {details}", code);
         }
 
-        var payload = new DownloadPayload();
+        var payload = new DownloadPayload { Validator = ReadValidator(req) };
         if (toFilePath == null)
         {
             var data = req.downloadHandler.data;
@@ -1099,6 +1177,90 @@ public static class BasisIOManagement
             return BeeResult<bool>.Fail($"Request failed: {req.error}", code);
 
         return BeeResult<bool>.Ok(true);
+    }
+
+    /// <summary>
+    /// Asks the host whether the bee at <paramref name="url"/> is still the one we cached, without
+    /// downloading it. Pass the cached tag as <paramref name="cachedVersionTag"/> to send a
+    /// conditional request: a compliant host answers 304 and the result reports
+    /// <see cref="BasisRemoteValidator.NotModified"/>, which is the cheapest possible answer.
+    ///
+    /// <para>Hosts that ignore conditional headers (Google Drive serves <c>Last-Modified</c> but
+    /// does not honour <c>If-Modified-Since</c>) still return their validators on the normal
+    /// response, so the caller can compare tags itself. Hosts that publish neither return a result
+    /// with no value, which callers must treat as "cannot tell" rather than "unchanged".</para>
+    /// </summary>
+    public static async Task<BeeResult<BasisRemoteValidator>> FetchRemoteValidatorAsync(string url, string cachedVersionTag = null, CancellationToken cancellationToken = default)
+    {
+        if (!ValidateUrl(url, out url, out var urlErr))
+        {
+            return BeeResult<BasisRemoteValidator>.Fail($"FetchRemoteValidatorAsync: {urlErr}");
+        }
+
+        BasisContentVersion.ToConditionalHeaders(cachedVersionTag, out string ifNoneMatch, out string ifModifiedSince);
+
+        // HEAD first: no body at all, and it is what a compliant host answers validators on.
+        BeeResult<BasisRemoteValidator> head = await SendValidatorRequest(url, UnityWebRequest.kHttpVerbHEAD, ifNoneMatch, ifModifiedSince, null, cancellationToken);
+        if (head.IsSuccess && (head.Value.NotModified || head.Value.HasValue))
+        {
+            return head;
+        }
+
+        // Some hosts reject HEAD or answer it without validators while the ranged GET the loader
+        // already relies on carries them. One byte is enough to read the response headers.
+        BeeResult<BasisRemoteValidator> ranged = await SendValidatorRequest(url, UnityWebRequest.kHttpVerbGET, ifNoneMatch, ifModifiedSince, "bytes=0-0", cancellationToken);
+        if (ranged.IsSuccess)
+        {
+            return ranged;
+        }
+
+        return head.IsSuccess ? head : ranged;
+    }
+
+    private static async Task<BeeResult<BasisRemoteValidator>> SendValidatorRequest(string url, string verb, string ifNoneMatch, string ifModifiedSince, string rangeHeader, CancellationToken cancellationToken)
+    {
+        using var req = new UnityWebRequest(url, verb);
+        req.downloadHandler = new DownloadHandlerBuffer();
+
+        if (!string.IsNullOrEmpty(rangeHeader))
+        {
+            req.SetRequestHeader("Range", rangeHeader);
+        }
+        if (!string.IsNullOrWhiteSpace(ifNoneMatch))
+        {
+            req.SetRequestHeader("If-None-Match", ifNoneMatch);
+        }
+        if (!string.IsNullOrWhiteSpace(ifModifiedSince))
+        {
+            req.SetRequestHeader("If-Modified-Since", ifModifiedSince);
+        }
+
+        var op = req.SendWebRequest();
+        while (!op.isDone)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                req.Abort();
+                return BeeResult<BasisRemoteValidator>.Fail("Cancelled");
+            }
+            await Task.Yield();
+        }
+
+        long code = req.responseCode;
+
+        // Checked BEFORE req.result: UnityWebRequest classifies 304 as a ProtocolError, so testing
+        // the result first would report the single best outcome ("your copy is current") as failure.
+        if (code == 304)
+        {
+            return BeeResult<BasisRemoteValidator>.Ok(new BasisRemoteValidator(req.GetResponseHeader("ETag"), req.GetResponseHeader("Last-Modified"), notModified: true));
+        }
+
+        if (req.result != UnityWebRequest.Result.Success)
+        {
+            return BeeResult<BasisRemoteValidator>.Fail($"Network error: {req.error}. {BuildNetworkErrorDetail(req)}", code);
+        }
+
+        return BeeResult<BasisRemoteValidator>.Ok(ReadValidator(req));
     }
 
     /// <summary>

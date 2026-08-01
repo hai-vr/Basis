@@ -571,7 +571,7 @@ namespace Basis.EventDriver
                 }
                 using (Prof.VisemeApply.Auto())
                 {
-                    localplayer.LocalVisemeDriver.Apply();
+                    localplayer.LocalVisemeDriver.Apply(DeltaTime);
                 }
             }
 
@@ -696,7 +696,7 @@ namespace Basis.EventDriver
             ProfileBegin(PROF_REMOTE_AUDIO_APPLY);
             using (Prof.RemoteAudioApply.Auto())
             {
-                BasisRemoteAudioDriver.Apply();
+                BasisRemoteAudioDriver.Apply(DeltaTime);
             }
             ProfileEnd(PROF_REMOTE_AUDIO_APPLY);
 

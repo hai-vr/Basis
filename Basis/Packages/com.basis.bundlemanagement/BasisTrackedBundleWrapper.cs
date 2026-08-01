@@ -21,6 +21,14 @@ public class BasisTrackedBundleWrapper
     [System.NonSerialized]
     public GLTFast.GltfImport GltfImport;
     public UnityEngine.Avatar GltfBuiltAvatar;
+    /// <summary>
+    /// Content validator the HTTP host reported for the bytes this wrapper actually downloaded
+    /// (ETag, else Last-Modified). Set by the download path and consumed when the cache meta is
+    /// written, so the recorded version is one the server asserted rather than one a peer claimed.
+    /// Empty for cache reads, local bee files, and hosts that publish no validator.
+    /// </summary>
+    [System.NonSerialized]
+    public string ObservedVersionTag;
     public bool HasGltfTemplate => GltfTemplateAvatarRoot != null;
     #if UNITY_BUNDLEUNLOAD
     [SerializeField]

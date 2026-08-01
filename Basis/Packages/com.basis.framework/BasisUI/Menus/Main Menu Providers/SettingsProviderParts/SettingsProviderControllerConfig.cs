@@ -349,7 +349,7 @@ public static class SettingsProviderControllerConfig
             sliderRotationSnapDegrees.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gridSnap.rotation.tooltip"));
         });
 
-        SettingsProvider.AddResetPageButton(container, "settings.tab.controls", () =>
+        SettingsProvider.RegisterPageReset("settings.tab.controls", () =>
         {
             ResetControlsDefaults();
             BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored();

@@ -332,7 +332,14 @@ namespace Basis.BasisUI
                         Vector3 playerPosReference = BasisLocalCameraDriver.HeadPosition;
                         Vector3 forward = BasisLocalCameraDriver.HeadForward();
 
-                        finalPos = EmbeddedItems.GetOffsetForEmbeddedItem(item, playerPosReference, forward);
+                        // Only an EMBEDDED item can carry a custom spawn offset, and the lookup
+                        // asserts that — calling it for a downloaded prop logged an error on every
+                        // in-front spawn. Gate it the same way ResolvePlacementBounds gates the
+                        // bounds lookup; both branches land on the same default when there is no
+                        // override, so this only removes the false alarm.
+                        finalPos = item.EmbeddedSettings.IsEmbedded
+                            ? EmbeddedItems.GetOffsetForEmbeddedItem(item, playerPosReference, forward)
+                            : EmbeddedItems.GetDefaultInFrontOffset(playerPosReference, forward);
                         finalRot = Quaternion.LookRotation(forward, Vector3.up);
 
                         BasisMainMenu.Close();

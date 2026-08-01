@@ -147,12 +147,22 @@ namespace Basis.BasisUI
             return DefaultBounds;
         }
 
+        /// <summary>
+        /// Where an "in front of the player" spawn lands when nothing overrides it: half a metre
+        /// along the reference forward. Shared with <see cref="GetOffsetForEmbeddedItem"/> so the
+        /// non-embedded caller and the embedded fallback cannot drift apart.
+        /// </summary>
+        internal static Vector3 GetDefaultInFrontOffset(Vector3 playerPosReference, Vector3 playerPosForwardReference)
+        {
+            return playerPosReference + playerPosForwardReference * 0.5f;
+        }
+
         internal static Vector3 GetOffsetForEmbeddedItem(ItemKey item, Vector3 playerPosReference, Vector3 playerPosForwardReference)
         {
             if (!IsEmbeddedItem(item))
             {
-                BasisDebug.LogError($"GetOffsetForEmbeddedItem() was invoked for item = {item?.Url} it is not embedded. returning playerPosReference + playerPosForwardReference * 0.5f!");
-                return playerPosReference + playerPosForwardReference * 0.5f;
+                BasisDebug.LogError($"GetOffsetForEmbeddedItem() was invoked for item = {item?.Url} it is not embedded. returning the default in-front offset!");
+                return GetDefaultInFrontOffset(playerPosReference, playerPosForwardReference);
             }
 
             if (TryGetDefinition(item, out EmbeddedItemDefinition definition) && definition.HasCustomSpawnOffset)
@@ -160,7 +170,7 @@ namespace Basis.BasisUI
                 return ApplyRelativeOffset(playerPosReference, playerPosForwardReference, definition.SpawnOffsetFromPlayerReference);
             }
 
-            return playerPosReference + playerPosForwardReference * 0.5f;
+            return GetDefaultInFrontOffset(playerPosReference, playerPosForwardReference);
         }
 
         private static bool IsEmbeddedItem(ItemKey item)

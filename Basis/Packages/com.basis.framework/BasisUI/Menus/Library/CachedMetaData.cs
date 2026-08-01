@@ -50,6 +50,33 @@ namespace Basis.BasisUI
             return _metaCache.ContainsKey(url);
         }
 
+        /// <summary>
+        /// Drops one item's parsed connector so the next preload rebuilds it from disk. Used after
+        /// the cached bee behind a url is invalidated — the entry here still describes the OLD
+        /// bytes (name, thumbnail, creation date), so leaving it would keep showing the previous
+        /// version on the card even though the payload was refreshed.
+        /// </summary>
+        public static void RemoveMetaData(string url)
+        {
+            if (string.IsNullOrEmpty(url) || !_metaCache.TryGetValue(url, out CachedContent meta))
+            {
+                return;
+            }
+
+            // Same ownership rule as ClearMetaDataCache: only sprites this cache created are ours
+            // to destroy — an embedded item's sprite is owned by the addressable that supplied it.
+            if (meta != null && meta.OwnsSprite && meta.CachedSprite != null)
+            {
+                Texture2D texture = meta.CachedSprite.texture;
+                UnityEngine.Object.Destroy(meta.CachedSprite);
+                if (texture != null) UnityEngine.Object.Destroy(texture);
+                meta.CachedSprite = null;
+                meta.OwnsSprite = false;
+            }
+
+            _metaCache.Remove(url);
+        }
+
         public static void ClearMetaDataCache()
         {
             foreach (CachedContent meta in _metaCache.Values)

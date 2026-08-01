@@ -137,6 +137,14 @@ MonoBehaviour:
   EyeLiveliness: 0.5
   EyeAttentiveness: 0.5
   FaceVisemeMovement: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  FaceVisemeProfiles: []
+  FaceVisemeDrive:
+    Mode: 0
+    WinnerMargin: 0.05
+    WinnerHoldSeconds: 0.06
+    SilenceFloor: 0.15
+    SilIsRest: 1
+    BackendSmoothing: 70
   BlinkViseme: ffffffff
   laughterBlendTarget: -1
   AnimatorHumanScale: {x: 1, y: 1, z: 1}

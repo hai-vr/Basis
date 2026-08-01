@@ -102,13 +102,13 @@ namespace Basis.Scripts.Drivers
             // caused thread pool saturation with many players.
             BasisOpenLipSyncContext.ProcessAllPending();
         }
-        public static void Apply()
+        public static void Apply(float DeltaTime)
         {
             int count = ActiveDriversCount;
             var active = ActiveDrivers;
             for (int Index = 0; Index < count; Index++)
             {
-                active[Index].Apply();
+                active[Index].Apply(DeltaTime);
             }
         }
 

@@ -935,6 +935,10 @@ PrefabInstance:
       propertyPath: <IconBackground>k__BackingField
       value: 
       objectReference: {fileID: 4455012132392761387}
+    - target: {fileID: 6544617188754852751, guid: d9849dc6948554a4a8f55614547f5449, type: 3}
+      propertyPath: <Header>k__BackingField
+      value: 
+      objectReference: {fileID: 7135796690200969635}
     - target: {fileID: 6867560382586125792, guid: d9849dc6948554a4a8f55614547f5449, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0

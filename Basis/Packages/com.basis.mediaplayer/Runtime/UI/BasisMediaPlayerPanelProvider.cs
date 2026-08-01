@@ -22,6 +22,7 @@ namespace Basis.BasisUI.MediaPlayer
         private BasisMenuPanel _panel;
         private PanelTabGroup _tabGroup;
         private RectTransform _navColumn;
+        private RectTransform _tabColumn;
         private readonly List<RectTransform> _pageContents = new List<RectTransform>();
         private int _playbackTabIndex = -1;
         private int _adminTabIndex = -1;
@@ -142,18 +143,25 @@ namespace Basis.BasisUI.MediaPlayer
 
             _tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
             _navColumn = _tabGroup.ExtrasContainer;
+            // The extras container hangs below the tab list, which puts "which player" after the
+            // tabs that only act on it — the tabs read as the first choice when they are not one.
+            // The picker goes in the column that holds the tab list instead, above it.
+            _tabColumn = _navColumn.parent as RectTransform;
             _pageContents.Clear();
 
             // The label-carrying entry prefab reserves 500 units for its control beside the title,
             // which does not fit the navigation column at all. The no-title variant drops that
             // reservation — the same one the Library panel uses in this container.
-            _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, _navColumn);
+            _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, PickerColumn);
             _selector.Descriptor.SetSize(new Vector2(60, 80));
+            _selector.transform.SetSiblingIndex(0);
             FitToNavColumn(_selector.Descriptor, releaseControlSlot: false);
             _selector.OnValueChanged = _ => OnSelectionChanged();
 
+            // Stands in for the picker when there is nothing to pick, so it takes the picker's slot.
             _emptyState = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, _navColumn);
+                PanelElementDescriptor.ElementStyles.Group, PickerColumn);
+            _emptyState.transform.SetSiblingIndex(1);
             _emptyState.SetTitle(BasisLocalization.Get("mediaPlayer.noMediaPlayers"));
             _emptyState.SetDescription(BasisLocalization.Get("mediaPlayer.noMediaPlayers.description"));
             FitToNavColumn(_emptyState, releaseControlSlot: true);
@@ -251,6 +259,13 @@ namespace Basis.BasisUI.MediaPlayer
             if (slot != null) slot.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// Column the player picker is filed under — the one holding the tab list, so the picker can
+        /// sit above it. Falls back to the extras container if the tab group prefab ever stops
+        /// nesting the two, which only costs the ordering.
+        /// </summary>
+        private RectTransform PickerColumn => _tabColumn != null ? _tabColumn : _navColumn;
+
         private RectTransform ActivePageContent()
         {
             if (_tabGroup == null || _pageContents.Count == 0) return null;
@@ -270,7 +285,8 @@ namespace Basis.BasisUI.MediaPlayer
 
         /// <summary>
         /// Same, for the navigation column: the status card grows and shrinks with the text in it, so
-        /// the column has to be measured again or the rows under it keep the old spacing.
+        /// the column has to be measured again or the rows under it keep the old spacing. The pass
+        /// runs out to the tab column, since the picker above the tab list shares that layout.
         /// </summary>
         private void RebuildNavColumn(PanelElementDescriptor card = null)
         {
@@ -281,7 +297,7 @@ namespace Basis.BasisUI.MediaPlayer
             RectTransform from = card != null && card.DescriptionLabel != null
                 ? card.DescriptionLabel.rectTransform
                 : _navColumn;
-            PanelElementDescriptor.RebuildLayoutChain(from, _navColumn);
+            PanelElementDescriptor.RebuildLayoutChain(from, PickerColumn);
         }
 
         /// <summary>
@@ -337,6 +353,7 @@ namespace Basis.BasisUI.MediaPlayer
             _panel = null;
             _tabGroup = null;
             _navColumn = null;
+            _tabColumn = null;
             _pageContents.Clear();
             _playbackTabIndex = -1;
             _adminTabIndex = -1;

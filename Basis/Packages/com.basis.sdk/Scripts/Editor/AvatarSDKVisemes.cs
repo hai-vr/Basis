@@ -1,5 +1,9 @@
+using Basis.Editor.Localization;
+using Basis.Scripts.BasisSdk;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -39,6 +43,7 @@ public class AvatarSDKVisemes
 
 
         ManualAvatarVisemesvisualElement.Clear();
+        BuildResponseSection(basisAvatarSDKInspector);
         if (basisAvatarSDKInspector.Avatar.FaceVisemeMesh != null)
         {
             if (basisAvatarSDKInspector.Avatar.FaceVisemeMovement == null || basisAvatarSDKInspector.Avatar.FaceVisemeMovement.Length != 15)
@@ -81,6 +86,7 @@ public class AvatarSDKVisemes
 
                         // If "None" is selected, map it to -1, otherwise map to the corresponding index
                         basisAvatarSDKInspector.Avatar.FaceVisemeMovement[currentIndex] = (newIndex == 0) ? -1 : newIndex - 1;
+                        MarkDirty(basisAvatarSDKInspector.Avatar);
                     });
 
                     // Add the label and dropdown to the horizontal container
@@ -139,6 +145,7 @@ public class AvatarSDKVisemes
 
                     // If "None" is selected, map it to -1, otherwise map to the corresponding index
                     basisAvatarSDKInspector.Avatar.BlinkViseme[currentIndex] = (newIndex == 0) ? -1 : newIndex - 1;
+                    MarkDirty(basisAvatarSDKInspector.Avatar);
                 });
 
                 // Add the label and dropdown to the horizontal container
@@ -149,5 +156,290 @@ public class AvatarSDKVisemes
                 manualassignBlinkDetection.Add(rowContainer);
             }
         }
+    }
+
+    /// <summary>
+    /// Brings <c>FaceVisemeProfiles</c> up to one entry per viseme, filling new slots with the
+    /// pass-through default so an avatar that never opens this section keeps its old response.
+    /// </summary>
+    public static void EnsureProfiles(BasisAvatar avatar)
+    {
+        avatar.FaceVisemeDrive ??= new BasisVisemeDriveConfig();
+
+        int count = BasisVisemeDriveConfig.VisemeCount;
+        if (avatar.FaceVisemeProfiles != null && avatar.FaceVisemeProfiles.Length == count)
+        {
+            return;
+        }
+
+        BasisVisemeProfile[] resized = new BasisVisemeProfile[count];
+        for (int Index = 0; Index < count; Index++)
+        {
+            resized[Index] = avatar.FaceVisemeProfiles != null && Index < avatar.FaceVisemeProfiles.Length
+                ? avatar.FaceVisemeProfiles[Index]
+                : BasisVisemeProfile.Default;
+        }
+        avatar.FaceVisemeProfiles = resized;
+    }
+
+    /// <summary>
+    /// Builds the Advanced &gt; Viseme Response block. Only the drive mode sits at the top level;
+    /// everything else is tuning that the defaults already cover, so it stays folded away.
+    /// </summary>
+    private void BuildResponseSection(BasisAvatarSDKInspector inspector)
+    {
+        VisualElement parent = inspector.rootElement.Q<VisualElement>("visemeresponse");
+        if (parent == null)
+        {
+            return;
+        }
+
+        parent.Clear();
+        BasisAvatar avatar = inspector.Avatar;
+
+        Label header = inspector.rootElement.Q<Label>("VisemeResponseHeader");
+        DisplayStyle visibility = avatar.FaceVisemeMesh != null ? DisplayStyle.Flex : DisplayStyle.None;
+        parent.style.display = visibility;
+        if (header != null)
+        {
+            header.style.display = visibility;
+        }
+        if (avatar.FaceVisemeMesh == null)
+        {
+            return;
+        }
+
+        EnsureProfiles(avatar);
+
+        Foldout tuning = new Foldout
+        {
+            text = BasisEditorLocalization.Get("sdk.visemes.tuning.header"),
+            value = false
+        };
+
+        Foldout perViseme = new Foldout
+        {
+            text = BasisEditorLocalization.Get("sdk.visemes.perViseme.header"),
+            value = false
+        };
+        for (int Index = 0; Index < VisibleKeysMouth.Count && Index < avatar.FaceVisemeProfiles.Length; Index++)
+        {
+            perViseme.Add(BuildProfileFoldout(avatar, Index));
+        }
+
+        VisualElement winnerFields = new VisualElement();
+
+        EnumField modeField = new EnumField(BasisEditorLocalization.Get("sdk.visemes.mode"), avatar.FaceVisemeDrive.Mode);
+        modeField.tooltip = BasisEditorLocalization.Get("sdk.visemes.mode.tooltip");
+
+        Slider smoothing = new Slider(BasisEditorLocalization.Get("sdk.visemes.backendSmoothing"), 0f, 100f)
+        {
+            value = avatar.FaceVisemeDrive.BackendSmoothing,
+            showInputField = true
+        };
+        smoothing.tooltip = BasisEditorLocalization.Get("sdk.visemes.backendSmoothing.tooltip");
+        smoothing.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.BackendSmoothing = Mathf.RoundToInt(evt.newValue);
+            MarkDirty(avatar);
+        });
+
+        modeField.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.Mode = (BasisVisemeDriveMode)evt.newValue;
+            avatar.FaceVisemeDrive.BackendSmoothing = avatar.FaceVisemeDrive.Mode == BasisVisemeDriveMode.WinnerTakeAll
+                ? BasisVisemeDriveConfig.WinnerTakeAllBackendSmoothing
+                : BasisVisemeDriveConfig.DefaultBackendSmoothing;
+            smoothing.SetValueWithoutNotify(avatar.FaceVisemeDrive.BackendSmoothing);
+            winnerFields.style.display = avatar.FaceVisemeDrive.Mode == BasisVisemeDriveMode.WinnerTakeAll
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
+            MarkDirty(avatar);
+        });
+
+        Slider margin = new Slider(BasisEditorLocalization.Get("sdk.visemes.winnerMargin"), 0f, 0.5f)
+        {
+            value = avatar.FaceVisemeDrive.WinnerMargin,
+            showInputField = true
+        };
+        margin.tooltip = BasisEditorLocalization.Get("sdk.visemes.winnerMargin.tooltip");
+        margin.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.WinnerMargin = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider hold = new Slider(BasisEditorLocalization.Get("sdk.visemes.winnerHold"), 0f, 0.25f)
+        {
+            value = avatar.FaceVisemeDrive.WinnerHoldSeconds,
+            showInputField = true
+        };
+        hold.tooltip = BasisEditorLocalization.Get("sdk.visemes.winnerHold.tooltip");
+        hold.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.WinnerHoldSeconds = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider floor = new Slider(BasisEditorLocalization.Get("sdk.visemes.silenceFloor"), 0f, 1f)
+        {
+            value = avatar.FaceVisemeDrive.SilenceFloor,
+            showInputField = true
+        };
+        floor.tooltip = BasisEditorLocalization.Get("sdk.visemes.silenceFloor.tooltip");
+        floor.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.SilenceFloor = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Toggle silRest = new Toggle(BasisEditorLocalization.Get("sdk.visemes.silIsRest")) { value = avatar.FaceVisemeDrive.SilIsRest };
+        silRest.tooltip = BasisEditorLocalization.Get("sdk.visemes.silIsRest.tooltip");
+        silRest.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeDrive.SilIsRest = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        winnerFields.Add(margin);
+        winnerFields.Add(hold);
+        winnerFields.Add(floor);
+        winnerFields.Add(silRest);
+        winnerFields.style.display = avatar.FaceVisemeDrive.Mode == BasisVisemeDriveMode.WinnerTakeAll
+            ? DisplayStyle.Flex
+            : DisplayStyle.None;
+
+        Button reset = new Button(() =>
+        {
+            avatar.FaceVisemeDrive = new BasisVisemeDriveConfig();
+            for (int Index = 0; Index < avatar.FaceVisemeProfiles.Length; Index++)
+            {
+                avatar.FaceVisemeProfiles[Index] = BasisVisemeProfile.Default;
+            }
+            MarkDirty(avatar);
+            Initialize(BasisAvatarSDKInspector);
+        })
+        {
+            text = BasisEditorLocalization.Get("sdk.visemes.resetAll")
+        };
+
+        tuning.Add(smoothing);
+        tuning.Add(winnerFields);
+        tuning.Add(reset);
+
+        parent.Add(modeField);
+        parent.Add(tuning);
+        parent.Add(perViseme);
+    }
+
+    private VisualElement BuildProfileFoldout(BasisAvatar avatar, int index)
+    {
+        Foldout foldout = new Foldout
+        {
+            text = index < VisibleKeysMouth.Count ? VisibleKeysMouth[index] : BasisEditorLocalization.Get("sdk.visemes.profile.header"),
+            value = false
+        };
+
+        Slider gain = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.gain"), 0f, 4f)
+        {
+            value = avatar.FaceVisemeProfiles[index].Gain,
+            showInputField = true
+        };
+        gain.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].Gain = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider threshold = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.threshold"), 0f, 0.99f)
+        {
+            value = avatar.FaceVisemeProfiles[index].Threshold,
+            showInputField = true
+        };
+        threshold.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].Threshold = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider outMin = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.outMin"), 0f, 100f)
+        {
+            value = avatar.FaceVisemeProfiles[index].OutMin,
+            showInputField = true
+        };
+        outMin.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].OutMin = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider outMax = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.outMax"), 0f, 100f)
+        {
+            value = avatar.FaceVisemeProfiles[index].OutMax,
+            showInputField = true
+        };
+        outMax.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].OutMax = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider attack = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.attack"), 0f, 0.5f)
+        {
+            value = avatar.FaceVisemeProfiles[index].AttackSeconds,
+            showInputField = true
+        };
+        attack.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].AttackSeconds = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Slider release = new Slider(BasisEditorLocalization.Get("sdk.visemes.profile.release"), 0f, 0.5f)
+        {
+            value = avatar.FaceVisemeProfiles[index].ReleaseSeconds,
+            showInputField = true
+        };
+        release.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].ReleaseSeconds = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Toggle binary = new Toggle(BasisEditorLocalization.Get("sdk.visemes.profile.binary")) { value = avatar.FaceVisemeProfiles[index].Binary };
+        binary.RegisterValueChangedCallback(evt =>
+        {
+            avatar.FaceVisemeProfiles[index].Binary = evt.newValue;
+            MarkDirty(avatar);
+        });
+
+        Button copyToAll = new Button(() =>
+        {
+            BasisVisemeProfile source = avatar.FaceVisemeProfiles[index];
+            for (int Index = 0; Index < avatar.FaceVisemeProfiles.Length; Index++)
+            {
+                avatar.FaceVisemeProfiles[Index] = source;
+            }
+            MarkDirty(avatar);
+            Initialize(BasisAvatarSDKInspector);
+        })
+        {
+            text = BasisEditorLocalization.Get("sdk.visemes.profile.copyToAll")
+        };
+
+        foldout.Add(gain);
+        foldout.Add(threshold);
+        foldout.Add(outMin);
+        foldout.Add(outMax);
+        foldout.Add(attack);
+        foldout.Add(release);
+        foldout.Add(binary);
+        foldout.Add(copyToAll);
+        return foldout;
+    }
+
+    private static void MarkDirty(BasisAvatar avatar)
+    {
+        EditorUtility.SetDirty(avatar);
     }
 }

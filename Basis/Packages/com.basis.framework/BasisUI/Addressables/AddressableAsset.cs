@@ -37,6 +37,10 @@ namespace Basis.BasisUI
             public static string Information = "Packages/com.basis.sdk/Textures/Runtime/information.png";
             public static string Admin = "Packages/com.basis.sdk/Textures/Runtime/admin.png";
 
+            // panel header controls (see BasisPanelMoveHandle)
+            public static string Move = "Packages/com.basis.sdk/Textures/Runtime/move-outline.png";
+            public static string Reset = "Packages/com.basis.sdk/Textures/Runtime/reset.png";
+
             public static string Microphone = "Packages/com.basis.sdk/Textures/Runtime/microphone-solid.png";
             public static string MicrophoneMute = "Packages/com.basis.sdk/Textures/Runtime/microphone-mute-solid.png";
             public static string People = "Packages/com.basis.sdk/Textures/Runtime/people-outline.png";
@@ -62,6 +66,9 @@ namespace Basis.BasisUI
             public static string PlatformStandaloneOSX = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-mac.png";
             public static string PlatformStandaloneLinux64 = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-tux.png";
             public static string PlatformStandaloneWindows64 = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-windows.png";
+            // The platform-agnostic glTF fallback section (BasisBundleConnector.GenericPlatform).
+            // It has no vendor to show a logo for — it runs anywhere — so a globe stands in.
+            public static string PlatformGeneric = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-generic.png";
         }
 
         private static readonly Dictionary<string, AsyncOperationHandle<Sprite>> _spriteHandles = new();

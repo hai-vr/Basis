@@ -55,6 +55,18 @@ namespace Basis.Scripts.BasisSdk
         public int[] FaceVisemeMovement = new int[] { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
         /// <summary>
+        /// Optional per-viseme response shaping, parallel to <see cref="FaceVisemeMovement"/>.
+        /// Null or short entries fall back to <see cref="BasisVisemeProfile.Default"/>, which
+        /// reproduces the untouched probability-to-weight behaviour.
+        /// </summary>
+        public BasisVisemeProfile[] FaceVisemeProfiles;
+
+        /// <summary>
+        /// Avatar-wide lip-sync response settings shared by every viseme.
+        /// </summary>
+        public BasisVisemeDriveConfig FaceVisemeDrive = new BasisVisemeDriveConfig();
+
+        /// <summary>
         /// Blend shape indices used for blink animation; -1 indicates unused.
         /// </summary>
         public int[] BlinkViseme = new int[] { -1 };

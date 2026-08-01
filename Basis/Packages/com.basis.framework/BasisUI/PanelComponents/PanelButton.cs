@@ -69,7 +69,19 @@ namespace Basis.BasisUI
         public Action OnClicked;
         public Action OnPressed;
         public Action OnReleased;
+
+        /// <summary>
+        /// Optional "put this back" action. Assigning it opts the button into the shared reset
+        /// gesture — right click on desktop, thumbstick click in VR — the same way a slider or
+        /// toggle offers its default back. See <see cref="BasisPanelResetGesture"/>.
+        /// </summary>
+        public Action OnResetRequested;
+
         protected bool _iconIsAddressable;
+
+        public override bool HasResetDefault => OnResetRequested != null;
+
+        public override void RequestReset() => OnResetRequested?.Invoke();
 
 
         public static PanelButton CreateNew(Component parent)

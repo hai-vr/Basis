@@ -1258,8 +1258,9 @@ public static class SettingsProviderIK
         // ------------------
         BuildDebugSection(tabDesc);
 
-        // ONE RESET BUTTON FOR THIS PAGE — kept last so debug info sits above it.
-        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
+        // The tab's own localization key, which is what the header Reset looks this page up by —
+        // a display name would never match and the page would silently lose its reset.
+        SettingsProvider.RegisterPageReset("settings.tab.bodytracking", ResetIkDefaults);
 
         RebuildLayout(tabDesc);
         return tabPage;

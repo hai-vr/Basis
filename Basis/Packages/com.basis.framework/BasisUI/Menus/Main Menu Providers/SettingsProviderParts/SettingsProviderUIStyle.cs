@@ -84,7 +84,7 @@ public static class SettingsProviderUIStyle
 
         BuildColorPickers(container);
 
-        SettingsProvider.AddResetPageButton(container, "settings.tab.uistyle", ResetUIStyleDefaults);
+        SettingsProvider.RegisterPageReset("settings.tab.uistyle", ResetUIStyleDefaults);
         descriptor.ForceRebuild();
         return tab;
     }

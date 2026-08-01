@@ -2,4 +2,12 @@
 public class BasisRemoteEncyptedBundle
 {
     public string RemoteBeeFileLocation;
+    // Opaque content-version tag for whatever currently lives at RemoteBeeFileLocation: an HTTP
+    // validator (ETag, else Last-Modified) when the host supplies one, otherwise a creator-stamped
+    // nonce. It is what lets a bee be re-uploaded to a STATIC url and still invalidate every
+    // client's cache — url identity alone can never express "same address, new bytes".
+    // Empty means "no version declared", and every consumer treats that as "the cache is
+    // authoritative", which is exactly how loads behaved before this field existed. That is what
+    // keeps already-cached bundles, older clients and the GUID-per-upload flow working untouched.
+    public string RemoteVersionTag;
 }

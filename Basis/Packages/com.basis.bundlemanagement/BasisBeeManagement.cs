@@ -49,6 +49,40 @@ public static class BasisBeeManagement
     }
 
     /// <summary>
+    /// The single decision that lets content published to a STATIC url ever be updated: whether a
+    /// cache entry found by url is also current for the version the requester asked for.
+    ///
+    /// <para>Returns true (keep using the cache) whenever no version was declared, which is the
+    /// branch taken by every bundle and client that predates versioning — so this is a no-op for
+    /// existing content.</para>
+    /// </summary>
+    /// <param name="evictStaleCache">
+    /// Whether a stale entry should be deleted outright rather than merely bypassed. True for the
+    /// full load, where eviction reclaims the previous UniqueVersion's files instead of leaving
+    /// them for the LRU sweep. False for the connector-only load: its caller treats "no meta on
+    /// disc" as a corrupt item and REMOVES the library key, so deleting the entry there would turn
+    /// a failed re-download into silent loss of the user's saved item. Bypassing still refreshes —
+    /// the re-download rewrites the entry — it just leaves the old payload for the LRU sweep.
+    /// </param>
+    private static bool CacheIsCurrentForRequestedVersion(BasisTrackedBundleWrapper wrapper, BasisBEEExtensionMeta metaInfo, string beeLocation, bool evictStaleCache)
+    {
+        string requestedVersionTag = wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteVersionTag;
+        if (BasisContentVersion.ShouldUseCache(metaInfo, requestedVersionTag, beeLocation))
+        {
+            return true;
+        }
+
+        if (evictStaleCache)
+        {
+            // Safe mid-load: the caller registered and incremented this wrapper before starting,
+            // and UnloadAllForUrl skips bundles in use, so only idle copies of the old version go.
+            BasisContentVersion.Invalidate(beeLocation);
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// this allows obtaining the entire bee file
     /// </summary>
     /// <param name="wrapper"></param>
@@ -71,6 +105,11 @@ public static class BasisBeeManagement
         if (shouldUseOnDiskMeta && !HasCompatibleDownloadedPlatform(MetaInfo) && !string.IsNullOrEmpty(MetaInfo.DownloadedPlatform))
         {
             BasisDebug.Log($"Cached bundle platform {MetaInfo.DownloadedPlatform} does not match {Application.platform}. Forcing re-download.", BasisDebug.LogTag.Event);
+            shouldUseOnDiskMeta = false;
+        }
+
+        if (shouldUseOnDiskMeta && !CacheIsCurrentForRequestedVersion(wrapper, MetaInfo, beeLocation, evictStaleCache: true))
+        {
             shouldUseOnDiskMeta = false;
         }
 
@@ -281,11 +320,35 @@ public static class BasisBeeManagement
                 StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
                 UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
                 DownloadedPlatform = downloadedPlatform,
+                CachedVersionTag = ResolveCachedVersionTag(wrapper),
+                LastValidatedUnixUtc = BasisContentVersion.NowUnixUtc(),
             };
 
             await BasisLoadHandler.AddDiscInfo(newDiscInfo);
             BasisStorageManagement.EnforceCacheSizeLimit();
         }
+    }
+
+    /// <summary>
+    /// The version to record against bytes that were just fetched. Prefers the validator the SERVER
+    /// reported (<see cref="BasisTrackedBundleWrapper.ObservedVersionTag"/>) over the tag the
+    /// requester asked for, so a value a peer merely claimed never gets written into the cache as
+    /// though it had been verified. Falls back to the requested tag for hosts that publish no
+    /// validator at all — there the tag is a creator-stamped nonce and echoing it is the whole
+    /// mechanism, and the worst a bogus one can do is cost a single throttled refresh.
+    /// </summary>
+    private static string ResolveCachedVersionTag(BasisTrackedBundleWrapper wrapper)
+    {
+        // Stored verbatim, never normalized: a later conditional request has to echo the server's
+        // exact ETag spelling. Normalization is applied when comparing, not when recording.
+        string observed = wrapper?.ObservedVersionTag;
+        if (!string.IsNullOrWhiteSpace(observed))
+        {
+            return observed.Trim();
+        }
+
+        string requested = wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteVersionTag;
+        return string.IsNullOrWhiteSpace(requested) ? string.Empty : requested.Trim();
     }
     /// <summary>
     /// this allows us to obtain just the meta data.
@@ -309,8 +372,12 @@ public static class BasisBeeManagement
         }
 
         var (IsMetaOnDisc, MetaInfo) = await BasisLoadHandler.IsMetaDataOnDiscAsync(beeLocation);
+        // Same static-url freshness gate as the full load. Library cards read the connector through
+        // here, so without it a card would keep showing the previous name/thumbnail/date after the
+        // bee behind its url was replaced.
+        bool useCachedConnector = IsMetaOnDisc && CacheIsCurrentForRequestedVersion(wrapper, MetaInfo, beeLocation, evictStaleCache: false);
         (BasisBundleConnector Connector, string ErrorMessage) output;
-        if (IsMetaOnDisc)
+        if (useCachedConnector)
         {
             output = await BasisBundleManagement.ReadConnectorFile(wrapper, MetaInfo.StoredLocal, report, cancellationToken).ConfigureAwait(false);
         }
@@ -332,7 +399,7 @@ public static class BasisBeeManagement
             BasisDebug.LogError($"Missing BundleArray {output.ErrorMessage}");
             return BasisMetaLoadResult.Corrupt(output.ErrorMessage);
         }
-        if (IsMetaOnDisc == false)
+        if (useCachedConnector == false)
         {
             BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
             {
@@ -347,6 +414,8 @@ public static class BasisBeeManagement
                 },
                 UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
                 DownloadedPlatform = BasisIOManagement.GetCurrentCachePlatform(),
+                CachedVersionTag = ResolveCachedVersionTag(wrapper),
+                LastValidatedUnixUtc = BasisContentVersion.NowUnixUtc(),
             };
 
             await BasisLoadHandler.AddDiscInfo(newDiscInfo);

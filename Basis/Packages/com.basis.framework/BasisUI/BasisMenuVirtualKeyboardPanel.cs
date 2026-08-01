@@ -250,6 +250,7 @@ namespace Basis.BasisUI
             panel.TMPInputField = tmpInputField;
 
             panel.BuildPanel();
+            BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuVirtualKeyboardPanel));
 
             UIAnimations.PopIn(panel);
             BasisCursorManagement.UnlockCursor(nameof(BasisMenuVirtualKeyboardPanel));

@@ -76,7 +76,7 @@ public static class SettingsProviderStorage
         SettingsProviderTrustedUrls.Populate(container, TabKey, descriptor);
 
         // One reset button for this whole page (download limits, cache, trusted URLs)
-        SettingsProvider.AddResetPageButton(container, TabKey, ResetDefaults);
+        SettingsProvider.RegisterPageReset(TabKey, ResetDefaults);
 
         descriptor.ForceRebuild();
         return tab;

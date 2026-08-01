@@ -263,7 +263,15 @@ public static class BasisLoadHandler
     private static string GetBundleKey(BasisLoadableBundle loadableBundle)
     {
         string url = BasisIOManagement.CanonicalizeRemoteUrl(loadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation);
-        return $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";
+        string key = $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";
+
+        // Version-aware only when a version is actually declared, so unversioned content produces
+        // the exact key it did before and its load/DeIncrement pairing is untouched. When a url is
+        // republished, this is what stops two players wearing the same url at different versions
+        // from collapsing onto one wrapper — the in-memory cache is keyed by url alone otherwise,
+        // and would hand the stale bundle to whoever asked for the new one.
+        string versionTag = BasisContentVersion.Normalize(loadableBundle?.BasisRemoteBundleEncrypted?.RemoteVersionTag);
+        return versionTag.Length == 0 ? key : $"{key}|{versionTag}";
     }
 
     // Hashing the unlock password (SHA256.Create + ComputeHash) is the bulk of GetBundleKey's

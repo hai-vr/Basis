@@ -1,0 +1,224 @@
+using System;
+using System.Threading.Tasks;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.UI.UI_Panels;
+using UnityEngine;
+using static Basis.BasisUI.PanelButton;
+
+namespace Basis.BasisUI
+{
+    /// <summary>
+    /// User-driven cache invalidation for content published to a STATIC url.
+    ///
+    /// <para>Cache identity is the url, so re-uploading a bee to the same address is invisible to a
+    /// client that already has it — the load path never touches the network again. This asks the
+    /// host whether the bytes changed (one small conditional request, no payload), and on a change
+    /// evicts the cached copy so the next load fetches fresh.</para>
+    ///
+    /// <para>Only the person who published the content knows they changed it, which is why this is
+    /// a button rather than something automatic: the check is cheap but not free, and doing it on
+    /// every load would add a round trip to every avatar in the instance.</para>
+    /// </summary>
+    public class LibraryProviderDialogCheckForUpdate
+    {
+        /// <summary>
+        /// True when an update check is meaningful for this item. Embedded items ship inside the
+        /// build and local bee files are read straight off disk — neither is cached by url, so
+        /// there is nothing to invalidate.
+        /// </summary>
+        public static bool IsSupported(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item == null || item.EmbeddedSettings.IsEmbedded || string.IsNullOrWhiteSpace(item.Url))
+            {
+                return false;
+            }
+            if (BasisIOManagement.IsLocalBeeUrl(item.Url))
+            {
+                return false;
+            }
+            return Uri.TryCreate(item.Url, UriKind.Absolute, out Uri uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        }
+
+        /// <summary>
+        /// Runs the check and, when the content changed, refreshes it. Returns true when something
+        /// was actually invalidated, so the caller can rebuild the library card.
+        /// </summary>
+        public static async Task<bool> PromptUserForUpdateCheck(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, BasisBundleDescription description)
+        {
+            string title = LibraryProviderStrUtil.TitleToCase(description?.AssetBundleName ?? item.Url);
+
+            DialogBox<bool> checkingDialog = DialogBox<bool>.Create(panel, new Vector2(830, 150),
+                BasisLocalization.Get("library.dialog.checkForUpdate.title", title),
+                BasisLocalization.Get("library.dialog.checkForUpdate.checking"),
+                AddressableAssets.Sprites.HourGlass,
+                true
+            );
+
+            BasisContentVersion.UpdateCheckResult result;
+            try
+            {
+                result = await BasisContentVersion.CheckForUpdateAsync(item.Url);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Update check failed for {item.Url}: {ex}");
+                result = new BasisContentVersion.UpdateCheckResult(false, false, false, null, ex.Message);
+            }
+
+            checkingDialog.CloseWithResult(true);
+
+            if (!result.Succeeded)
+            {
+                await ShowNotice(panel,
+                    BasisLocalization.Get("library.dialog.checkForUpdate.failed.title"),
+                    BasisLocalization.Get("library.dialog.checkForUpdate.failed.body", result.Error ?? string.Empty));
+                return false;
+            }
+
+            // Host publishes neither ETag nor Last-Modified, so a change is undetectable here. Offer
+            // the blunt instrument instead of silently claiming the copy is current.
+            if (result.VersioningUnavailable)
+            {
+                bool forceRefresh = await PromptYesNo(panel,
+                    BasisLocalization.Get("library.dialog.checkForUpdate.unsupported.title"),
+                    BasisLocalization.Get("library.dialog.checkForUpdate.unsupported.body"));
+
+                if (!forceRefresh)
+                {
+                    return false;
+                }
+
+                return await ApplyRefresh(panel, item, title);
+            }
+
+            if (!result.HasUpdate)
+            {
+                await ShowNotice(panel,
+                    BasisLocalization.Get("library.dialog.checkForUpdate.upToDate.title"),
+                    BasisLocalization.Get("library.dialog.checkForUpdate.upToDate.body", title));
+                return false;
+            }
+
+            bool confirmed = await PromptYesNo(panel,
+                BasisLocalization.Get("library.dialog.checkForUpdate.available.title"),
+                BasisLocalization.Get("library.dialog.checkForUpdate.available.body", title));
+
+            if (!confirmed)
+            {
+                return false;
+            }
+
+            return await ApplyRefresh(panel, item, title);
+        }
+
+        /// <summary>
+        /// Evicts the cached copy and rebuilds the library's view of the item. When the item is the
+        /// avatar currently being worn it is re-equipped, which also rebroadcasts the new version to
+        /// everyone else (OnAvatarSwitched drives SendOutAvatarChange) so their caches invalidate too.
+        /// </summary>
+        private static async Task<bool> ApplyRefresh(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, string title)
+        {
+            bool wasWorn = IsCurrentlyWornAvatar(item);
+
+            if (!BasisContentVersion.Invalidate(item.Url))
+            {
+                BasisDebug.LogWarning($"Nothing cached to invalidate for {item.Url}; it will be fetched on next load anyway.", BasisDebug.LogTag.Event);
+            }
+
+            // The library keeps its own parsed copy of the connector (name, thumbnail, date), which
+            // still describes the old bytes. Drop it so the card is rebuilt from the fresh download.
+            CachedMetaData.RemoveMetaData(item.Url);
+
+            DialogBox<bool> refreshingDialog = DialogBox<bool>.Create(panel, new Vector2(830, 150),
+                BasisLocalization.Get("library.dialog.checkForUpdate.refreshing.title"),
+                BasisLocalization.Get("library.dialog.checkForUpdate.refreshing.body", title),
+                AddressableAssets.Sprites.HourGlass,
+                true
+            );
+
+            try
+            {
+                await CachedMetaData.PreloadMetaDataForItem(item);
+
+                if (wasWorn)
+                {
+                    await LibraryProvider.LoadSelectedItem(item);
+                }
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Refresh after update check failed for {item.Url}: {ex}");
+            }
+            finally
+            {
+                refreshingDialog.CloseWithResult(true);
+            }
+
+            return true;
+        }
+
+        private static bool IsCurrentlyWornAvatar(BasisDataStoreItemKeys.ItemKey item)
+        {
+            if (item.Mode != BundledContentHolder.Mode.Avatar || BasisLocalPlayer.Instance == null)
+            {
+                return false;
+            }
+
+            string worn = BasisLocalPlayer.Instance.AvatarMetaData?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation;
+            return !string.IsNullOrEmpty(worn) &&
+                   string.Equals(BasisIOManagement.CanonicalizeRemoteUrl(worn), BasisIOManagement.CanonicalizeRemoteUrl(item.Url), StringComparison.Ordinal);
+        }
+
+        private static async Task ShowNotice(BasisMenuPanel panel, string title, string body)
+        {
+            DialogBox<bool> noticeDialog = DialogBox<bool>.Create(panel, new Vector2(830, 200), title, body, AddressableAssets.Sprites.Information);
+
+            if (noticeDialog.Descriptor != null)
+            {
+                PanelButton closeButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, noticeDialog.Descriptor.ContentParent);
+                closeButton.Descriptor.SetTitle(BasisLocalization.Get("ui.ok"));
+                closeButton.Descriptor.SetWidth(200);
+                closeButton.Descriptor.SetHeight(60);
+                closeButton.OnClicked += () => noticeDialog.CloseWithResult(true);
+            }
+
+            await noticeDialog.WaitAsync();
+        }
+
+        private static async Task<bool> PromptYesNo(BasisMenuPanel panel, string title, string body)
+        {
+            DialogBox<bool> dialog = DialogBox<bool>.Create(panel, new Vector2(830, 200), title, body, AddressableAssets.Sprites.Information, true);
+
+            if (dialog.Descriptor != null)
+            {
+                PanelTabGroup actionsPanel = PanelTabGroup.CreateNew(dialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
+                actionsPanel.Descriptor.SetHeight(60);
+
+                PanelButton noButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent);
+                noButton.Descriptor.SetTitle(BasisLocalization.Get("ui.no"));
+                noButton.Descriptor.SetWidth(200);
+                noButton.Descriptor.SetHeight(60);
+                noButton.OnClicked += () =>
+                {
+                    if (dialog.IsBusy) return;
+                    dialog.IsBusy = true;
+                    dialog.CloseWithResult(false);
+                };
+
+                PanelButton yesButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
+                yesButton.Descriptor.SetTitle(BasisLocalization.Get("ui.yes"));
+                yesButton.Descriptor.SetWidth(200);
+                yesButton.Descriptor.SetHeight(60);
+                yesButton.OnClicked += () =>
+                {
+                    if (dialog.IsBusy) return;
+                    dialog.IsBusy = true;
+                    dialog.CloseWithResult(true);
+                };
+            }
+
+            return await dialog.WaitAsync();
+        }
+    }
+}

@@ -260,6 +260,7 @@ namespace Basis.BasisUI
             panel.Callback = callback;
             panel.Severity = severity;
             panel.FillDialogue(title, description, accept, deny);
+            BasisPanelMoveHandle.Attach(panel, nameof(BasisMenuDialoguePanel));
 
             // Pop-in animation for dialogues
             UIAnimations.PopIn(panel);

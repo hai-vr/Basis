@@ -191,6 +191,7 @@ namespace Basis.BasisUI
             };
             BasisMenuPanel panel = BasisMenuPanel.CreateNew(
                 data, BasisMainMenu.Instance.MenuObjectInstance.PanelRoot, BasisMenuPanel.PanelStyles.Page);
+            BasisPanelMoveHandle.Attach(panel, nameof(BasisHighPlayerCapPerformanceMode));
 
             PanelTabPage tab = PanelTabPage.CreateVertical(panel.Descriptor.ContentParent);
             RectTransform root = tab.Descriptor.ContentParent;

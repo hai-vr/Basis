@@ -9,6 +9,7 @@ public static class BasisBundleConversionNetwork
             BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle
             {
                 RemoteBeeFileLocation = AvatarNetworkLoadInformation.URL,
+                RemoteVersionTag = AvatarNetworkLoadInformation.VersionTag,
             },
              BasisBundleConnector = new BasisBundleConnector(),
             BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle(),
@@ -24,7 +25,8 @@ public static class BasisBundleConversionNetwork
         BasisAvatarNetworkLoad AvatarNetworkLoadInformation = new BasisAvatarNetworkLoad
         {
             URL = BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-            UnlockPassword = BasisLoadableBundle.UnlockPassword
+            UnlockPassword = BasisLoadableBundle.UnlockPassword,
+            VersionTag = BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteVersionTag
         };
         return AvatarNetworkLoadInformation;
     }

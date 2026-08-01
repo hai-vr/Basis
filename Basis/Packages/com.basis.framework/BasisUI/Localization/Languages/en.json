@@ -2307,6 +2307,30 @@
       "value": "Main Menu"
     },
     {
+      "key": "menu.panel.move",
+      "value": "Move"
+    },
+    {
+      "key": "menu.panel.move.tooltip",
+      "value": "Hold to drag this panel where you want it. In VR, push the thumbstick of the holding hand forward or back to move it further away or closer."
+    },
+    {
+      "key": "menu.panel.reset",
+      "value": "Reset"
+    },
+    {
+      "key": "menu.panel.reset.tooltip",
+      "value": "Put this panel back where it started, or put this page's settings back to defaults."
+    },
+    {
+      "key": "menu.panel.reset.position",
+      "value": "Reset Position"
+    },
+    {
+      "key": "menu.panel.reset.choose",
+      "value": "Reset all {0} settings to defaults, or just put this panel back where it started?"
+    },
+    {
       "key": "keyboard.title",
       "value": "Virtual Keyboard"
     },
@@ -3977,6 +4001,58 @@
     {
       "key": "library.share",
       "value": "Share"
+    },
+    {
+      "key": "library.checkForUpdate",
+      "value": "Check for Update"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.title",
+      "value": "Check {0} for Updates"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.checking",
+      "value": "Asking the host whether this content has changed..."
+    },
+    {
+      "key": "library.dialog.checkForUpdate.upToDate.title",
+      "value": "Already Up To Date"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.upToDate.body",
+      "value": "{0} matches the copy published at its address, so nothing needs downloading."
+    },
+    {
+      "key": "library.dialog.checkForUpdate.available.title",
+      "value": "Update Available"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.available.body",
+      "value": "The content at this address has changed since {0} was downloaded.\n\nRefresh it now? The cached copy will be discarded and downloaded again the next time it loads."
+    },
+    {
+      "key": "library.dialog.checkForUpdate.unsupported.title",
+      "value": "Cannot Detect Changes"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.unsupported.body",
+      "value": "This host does not report when a file was last changed, so updates cannot be detected automatically.\n\nRefresh anyway? This discards the cached copy and downloads it again, even if nothing changed."
+    },
+    {
+      "key": "library.dialog.checkForUpdate.failed.title",
+      "value": "Update Check Failed"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.failed.body",
+      "value": "Could not reach the content at its address.\n\n{0}"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.refreshing.title",
+      "value": "Refreshing Content"
+    },
+    {
+      "key": "library.dialog.checkForUpdate.refreshing.body",
+      "value": "Discarding the cached copy of {0} and fetching the latest version..."
     },
     {
       "key": "library.teleportTo",

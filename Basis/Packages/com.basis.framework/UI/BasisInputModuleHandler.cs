@@ -4,6 +4,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -36,6 +37,14 @@ namespace Basis.Scripts.UI
 
         private int caretHeldDirection;
         private float caretNextRepeatTime;
+
+        private readonly List<char> pendingCharacters = new List<char>();
+        private bool textEventsObserved;
+        private bool hasTextLengthSnapshot;
+        private int lastTextLength;
+        private Key heldTextKey = Key.None;
+        private float textKeyNextRepeatTime;
+        private bool capsLockActive;
 
         private TMP_InputField lastCaretVisibilityField;
         private int lastCaretVisibilityPosition;
@@ -107,6 +116,7 @@ namespace Basis.Scripts.UI
             base.OnDisable();
 
             UnsubscribePhysicalKeyboard();
+            ResetPhysicalKeyboardText();
             BasisTextFieldCaret.RestoreOverflowMode();
 
             tabAction.Disable();
@@ -117,6 +127,17 @@ namespace Basis.Scripts.UI
             enterAction.performed -= OnEnterPerformed;
             keypadEnterAction.performed -= OnEnterPerformed;
             basisUIRaycastProcess.OnDeInitialize();
+        }
+
+        private void EnsurePhysicalKeyboardSubscription()
+        {
+            if (!ShouldForwardPhysicalKeyboard()) return;
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == subscribedKeyboard && physicalKeyboardSubscribed) return;
+
+            UnsubscribePhysicalKeyboard();
+            SubscribePhysicalKeyboard();
         }
 
         private void SubscribePhysicalKeyboard()
@@ -151,27 +172,152 @@ namespace Basis.Scripts.UI
 
         private void OnTextInput(char character)
         {
-            if (char.IsControl(character))
+            textEventsObserved = true;
+            pendingCharacters.Add(character);
+        }
+
+        private void HandlePhysicalKeyboardText()
+        {
+            ResolveTextTargets(out TMP_InputField tmp, out InputField legacy);
+            if (tmp == null && legacy == null)
             {
-                HandleControlCharacter(character);
+                ResetPhysicalKeyboardText();
+                return;
             }
-            else
+
+            if (textEventsObserved == false)
             {
-                HandleTextCharacter(character);
+                ScanPhysicalKeyboardKeys();
+            }
+
+            int length = ReadTextLength(tmp, legacy);
+            if (hasTextLengthSnapshot == false)
+            {
+                hasTextLengthSnapshot = true;
+                lastTextLength = length;
+                return;
+            }
+
+            if (length != lastTextLength)
+            {
+                pendingCharacters.Clear();
+                lastTextLength = length;
+                return;
+            }
+
+            int count = pendingCharacters.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                char character = pendingCharacters[Index];
+                if (char.IsControl(character))
+                {
+                    HandleControlCharacter(character, tmp, legacy);
+                }
+                else
+                {
+                    HandleTextCharacter(character, tmp, legacy);
+                }
+            }
+
+            if (count != 0)
+            {
+                pendingCharacters.Clear();
+                lastTextLength = ReadTextLength(tmp, legacy);
             }
         }
 
-        private void HandleControlCharacter(char character)
+        private void ScanPhysicalKeyboardKeys()
+        {
+            Keyboard keyboard = subscribedKeyboard;
+            if (keyboard == null) return;
+
+            if (keyboard[Key.CapsLock].wasPressedThisFrame)
+            {
+                capsLockActive = !capsLockActive;
+            }
+
+            if (keyboard.ctrlKey.isPressed || keyboard.altKey.isPressed)
+            {
+                heldTextKey = Key.None;
+                return;
+            }
+
+            bool shift = keyboard.shiftKey.isPressed;
+            float time = Time.unscaledTime;
+
+            Key[] keys = BasisPhysicalKeyboardText.TextKeys;
+            int count = keys.Length;
+            for (int Index = 0; Index < count; Index++)
+            {
+                Key key = keys[Index];
+                if (keyboard[key].wasPressedThisFrame == false) continue;
+                if (BasisPhysicalKeyboardText.TryGetCharacter(key, shift, capsLockActive, out char character) == false) continue;
+
+                pendingCharacters.Add(character);
+                heldTextKey = key;
+                textKeyNextRepeatTime = time + CaretRepeatDelay;
+            }
+
+            if (heldTextKey == Key.None) return;
+
+            if (keyboard[heldTextKey].isPressed == false)
+            {
+                heldTextKey = Key.None;
+                return;
+            }
+
+            if (time < textKeyNextRepeatTime) return;
+
+            if (BasisPhysicalKeyboardText.TryGetCharacter(heldTextKey, shift, capsLockActive, out char repeated))
+            {
+                pendingCharacters.Add(repeated);
+            }
+            textKeyNextRepeatTime = time + CaretRepeatInterval;
+        }
+
+        private void ResetPhysicalKeyboardText()
+        {
+            pendingCharacters.Clear();
+            hasTextLengthSnapshot = false;
+            lastTextLength = 0;
+            heldTextKey = Key.None;
+        }
+
+        private void ResolveTextTargets(out TMP_InputField tmp, out InputField legacy)
+        {
+            tmp = CurrentSelectedTMP_InputField;
+            legacy = CurrentSelectedInputField;
+            if (tmp == null && legacy == null && BasisMenuVirtualKeyboardPanel.HasInstance)
+            {
+                tmp = BasisMenuVirtualKeyboardPanel.Instance.TMPInputField;
+                legacy = BasisMenuVirtualKeyboardPanel.Instance.InputField;
+            }
+        }
+
+        private static int ReadTextLength(TMP_InputField tmp, InputField legacy)
+        {
+            if (tmp != null)
+            {
+                return tmp.text != null ? tmp.text.Length : 0;
+            }
+            if (legacy != null)
+            {
+                return legacy.text != null ? legacy.text.Length : 0;
+            }
+            return 0;
+        }
+
+        private void HandleControlCharacter(char character, TMP_InputField tmp, InputField legacy)
         {
             if (character == '\b') // Backspace
             {
-                BasisTextFieldCaret.DeleteBeforeCaret(CurrentSelectedTMP_InputField, CurrentSelectedInputField);
+                BasisTextFieldCaret.DeleteBeforeCaret(tmp, legacy);
             }
         }
 
-        private void HandleTextCharacter(char character)
+        private void HandleTextCharacter(char character, TMP_InputField tmp, InputField legacy)
         {
-            BasisTextFieldCaret.InsertAtCaret(CurrentSelectedTMP_InputField, CurrentSelectedInputField, character.ToString());
+            BasisTextFieldCaret.InsertAtCaret(tmp, legacy, character.ToString());
         }
 
         /// <summary>
@@ -198,7 +344,6 @@ namespace Basis.Scripts.UI
                         HasHoverONInput = true;
                         MovementLock.Add(nameof(BasisInputModuleHandler));
                         CrouchingLock.Add(nameof(BasisInputModuleHandler));
-                        SubscribePhysicalKeyboard();
                         if (KeyboardRequired())
                         {
                             if (BasisMenuVirtualKeyboardPanel.HasInstance == false)
@@ -251,13 +396,16 @@ namespace Basis.Scripts.UI
 
             if (HasHoverONInput)
             {
+                EnsurePhysicalKeyboardSubscription();
                 HandleCaretNavigation();
+                HandlePhysicalKeyboardText();
                 TrackCaretVisibility();
             }
             else
             {
                 caretHeldDirection = 0;
                 lastCaretVisibilityField = null;
+                ResetPhysicalKeyboardText();
                 BasisTextFieldCaret.RestoreOverflowMode();
             }
         }
@@ -288,13 +436,7 @@ namespace Basis.Scripts.UI
 
         private void HandleCaretNavigation()
         {
-            TMP_InputField tmp = CurrentSelectedTMP_InputField;
-            InputField legacy = CurrentSelectedInputField;
-            if (tmp == null && legacy == null && BasisMenuVirtualKeyboardPanel.HasInstance)
-            {
-                tmp = BasisMenuVirtualKeyboardPanel.Instance.TMPInputField;
-                legacy = BasisMenuVirtualKeyboardPanel.Instance.InputField;
-            }
+            ResolveTextTargets(out TMP_InputField tmp, out InputField legacy);
             if (tmp == null && legacy == null)
             {
                 caretHeldDirection = 0;

@@ -111,6 +111,7 @@ namespace Basis.BasisUI
             if (lower.Contains("linux")) return AddressableAssets.Sprites.PlatformStandaloneLinux64;
             if (lower.Contains("android")) return AddressableAssets.Sprites.PlatformMobileAndroid;
             if (lower.Contains("iphone") || lower.Contains("ios")) return AddressableAssets.Sprites.PlatformMobileiOS;
+            if (lower.Contains("generic")) return AddressableAssets.Sprites.PlatformGeneric;
             return string.Empty;
         }
 

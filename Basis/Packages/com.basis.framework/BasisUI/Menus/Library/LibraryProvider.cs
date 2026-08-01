@@ -339,6 +339,12 @@ namespace Basis.BasisUI
                 wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote;
                 wrapper.BasisLoadableBundle.BasisLocalEncryptedBundle = info.StoredLocal;
                 wrapper.BasisLoadableBundle.BasisBundleConnector.UniqueVersion = info.UniqueVersion;
+                // Advertise the version we actually hold. StoredRemote carries whatever tag was
+                // REQUESTED when this was cached (empty for a library load), while CachedVersionTag
+                // is the validator observed for the bytes on disk. This bundle is what gets
+                // broadcast when the avatar is worn, so sending the requested one would tell every
+                // remote client "no version declared" and leave them pinned to their stale copy.
+                wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteVersionTag = info.CachedVersionTag;
                 return wrapper;
             }
             else
@@ -863,7 +869,7 @@ namespace Basis.BasisUI
         {
             #region ITEM OVERLAY SETUP
 
-            Vector2 overlaySize = new Vector2(1200, 960);
+            Vector2 overlaySize = new Vector2(1200, 995);
 
             // grab the content from the cache
             CachedMetaData.CachedContent metadata;
@@ -1077,6 +1083,12 @@ namespace Basis.BasisUI
 
                         case "iOS":
                             panelImage.SetIcon(AddressableAssets.Sprites.PlatformMobileiOS);
+                            break;
+
+                        case BasisBundleConnector.GenericPlatform:
+                            // The platform-agnostic glTF section — it carries a .glb rather than a
+                            // per-platform AssetBundle, so it loads anywhere and has no vendor logo.
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformGeneric);
                             break;
                     }
                 }
@@ -1404,7 +1416,7 @@ namespace Basis.BasisUI
 
             PanelButton deletePanelButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent); //ButtonStyles.Cancel
             deletePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.delete"));
-            deletePanelButton.Descriptor.SetWidth(220);
+            deletePanelButton.Descriptor.SetWidth(200);
             deletePanelButton.Descriptor.SetHeight(60);
 
             // Embedded items can never be deleted. Server-provided items CAN — the
@@ -1452,10 +1464,55 @@ namespace Basis.BasisUI
                 }
             };
 
+            // Check-for-update button — the user-driven half of static-url cache invalidation.
+            // Content cached by url stays cached forever no matter what the host now serves, so
+            // this asks the host whether the bytes changed and evicts the stale copy if they did.
+            PanelButton updatePanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
+            updatePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.checkForUpdate"));
+            updatePanelButton.Descriptor.SetWidth(200);
+            updatePanelButton.Descriptor.SetHeight(60);
+
+            bool updateCheckSupported = LibraryProviderDialogCheckForUpdate.IsSupported(item);
+            updatePanelButton.SetInteractable(
+                updateCheckSupported,
+                !updateCheckSupported
+                    ? (item.EmbeddedSettings.IsEmbedded
+                        ? BasisLocalization.Get("library.disabled.embedded")
+                        : BasisLocalization.Get("library.disabled.local"))
+                    : null);
+
+            updatePanelButton.OnClicked += async () =>
+            {
+                if (!updateCheckSupported) return;
+                if (existingItemDialog.IsBusy) return;
+                existingItemDialog.IsBusy = true;
+
+                bool refreshed = false;
+                try
+                {
+                    refreshed = await LibraryProviderDialogCheckForUpdate.PromptUserForUpdateCheck(panel, item, description);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError(ex);
+                }
+
+                if (refreshed)
+                {
+                    // The card behind this dialog was built from the now-discarded metadata.
+                    existingItemDialog.CloseWithResult(null);
+                    await RefreshCurrentTab();
+                }
+                else
+                {
+                    existingItemDialog.IsBusy = false;
+                }
+            };
+
             // Share button - only enabled when connected to a server
             PanelButton sharePanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
             sharePanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.share"));
-            sharePanelButton.Descriptor.SetWidth(150);
+            sharePanelButton.Descriptor.SetWidth(140);
             sharePanelButton.Descriptor.SetHeight(60);
             sharePanelButton.SetInteractable(
                 BasisNetworkConnection.LocalPlayerIsConnected && !isLocalItem,
@@ -1520,7 +1577,7 @@ namespace Basis.BasisUI
                     break;
             }
 
-            loadPanelButton.Descriptor.SetWidth(620);
+            loadPanelButton.Descriptor.SetWidth(450);
             loadPanelButton.Descriptor.SetHeight(60);
             // on load of a item we do these actions
             loadPanelButton.OnClicked += async () =>

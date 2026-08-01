@@ -17,7 +17,7 @@ public static class SettingsProviderPerformanceLimits
         RectTransform container = descriptor.ContentParent;
         BuildPerformanceLimitsContent(container);
 
-        SettingsProvider.AddResetPageButton(container, "settings.tab.performancelimits", ResetPerformanceLimitDefaults);
+        SettingsProvider.RegisterPageReset("settings.tab.performancelimits", ResetPerformanceLimitDefaults);
 
         descriptor.ForceRebuild();
         return tab;

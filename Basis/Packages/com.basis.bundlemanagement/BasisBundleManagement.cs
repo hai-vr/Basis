@@ -48,6 +48,9 @@ public static class BasisBundleManagement
         // persist references to wrapper
         bundleWrapper.LoadableBundle.BasisBundleConnector = bee.Connector;
         bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = bee.LocalPath;
+        // The version the HOST reported for these exact bytes. Recorded against the cache entry so
+        // freshness is decided against something the server asserted, not something a peer claimed.
+        bundleWrapper.ObservedVersionTag = bee.ObservedVersionTag;
 
         BasisDebug.Log("Parsing downloaded connector & resolving platform bundle from " + url);
         if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
@@ -181,7 +184,7 @@ public static class BasisBundleManagement
             return (null, "Cancelled before starting.");
         }
         BasisDebug.Log("Downloading BEE (connector-only) from " + url);
-        BeeResult<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken, MaxDownloadSizeInMB);
+        BeeResult<(BasisBundleConnector, string, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken, MaxDownloadSizeInMB);
 
         if (!result.IsSuccess || result.Value.Item1 is null)
         {
@@ -190,6 +193,7 @@ public static class BasisBundleManagement
 
         bundleWrapper.LoadableBundle.BasisBundleConnector = result.Value.Item1;
         bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedConnectorFileLocation = result.Value.Item2;
+        bundleWrapper.ObservedVersionTag = result.Value.Item3;
 
         if (!BasisBeeValidator.IsValidConnector(result.Value.Item1, out string connErr))
         {
