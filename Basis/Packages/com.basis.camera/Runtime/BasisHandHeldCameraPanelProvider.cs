@@ -729,7 +729,8 @@ namespace Basis.BasisUI.HandHeldCamera
             RectTransform content = _lensGroup.ContentParent;
 
             _fovSlider = PanelSlider.CreateNew(content);
-            _fovSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("camera.fieldOfView"), 20f, 120f, false, 1));
+            _fovSlider.SetSliderSettings(PanelSlider.SliderSettings.Degrees(BasisLocalization.Get("camera.fieldOfView"),
+                BasisHandHeldCameraUI.MinFov, BasisHandHeldCameraUI.MaxFov, false, 1));
             _fovSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeFOV(v);
 
             _msaaDropdown = PanelDropdown.CreateNewEntry(content);
@@ -777,7 +778,8 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _focusSlider = PanelSlider.CreateNew(content);
             _focusSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.focusDistance"), 0.1f, 100f, false, 1, ValueDisplayMode.Meters));
+                BasisLocalization.Get("camera.focusDistance"), BasisHandHeldCameraUI.MinFocusDistance,
+                BasisHandHeldCameraUI.MaxFocusDistance, false, 1, ValueDisplayMode.Meters));
             _focusSlider.OnValueChanged = v => _activeCamera?.HandHeld.DepthChangeFocusDistance(v);
 
             _apertureSlider = PanelSlider.CreateNew(content);
@@ -788,13 +790,15 @@ namespace Basis.BasisUI.HandHeldCamera
 
             _dofFocalLengthSlider = PanelSlider.CreateNew(content);
             _dofFocalLengthSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.focalLength"), 1f, 300f, false, 0, ValueDisplayMode.Raw));
+                BasisLocalization.Get("camera.focalLength"), BasisHandHeldCameraUI.MinFocalLength,
+                BasisHandHeldCameraUI.MaxFocalLength, false, 0, ValueDisplayMode.Raw));
             _dofFocalLengthSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.focalLength.description"));
             _dofFocalLengthSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFFocalLength(v);
 
             _dofBladeCountSlider = PanelSlider.CreateNew(content);
             _dofBladeCountSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
-                BasisLocalization.Get("camera.bokehBlades"), 3f, 9f, true, 0, ValueDisplayMode.Raw));
+                BasisLocalization.Get("camera.bokehBlades"), BasisHandHeldCameraUI.MinBladeCount,
+                BasisHandHeldCameraUI.MaxBladeCount, true, 0, ValueDisplayMode.Raw));
             _dofBladeCountSlider.Descriptor.SetDescription(BasisLocalization.Get("camera.bokehBlades.description"));
             _dofBladeCountSlider.OnValueChanged = v => _activeCamera?.HandHeld.ChangeDoFBladeCount(v);
         }
@@ -2015,5 +2019,18 @@ namespace Basis.BasisUI.HandHeldCamera
             cached = value;
             toggle.SetValueWithoutNotify(value);
         }
+
+#if UNITY_INCLUDE_TESTS
+        // The dropdowns resolve a selection by its position in these tables, so a table that has
+        // drifted from the enum it stands in for silently selects the wrong entry rather than
+        // failing. Exposed so that correspondence can be asserted.
+        public static string[] DetachedMarkerLabelsForTest => DetachedMarkerLabels;
+        public static string[] FocusModeLabelsForTest => FocusModeLabels;
+        public static int[] MsaaSampleCountsForTest => MsaaSampleCounts;
+        public static int[] VideoResolutionWidthsForTest => VideoResolutionWidths;
+        public static int[] VideoResolutionHeightsForTest => VideoResolutionHeights;
+        public const int WebPortMinForTest = WebPortMin;
+        public const int WebPortMaxForTest = WebPortMax;
+#endif
     }
 }

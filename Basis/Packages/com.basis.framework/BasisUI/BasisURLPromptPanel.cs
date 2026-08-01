@@ -73,6 +73,11 @@ namespace Basis.BasisUI
             URLTextField._inputField.text = url;
             URLTextField._inputField.interactable = false;
 
+            // An unsolicited request to fetch something off the network, raised by world content
+            // rather than by the user. Caution reads it the same way the settings cards read a
+            // stat that wants a look before it is waved through.
+            BasisPanelTint.Apply(BasisPanelTint.Capture(Descriptor), BasisPanelSeverity.Caution, false);
+
             ScopeDropdown.AssignLocalizedEntries(
                 new List<string> { "URL", "Hostname", "Base Domain" },
                 new List<string> { "settings.urlPrompt.scope.url", "settings.urlPrompt.scope.hostname", "settings.urlPrompt.scope.baseDomain" });

@@ -3320,43 +3320,43 @@
     },
     {
       "key": "menu.individualPlayer.directConnection.cancel",
-      "value": "<color=#ff8a80>Cancel Direct Connection</color>"
+      "value": "Cancel Direct Connection"
     },
     {
       "key": "menu.individualPlayer.directConnection.requesting",
-      "value": "<color=#ffd54f>Requesting...</color>"
+      "value": "Requesting..."
     },
     {
       "key": "menu.individualPlayer.directConnection.awaitingAccept",
-      "value": "<color=#ffd54f>Awaiting Accept...</color>"
+      "value": "Awaiting Accept..."
     },
     {
       "key": "menu.individualPlayer.directConnection.punching",
-      "value": "<color=#ffd54f>Establishing Link...</color>"
+      "value": "Establishing Link..."
     },
     {
       "key": "menu.individualPlayer.directConnection.connected",
-      "value": "Direct Connection: <color=#52ff52><b>On</b></color>"
+      "value": "Direct Connection: <b>On</b>"
     },
     {
       "key": "menu.individualPlayer.directConnection.connectedLan",
-      "value": "Direct Connection: <color=#52ff52><b>On</b></color> <color=#4dd0e1>(LAN)</color>"
+      "value": "Direct Connection: <b>On</b> (LAN)"
     },
     {
       "key": "menu.individualPlayer.directConnection.reconnecting",
-      "value": "<color=#ff9100>Reconnecting Direct Link...</color>"
+      "value": "Reconnecting Direct Link..."
     },
     {
       "key": "menu.individualPlayer.directConnection.failed",
-      "value": "<color=#ff5252>Direct Connection Failed</color>"
+      "value": "Direct Connection Failed"
     },
     {
       "key": "menu.individualPlayer.directConnection.partial",
-      "value": "Direct Connection: <color=#ff9100>Partial</color> <size=55%>(using server)</size>"
+      "value": "Direct Connection: Partial <size=55%>(using server)</size>"
     },
     {
       "key": "menu.individualPlayer.directConnection.playerDisconnected",
-      "value": "<color=#ff5252>Player Disconnected</color>"
+      "value": "Player Disconnected"
     },
     {
       "key": "menu.individualPlayer.directConnection.playerDisconnected.description",
@@ -3368,7 +3368,7 @@
     },
     {
       "key": "menu.individualPlayer.directConnection.incomingDialog.body",
-      "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nThey want to open a peer-to-peer voice and avatar link with you. <color=#ff5252><b>Accepting reveals your IP address to them.</b></color> Decline if you don't know this player."
+      "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nThey want to open a peer-to-peer voice and avatar link with you. <b>Accepting reveals your IP address to them.</b> Decline if you don't know this player."
     },
     {
       "key": "menu.individualPlayer.directConnection.outgoingDialog.title",
@@ -3376,7 +3376,7 @@
     },
     {
       "key": "menu.individualPlayer.directConnection.outgoingDialog.body",
-      "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nThis opens a peer-to-peer voice and avatar link. <color=#ff5252><b>Both sides will reveal their IP addresses to each other once the link is established.</b></color> Only request this if you trust this player."
+      "value": "{0}\n<size=55%><color=#888888>UUID: {1}</color></size>\n\nThis opens a peer-to-peer voice and avatar link. <b>Both sides will reveal their IP addresses to each other once the link is established.</b> Only request this if you trust this player."
     },
     {
       "key": "menu.individualPlayer.directConnection.disabled",

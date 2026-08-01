@@ -794,7 +794,6 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
         bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
         CheckCameraOrientation();
-        ApplyCameraScale();
         TickDollyTrack();
 
         if (inDesktop)
@@ -803,9 +802,7 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
 
             flyCamera.DetectInput();
 
-            BasisCalibratedCoords Coords = Inputs.desktopCenterEye.BoneControl.OutgoingWorldData;
-            Vector3 inPos = Coords.position;
-            Quaternion inRot = Coords.rotation;
+            Inputs.desktopCenterEye.Source.transform.GetPositionAndRotation(out Vector3 inPos, out Quaternion inRot);
 
             if (BasisLocalCameraDriver.HasInstance)
             {
@@ -846,6 +843,8 @@ public abstract partial class BasisHandHeldCameraInteractable : BasisPickupInter
             // VR mode: handle fly mode toggle and controller input
             PollVRControl();
         }
+
+        ApplyCameraScale();
 
         // Update pinning regardless of desktop/head-constraint logic
         PollCameraPin(Inputs.desktopCenterEye.Source);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
@@ -12,6 +12,7 @@ using UnityEngine.UI;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using Basis.Scripts.Device_Management;
+using P2PState = Basis.Scripts.Networking.BasisP2PManager.P2PSessionState;
 
 namespace Basis.BasisUI
 {
@@ -431,17 +432,38 @@ namespace Basis.BasisUI
 
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
 
-            PanelTabPage tab = PanelTabPage.CreateVertical(panel.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
-            descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-            descriptor.SetTitle(BasisLocalization.Get("settings.general.title"));
-
             TextMeshProUGUI titleLabel = panel.Descriptor.TitleLabel;
             if (titleLabel != null) titleLabel.text = target.DisplayName;
 
-            var root = tab.Descriptor.ContentParent;
+            // Each page is populated before it is handed to the group, so its rows are built while
+            // the page is still active and their deferred Awake cannot overwrite the titles here.
+            PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
+
+            PanelTabPage NewPage(string tabKey, string iconAddress)
+            {
+                PanelTabPage page = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+                page.Descriptor.SetIcon(iconAddress);
+                page.Descriptor.SetTitle(BasisLocalization.Get(tabKey));
+                return page;
+            }
+
+            void AddPage(string tabKey, PanelTabPage page)
+            {
+                tabGroup.AddTab(BasisLocalization.Get(tabKey), () => { }, page);
+            }
+
+            void RebuildSection(PanelElementDescriptor group, PanelTabPage page)
+            {
+                if (group == null || page == null) return;
+                PanelElementDescriptor.RebuildLayoutChain(group.ContentParent, page.Descriptor.ContentParent);
+            }
+
+            // ================= Player =================
+            const string playerTabKey = "menu.individualPlayer.player";
+            PanelTabPage playerPage = NewPage(playerTabKey, AddressableAssets.Sprites.Information);
+            RectTransform root = playerPage.Descriptor.ContentParent;
+
             var infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            infoGroup.SetBackgroundVisible(false);
             infoGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.player"));
             infoGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.player.description"));
 
@@ -452,6 +474,63 @@ namespace Basis.BasisUI
             var PlatformDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
             PlatformDescriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.platform"));
             PlatformDescriptor.SetDescription(remotePlayer.PlayerPlatform);
+
+            // ---- Highlight beacon controls ----
+            var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
+            locateGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locate.description"));
+
+            PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight && s_beaconTarget?.Player == remotePlayer
+                ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
+            highlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.highlight.description"));
+
+            PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            clearHighlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.clearHighlights"));
+            clearHighlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.clearHighlights.description"));
+
+            highlightBtn.OnClicked += () =>
+            {
+                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                    remotePlayer, out BasisNetworkPlayer netPlayer))
+                {
+                    SetHighlight(netPlayer);
+                    highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
+                }
+            };
+
+            clearHighlightBtn.OnClicked += () =>
+            {
+                ClearHighlight();
+                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
+            };
+
+            // ---- Pin controls ----
+            var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            pinGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.pin"));
+            pinGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.description"));
+
+            string pinUuid = remotePlayer.UUID;
+            PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
+            pinBtn.Descriptor.SetTitle(BasisLocalization.Get(PinnedPlayers.IsPinned(pinUuid) ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
+            pinBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.button.description"));
+            pinBtn.OnClicked += () =>
+            {
+                bool nowPinned = PinnedPlayers.Toggle(pinUuid);
+                pinBtn.Descriptor.SetTitle(BasisLocalization.Get(nowPinned ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
+            };
+
+            var uuidField = PanelTextField.CreateNewEntry(root);
+            uuidField.Descriptor.SetTitle("UUID");
+            uuidField.SetValueWithoutNotify(remotePlayer.UUID);
+            uuidField._inputField.readOnly = true;
+
+            AddPage(playerTabKey, playerPage);
+
+            // ================= Audio =================
+            const string audioTabKey = "settings.tab.audio";
+            PanelTabPage audioPage = NewPage(audioTabKey, AddressableAssets.Sprites.Microphone);
+            root = audioPage.Descriptor.ContentParent;
 
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
@@ -713,9 +792,15 @@ namespace Basis.BasisUI
                         : "menu.individualPlayer.talkToOnly"));
             };
 
+            AddPage(audioTabKey, audioPage);
+
+            // ================= Network =================
+            const string networkTabKey = "menu.individualPlayer.network";
+            PanelTabPage networkPage = NewPage(networkTabKey, AddressableAssets.Sprites.Network);
+            root = networkPage.Descriptor.ContentParent;
+
             // ---- Direct Connection (P2P) controls ----
             var p2pGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            p2pGroup.SetBackgroundVisible(false);
             p2pGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection"));
             p2pGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.description"));
 
@@ -726,11 +811,13 @@ namespace Basis.BasisUI
 
             PanelButton directConnBtn = PanelButton.CreateNew(p2pGroup.ContentParent);
 
-            // Shown only while the direct link is degraded (PartialConnection): states the
-            // issue — the server is carrying this player and Try Again re-establishes the link.
+            // Where the link actually is. The card carries the state and grades itself with the
+            // Calm/Caution/Hot tint the frame bottleneck card uses, so the button next to it is
+            // free to say what clicking does rather than doubling as the readout.
             var directConnStatus = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, p2pGroup.ContentParent);
             directConnStatus.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.partial.description"));
             directConnStatus.SetActive(false);
+            BasisPanelTint.Handle directConnTint = BasisPanelTint.Capture(directConnStatus);
 
             // "Try Again" — visible only when the link is partial or failed. Re-punches the
             // existing session, or re-requests if it was already torn down.
@@ -743,63 +830,123 @@ namespace Basis.BasisUI
                 Basis.Scripts.Networking.BasisP2PManager.RetryDirect(directConnPlayerId);
             };
 
-            string DirectConnLabelKey(Basis.Scripts.Networking.BasisP2PManager.P2PSessionState st)
+            bool DirectConnBlocked(P2PState st)
             {
-                bool blockedByPolicy = BasisSettingsDefaults.DisableDirectConnections.RawValue ||
+                // A lock applied after the fact doesn't tear down a session that is already up,
+                // so a live link still reports itself and can still be cancelled.
+                if (st == P2PState.Connected || st == P2PState.Reconnecting || st == P2PState.PartialConnection)
+                {
+                    return false;
+                }
+                return BasisSettingsDefaults.DisableDirectConnections.RawValue ||
                     (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass());
-                if (blockedByPolicy &&
-                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected &&
-                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting &&
-                    st != Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection)
+            }
+
+            // What clicking the button does from here — the state itself is on the status card.
+            string DirectConnActionKey(P2PState st)
+            {
+                if (DirectConnBlocked(st))
                 {
                     return "menu.individualPlayer.directConnection.disabled";
                 }
+                // Mirrors the click handler below: only Idle and Failed start a new request.
+                return st == P2PState.Idle || st == P2PState.Failed
+                    ? "menu.individualPlayer.directConnection.request"
+                    : "menu.individualPlayer.directConnection.cancel";
+            }
+
+            // Null when there is nothing to report and the card stays hidden.
+            string DirectConnStatusKey(P2PState st)
+            {
+                if (DirectConnBlocked(st))
+                {
+                    return null;
+                }
                 switch (st)
                 {
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.OutgoingRequested:
+                    case P2PState.OutgoingRequested:
                         return "menu.individualPlayer.directConnection.requesting";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.OutgoingArmed:
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.IncomingPending:
+                    case P2PState.OutgoingArmed:
+                    case P2PState.IncomingPending:
                         return "menu.individualPlayer.directConnection.awaitingAccept";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Punching:
+                    case P2PState.Punching:
                         return "menu.individualPlayer.directConnection.punching";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Connected:
+                    case P2PState.Connected:
                         return Basis.Scripts.Networking.BasisP2PManager.IsP2PSessionLocal(directConnPlayerId)
                             ? "menu.individualPlayer.directConnection.connectedLan"
                             : "menu.individualPlayer.directConnection.connected";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Reconnecting:
+                    case P2PState.Reconnecting:
                         return "menu.individualPlayer.directConnection.reconnecting";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection:
+                    case P2PState.PartialConnection:
                         return "menu.individualPlayer.directConnection.partial";
-                    case Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed:
+                    case P2PState.Failed:
                         return "menu.individualPlayer.directConnection.failed";
                     default:
-                        return "menu.individualPlayer.directConnection.request";
+                        return null;
+                }
+            }
+
+            BasisPanelSeverity DirectConnSeverity(P2PState st)
+            {
+                switch (st)
+                {
+                    case P2PState.Connected:
+                        return BasisPanelSeverity.Calm;
+                    case P2PState.OutgoingRequested:
+                    case P2PState.OutgoingArmed:
+                    case P2PState.IncomingPending:
+                    case P2PState.Punching:
+                    case P2PState.Reconnecting:
+                        return BasisPanelSeverity.Caution;
+                    case P2PState.PartialConnection:
+                    case P2PState.Failed:
+                        return BasisPanelSeverity.Hot;
+                    default:
+                        return BasisPanelSeverity.None;
                 }
             }
 
             void RefreshDirectConnLabel()
             {
                 if (directConnBtn == null || directConnBtn.Descriptor == null) return;
-                var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
-                directConnBtn.Descriptor.SetTitle(BasisLocalization.Get(DirectConnLabelKey(st)));
+                P2PState st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
+                directConnBtn.Descriptor.SetTitle(BasisLocalization.Get(DirectConnActionKey(st)));
 
-                // Partial: show the "using server" explanation. Partial/Failed: offer Try Again.
-                bool partial = st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.PartialConnection;
-                bool canRetry = partial || st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed;
-                if (directConnStatus != null) directConnStatus.SetActive(partial);
+                string statusKey = DirectConnStatusKey(st);
+                bool showStatus = statusKey != null;
+                if (directConnStatus != null)
+                {
+                    if (showStatus)
+                    {
+                        string status = BasisLocalization.Get(statusKey);
+                        // Partial is the one state that needs explaining: the server is carrying
+                        // this player, and Try Again re-establishes the direct link.
+                        if (st == P2PState.PartialConnection)
+                        {
+                            status += "\n" + BasisLocalization.Get("menu.individualPlayer.directConnection.partial.description");
+                        }
+                        directConnStatus.SetDescription(status);
+                    }
+
+                    directConnStatus.SetActive(showStatus);
+                    // Animate only while the card is on screen — a tween started on a disabled
+                    // object never ticks, which would leave the colour stuck part-way.
+                    BasisPanelTint.Apply(directConnTint, DirectConnSeverity(st), showStatus);
+                }
+
+                // Partial/Failed: offer Try Again.
+                bool canRetry = st == P2PState.PartialConnection || st == P2PState.Failed;
                 if (directConnRetryBtn != null && directConnRetryBtn.Descriptor != null)
                     directConnRetryBtn.Descriptor.SetActive(canRetry);
-                p2pGroup.ForceRebuild();
+                RebuildSection(p2pGroup, networkPage);
             }
             RefreshDirectConnLabel();
 
             directConnBtn.OnClicked += () =>
             {
                 if (!hasDirectConnTarget) return;
-                var st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
-                if (st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Idle ||
-                    st == Basis.Scripts.Networking.BasisP2PManager.P2PSessionState.Failed)
+                P2PState st = Basis.Scripts.Networking.BasisP2PManager.GetSessionState(directConnPlayerId);
+                if (st == P2PState.Idle || st == P2PState.Failed)
                 {
                     if (BasisNetworkModeration.GlobalDirectConnectLocked && !BasisNetworkModeration.LocalPlayerHasGlobalLockBypass())
                     {
@@ -807,7 +954,8 @@ namespace Basis.BasisUI
                             BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.title"),
                             BasisLocalization.Get("menu.individualPlayer.directConnection.serverLockedDialog.body"),
                             BasisLocalization.Get("ui.ok"),
-                            _ => { });
+                            _ => { },
+                            severity: BasisPanelSeverity.Caution);
                         return;
                     }
 
@@ -817,10 +965,12 @@ namespace Basis.BasisUI
                             BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.title"),
                             BasisLocalization.Get("menu.individualPlayer.directConnection.disabledDialog.body"),
                             BasisLocalization.Get("ui.ok"),
-                            _ => { });
+                            _ => { },
+                            severity: BasisPanelSeverity.Caution);
                         return;
                     }
 
+                    // Hot: confirming this hands both sides each other's IP address.
                     BasisMainMenu.Instance.OpenDialogue(
                         BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.title"),
                         BasisLocalization.Get("menu.individualPlayer.directConnection.outgoingDialog.body", remotePlayer.DisplayName, remotePlayer.UUID),
@@ -830,7 +980,8 @@ namespace Basis.BasisUI
                         {
                             if (!confirmed) return;
                             Basis.Scripts.Networking.BasisP2PManager.SendRequest(directConnPlayerId);
-                        });
+                        },
+                        severity: BasisPanelSeverity.Hot);
                 }
                 else
                 {
@@ -839,7 +990,7 @@ namespace Basis.BasisUI
             };
 
             // Marshal to main thread — manager fires from the LiteNetLib I/O thread.
-            Action<ushort, Basis.Scripts.Networking.BasisP2PManager.P2PSessionState> p2pHandler = null;
+            Action<ushort, P2PState> p2pHandler = null;
             p2pHandler = (changedId, _) =>
             {
                 if (changedId != directConnPlayerId) return;
@@ -859,8 +1010,10 @@ namespace Basis.BasisUI
             directConnPingField.SetTitle(BasisLocalization.Get("menu.individualPlayer.directConnection.ping"));
             directConnPingField.SetDescription(BasisLocalization.Get("menu.individualPlayer.directConnection.ping.value", 0));
             // Hidden until the updater observes a Connected P2P session — see
-            // IndividualPlayerPanelUpdater.UpdateDirectConnPingField.
+            // IndividualPlayerPanelUpdater.UpdateDirectConnPingField, which also grades the
+            // round trip onto the shared tint.
             directConnPingField.SetActive(false);
+            BasisPanelTint.Handle directConnPingTint = BasisPanelTint.Capture(directConnPingField);
 
             // Per-person policy for *incoming* direct-connection requests from this
             // player. Saved to disc and consulted by BasisP2PIncomingDialog before it
@@ -888,53 +1041,49 @@ namespace Basis.BasisUI
                 };
             }
 
-            // ---- Highlight beacon controls ----
-            var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            locateGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.locate"));
-            locateGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.locate.description"));
+            // ---- Network metadata group ----
+            var networkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            networkGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.network"));
+            networkGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.network.description"));
 
-            PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight && s_beaconTarget?.Player == remotePlayer
-                ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
-            highlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.highlight.description"));
-
-            PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            clearHighlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.clearHighlights"));
-            clearHighlightBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.clearHighlights.description"));
-
-            highlightBtn.OnClicked += () =>
+            var netIdField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
+            netIdField.SetTitle(BasisLocalization.Get("menu.individualPlayer.playerId"));
+            if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                remotePlayer, out BasisNetworkPlayer netP))
             {
-                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
-                    remotePlayer, out BasisNetworkPlayer netPlayer))
-                {
-                    SetHighlight(netPlayer);
-                    highlightBtn.Descriptor.SetTitle(BasisLocalization.Get(HasHighlight ? "menu.individualPlayer.removeHighlight" : "menu.individualPlayer.highlight"));
-                }
-            };
-
-            clearHighlightBtn.OnClicked += () =>
+                netIdField.SetDescription(netP.playerId.ToString());
+            }
+            else
             {
-                ClearHighlight();
-                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
-            };
+                netIdField.SetDescription(BasisLocalization.Get("ui.unknown"));
+            }
 
-            // ---- Pin controls ----
-            var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            pinGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.pin"));
-            pinGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.description"));
+            var distanceField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
+            distanceField.SetTitle(BasisLocalization.Get("menu.individualPlayer.distance"));
+            distanceField.SetDescription("...");
 
-            string pinUuid = remotePlayer.UUID;
-            PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
-            pinBtn.Descriptor.SetTitle(BasisLocalization.Get(PinnedPlayers.IsPinned(pinUuid) ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
-            pinBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.pin.button.description"));
-            pinBtn.OnClicked += () =>
-            {
-                bool nowPinned = PinnedPlayers.Toggle(pinUuid);
-                pinBtn.Descriptor.SetTitle(BasisLocalization.Get(nowPinned ? "menu.individualPlayer.unpin" : "menu.individualPlayer.pinButton"));
-            };
+            var lodField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
+            lodField.SetTitle(BasisLocalization.Get("menu.individualPlayer.meshLod"));
+            lodField.SetDescription("...");
+
+            var rangesField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
+            rangesField.SetTitle(BasisLocalization.Get("menu.individualPlayer.ranges"));
+            rangesField.SetDescription("...");
+
+            var bufferField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
+            bufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.bufferState"));
+            bufferField.SetDescription("...");
+
+            networkGroup.IsolateAsCanvas();
+
+            AddPage(networkTabKey, networkPage);
+
+            // ================= Avatar =================
+            const string avatarTabKey = "menu.individualPlayer.avatar";
+            PanelTabPage avatarPage = NewPage(avatarTabKey, AddressableAssets.Sprites.Avatars);
+            root = avatarPage.Descriptor.ContentParent;
 
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            avatarGroup.SetBackgroundVisible(false);
             avatarGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatar"));
             avatarGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatar.description"));
 
@@ -943,6 +1092,9 @@ namespace Basis.BasisUI
                 var avatarErrorField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarGroup.ContentParent);
                 avatarErrorField.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarLoadError"));
                 avatarErrorField.SetDescription(remotePlayer.AvatarLoadErrorMessage);
+                // Nothing to grade — the card only exists because the load failed, so it is hot
+                // from the moment it is built.
+                BasisPanelTint.Apply(BasisPanelTint.Capture(avatarErrorField), BasisPanelSeverity.Hot, false);
             }
 
             PanelButton matchEyeHeightBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
@@ -1092,6 +1244,13 @@ namespace Basis.BasisUI
                 }
             };
 
+            AddPage(avatarTabKey, avatarPage);
+
+            // ================= Block =================
+            const string blockTabKey = "menu.individualPlayer.block";
+            PanelTabPage blockPage = NewPage(blockTabKey, AddressableAssets.Sprites.Locked);
+            root = blockPage.Descriptor.ContentParent;
+
             // ---- Block group ----
             var blockGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             blockGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.block"));
@@ -1130,49 +1289,19 @@ namespace Basis.BasisUI
                 }
             };
 
-            // ---- Network metadata group ----
-            var networkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            networkGroup.SetBackgroundVisible(false);
-            networkGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.network"));
-            networkGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.network.description"));
-
-            var netIdField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            netIdField.SetTitle(BasisLocalization.Get("menu.individualPlayer.playerId"));
-            if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
-                remotePlayer, out BasisNetworkPlayer netP))
-            {
-                netIdField.SetDescription(netP.playerId.ToString());
-            }
-            else
-            {
-                netIdField.SetDescription(BasisLocalization.Get("ui.unknown"));
-            }
-
-            var distanceField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            distanceField.SetTitle(BasisLocalization.Get("menu.individualPlayer.distance"));
-            distanceField.SetDescription("...");
-
-            var lodField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            lodField.SetTitle(BasisLocalization.Get("menu.individualPlayer.meshLod"));
-            lodField.SetDescription("...");
-
-            var rangesField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            rangesField.SetTitle(BasisLocalization.Get("menu.individualPlayer.ranges"));
-            rangesField.SetDescription("...");
-
-            var bufferField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, networkGroup.ContentParent);
-            bufferField.SetTitle(BasisLocalization.Get("menu.individualPlayer.bufferState"));
-            bufferField.SetDescription("...");
-
-            networkGroup.IsolateAsCanvas();
+            AddPage(blockTabKey, blockPage);
 
             // ---- Admin moderation section (only visible to admins) ----
             if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView))
             {
+                // ================= Admin =================
+                const string adminTabKey = "settings.tab.admin";
+                PanelTabPage adminPage = NewPage(adminTabKey, AddressableAssets.Sprites.Admin);
+                root = adminPage.Descriptor.ContentParent;
+
                 string targetUUID = remotePlayer.UUID;
 
                 var adminGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-                adminGroup.SetBackgroundVisible(false);
                 adminGroup.SetTitle(BasisLocalization.Get("settings.tab.admin"));
                 adminGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.admin.description"));
 
@@ -1368,10 +1497,16 @@ namespace Basis.BasisUI
                     if (string.IsNullOrWhiteSpace(group)) return;
                     BasisNetworkModeration.SetUserGroup(targetUUID, group, false);
                 };
+
+                AddPage(adminTabKey, adminPage);
             }
 
+            // ================= Debug =================
+            const string debugTabKey = "menu.individualPlayer.debug";
+            PanelTabPage debugPage = NewPage(debugTabKey, AddressableAssets.Sprites.Settings);
+            root = debugPage.Descriptor.ContentParent;
+
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            debugGroup.SetBackgroundVisible(false);
             debugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.debug"));
             debugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.debug.description"));
 
@@ -1383,7 +1518,6 @@ namespace Basis.BasisUI
 
             // ---- Audio Debug Section ----
             var audioDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            audioDebugGroup.SetBackgroundVisible(false);
             audioDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug"));
             audioDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.audioDebug.description"));
 
@@ -1463,6 +1597,9 @@ namespace Basis.BasisUI
             updater.RangesField = rangesField;
             updater.BufferField = bufferField;
             updater.DirectConnPingField = directConnPingField;
+            updater.DirectConnPingTint = directConnPingTint;
+            updater.DirectConnRebuildFrom = p2pGroup.ContentParent;
+            updater.DirectConnRebuildStopAt = networkPage.Descriptor.ContentParent;
 
             // Wire audio debug fields
             updater.AudioSourceField = audioSourceField;
@@ -1475,13 +1612,14 @@ namespace Basis.BasisUI
             // When toggled on/off, show/hide the audio debug fields
             audioDebugToggle.OnValueChanged += enabled =>
             {
-                // Destroy existing fields
-                if (audioSourceField != null) { UnityEngine.Object.Destroy(audioSourceField.gameObject); audioSourceField = null; }
-                if (volumeChainField != null) { UnityEngine.Object.Destroy(volumeChainField.gameObject); volumeChainField = null; }
-                if (decodedBufferField != null) { UnityEngine.Object.Destroy(decodedBufferField.gameObject); decodedBufferField = null; }
-                if (encodedBufferField != null) { UnityEngine.Object.Destroy(encodedBufferField.gameObject); encodedBufferField = null; }
-                if (silenceField != null) { UnityEngine.Object.Destroy(silenceField.gameObject); silenceField = null; }
-                if (visemeField != null) { UnityEngine.Object.Destroy(visemeField.gameObject); visemeField = null; }
+                // Destroy existing fields. Destroy is deferred to end of frame, so deactivate
+                // first — otherwise the rebuild below still measures the doomed rows.
+                if (audioSourceField != null) { audioSourceField.SetActive(false); UnityEngine.Object.Destroy(audioSourceField.gameObject); audioSourceField = null; }
+                if (volumeChainField != null) { volumeChainField.SetActive(false); UnityEngine.Object.Destroy(volumeChainField.gameObject); volumeChainField = null; }
+                if (decodedBufferField != null) { decodedBufferField.SetActive(false); UnityEngine.Object.Destroy(decodedBufferField.gameObject); decodedBufferField = null; }
+                if (encodedBufferField != null) { encodedBufferField.SetActive(false); UnityEngine.Object.Destroy(encodedBufferField.gameObject); encodedBufferField = null; }
+                if (silenceField != null) { silenceField.SetActive(false); UnityEngine.Object.Destroy(silenceField.gameObject); silenceField = null; }
+                if (visemeField != null) { visemeField.SetActive(false); UnityEngine.Object.Destroy(visemeField.gameObject); visemeField = null; }
 
                 if (enabled)
                 {
@@ -1495,11 +1633,12 @@ namespace Basis.BasisUI
                 updater.EncodedBufferField = encodedBufferField;
                 updater.SilenceField = silenceField;
                 updater.VisemeField = visemeField;
+
+                RebuildSection(audioDebugGroup, debugPage);
             };
 
             // ---- Avatar Data Debug Section ----
             var avatarDataDebugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
-            avatarDataDebugGroup.SetBackgroundVisible(false);
             avatarDataDebugGroup.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug"));
             avatarDataDebugGroup.SetDescription(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.description"));
 
@@ -1556,10 +1695,10 @@ namespace Basis.BasisUI
 
             avatarDataDebugToggle.OnValueChanged += enabled =>
             {
-                if (avatarReceiveField != null) { UnityEngine.Object.Destroy(avatarReceiveField.gameObject); avatarReceiveField = null; }
-                if (avatarStagingField != null) { UnityEngine.Object.Destroy(avatarStagingField.gameObject); avatarStagingField = null; }
-                if (avatarInterpField != null) { UnityEngine.Object.Destroy(avatarInterpField.gameObject); avatarInterpField = null; }
-                if (avatarMetaField != null) { UnityEngine.Object.Destroy(avatarMetaField.gameObject); avatarMetaField = null; }
+                if (avatarReceiveField != null) { avatarReceiveField.SetActive(false); UnityEngine.Object.Destroy(avatarReceiveField.gameObject); avatarReceiveField = null; }
+                if (avatarStagingField != null) { avatarStagingField.SetActive(false); UnityEngine.Object.Destroy(avatarStagingField.gameObject); avatarStagingField = null; }
+                if (avatarInterpField != null) { avatarInterpField.SetActive(false); UnityEngine.Object.Destroy(avatarInterpField.gameObject); avatarInterpField = null; }
+                if (avatarMetaField != null) { avatarMetaField.SetActive(false); UnityEngine.Object.Destroy(avatarMetaField.gameObject); avatarMetaField = null; }
 
                 if (enabled)
                 {
@@ -1570,12 +1709,11 @@ namespace Basis.BasisUI
                 updater.AvatarStagingField = avatarStagingField;
                 updater.AvatarInterpField = avatarInterpField;
                 updater.AvatarMetaField = avatarMetaField;
+
+                RebuildSection(avatarDataDebugGroup, debugPage);
             };
 
-            var uuidField = PanelTextField.CreateNewEntry(root);
-            uuidField.Descriptor.SetTitle("UUID");
-            uuidField.SetValueWithoutNotify(remotePlayer.UUID);
-            uuidField._inputField.readOnly = true;
+            AddPage(debugTabKey, debugPage);
 
             panel.Descriptor.ForceRebuild();
             panel.Descriptor.ForceRebuild();

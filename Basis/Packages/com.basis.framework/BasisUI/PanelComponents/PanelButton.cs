@@ -10,6 +10,7 @@ namespace Basis.BasisUI
     public class PanelButton : PanelComponent, IPointerDownHandler, IPointerUpHandler
     {
         private bool _isHovered;
+        private PanelIconHover _iconHover;
 
         public override void OnPointerEnter(PointerEventData eventData)
         {
@@ -17,6 +18,7 @@ namespace Basis.BasisUI
             if (_isHovered) return;
             _isHovered = true;
             UIAnimations.HoverLift(transform);
+            _iconHover?.SetHovered(true);
         }
 
         public override void OnPointerExit(PointerEventData eventData)
@@ -25,6 +27,24 @@ namespace Basis.BasisUI
             if (!_isHovered) return;
             _isHovered = false;
             UIAnimations.HoverReset(transform);
+            _iconHover?.SetHovered(false);
+        }
+
+        /// <summary>
+        /// Adds the <see cref="PanelIconHover"/> pop to this button's icon. Opt-in, so buttons that
+        /// are built around their icon can use it without every dense panel row moving as well.
+        /// </summary>
+        public void EnableIconHoverAnimation()
+        {
+            _iconHover ??= new PanelIconHover();
+            _iconHover.Bind(Descriptor);
+        }
+
+        protected override void OnDisable()
+        {
+            base.OnDisable();
+            _isHovered = false;
+            _iconHover?.Cancel();
         }
         public static class ButtonStyles
         {

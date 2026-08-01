@@ -28,6 +28,13 @@ namespace Basis.BasisUI
         public string Accept;
         public string Decline;
 
+        /// <summary>
+        /// How much attention this dialogue deserves, shown with the same tint the settings cards
+        /// use to grade themselves. Set before <see cref="FillDialogue"/>; the default leaves the
+        /// dialogue in the plain colours its prefab ships with.
+        /// </summary>
+        public BasisPanelSeverity Severity = BasisPanelSeverity.None;
+
         public bool BlocksOtherActions;
 
         /// <summary>
@@ -152,6 +159,7 @@ namespace Basis.BasisUI
             string description = Description;
             string accept = Accept;
             string deny = Decline;
+            BasisPanelSeverity severity = Severity;
             Action<bool> callback = Callback;
 
             BasisNotificationCenter.AddPending(
@@ -164,7 +172,7 @@ namespace Basis.BasisUI
                     if (!BasisMainMenu.Instance) return;
                     if (BasisMainMenu.Instance.Dialogue) BasisMainMenu.Instance.Dialogue.ReleaseInstance();
                     // CreateInternal bypasses ignore mode so re-open always shows.
-                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback);
+                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity);
                 },
                 onDismiss: () => callback?.Invoke(false));
         }
@@ -180,16 +188,17 @@ namespace Basis.BasisUI
             string accept,
             string deny,
             Action<bool> callback,
-            bool divertible = false)
+            bool divertible = false,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             // Only "divertible" (incoming/unsolicited) popups route to the notification
             // list under do-not-disturb or while the admin/moderator panel is open.
             // User-initiated confirmations (the default) always show.
             if (divertible && BasisNotificationCenter.RouteToNotifications)
             {
-                return SuppressToNotifications(title, description, accept, deny, callback);
+                return SuppressToNotifications(title, description, accept, deny, callback, severity);
             }
-            return CreateInternal(title, description, accept, deny, callback);
+            return CreateInternal(title, description, accept, deny, callback, severity);
         }
 
         /// <summary>
@@ -202,13 +211,14 @@ namespace Basis.BasisUI
             string description,
             string accept,
             Action<bool> callback,
-            bool divertible = false)
+            bool divertible = false,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             if (divertible && BasisNotificationCenter.RouteToNotifications)
             {
-                return SuppressToNotifications(title, description, accept, null, callback);
+                return SuppressToNotifications(title, description, accept, null, callback, severity);
             }
-            return CreateInternal(title, description, accept, null, callback);
+            return CreateInternal(title, description, accept, null, callback, severity);
         }
 
         /// <summary>
@@ -220,7 +230,8 @@ namespace Basis.BasisUI
             string description,
             string accept,
             string deny,
-            Action<bool> callback)
+            Action<bool> callback,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             if (!BasisMainMenu.Instance)
             {
@@ -247,6 +258,7 @@ namespace Basis.BasisUI
             }
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
+            panel.Severity = severity;
             panel.FillDialogue(title, description, accept, deny);
 
             // Pop-in animation for dialogues
@@ -264,7 +276,8 @@ namespace Basis.BasisUI
             string description,
             string accept,
             string deny,
-            Action<bool> callback)
+            Action<bool> callback,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             BasisNotificationCenter.AddPending(
                 title,
@@ -275,7 +288,7 @@ namespace Basis.BasisUI
                     if (!BasisMainMenu.Instance) BasisMainMenu.Open();
                     if (!BasisMainMenu.Instance) return;
                     if (BasisMainMenu.Instance.Dialogue) BasisMainMenu.Instance.Dialogue.ReleaseInstance();
-                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback);
+                    BasisMainMenu.Instance.Dialogue = CreateInternal(title, description, accept, deny, callback, severity);
                 },
                 onDismiss: () => callback?.Invoke(false));
             return null;
@@ -289,6 +302,9 @@ namespace Basis.BasisUI
 
             Descriptor.SetTitle(title);
             Descriptor.SetDescription(description);
+            // Captured after the text is in place and never re-graded — the dialogue's severity is
+            // fixed by whatever raised it. A None severity leaves the prefab's colours untouched.
+            BasisPanelTint.Apply(BasisPanelTint.Capture(Descriptor), Severity, false);
 
             AcceptButton.Descriptor.SetTitle(Accept);
 

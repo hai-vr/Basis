@@ -199,6 +199,9 @@ namespace Basis.BasisUI
                 PanelElementDescriptor.ElementStyles.Group, root);
             info.SetTitle(levelLine);
             info.SetDescription(body);
+            // Caution, not hot: the instance is crowded enough to be worth a preset, but nothing
+            // is broken and declining is a perfectly good answer.
+            BasisPanelTint.Apply(BasisPanelTint.Capture(info), BasisPanelSeverity.Caution, false);
 
             bool answered = false;
             void Decide(bool enable)

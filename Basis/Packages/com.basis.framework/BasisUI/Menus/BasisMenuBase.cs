@@ -110,6 +110,7 @@ namespace Basis.BasisUI
 
                     button.Descriptor.SetTitle(provider.Title);
                     button.SetIcon(provider.IconAddress);
+                    button.EnableIconHoverAnimation();
                     provider.BindToButton(this, button);
                     ProviderButtons.Add(button);
                     provider.OnButtonCreated(button);
@@ -146,7 +147,8 @@ namespace Basis.BasisUI
             string accept,
             string deny,
             Action<bool> callback,
-            bool divertible = false)
+            bool divertible = false,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
             if (!route && Dialogue)
@@ -160,7 +162,8 @@ namespace Basis.BasisUI
                 accept,
                 deny,
                 callback,
-                divertible);
+                divertible,
+                severity);
             if (!route) Dialogue = created;
         }
 
@@ -169,7 +172,8 @@ namespace Basis.BasisUI
             string description,
             string accept,
             Action<bool> callback,
-            bool divertible = false)
+            bool divertible = false,
+            BasisPanelSeverity severity = BasisPanelSeverity.None)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
             if (!route && Dialogue)
@@ -182,7 +186,8 @@ namespace Basis.BasisUI
                 description,
                 accept,
                 callback,
-                divertible);
+                divertible,
+                severity);
             if (!route) Dialogue = created;
         }
     }

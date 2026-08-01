@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using Basis.BasisUI;
@@ -296,8 +297,8 @@ public partial class BasisHandHeldCameraUI
     private void SetupSliderRanges()
     {
         if (DepthApertureSlider != null) { DepthApertureSlider.minValue = MinAperture; DepthApertureSlider.maxValue = MaxAperture; }
-        if (FOVSlider != null) { FOVSlider.minValue = 20f; FOVSlider.maxValue = 120f; }
-        if (DepthFocusDistanceSlider != null) { DepthFocusDistanceSlider.minValue = 0.1f; DepthFocusDistanceSlider.maxValue = 100f; }
+        if (FOVSlider != null) { FOVSlider.minValue = MinFov; FOVSlider.maxValue = MaxFov; }
+        if (DepthFocusDistanceSlider != null) { DepthFocusDistanceSlider.minValue = MinFocusDistance; DepthFocusDistanceSlider.maxValue = MaxFocusDistance; }
 
         if (HHC != null && HHC.captureCamera != null && FOVSlider != null)
             FOVSlider.SetValueWithoutNotify(HHC.captureCamera.fieldOfView);
@@ -573,13 +574,35 @@ public partial class BasisHandHeldCameraUI
         }
     }
 
+    /// <summary>
+    /// The last file applied to this camera. Not every persisted setting has somewhere live to be
+    /// read back from — some are applied to the capture camera in a form that cannot be reversed
+    /// (an index resolved to an f-stop), and some belong to a component that is platform-gated and
+    /// may be absent. Those carry forward from here instead of falling back to a constructor
+    /// default, which would quietly reset them on the next save.
+    /// </summary>
+    private CameraSettings lastAppliedSettings = new CameraSettings();
+
     private CameraSettings CreateCurrentCameraSettings()
     {
         var bloom = HHC != null ? HHC.MetaData.bloom : null;
         var colorAdjustments = HHC != null ? HHC.MetaData.colorAdjustments : null;
+        var baseline = lastAppliedSettings ?? new CameraSettings();
 
         var settings = new CameraSettings
         {
+            // No live source: carried forward so a save cannot drop them.
+            apertureIndex = baseline.apertureIndex,
+            shutterSpeedIndex = baseline.shutterSpeedIndex,
+            isoIndex = baseline.isoIndex,
+            focusDistance = baseline.focusDistance,
+            sensorSizeX = HHC != null && HHC.captureCamera != null
+                ? HHC.captureCamera.sensorSize.x
+                : baseline.sensorSizeX,
+            sensorSizeY = HHC != null && HHC.captureCamera != null
+                ? HHC.captureCamera.sensorSize.y
+                : baseline.sensorSizeY,
+
             resolutionIndex = currentResolutionIndex,
             formatIndex = GetFormatIndex(),
             msaaSamples = HHC != null ? HHC.msaaSamples : 2,
@@ -601,9 +624,11 @@ public partial class BasisHandHeldCameraUI
             dofBladeCount = HHC != null && HHC.MetaData.depthOfField != null ? HHC.MetaData.depthOfField.bladeCount.value : 5,
             exposureIndex = Mathf.Clamp((int)(ExposureSlider != null ? ExposureSlider.value : 6), 0, ExposureStops.Length - 1),
             showExposureOnCamera = ShowExposureOnCamera,
-            VolumetricFogVolumedensity = 0.01f,
-            VolumetricFogenableAPVContribution = true,
-            VolumetricFogenableMainLightContribution = true,
+            // Volumetric fog is platform-gated. Where it is compiled out there is no component to
+            // read, so the last applied values carry forward rather than resetting to the defaults.
+            VolumetricFogVolumedensity = baseline.VolumetricFogVolumedensity,
+            VolumetricFogenableAPVContribution = baseline.VolumetricFogenableAPVContribution,
+            VolumetricFogenableMainLightContribution = baseline.VolumetricFogenableMainLightContribution,
             hueShift = HHC != null && HHC.MetaData.colorAdjustments != null ? HHC.MetaData.colorAdjustments.hueShift.value : 0f,
             vignette = HHC != null && HHC.MetaData.vignette != null ? HHC.MetaData.vignette.intensity.value : 0f,
             chromaticAberration = HHC != null && HHC.MetaData.chromaticAberration != null ? HHC.MetaData.chromaticAberration.intensity.value : 0f,
@@ -629,7 +654,11 @@ public partial class BasisHandHeldCameraUI
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC != null && HHC.MetaData.VolumetricFogVolume != null)
+        {
             settings.VolumetricFogVolumedensity = HHC.MetaData.VolumetricFogVolume.density.value;
+            settings.VolumetricFogenableAPVContribution = HHC.MetaData.VolumetricFogVolume.enableAPVContribution.value;
+            settings.VolumetricFogenableMainLightContribution = HHC.MetaData.VolumetricFogVolume.enableMainLightContribution.value;
+        }
 #endif
 
         return settings;
@@ -749,11 +778,22 @@ public partial class BasisHandHeldCameraUI
 #if UNITY_INCLUDE_TESTS
     /// <summary>Test-only access to the private migration.</summary>
     public static void MigrateSettingsForTest(CameraSettings settings) => MigrateSettings(settings);
+
+    /// <summary>Test-only access to the private apply, so the apply/capture pair can be checked as one.</summary>
+    public void ApplySettingsForTest(CameraSettings settings) => ApplySettings(settings);
+
+    /// <summary>Test-only access to the private capture, so the apply/capture pair can be checked as one.</summary>
+    public CameraSettings CreateCurrentCameraSettingsForTest() => CreateCurrentCameraSettings();
 #endif
 
     private void ApplySettings(CameraSettings settings)
     {
         if (HHC == null) return;
+
+        // Recorded before the apply, not after: the apply is wrapped in a catch, and a file that
+        // only half-landed is still what the user last chose. Losing it would mean the next save
+        // wrote constructor defaults over their settings.
+        lastAppliedSettings = settings;
 
         // DOF interaction handler first (if present)
         HHC.BasisDOFInteractionHandler?.SetDoFState(settings.depthIsActive);
@@ -761,8 +801,11 @@ public partial class BasisHandHeldCameraUI
         try
         {
             // MSAA before resolution: ChangeResolution rebuilds the RT, so the sample count must
-            // be in place first or the preview keeps the old one until the next rebuild.
-            HHC.msaaSamples = settings.msaaSamples;
+            // be in place first or the preview keeps the old one until the next rebuild. Routed
+            // through the setter rather than the field because a settings file is just text on
+            // disk — a count the GPU does not accept fails the render target with nothing useful
+            // to go on, and the dropdown that normally guarantees 1/2/4/8 is not involved here.
+            HHC.SetMsaaSamples(settings.msaaSamples);
 
             // Resolution & indicator sprites
             currentResolutionIndex = settings.resolutionIndex;
@@ -796,7 +839,7 @@ public partial class BasisHandHeldCameraUI
                 // Aperture
                 if (settings.apertureIndex >= 0 && settings.apertureIndex < HHC.MetaData.apertures.Length)
                 {
-                    HHC.captureCamera.aperture = float.Parse(HHC.MetaData.apertures[settings.apertureIndex].TrimStart('f', '/'));
+                    HHC.captureCamera.aperture = ParseAperture(HHC.MetaData.apertures[settings.apertureIndex]);
                 }
                 else
                 {
@@ -807,7 +850,9 @@ public partial class BasisHandHeldCameraUI
                 if (settings.shutterSpeedIndex >= 0 && settings.shutterSpeedIndex < HHC.MetaData.shutterSpeeds.Length)
                 {
                     string[] parts = HHC.MetaData.shutterSpeeds[settings.shutterSpeedIndex].Split('/');
-                    if (parts.Length == 2 && float.TryParse(parts[1], out float denominator) && denominator != 0f)
+                    if (parts.Length == 2 &&
+                        float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float denominator) &&
+                        denominator != 0f)
                         HHC.captureCamera.shutterSpeed = 1f / denominator;
                     else
                         BasisDebug.LogWarning($"[ApplySettings] Invalid shutter speed format: {HHC.MetaData.shutterSpeeds[settings.shutterSpeedIndex]}");
@@ -820,7 +865,7 @@ public partial class BasisHandHeldCameraUI
                 // ISO
                 if (settings.isoIndex >= 0 && settings.isoIndex < HHC.MetaData.isoValues.Length)
                 {
-                    HHC.captureCamera.iso = int.Parse(HHC.MetaData.isoValues[settings.isoIndex]);
+                    HHC.captureCamera.iso = int.Parse(HHC.MetaData.isoValues[settings.isoIndex], CultureInfo.InvariantCulture);
                 }
                 else
                 {
@@ -962,6 +1007,28 @@ public partial class BasisHandHeldCameraUI
     /// <summary>Range URP clamps <c>DepthOfField.aperture</c> to; anything outside it is dead slider travel.</summary>
     public const float MinAperture = 1f;
     public const float MaxAperture = 32f;
+
+    // The prop HUD and the main-menu panel both offer these settings, so both size their handles
+    // from here. Authored separately they drift, and the same setting then reads a different range
+    // depending on which surface you opened — with the narrower one silently clamping the other.
+    // The depth-of-field pair mirror URP's own ClampedFloatParameter limits; travel outside those
+    // is dead, since the parameter's setter clamps before anything renders.
+
+    /// <summary>Field of view range offered on both the prop and the panel.</summary>
+    public const float MinFov = 20f;
+    public const float MaxFov = 120f;
+
+    /// <summary>Focus distance range, in metres. The usable floor is per-lens — see <c>MinimumFocusDistance</c>.</summary>
+    public const float MinFocusDistance = 0.1f;
+    public const float MaxFocusDistance = 100f;
+
+    /// <summary>Range URP clamps <c>DepthOfField.focalLength</c> to, in millimetres.</summary>
+    public const float MinFocalLength = 1f;
+    public const float MaxFocalLength = 300f;
+
+    /// <summary>Range URP clamps <c>DepthOfField.bladeCount</c> to.</summary>
+    public const int MinBladeCount = 3;
+    public const int MaxBladeCount = 9;
 
     public void DepthChangeFocusDistance(float value)
     {
@@ -1160,22 +1227,34 @@ public partial class BasisHandHeldCameraUI
         DepthChangeFocusDistance(value);
     }
 
+    /// <summary>
+    /// Reads an f-stop out of its own preset label. Invariant culture is not optional here: three
+    /// of the presets carry a decimal point ("f/1.4", "f/2.8", "f/5.6"), and parsed under a locale
+    /// that separates decimals with a comma they come back as 14, 28 and 56 — apertures no lens
+    /// has, silently applied to every capture.
+    /// </summary>
+    public static float ParseAperture(string label) =>
+        float.TryParse(label.TrimStart('f', '/'), NumberStyles.Float, CultureInfo.InvariantCulture, out float stop)
+            ? stop
+            : 0f;
+
     public void ChangeAperture(int index)
     {
         if (HHC.captureCamera == null) return;
-        HHC.captureCamera.aperture = float.Parse(HHC.MetaData.apertures[index].TrimStart('f', '/'));
+        HHC.captureCamera.aperture = ParseAperture(HHC.MetaData.apertures[index]);
     }
 
     public void ChangeShutterSpeed(int index)
     {
         if (HHC.captureCamera == null) return;
-        HHC.captureCamera.shutterSpeed = 1 / float.Parse(HHC.MetaData.shutterSpeeds[index].Split('/')[1]);
+        HHC.captureCamera.shutterSpeed = 1 / float.Parse(HHC.MetaData.shutterSpeeds[index].Split('/')[1],
+            NumberStyles.Float, CultureInfo.InvariantCulture);
     }
 
     public void ChangeISO(int index)
     {
         if (HHC.captureCamera == null) return;
-        HHC.captureCamera.iso = int.Parse(HHC.MetaData.isoValues[index]);
+        HHC.captureCamera.iso = int.Parse(HHC.MetaData.isoValues[index], CultureInfo.InvariantCulture);
     }
 
     public void ChangeVolumetricDensity(float value)

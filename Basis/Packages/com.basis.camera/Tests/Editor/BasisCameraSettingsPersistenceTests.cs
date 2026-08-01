@@ -1,0 +1,388 @@
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text;
+using Basis.Cinematics;
+using NUnit.Framework;
+using UnityEngine;
+
+namespace Basis.Tests.Camera
+{
+    /// <summary>
+    /// Settings are written by one method and read back by another, and nothing makes the two agree.
+    /// <c>ApplySettings</c> pushes a saved file into the live camera; <c>CreateCurrentCameraSettings</c>
+    /// harvests the live camera back into a file. A field handled by only one of them is the quietest
+    /// bug in the system — the control works perfectly all session and the value is gone next launch.
+    ///
+    /// <para>
+    /// So the central test here is not a list of fields but a property: apply then capture is the
+    /// identity. It walks <c>CameraSettings</c> by reflection, so a field added later is covered the
+    /// day it is added rather than the day somebody remembers to extend a test.
+    /// </para>
+    /// </summary>
+    public class BasisCameraSettingsPersistenceTests
+    {
+        private BasisCameraSettingsRig _rig;
+
+        [SetUp]
+        public void SetUp() => _rig = new BasisCameraSettingsRig();
+
+        [TearDown]
+        public void TearDown() => _rig?.Dispose();
+
+        /// <summary>
+        /// Fields the round trip deliberately does not hold, each with the reason. Anything not
+        /// listed here has to survive, so the list is the documentation of what does not persist.
+        /// </summary>
+        private static readonly Dictionary<string, string> RoundTripExclusions = new Dictionary<string, string>
+        {
+            // Stamped to the current version by the migration on every load, by design.
+            { "settingsVersion", "always re-stamped to CurrentVersion" },
+
+            // Loading an empty shot list seeds the three default shots, so an empty rig cannot come
+            // back empty. Covered on its own by CinematicShots_SurviveTheRoundTrip.
+            { "cinematicShots", "an empty list is seeded with default shots on load" },
+        };
+
+        [Test]
+        public void EverySettingSurvivesApplyThenCapture()
+        {
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+
+            _rig.UI.ApplySettingsForTest(original);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            StringBuilder lost = new StringBuilder();
+            foreach (FieldInfo field in SettingsFields())
+            {
+                if (RoundTripExclusions.ContainsKey(field.Name)) continue;
+
+                object before = field.GetValue(original);
+                object after = field.GetValue(captured);
+                if (ValuesMatch(before, after)) continue;
+
+                lost.AppendLine($"  {field.Name}: set {Describe(before)}, came back {Describe(after)}");
+            }
+
+            Assert.That(lost.Length, Is.Zero,
+                "These settings are applied to the camera but never harvested back out of it, so they " +
+                "are lost the moment the camera is rebuilt — a world change is enough:\n" + lost);
+        }
+
+        [Test]
+        public void ApplyingACapturedFileTwiceIsStable()
+        {
+            // Loading is not a one-shot: the camera reloads its settings on respawn, and any value
+            // that drifts on each pass walks away over a session rather than failing outright.
+            _rig.UI.ApplySettingsForTest(BasisCameraSettingsRig.DistinctiveSettings());
+            BasisHandHeldCameraUI.CameraSettings first = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            _rig.UI.ApplySettingsForTest(first);
+            BasisHandHeldCameraUI.CameraSettings second = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            StringBuilder drifted = new StringBuilder();
+            foreach (FieldInfo field in SettingsFields())
+            {
+                if (field.Name == "cinematicShots") continue;
+
+                object before = field.GetValue(first);
+                object after = field.GetValue(second);
+                if (ValuesMatch(before, after)) continue;
+
+                drifted.AppendLine($"  {field.Name}: {Describe(before)} -> {Describe(after)}");
+            }
+
+            Assert.That(drifted.Length, Is.Zero, "Reloading a settings file changed it:\n" + drifted);
+        }
+
+        [Test]
+        public void EverySettingSurvivesTheJsonItIsStoredAs()
+        {
+            // JsonUtility zero-fills anything it cannot map rather than erroring, so a renamed or
+            // unserializable field comes back as 0/false with no complaint anywhere.
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+
+            string json = JsonUtility.ToJson(original);
+            var restored = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(json);
+
+            StringBuilder lost = new StringBuilder();
+            foreach (FieldInfo field in SettingsFields())
+            {
+                if (field.Name == "cinematicShots") continue;
+
+                object before = field.GetValue(original);
+                object after = field.GetValue(restored);
+                if (ValuesMatch(before, after)) continue;
+
+                lost.AppendLine($"  {field.Name}: wrote {Describe(before)}, read back {Describe(after)}");
+            }
+
+            Assert.That(lost.Length, Is.Zero,
+                "These fields do not survive being written to disk and read back:\n" + lost);
+        }
+
+        [Test]
+        public void ThePanelSettingsWithNoPlaceToBeSavedAreTheOnesListedHere()
+        {
+            // These are live controls on the panel that CameraSettings has no field for, so they
+            // return to their defaults on the next camera. That is a gap rather than a bug — the
+            // wiring was never there to break — but it is worth being an explicit, visible list
+            // rather than something a user rediscovers each time they respawn the camera.
+            //
+            // Adding a field for any of them means a version bump plus a migration entry, because
+            // JsonUtility zero-fills what an older file lacks. Delete the line here when that
+            // happens; the round-trip test above then covers it automatically.
+            string[] fields =
+            {
+                "autoFollowLateralTracking", // Follow > Lateral Tracking, back to 0.5 each time.
+                "detachedMarker",            // Follow > Detached Marker, back to Puck.
+                "CloseHidesCamera",          // Output > Close Hides Instead, back to off.
+            };
+
+            System.Reflection.FieldInfo[] settingsFields =
+                typeof(BasisHandHeldCameraUI.CameraSettings).GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (string field in fields)
+            {
+                bool persisted = System.Array.Exists(settingsFields, f =>
+                    string.Equals(f.Name, field, System.StringComparison.OrdinalIgnoreCase));
+
+                Assert.That(persisted, Is.False,
+                    $"{field} is persisted now — take it off this list so the round-trip test covers it.");
+            }
+
+            // The capture camera's per-layer visibility is the fourth: the Render Layers section
+            // edits the culling mask directly and nothing carries it across a respawn.
+            Assert.That(settingsFields, Has.None.Matches<FieldInfo>(f => f.Name.ToLowerInvariant().Contains("cullingmask")),
+                "The render-layer choices are persisted now — extend the round trip to cover them.");
+        }
+
+        [Test]
+        public void FocusDistanceField_IsLegacyAndCarriesNothing()
+        {
+            // Pinning the dead field so nobody wires a control to it expecting it to work. If this
+            // ever starts failing, focusDistance has been given a meaning and belongs in the round
+            // trip above rather than on the exclusion list.
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+            original.focusDistance = 37f;
+
+            _rig.UI.ApplySettingsForTest(original);
+
+            Assert.That(_rig.DepthOfField.focusDistance.value, Is.Not.EqualTo(37f).Within(1e-3f),
+                "focusDistance is not the depth-of-field focus; depthFocusDistance is.");
+            Assert.That(_rig.CaptureCamera.focalLength, Is.Not.EqualTo(37f).Within(1e-3f),
+                "It is certainly not a lens focal length — writing it there drove the FOV to ~100 degrees.");
+        }
+
+        [Test]
+        public void CinematicShots_SurviveTheRoundTrip()
+        {
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+            original.cinematicShots = new List<BasisCameraShot>
+            {
+                new BasisCameraShot { name = "Interview", priority = 42, blendTime = 1.25f },
+                new BasisCameraShot { name = "Wide", priority = 3, blendTime = 2.5f },
+            };
+
+            _rig.UI.ApplySettingsForTest(original);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.cinematicShots, Is.Not.Null);
+            Assert.That(captured.cinematicShots.Count, Is.EqualTo(2),
+                "An authored rig must not be replaced by the default shots on the way back out.");
+            Assert.That(captured.cinematicShots[0].name, Is.EqualTo("Interview"));
+            Assert.That(captured.cinematicShots[0].priority, Is.EqualTo(42));
+            Assert.That(captured.cinematicShots[1].blendTime, Is.EqualTo(2.5f).Within(1e-4f));
+        }
+
+        [Test]
+        public void AnEmptyShotList_IsSeededSoTheRigIsNeverUnusable()
+        {
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+            original.cinematicShots = new List<BasisCameraShot>();
+
+            _rig.UI.ApplySettingsForTest(original);
+
+            Assert.That(_rig.Camera.Director, Is.Not.Null);
+            Assert.That(_rig.Camera.Director.Count, Is.GreaterThan(0),
+                "Switching the rig on with no shots authored would leave nothing to cut to.");
+        }
+
+        [Test]
+        public void VolumetricFogDensity_FallsBackToSomethingUsableWithNoFogComponent()
+        {
+            // The density is harvested from the live fog component, which is platform-gated and
+            // absent here. What matters is that its absence saves a sane value rather than a
+            // zero-filled one — a saved 0 would open every later session with the fog switched off.
+            _rig.UI.ApplySettingsForTest(BasisCameraSettingsRig.DistinctiveSettings());
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.VolumetricFogVolumedensity, Is.GreaterThan(0f));
+            Assert.That(captured.VolumetricFogVolumedensity, Is.LessThanOrEqualTo(1f));
+        }
+
+        // ---------- Defaults a fresh install lands on ----------
+
+        [Test]
+        public void AFreshCameraAppliesItsDefaultsWithoutError()
+        {
+            Assert.DoesNotThrow(() => _rig.UI.ApplySettingsForTest(new BasisHandHeldCameraUI.CameraSettings()));
+
+            Assert.That(_rig.DepthOfField.active, Is.False, "Depth of field is off until asked for.");
+            Assert.That(_rig.Vignette.active, Is.False);
+            Assert.That(_rig.ChromaticAberration.active, Is.False);
+            Assert.That(_rig.FilmGrain.active, Is.False);
+            Assert.That(_rig.WhiteBalance.active, Is.False);
+            Assert.That(_rig.LensDistortion.active, Is.False);
+            Assert.That(_rig.Camera.backgroundMode, Is.EqualTo(BasisCameraBackgroundMode.World),
+                "A fresh camera photographs the world, not a green screen.");
+        }
+
+        [Test]
+        public void ResetSettings_ReturnsEveryEffectToNeutral()
+        {
+            _rig.UI.ChangeVignette(0.9f);
+            _rig.UI.ChangeFilmGrain(0.9f);
+            _rig.UI.ChangeLensDistortion(0.9f);
+            _rig.UI.ChangeChromaticAberration(0.9f);
+            _rig.UI.ChangeWhiteBalanceTemperature(80f);
+            _rig.Camera.SetBackgroundMode(BasisCameraBackgroundMode.Magenta);
+
+            _rig.UI.ResetSettings();
+
+            Assert.That(_rig.Vignette.active, Is.False);
+            Assert.That(_rig.FilmGrain.active, Is.False);
+            Assert.That(_rig.LensDistortion.active, Is.False);
+            Assert.That(_rig.ChromaticAberration.active, Is.False);
+            Assert.That(_rig.WhiteBalance.active, Is.False);
+            Assert.That(_rig.Camera.backgroundMode, Is.EqualTo(BasisCameraBackgroundMode.World),
+                "Reset has to reach the whole camera, not only the sliders on the page it was pressed from.");
+        }
+
+        // ---------- Migration ----------
+
+        [Test]
+        public void MissingFieldsLoadTheirConstructorDefault()
+        {
+            // Load-bearing, and the opposite of what several comments in the settings code claim.
+            // JsonUtility does NOT zero-fill a field the JSON omits when the class has a
+            // constructor: it constructs the object, then writes over only the fields present.
+            //
+            // What follows from that: adding a setting whose sane default is non-zero needs it set
+            // in the constructor, and then no migration — old files pick the default up for free.
+            // A migration is for the other case, where the old file states a value outright and
+            // that value has since become wrong. The unusable f/1 aperture is the real example.
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+            var sparse = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>("{\"fov\":50}");
+
+            Assert.That(sparse.fov, Is.EqualTo(50f).Within(1e-4f), "what the file does say wins");
+            Assert.That(sparse.autoFollowPlayspace, Is.EqualTo(defaults.autoFollowPlayspace));
+            Assert.That(sparse.autoFollowPositionOffset, Is.EqualTo(defaults.autoFollowPositionOffset));
+            Assert.That(sparse.depthAperture, Is.EqualTo(defaults.depthAperture).Within(1e-4f));
+            Assert.That(sparse.subjectFramingRadius, Is.EqualTo(defaults.subjectFramingRadius).Within(1e-4f));
+            Assert.That(sparse.backgroundCustomColor, Is.EqualTo(defaults.backgroundCustomColor));
+
+            // A value the file does state still overrides the constructor, including a falsy one —
+            // otherwise "off" could never be saved.
+            var explicitlyOff = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                "{\"autoFollowPlayspace\":false}");
+            Assert.That(explicitlyOff.autoFollowPlayspace, Is.False);
+        }
+
+        [Test]
+        public void MigrationRunsOnceAndStampsTheCurrentVersion()
+        {
+            var legacy = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>("{\"settingsVersion\":1}");
+
+            BasisHandHeldCameraUI.MigrateSettingsForTest(legacy);
+
+            Assert.That(legacy.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion));
+        }
+
+        [Test]
+        public void TheOldestPossibleFileComesForwardEntirelyUsable()
+        {
+            // The worst case a migration has to survive: a file that claims the first version and
+            // carries nothing else, so every field arrives zero-filled and every migration step
+            // runs. Each assertion below is a zero-fill whose meaning is not merely wrong but
+            // harmful — which is the whole reason the version gate exists.
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+            var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>("{\"settingsVersion\":1}");
+
+            BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
+
+            Assert.That(loaded.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion));
+            Assert.That(loaded.autoFollowPositionOffset, Is.Not.EqualTo(Vector3.zero),
+                "A zero follow offset parks the camera inside the player.");
+            Assert.That(loaded.msaaSamples, Is.EqualTo(defaults.msaaSamples));
+            Assert.That(loaded.depthAperture,
+                Is.InRange(BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture),
+                "An aperture outside URP's range is dead slider travel.");
+            Assert.That(loaded.dofFocalLength, Is.GreaterThan(0f), "A zero lens divides through zero.");
+            Assert.That(loaded.subjectFramingRadius, Is.GreaterThan(0f),
+                "A zero framing radius dollies the camera into the subject's face.");
+            Assert.That(loaded.backgroundCustomColor.a, Is.GreaterThan(0f),
+                "A transparent custom background is not a background.");
+        }
+
+        [Test]
+        public void MigratingIsIdempotentFromEveryShippedVersion()
+        {
+            // Settings are loaded on every spawn, and a migration that keeps changing the file is
+            // one that walks a value further each session rather than failing once.
+            for (int version = 1; version <= BasisHandHeldCameraUI.CameraSettings.CurrentVersion; version++)
+            {
+                var loaded = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                    "{\"settingsVersion\":" + version + "}");
+
+                BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
+                string once = JsonUtility.ToJson(loaded);
+
+                BasisHandHeldCameraUI.MigrateSettingsForTest(loaded);
+                string twice = JsonUtility.ToJson(loaded);
+
+                Assert.That(twice, Is.EqualTo(once), $"Migrating a v{version} file twice changed it again.");
+                Assert.That(loaded.settingsVersion, Is.EqualTo(BasisHandHeldCameraUI.CameraSettings.CurrentVersion),
+                    $"v{version} did not come forward.");
+            }
+        }
+
+        [Test]
+        public void AMigratedFileThenAppliesCleanly()
+        {
+            // Migration and apply are separate steps and only ever run together in production, so
+            // the pair is what actually has to work.
+            var legacy = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                "{\"settingsVersion\":1,\"resolutionIndex\":1,\"fov\":50}");
+
+            BasisHandHeldCameraUI.MigrateSettingsForTest(legacy);
+
+            Assert.DoesNotThrow(() => _rig.UI.ApplySettingsForTest(legacy));
+            Assert.That(_rig.CaptureCamera.fieldOfView, Is.EqualTo(50f).Within(1e-3f));
+            Assert.That(_rig.DepthOfField.aperture.value,
+                Is.InRange(BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture));
+        }
+
+        // ---------- helpers ----------
+
+        private static IEnumerable<FieldInfo> SettingsFields() =>
+            typeof(BasisHandHeldCameraUI.CameraSettings)
+                .GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+        private static bool ValuesMatch(object a, object b)
+        {
+            switch (a)
+            {
+                case float f: return Mathf.Abs(f - (float)b) < 1e-3f;
+                case Vector3 v: return Vector3.Distance(v, (Vector3)b) < 1e-3f;
+                case Color c:
+                    Color other = (Color)b;
+                    return Mathf.Abs(c.r - other.r) < 1e-3f && Mathf.Abs(c.g - other.g) < 1e-3f &&
+                           Mathf.Abs(c.b - other.b) < 1e-3f && Mathf.Abs(c.a - other.a) < 1e-3f;
+                case null: return b == null;
+                default: return a.Equals(b);
+            }
+        }
+
+        private static string Describe(object value) => value == null ? "null" : value.ToString();
+    }
+}
