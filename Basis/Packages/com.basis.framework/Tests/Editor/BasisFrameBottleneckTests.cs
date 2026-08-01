@@ -39,6 +39,10 @@ namespace Basis.Tests.Rendering
         static BasisFrameBottleneckKind Classify(BasisFrameBottleneckReading reading) =>
             BasisFrameBottleneck.Classify(reading, true);
 
+        static BasisFrameBottleneckKind Classify(
+            BasisFrameBottleneckReading reading, BasisFrameBottleneckKind shown) =>
+            BasisFrameBottleneck.Classify(reading, true, shown);
+
         [Test]
         public void PresentWaitIsNotCountedAsCpuWork()
         {
@@ -120,6 +124,69 @@ namespace Basis.Tests.Rendering
             BasisFrameBottleneckReading reading = Reading(frameMs: 12.0, mainMs: 0.0, presentWaitMs: 2.0, gpuMs: 4.0);
             Assert.That(reading.CpuBusyMs, Is.EqualTo(10.0).Within(1e-9));
             Assert.That(Classify(reading), Is.EqualTo(BasisFrameBottleneckKind.Cpu));
+        }
+
+        [Test]
+        public void SittingJustOverTheCapHeadroom_HoldsTheCapVerdictItAlreadyShows()
+        {
+            BasisFrameBottleneckReading reading =
+                Reading(frameMs: 11.4, mainMs: 11.4, presentWaitMs: 1.6, gpuMs: 9.6, targetMs: Ninety);
+
+            Assert.That(Classify(reading), Is.EqualTo(BasisFrameBottleneckKind.Balanced),
+                "on its own this frame reads a hair over the cap's headroom allowance.");
+            Assert.That(Classify(reading, BasisFrameBottleneckKind.FrameCap),
+                Is.EqualTo(BasisFrameBottleneckKind.FrameCap),
+                "a frame that close to the cap must not flip the panel's verdict back and forth.");
+        }
+
+        [Test]
+        public void FallingWellShortOfTheCap_StillReleasesTheCapVerdict()
+        {
+            Assert.That(
+                Classify(Reading(frameMs: 13.5, mainMs: 13.5, presentWaitMs: 1.0, gpuMs: 6.0, targetMs: Ninety),
+                    BasisFrameBottleneckKind.FrameCap),
+                Is.EqualTo(BasisFrameBottleneckKind.Cpu),
+                "hysteresis holds a verdict through noise, it does not hide a real change.");
+        }
+
+        [Test]
+        public void CpuSlippingBackUnderTheDominanceRatio_KeepsTheCpuVerdict()
+        {
+            BasisFrameBottleneckReading reading =
+                Reading(frameMs: 20.0, mainMs: 20.0, presentWaitMs: 0.0, gpuMs: 18.0);
+
+            Assert.That(Classify(reading), Is.EqualTo(BasisFrameBottleneckKind.Balanced));
+            Assert.That(Classify(reading, BasisFrameBottleneckKind.Cpu),
+                Is.EqualTo(BasisFrameBottleneckKind.Cpu));
+        }
+
+        [Test]
+        public void GpuSlippingBackUnderTheDominanceRatio_KeepsTheGpuVerdict()
+        {
+            BasisFrameBottleneckReading reading =
+                Reading(frameMs: 20.0, mainMs: 20.0, presentWaitMs: 2.0, gpuMs: 20.0);
+
+            Assert.That(Classify(reading), Is.EqualTo(BasisFrameBottleneckKind.Balanced));
+            Assert.That(Classify(reading, BasisFrameBottleneckKind.Gpu),
+                Is.EqualTo(BasisFrameBottleneckKind.Gpu));
+        }
+
+        [Test]
+        public void SidesEveningOutCompletely_ReleasesTheHeldVerdict()
+        {
+            Assert.That(
+                Classify(Reading(frameMs: 20.0, mainMs: 20.0, presentWaitMs: 0.0, gpuMs: 19.8),
+                    BasisFrameBottleneckKind.Cpu),
+                Is.EqualTo(BasisFrameBottleneckKind.Balanced));
+        }
+
+        [Test]
+        public void TheOtherSideTakingOver_IsNotHeldBackByTheOldVerdict()
+        {
+            Assert.That(
+                Classify(Reading(frameMs: 20.0, mainMs: 20.0, presentWaitMs: 12.0, gpuMs: 19.0),
+                    BasisFrameBottleneckKind.Cpu),
+                Is.EqualTo(BasisFrameBottleneckKind.Gpu));
         }
     }
 }

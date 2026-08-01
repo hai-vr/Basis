@@ -1,4 +1,5 @@
 using Basis.Scripts.Drivers;
+using TMPro;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -7,6 +8,18 @@ namespace Basis.BasisUI
     {
         private const int RefreshIntervalTicks = 15;
         private const int TicksBeforeFreeze = 2;
+        private const int RefreshesBeforeVerdictChange = 4;
+        private const BasisFrameBottleneckKind UnsetKind = (BasisFrameBottleneckKind)(-1);
+
+        private static readonly BasisFrameBottleneckKind[] AllKinds =
+        {
+            BasisFrameBottleneckKind.Measuring,
+            BasisFrameBottleneckKind.Cpu,
+            BasisFrameBottleneckKind.Gpu,
+            BasisFrameBottleneckKind.Balanced,
+            BasisFrameBottleneckKind.FrameCap,
+            BasisFrameBottleneckKind.NoGpuTimer
+        };
 
         private static PanelElementDescriptor _group;
         private static PanelElementDescriptor _frameField;
@@ -18,7 +31,9 @@ namespace Basis.BasisUI
         private static int _refreshCount;
         private static bool _subscribed;
         private static bool _layoutFrozen;
-        private static BasisFrameBottleneckKind _shownKind = (BasisFrameBottleneckKind)(-1);
+        private static BasisFrameBottleneckKind _shownKind = UnsetKind;
+        private static BasisFrameBottleneckKind _pendingKind = UnsetKind;
+        private static int _pendingHolds;
 
         public static void BuildFrameBottleneckGroup(RectTransform container)
         {
@@ -68,7 +83,9 @@ namespace Basis.BasisUI
             _tickCounter = 0;
             _refreshCount = 0;
             _layoutFrozen = false;
-            _shownKind = (BasisFrameBottleneckKind)(-1);
+            _shownKind = UnsetKind;
+            _pendingKind = UnsetKind;
+            _pendingHolds = 0;
 
             BasisFrameBottleneck.Reset();
 
@@ -140,9 +157,9 @@ namespace Basis.BasisUI
                 return;
             }
 
-            BasisFrameBottleneckReading reading = BasisFrameBottleneck.Read();
+            BasisFrameBottleneckReading reading = BasisFrameBottleneck.Read(_shownKind);
 
-            if (reading.Kind != _shownKind)
+            if (ShouldCommitVerdict(reading.Kind))
             {
                 _shownKind = reading.Kind;
                 _group.SetTitle(TitleFor(reading.Kind));
@@ -150,7 +167,7 @@ namespace Basis.BasisUI
                 ApplyTint(reading.Kind);
             }
 
-            if (reading.Kind == BasisFrameBottleneckKind.Measuring)
+            if (_shownKind == BasisFrameBottleneckKind.Measuring)
             {
                 string pending = BasisLocalization.Get("settings.graphics.bottleneck.pending");
                 _frameField.SetDescription(pending);
@@ -187,6 +204,75 @@ namespace Basis.BasisUI
             _frameField.FreezeLayoutSize(110f);
             _cpuField.FreezeLayoutSize(150f);
             _gpuField.FreezeLayoutSize(110f);
+            FreezeGroupLayout();
+        }
+
+        private static bool ShouldCommitVerdict(BasisFrameBottleneckKind kind)
+        {
+            if (kind == _shownKind)
+            {
+                _pendingKind = UnsetKind;
+                _pendingHolds = 0;
+                return false;
+            }
+
+            if (_shownKind == UnsetKind || _shownKind == BasisFrameBottleneckKind.Measuring)
+            {
+                _pendingKind = UnsetKind;
+                _pendingHolds = 0;
+                return true;
+            }
+
+            if (_pendingKind != kind)
+            {
+                _pendingKind = kind;
+                _pendingHolds = 1;
+                return false;
+            }
+
+            if (++_pendingHolds < RefreshesBeforeVerdictChange)
+            {
+                return false;
+            }
+
+            _pendingKind = UnsetKind;
+            _pendingHolds = 0;
+            return true;
+        }
+
+        private static void FreezeGroupLayout()
+        {
+            string title = _group.Title;
+            string description = _group.Description;
+
+            _group.SetTitle(TallestOf(_group.HasTitle ? _group.TitleLabel : null, true));
+            _group.SetDescription(TallestOf(_group.HasDescription ? _group.DescriptionLabel : null, false));
+
+            _group.FreezeLayoutSize();
+
+            _group.SetTitle(title);
+            _group.SetDescription(description);
+        }
+
+        private static string TallestOf(TextMeshProUGUI label, bool titles)
+        {
+            string tallest = titles ? TitleFor(AllKinds[0]) : BasisLocalization.Get(AdviceKeyFor(AllKinds[0]));
+            float width = label != null ? label.rectTransform.rect.width : 0f;
+            float best = width > 0f ? label.GetPreferredValues(tallest, width, 0f).y : tallest.Length;
+
+            for (int index = 1; index < AllKinds.Length; index++)
+            {
+                BasisFrameBottleneckKind kind = AllKinds[index];
+                string candidate = titles ? TitleFor(kind) : BasisLocalization.Get(AdviceKeyFor(kind));
+                float height = width > 0f ? label.GetPreferredValues(candidate, width, 0f).y : candidate.Length;
+                if (height > best)
+                {
+                    best = height;
+                    tallest = candidate;
+                }
+            }
+
+            return tallest;
         }
 
         private static string TitleFor(BasisFrameBottleneckKind kind)

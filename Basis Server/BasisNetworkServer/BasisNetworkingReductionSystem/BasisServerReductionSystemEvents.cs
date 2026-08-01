@@ -228,10 +228,28 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static int _configuredDegree;
 
-        private static int DegreeFor(int playerCount) =>
-            _configuredDegree > 0
-                ? Math.Min(_configuredDegree, Environment.ProcessorCount)
-                : Math.Clamp(playerCount / PlayersPerWorker, 4, Math.Min(MaxAutoWorkers, Environment.ProcessorCount));
+        private static int DegreeFor(int playerCount)
+        {
+            int cores = Environment.ProcessorCount;
+            if (_configuredDegree > 0)
+            {
+                return Math.Max(1, Math.Min(_configuredDegree, cores));
+            }
+
+            int ceiling = Math.Min(MaxAutoWorkers, cores);
+            if (ceiling < 1)
+            {
+                ceiling = 1;
+            }
+
+            int floor = Math.Min(BasisCpuBudget.MinWorkersPerPool, ceiling);
+            if (floor < 1)
+            {
+                floor = 1;
+            }
+
+            return Math.Clamp(playerCount / PlayersPerWorker, floor, ceiling);
+        }
 
         private static readonly ParallelOptions parallelOptions = new()
         {

@@ -30,8 +30,11 @@ namespace Basis.Scripts.Drivers
     public static class BasisFrameBottleneck
     {
         public const double DominanceRatio = 1.15;
+        public const double DominanceReleaseRatio = 1.03;
         public const double CapReachedRatio = 1.05;
+        public const double CapReachedReleaseRatio = 1.15;
         public const double CapHeadroomRatio = 0.85;
+        public const double CapHeadroomReleaseRatio = 0.95;
 
         private const double Smoothing = 0.1;
         private const int WarmupSamples = 8;
@@ -139,6 +142,11 @@ namespace Basis.Scripts.Drivers
 
         public static BasisFrameBottleneckReading Read()
         {
+            return Read(BasisFrameBottleneckKind.Measuring);
+        }
+
+        public static BasisFrameBottleneckReading Read(BasisFrameBottleneckKind previous)
+        {
             BasisFrameBottleneckReading reading = new BasisFrameBottleneckReading
             {
                 FrameMs = _frameMs,
@@ -151,7 +159,7 @@ namespace Basis.Scripts.Drivers
             };
 
             reading.CpuBusyMs = ResolveCpuBusyMs(reading);
-            reading.Kind = Classify(reading, _samples >= WarmupSamples);
+            reading.Kind = Classify(reading, _samples >= WarmupSamples, previous);
             return reading;
         }
 
@@ -164,6 +172,14 @@ namespace Basis.Scripts.Drivers
 
         public static BasisFrameBottleneckKind Classify(BasisFrameBottleneckReading reading, bool warmedUp)
         {
+            return Classify(reading, warmedUp, BasisFrameBottleneckKind.Measuring);
+        }
+
+        public static BasisFrameBottleneckKind Classify(
+            BasisFrameBottleneckReading reading,
+            bool warmedUp,
+            BasisFrameBottleneckKind previous)
+        {
             if (!warmedUp || reading.FrameMs <= 0.0)
             {
                 return BasisFrameBottleneckKind.Measuring;
@@ -174,20 +190,26 @@ namespace Basis.Scripts.Drivers
                 return BasisFrameBottleneckKind.NoGpuTimer;
             }
 
+            bool holdingCap = previous == BasisFrameBottleneckKind.FrameCap;
+            double capReached = holdingCap ? CapReachedReleaseRatio : CapReachedRatio;
+            double capHeadroom = holdingCap ? CapHeadroomReleaseRatio : CapHeadroomRatio;
+
             if (reading.TargetMs > 0.0
-                && reading.FrameMs <= reading.TargetMs * CapReachedRatio
-                && reading.CpuBusyMs <= reading.TargetMs * CapHeadroomRatio
-                && reading.GpuMs <= reading.TargetMs * CapHeadroomRatio)
+                && reading.FrameMs <= reading.TargetMs * capReached
+                && reading.CpuBusyMs <= reading.TargetMs * capHeadroom
+                && reading.GpuMs <= reading.TargetMs * capHeadroom)
             {
                 return BasisFrameBottleneckKind.FrameCap;
             }
 
-            if (reading.GpuMs > reading.CpuBusyMs * DominanceRatio)
+            double gpuGate = previous == BasisFrameBottleneckKind.Gpu ? DominanceReleaseRatio : DominanceRatio;
+            if (reading.GpuMs > reading.CpuBusyMs * gpuGate)
             {
                 return BasisFrameBottleneckKind.Gpu;
             }
 
-            if (reading.CpuBusyMs > reading.GpuMs * DominanceRatio)
+            double cpuGate = previous == BasisFrameBottleneckKind.Cpu ? DominanceReleaseRatio : DominanceRatio;
+            if (reading.CpuBusyMs > reading.GpuMs * cpuGate)
             {
                 return BasisFrameBottleneckKind.Cpu;
             }

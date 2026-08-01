@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using System;
 using System.IO;
 using System.Linq;
@@ -85,9 +86,21 @@ public sealed class BasisBeeExplorerTab : BasisEditorTabPage
             {
                 beeFilePath = selected;
                 Reset();
+                TryAutoFillPassword(selected);
             }
         }
         EditorGUILayout.EndHorizontal();
+    }
+
+    private void TryAutoFillPassword(string selectedBeePath)
+    {
+        if (!BasisBeeFileDrop.TryFindSidecarPassword(selectedBeePath, out string sidecarPassword, out string sourceFile))
+        {
+            return;
+        }
+
+        password = sidecarPassword;
+        statusMessage = "Password auto-filled from " + Path.GetFileName(sourceFile);
     }
 
     private void DrawPasswordField()

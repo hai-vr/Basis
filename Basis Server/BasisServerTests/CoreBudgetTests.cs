@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Threading;
 using Basis.Network.Core;
 using Xunit;
@@ -212,5 +213,62 @@ public class CoreBudgetTests
             Assert.False(lease.HasMeasuredCeiling);
         }
         finally { BasisCpuBudget.SetSendSocketCount(before); }
+    }
+
+    /// <summary>
+    /// The send pool sizes itself between a floor and the allocator's current grant. The grant is
+    /// not a constant — it moves with load, and on a host too small to satisfy every lease's floor
+    /// the allocator trims the floors to fit, so the grant can legitimately land below the number
+    /// the send pool would like to start from. When it does, the floor has to yield to the grant:
+    /// a pool that took more workers than the machine-wide split gave it defeats the split.
+    ///
+    /// Squeezing the pool from a test is what a small host does on its own — the floors of the two
+    /// standing leases alone exceed what a 4-core box has left after reserved threads.
+    /// </summary>
+    [Fact]
+    public void SendPoolSizingSurvivesAGrantBelowItsFloor()
+    {
+        var squeeze = new BasisCoreLease[Math.Max(8, BasisCpuBudget.TotalCores * 2)];
+        for (int i = 0; i < squeeze.Length; i++)
+        {
+            squeeze[i] = BasisCpuBudget.Register("test-squeeze-" + i, 1, () => 4096, 8.0);
+        }
+
+        var degreeFor = typeof(BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents)
+            .GetMethod("DegreeFor", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(degreeFor);
+
+        try
+        {
+            foreach (var l in squeeze) l.ReportDemand(1.0);
+
+            bool sawGrantUnderFloor = false;
+            for (int step = 0; step < 200; step++)
+            {
+                BasisCpuBudget.Rebalance();
+                if (BasisCpuBudget.ReductionSendCap < BasisCpuBudget.MinWorkersPerPool)
+                {
+                    sawGrantUnderFloor = true;
+                }
+
+                foreach (int players in new[] { 0, 1, 200, 4000 })
+                {
+                    int degree = (int)degreeFor.Invoke(null, new object[] { players })!;
+
+                    Assert.True(degree >= 1, $"degree {degree} is not a legal MaxDegreeOfParallelism");
+                    Assert.True(degree <= BasisCpuBudget.TotalCores,
+                        $"degree {degree} exceeds {BasisCpuBudget.TotalCores} cores");
+                }
+            }
+
+            Assert.True(sawGrantUnderFloor,
+                $"the squeeze never drove the grant under the floor of {BasisCpuBudget.MinWorkersPerPool}, " +
+                "so this never exercised the case it exists for");
+        }
+        finally
+        {
+            foreach (var l in squeeze) BasisCpuBudget.Unregister(l);
+            for (int i = 0; i < 200; i++) BasisCpuBudget.Rebalance();
+        }
     }
 }
