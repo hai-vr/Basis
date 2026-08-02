@@ -22,6 +22,8 @@ namespace Basis.Scripts.Networking.Sync
         private static readonly List<BasisPickupSyncNetworking> _pickupReweld = new List<BasisPickupSyncNetworking>();
 
         private static bool _initialized;
+        /// <summary>Set whenever <see cref="_owned"/> changes, so the transmit snapshot is rebuilt only then.</summary>
+        private static bool _ownedDirty;
         private static bool _dirtyLayout;
         private static bool _scheduled;
         private static bool _hasBindings;
@@ -39,6 +41,31 @@ namespace Basis.Scripts.Networking.Sync
         private static NativeArray<quaternion> _rotCur, _rotNext, _rotOut;
         private static NativeArray<byte> _rotMode;
         private static NativeArray<int> _discNext, _discOut;
+
+        // ── Batched distance/relevance reduction ──
+        // Every owned object used to compute its own nearest-observer distance inside TransmitIfDue,
+        // walking the whole receiver snapshot and calling GetLatestNetworkPose per player. That made
+        // the pose gather alone O(objects x players), and because each object's timer started at 0
+        // and was stamped with the current time on fire, every object that first ticked on the same
+        // frame stayed phase-locked to every other one — the entire cost landed on one frame, twice
+        // a second. Now: gather each player's pose ONCE, run the cross product as a parallel Burst
+        // job, scatter the results back. Scheduled in ScheduleRemote (Update) and completed in
+        // TransmitOwned (LateUpdate) so it overlaps the rest of the frame.
+        private const double ReductionUpdateInterval = 0.5;
+        private static double _lastReductionPassTime = double.NegativeInfinity;
+        private static bool _reductionScheduled;
+        private static JobHandle _reductionHandle;
+        private static int _reductionCount;
+        private static int _reductionMasksPerObject = 1;
+        private static int _reductionRawPlayerCount;
+        private static readonly List<BasisSyncedObject> _reductionParticipants = new List<BasisSyncedObject>();
+        private static NativeArray<float3> _reductionObjectPositions;
+        private static NativeArray<float> _reductionRadiusSq;
+        private static NativeArray<float3> _reductionPlayerPositions;
+        private static NativeArray<float> _reductionNearestSq;
+        private static NativeArray<ulong> _reductionMask;
+        private static ushort[] _reductionPlayerIds = new ushort[0];
+        private static ushort[] _reductionRecipientScratch = new ushort[0];
 
         // Transform bindings.
         private static readonly List<Transform> _bindTransforms = new List<Transform>();
@@ -63,6 +90,14 @@ namespace Basis.Scripts.Networking.Sync
         {
             if (!_initialized) return;
             if (_scheduled) { _jobHandle.Complete(); _scheduled = false; }
+            if (_reductionScheduled) { _reductionHandle.Complete(); _reductionScheduled = false; }
+
+            DisposeIf(ref _reductionObjectPositions); DisposeIf(ref _reductionRadiusSq);
+            DisposeIf(ref _reductionPlayerPositions); DisposeIf(ref _reductionNearestSq);
+            DisposeIf(ref _reductionMask);
+            _reductionParticipants.Clear();
+            _reductionCount = 0;
+            _lastReductionPassTime = double.NegativeInfinity;
 
             DisposeIf(ref _active); DisposeIf(ref _t);
             DisposeIf(ref _contBase); DisposeIf(ref _contCount);
@@ -76,6 +111,8 @@ namespace Basis.Scripts.Networking.Sync
 
             _remote.Clear();
             _owned.Clear();
+            _ownedScratch.Clear();
+            _ownedDirty = false;
             _initialized = false;
         }
 
@@ -97,17 +134,21 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Live list of remote (interpolated) synced objects, for debug visualisation. Do not mutate.</summary>
         public static IReadOnlyList<BasisSyncedObject> RemoteObjects => _remote;
 
-        /// <summary>Live set of locally-owned (transmitting) synced objects, for debug visualisation. Do not mutate.</summary>
+        /// <summary>
+        /// Live set of locally-owned (transmitting) synced objects, for debug visualisation.
+        /// Do not mutate — Register/UnregisterOwned are what keep the transmit snapshot in sync;
+        /// an outside Add/Remove would not be seen until the set's count next changes.
+        /// </summary>
         public static HashSet<BasisSyncedObject> OwnedObjects => _owned;
 
         public static void RegisterOwned(BasisSyncedObject obj)
         {
-            if (obj != null) _owned.Add(obj);
+            if (obj != null && _owned.Add(obj)) _ownedDirty = true;
         }
 
         public static void UnregisterOwned(BasisSyncedObject obj)
         {
-            if (obj != null) _owned.Remove(obj);
+            if (obj != null && _owned.Remove(obj)) _ownedDirty = true;
         }
 
         public static void MarkLayoutDirty() => _dirtyLayout = true;
@@ -116,6 +157,10 @@ namespace Basis.Scripts.Networking.Sync
         {
             if (!_initialized) return;
             if (_scheduled) { _jobHandle.Complete(); _scheduled = false; }
+
+            // Ahead of the _remote early-out: owned-object reduction is independent of whether any
+            // remote objects exist, and this is the earliest point in the frame it can be kicked.
+            ScheduleReductionPass(Time.timeAsDouble);
 
             if (_remote.Count == 0) return;
             if (_dirtyLayout) { RebuildLayout(); _forceFullCopy = true; }
@@ -220,6 +265,24 @@ namespace Basis.Scripts.Networking.Sync
             }
         }
 
+        /// <summary>
+        /// Rebuilds the owned-object snapshot if the set changed. The snapshot exists so
+        /// TransmitIfDue can register or unregister owned objects without invalidating the
+        /// enumerator; it used to be rebuilt every frame — a full HashSet walk (which visits free
+        /// slots, so it costs the high-water capacity rather than the live count) plus a List.Add
+        /// per entry — for a set that only changes when something is picked up, dropped, spawned or
+        /// despawned. Rebuilding on change is behaviourally identical: a mutation from inside the
+        /// transmit loop already only took effect on the following frame, and still does. The count
+        /// comparison is the cheap guard against a mutation that bypassed Register/UnregisterOwned.
+        /// </summary>
+        private static void RefreshOwnedSnapshot()
+        {
+            if (!_ownedDirty && _ownedScratch.Count == _owned.Count) return;
+            _ownedScratch.Clear();
+            foreach (BasisSyncedObject o in _owned) _ownedScratch.Add(o);
+            _ownedDirty = false;
+        }
+
         internal static void QueuePickupReweld(BasisPickupSyncNetworking pickup) => _pickupReweld.Add(pickup);
 
         /// <summary>
@@ -241,10 +304,16 @@ namespace Basis.Scripts.Networking.Sync
 
         public static void TransmitOwned(double timeAsDouble)
         {
-            if (!_initialized || _owned.Count == 0) return;
+            if (!_initialized) return;
 
-            _ownedScratch.Clear();
-            foreach (BasisSyncedObject o in _owned) _ownedScratch.Add(o);
+            // Joined before the empty-set early-out: everything owned can be unregistered between
+            // the schedule in ScheduleRemote and here (a destroy or an ownership change during
+            // network apply), and a scheduled job must never be left unjoined.
+            CompleteReductionPass();
+
+            if (_owned.Count == 0) return;
+            RefreshOwnedSnapshot();
+
             for (int i = 0; i < _ownedScratch.Count; i++)
             {
                 BasisSyncedObject o = _ownedScratch[i];
@@ -252,6 +321,164 @@ namespace Basis.Scripts.Networking.Sync
             }
 
             BasisSyncBatchCollector.Flush();
+        }
+
+        /// <summary>
+        /// Gathers this pass's inputs and kicks the reduction job. Runs on the shared
+        /// <see cref="ReductionUpdateInterval"/> cadence, plus immediately whenever the owned set
+        /// changed so a freshly-owned object is never left un-reduced for up to an interval.
+        /// </summary>
+        private static void ScheduleReductionPass(double time)
+        {
+            if (_owned.Count == 0) return;
+
+            bool ownedChanged = _ownedDirty || _ownedScratch.Count != _owned.Count;
+            if (!ownedChanged && time - _lastReductionPassTime < ReductionUpdateInterval) return;
+
+            RefreshOwnedSnapshot();
+            _lastReductionPassTime = time;
+
+            // Player poses: read ONCE for the whole pass rather than once per object per player.
+            var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+            _reductionRawPlayerCount = BasisNetworkPlayers.ReceiverCount;
+            int playerCount = 0;
+            EnsureManaged(ref _reductionPlayerIds, _reductionRawPlayerCount);
+            EnsureNative(ref _reductionPlayerPositions, _reductionRawPlayerCount);
+            for (int i = 0; i < _reductionRawPlayerCount; i++)
+            {
+                var rec = snapshot[i];
+                if (rec == null) continue;
+                rec.GetLatestNetworkPose(out float3 pp, out _, out _);
+                _reductionPlayerPositions[playerCount] = pp;
+                _reductionPlayerIds[playerCount] = rec.playerId;
+                playerCount++;
+            }
+
+            // Object anchors. TryGetReductionPosition is a live transform read, so it stays on the
+            // main thread — but it is O(objects), not O(objects x players), and only on pass frames.
+            _reductionParticipants.Clear();
+            int scratchCount = _ownedScratch.Count;
+            EnsureNative(ref _reductionObjectPositions, scratchCount);
+            EnsureNative(ref _reductionRadiusSq, scratchCount);
+            for (int i = 0; i < scratchCount; i++)
+            {
+                BasisSyncedObject o = _ownedScratch[i];
+                if (o == null || !o.WantsReduction) continue;
+                if (!o.TryGetReductionPosition(out Vector3 worldPos))
+                {
+                    // No spatial channel — the object keeps full rate, as it did before.
+                    o.ApplyReduction(false, 0f, null, 0);
+                    continue;
+                }
+                int slot = _reductionParticipants.Count;
+                _reductionObjectPositions[slot] = worldPos;
+                _reductionRadiusSq[slot] = o.ReductionRadiusSq;
+                _reductionParticipants.Add(o);
+            }
+
+            _reductionCount = _reductionParticipants.Count;
+            if (_reductionCount == 0) return;
+
+            _reductionMasksPerObject = playerCount > 0 ? ((playerCount + 63) / 64) : 1;
+            EnsureNative(ref _reductionNearestSq, _reductionCount);
+            EnsureNative(ref _reductionMask, _reductionCount * _reductionMasksPerObject);
+
+            var job = new BasisSyncReductionJob
+            {
+                ObjectPositions = _reductionObjectPositions,
+                RelevanceRadiusSq = _reductionRadiusSq,
+                PlayerPositions = _reductionPlayerPositions,
+                PlayerCount = playerCount,
+                MasksPerObject = _reductionMasksPerObject,
+                NearestSq = _reductionNearestSq,
+                RelevanceMask = _reductionMask,
+            };
+
+            _reductionHandle = job.Schedule(_reductionCount, 32);
+            _reductionScheduled = true;
+
+            // The complete sits over in TransmitOwned (LateUpdate); without a kick the job would
+            // idle in the queue through everything it is meant to overlap.
+            JobHandle.ScheduleBatchedJobs();
+        }
+
+        /// <summary>Joins the reduction job and scatters its results back onto the participating objects.</summary>
+        private static void CompleteReductionPass()
+        {
+            if (!_reductionScheduled) return;
+            _reductionHandle.Complete();
+            _reductionScheduled = false;
+
+            for (int i = 0; i < _reductionCount; i++)
+            {
+                BasisSyncedObject o = _reductionParticipants[i];
+                if (o == null) continue;
+
+                // Matches the previous per-object rule: an empty instance reads as "nobody is far",
+                // i.e. full send rate, rather than maximum throttle.
+                float nearestSq = _reductionRawPlayerCount == 0 ? 0f : _reductionNearestSq[i];
+
+                if (!o.RelevanceCulling)
+                {
+                    o.ApplyReduction(true, nearestSq, null, 0);
+                    continue;
+                }
+
+                int count = ExpandRecipients(i);
+                o.ApplyReduction(true, nearestSq, _reductionRecipientScratch, count);
+            }
+        }
+
+        /// <summary>Expands one object's player-slot bitmask into the shared recipient scratch. Returns the count.</summary>
+        private static int ExpandRecipients(int objectIndex)
+        {
+            EnsureManaged(ref _reductionRecipientScratch, _reductionPlayerIds.Length);
+            return ExpandRecipientMask(_reductionMask, objectIndex * _reductionMasksPerObject, _reductionMasksPerObject,
+                                       _reductionPlayerIds, _reductionRecipientScratch);
+        }
+
+        /// <summary>
+        /// Turns one object's span of the job's player-slot bitmask into player ids, writing them
+        /// into <paramref name="destination"/> and returning how many were written. Bit b of word m
+        /// is gathered player slot (m * 64 + b), which indexes <paramref name="playerIds"/>.
+        /// Pure — takes everything it reads so it can be exercised directly.
+        /// </summary>
+        internal static int ExpandRecipientMask(NativeArray<ulong> mask, int maskBase, int masksPerObject,
+                                                ushort[] playerIds, ushort[] destination)
+        {
+            int count = 0;
+            for (int m = 0; m < masksPerObject; m++)
+            {
+                ulong bits = mask[maskBase + m];
+                while (bits != 0ul)
+                {
+                    int bit = math.tzcnt(bits);
+                    bits &= bits - 1ul;
+                    destination[count++] = playerIds[(m << 6) + bit];
+                }
+            }
+            return count;
+        }
+
+        /// <summary>Number of objects in the current owned snapshot — the list TransmitOwned iterates.</summary>
+        internal static int OwnedSnapshotCount => _ownedScratch.Count;
+
+        /// <summary>Forces the owned snapshot up to date; normally driven by the transmit/reduction passes.</summary>
+        internal static void RefreshOwnedSnapshotForTests() => RefreshOwnedSnapshot();
+
+        private static void EnsureNative<T>(ref NativeArray<T> array, int length) where T : struct
+        {
+            int want = length < 1 ? 1 : length;
+            if (array.IsCreated && array.Length >= want) return;
+            if (array.IsCreated) array.Dispose();
+            array = new NativeArray<T>(want, Allocator.Persistent);
+        }
+
+        private static void EnsureManaged(ref ushort[] array, int length)
+        {
+            int want = length < 1 ? 1 : length;
+            if (array != null && array.Length >= want) return;
+            array = new ushort[want];
         }
 
         internal static float ReadCont(int idx)

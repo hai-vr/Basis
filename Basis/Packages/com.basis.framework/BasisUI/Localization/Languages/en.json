@@ -10027,6 +10027,14 @@
       "value": "Reduce shadow detail on distant avatars."
     },
     {
+      "key": "settings.graphics.avatarVisibilityCull",
+      "value": "Avatar Visibility Culling"
+    },
+    {
+      "key": "settings.graphics.avatarVisibilityCull.tooltip",
+      "value": "Skip drawing avatars that no camera can see. Only applies to avatars already far enough away to have their shadows disabled."
+    },
+    {
       "key": "settings.microphone.mode.onActivation",
       "value": "On Activation"
     },

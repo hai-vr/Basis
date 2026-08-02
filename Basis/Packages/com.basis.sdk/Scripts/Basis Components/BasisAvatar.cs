@@ -144,6 +144,16 @@ namespace Basis.Scripts.BasisSdk
         [System.NonSerialized]
         public bool IsFarLodAvatar;
 
+        /// <summary>
+        /// Shared far LOD version this avatar was built from, mirrored here from the wearer's
+        /// BasisFarAvatarInstance so the transmit tick can test staleness with a field read.
+        /// That component stays the owner — it keys the shared-asset release in its OnDestroy —
+        /// but reaching it took a GetComponent per far-LOD player per tick. Null on the
+        /// prototype and on every avatar that isn't a far LOD.
+        /// </summary>
+        [System.NonSerialized]
+        public string FarLodSharedVersion;
+
         [System.NonSerialized]
         public SkinnedMeshRenderer[] SkinnedMeshRenderers;
 

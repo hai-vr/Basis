@@ -112,6 +112,8 @@ public static class BasisAvatarShadowLOD
                 renderer.shadowCastingMode = target;
             }
         }
+
+        Basis.Scripts.Rendering.BasisAvatarVisibility.ApplyShadowEligibility(remote, lod);
     }
 
     private static void ReapplyAllRemotes()

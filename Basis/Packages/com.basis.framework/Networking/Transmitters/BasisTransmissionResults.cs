@@ -480,7 +480,14 @@ public partial class BasisTransmissionResults
                     audio.ApplyRangeData(ConvertedVoiceDistance);
                 }
 
-                audio.DirectionalDampeningMultiplier = pDampening != null ? pDampening[i] : 1f;
+                // Guarded because the field is volatile: the write is a release store the audio
+                // thread orders against, and the value is unchanged for almost every player on
+                // almost every tick. Reading first keeps the barrier for the handful that moved.
+                float dampening = pDampening != null ? pDampening[i] : 1f;
+                if (audio.DirectionalDampeningMultiplier != dampening)
+                {
+                    audio.DirectionalDampeningMultiplier = dampening;
+                }
 
                 // Viseme distance cutoff: skip lip-sync for players beyond half
                 // the hearing distance — too far to see mouth shapes. Routed

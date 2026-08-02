@@ -115,6 +115,8 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarSkinLOD.ApplyFromSettings;
             BasisAvatarShadowLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarShadowLOD.ApplyFromSettings;
+            Basis.Scripts.Rendering.BasisVisibilitySystem.ApplyFromSettings();
+            BasisSettingsSystem.OnSettingsFinishedChanges += Basis.Scripts.Rendering.BasisVisibilitySystem.ApplyFromSettings;
             BasisAvatarFarLOD.ApplyFromSettings();
             BasisSettingsSystem.OnSettingsFinishedChanges += BasisAvatarFarLOD.ApplyFromSettings;
             ApplyDesktopInputInVR();
@@ -1979,6 +1981,11 @@ namespace Basis.BasisUI
             toggleAvatarShadowLod.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarShadowLod"));
             toggleAvatarShadowLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarShadowLod.tooltip"));
 
+            PanelToggle toggleAvatarVisibilityCull = PanelToggle.CreateNewEntry(container);
+            toggleAvatarVisibilityCull.AssignBinding(BasisSettingsDefaults.UseAvatarVisibilityCull);
+            toggleAvatarVisibilityCull.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarVisibilityCull"));
+            toggleAvatarVisibilityCull.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarVisibilityCull.tooltip"));
+
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 container,
                 new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.worldLod"),
@@ -2170,6 +2177,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarMeshLOD.ResetToDefault();
             BasisSettingsDefaults.UseAvatarSkinLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarShadowLod.ResetToDefault();
+            BasisSettingsDefaults.UseAvatarVisibilityCull.ResetToDefault();
             BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();
             BasisSettingsDefaults.LocalHeadBlendShapes.ResetToDefault();
 

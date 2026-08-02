@@ -139,10 +139,14 @@ public static class BasisFarAvatarBuilder
     /// <summary>Version of the far avatar this player currently wears, or null.</summary>
     public static string WornFarVersion(BasisRemotePlayer remote)
     {
-        if (remote?.BasisAvatar != null && remote.BasisAvatar.IsFarLodAvatar &&
-            remote.BasisAvatar.TryGetComponent(out BasisFarAvatarInstance instance))
+        // Reads the mirror on BasisAvatar, not the BasisFarAvatarInstance component. The tick
+        // asks this for every far-LOD wearer every pass, and a GetComponent per player per tick
+        // is the single most expensive thing in that loop. Set together in BuildAvatar; the
+        // component is still the release owner.
+        BasisAvatar avatar = remote?.BasisAvatar;
+        if (avatar != null && avatar.IsFarLodAvatar)
         {
-            return instance.SharedVersion;
+            return avatar.FarLodSharedVersion;
         }
         return null;
     }
@@ -302,6 +306,9 @@ public static class BasisFarAvatarBuilder
         if (clone.TryGetComponent(out BasisFarAvatarInstance instance))
         {
             instance.SharedVersion = shared.UniqueVersion;
+            // Mirrored onto the avatar in the same breath so WornFarVersion never has to look
+            // the component up — it runs for every far-LOD wearer on every transmit tick.
+            avatar.FarLodSharedVersion = shared.UniqueVersion;
         }
         // Cloned by value from a hierarchy whose references were remapped, but an avatar built
         // before the rig resolved would carry a null table — fall back rather than ship one.

@@ -714,6 +714,7 @@ namespace Basis.BasisUI
 
                 Bools(BasisSettingsDefaults.UseAvatarSkinLod, true, true, true),
                 Bools(BasisSettingsDefaults.UseAvatarShadowLod, true, true, true),
+                Bools(BasisSettingsDefaults.UseAvatarVisibilityCull, true, true, true),
                 Bools(BasisSettingsDefaults.UseAvatarFarLod, true, true, true),
 
                 Bools(BasisSettingsDefaults.UseRealtimeReflectionProbes, false, false, false),

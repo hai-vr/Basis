@@ -80,6 +80,8 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker ConstraintComplete = new ProfilerMarker("BasisDriver.Constraints.Complete");
         public static readonly ProfilerMarker JiggleSchedule = new ProfilerMarker("BasisDriver.Jiggle.Schedule");
         public static readonly ProfilerMarker JiggleCullCameras = new ProfilerMarker("BasisDriver.Jiggle.CullingCameras");
+        public static readonly ProfilerMarker AvatarVisibilitySchedule = new ProfilerMarker("BasisDriver.Rendering.AvatarVisibility.Schedule");
+        public static readonly ProfilerMarker AvatarVisibilityApply = new ProfilerMarker("BasisDriver.Rendering.AvatarVisibility.Apply");
         public static readonly ProfilerMarker JigglePrepare = new ProfilerMarker("BasisDriver.Jiggle.PrepareSimulate");
         public static readonly ProfilerMarker JiggleDispatch = new ProfilerMarker("BasisDriver.Jiggle.DispatchSimulate");
         public static readonly ProfilerMarker JiggleSchedulePose = new ProfilerMarker("BasisDriver.Jiggle.SchedulePose");

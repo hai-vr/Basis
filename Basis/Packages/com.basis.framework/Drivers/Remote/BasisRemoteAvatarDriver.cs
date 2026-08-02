@@ -258,6 +258,7 @@ namespace Basis.Scripts.Drivers
                 // Snapshot the authored shadow modes before anything reduces them, then seed the tier.
                 BasisAvatarShadowLOD.Capture(RemotePlayer);
                 BasisAvatarShadowLOD.Apply(RemotePlayer, RemotePlayer.CurrentLodLevel);
+                Basis.Scripts.Rendering.BasisAvatarVisibility.Register(RemotePlayer);
             }
 
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;

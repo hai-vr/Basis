@@ -101,6 +101,9 @@ public class BasisFarAvatarBuilderStateTests
         {
             BasisAvatar avatar = avatarObject.AddComponent<BasisAvatar>();
             avatar.IsFarLodAvatar = true;
+            // Both, as BuildAvatar sets them: the component owns the release key, the avatar
+            // carries the mirror the tick reads.
+            avatar.FarLodSharedVersion = version;
             BasisFarAvatarInstance instance = avatarObject.AddComponent<BasisFarAvatarInstance>();
             instance.SharedVersion = version;
 
@@ -125,18 +128,21 @@ public class BasisFarAvatarBuilderStateTests
     }
 
     [Test]
-    public void WornFarVersion_ReadsInstanceOnlyForFarAvatars()
+    public void WornFarVersion_ReadsVersionOnlyForFarAvatars()
     {
         GameObject avatarObject = new GameObject("FarAvatarVersionTest");
         try
         {
             BasisAvatar avatar = avatarObject.AddComponent<BasisAvatar>();
+            avatar.FarLodSharedVersion = "some-version";
             BasisFarAvatarInstance instance = avatarObject.AddComponent<BasisFarAvatarInstance>();
             instance.SharedVersion = "some-version";
 
             BasisRemotePlayer remote = NewRemote();
             remote.BasisAvatar = avatar;
 
+            // IsFarLodAvatar still gates the read, so a real avatar that somehow carried a
+            // stale version string is never reported as wearing a far LOD.
             Assert.IsNull(BasisFarAvatarBuilder.WornFarVersion(remote), "a real avatar is never reported as a worn far version");
 
             avatar.IsFarLodAvatar = true;

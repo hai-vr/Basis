@@ -309,6 +309,11 @@ namespace Basis.Scripts.BasisSdk.Players
         public UnityEngine.Rendering.ShadowCastingMode[] AuthoredShadowCasting;
 
         /// <summary>
+        /// Slot this avatar occupies in <c>BasisVisibilityDatabase</c>, or -1 when unregistered.
+        /// </summary>
+        public int VisibilityHandle = -1;
+
+        /// <summary>
         /// The "always-requested" load mode for the avatar.
         /// <list type="bullet">
         /// <item><description><c>0</c> – Downloading/remote mode</description></item>
@@ -411,7 +416,20 @@ namespace Basis.Scripts.BasisSdk.Players
         /// the max-visible-avatar cap, or the view-cone filter. Blocking, the performance
         /// filter, and a failed/hidden avatar still take precedence. Persisted per UUID.
         /// </summary>
-        public bool AlwaysShowAvatar;
+        public bool AlwaysShowAvatar
+        {
+            get => _alwaysShowAvatar;
+            set
+            {
+                if (_alwaysShowAvatar == value)
+                {
+                    return;
+                }
+                _alwaysShowAvatar = value;
+                Basis.Scripts.Rendering.BasisAvatarVisibility.OnAlwaysShowAvatarChanged(this);
+            }
+        }
+        private bool _alwaysShowAvatar;
 
         /// <summary>
         /// Per-player override mirrored from <see cref="BasisPlayerSettingsData.AvatarInteraction"/>.
@@ -762,6 +780,8 @@ namespace Basis.Scripts.BasisSdk.Players
                 return;
             }
             IsDestroyed = true;
+
+            Basis.Scripts.Rendering.BasisAvatarVisibility.Unregister(this);
 
             // Unregister from the job system before any of this player's transforms are
             // destroyed — the job holds the nameplate and mouth transforms.

@@ -53,29 +53,29 @@ public class SMModuleAntialiasingURP : BasisSettingsBase
             case "msaa off":
                 Asset.msaaSampleCount = 1;
                 Camera.allowMSAA = false;
-                Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+                Data.antialiasing = AntialiasingMode.None;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
                 Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
             case "msaa 2x":
                 Asset.msaaSampleCount = LowmsaaSampleCount;
                 Camera.allowMSAA = true;
-                Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+                Data.antialiasing = AntialiasingMode.None;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
                 Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
             case "msaa 4x":
                 Asset.msaaSampleCount = MediumLowmsaaSampleCount;
                 Camera.allowMSAA = true;
-                Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-                Data.antialiasingQuality = AntialiasingQuality.Medium;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
                 Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
             case "msaa 8x":
                 Asset.msaaSampleCount = HighmsaaSampleCount;
                 Camera.allowMSAA = true;
-                Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-                Data.antialiasingQuality = AntialiasingQuality.High;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
                 Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
             case "linear":

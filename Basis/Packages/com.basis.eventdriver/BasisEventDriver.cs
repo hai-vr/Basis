@@ -855,6 +855,20 @@ namespace Basis.EventDriver
             // Touch reporting reads the same posed bones. Returns on a count check when no content
             // has asked for jiggle events, which is the usual case.
             Basis.Scripts.BasisSdk.Interactions.BasisJiggleInteractionEvents.FrameTick();
+            // Avatar visibility schedules here and is joined at the LateUpdate tail. Bounds come off
+            // the avatar roots through a TransformAccessArray job, so the main thread only packs the
+            // camera frusta; this is the earliest that transform job can go — it needs the same
+            // free-of-in-flight-transform-jobs window as the frame sync above — and the join is the
+            // latest point still ahead of every Application.onBeforeRender handler, which is where
+            // mirrors render. Everything between the two overlaps the cull.
+            if (Basis.Scripts.Rendering.BasisVisibilitySystem.Enabled)
+            {
+                using (Prof.AvatarVisibilitySchedule.Auto())
+                {
+                    Basis.Scripts.Rendering.BasisVisibilitySystem.Schedule(default);
+                    JobHandle.ScheduleBatchedJobs();
+                }
+            }
             BasisFiniteWatchdog.Checkpoint("PostFrameSync (pre jiggle dispatch)");
             BasisFiniteWatchdog.CheckpointRemote("PostFrameSync (pre jiggle dispatch)");
 
@@ -979,6 +993,14 @@ namespace Basis.EventDriver
                 BasisTrackerMarkerGizmos.Tick();
                 BasisGizmoManager.Render(BasisLocalCameraDriver.Position);
             }
+            // Join the avatar cull scheduled back at the frame-sync window and write the changed
+            // renderers. Returns immediately when nothing was scheduled, so the toggle can flip
+            // mid-frame. Last stop before rendering: mirrors read these flags in onBeforeRender.
+            using (Prof.AvatarVisibilityApply.Auto())
+            {
+                Basis.Scripts.Rendering.BasisVisibilitySystem.CompleteAndApply();
+            }
+
             // One-shot NaN hunter for the Invalid AABB / IsFinite(distanceForSort) spam: names
             // the first non-finite camera/renderer and disarms. Armed from Basis/Debug/Finite
             // Watchdog; costs nothing while off.

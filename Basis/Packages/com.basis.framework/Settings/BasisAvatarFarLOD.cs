@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Basis.BasisUI;
 using Basis.Scripts.Avatar;
+using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Unity.Profiling;
@@ -48,13 +49,22 @@ public static class BasisAvatarFarLOD
     private static long sTransitionBudgetTicks = long.MaxValue;
 
     /// <summary>
+    /// Time.unscaledTime sampled once for the whole tick. The retry gates below read it per
+    /// remote, and Time.unscaledTime is an engine property call, not a field — one sample for
+    /// the loop is both cheaper and more consistent than one per player.
+    /// </summary>
+    private static float sTickUnscaledTime;
+
+    /// <summary>
     /// Opens a fresh swap-time budget. Called once at the top of the transmit tick's merged
-    /// post-processing loop, before any <see cref="Tick"/>.
+    /// post-processing loop, before any <see cref="Tick"/>, which relies on the timestamp
+    /// captured here.
     /// </summary>
     public static void BeginTickBudget()
     {
         sTransitionClock.Reset();
         sTransitionBudgetTicks = (long)(MaxTransitionMillisecondsPerTick * (System.Diagnostics.Stopwatch.Frequency / 1000.0));
+        sTickUnscaledTime = Time.unscaledTime;
     }
 
     /// <summary>True once this tick has spent its swap budget. ElapsedTicks, not Elapsed — the
@@ -100,6 +110,16 @@ public static class BasisAvatarFarLOD
             return;
         }
 
+        // One Unity null comparison for the whole method. BasisAvatar is a UnityEngine.Object,
+        // so every `== null` on it is a managed-to-native call, and this path used to pay three
+        // per remote per tick — here, again inside IsFarLodActive, and a third time inside
+        // WornFarVersion. Each branch below that can replace the avatar returns straight after
+        // doing so, and the fetch branch only caches a payload (installs are tick-only), so the
+        // local cannot go stale within one call.
+        BasisAvatar wornAvatar = remote.BasisAvatar;
+        bool hasAvatar = wornAvatar != null;
+        bool wearingFar = hasAvatar && wornAvatar.IsFarLodAvatar;
+
         // While a real avatar downloads, cache the payload as soon as the connector (which
         // downloads first) carries one — the far avatar can then front the download.
         if (remote.IsLoadingAnAvatar && string.IsNullOrEmpty(remote.FarLodOverridePayload))
@@ -114,7 +134,7 @@ public static class BasisAvatarFarLOD
         // Wearing nothing at all — the fallback load never ran or failed (e.g. the factory
         // wasn't initialized yet at join). IsConsideredFallBackAvatar defaults to true, so
         // every branch below would assume a dummy is present; load it before evaluating.
-        if (remote.BasisAvatar == null && !remote.IsLoadingAnAvatar)
+        if (!hasAvatar && !remote.IsLoadingAnAvatar)
         {
             transitionBudget--;
             sTransitionClock.Start();
@@ -132,7 +152,7 @@ public static class BasisAvatarFarLOD
         // far avatar fetch or keeps the fallback. In-range joiners are excluded (their range
         // edge, pending or committed, loads the full avatar).
         if (!remote.FarLodInitialEvaluated && !remote.InAvatarRange && !remote.PendingRangeActive &&
-            !remote.IsLoadingAnAvatar && remote.IsConsideredFallBackAvatar && !remote.IsFarLodActive &&
+            !remote.IsLoadingAnAvatar && remote.IsConsideredFallBackAvatar && !wearingFar &&
             remote.AlwaysRequestedAvatar != null)
         {
             remote.FarLodInitialEvaluated = true;
@@ -151,28 +171,26 @@ public static class BasisAvatarFarLOD
         // reject almost all of them, so paying a property chain + string compare per player
         // to feed a branch that is nearly always dead is the whole cost at crowd scale.
         if (remote.FarLodInitialEvaluated && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
-            remote.IsConsideredFallBackAvatar && !remote.IsFarLodActive &&
+            remote.IsConsideredFallBackAvatar && !wearingFar &&
             !remote.FarLodConnectorFetchInFlight && string.IsNullOrEmpty(remote.FarLodOverridePayload) &&
-            Time.unscaledTime >= remote.FarLodNextFetchRetryTime)
+            sTickUnscaledTime >= remote.FarLodNextFetchRetryTime)
         {
             string requestedSource = remote.AlwaysRequestedAvatar?.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
             if (!string.IsNullOrEmpty(requestedSource) && remote.FarLodOverrideSource != requestedSource)
             {
-                remote.FarLodNextFetchRetryTime = Time.unscaledTime + 10f;
+                remote.FarLodNextFetchRetryTime = sTickUnscaledTime + 10f;
                 RequestFarLodPayload(remote, remote.AlwaysRequestedAvatar);
             }
         }
 
-        bool wearingFar = remote.IsFarLodActive;
         bool wantsFar = WantsFarAvatar(remote);
 
         if (wantsFar)
         {
             // A far avatar from a previous avatar record counts as not-desired: the install
             // below swaps it to the resolved version like any other stale representation.
-            // Resolved-version testing is deferred to here because it costs a component
-            // lookup plus a version-string compare, and only this branch reads the answer —
-            // every player who does not want a far avatar used to pay for it anyway.
+            // Resolved-version testing stays deferred to here because only this branch reads
+            // the answer, and it still costs a version-string compare per far-LOD wearer.
             bool wearingDesiredFar = wearingFar && BasisFarAvatarBuilder.IsWearingResolvedVersion(remote);
             if (!wearingDesiredFar)
             {
@@ -217,12 +235,12 @@ public static class BasisAvatarFarLOD
         }
         else if (Enabled && !wantsFar && !wearingFar && !remote.InAvatarRange && !remote.IsLoadingAnAvatar &&
                  remote.IsConsideredFallBackAvatar && remote.HasFarLodPayload &&
-                 Time.unscaledTime >= remote.FarLodNextFetchRetryTime)
+                 sTickUnscaledTime >= remote.FarLodNextFetchRetryTime)
         {
             // Payload in hand, player out of range on the dummy, yet no far avatar wanted —
             // one of the gates is refusing; name it instead of sitting silent. The master
             // switch being off is a setting, not a refusal — no warning for it.
-            remote.FarLodNextFetchRetryTime = Time.unscaledTime + 10f;
+            remote.FarLodNextFetchRetryTime = sTickUnscaledTime + 10f;
             BasisDebug.LogWarning($"Far avatar for {remote.DisplayName} has a payload but is gated: enabled={Enabled} blocked={remote.IsEffectivelyBlocked} alwaysShow={remote.AlwaysShowAvatar}", BasisDebug.LogTag.Avatar);
         }
     }

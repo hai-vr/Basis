@@ -220,6 +220,16 @@ public class JiggleMemoryBus {
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Init() {
+        #if UNITY_EDITOR && JIGGLE_VALIDATE
+        // Left on, this is invisible in a profile — it lands as unattributed self time inside the
+        // commit sample and as a de-Bursted simulate job, neither of which names the define. It has
+        // been silently costing whole milliseconds a frame before, so it announces itself now.
+        Debug.LogWarning("JigglePhysics: JIGGLE_VALIDATE is enabled. Every commit re-walks every tree, " +
+            "every point and every transform, and JiggleJobSimulate cannot Burst-compile, so editor " +
+            "timings are not representative (measured 3.5ms vs 0.10ms per commit at 2048 rigs). " +
+            "Remove it from Project Settings > Player > Scripting Define Symbols when you are done " +
+            "hunting a jiggle NaN.");
+        #endif
         if (dummyTransforms != null) {
             foreach (Transform t in dummyTransforms) {
                 Object.Destroy(t.gameObject);

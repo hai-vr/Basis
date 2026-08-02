@@ -2,3 +2,4 @@
 // to the editor sweep/test assembly so the offline sweeps exercise the real runtime math.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("BasisEditor")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Basis.Framework.Tests")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Basis.Framework.Sync.Tests")]

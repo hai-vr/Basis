@@ -216,10 +216,7 @@ namespace Basis.Scripts.Networking.Sync
             return false;
         }
 
-        private List<ushort> _recipientScratch;
         private ushort[] _recipientArray;
-        private const double ReductionUpdateInterval = 0.5;
-        private double _lastReductionTime;
         private bool _haveReduction;
         private float _cachedNearestSq;
         private ushort[] _cachedRecipients;
@@ -231,42 +228,46 @@ namespace Basis.Scripts.Networking.Sync
             return false;
         }
 
-        private void ComputeReduction(Vector3 objPos, out float nearestSq, out ushort[] recipients)
+        // ── Reduction: driver-owned (see BasisSyncDriver.RunReductionPass) ──
+        // Nearest-observer distance and the relevance set used to be computed here, per object,
+        // inside TransmitIfDue. The driver batches them into one Burst pass instead; these members
+        // are the gather/scatter surface for it.
+
+        /// <summary>True when this object needs a nearest-observer distance or a relevance set.</summary>
+        internal bool WantsReduction => DistanceReduction || RelevanceCulling;
+
+        /// <summary>Squared relevance radius, or negative when this object does not cull (see the job's field doc).</summary>
+        internal float ReductionRadiusSq => RelevanceCulling ? RelevanceRadius * RelevanceRadius : -1f;
+
+        /// <summary>Driver-side access to the reduction anchor; the override itself stays protected.</summary>
+        internal bool TryGetReductionPosition(out Vector3 position) => TryGetSyncWorldPosition(out position);
+
+        /// <summary>
+        /// Scatter target for the reduction pass. <paramref name="recipients"/> is null unless this
+        /// object culls, and is owned by the caller only for the duration of the call.
+        /// </summary>
+        internal void ApplyReduction(bool have, float nearestSq, ushort[] recipients, int recipientCount)
         {
-            nearestSq = float.MaxValue;
-            recipients = null;
-
-            var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
-            int count = BasisNetworkPlayers.ReceiverCount;
-
-            bool cull = RelevanceCulling;
-            if (cull)
+            _haveReduction = have;
+            if (!have)
             {
-                if (_recipientScratch == null) _recipientScratch = new List<ushort>();
-                _recipientScratch.Clear();
+                return;
             }
-
-            float radiusSq = RelevanceRadius * RelevanceRadius;
-            float3 op = objPos;
-            for (int i = 0; i < count; i++)
+            _cachedNearestSq = nearestSq;
+            if (!RelevanceCulling)
             {
-                var rec = snapshot[i];
-                if (rec == null) continue;
-                rec.GetLatestNetworkPose(out float3 pp, out _, out _);
-                float d2 = math.lengthsq(pp - op);
-                if (d2 < nearestSq) nearestSq = d2;
-                if (cull && d2 <= radiusSq) _recipientScratch.Add(rec.playerId);
+                _cachedRecipients = null;
+                return;
             }
-
-            if (count == 0) nearestSq = 0f;
-
-            if (cull)
+            if (_recipientArray == null || _recipientArray.Length != recipientCount)
             {
-                int n = _recipientScratch.Count;
-                if (_recipientArray == null || _recipientArray.Length != n) _recipientArray = new ushort[n];
-                for (int i = 0; i < n; i++) _recipientArray[i] = _recipientScratch[i];
-                recipients = _recipientArray;
+                _recipientArray = new ushort[recipientCount];
             }
+            for (int i = 0; i < recipientCount; i++)
+            {
+                _recipientArray[i] = recipients[i];
+            }
+            _cachedRecipients = _recipientArray;
         }
 
         // ── Field declaration (call in Awake, before the object is network-ready) ──
@@ -395,6 +396,9 @@ namespace Basis.Scripts.Networking.Sync
         }
 
         // ── Remote reads (any client; returns owner's authoritative value on the owner) ──
+        // On the owner these report the values as of the last outgoing packet, because that is
+        // when OnBeforeTransmit samples them. For a driven source (a synced Transform, a
+        // Rigidbody) the live object is the authority between sends — read that, not this.
         public Vector3 GetVector3(BasisSyncHandle h)
         {
             BasisSyncField f = _schema.GetField(h.FieldIndex);
@@ -498,7 +502,11 @@ namespace Basis.Scripts.Networking.Sync
         /// </summary>
         public void SnapReceiver() => _receiver?.ForceSnap();
 
-        /// <summary>Owner hook fired right before serialization; push live source values into LocalSet here.</summary>
+        /// <summary>
+        /// Owner hook fired right before serialization; push live source values into LocalSet here.
+        /// Called once per outgoing packet — on the frames a send is actually due, not on every
+        /// frame — so keep it a pure sample of the source values and put per-frame logic elsewhere.
+        /// </summary>
         protected virtual void OnBeforeTransmit() { }
 
         /// <summary>
@@ -596,8 +604,6 @@ namespace Basis.Scripts.Networking.Sync
         internal void TransmitIfDue(double time)
         {
             if (!IsOwnedLocallyOnClient || !HasNetworkID) return;
-            EnsureBuffers();
-            OnBeforeTransmit();
 
             // Runs before the send-gating below so an idle stretch still closes the window
             // and the published rates decay to zero instead of freezing at the last burst.
@@ -627,12 +633,8 @@ namespace Basis.Scripts.Networking.Sync
             ushort[] recipients = null;
             if (DistanceReduction || RelevanceCulling)
             {
-                if (time - _lastReductionTime >= ReductionUpdateInterval)
-                {
-                    _lastReductionTime = time;
-                    _haveReduction = TryGetSyncWorldPosition(out Vector3 worldPos);
-                    if (_haveReduction) ComputeReduction(worldPos, out _cachedNearestSq, out _cachedRecipients);
-                }
+                // _haveReduction / _cachedNearestSq / _cachedRecipients are refreshed on the
+                // driver's batched Burst pass (BasisSyncDriver.RunReductionPass), not here.
                 if (_haveReduction)
                 {
                     recipients = RelevanceCulling ? _cachedRecipients : null;
@@ -651,6 +653,19 @@ namespace Basis.Scripts.Networking.Sync
 
             bool intervalElapsed = _lastSendTime <= 0 || (time - _lastSendTime) >= effectiveInterval;
             if (!intervalElapsed) return;
+
+            // Sampled HERE, not at the top. TransmitIfDue runs once per owned object per FRAME,
+            // but only the sample taken on a sending frame is ever used: FieldChanged compares
+            // _local against _lastSent — the last transmitted values — never against the previous
+            // frame's _local, so the dirty mask and the payload are identical either way. Every
+            // sample taken on a non-sending frame was thrown away, and for a BasisSyncedTransform
+            // the hook is native transform interop (GetPositionAndRotation, plus
+            // InverseTransformPoint + Quaternion.Inverse when RelativeTo is set, plus localScale).
+            // At a send rate well below the frame rate that is the large majority of the work in
+            // the transmit pass, and it scales with owned-object count. SendStateSnapshotTo
+            // already sampled immediately before serializing, so both send paths now match.
+            EnsureBuffers();
+            OnBeforeTransmit();
 
             int dirtyBytes = _schema.DirtyMaskBytes;
             for (int i = 0; i < dirtyBytes; i++) _dirtyMask[i] = 0;
