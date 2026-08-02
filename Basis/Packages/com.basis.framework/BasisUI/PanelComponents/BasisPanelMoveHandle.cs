@@ -1,4 +1,5 @@
 using System;
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -603,10 +604,15 @@ namespace Basis.BasisUI
                 localPosition = ClampToScreen(parent, localPosition);
             }
 
+            if (_panelRect.localPosition == localPosition)
+            {
+                return;
+            }
+
             _panelRect.localPosition = localPosition;
             // Physics.autoSyncTransforms is off project-wide, so the panel's box collider would keep
             // answering rays from where the panel used to be and the drag would chase itself.
-            Physics.SyncTransforms();
+            BasisPhysicsSyncGate.MarkColliderMoved();
         }
 
         /// <summary>At most this much of the panel may hang past the left, right or bottom edge.</summary>

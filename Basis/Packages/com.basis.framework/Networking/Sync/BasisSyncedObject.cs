@@ -701,6 +701,27 @@ namespace Basis.Scripts.Networking.Sync
             _txPackets++;
 
             DeliveryMethod dm = keyframe ? KeyframeDelivery : Delivery;
+
+            // A schema may declare up to 255 fields, so a packet can outgrow a single datagram — and the
+            // transport neither truncates nor drops that, it THROWS. From here the throw unwinds through
+            // BasisSyncDriver.TransmitOwned into BasisEventDriver.LateUpdateBody, whose only catch is at
+            // the very top, so one oversized object would skip every later LateUpdate stage — including
+            // CompleteRemote, the join for the interpolation jobs ScheduleRemote kicked earlier in the
+            // same method. Escalating is the response that keeps the object working: ReliableUnordered
+            // rather than ReliableOrdered because the receiver already rejects stale sequences, so
+            // ordering buys nothing here and would head-of-line block the scene channel behind a
+            // retransmit. Loud and keyed per object, because the real fix is quantizing the schema.
+            int framed = len + BasisNetworkGenericMessages.SceneDataFramingBytes(recipients);
+            if (framed > BasisNetworkCommons.MaxUnfragmentedPayload && !BasisNetworkCommons.CanFragment(dm))
+            {
+                BasisDebug.LogErrorOnce($"sync-oversize-{NetworkID}",
+                    $"BasisSyncedObject '{name}' (NetID {NetworkID}) serialized a {framed} B {(keyframe ? "keyframe" : "delta")}, over the " +
+                    $"{BasisNetworkCommons.MaxUnfragmentedPayload} B single-datagram budget. {dm} cannot be fragmented, so this object is " +
+                    $"sending ReliableUnordered instead. Quantize its {_schema.FieldCount} fields (Half/Ranged) to get back under.",
+                    BasisDebug.LogTag.Networking);
+                dm = DeliveryMethod.ReliableUnordered;
+            }
+
             if (!BasisSyncBatchCollector.TryEnqueue(NetworkID, _scratch, len, dm, recipients, UseDirectP2P))
             {
                 if (_sendBuffer == null || _sendBuffer.Length != len) _sendBuffer = new byte[len];

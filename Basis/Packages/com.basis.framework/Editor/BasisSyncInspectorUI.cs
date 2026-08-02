@@ -271,6 +271,17 @@ public static class BasisSyncInspectorUI
         Label delta = WireRow(card, "Delta total (all fields)", true);
         Label bandwidth = WireRow(card, "Bandwidth", true);
 
+        // A packet past the single-datagram budget cannot go out on an unfragmentable delivery
+        // method — at runtime BasisSyncedObject escalates it to ReliableUnordered and logs an error.
+        // Surfaced here so it's a schema decision at author time rather than a surprise in a session.
+        var oversize = new Label();
+        oversize.style.whiteSpace = WhiteSpace.Normal;
+        oversize.style.fontSize = 10;
+        oversize.style.marginTop = 4;
+        oversize.style.color = new StyleColor(Color.red);
+        oversize.style.display = DisplayStyle.None;
+        card.Add(oversize);
+
         var model = new BasisWireSizeModel();
 
         void Refresh()
@@ -307,6 +318,17 @@ public static class BasisSyncInspectorUI
             float bps = deltaBytes * sendHz + Mathf.Max(0, keyframeBytes - deltaBytes) * kfHz;
             bandwidth.text = $"≈ {FormatRate(bps)}  @ {sendHz:0} Hz";
             bandwidth.style.color = new StyleColor(bps > 2000f ? new Color(0.95f, 0.75f, 0.2f) : Accent);
+
+            int budget = Basis.Network.Core.BasisNetworkCommons.MaxUnfragmentedPayload;
+            int worst = Mathf.Max(keyframeBytes, deltaBytes);
+            bool over = worst > budget;
+            oversize.style.display = over ? DisplayStyle.Flex : DisplayStyle.None;
+            if (over)
+            {
+                oversize.text = $"{worst} B exceeds the {budget} B single-datagram budget. Unreliable and Sequenced deliveries " +
+                                $"cannot be fragmented, so packets this size are forced onto ReliableUnordered at runtime. " +
+                                $"Quantize fields (Half or Ranged) to bring the payload under.";
+            }
         }
 
         Refresh();

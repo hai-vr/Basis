@@ -317,7 +317,23 @@ namespace Basis.Scripts.Networking.Sync
             for (int i = 0; i < _ownedScratch.Count; i++)
             {
                 BasisSyncedObject o = _ownedScratch[i];
-                if (o != null) o.TransmitIfDue(timeAsDouble);
+                if (o == null) continue;
+
+                // Fenced per object. TransmitIfDue reaches content-authored OnBeforeTransmit overrides
+                // and the transport, and this pass sits mid-LateUpdate ahead of CompleteRemote — the
+                // join for the interpolation jobs ScheduleRemote kicked. An escape here unwinds all the
+                // way to BasisEventDriver.LateUpdate's catch, skipping that join plus every later stage,
+                // so one object's bad frame becomes a frame-wide outage that repeats silently.
+                try
+                {
+                    o.TransmitIfDue(timeAsDouble);
+                }
+                catch (System.Exception ex)
+                {
+                    BasisDebug.LogErrorOnce($"sync-transmit-{o.NetworkID}",
+                        $"BasisSyncedObject '{o.name}' (NetID {o.NetworkID}) transmit failed and was skipped: {ex}",
+                        BasisDebug.LogTag.Networking);
+                }
             }
 
             BasisSyncBatchCollector.Flush();

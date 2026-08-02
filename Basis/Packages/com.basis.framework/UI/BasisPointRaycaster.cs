@@ -180,6 +180,8 @@ namespace Basis.Scripts.UI
         {
             UpdateRay();
 
+            BasisPhysicsSyncGate.FlushIfDirty();
+
             PhysicHitCount = Physics.RaycastNonAlloc(
                 ray,
                 PhysicHits,

@@ -304,6 +304,15 @@ public static class BasisNetworkGenericMessages
             BasisDebug.Log("Missing Player For Message " + SADM.playerIdMessage.playerID);
         }
     }
+    /// <summary>
+    /// Bytes the scene-data framing adds around a payload, so a caller can check its packet against
+    /// <see cref="BasisNetworkCommons.MaxUnfragmentedPayload"/> before handing it over. Worst case of
+    /// the two paths a send can take: the relay path carries messageIndex + recipientsSize + the
+    /// recipient ids, the P2P-direct path only messageIndex, and a broadcast can split across both.
+    /// </summary>
+    public static int SceneDataFramingBytes(ushort[] recipients) =>
+        sizeof(ushort) * 2 + (recipients != null ? recipients.Length * sizeof(ushort) : 0);
+
     public static void OnNetworkMessageSend(ushort messageIndex, byte[] buffer = null, DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable, ushort[] recipients = null)
     {
         NetDataWriter netDataWriter = threadLocalWriter.Value;

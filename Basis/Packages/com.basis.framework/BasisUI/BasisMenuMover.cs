@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -74,6 +75,14 @@ namespace Basis.BasisUI
         // mismatched rate ("moving left and right but scaled by something"). The menu must stay
         // proportional to the avatar; tiny-scale text legibility is the mipmapped atlas' job.
         public const float MIN_TMP_RENDER_SCALE = 0.005f;
+
+        private bool _hasLastEyeWrite;
+        private Vector3 _lastEyeWorldPos;
+        private Quaternion _lastEyeWorldRot;
+        private Vector3 _lastEyeGroupPos;
+        private Quaternion _lastEyeGroupRot;
+        private Vector3 _lastEyeGroupScale;
+        private Vector3 _lastEyeRootScale;
 
         // --- PlaySpaceStable state (from v1) ---
         private bool _stableHasAnchor;
@@ -281,6 +290,8 @@ namespace Basis.BasisUI
 
         private void SetRootOffset(RootModeOffset offset)
         {
+            _hasLastEyeWrite = false;
+
             float playerHeight = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
             GroupOffset.SetLocalPositionAndRotation(offset.Position, offset.Rotation);
@@ -292,18 +303,47 @@ namespace Basis.BasisUI
             transform.localScale = Vector3.one * GetRenderSafeMenuScale(playerHeight);
         }
 
-        private void SetEyeOffset(float scaleFactor)
+        /// <summary>
+        /// Writes the head-locked menu pose, skipping the write entirely when it would land on the
+        /// values already there. Returns whether anything moved, which is what decides if the
+        /// menu's colliders owe PhysX a flush.
+        /// </summary>
+        private bool SetEyePose(Vector3 worldPosition, Quaternion worldRotation, float scaleFactor)
         {
             float playerHeight = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
 
             Vector3 scaledOffset = Vector3.Scale(HeadOffset.Position, new Vector3(scaleFactor, scaleFactor, 1f));
-            GroupOffset.SetLocalPositionAndRotation(scaledOffset, HeadOffset.Rotation);
+            Quaternion offsetRotation = HeadOffset.Rotation;
 
             Vector3 offsetScale = Vector3.one * (HeadOffset.Scale * RootScale * scaleFactor);
             offsetScale.z = Mathf.Max(MIN_Z_SCALE, offsetScale.z);
-            GroupOffset.localScale = offsetScale;
 
-            transform.localScale = Vector3.one * GetRenderSafeMenuScale(playerHeight);
+            Vector3 rootScale = Vector3.one * GetRenderSafeMenuScale(playerHeight);
+
+            if (_hasLastEyeWrite &&
+                _lastEyeWorldPos == worldPosition &&
+                _lastEyeWorldRot == worldRotation &&
+                _lastEyeGroupPos == scaledOffset &&
+                _lastEyeGroupRot == offsetRotation &&
+                _lastEyeGroupScale == offsetScale &&
+                _lastEyeRootScale == rootScale)
+            {
+                return false;
+            }
+
+            transform.SetPositionAndRotation(worldPosition, worldRotation);
+            GroupOffset.SetLocalPositionAndRotation(scaledOffset, offsetRotation);
+            GroupOffset.localScale = offsetScale;
+            transform.localScale = rootScale;
+
+            _lastEyeWorldPos = worldPosition;
+            _lastEyeWorldRot = worldRotation;
+            _lastEyeGroupPos = scaledOffset;
+            _lastEyeGroupRot = offsetRotation;
+            _lastEyeGroupScale = offsetScale;
+            _lastEyeRootScale = rootScale;
+            _hasLastEyeWrite = true;
+            return true;
         }
 
         /// <summary>
@@ -319,6 +359,8 @@ namespace Basis.BasisUI
 
         private void ApplyScaleOnly()
         {
+            _hasLastEyeWrite = false;
+
             // 1) UI group scale (menu sizing)
             Vector3 offsetScale = Vector3.one * RootScale;
             offsetScale.z = Mathf.Max(MIN_Z_SCALE, offsetScale.z);
@@ -366,6 +408,10 @@ namespace Basis.BasisUI
             {
                 _stableHasAnchor = false;
             }
+            if (mode != PanelGroupRootMode.Eye)
+            {
+                _hasLastEyeWrite = false;
+            }
             switch (mode)
             {
                 case PanelGroupRootMode.World:
@@ -385,10 +431,13 @@ namespace Basis.BasisUI
                     float scaleFactor = GetEyeModeScaleFactor(BasisLocalCameraDriver.CameraInstance.fieldOfView, aspect);
 
                     BasisLocalCameraDriver.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                    transform.SetPositionAndRotation(Position, Rotation);
 
-                    SetEyeOffset(scaleFactor);
-                    Physics.SyncTransforms();
+                    if (SetEyePose(Position, Rotation, scaleFactor))
+                    {
+                        // Physics.autoSyncTransforms is off project-wide, so the menu's colliders would
+                        // keep answering the pointer ray from where the menu used to be.
+                        BasisPhysicsSyncGate.MarkColliderMoved();
+                    }
                     break;
 
                 case PanelGroupRootMode.LeftHand:

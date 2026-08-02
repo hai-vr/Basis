@@ -369,6 +369,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             Vector3 tip = GetFingertip(input);
 
+            BasisPhysicsSyncGate.FlushIfDirty();
+
             int hits = Physics.OverlapSphereNonAlloc(
                 tip, FingerRadius + HoverDistance, _hitBuffer, _uiMask);
 

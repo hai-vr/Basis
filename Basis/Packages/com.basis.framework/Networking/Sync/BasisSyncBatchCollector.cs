@@ -17,8 +17,13 @@ namespace Basis.Scripts.Networking.Sync
         /// <summary>Reserved scene-data messageIndex that carries a batch. Must not collide with any assigned NetworkID.</summary>
         public const ushort BatchMessageIndex = ushort.MaxValue;
 
-        // Keep one batch packet under a typical MTU so it isn't fragmented.
-        private const int MaxBatchPayload = 1100;
+        // Keep one batch packet inside a single datagram. Derived from the shared budget rather than
+        // picked against a typical MTU: batches flush Unreliable, which cannot be fragmented, and a
+        // peer runs at its initial MTU until discovery finishes — a cap tuned to the discovered value
+        // throws for the first seconds of every session. Batches always broadcast (TryEnqueue rejects
+        // explicit recipients), so the framing term is the no-recipients case.
+        internal static readonly int MaxBatchPayload =
+            BasisNetworkCommons.MaxUnfragmentedPayload - BasisNetworkGenericMessages.SceneDataFramingBytes(null);
 
         public static bool Enabled { get; private set; }
 
