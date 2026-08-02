@@ -73,6 +73,11 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     // hand bone (avatar swap mid-hold) freezes the in-hand stream instead of flipping to world encoding.
     private byte _lastSentHandId;
 
+    // Consecutive transmits held frozen by an unresolvable hand. Bounded so an avatar that never
+    // resolves a hand bone falls back to world streaming instead of stranding the prop for the hold.
+    private int _handLostTransmits;
+    private const int MaxHandLostTransmits = 10;
+
     private bool _authoredKinematic;
     private bool _authoredKinematicLatched;
 
@@ -106,11 +111,21 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     {
         Extrapolate = true;
         JitterBufferDepth = 1f;
-        base.Awake();
         if (BasisPickupInteractable == null)
         {
             BasisPickupInteractable = this.transform.GetComponentInChildren<BasisPickupInteractable>();
         }
+        if (BasisPickupInteractable != null && Target != BasisPickupInteractable.transform)
+        {
+            if (Target != null)
+            {
+                BasisDebug.LogWarning($"{name}: sync Target was {Target.name} but the pickup drives " +
+                    $"{BasisPickupInteractable.name}; retargeting so remotes receive the pose that actually moves.",
+                    BasisDebug.LogTag.Pickups);
+            }
+            Target = BasisPickupInteractable.transform;
+        }
+        base.Awake();
         if (BasisPickupInteractable != null)
         {
             BasisPickupInteractable.CanHoverInjected.Add(CanHover);
@@ -163,16 +178,19 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
             EncodePose(inv * (wp - handPos), inv * wr, Target.localScale);
             LocalSet(_attachId, handId);
             _lastSentHandId = handId;
+            _handLostTransmits = 0;
             return;
         }
 
-        if (_attachId.IsValid && _lastSentHandId != HandNone && IsHeldByOwner())
+        if (_attachId.IsValid && _lastSentHandId != HandNone && IsHeldByOwner()
+            && ++_handLostTransmits <= MaxHandLostTransmits)
         {
             // Still held but our own hand bone can't be resolved right now (avatar swapping/loading).
             // Freeze the in-hand stream rather than flipping to world encoding - remotes keep the prop
             // glued to their copy of our hand, mirroring the receive-side hold for an unresolvable owner.
             return;
         }
+        _handLostTransmits = 0;
 
         base.OnBeforeTransmit();
         if (_attachId.IsValid) LocalSet(_attachId, HandNone);

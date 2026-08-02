@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 
 namespace Basis.BasisUI
@@ -15,8 +16,8 @@ namespace Basis.BasisUI
         /// <summary>
         /// Size pinned on the scrolling page. The dialog's own panel grows to fit its children, so a
         /// page left to size itself off this much content pushes the dialog past the menu panel in
-        /// both directions. Pinning the page and handing it the scroll view that takes its size from
-        /// its parent keeps the list inside the dialog and scrolls it instead.
+        /// both directions. Pinned here and clipped by <see cref="ClampScrollViewport"/>, the list
+        /// stays inside the dialog and scrolls instead.
         /// </summary>
         private const float PageHeight = 620f;
         private const float PageWidth = 1100f;
@@ -53,14 +54,11 @@ namespace Basis.BasisUI
             exitButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             exitButton.OnClicked += () => dialog.Cancel(false);
 
-            PanelTabPage page = PanelTabPage.CreateNew(dialog.Descriptor.ContentParent);
+            PanelTabPage page = PanelTabPage.CreateVertical(dialog.Descriptor.ContentParent);
             page.Descriptor.SetSize(new Vector2(PageWidth, PageHeight));
 
-            PanelElementDescriptor scrollView = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.ScrollViewVerticalLibraryParentContentSize, page.Descriptor.ContentParent);
-            page.Descriptor.ContentParent = scrollView.ContentParent;
-
             RectTransform content = page.Descriptor.ContentParent;
+            ClampScrollViewport(content);
 
             BuildContentSection(content, item, connector, name);
 
@@ -236,6 +234,30 @@ namespace Basis.BasisUI
         #endregion
 
         #region Helpers
+
+        /// <summary>
+        /// The shared scroll-view prefab ships a bare, zero-anchored viewport with no mask, so
+        /// content taller than the page draws straight past its bounds — a dialog has no panel-level
+        /// mask to catch it. Bound the viewport to the scroll rect and mask it so the sections clip
+        /// and scroll instead of spilling out of the dialog.
+        /// </summary>
+        private static void ClampScrollViewport(RectTransform content)
+        {
+            if (content == null) return;
+
+            ScrollRect scroll = content.GetComponentInParent<ScrollRect>();
+            if (scroll == null || scroll.viewport == null) return;
+
+            RectTransform viewport = scroll.viewport;
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = Vector2.zero;
+            viewport.offsetMax = new Vector2(-25f, 0f); // clear of the vertical scrollbar
+            if (!viewport.TryGetComponent(out RectMask2D _))
+            {
+                viewport.gameObject.AddComponent<RectMask2D>();
+            }
+        }
 
         private static PanelElementDescriptor Section(RectTransform parent, string title, string icon, string description = null)
         {

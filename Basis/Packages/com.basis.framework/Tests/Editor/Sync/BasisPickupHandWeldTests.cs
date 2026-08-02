@@ -81,33 +81,35 @@ namespace Basis.Tests.Sync
         // ── seat-point selection failures ──
 
         [Test]
-        public void WeldPoseInsideCollider_GrabDoesNotSeatTheProp()
+        public void WeldPoseInsideCollider_KeepsTheGrabTimePose()
         {
             BasisPickupInteractable prop = MakeProp("swallowed", out Transform t);
             AddBox(prop, Vector3.one * 0.4f);
             Vector3 start = new Vector3(0f, 1f, 0f);
             t.SetPositionAndRotation(start, Quaternion.identity);
 
-            // Grabbing a prop big enough to put your wrist inside it - Collider.ClosestPoint returns the
-            // query point unchanged for interior points, so the seat resolves to "wherever it already was".
+            // Wrist already inside the prop: it is in the grip, so there is nothing to pull in and the
+            // seat must not shove a collider face onto the wrist.
             Vector3 handPos = start + new Vector3(0.05f, 0f, 0.05f);
             Vector3 seated = Seat(prop, t, handPos, Quaternion.identity);
 
-            Assert.Greater(Vector3.Distance(seated, start), 0.02f,
-                "LerpToHandOnPickup must still pull the prop onto the hand when the wrist starts inside " +
-                "the collider - otherwise the grab lerp is a no-op and the prop hangs where it was");
+            Assert.LessOrEqual(Vector3.Distance(seated, start), 0.001f,
+                "a wrist inside the collider must hold the grab-time pose rather than snapping the prop");
         }
 
         [Test]
-        public void TriggerVolume_SwallowsTheSeatPointAndCancelsTheGrabLerp()
+        public void TriggerVolume_DoesNotHijackTheSeatPoint()
         {
+            // Colliders live on children, so ScanColliders takes its GetComponentsInChildren<Collider>(true)
+            // path - which sweeps in triggers and inactive colliders alongside the real surface.
             BasisPickupInteractable prop = MakeProp("with-trigger", out Transform t);
-            AddBox(prop, Vector3.one * 0.2f);
             Vector3 start = new Vector3(0f, 1f, 0f);
             t.SetPositionAndRotation(start, Quaternion.identity);
 
-            // A hover/interaction trigger volume on a child. ScanColliders uses
-            // GetComponentsInChildren<Collider>(true), so triggers and inactive colliders count.
+            var body = new GameObject("body");
+            body.transform.SetParent(t, false);
+            body.AddComponent<BoxCollider>().size = Vector3.one * 0.2f;
+
             var volume = new GameObject("hover-volume");
             volume.transform.SetParent(t, false);
             BoxCollider trigger = volume.AddComponent<BoxCollider>();
@@ -115,7 +117,7 @@ namespace Basis.Tests.Sync
             trigger.size = Vector3.one * 3f;
 
             Vector3 handPos = start + new Vector3(0f, 0f, -0.5f);
-            Vector3 seated = Seat(prop, t, handPos, Quaternion.identity);
+            t.position = Seat(prop, t, handPos, Quaternion.identity);
 
             Assert.LessOrEqual(Vector3.Distance(NearestVisualSurfacePoint(prop, handPos, trigger), handPos), 0.05f,
                 "the seat point must come from the prop's real collider, not from a trigger volume that " +
@@ -123,7 +125,7 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
-        public void NonConvexMeshCollider_GrabDoesNotSeatTheProp()
+        public void NonConvexMeshCollider_StillSeatsViaBounds()
         {
             LogAssert.ignoreFailingMessages = true;
             try
@@ -135,11 +137,15 @@ namespace Basis.Tests.Sync
 
                 Vector3 start = new Vector3(0f, 1f, 0f);
                 t.SetPositionAndRotation(start, Quaternion.identity);
-                Vector3 seated = Seat(prop, t, start + new Vector3(0f, 0f, -0.5f), Quaternion.identity);
+                Vector3 hand = start + new Vector3(0f, 0f, -0.5f);
+                Vector3 seated = Seat(prop, t, hand, Quaternion.identity);
 
+                // Collider.ClosestPoint is unsupported on a non-convex MeshCollider, so the seat has to
+                // come off the bounds - otherwise a distance grab leaves the prop where it was.
                 Assert.Greater(Vector3.Distance(seated, start), 0.02f,
-                    "Collider.ClosestPoint is unsupported on a non-convex MeshCollider and returns the query " +
-                    "point, so the grab lerp silently does nothing for mesh-collider props");
+                    "a mesh-collider prop grabbed at range must still be pulled to the hand");
+                Assert.Less(Vector3.Distance(seated, hand), Vector3.Distance(start, hand),
+                    "the seat must move the prop toward the hand, not away from it");
             }
             finally
             {

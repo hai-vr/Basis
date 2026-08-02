@@ -1411,13 +1411,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (colliders == null || colliders.Length == 0)
                 return Vector3.zero;
 
-            Vector3 bestPoint = objectPos;
+            Vector3 bestPoint = inPos;
             float bestDistSq = float.MaxValue;
             for (int i = 0; i < colliders.Length; i++)
             {
                 Collider col = colliders[i];
                 if (col == null || !col.enabled || !col.gameObject.activeInHierarchy) continue;
-                Vector3 point = col.ClosestPoint(inPos);
+                if (col.isTrigger) continue;
+                if (!TryClosestSurfacePoint(col, inPos, out Vector3 point)) continue;
                 float distSq = (point - inPos).sqrMagnitude;
                 if (distSq < bestDistSq)
                 {
@@ -1426,6 +1427,33 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
             }
             return Quaternion.Inverse(handRot) * (objectPos - bestPoint);
+        }
+
+        /// <summary>
+        /// Nearest point on a collider's surface, or false when it cannot supply one — a hand already
+        /// inside the collider, which <see cref="Collider.ClosestPoint"/> answers by handing the query
+        /// point straight back. Non-convex MeshColliders are unsupported there and answer the same way,
+        /// so they project onto the mesh's local bounds instead; a distance grab then still seats the
+        /// object rather than scoring a zero distance and cancelling the seat.
+        /// </summary>
+        private static bool TryClosestSurfacePoint(Collider col, Vector3 query, out Vector3 point)
+        {
+            const float epsilonSq = 1e-8f;
+            if (col is MeshCollider mesh && !mesh.convex)
+            {
+                Mesh shared = mesh.sharedMesh;
+                if (shared == null)
+                {
+                    point = query;
+                    return false;
+                }
+                Transform ct = col.transform;
+                point = ct.TransformPoint(shared.bounds.ClosestPoint(ct.InverseTransformPoint(query)));
+                return (point - query).sqrMagnitude > epsilonSq;
+            }
+
+            point = col.ClosestPoint(query);
+            return (point - query).sqrMagnitude > epsilonSq;
         }
 
         /// <summary>

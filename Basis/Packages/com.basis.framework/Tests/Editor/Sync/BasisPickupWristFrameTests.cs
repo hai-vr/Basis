@@ -184,22 +184,24 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
-        public void InteractableOnChildOfSyncTarget_StreamsAStableWrongOffset()
+        public void InteractableOnChildOfSyncTarget_RetargetsToTheDrivenTransform()
         {
             // BasisPickupSyncNetworking.Awake resolves its interactable with GetComponentInChildren, so the
-            // interactable may sit on a child. The pickup moves ITS OWN transform into the hand while
-            // OnBeforeTransmit measures Target (the root), so the two ends disagree by the child's offset.
+            // interactable may sit on a child. The pickup moves ITS OWN transform into the hand, so Target
+            // has to follow it or every remote inherits a fixed miss equal to the child's offset.
             var root = new GameObject("prop-root");
             _cleanup.Add(root);
             var visual = new GameObject("prop-visual").transform;
             visual.SetParent(root.transform, false);
             visual.localPosition = new Vector3(0f, 0.4f, 0f);
 
+            BasisPickupInteractable pickup = MakeHeldInteractable(visual.gameObject, BasisBoneTrackedRole.LeftHand);
             BasisPickupSyncNetworking sync = ConfigurePickup(root.AddComponent<BasisPickupSyncNetworking>(), root.transform);
+            Assert.AreSame(pickup.transform, sync.Target, "Awake must retarget onto the transform the pickup drives");
+
             sync.currentOwnedPlayer = _sender.currentOwnedPlayer;
             sync.IsOwnedLocallyOnClient = true;
             SeedHandCache(sync, _sender.currentOwnedPlayer, _ownerWrist);
-            AttachInteractable(sync, BasisBoneTrackedRole.LeftHand, visual.gameObject);
 
             _ownerWrist.SetPositionAndRotation(new Vector3(0f, 1.2f, 0f), Quaternion.identity);
             // What the pickup actually does while held: move its own transform onto the hand.
@@ -215,11 +217,11 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
-        public void HeldWithUnresolvableWrist_FreezesWithNoWorldFallback()
+        public void HeldWithUnresolvableWrist_FallsBackToWorldStreaming()
         {
-            // Both ends deliberately freeze when the holder's hand cannot be resolved. For a holder whose
-            // avatar has no humanoid hand bone that condition never clears, so the prop is stranded for the
-            // whole hold with no world-position path back.
+            // Both ends freeze while the holder's hand cannot be resolved, which rides out an avatar swap.
+            // For an avatar that never resolves a hand bone that condition never clears, so the freeze has
+            // to be bounded or the prop is stranded for the whole hold.
             _ownerWrist.SetPositionAndRotation(new Vector3(2f, 1.2f, 0f), Quaternion.identity);
             _observerWrist.SetPositionAndRotation(new Vector3(2f, 1.2f, 0f), Quaternion.identity);
             HoldAtGrip(new Vector3(0f, 0f, 0.15f), Quaternion.identity);
@@ -229,8 +231,8 @@ namespace Basis.Tests.Sync
             _sender.currentOwnedPlayer = null;
             _remote.currentOwnedPlayer = null;
 
-            // The owner keeps holding it and walks away.
-            for (int i = 0; i < 5; i++)
+            // The owner keeps holding it and walks away, well past the freeze grace window.
+            for (int i = 0; i < 20; i++)
             {
                 _sender.Target.position += new Vector3(0.5f, 0f, 0f);
                 BeforeTransmitM.Invoke(_sender, null);
@@ -293,10 +295,10 @@ namespace Basis.Tests.Sync
             CachedHandF.SetValue(p, wrist);
         }
 
-        /// <summary>Gives the sync component an interactable reporting a live grab in <paramref name="role"/>.</summary>
-        void AttachInteractable(BasisPickupSyncNetworking p, BasisBoneTrackedRole role, GameObject on = null)
+        /// <summary>An interactable reporting a live grab in <paramref name="role"/>.</summary>
+        static BasisPickupInteractable MakeHeldInteractable(GameObject on, BasisBoneTrackedRole role)
         {
-            var pickup = (on != null ? on : p.gameObject).AddComponent<BasisPickupInteractable>();
+            var pickup = on.AddComponent<BasisPickupInteractable>();
             BasisInputWrapper held = default;
             object boxed = held;
             InputStateF.SetValue(boxed, BasisInteractInputState.Interacting);
@@ -304,9 +306,11 @@ namespace Basis.Tests.Sync
 
             if (role == BasisBoneTrackedRole.LeftHand) pickup.Inputs.leftHand = held;
             else pickup.Inputs.rightHand = held;
-
-            p.BasisPickupInteractable = pickup;
+            return pickup;
         }
+
+        void AttachInteractable(BasisPickupSyncNetworking p, BasisBoneTrackedRole role)
+            => p.BasisPickupInteractable = MakeHeldInteractable(p.gameObject, role);
 
         /// <summary>Owner holds the prop at <paramref name="grip"/> in its wrist frame, then transmits.</summary>
         void HoldAtGrip(Vector3 grip, Quaternion gripRot, int feeds = 2)
