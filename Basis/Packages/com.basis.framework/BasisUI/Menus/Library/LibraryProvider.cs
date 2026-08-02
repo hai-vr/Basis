@@ -1349,10 +1349,9 @@ namespace Basis.BasisUI
             #region ITEM DETAILS
 
             PanelButton detailsPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, scrollablePage.Descriptor.ContentParent);
-            detailsPanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.details"));
-            detailsPanelButton.Descriptor.SetIcon(AddressableAssets.Sprites.List);
+            detailsPanelButton.Descriptor.SetTitle(string.Format(BasisLocalization.Get("library.details"), item.Mode));
             detailsPanelButton.Descriptor.SetTooltip(BasisLocalization.Get("library.details.tooltip"));
-            detailsPanelButton.Descriptor.SetHeight(60);
+            detailsPanelButton.Descriptor.SetHeight(130);
             detailsPanelButton.Descriptor.SetWidth(400);
             detailsPanelButton.OnClicked += async () =>
             {

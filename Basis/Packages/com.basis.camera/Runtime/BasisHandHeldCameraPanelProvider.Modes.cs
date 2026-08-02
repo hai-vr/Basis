@@ -16,7 +16,6 @@ namespace Basis.BasisUI.HandHeldCamera
     public partial class BasisHandHeldCameraPanelProvider
     {
         private PanelDropdown _modeDropdown;
-        private PanelElementDescriptor _modeDescription;
         private BasisCameraMode? _lastShownMode;
 
         /// <summary>
@@ -44,31 +43,28 @@ namespace Basis.BasisUI.HandHeldCamera
         private readonly List<SectionTintTarget> _sectionTints = new List<SectionTintTarget>();
 
         /// <summary>
-        /// The Mode tab: pick what the camera is for, and read what that choice did.
+        /// The Mode tab: one row, the picker. Its description is the selected mode's own, so the
+        /// page says what you are in and what that means without repeating either.
         ///
         /// <para>A page of its own rather than a row in the navigation column. That column is 350
         /// wide while the labelled dropdown prefab reserves 500 for its control alone, so the row
         /// overhung the column and its own label collapsed to nothing behind the control; moving the
         /// label to its own card fixed the width but left the picker past the bottom of a column
-        /// that does not scroll. A page is full width, scrolls, and has room for the blurb inline —
-        /// and a mode is a top-level decision, so a top-level place to make it fits.</para>
+        /// that does not scroll.</para>
         /// </summary>
         private void BuildModeTab(RectTransform parent)
         {
             _modeDropdown = PanelDropdown.CreateNewEntry(parent);
             _modeDropdown.Descriptor.SetTitle(BasisLocalization.Get("camera.modePreset"));
-            _modeDropdown.Descriptor.SetDescription(BasisLocalization.Get("camera.modePreset.description"));
+            // A tooltip, not a line of the page. What modes are for is read once; what the current
+            // one does is read every time, and only one of the two earns the space under the row.
+            _modeDropdown.Descriptor.SetTooltip(BasisLocalization.Get("camera.modePreset.description"));
             // The dropdown's value is the localization key, not the translated text: two modes that
             // happened to translate to the same words would otherwise be indistinguishable to the
             // value lookup, and the selection would follow the language.
             List<string> keys = BuildModeKeys();
             _modeDropdown.AssignLocalizedEntries(keys, keys);
             _modeDropdown.OnValueChanged = _ => OnModeSelected();
-
-            // What the mode you are in actually does, directly under the picker so the answer sits
-            // on the same page as the question.
-            _modeDescription = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.Group, parent);
         }
 
         private static List<string> BuildModeKeys()
@@ -212,15 +208,16 @@ namespace Basis.BasisUI.HandHeldCamera
 
             BasisCameraModeDescriptor descriptor = BasisCameraModes.Get(mode);
 
-            if (_modeDropdown != null && System.Array.IndexOf(BasisCameraModes.Ordered, mode) >= 0)
+            if (_modeDropdown != null)
             {
-                _modeDropdown.SetValueWithoutNotify(descriptor.TitleKey);
-            }
+                if (System.Array.IndexOf(BasisCameraModes.Ordered, mode) >= 0)
+                {
+                    _modeDropdown.SetValueWithoutNotify(descriptor.TitleKey);
+                }
 
-            if (_modeDescription != null)
-            {
-                _modeDescription.SetTitle(BasisLocalization.Get(descriptor.TitleKey));
-                _modeDescription.SetDescription(BasisLocalization.Get(descriptor.DescriptionKey));
+                // The row's own description, not a card under it: the control already names the
+                // mode, so a second copy of the name and a second paragraph said nothing new.
+                _modeDropdown.Descriptor.SetDescription(BasisLocalization.Get(descriptor.DescriptionKey));
             }
 
             ApplySectionTints(mode);
@@ -247,7 +244,6 @@ namespace Basis.BasisUI.HandHeldCamera
         private void ClearModeReferences()
         {
             _modeDropdown = null;
-            _modeDescription = null;
             _lastShownMode = null;
             _sectionTints.Clear();
         }

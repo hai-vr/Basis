@@ -13,11 +13,13 @@ namespace Basis.BasisUI
         #region ShowItemDetails
 
         /// <summary>
-        /// Height handed to the scrolling page. The dialog's content column sizes children off their
-        /// LayoutElement and a tab page carries none, so without this the page collapses to nothing.
-        /// Leaves room for the dialog's own header above it.
+        /// Size pinned on the scrolling page. The dialog's own panel grows to fit its children, so a
+        /// page left to size itself off this much content pushes the dialog past the menu panel in
+        /// both directions. Pinning the page and handing it the scroll view that takes its size from
+        /// its parent keeps the list inside the dialog and scrolls it instead.
         /// </summary>
         private const float PageHeight = 620f;
+        private const float PageWidth = 1100f;
 
         /// <summary>
         /// Shows everything the bee file records about one library item — description fields, build
@@ -51,8 +53,12 @@ namespace Basis.BasisUI
             exitButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             exitButton.OnClicked += () => dialog.Cancel(false);
 
-            PanelTabPage page = PanelTabPage.CreateVertical(dialog.Descriptor.ContentParent);
-            page.Descriptor.SetHeight(PageHeight);
+            PanelTabPage page = PanelTabPage.CreateNew(dialog.Descriptor.ContentParent);
+            page.Descriptor.SetSize(new Vector2(PageWidth, PageHeight));
+
+            PanelElementDescriptor scrollView = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.ScrollViewVerticalLibraryParentContentSize, page.Descriptor.ContentParent);
+            page.Descriptor.ContentParent = scrollView.ContentParent;
 
             RectTransform content = page.Descriptor.ContentParent;
 

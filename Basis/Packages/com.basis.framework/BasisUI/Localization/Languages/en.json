@@ -3948,7 +3948,7 @@
     },
     {
       "key": "library.details",
-      "value": "Details"
+      "value": "{0} Statistics"
     },
     {
       "key": "library.details.tooltip",

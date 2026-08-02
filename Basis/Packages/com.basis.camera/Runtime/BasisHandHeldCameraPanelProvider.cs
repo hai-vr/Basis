@@ -1631,7 +1631,6 @@ namespace Basis.BasisUI.HandHeldCamera
             }
             if (_previewGroup != null) _previewGroup.SetActive(active);
             if (_modeDropdown != null) _modeDropdown.gameObject.SetActive(active);
-            if (_modeDescription != null) _modeDescription.SetActive(active);
             // The pages have nothing to drive without a camera, so the navigation goes with them.
             if (_tabGroup != null && _tabGroup.TabButtonParent != null)
             {
