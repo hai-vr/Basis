@@ -19,9 +19,24 @@ public unsafe struct JiggleTreeJobData {
 
     public JiggleSimulatedPoint* points;
     public JigglePointParameters* parameters;
+
+    /// <summary>
+    /// Child indices for every point, at a fixed stride of <see cref="JiggleSimulatedPoint.MAX_CHILDREN"/>
+    /// — point i's children are childrenIndices[i * MAX_CHILDREN .. + childrenCount]. Held here rather
+    /// than in the point struct because it is only read when a point's children are actually walked,
+    /// and inline it was 128 of the point's 216 bytes, dragged through every pass that never looked at
+    /// it. Use <see cref="GetChild"/> rather than indexing by hand.
+    /// </summary>
+    public int* childrenIndices;
+
     public const int MAX_POINTS = 10000;
 
-    public JiggleTreeJobData(int rootID, int transformIndexOffset, int colliderIndexOffset, int colliderCount, JiggleSimulatedPoint[] inputPoints, JigglePointParameters[] inputParameters) {
+    /// <summary>Index of point <paramref name="pointIndex"/>'s <paramref name="childSlot"/>'th child.</summary>
+    public int GetChild(int pointIndex, int childSlot) {
+        return childrenIndices[pointIndex * JiggleSimulatedPoint.MAX_CHILDREN + childSlot];
+    }
+
+    public JiggleTreeJobData(int rootID, int transformIndexOffset, int colliderIndexOffset, int colliderCount, JiggleSimulatedPoint[] inputPoints, JigglePointParameters[] inputParameters, int[] inputChildren) {
         this.rootID = rootID;
         pointCount = (uint)inputPoints.Length;
         this.colliderIndexOffset = (uint)colliderIndexOffset;
@@ -37,15 +52,38 @@ public unsafe struct JiggleTreeJobData {
             UnsafeUtility.AlignOf<JigglePointParameters>(),
             Allocator.Persistent
         );
+        childrenIndices = (int*)UnsafeUtility.Malloc(
+            sizeof(int) * pointCount * JiggleSimulatedPoint.MAX_CHILDREN,
+            UnsafeUtility.AlignOf<int>(),
+            Allocator.Persistent
+        );
         fixed (JiggleSimulatedPoint* src = inputPoints) {
             UnsafeUtility.MemCpy(points, src, sizeof(JiggleSimulatedPoint) * pointCount);
         }
         fixed (JigglePointParameters* src = inputParameters) {
             UnsafeUtility.MemCpy(parameters, src, sizeof(JigglePointParameters) * pointCount);
         }
+        CopyChildren(inputChildren);
     }
 
-    public void Set(int newRootID, JiggleSimulatedPoint[] inputPoints, JigglePointParameters[] inputParameters, int colliderCount) {
+    /// <summary>
+    /// Fills the child buffer from a caller-owned array laid out at the same stride. A short array is
+    /// tolerated and the rest zero filled: childrenCount bounds every read, so slots past a point's
+    /// child count are never looked at.
+    /// </summary>
+    private void CopyChildren(int[] inputChildren) {
+        var childCapacity = (int)pointCount * JiggleSimulatedPoint.MAX_CHILDREN;
+        UnsafeUtility.MemClear(childrenIndices, sizeof(int) * childCapacity);
+        if (inputChildren == null || inputChildren.Length == 0) {
+            return;
+        }
+        var copyCount = math.min(inputChildren.Length, childCapacity);
+        fixed (int* src = inputChildren) {
+            UnsafeUtility.MemCpy(childrenIndices, src, sizeof(int) * copyCount);
+        }
+    }
+
+    public void Set(int newRootID, JiggleSimulatedPoint[] inputPoints, JigglePointParameters[] inputParameters, int[] inputChildren, int colliderCount) {
         this.colliderCount = (uint)colliderCount;
         rootID = newRootID;
         if (inputPoints.Length != pointCount) {
@@ -61,6 +99,10 @@ public unsafe struct JiggleTreeJobData {
                 JigglePhysics.FreeOnCommitFlip((IntPtr)parameters);
                 parameters = null;
             }
+            if (childrenIndices != null) {
+                JigglePhysics.FreeOnCommitFlip((IntPtr)childrenIndices);
+                childrenIndices = null;
+            }
             pointCount = (uint)inputPoints.Length;
             points = (JiggleSimulatedPoint*)UnsafeUtility.Malloc(
                 sizeof(JiggleSimulatedPoint) * pointCount,
@@ -72,6 +114,11 @@ public unsafe struct JiggleTreeJobData {
                 UnsafeUtility.AlignOf<JigglePointParameters>(),
                 Allocator.Persistent
             );
+            childrenIndices = (int*)UnsafeUtility.Malloc(
+                sizeof(int) * pointCount * JiggleSimulatedPoint.MAX_CHILDREN,
+                UnsafeUtility.AlignOf<int>(),
+                Allocator.Persistent
+            );
         }
         fixed (JiggleSimulatedPoint* src = inputPoints) {
             UnsafeUtility.MemCpy(points, src, sizeof(JiggleSimulatedPoint) * pointCount);
@@ -79,6 +126,7 @@ public unsafe struct JiggleTreeJobData {
         fixed (JigglePointParameters* src = inputParameters) {
             UnsafeUtility.MemCpy(parameters, src, sizeof(JigglePointParameters) * pointCount);
         }
+        CopyChildren(inputChildren);
     }
 
     public void SetParameters(JigglePointParameters[] inputParameters) {
@@ -97,6 +145,10 @@ public unsafe struct JiggleTreeJobData {
             JigglePhysics.FreeOnComplete((IntPtr)parameters);
             parameters = null;
         }
+        if (childrenIndices != null) {
+            JigglePhysics.FreeOnComplete((IntPtr)childrenIndices);
+            childrenIndices = null;
+        }
     }
 
     public void OnDrawGizmosSelected() {
@@ -114,7 +166,7 @@ public unsafe struct JiggleTreeJobData {
                 }
             }
             if (point.childrenCount != 0) {
-                var child = points[point.childrenIndices[0]];
+                var child = points[GetChild(i, 0)];
                 Gizmos.color = Color.cyan;
                 Gizmos.DrawLine(point.position, child.position);
             }
@@ -170,6 +222,14 @@ public unsafe struct JiggleTreeJobData {
             var point = points[i];
             if (!point.GetIsValid((int)pointCount, out failReason)) {
                 return false;
+            }
+            // Lives here rather than on the point now that the indices do.
+            for (int c = 0; c < point.childrenCount; c++) {
+                var childIndex = GetChild(i, c);
+                if (childIndex < 0 || childIndex >= pointCount) {
+                    failReason = "childrenIndices is outside range";
+                    return false;
+                }
             }
             if (!parameters[i].GetIsValid(out failReason)) {
                 return false;

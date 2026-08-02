@@ -126,8 +126,9 @@ internal unsafe class JiggleTreeBuildTests {
         for (int i = 0; i < tree.points.Length; i++) {
             var point = tree.points[i];
             for (int c = 0; c < point.childrenCount; c++) {
-                Assert.GreaterOrEqual(point.childrenIndices[c], 0);
-                Assert.Less(point.childrenIndices[c], tree.points.Length);
+                var childIndex = tree.childrenIndices[i * JiggleSimulatedPoint.MAX_CHILDREN + c];
+                Assert.GreaterOrEqual(childIndex, 0);
+                Assert.Less(childIndex, tree.points.Length);
             }
         }
     }
@@ -354,7 +355,7 @@ internal unsafe class JiggleTreeBuildTests {
         var tree = Build(JiggleSceneFactory.Rig(root));
 
         Assert.AreEqual(1, tree.points[2].childrenCount, "the merged leaf was registered twice");
-        Assert.AreEqual(3, tree.points[2].childrenIndices[0]);
+        Assert.AreEqual(3, tree.childrenIndices[2 * JiggleSimulatedPoint.MAX_CHILDREN]);
     }
 
     [Test]
@@ -370,8 +371,9 @@ internal unsafe class JiggleTreeBuildTests {
             var point = tree.points[i];
             var seen = new List<int>();
             for (int c = 0; c < point.childrenCount; c++) {
-                CollectionAssert.DoesNotContain(seen, point.childrenIndices[c], $"point {i} repeats a child");
-                seen.Add(point.childrenIndices[c]);
+                var childIndex = tree.childrenIndices[i * JiggleSimulatedPoint.MAX_CHILDREN + c];
+                CollectionAssert.DoesNotContain(seen, childIndex, $"point {i} repeats a child");
+                seen.Add(childIndex);
             }
         }
     }

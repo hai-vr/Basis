@@ -712,7 +712,7 @@ namespace Basis.Scripts.Networking.Sync
             // ordering buys nothing here and would head-of-line block the scene channel behind a
             // retransmit. Loud and keyed per object, because the real fix is quantizing the schema.
             int framed = len + BasisNetworkGenericMessages.SceneDataFramingBytes(recipients);
-            if (framed > BasisNetworkCommons.MaxUnfragmentedPayload && !BasisNetworkCommons.CanFragment(dm))
+            if (NeedsFragmentableDelivery(framed, dm))
             {
                 BasisDebug.LogErrorOnce($"sync-oversize-{NetworkID}",
                     $"BasisSyncedObject '{name}' (NetID {NetworkID}) serialized a {framed} B {(keyframe ? "keyframe" : "delta")}, over the " +
@@ -743,6 +743,16 @@ namespace Basis.Scripts.Networking.Sync
                 }
             }
         }
+
+        /// <summary>
+        /// Whether a packet of <paramref name="framedBytes"/> has to leave on a delivery method the transport
+        /// can fragment. False for everything that fits one datagram, which is the case that matters: a normal
+        /// synced object's packet is tens of bytes against a ~1 KB budget, so this adds nothing to the wire and
+        /// leaves the requested delivery exactly as configured. Pure and internal so that stays a pinned
+        /// property rather than a claim.
+        /// </summary>
+        internal static bool NeedsFragmentableDelivery(int framedBytes, DeliveryMethod requested) =>
+            framedBytes > BasisNetworkCommons.MaxUnfragmentedPayload && !BasisNetworkCommons.CanFragment(requested);
 
         /// <summary>
         /// True once an idle owner has delivered the whole backoff ladder plus <paramref name="maxAtCap"/>

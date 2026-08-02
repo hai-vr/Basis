@@ -16,6 +16,9 @@ public static class JigglePhysics {
     private static readonly List<Vector3> tempRestLocalPositions = new ();
     private static readonly List<Quaternion> tempRestLocalRotations = new ();
     private static readonly List<JiggleSimulatedPoint> tempPoints = new();
+    // Child indices for tempPoints at a stride of MAX_CHILDREN, grown by AddChildToPoint. Separate
+    // from the point struct so the solver does not stream 128 bytes of it per point per pass.
+    private static readonly List<int> tempChildren = new();
     private static readonly List<JigglePointParameters> tempParameters = new ();
     private static readonly List<JiggleCollider> tempColliders = new ();
     private static readonly List<Transform> tempColliderTransforms = new ();
@@ -509,6 +512,7 @@ public static class JigglePhysics {
         Profiler.BeginSample("JiggleTreeUtility.CreateJiggleTree");
         tempTransforms.Clear();
         tempPoints.Clear();
+        tempChildren.Clear();
         tempParameters.Clear();
         tempRestLocalPositions.Clear();
         tempRestLocalRotations.Clear();
@@ -546,17 +550,19 @@ public static class JigglePhysics {
         tempRestLocalRotations.Add(localRotation);
         Visit(jiggleRig.rootBone, tempTransforms, tempPoints, tempParameters, tempRestLocalPositions, tempRestLocalRotations, 0, jiggleRig, backProjection, 0f, 0, out int childIndex);
         if (childIndex != -1) {
-            var rootPoint = tempPoints[0];
-            AddChildToPoint(ref rootPoint, childIndex);
-            tempPoints[0] = rootPoint;
+            AddChildToPoint(tempPoints, 0, childIndex);
         }
+
+        // Points with no children never reached AddChildToPoint, so size the list for the full set
+        // before handing it over.
+        EnsureChildCapacity(tempPoints.Count);
 
         Profiler.EndSample();
         if (tree != null) {
-            tree.Set(tempTransforms, tempPoints, tempParameters, tempColliderTransforms, tempColliders, tempRestLocalPositions, tempRestLocalRotations);
+            tree.Set(tempTransforms, tempPoints, tempParameters, tempColliderTransforms, tempColliders, tempRestLocalPositions, tempRestLocalRotations, tempChildren);
             return tree;
         } else {
-            return new JiggleTree(tempTransforms, tempPoints, tempParameters, tempColliderTransforms, tempColliders, tempRestLocalPositions, tempRestLocalRotations);
+            return new JiggleTree(tempTransforms, tempPoints, tempParameters, tempColliderTransforms, tempColliders, tempRestLocalPositions, tempRestLocalRotations, tempChildren);
         }
     }
 
@@ -595,9 +601,7 @@ public static class JigglePhysics {
                         var child = children[i];
                         Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, parentIndex, lastJiggleRig, lastPosition, currentLength, depth + 1, out int childIndex);
                         if (childIndex != -1) {
-                            var record = points[parentIndex];
-                            AddChildToPoint(ref record, childIndex);
-                            points[parentIndex] = record;
+                            AddChildToPoint(points, parentIndex, childIndex);
                         }
                     }
                     newIndex = -1;
@@ -677,17 +681,13 @@ public static class JigglePhysics {
                     animated = false,
                 });
                 parameters.Add(lastJiggleRig.GetJiggleBoneParameter(cache.normalizedDistanceFromRoot));
-                var record = points[newIndex];
-                AddChildToPoint(ref record, points.Count - 1);
-                points[newIndex] = record;
+                AddChildToPoint(points, newIndex, points.Count - 1);
             } else {
                 for (int i = 0; i < validChildrenCount; i++) {
                     var child = children[i];
                     Visit(child, transforms, points, parameters, restLocalPositions, restLocalRotations, newIndex, lastJiggleRig, currentPosition, currentLength, depth + 1, out int childIndex);
                     if (childIndex != -1) {
-                        var record = points[newIndex];
-                        AddChildToPoint(ref record, childIndex);
-                        points[newIndex] = record;
+                        AddChildToPoint(points, newIndex, childIndex);
                     }
                 }
             }
@@ -706,13 +706,29 @@ public static class JigglePhysics {
         return list;
     }
 
-    private static unsafe void AddChildToPoint(ref JiggleSimulatedPoint point, int childIndex) {
+    /// <summary>
+    /// Records a child on the point at <paramref name="pointIndex"/>. The indices live in
+    /// <see cref="tempChildren"/> rather than in the point, so this is the only writer and it grows
+    /// that list to cover every point added so far.
+    /// </summary>
+    private static void AddChildToPoint(List<JiggleSimulatedPoint> points, int pointIndex, int childIndex) {
+        var point = points[pointIndex];
         if (point.childrenCount>=JiggleSimulatedPoint.MAX_CHILDREN) {
             Debug.LogWarning($"JigglePhysics: Bone exceeded maximum of {JiggleSimulatedPoint.MAX_CHILDREN} children, extra children will be ignored.");
             return;
         }
-        point.childrenIndices[point.childrenCount] = childIndex;
+        EnsureChildCapacity(points.Count);
+        tempChildren[pointIndex * JiggleSimulatedPoint.MAX_CHILDREN + point.childrenCount] = childIndex;
         point.childrenCount++;
+        points[pointIndex] = point;
+    }
+
+    /// <summary>Grows the child scratch list to cover <paramref name="pointCount"/> points, zero filled.</summary>
+    private static void EnsureChildCapacity(int pointCount) {
+        var required = pointCount * JiggleSimulatedPoint.MAX_CHILDREN;
+        while (tempChildren.Count < required) {
+            tempChildren.Add(0);
+        }
     }
     
     public static void ScheduleRemoveJiggleTree(JiggleTree jiggleTree) {

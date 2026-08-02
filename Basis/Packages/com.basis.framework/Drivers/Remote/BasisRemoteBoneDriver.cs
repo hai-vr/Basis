@@ -335,18 +335,25 @@ public struct MappedNameplateApplyJob : IJobParallelForTransform
 /// <summary>
 /// Burst job that writes precomputed bone localRotations to transforms. Does only the
 /// transform side of the work — the quaternion multiply lives in the merged
-/// ComputeSkeletonRotationsFromNetworkJob (BasisRemoteNetworkDriver).
-/// Runs across ALL remote players' bones in a single flat TransformAccessArray.
+/// ComputeSkeletonRotationsFromNetworkJob (BasisRemoteNetworkDriver), which also decides which
+/// bones actually moved. Runs across ALL remote players' bones in a single flat
+/// TransformAccessArray.
+///
+/// WriteMask is what keeps this affordable. The write it guards is orders of magnitude more
+/// expensive than the byte test — it dirties the bone's entire subtree and feeds
+/// TransformChangeDispatch — while a large share of bones are bit-identical to last frame
+/// (PoseLOD-skipped players, untracked fingers, settled filters). It also subsumes the old
+/// ValidMask, since a null bone slot can never set it, so this reads one array instead of two.
 /// </summary>
 [BurstCompile]
 public struct ApplySkeletonRotationsJob : IJobParallelForTransform
 {
     [ReadOnly] public NativeArray<quaternion> Rotations;
-    [ReadOnly] public NativeArray<byte> ValidMask;
+    [ReadOnly] public NativeArray<byte> WriteMask;
 
     public void Execute(int index, TransformAccess transform)
     {
-        if (ValidMask[index] == 0) return;
+        if (WriteMask[index] == 0) return;
         transform.localRotation = Rotations[index];
     }
 }
@@ -474,12 +481,19 @@ public struct WriteBoneRotationJob : IJobParallelForTransform
 {
     [ReadOnly] public NativeArray<quaternion> OverrideRot;
     [ReadOnly] public NativeArray<byte> OverrideMask;
+    /// <summary>Kept in step with what the transform now holds — this pass is the other writer of
+    /// these bones. Without it the IK'd rotation would still look like the FK value to the next
+    /// frame's compute pass, which would then skip the write and leave the limb stuck at its last
+    /// anchored pose once the anchor drops.</summary>
+    [WriteOnly] public NativeArray<quaternion> LastWritten;
 
     public void Execute(int index, TransformAccess transform)
     {
         if (OverrideMask[index] != 0)
         {
-            transform.localRotation = OverrideRot[index];
+            quaternion rot = OverrideRot[index];
+            transform.localRotation = rot;
+            LastWritten[index] = rot;
         }
     }
 }
@@ -537,6 +551,13 @@ public static class RemoteBoneJobSystem
     static NativeList<byte> sSkeletonValid;
     /// <summary>Precomputed local rotations (T-pose × network delta) consumed by <see cref="ApplySkeletonRotationsJob"/>.</summary>
     static NativeArray<quaternion> sSkeletonRotations;
+    /// <summary>Last rotation actually written to each bone transform, parallel to
+    /// <see cref="sSkeletonRotations"/>. Owned by the compute pass and refreshed by the
+    /// effector-IK write-back; (0,0,0,0) reads as "no known value" and forces a write.</summary>
+    static NativeArray<quaternion> sSkeletonLastWritten;
+    /// <summary>Per-bone write gate produced by the compute pass: 1 = the rotation changed and the
+    /// transform must be written, 0 = skip. Already accounts for <see cref="sSkeletonValid"/>.</summary>
+    static NativeArray<byte> sSkeletonWriteMask;
 
     /// <summary>
     /// Capacity to allocate for a required length: rounds up so a steadily growing instance
@@ -729,6 +750,8 @@ public static class RemoteBoneJobSystem
         if (sSkeletonTpose.IsCreated) sSkeletonTpose.Dispose();
         if (sSkeletonValid.IsCreated) sSkeletonValid.Dispose();
         if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
+        if (sSkeletonLastWritten.IsCreated) sSkeletonLastWritten.Dispose();
+        if (sSkeletonWriteMask.IsCreated) sSkeletonWriteMask.Dispose();
         if (sIkReadPos.IsCreated) sIkReadPos.Dispose();
         if (sIkReadWorldRot.IsCreated) sIkReadWorldRot.Dispose();
         if (sIkReadLocalRot.IsCreated) sIkReadLocalRot.Dispose();
@@ -933,6 +956,9 @@ public static class RemoteBoneJobSystem
                 sSkeletonValid[slot] = 0;
             }
         }
+        // These slots now point at a different avatar's bones; the write-skip cache still
+        // describes the outgoing one.
+        InvalidateSkeletonCache(baseIdx, boneCount);
 
         // sKeyToIndex[p.Key] and sKeyArray[idx] already hold this key — the row never moved.
         return true;
@@ -1010,6 +1036,10 @@ public static class RemoteBoneJobSystem
                 sSkeletonValid.Add(0);
             }
         }
+        // Fresh slots (or slots a departed player left behind) must not inherit a write-skip
+        // cache. Usually redundant — the buffer grows and zero-fills on the next Ensure — but not
+        // when the grow-with-slack policy already covers this length.
+        InvalidateSkeletonCache(idx * boneCount, boneCount);
 
         sKeyToIndex[p.Key] = idx;
         EnsureKeyArrayCapacity(idx + 1);
@@ -1101,6 +1131,9 @@ public static class RemoteBoneJobSystem
                 // TAA: overwrite the removed slot's transform with the last player's transform
                 sSkeletonBones[dst] = sSkeletonBones[src];
             }
+            // The moved player's bones now live at a different index, where the write-skip cache
+            // still holds the departing player's rotations.
+            InvalidateSkeletonCache(boneIdxStart, boneCount);
         }
         // Truncate the tail block (last player's entries are now duplicated or are the ones being removed)
         for (int b = boneCount - 1; b >= 0; b--)
@@ -1358,7 +1391,34 @@ public static class RemoteBoneJobSystem
             || sSkeletonRotations.Length > totalBones * 4 + 64)
         {
             if (sSkeletonRotations.IsCreated) sSkeletonRotations.Dispose();
-            sSkeletonRotations = new NativeArray<quaternion>(GrowCapacity(totalBones), Allocator.Persistent);
+            if (sSkeletonLastWritten.IsCreated) sSkeletonLastWritten.Dispose();
+            if (sSkeletonWriteMask.IsCreated) sSkeletonWriteMask.Dispose();
+
+            int capacity = GrowCapacity(totalBones);
+            sSkeletonRotations = new NativeArray<quaternion>(capacity, Allocator.Persistent);
+            // Zero-filled, so every slot starts at the (0,0,0,0) "no known value" sentinel and the
+            // first frame after a resize writes every bone. Losing the cache across a resize is
+            // only ever a one-frame cost — a redundant write is always safe, a missed one is not.
+            sSkeletonLastWritten = new NativeArray<quaternion>(capacity, Allocator.Persistent);
+            sSkeletonWriteMask = new NativeArray<byte>(capacity, Allocator.Persistent);
+        }
+    }
+
+    /// <summary>
+    /// Marks a run of bone slots as having no known transform value, so the next compute pass
+    /// writes them unconditionally. Required anywhere a slot is re-pointed at a different
+    /// transform (join, avatar swap, swap-back on leave): the cached rotation describes the
+    /// OUTGOING transform, and left in place it would suppress the first write to the incoming
+    /// one — an avatar frozen in T-pose until it happened to move. Callers must already have
+    /// fenced the bone jobs, which every mutation path does.
+    /// </summary>
+    static void InvalidateSkeletonCache(int start, int count)
+    {
+        if (!sSkeletonLastWritten.IsCreated) return;
+        int end = math.min(start + count, sSkeletonLastWritten.Length);
+        for (int i = math.max(0, start); i < end; i++)
+        {
+            sSkeletonLastWritten[i] = default;
         }
     }
 
@@ -1396,7 +1456,8 @@ public static class RemoteBoneJobSystem
 
         sSkeletonCompute = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
             sKeyArray, totalBones, BasisBoneRotationCompression.SyncBoneCount,
-            sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
+            sSkeletonTpose.AsDeferredJobArray(), sSkeletonValid.AsDeferredJobArray(),
+            sSkeletonRotations, sSkeletonLastWritten, sSkeletonWriteMask,
             boneBatch);
 
         sSkeletonComputeBones = totalBones;
@@ -1585,14 +1646,15 @@ public static class RemoteBoneJobSystem
 
                 computeRotationsJob = BasisRemoteNetworkDriver.ScheduleComputeSkeletonRotations(
                     sKeyArray, totalBones, BasisBoneRotationCompression.SyncBoneCount,
-                    sSkeletonTpose.AsDeferredJobArray(), sSkeletonRotations,
+                    sSkeletonTpose.AsDeferredJobArray(), sSkeletonValid.AsDeferredJobArray(),
+                    sSkeletonRotations, sSkeletonLastWritten, sSkeletonWriteMask,
                     boneBatch);
             }
 
             skeletonJob = new ApplySkeletonRotationsJob
             {
                 Rotations = sSkeletonRotations,
-                ValidMask = sSkeletonValid.AsDeferredJobArray(),
+                WriteMask = sSkeletonWriteMask,
             }.Schedule(sSkeletonBones, computeRotationsJob);
         }
 
@@ -1682,6 +1744,7 @@ public static class RemoteBoneJobSystem
             {
                 OverrideRot = sIkOverrideRot,
                 OverrideMask = sIkOverrideMask,
+                LastWritten = sSkeletonLastWritten,
             }.Schedule(sSkeletonBones, ikComputeJob);
         }
 

@@ -64,10 +64,16 @@ public class BasisVisibilityJobTests
 
     private static uint RunFrustum(float3 center, float3 extents, BasisVisibilityFlags flags, float margin, params BasisVisibilityCamera[] cameras)
     {
+        return RunFrustum(center, extents, flags, margin, 0f, 0, cameras);
+    }
+
+    private static uint RunFrustum(float3 center, float3 extents, BasisVisibilityFlags flags, float margin, float stickyMargin, byte appliedVisible, params BasisVisibilityCamera[] cameras)
+    {
         var centers = new NativeArray<float3>(1, Allocator.Temp);
         var extentsArray = new NativeArray<float3>(1, Allocator.Temp);
         var flagsArray = new NativeArray<uint>(1, Allocator.Temp);
         var maskArray = new NativeArray<uint>(1, Allocator.Temp);
+        var appliedArray = new NativeArray<byte>(1, Allocator.Temp);
         var cameraArray = new NativeArray<BasisVisibilityCamera>(
             cameras.Length == 0 ? 1 : cameras.Length, Allocator.Temp);
 
@@ -79,6 +85,7 @@ public class BasisVisibilityJobTests
         centers[0] = center;
         extentsArray[0] = extents;
         flagsArray[0] = (uint)flags;
+        appliedArray[0] = appliedVisible;
 
         var job = new BasisVisibilityFrustumJob
         {
@@ -86,8 +93,10 @@ public class BasisVisibilityJobTests
             Extents = extentsArray,
             Flags = flagsArray,
             Cameras = cameraArray,
+            AppliedVisible = appliedArray,
             CameraCount = cameras.Length,
             Margin = margin,
+            StickyMargin = stickyMargin,
             VisibleMask = maskArray,
         };
         job.Execute(0);
@@ -97,6 +106,7 @@ public class BasisVisibilityJobTests
         centers.Dispose();
         extentsArray.Dispose();
         flagsArray.Dispose();
+        appliedArray.Dispose();
         maskArray.Dispose();
         cameraArray.Dispose();
         return mask;
@@ -198,5 +208,19 @@ public class BasisVisibilityJobTests
 
         Assert.AreEqual(0u, withoutMargin);
         Assert.AreNotEqual(0u, withMargin);
+    }
+
+    [Test]
+    public void StickyMargin_KeepsAnAlreadyVisibleEntryFromFlickeringOut()
+    {
+        BasisVisibilityCamera camera = Pack(BuildCamera(Vector3.zero, Quaternion.identity));
+        float3 center = new float3(6.2f, 0f, 10f);
+        float3 extents = new float3(0.25f);
+
+        uint hiddenEntry = RunFrustum(center, extents, Cullable, 0f, 3f, 0, camera);
+        uint visibleEntry = RunFrustum(center, extents, Cullable, 0f, 3f, 1, camera);
+
+        Assert.AreEqual(0u, hiddenEntry, "an off-screen entry gets only the base margin");
+        Assert.AreNotEqual(0u, visibleEntry, "one already on screen gets the sticky margin and stays");
     }
 }

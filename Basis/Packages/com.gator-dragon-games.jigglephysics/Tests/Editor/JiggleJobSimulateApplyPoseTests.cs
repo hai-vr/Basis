@@ -119,13 +119,14 @@ internal unsafe class JiggleJobSimulateApplyPoseTests {
             parameters[i] = JiggleTestFactory.Params(blend: 1f);
         }
 
+        var children = JiggleTestTree.NewChildren(5);
         var rootPose = new float3(-1f, 0f, 0f);
         var root = new JiggleSimulatedPoint {
             parentIndex = -1, childrenCount = 1, hasTransform = false,
             pose = rootPose, parentPose = rootPose - new float3(1f, 0f, 0f),
             position = rootPose, lastPosition = rootPose, workingPosition = rootPose,
         };
-        root.childrenIndices[0] = 1;
+        children[0 * JiggleSimulatedPoint.MAX_CHILDREN + 0] = 1;
         points[0] = root;
 
         var hub = new JiggleSimulatedPoint {
@@ -134,8 +135,8 @@ internal unsafe class JiggleJobSimulateApplyPoseTests {
             position = float3.zero, lastPosition = float3.zero, workingPosition = float3.zero,
             desiredLengthToParent = 1f,
         };
-        hub.childrenIndices[0] = 2;
-        hub.childrenIndices[1] = 3;
+        children[1 * JiggleSimulatedPoint.MAX_CHILDREN + 0] = 2;
+        children[1 * JiggleSimulatedPoint.MAX_CHILDREN + 1] = 3;
         points[1] = hub;
 
         var branchA = new JiggleSimulatedPoint {
@@ -144,7 +145,7 @@ internal unsafe class JiggleJobSimulateApplyPoseTests {
             position = new float3(1f, 1f, 0f), lastPosition = new float3(1f, 1f, 0f),
             workingPosition = new float3(1f, 1f, 0f), desiredLengthToParent = math.sqrt(2f),
         };
-        branchA.childrenIndices[0] = 4;
+        children[2 * JiggleSimulatedPoint.MAX_CHILDREN + 0] = 4;
         points[2] = branchA;
 
         var branchB = new JiggleSimulatedPoint {
@@ -171,6 +172,7 @@ internal unsafe class JiggleJobSimulateApplyPoseTests {
 
         var tree = new JiggleTestTree {
             realCount = 3, points = points, parameters = parameters, inputPoses = inputPoses,
+            children = children,
         };
         harness = new JiggleSimHarness(tree, Dt);
 

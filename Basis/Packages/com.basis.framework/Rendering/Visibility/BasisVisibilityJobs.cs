@@ -39,8 +39,16 @@ namespace Basis.Scripts.Rendering
         [ReadOnly] public NativeArray<uint> Flags;
         [ReadOnly] public NativeArray<BasisVisibilityCamera> Cameras;
 
+        /// <summary>
+        /// What is currently on screen. Feeding it back in is the hysteresis: an entry that is
+        /// already visible is tested against a larger box, so an avatar sitting on a frustum plane
+        /// has to leave properly before it is culled instead of flickering every time the head moves.
+        /// </summary>
+        [ReadOnly] public NativeArray<byte> AppliedVisible;
+
         public int CameraCount;
         public float Margin;
+        public float StickyMargin;
 
         [WriteOnly] public NativeArray<uint> VisibleMask;
 
@@ -63,8 +71,14 @@ namespace Basis.Scripts.Rendering
                 return;
             }
 
+            float margin = Margin;
+            if (AppliedVisible[index] != 0)
+            {
+                margin += StickyMargin;
+            }
+
             float3 center = Centers[index];
-            float3 extents = Extents[index] + Margin;
+            float3 extents = Extents[index] + margin;
 
             uint mask = 0u;
             for (int camera = 0; camera < CameraCount; camera++)
@@ -106,17 +120,34 @@ namespace Basis.Scripts.Rendering
         public int Count;
         public NativeList<int> Changed;
 
+        /// <summary>
+        /// Shows are emitted ahead of hides so the apply budget spends itself on them first. A late
+        /// hide costs a few draw calls nobody sees; a late show is a visible pop, which is what a
+        /// crowd coming back into view looks like when both are drained in slot order.
+        /// </summary>
         public void Execute()
         {
             Changed.Clear();
+
             for (int index = 0; index < Count; index++)
             {
                 if ((Flags[index] & (uint)BasisVisibilityFlags.Active) == 0)
                 {
                     continue;
                 }
-                byte wanted = VisibleMask[index] != 0u ? (byte)1 : (byte)0;
-                if (wanted != AppliedVisible[index])
+                if (VisibleMask[index] != 0u && AppliedVisible[index] == 0)
+                {
+                    Changed.Add(index);
+                }
+            }
+
+            for (int index = 0; index < Count; index++)
+            {
+                if ((Flags[index] & (uint)BasisVisibilityFlags.Active) == 0)
+                {
+                    continue;
+                }
+                if (VisibleMask[index] == 0u && AppliedVisible[index] != 0)
                 {
                     Changed.Add(index);
                 }

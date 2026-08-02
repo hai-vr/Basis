@@ -516,8 +516,7 @@ public class JiggleJobs {
 
                     if (point.childrenCount != 0) {
                         for (int j = 0; j < point.childrenCount; j++) {
-                            //var childPoint = tree.points[point.childrenIndices[j]];
-                            var childPose = poses[point.childrenIndices[j] + tree.transformIndexOffset];
+                            var childPose = poses[tree.GetChild(o, j) + tree.transformIndexOffset];
                             if (!pose.isVirtual && !childPose.isVirtual) {
                                 Gizmos.color = Color.cyan;
                                 Gizmos.DrawLine(pose.position, childPose.position);

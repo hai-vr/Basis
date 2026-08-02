@@ -633,14 +633,35 @@ public static class BasisRemoteNetworkDriver
     /// and composes them with cached T-pose locals into final localRotations in one pass.
     /// Iterates the flat [player0_bone0..bone(N-1), player1_bone0..] layout, so index →
     /// (playerIdx, boneIdx) is a divmod by BoneCount.
+    ///
+    /// Also decides, per bone, whether the transform needs writing at all: the composed rotation
+    /// is compared against the last value handed to that transform, and only a real change sets
+    /// WriteMask. The compare is far cheaper than the write it guards — a localRotation write
+    /// dirties the bone's whole subtree and feeds TransformChangeDispatch — and on a populated
+    /// instance most bones are bit-identical frame to frame: PoseLOD-skipped players hold their
+    /// filtered pose verbatim (see InterpolateBoneRotationsJob), fingers of players without hand
+    /// tracking sit at the identity delta, and a settled one-pole filter reproduces its own
+    /// output exactly. ValidMask is folded in here too, so the apply pass reads one array.
     /// </summary>
     [BurstCompile]
     struct ComputeSkeletonRotationsFromNetworkJob : IJobParallelFor
     {
+        // Squared 4-component distance below which two rotations count as the same pose. A held
+        // value differs by exactly 0, so the threshold only has to absorb a last-ULP wobble —
+        // deliberately tighter than anything visible (~1e-6 per component is well under a
+        // thousandth of a degree) so a skip can never accumulate into drift.
+        const float StillEpsilonSq = 1e-12f;
+
         [ReadOnly] public NativeArray<int> PlayerKeys;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcBoneRotations;
         [ReadOnly] public NativeArray<quaternion> TposeLocal;
+        [ReadOnly] public NativeArray<byte> ValidMask;
         [WriteOnly] public NativeArray<quaternion> Rotations;
+        /// <summary>Last rotation given to each bone transform. Seeded to (0,0,0,0), which is a
+        /// distance of ~1 from any unit quaternion, so a fresh or re-pointed slot always writes
+        /// on its first frame.</summary>
+        public NativeArray<quaternion> LastWritten;
+        [WriteOnly] public NativeArray<byte> WriteMask;
         public int BoneCount;
         public int CapacityFixed;
 
@@ -654,7 +675,16 @@ public static class BasisRemoteNetworkDriver
                 ? SrcBoneRotations[playerKey * BoneCount + boneIdx]
                 : quaternion.identity;
 
-            Rotations[index] = math.mul(TposeLocal[index], delta);
+            quaternion q = math.mul(TposeLocal[index], delta);
+            Rotations[index] = q;
+
+            // Straight component distance rather than a dot: dot of a near-unit quaternion with
+            // itself lands either side of 1.0 in float, so a "dot > 1 - eps" test needs an eps
+            // wider than the float noise floor and stops being exact for the held case.
+            bool write = ValidMask[index] != 0
+                      && math.lengthsq(q.value - LastWritten[index].value) > StillEpsilonSq;
+            WriteMask[index] = write ? (byte)1 : (byte)0;
+            if (write) LastWritten[index] = q;
         }
     }
 
@@ -711,7 +741,8 @@ public static class BasisRemoteNetworkDriver
     /// </summary>
     public static JobHandle ScheduleComputeSkeletonRotations(
         NativeArray<int> playerKeys, int totalBones, int boneCount,
-        NativeArray<quaternion> tposeLocal, NativeArray<quaternion> rotations,
+        NativeArray<quaternion> tposeLocal, NativeArray<byte> validMask,
+        NativeArray<quaternion> rotations, NativeArray<quaternion> lastWritten, NativeArray<byte> writeMask,
         int batch, JobHandle deps = default)
     {
         if (!_initialized || totalBones == 0) return deps;
@@ -721,7 +752,10 @@ public static class BasisRemoteNetworkDriver
             PlayerKeys = playerKeys,
             SrcBoneRotations = _outBoneRotations,
             TposeLocal = tposeLocal,
+            ValidMask = validMask,
             Rotations = rotations,
+            LastWritten = lastWritten,
+            WriteMask = writeMask,
             BoneCount = boneCount,
             CapacityFixed = FixedCapacity,
         }.Schedule(totalBones, batch, deps);

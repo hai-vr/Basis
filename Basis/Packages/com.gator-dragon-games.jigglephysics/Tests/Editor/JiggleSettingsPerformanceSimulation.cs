@@ -158,7 +158,7 @@ internal unsafe class JiggleSettingsPerformanceSimulation {
                 var direction = math.normalize(new float3(treeSpread, -1f, 0f));
                 var tree = JiggleTestTree.Chain(PointsPerTree, treeStart, direction, spacing, parameters);
                 var offset = a * pointsPerTree;
-                var jobData = new JiggleTreeJobData(a, offset, 0, 0, tree.points, tree.parameters);
+                var jobData = new JiggleTreeJobData(a, offset, 0, 0, tree.points, tree.parameters, tree.children);
                 crowd.allocations.Add((IntPtr)jobData.points);
                 crowd.allocations.Add((IntPtr)jobData.parameters);
                 crowd.trees[a] = jobData;

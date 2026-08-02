@@ -3,6 +3,15 @@ using Unity.Mathematics;
 
 namespace GatorDragonGames.JigglePhysics {
 
+// This is per-point simulation state and nothing else: 84 bytes, so a solver pass streams two cache
+// lines per point rather than the four it used to. The child index list that used to live here as a
+// fixed int[32] — 128 of the old 216 bytes — now sits in JiggleTreeJobData.childrenIndices at a fixed
+// stride of MAX_CHILDREN, because it is only read when a point's children are actually walked, while
+// these fields are read for every point of every pass. Nothing serialises this layout; trees are
+// built at runtime, so it is free to serve the access pattern.
+//
+// Adding a hot field here is nearly free. Adding one only some passes read is not — put that in a
+// side buffer on the tree instead.
 public unsafe struct JiggleSimulatedPoint {
     public const int MAX_CHILDREN = 32;
 
@@ -13,16 +22,15 @@ public unsafe struct JiggleSimulatedPoint {
     public float3 parentPose;
     public float3 pose;
     public float desiredLengthToParent;
-    public bool animated;
     public float worldRadius;
     //public float3 debug;
 
     // Set at initialization
     public float distanceFromRoot;
     public int parentIndex;
-    public fixed int childrenIndices[MAX_CHILDREN];
     public int childrenCount;
     public bool hasTransform;
+    public bool animated;
 
     private static bool GetIsValid(float3 vector) {
         return math.all(math.isfinite(vector));
@@ -72,13 +80,6 @@ public unsafe struct JiggleSimulatedPoint {
             failReason = "parentIndex is outside range";
             return false;
         }
-        for (int i = 0; i < childrenCount; i++) {
-            int childIndex = childrenIndices[i];
-            if (childIndex < 0 || childIndex >= pointCount) {
-                failReason = "childrenIndices is outside range";
-                return false;
-            }
-        }
         failReason = "All good!";
         return true;
     }
@@ -88,7 +89,7 @@ public unsafe struct JiggleSimulatedPoint {
                $"workingPosition: {workingPosition},\n" +
                $"parentPose: {parentPose},\npose: {pose},\ndesiredLengthToParent:{desiredLengthToParent},\n" +
                $"animated: {animated},\n parentIndex: {parentIndex},\n " +
-               $"children: [{childrenIndices[0]}, ...],\n childrenCount: {childrenCount},\n hasTransform: {hasTransform})";
+               $"\n childrenCount: {childrenCount},\n hasTransform: {hasTransform})";
     }
 
     public void Sanitize() {

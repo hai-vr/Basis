@@ -20,6 +20,10 @@ namespace Basis.Scripts.Rendering
         public static bool Enabled { get; private set; }
 
         public static float FrustumMargin = 0.5f;
+
+        /// <summary>Extra margin granted to entries that are already on screen. Pure hysteresis.</summary>
+        public static float StickyMargin = 1.5f;
+
         public static int MaxApplyPerTick = 32;
         public static float MaxApplyMillisecondsPerTick = 1f;
 
@@ -141,8 +145,10 @@ namespace Basis.Scripts.Rendering
                 Extents = BasisVisibilityDatabase.Extents,
                 Flags = BasisVisibilityDatabase.Flags,
                 Cameras = _cameras,
+                AppliedVisible = BasisVisibilityDatabase.AppliedVisible,
                 CameraCount = _cameraCount,
                 Margin = FrustumMargin,
+                StickyMargin = StickyMargin,
                 VisibleMask = BasisVisibilityDatabase.VisibleMask,
             };
             JobHandle frustumHandle = frustumJob.Schedule(count, 64, boundsHandle);

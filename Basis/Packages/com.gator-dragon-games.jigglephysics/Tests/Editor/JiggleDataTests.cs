@@ -236,14 +236,23 @@ internal unsafe class JiggleSimulatedPointTests {
         StringAssert.Contains("childrenCount", reason);
     }
 
+    /// <summary>
+    /// The child indices moved off the point and onto the tree, so the range check moved with them —
+    /// this asserts against JiggleTreeJobData rather than the point.
+    /// </summary>
     [Test]
-    public void GetIsValid_RejectsAnOutOfRangeChildIndex() {
-        var point = Healthy();
-        point.childrenCount = 1;
-        point.childrenIndices[0] = 99;
-
-        Assert.IsFalse(point.GetIsValid(4, out var reason));
-        StringAssert.Contains("childrenIndices", reason);
+    public void TreeGetIsValid_RejectsAnOutOfRangeChildIndex() {
+        var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
+        source.SetChild(1, 0, 99);
+        var subject = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters, source.children);
+        try {
+            Assert.IsFalse(subject.GetIsValid(out var reason));
+            StringAssert.Contains("childrenIndices", reason);
+        } finally {
+            UnsafeUtility.Free(subject.points, Allocator.Persistent);
+            UnsafeUtility.Free(subject.parameters, Allocator.Persistent);
+            UnsafeUtility.Free(subject.childrenIndices, Allocator.Persistent);
+        }
     }
 }
 
@@ -254,7 +263,7 @@ internal unsafe class JiggleTreeJobDataTests {
     [SetUp]
     public void SetUp() {
         var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
-        tree = new JiggleTreeJobData(7, 0, 0, 0, source.points, source.parameters);
+        tree = new JiggleTreeJobData(7, 0, 0, 0, source.points, source.parameters, source.children);
     }
 
     [TearDown]
@@ -337,7 +346,7 @@ internal unsafe class JiggleTreeStructExtensionsTests {
     [Test]
     public void GetInputPose_AppliesTheTransformIndexOffset() {
         var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
-        var tree = new JiggleTreeJobData(0, 3, 0, 0, source.points, source.parameters);
+        var tree = new JiggleTreeJobData(0, 3, 0, 0, source.points, source.parameters, source.children);
         var inputs = new NativeArray<JiggleTransform>(8, Allocator.Persistent);
         inputs[5] = JiggleTestFactory.Pose(new float3(9f, 9f, 9f));
 
@@ -353,7 +362,7 @@ internal unsafe class JiggleTreeStructExtensionsTests {
     [Test]
     public void WriteOutputPose_SkipsSlotsMarkedVirtual() {
         var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
-        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters);
+        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters, source.children);
         var outputs = new NativeArray<PoseData>(4, Allocator.Persistent);
         outputs[1] = new PoseData { pose = new JiggleTransform { isVirtual = true } };
 
@@ -369,7 +378,7 @@ internal unsafe class JiggleTreeStructExtensionsTests {
     [Test]
     public void WriteOutputPose_SanitizesNonFiniteOutput() {
         var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
-        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters);
+        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters, source.children);
         var outputs = new NativeArray<PoseData>(4, Allocator.Persistent);
         var corrupt = new JiggleTransform {
             isVirtual = false,
@@ -393,7 +402,7 @@ internal unsafe class JiggleTreeStructExtensionsTests {
     [Test]
     public void WriteOutputPose_ClearsTheVirtualFlagOnRealSlots() {
         var source = JiggleTestTree.Chain(2, float3.zero, new float3(1f, 0f, 0f), 1f);
-        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters);
+        var tree = new JiggleTreeJobData(0, 0, 0, 0, source.points, source.parameters, source.children);
         var outputs = new NativeArray<PoseData>(4, Allocator.Persistent);
 
         tree.WriteOutputPose(outputs, 1, JiggleTestFactory.Pose(new float3(2f, 0f, 0f)), new float3(1f, 0f, 0f), new float3(3f, 0f, 0f), 0.5f);

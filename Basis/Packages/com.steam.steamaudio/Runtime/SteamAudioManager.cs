@@ -681,6 +681,22 @@ namespace SteamAudio
             // camera/Transform read there would stall on their safety handles.
             mCachedPerspectiveCorrection = GetPerspectiveCorrection();
 
+            // The listener is only ever in the gather TAA when its SteamAudioListener runs
+            // reverb (AddListener is gated on applyReverb); with reverb off the Apply-side
+            // fallback read was a main-thread Transform touch landing after the jiggle pose
+            // dispatch, and stalled on its safety handles. Read it here instead, in the same
+            // job-free window as the camera matrices above.
+            mCachedListenerPoseValid = false;
+            if (mListener != null)
+            {
+                mListener.GetPositionAndRotation(out var cachedListenerPos, out var cachedListenerRot);
+                mCachedListenerPose.origin = Common.ConvertVector(cachedListenerPos);
+                mCachedListenerPose.ahead = Common.ConvertVector(cachedListenerRot * UnityEngine.Vector3.forward);
+                mCachedListenerPose.up = Common.ConvertVector(cachedListenerRot * UnityEngine.Vector3.up);
+                mCachedListenerPose.right = Common.ConvertVector(cachedListenerRot * UnityEngine.Vector3.right);
+                mCachedListenerPoseValid = true;
+            }
+
             // --- Gather transforms via jobs ---
             EnsureTransformArraysCreated();
             RepairTransformArrayDesync();
@@ -716,6 +732,8 @@ namespace SteamAudio
         }
         public JobHandle combined;
         PerspectiveCorrection mCachedPerspectiveCorrection;
+        GatheredData mCachedListenerPose;
+        bool mCachedListenerPoseValid;
         int mListenerGatherCount;
         private void ApplyInstance()
         {
@@ -873,16 +891,12 @@ namespace SteamAudio
                     }
                 }
             }
-            if (!listenerFromGather && mListener != null)
+            if (!listenerFromGather && mCachedListenerPoseValid)
             {
-                // One native interop call instead of four (position + 3 basis
-                // vectors). Each property accessor goes through a P/Invoke;
-                // forward/up/right additionally each fetch rotation internally.
-                mListener.GetPositionAndRotation(out var listenerPos, out var listenerRot);
-                sharedInputs.listener.origin = Common.ConvertVector(listenerPos);
-                sharedInputs.listener.ahead = Common.ConvertVector(listenerRot * UnityEngine.Vector3.forward);
-                sharedInputs.listener.up = Common.ConvertVector(listenerRot * UnityEngine.Vector3.up);
-                sharedInputs.listener.right = Common.ConvertVector(listenerRot * UnityEngine.Vector3.right);
+                sharedInputs.listener.origin = mCachedListenerPose.origin;
+                sharedInputs.listener.ahead = mCachedListenerPose.ahead;
+                sharedInputs.listener.up = mCachedListenerPose.up;
+                sharedInputs.listener.right = mCachedListenerPose.right;
             }
 
             sharedInputs.numRays = settings.realTimeRays;

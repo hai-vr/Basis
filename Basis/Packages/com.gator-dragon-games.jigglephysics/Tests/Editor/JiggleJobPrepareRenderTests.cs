@@ -206,7 +206,7 @@ internal unsafe class JiggleJobPrepareRenderTests {
                 scale = new float3(1f),
             };
         }
-        var jobData = new JiggleTreeJobData(0, 0, 0, 0, tree.points, tree.parameters);
+        var jobData = new JiggleTreeJobData(0, 0, 0, 0, tree.points, tree.parameters, tree.children);
         trees[0] = jobData;
 
         BuildJob(treeCount: 1).Execute();

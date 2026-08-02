@@ -7,6 +7,8 @@ namespace GatorDragonGames.JigglePhysics {
 public class JiggleTree {
     public Transform[] bones;
     public JiggleSimulatedPoint[] points;
+    /// <summary>Child indices for <see cref="points"/> at a stride of JiggleSimulatedPoint.MAX_CHILDREN.</summary>
+    public int[] childrenIndices;
     public Vector3[] restPositions;
     public Quaternion[] restRotations;
     public JigglePointParameters[] parameters;
@@ -34,7 +36,7 @@ public class JiggleTree {
             return jiggleTreeJobData;
         }
 
-        jiggleTreeJobData = new JiggleTreeJobData(rootID, -1, 0, personalColliders.Length, points, parameters);
+        jiggleTreeJobData = new JiggleTreeJobData(rootID, -1, 0, personalColliders.Length, points, parameters, childrenIndices);
         hasJiggleTreeStruct = true;
         return jiggleTreeJobData;
     }
@@ -113,12 +115,13 @@ public class JiggleTree {
         jiggleTreeJobData.transformIndexOffset = (uint)offset;
     }
 
-    public JiggleTree(List<Transform> bones, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Transform> personalColliderTransforms, List<JiggleCollider> personalColliders, List<Vector3> restPositions, List<Quaternion> restRotations) {
+    public JiggleTree(List<Transform> bones, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Transform> personalColliderTransforms, List<JiggleCollider> personalColliders, List<Vector3> restPositions, List<Quaternion> restRotations, List<int> childrenIndices) {
         dirty = false;
         this.bones = bones.ToArray();
         this.restPositions = restPositions.ToArray();
         this.restRotations = restRotations.ToArray();
         this.points = points.ToArray();
+        this.childrenIndices = childrenIndices.ToArray();
         this.parameters = parameters.ToArray();
         this.personalColliders = personalColliders.ToArray();
         this.personalColliderTransforms = personalColliderTransforms.ToArray();
@@ -129,7 +132,7 @@ public class JiggleTree {
 #endif
     }
 
-    public void Set(List<Transform> bones, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Transform> personalColliderTransforms, List<JiggleCollider> personalColliders, List<Vector3> restPositions, List<Quaternion> restRotations) {
+    public void Set(List<Transform> bones, List<JiggleSimulatedPoint> points, List<JigglePointParameters> parameters, List<Transform> personalColliderTransforms, List<JiggleCollider> personalColliders, List<Vector3> restPositions, List<Quaternion> restRotations, List<int> childrenIndices) {
         var bonesCount = bones.Count;
         var pointsCount = points.Count;
         if (bonesCount == this.bones.Length && pointsCount == this.points.Length) {
@@ -145,6 +148,9 @@ public class JiggleTree {
             this.restPositions = restPositions.ToArray();
             this.restRotations = restRotations.ToArray();
         }
+        // Always reallocated: the child list is only rebuilt wholesale, and a same-length rebuild can
+        // still rewire which point points at which.
+        this.childrenIndices = childrenIndices.ToArray();
 
         var personalColliderTransformsCount = personalColliderTransforms.Count;
         var personalCollidersCount = personalColliders.Count;
@@ -163,7 +169,7 @@ public class JiggleTree {
 #endif
         
         if (hasJiggleTreeStruct) {
-            jiggleTreeJobData.Set(rootID, this.points, this.parameters, personalCollidersCount);
+            jiggleTreeJobData.Set(rootID, this.points, this.parameters, this.childrenIndices, personalCollidersCount);
         }
 
         dirty = false;

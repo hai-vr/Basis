@@ -120,7 +120,7 @@ internal unsafe class JiggleJobHotLoopSimulation {
         private const int SceneCollidersPerTree = 8;
 
         public static Crowd Build(int treeCount, int bonesPerTree = 8, float worldRadius = 20f,
-            uint seed = 0x5F3759DF) {
+            uint seed = 0x5F3759DF, float elasticitySoften = 0.5f) {
             var pointsPerTree = bonesPerTree + 2;
             var crowd = new Crowd {
                 treeCount = treeCount,
@@ -144,7 +144,8 @@ internal unsafe class JiggleJobHotLoopSimulation {
             // Production-shaped parameters: every term the solver has is live, because a benchmark
             // that leaves branches switched off measures a solver nobody runs.
             var parameters = JiggleTestFactory.Params(
-                rootElasticity: 1f, angleElasticity: 0.6f, lengthElasticity: 0.8f, elasticitySoften: 0.5f,
+                rootElasticity: 1f, angleElasticity: 0.6f, lengthElasticity: 0.8f,
+                elasticitySoften: elasticitySoften,
                 gravityMultiplier: 1f, blend: 1f, airDrag: 0.12f, drag: 0.1f, ignoreRootMotion: 0.4f,
                 collisionRadius: 0.03f, angleLimited: true, angleLimit: 0.6f, angleLimitSoften: 0.3f);
 
@@ -176,7 +177,7 @@ internal unsafe class JiggleJobHotLoopSimulation {
                 }
 
                 var jobData = new JiggleTreeJobData(t, offset, t * PersonalCollidersPerTree,
-                    PersonalCollidersPerTree, source.points, source.parameters);
+                    PersonalCollidersPerTree, source.points, source.parameters, source.children);
                 crowd.allocations.Add((IntPtr)jobData.points);
                 crowd.allocations.Add((IntPtr)jobData.parameters);
                 crowd.trees[t] = jobData;
@@ -294,14 +295,21 @@ internal unsafe class JiggleJobHotLoopSimulation {
         report.AppendLine("trees | bones | points | substeps | total ms | us per point");
         report.AppendLine("------+-------+--------+----------+----------+-------------");
 
-        foreach (var treeCount in new[] { 256, 2048 }) {
+        // Swept wide on purpose: per-point cost that climbs with the crowd is the working set falling
+        // out of cache, not the solver getting slower, and that distinguishes a memory problem (fix
+        // the 216 byte point struct) from an arithmetic one (fix the maths).
+        foreach (var treeCount in new[] { 256, 2048, 8192 }) {
             foreach (var substeps in new[] { 1, 2 }) {
-                using var crowd = Crowd.Build(treeCount);
+                // elasticitySoften 0 is what ToJigglePointParameters actually emits unless the
+                // advanced toggle is on, so this is the shape of a shipped rig.
+                using var crowd = Crowd.Build(treeCount, elasticitySoften: 0f);
                 var job = crowd.SimulateJob(substeps);
                 var points = treeCount * crowd.pointsPerTree;
                 var total = MedianMilliseconds(() => job.Run(treeCount), crowd.Reset);
+                var pointBytes = points * sizeof(JiggleSimulatedPoint) / 1024.0 / 1024.0;
                 report.AppendLine(
-                    $"{treeCount,5} | {8,5} | {points,6} | {substeps,8} | {total,8:F4} | {total * 1000.0 / points,12:F4}");
+                    $"{treeCount,5} | {8,5} | {points,6} | {substeps,8} | {total,8:F4} | {total * 1000.0 / points,12:F4}" +
+                    $"  ({pointBytes,6:F2} MB of points)");
             }
         }
         Report(report);
@@ -458,6 +466,48 @@ internal unsafe class JiggleJobHotLoopSimulation {
     }
 
     /// <summary>
+    /// A probe, not shipping code: JiggleJobBulkTransformReadReset with the lossy-scale fetch removed
+    /// and nothing else changed. That line pulls a whole localToWorldMatrix across and takes three
+    /// square roots for a value the solver only ever uses as an average, so this prices it before
+    /// anyone tries to be clever about it.
+    /// </summary>
+    [BurstCompile]
+    private struct ReadResetWithoutScaleProbe : IJobParallelForTransform {
+        public NativeArray<JiggleTransform> restPoseTransforms;
+        [ReadOnly] public NativeArray<JiggleTransform> previousLocalTransforms;
+        public NativeArray<JiggleTransform> simulateInputPoses;
+
+        public void Execute(int index, TransformAccess transform) {
+            if (!transform.isValid) {
+                return;
+            }
+            var localTransform = previousLocalTransforms[index];
+            if (!localTransform.isVirtual) {
+                transform.GetLocalPositionAndRotation(out var localPosition, out var localRotation);
+                var restTransform = restPoseTransforms[index];
+                var positionChanged = (Vector3)localTransform.position != localPosition;
+                var rotationChanged = (Quaternion)localTransform.rotation != localRotation;
+                if (!positionChanged && !rotationChanged) {
+                    transform.SetLocalPositionAndRotation(restTransform.position, restTransform.rotation);
+                } else {
+                    if (positionChanged) restTransform.position = localPosition;
+                    if (rotationChanged) restTransform.rotation = localRotation;
+                    restPoseTransforms[index] = restTransform;
+                }
+            }
+
+            var jiggleTransform = simulateInputPoses[index];
+            if (jiggleTransform.isVirtual) {
+                return;
+            }
+            transform.GetPositionAndRotation(out var position, out var rotation);
+            jiggleTransform.position = position;
+            jiggleTransform.rotation = rotation;
+            simulateInputPoses[index] = jiggleTransform;
+        }
+    }
+
+    /// <summary>
     /// The read-reset job, which is the other half of the per-frame transform traffic: it reads each
     /// bone's local pose, decides whether the animator moved it, restores the rest pose where it did
     /// not, and reads the world pose back out for the simulate job. Split so the two halves — the
@@ -467,8 +517,8 @@ internal unsafe class JiggleJobHotLoopSimulation {
     public void BulkTransformReadReset_Throughput() {
         var report = new StringBuilder();
         report.AppendLine("=== JiggleJobBulkTransformReadReset over real transform hierarchies ===");
-        report.AppendLine("bones | chains | all virtual ms | real bones ms | us per bone");
-        report.AppendLine("------+--------+----------------+---------------+------------");
+        report.AppendLine("bones | chains | all virtual ms | real bones ms | no lossyScale ms | us per bone");
+        report.AppendLine("------+--------+----------------+---------------+------------------+------------");
 
         foreach (var chainCount in new[] { 256, 1024 }) {
             const int BonesPerChain = 8;
@@ -502,6 +552,12 @@ internal unsafe class JiggleJobHotLoopSimulation {
                 };
                 var realMs = MedianMilliseconds(() => job.Schedule(access).Complete());
 
+                var probe = new ReadResetWithoutScaleProbe {
+                    restPoseTransforms = restPoses, previousLocalTransforms = previousLocal,
+                    simulateInputPoses = simulateInputs,
+                };
+                var noScaleMs = MedianMilliseconds(() => probe.Schedule(access).Complete());
+
                 // Same job, every slot virtual: both halves early out, so what is left is the
                 // per-bone dispatch floor the job cannot go below.
                 for (int i = 0; i < count; i++) {
@@ -515,7 +571,7 @@ internal unsafe class JiggleJobHotLoopSimulation {
                 var virtualMs = MedianMilliseconds(() => job.Schedule(access).Complete());
 
                 report.AppendLine($"{count,5} | {chainCount,6} | {virtualMs,14:F4} | {realMs,13:F4} | " +
-                    $"{realMs * 1000.0 / count,11:F4}");
+                    $"{noScaleMs,16:F4} | {realMs * 1000.0 / count,11:F4}");
             } finally {
                 restPoses.Dispose();
                 previousLocal.Dispose();

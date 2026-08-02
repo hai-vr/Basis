@@ -77,19 +77,19 @@ public struct JiggleJobSimulate : IJobFor {
         float3 min = new float3(float.MaxValue);
         float3 max = new float3(float.MinValue);
         
-        // Everything here addresses points through the buffer rather than copying them out and back.
-        // JiggleSimulatedPoint carries a fixed int[32] child list, so it is 216 bytes: a by-value
-        // read-modify-write moved 432 bytes per point to update five float3s, and the parent and
-        // child reads below cost another 216 each. Same arithmetic, same order, same results.
+        // Everything here addresses points through the buffer rather than copying them out and back:
+        // a by-value read-modify-write moved the whole struct twice to update five float3s, and each
+        // parent and child read cost another copy. Same arithmetic, same order, same results.
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points + i;
             var parameters = tree.parameters + i;
             if (point->parentIndex == -1) {
                 // virtual root particles
-                var child = tree.points + point->childrenIndices[0];
-                var childChild = tree.points + child->childrenIndices[0];
-                var childPose = tree.GetInputPose(inputPoses, point->childrenIndices[0]);
-                var childChildPose = tree.GetInputPose(inputPoses, child->childrenIndices[0]);
+                var childSlot = tree.GetChild(i, 0);
+                var child = tree.points + childSlot;
+                var childChild = tree.points + tree.GetChild(childSlot, 0);
+                var childPose = tree.GetInputPose(inputPoses, childSlot);
+                var childChildPose = tree.GetInputPose(inputPoses, tree.GetChild(childSlot, 0));
                 if (!childChild->hasTransform) {
                     // edge case where it's a singular isolated root bone
                     point->pose = childPose.position - new float3(0f, 0.25f, 0f);
@@ -139,7 +139,7 @@ public struct JiggleJobSimulate : IJobFor {
         // walked them again to read the shifted values. Points are stored parent before child — Cache
         // and Constrain both already depend on that, reading a parent that was updated earlier in the
         // same loop — so by the time a point integrates, its parent carries exactly the values the
-        // second pass used to read. Same arithmetic on the same inputs, one walk of a 216 byte stride
+        // second pass used to read. Same arithmetic on the same inputs, one walk of the point buffer
         // instead of two, and no by-value copy in or out.
         for (int i = 0; i < tree.pointCount; i++) {
             var point = tree.points + i;
@@ -393,8 +393,9 @@ public struct JiggleJobSimulate : IJobFor {
         var collisionDepenetration = new float3(0f, 0f, 0f);
         collisionDepenetration = DoDepenetration(point, parent, parentParameters, collider);
         var maxDepenetrationMagnitude = math.length(collisionDepenetration);
+        var pointIndex = (int)(point - tree.points);
         for (int childIndex = 0; childIndex < point->childrenCount; childIndex++) {
-            var child = tree.points + point->childrenIndices[childIndex];
+            var child = tree.points + tree.GetChild(pointIndex, childIndex);
             var newCollisionDepenetration = DoDepenetration(point, child, pointParameters, collider);
             maxDepenetrationMagnitude = math.max(maxDepenetrationMagnitude, math.length(newCollisionDepenetration));
             collisionDepenetration += newCollisionDepenetration;
@@ -492,7 +493,7 @@ public struct JiggleJobSimulate : IJobFor {
                 var pointPosition = point->workingPosition;
                 var reachSq = math.distancesq(pointPosition, parent->workingPosition);
                 for (int childIndex = 0; childIndex < point->childrenCount; childIndex++) {
-                    var child = tree.points + point->childrenIndices[childIndex];
+                    var child = tree.points + tree.GetChild(i, childIndex);
                     reachSq = math.max(reachSq, math.distancesq(pointPosition, child->workingPosition));
                 }
                 var reach = math.sqrt(reachSq);
@@ -545,7 +546,7 @@ public struct JiggleJobSimulate : IJobFor {
             #region Special root particle solve
 
             if (parent->parentIndex == -1) {
-                var child = tree.points[point->childrenIndices[0]];
+                var child = tree.points + tree.GetChild(i, 0);
                 point->workingPosition = point->workingPosition = math.lerp(point->workingPosition, point->pose,
                     pointParameters->rootElasticity * pointParameters->rootElasticity);
                 // Grabs apply here too, after the root pin: this branch continues past the regions
@@ -553,9 +554,11 @@ public struct JiggleJobSimulate : IJobFor {
                 // so skipping it would make the whole rig ungrabbable.
                 ApplyGrabs(point, i, treeGrabs, treeGrabCount);
                 var head = point->pose;
-                var tail = child.pose;
+                var tail = child->pose;
                 var diffasdf = head - tail;
                 parent->workingPosition = point->workingPosition + diffasdf;
+                point->lastPosition = point->position;
+                point->position = point->workingPosition;
                 continue;
             }
 
@@ -565,7 +568,7 @@ public struct JiggleJobSimulate : IJobFor {
 
             if (point->childrenCount > 0) {
                 // Back-propagated motion specifically for collision enabled chains
-                var child = tree.points+point->childrenIndices[0];
+                var child = tree.points + tree.GetChild(i, 0);
                 if (child->hasTransform) {
                     var child_length_elasticity = pointParameters->lengthElasticity * pointParameters->lengthElasticity;
                     var parentToChildPose = child->pose - parent->pose;
@@ -612,18 +615,30 @@ public struct JiggleJobSimulate : IJobFor {
             var parentAimPose = math.normalizesafe(point->parentPose - parent->parentPose, new float3(0,0,1));
             var parentAim = math.normalizesafe(parent->workingPosition - parentParentWorkingPosition, new float3(0,0,1));
 
-            var currentLength = math.length(point->workingPosition - parent->workingPosition);
             var from_to_rot = FromToRotationFromNormalizedVectors(parentAimPose, parentAim);
             var constraintTarget = math.rotate(from_to_rot, point->pose - point->parentPose);
 
             var desiredPosition = parent->workingPosition + constraintTarget;
 
-            var error = math.distance(point->workingPosition, desiredPosition);
-            if (currentLength != 0) {
-                error /= currentLength;
+            // pow(x, 0) is 1 for every x — including 0 and NaN — and the error term feeds nothing
+            // else, so when elasticitySoften is 0 the whole term is the constant 1 and the two square
+            // roots, the divide, the min and the pow that produce it are dead work. That is the
+            // default case rather than an edge case: ToJigglePointParameters only emits a non-zero
+            // soften under the advanced toggle. Not an approximation — this returns exactly what the
+            // arithmetic below it would have returned.
+            var softenExponent = parentParameters->elasticitySoften;
+            float error;
+            if (softenExponent == 0f) {
+                error = 1f;
+            } else {
+                var currentLength = math.length(point->workingPosition - parent->workingPosition);
+                error = math.distance(point->workingPosition, desiredPosition);
+                if (currentLength != 0) {
+                    error /= currentLength;
+                }
+                error = math.min(error, 1.0f);
+                error = math.pow(error, softenExponent);
             }
-            error = math.min(error, 1.0f);
-            error = math.pow(error, parentParameters->elasticitySoften);
             point->workingPosition = math.lerp(point->workingPosition, desiredPosition, parentParameters->angleElasticity * error);
 
             #endregion
@@ -685,6 +700,20 @@ public struct JiggleJobSimulate : IJobFor {
 
             #endregion
 
+            // What FinishStep used to do in a pass of its own. Constrain never reads position or
+            // lastPosition — only workingPosition, pose, parentPose and the structural fields — so
+            // rolling the step forward here rather than in a second walk cannot be observed by any
+            // later point, and it lands while the point is still in L1. The root is finished after
+            // the loop instead: it is skipped above, and the special root solve writes its
+            // workingPosition while solving the first real point.
+            point->lastPosition = point->position;
+            point->position = point->workingPosition;
+        }
+
+        if (tree.pointCount > 0) {
+            var root = tree.points;
+            root->lastPosition = root->position;
+            root->position = root->workingPosition;
         }
     }
 
@@ -711,14 +740,6 @@ public struct JiggleJobSimulate : IJobFor {
         }
     }
 
-    private unsafe void FinishStep(JiggleTreeJobData tree) {
-        for (int i = 0; i < tree.pointCount; i++) {
-            var point = tree.points+i;
-            point->lastPosition = point->position;
-            point->position = point->workingPosition;
-        }
-    }
-
     private unsafe void ApplyPose(JiggleTreeJobData tree) {
         if (tree.pointCount < 2) {
             return;
@@ -736,7 +757,7 @@ public struct JiggleJobSimulate : IJobFor {
                 continue;
             }
 
-            var child = tree.points + point->childrenIndices[0];
+            var child = tree.points + tree.GetChild(i, 0);
 
             var local_pose = point->pose;
             var local_child_pose = child->pose;
@@ -757,7 +778,7 @@ public struct JiggleJobSimulate : IJobFor {
                 var cachedAnimatedVectorSum = new float3(0f);
                 var simulatedVectorSum = cachedAnimatedVectorSum;
                 for (var j = 0; j < point->childrenCount; j++) {
-                    var child_also = tree.points + point->childrenIndices[j];
+                    var child_also = tree.points + tree.GetChild(i, j);
                     var local_child_pose_also = child_also->pose;
                     var local_child_working_position_also = child_also->workingPosition;
                     cachedAnimatedVectorSum += math.normalizesafe(local_child_pose_also - local_pose, new float3(0,0,1));
@@ -821,8 +842,8 @@ public struct JiggleJobSimulate : IJobFor {
         var stepCount = math.max(substeps, 1);
         for (int step = 0; step < stepCount; step++) {
             VerletIntegrate(tree);
+            // Constrain rolls the step forward itself; there is no separate FinishStep pass.
             Constrain(tree, minExtentPosition, maxExtentPosition, treeGrabs, treeGrabCount, gatheredColliders, gatheredColliderCount);
-            FinishStep(tree);
         }
         // Repair BEFORE the pose write, not after: a NaN step otherwise leaks one frame of NaN
         // into the bone transforms, and because the next frame's animated pose is read back off
