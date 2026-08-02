@@ -10,7 +10,7 @@ using UnityEngine;
 // player feeds it PCM decoded natively.
 //
 // Per-platform protocol guidance (from https://panel.vrcdn.live/preview/<name>):
-//   PC / VR (low latency) : rtspt://stream.vrcdn.live/live/<name>
+//   PC / VR (low latency) : rtsp://stream.vrcdn.live/live/<name>
 //   Quest (Android)       : https://stream.vrcdn.live/live/<name>.live.ts   (MPEG-TS)
 //   Alternatives          : rtmp://stream.vrcdn.live/live/<name>
 //                           https://stream.vrcdn.live/live/<name>.live.mp4  (fMP4)
@@ -18,14 +18,14 @@ using UnityEngine;
 public sealed class BasisMediaPlayerStreaming : MonoBehaviour
 {
     [Header("Stream")]
-    [Tooltip("Live URL to play when AutoSelectPerPlatform is off. RTSPT/RTMP/HTTPS-fMP4/HTTPS-TS are all accepted.")]
-    public string StreamUrl = "rtspt://stream.vrcdn.live/live/vrcdn";
+    [Tooltip("Live URL to play when AutoSelectPerPlatform is off. RTSP/RTMP/HTTPS-fMP4/HTTPS-TS are all accepted.")]
+    public string StreamUrl = "rtsp://stream.vrcdn.live/live/vrcdn";
 
-    [Tooltip("If true, pick PcUrl or QuestUrl automatically by build target instead of using StreamUrl. RTSPT is lowest latency on PC/VR; Quest pulls MPEG-TS over HTTPS.")]
+    [Tooltip("If true, pick PcUrl or QuestUrl automatically by build target instead of using StreamUrl. RTSP is lowest latency on PC/VR; Quest pulls MPEG-TS over HTTPS.")]
     public bool AutoSelectPerPlatform = false;
 
     [Tooltip("URL used on desktop/standalone (and in the editor) when AutoSelectPerPlatform is on.")]
-    public string PcUrl = "rtspt://stream.vrcdn.live/live/vrcdn";
+    public string PcUrl = "rtsp://stream.vrcdn.live/live/vrcdn";
 
     [Tooltip("URL used on Android/Quest when AutoSelectPerPlatform is on.")]
     public string QuestUrl = "https://stream.vrcdn.live/live/vrcdn.live.ts";

@@ -4,7 +4,8 @@ Live and on-demand video — and audio-only media — for Basis, decoded with th
 **operating-system hardware codecs** and presented **zero-copy** into a Unity texture. No transcode server, no
 bundled codec libraries, no `UnityEngine.Video.MediaPlayer`.
 
-- **Windows (PC / VR)** — Media Foundation H.264/H.265/VP9/AV1 + AAC on a DXVA D3D11
+- **Windows (PC / VR)** — Media Foundation H.264/H.265/VP9/AV1 + AAC/MP3, and Opus
+  through a runtime-loaded libopus, on a DXVA D3D11
   device; NV12 → BGRA via the D3D11 video processor into a texture Unity samples.
   (VP9 and AV1 need their Store extensions and a GPU with hardware decode —
   `basis_media_probe_video_codec` answers for both legs.)
@@ -26,6 +27,7 @@ bundled codec libraries, no `UnityEngine.Video.MediaPlayer`.
 | `https://….wav` | WAV audio (integer PCM, mono up to 7.1) | `https://stream.example/audio/track.wav` |
 | `https://….webm` | WebM VP9/AV1 video and/or Opus audio (YouTube's >1080p carriage; Cues-indexed files seek) | `https://stream.example/vod/clip.webm` |
 | `https://….opus` | Ogg Opus audio | `https://stream.example/audio/track.opus` |
+| `https://….mp3` | MP3 audio — standalone, or MP3-in-MP4 (`.m4a`) | `https://stream.example/audio/track.mp3` |
 
 The protocol/demux core (RTSP/RTP, RTMP/FLV, MPEG-TS, fMP4, WebM, RIFF/WAV) is portable C,
 picking demuxers by content sniff so extensionless CDN URLs (googlevideo and friends)
@@ -139,7 +141,7 @@ A null `AudioUri` (the default) is an ordinary single muxed stream.
 With no resolver installed, the player derives defaults from the URL alone:
 `https://host/videos/My%20Video.mp4` titles as "My Video" (`FileName`
 "My Video.mp4"); extensionless stream paths fall back to the last path segment
-(`rtspt://host/live/vrcdn` → "vrcdn"), then the host. A resolver can push the
+(`rtsp://host/live/vrcdn` → "vrcdn"), then the host. A resolver can push the
 real page title (and the richer fields) by setting `BasisMediaSource.Metadata`
 before `LoadSource`; anyone can merge fields in later with
 `player.ApplyMetadata(...)`.
@@ -186,7 +188,9 @@ Basis ships a yt-dlp-based resolver as that package, but any
 `BasisMediaPlayerStreaming.StreamUrl` steers each URL automatically:
 
 - A **directly-playable** URL — a transport scheme, or an HTTP URL whose path ends in a
-  media extension (`.mp4`/`.m4s`/`.ts`/`.m2ts`/`.mts`/`.m3u8`/`.wav`) — loads directly.
+  media extension (`.mp4`/`.m4v`/`.m4a`/`.m4s`/`.ts`/`.m2ts`/`.mts`/`.m3u8`/`.wav`/`.webm`/
+  `.opus`/`.mp3`) — loads directly. `.ogg` is deliberately absent: it's a generic container
+  the pipeline doesn't decode, so it routes to the resolver.
 - **Anything else** (an HTTP page URL with no media extension) is handed to the
   resolver, which turns it into the playable stream endpoint(s) and loads them.
 
@@ -266,12 +270,127 @@ player.LoadUrl("rtsp://stream.vrcdn.live/live/vrcdn"); // auto-plays
 ```
 
 Or drop the `Prefabs/MediaPlayerStreaming` prefab in a scene and set the URL on
-`BasisMediaPlayerStreaming` (it can auto-pick RTSPT on PC / MPEG-TS on Quest).
+`BasisMediaPlayerStreaming` (it can auto-pick RTSP on PC / MPEG-TS on Quest).
 Add a `BasisMediaPlayerAudio` (+ `AudioSource`) for sound;
 `BasisMediaPlayerNetworking` syncs URL/state across the room.
 
 The CPU `IBasisFrameSource` path (e.g. `BasisSyntheticTestSource`) is still
 available by assigning `player.Source` directly — useful for tests without a feed.
+
+### Video output (screens and UI)
+
+Frames reach the world through one of two sinks, both driven from the player's
+`OnOutputTextureChanged`:
+
+- **`BasisVideoMaterialOutput`** — binds the frame to one or more `Renderer` material
+  properties (`_BaseMap` on URP, `_MainTex` on legacy BiRP, per `TexturePropertyName`).
+  `TargetRenderer` plus every entry in `AdditionalTargets` is driven from the same
+  texture, so one player can feed several screens at once.
+- **`BasisVideoDisplay`** — binds it to a uGUI `RawImage`, optionally driving an
+  `AspectRatioFitter` from the player's reported `VideoSize`.
+
+Aspect, stereo-eye selection and flips are applied as a **UV scale/offset on the sampled
+texture**, composed once and written to the material's texture ST (or the `RawImage`'s
+`uvRect`). The `Equirect360`, `VR180` and `Fisheye` projections are the exception: they
+can't be expressed as a UV scale/offset, so they enable a shader keyword instead.
+
+On the material path nothing touches the mesh, so a screen placed at a known size in a
+world keeps that size whatever plays on it. On the UI path an `AspectRatioFitter` is the
+one thing that does resize its `RectTransform`, which is what makes it the right way to
+letterbox a `RawImage`.
+
+#### The screen shader
+
+`Basis/Media Player Video` is URP/Unlit with one change: **UVs outside `[0,1]` render
+opaque black** rather than being resolved by the sampler. That single branch is what
+makes letterboxing possible at all. `FitInside` fits the whole source inside the screen
+by scaling the *bar* axis above 1, which pushes the sampled UV outside the texture over
+the bar region — and a UV transform has no other way to produce a bar.
+
+The frame texture is `Clamp`-wrapped, so on **any other material** that same region
+resolves to the outermost row or column of video pixels stretched flat across the bar:
+a streak of edge colour that shifts with the content, not a black bar. The video itself
+stays correctly proportioned either way, so it's the bars that give it away.
+
+`FitInside` therefore needs this shader (or your own equivalent, see below). Every other
+mode keeps the sampled UV inside `[0,1]` and looks identical on any material. One
+consequence of baking the fit into the texture ST: this shader can't tile — authored
+tiling on the material is composed into the fit and then blacked out.
+
+#### Aspect
+
+`AspectMode` compares the source's aspect against the **display aspect** — the shape of
+the surface you're drawing on, not the shape of the video:
+
+| `AspectMode` | Behaviour | Safe on any material? |
+|---|---|---|
+| `Original` (default) | Sample untransformed. The mesh or `RectTransform` stretches the frame to its own shape | yes |
+| `Stretch` | Same as `Original` | yes |
+| `FitInside` | Letterbox / pillarbox — whole source visible, bars on the remaining axis | **no** — needs the shader above |
+| `FitOutside` | Crop to fill — no bars, edges of the source lost | yes |
+| `PixelPerfect` | Crop to fill, insetting on the opposite axis to `FitOutside` (it does not map source texels to screen pixels — there's no display-resolution input on this path) | yes |
+
+`DisplayAspectOverride` supplies the display aspect directly. Left at 0, it's derived
+from the target: the renderer's **local** bounds on the material path, the
+`RectTransform`'s rect on the UI path.
+
+> **Known gap.** Local bounds are mesh-local and exclude transform scale, so a 1×1 quad
+> scaled to (16, 9, 1) still reports 1:1 and `FitInside` letterboxes the video into a
+> square in the middle of a wide screen. Set `DisplayAspectOverride` on any screen that
+> isn't uniformly scaled. The aspect is also recomputed only when the frame texture
+> changes, so a screen resized at runtime keeps the fit it was given.
+
+On the UI path, prefer `Original` plus an `AspectRatioFitter` — a `RawImage` draws through
+the UI material, which smears rather than blacking out, so `FitInside` isn't available
+there. `MediaPlayerStreaming` ships `FitInside` on a uniformly scaled screen.
+
+#### Projection
+
+`ProjectionMode` describes how the source frame is laid out. `SideBySideLR`/`RL` and
+`OverUnderTB`/`BT` select one half of a stereo frame via the same UV transform, with
+`StereoEye` picking which. `Equirect360`, `VR180` and `Fisheye` don't reshape the UV —
+they enable a `BASIS_PROJ_EQUIRECT` / `_VR180` / `_FISHEYE` keyword for a shader that
+implements the mapping. **No bundled shader implements those keywords**, so on the stock
+material those three modes render the source flat, as mono.
+
+#### Orientation
+
+Some backends publish the frame top-left origin, and whether they do can depend on the
+GPU rather than the content, so the player reports it as `OutputFrameIsTopLeftOrigin` and
+both sinks fold that correction in automatically. Leave `FlipVertically` **off** for
+normal content; it's there for a source that is genuinely encoded upside-down, which is
+consistent across every machine. `FlipHorizontally` is for a screen mesh whose UV winding
+presents the video mirrored.
+
+#### Picture
+
+`Picture` (Brightness, Contrast, Saturation, Gamma) is a per-output adjustment published
+as `_BasisBrightness` / `_BasisContrast` / `_BasisSaturation` / `_BasisGamma` — through a
+`MaterialPropertyBlock` on the material path, and onto `RawImage.material` on the UI path.
+A shader that doesn't declare them ignores them, which today includes
+`Basis/Media Player Video`, so on the stock setup only the UI path's Brightness has any
+effect (it's multiplied into `RawImage.color`). Wire the four properties into your own
+shader to use the rest.
+
+#### Using your own shader
+
+Anything bound as the screen material needs to:
+
+- expose the texture property named in `TexturePropertyName` (`_BaseMap` by default), and
+- transform the sampled UV by that property's ST — `TRANSFORM_TEX(input.uv, _BaseMap)` —
+  since that's where aspect, stereo-eye selection and flips arrive.
+
+That much is enough for every aspect mode except `FitInside`. For that, also **render UVs
+outside `[0,1]` as black** before sampling, the way the bundled forward pass does.
+
+`Equirect360`, `VR180` and `Fisheye` need more than the ST transform: implement the
+mapping for whichever of `BASIS_PROJ_EQUIRECT`, `BASIS_PROJ_VR180` and
+`BASIS_PROJ_FISHEYE` you support, keyed off the enabled keyword. A shader that handles
+only the ST transform renders those three flat.
+
+Declare the four `_Basis*` picture floats if you want those, and note that the bundled
+shader's black-out lives in its forward pass only — a deferred renderer's GBuffer pass
+would smear the bars instead.
 
 ### Audio (stereo and multichannel)
 
@@ -309,13 +428,21 @@ prefabs ship that way): with either the wrong way round, the spatialiser process
 silent keepalive clip and the tap overwrites the result, which sounds the same as
 dropping `Spatial Blend` to 2D.
 
+Per-source audio analysers — AudioLink and anything else built on
+`AudioSource.GetOutputData` / `GetSpectrumData` — can't see audio a script generates, so
+they read silence from a tap-driven output. `BasisMediaAudioChannel.AnalysisFeed` switches
+that output to a streaming `AudioClip` written once a frame instead, which those APIs can
+read back. It costs the output a small delay behind the others (`AnalysisFeedLatency`,
+50 ms by default, 20–500 ms), so set it on the analyser's own `AudioSource` rather than on
+a speaker you listen to.
+
 Channel ceiling depends on the source: **LPCM** — Blu-ray-style over MPEG-TS, or a
 **WAV** file — carries a full 7.1 (8 channels); **AAC on Windows** decodes up to 5.1
 (the Media Foundation decoder's limit — wider or PCE-signalled AAC layouts play muted
 rather than failing the stream; Android decodes what the device's codec supports).
 
-Audio-only sources — a WAV, or an MP4 with no video track — play through the same
-outputs with no video output. If an audio-only source's format can't be decoded on
+Audio-only sources — a WAV, an MP3, an Ogg Opus file, or an MP4/`.m4a` with no video
+track — play through the same outputs with no video output. If an audio-only source's format can't be decoded on
 the platform, the load reports an error rather than playing silence.
 
 ## Networked sync
@@ -369,7 +496,8 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
 ## Known limits
 
 - **RTMP** — handshake/AMF is minimal (simple handshake, no Digest auth, no rtmps).
-  RTSPT and MPEG-TS are the primary, more-complete paths.
+  `rtsp://` and MPEG-TS are the primary, more-complete paths, with `rtspt://` the
+  TCP-pinned option for hosts or networks where UDP never works.
 - **HEVC on Windows** needs the system HEVC decoder MFT (HEVC Video Extensions).
 - **VP9 on Windows** needs the Store "VP9 Video Extensions" **and** a GPU with
   hardware VP9 (2016-era or newer). Without hardware decode the source errors
@@ -391,3 +519,7 @@ After building, set the plugin's platform/CPU in the Unity import settings and t
 - **Ogg Opus** — a direct `.opus` URL plays through the same Opus decoder (Ogg
   page framing); duration and granule-bisection seek need a range-capable host.
 - **WAV** — 16/24-bit integer PCM only (no float or 20-bit), 1–8 channels, 8–96 kHz.
+- **Video output** — the `Equirect360` / `VR180` / `Fisheye` projection modes set a
+  shader keyword that no bundled shader implements, so they render the source flat.
+  `Picture` needs a shader declaring the `_Basis*` floats, which
+  `Basis/Media Player Video` doesn't, so only the UI path's Brightness currently applies.
