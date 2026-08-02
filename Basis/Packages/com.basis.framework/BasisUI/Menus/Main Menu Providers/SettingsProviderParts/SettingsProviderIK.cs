@@ -673,6 +673,24 @@ public static class SettingsProviderIK
                 neckGazeFollow.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckGazeFollow.title.tooltip"));
             }
 
+            var vspineGazeSwingRemoval = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.vspineGazeSwingRemoval.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.VSpineGazeSwingRemoval);
+            if (vspineGazeSwingRemoval != null)
+            {
+                vspineGazeSwingRemoval.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.vspineGazeSwingRemoval.title.tooltip"));
+            }
+
+            var neckExtensionDamp = PanelSlider.CreateAndBind(
+                bendParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.neckExtensionDamp.title"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKNeckExtensionDamp);
+            if (neckExtensionDamp != null)
+            {
+                neckExtensionDamp.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.neckExtensionDamp.title.tooltip"));
+            }
+
             var spineMaxFwd = PanelSlider.CreateAndBind(
                 bendParent,
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.spineMaxForward.title"), 0f, 90f, false, 0, ValueDisplayMode.Raw),
@@ -940,6 +958,24 @@ public static class SettingsProviderIK
             if (lordosisExtremeChestHoriz != null)
             {
                 lordosisExtremeChestHoriz.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestHoriz.title.tooltip"));
+            }
+
+            var lordosisExtremeHipsHorizLookUp = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsHorizLookUp.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalLookUp);
+            if (lordosisExtremeHipsHorizLookUp != null)
+            {
+                lordosisExtremeHipsHorizLookUp.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeHipsHorizLookUp.title.tooltip"));
+            }
+
+            var lordosisExtremeChestHorizLookUp = PanelSlider.CreateAndBind(
+                dynamicsParent,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestHorizLookUp.title"), 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalLookUp);
+            if (lordosisExtremeChestHorizLookUp != null)
+            {
+                lordosisExtremeChestHorizLookUp.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.lordosisExtremeChestHorizLookUp.title.tooltip"));
             }
 
             var lordosisExtremeHipsDown = PanelSlider.CreateAndBind(
@@ -1664,6 +1700,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalLookUp.ResetToDefault();
+        BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalLookUp.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.ResetToDefault();
         BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.ResetToDefault();
@@ -1689,6 +1727,8 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKSpineSquishBoost.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineGazeFollow.ResetToDefault();
         BasisSettingsDefaults.FBIKNeckGazeFollow.ResetToDefault();
+        BasisSettingsDefaults.FBIKNeckExtensionDamp.ResetToDefault();
+        BasisSettingsDefaults.VSpineGazeSwingRemoval.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineCCDRelax.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineTwistKeep.ResetToDefault();
         BasisSettingsDefaults.FBIKSpineNeckTwistKeep.ResetToDefault();

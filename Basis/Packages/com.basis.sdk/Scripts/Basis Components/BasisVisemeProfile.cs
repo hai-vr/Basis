@@ -67,12 +67,33 @@ namespace Basis.Scripts.BasisSdk
             AttackSeconds == 0f &&
             ReleaseSeconds == 0f &&
             !Binary;
+
+        /// <summary>
+        /// True only for the entirely-zero entry a deserializer hands back for a table that was
+        /// allocated but never authored.
+        /// <para>Deliberately strict rather than "cannot move its shape". Zeroing
+        /// <see cref="Gain"/> or collapsing the output range is exactly how a creator switches a
+        /// viseme OFF, and that intent has to survive — rebuilding those on the default hands the
+        /// shape back to the model, which parks the mouth open on whatever the model reports at
+        /// rest. A profile with nothing set at all is the only unambiguous "absent".</para>
+        /// </summary>
+        public bool IsUnset =>
+            Gain == 0f &&
+            Threshold == 0f &&
+            OutMin == 0f &&
+            OutMax == 0f &&
+            AttackSeconds == 0f &&
+            ReleaseSeconds == 0f &&
+            !Binary;
     }
 
     /// <summary>
-    /// Avatar-wide lip-sync response settings. Serialized as a class so avatars built before
-    /// this existed deserialize with the field initialisers below rather than an all-zero
-    /// struct, which would mean silence.
+    /// Avatar-wide lip-sync response settings.
+    /// <para>Every field's "absent" value is also a legal authored value — most dangerously
+    /// <see cref="BackendSmoothing"/>, where 0 means "no smoothing whatsoever" — so an instance
+    /// that reaches the runtime without its field initialisers having run is indistinguishable
+    /// from a deliberate request for silence. Consumers must test <see cref="IsUnset"/> before
+    /// honouring a config rather than assuming the initialisers below always apply.</para>
     /// </summary>
     [System.Serializable]
     public class BasisVisemeDriveConfig
@@ -118,5 +139,19 @@ namespace Basis.Scripts.BasisSdk
         public bool IsDefault =>
             Mode == BasisVisemeDriveMode.Continuous &&
             BackendSmoothing == DefaultBackendSmoothing;
+
+        /// <summary>
+        /// True for the all-zero instance produced when a payload predates these fields, or when
+        /// the serializer builds the object without running the field initialisers above. Treat
+        /// it as "the creator authored nothing" and substitute a fresh default — the zeroed
+        /// values are not neutral, they are the most aggressive setting of every knob.
+        /// </summary>
+        public bool IsUnset =>
+            Mode == BasisVisemeDriveMode.Continuous &&
+            BackendSmoothing == 0 &&
+            WinnerMargin == 0f &&
+            WinnerHoldSeconds == 0f &&
+            SilenceFloor == 0f &&
+            !SilIsRest;
     }
 }

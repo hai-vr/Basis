@@ -577,7 +577,6 @@ namespace Basis.Scripts.Drivers
             int ignoredByInteractable = LayerMask.NameToLayer("IgnoredByInteractable");
             int uiLayer = LayerMask.NameToLayer("UI");
             int overlayUiLayer = LayerMask.NameToLayer("OverlayUI");
-
             int allLayers = ~0;
 
             CameraCollisionMask = allLayers &
@@ -586,7 +585,8 @@ namespace Basis.Scripts.Drivers
                 ~(1 << localPlayerAvatar) &
                 ~(1 << ignoredByInteractable) &
                 ~(1 << uiLayer) &
-                ~(1 << overlayUiLayer);
+                ~(1 << overlayUiLayer) &
+                ~BasisLayerMapper.HandHeldCameraUIMask;
         }
 
         public void ToggleThirdPerson()

@@ -83,9 +83,10 @@ public static class BasisLoadHandler
                 // Only remove OUR wrapper: a lookup during the unload continuation may have
                 // seen IsUnloaded, dropped the husk, and registered a fresh wrapper under the
                 // same key — removing blindly here would tear that replacement out.
-                if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper current) && ReferenceEquals(current, Wrapper))
+                string registeredKey = Wrapper.RegisteredKey ?? Key;
+                if (LoadedBundles.TryGetValue(registeredKey, out BasisTrackedBundleWrapper current) && ReferenceEquals(current, Wrapper))
                 {
-                    LoadedBundles.Remove(Key, out var data);
+                    LoadedBundles.Remove(registeredKey, out var data);
                 }
                 return;
             }
@@ -94,7 +95,11 @@ public static class BasisLoadHandler
         {
             if (CombinedURL.ToLower() != BasisBeeConstants.DefaultAvatar.ToLower())
             {
-                BasisDebug.LogError($"tried to find Loaded Key {CombinedURL} but could not find it!");
+                // The key is logged because a miss here is almost always key drift rather than a
+                // genuinely absent bundle: the reservation stays held, so the wrapper never
+                // unloads, and whatever DID get found under the drifted key was decremented in
+                // its place.
+                BasisDebug.LogError($"tried to find Loaded Key {CombinedURL} (key '{Key}') but could not find it!");
             }
         }
     }
@@ -189,7 +194,7 @@ public static class BasisLoadHandler
     private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         string Key = GetBundleKey(loadableBundle);
-        BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { AssetBundle = null, LoadableBundle = loadableBundle };
+        BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { AssetBundle = null, LoadableBundle = loadableBundle, RegisteredKey = Key };
 
         if (!LoadedBundles.TryAdd(Key, wrapper))
         {
@@ -221,7 +226,8 @@ public static class BasisLoadHandler
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper
         {
             AssetBundle = null,
-            LoadableBundle = loadableBundle
+            LoadableBundle = loadableBundle,
+            RegisteredKey = Key
         };
 
         if (!LoadedBundles.TryAdd(Key, wrapper))

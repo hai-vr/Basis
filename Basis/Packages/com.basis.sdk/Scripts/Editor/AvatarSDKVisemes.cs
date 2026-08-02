@@ -161,13 +161,19 @@ public class AvatarSDKVisemes
     /// <summary>
     /// Brings <c>FaceVisemeProfiles</c> up to one entry per viseme, filling new slots with the
     /// pass-through default so an avatar that never opens this section keeps its old response.
+    /// Entirely blank slots are rebuilt on the default too, since shipping one mutes that viseme
+    /// at runtime. A slot the creator switched off deliberately is left exactly as authored.
     /// </summary>
     public static void EnsureProfiles(BasisAvatar avatar)
     {
-        avatar.FaceVisemeDrive ??= new BasisVisemeDriveConfig();
+        if (avatar.FaceVisemeDrive == null || avatar.FaceVisemeDrive.IsUnset)
+        {
+            avatar.FaceVisemeDrive = new BasisVisemeDriveConfig();
+        }
 
         int count = BasisVisemeDriveConfig.VisemeCount;
-        if (avatar.FaceVisemeProfiles != null && avatar.FaceVisemeProfiles.Length == count)
+        bool rightSize = avatar.FaceVisemeProfiles != null && avatar.FaceVisemeProfiles.Length == count;
+        if (rightSize && !AnyUnset(avatar.FaceVisemeProfiles))
         {
             return;
         }
@@ -175,11 +181,27 @@ public class AvatarSDKVisemes
         BasisVisemeProfile[] resized = new BasisVisemeProfile[count];
         for (int Index = 0; Index < count; Index++)
         {
-            resized[Index] = avatar.FaceVisemeProfiles != null && Index < avatar.FaceVisemeProfiles.Length
-                ? avatar.FaceVisemeProfiles[Index]
-                : BasisVisemeProfile.Default;
+            // Only entirely blank slots are rebuilt. Zeroed gain or a collapsed output range is
+            // how a creator switches a viseme off, and that has to survive untouched.
+            bool carryOver = avatar.FaceVisemeProfiles != null
+                && Index < avatar.FaceVisemeProfiles.Length
+                && !avatar.FaceVisemeProfiles[Index].IsUnset;
+
+            resized[Index] = carryOver ? avatar.FaceVisemeProfiles[Index] : BasisVisemeProfile.Default;
         }
         avatar.FaceVisemeProfiles = resized;
+    }
+
+    private static bool AnyUnset(BasisVisemeProfile[] profiles)
+    {
+        for (int Index = 0; Index < profiles.Length; Index++)
+        {
+            if (profiles[Index].IsUnset)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>

@@ -5,9 +5,9 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Packages/com.basis.framework/Scenes/45490ff56fbd43ac95b1ea59cb24f2ae20260731.unity
-    guid: dd1db054b177db7459cc81633b86e525
+  - enabled: 1
+    path: Packages/com.basis.framework/Scenes/initialization.unity
+    guid: 7213eeeda8352794e8b5a65dd273cff3
   m_configObjects:
     BasisVR/Styling/ActivePalette: {fileID: 11400000, guid: 3f30a6ab7dbd22b4c93b22fee927fd9d, type: 2}
     Unity.XR.OpenVR.Settings: {fileID: 11400000, guid: eb72c1b2c1c33b14291190a772f5e3df, type: 2}

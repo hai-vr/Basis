@@ -27,6 +27,54 @@
       "value": "Camera"
     },
     {
+      "key": "camera.modePreset",
+      "value": "Mode"
+    },
+    {
+      "key": "camera.modePreset.description",
+      "value": "What this camera is for. Picking a mode sets it up for that job and colours each section below: brightly for settings the mode chose, dimly for ones that do nothing here. Change anything and the mode becomes Custom — nothing is ever locked."
+    },
+    {
+      "key": "camera.modePreset.custom",
+      "value": "Custom"
+    },
+    {
+      "key": "camera.modePreset.custom.description",
+      "value": "Your own setup. Shown whenever the settings no longer match a mode, so it is not something you switch to — it is where you end up once you start tuning. Pick a mode to go back to a known starting point."
+    },
+    {
+      "key": "camera.modePreset.photo",
+      "value": "Photo"
+    },
+    {
+      "key": "camera.modePreset.photo.description",
+      "value": "The ordinary handheld camera, set up exactly as it ships. Stays in your hand, normal lens, no effects added. The follow and cinematic sections do nothing in this mode."
+    },
+    {
+      "key": "camera.modePreset.flyingPuck",
+      "value": "Flying Puck"
+    },
+    {
+      "key": "camera.modePreset.flyingPuck.description",
+      "value": "Streaming. The camera parks in the world and you fly it by hand — levelled, stabilised, wide enough to hold a room, and deep-focus so nothing on screen goes soft."
+    },
+    {
+      "key": "camera.modePreset.followMe",
+      "value": "Follow Me"
+    },
+    {
+      "key": "camera.modePreset.followMe.description",
+      "value": "The camera flies itself and keeps you in frame, staying focused on you as you move. Use the Follow section to place it around you and to point it at someone else instead."
+    },
+    {
+      "key": "camera.modePreset.cinematic",
+      "value": "Cinematic"
+    },
+    {
+      "key": "camera.modePreset.cinematic.description",
+      "value": "The shot rig drives the camera along your dolly, orbit and framing moves. A longer lens, shallower focus and a little motion blur for the filmic look. Follow does nothing here — the rig owns where the camera goes."
+    },
+    {
       "key": "camera.noCamerasOpen",
       "value": "No Cameras Open"
     },
@@ -1257,6 +1305,14 @@
     {
       "key": "settings.bodyTracking.lordosisExtremeHipsHoriz.title.tooltip",
       "value": "Sideways hip shift allowed during extreme back curves."
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHorizLookUp.title.tooltip",
+      "value": "Maximum forward hips shift at a full look UP, in meters. In an arch the pelvis leads. Default: 0.025"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHorizLookUp.title.tooltip",
+      "value": "Maximum forward chest shift at a full look UP, in meters. Kept well under the hips value so the chest does not lead the body. Default: 0.01"
     },
     {
       "key": "settings.bodyTracking.lordosisExtremeChestHoriz.title.tooltip",
@@ -3889,6 +3945,162 @@
     {
       "key": "library.bonesCount",
       "value": "Bones Count"
+    },
+    {
+      "key": "library.details",
+      "value": "Details"
+    },
+    {
+      "key": "library.details.tooltip",
+      "value": "Open a full breakdown of this item's metadata and components."
+    },
+    {
+      "key": "library.dialog.details.body",
+      "value": "Everything stored about this item."
+    },
+    {
+      "key": "library.dialog.details.noMetadata",
+      "value": "This item carries no bundle metadata."
+    },
+    {
+      "key": "library.dialog.details.section.content",
+      "value": "Content"
+    },
+    {
+      "key": "library.dialog.details.section.metrics",
+      "value": "Metrics"
+    },
+    {
+      "key": "library.dialog.details.section.bounds",
+      "value": "Bounds"
+    },
+    {
+      "key": "library.dialog.details.section.bounds.description",
+      "value": "Size measured when the item was built, in meters."
+    },
+    {
+      "key": "library.dialog.details.section.components",
+      "value": "Components"
+    },
+    {
+      "key": "library.dialog.details.section.components.description",
+      "value": "{0} kinds, {1} in total."
+    },
+    {
+      "key": "library.dialog.details.section.components.none",
+      "value": "This item was built before component metadata existed."
+    },
+    {
+      "key": "library.dialog.details.section.propSpawn",
+      "value": "Spawn Request"
+    },
+    {
+      "key": "library.dialog.details.section.propSpawn.description",
+      "value": "How this prop asks to be placed when spawned."
+    },
+    {
+      "key": "library.dialog.details.section.platform.description",
+      "value": "Bundle section stored for this platform."
+    },
+    {
+      "key": "library.dialog.details.name",
+      "value": "Name"
+    },
+    {
+      "key": "library.dialog.details.description",
+      "value": "Description"
+    },
+    {
+      "key": "library.dialog.details.contentType",
+      "value": "Content Type"
+    },
+    {
+      "key": "library.dialog.details.tags",
+      "value": "Tags"
+    },
+    {
+      "key": "library.dialog.details.contentGroup",
+      "value": "Content Group"
+    },
+    {
+      "key": "library.dialog.details.uniqueVersion",
+      "value": "Unique Version"
+    },
+    {
+      "key": "library.dialog.details.textureMemory",
+      "value": "Texture Memory"
+    },
+    {
+      "key": "library.dialog.details.graphicsPipeline",
+      "value": "Render Pipeline"
+    },
+    {
+      "key": "library.dialog.details.farLod",
+      "value": "Far LOD"
+    },
+    {
+      "key": "library.dialog.details.boundsCenter",
+      "value": "Center"
+    },
+    {
+      "key": "library.dialog.details.boundsSize",
+      "value": "Size"
+    },
+    {
+      "key": "library.dialog.details.boundsExtents",
+      "value": "Extents"
+    },
+    {
+      "key": "library.dialog.details.assetMode",
+      "value": "Asset Mode"
+    },
+    {
+      "key": "library.dialog.details.assetName",
+      "value": "Asset Name"
+    },
+    {
+      "key": "library.dialog.details.size",
+      "value": "Download Size"
+    },
+    {
+      "key": "library.dialog.details.encrypted",
+      "value": "Encrypted"
+    },
+    {
+      "key": "library.dialog.details.crc",
+      "value": "CRC"
+    },
+    {
+      "key": "library.dialog.details.hash",
+      "value": "Hash"
+    },
+    {
+      "key": "library.dialog.details.graphicsAPIs",
+      "value": "Graphics APIs"
+    },
+    {
+      "key": "library.dialog.details.hand",
+      "value": "Hand"
+    },
+    {
+      "key": "library.dialog.details.distance",
+      "value": "Distance"
+    },
+    {
+      "key": "library.dialog.details.scale",
+      "value": "Scale"
+    },
+    {
+      "key": "library.dialog.details.alignToSurface",
+      "value": "Align To Surface"
+    },
+    {
+      "key": "library.dialog.details.faceThePlayer",
+      "value": "Face The Player"
+    },
+    {
+      "key": "library.dialog.details.none",
+      "value": "(none)"
     },
     {
       "key": "library.uniqueVersion",
@@ -6801,6 +7013,22 @@
     {
       "key": "settings.bodyTracking.lordosisExtremeChestHoriz.description",
       "value": "Maximum horizontal chest counter-shift at full extreme look, in meters. Default: 0.04"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHorizLookUp.title",
+      "value": "Lordosis Extreme Hips Shift, Look Up (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeHipsHorizLookUp.description",
+      "value": "Maximum forward hips shift at a full look UP, in meters. In an arch the pelvis leads. Default: 0.025"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHorizLookUp.title",
+      "value": "Lordosis Extreme Chest Shift, Look Up (m)"
+    },
+    {
+      "key": "settings.bodyTracking.lordosisExtremeChestHorizLookUp.description",
+      "value": "Maximum forward chest shift at a full look UP, in meters. Kept well under the hips value so the chest does not lead the body. Default: 0.01"
     },
     {
       "key": "settings.bodyTracking.lordosisExtremeHipsDown.title",
@@ -10301,6 +10529,30 @@
     {
       "key": "settings.bodyTracking.neckGazeFollow.title.tooltip",
       "value": "How much the neck turns toward where you are looking."
+    },
+    {
+      "key": "settings.bodyTracking.vspineGazeSwingRemoval.title",
+      "value": "Ignore Gaze Swing For Stance"
+    },
+    {
+      "key": "settings.bodyTracking.vspineGazeSwingRemoval.title.tooltip",
+      "value": "How much of the headset movement caused by simply looking up or down is ignored when deciding where you are standing. Higher keeps the hips under you instead of walking backwards when you look up. 0 restores the old behaviour. Default: 1"
+    },
+    {
+      "key": "settings.bodyTracking.vspineGazeSwingRemoval.description",
+      "value": "How much of the headset movement caused by simply looking up or down is ignored when deciding where you are standing. Higher keeps the hips under you instead of walking backwards when you look up. 0 restores the old behaviour. Default: 1"
+    },
+    {
+      "key": "settings.bodyTracking.neckExtensionDamp.title",
+      "value": "Look-Up Neck Damping"
+    },
+    {
+      "key": "settings.bodyTracking.neckExtensionDamp.title.tooltip",
+      "value": "How much of a look-up the neck is assumed NOT to carry. Higher keeps the chest and hips from drifting forward when you look at the ceiling. 0 restores the old behaviour. Default: 0.65"
+    },
+    {
+      "key": "settings.bodyTracking.neckExtensionDamp.description",
+      "value": "How much of a look-up the neck is assumed NOT to carry. Higher keeps the chest and hips from drifting forward when you look at the ceiling. 0 restores the old behaviour. Default: 0.65"
     },
     {
       "key": "settings.bodyTracking.neckGazeFollowMax.title",

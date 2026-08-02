@@ -464,15 +464,18 @@ namespace Basis.IK
         // Pipeline: (chest spring smooths target) → (decompose bend into pitch/roll, twist into yaw)
         //   → (per-axis weight) → (asymmetric clamp) → (apply as hips-local delta).
         // The chest→neck→head two-bone solve afterwards handles whatever residual reach remains.
-        // The neck, estimated RIGIDLY off the head target, and therefore EXACTLY invariant to a gaze: if the
-        // head orbits the neck by Q then Q's two lever arms cancel algebraically (written out in full inside
-        // DistributeSpineBend). Every consumer that wants to know where the TORSO is must read this and not
-        // headTargetPos -- the HMD sits forward of the neck pivot, so the raw head target reports a lean the
-        // moment you look down. Shared by the spine bend, the postural counterbalance and the hip hinge so
-        // the three cannot drift apart.
+        // The neck, estimated off the head target by re-attaching the T-pose lever, and therefore invariant to
+        // a gaze that the neck actually carried: if the head orbits the neck by Q then Q's two lever arms
+        // cancel algebraically (written out in full inside DistributeSpineBend). A look-UP is the one gaze the
+        // neck does NOT carry, so the swing is damped there -- see BasisNeckCueCore, which owns that whole
+        // argument. Every consumer that wants to know where the TORSO is must read this and not headTargetPos
+        // -- the HMD sits forward of the neck pivot, so the raw head target reports a lean the moment you look
+        // down. Shared by the spine bend, the postural counterbalance and the hip hinge so the three cannot
+        // drift apart.
         Vector3 ComputeNeckCue(Vector3 headTargetPos)
         {
-            return headTargetPos + (targetRotationHead * targetOffsetHead) * tposeHeadToNeckLocal;
+            return BasisNeckCueCore.Solve(headTargetPos, targetRotationHead * targetOffsetHead,
+                tposeHeadToNeckLocal, playerUp, neckExtensionDamp);
         }
         // Wrapper for BasisTrunkCounterbalanceCore: the pelvis travels back as the trunk folds forward, so the
         // bend happens at the hip instead of the torso folding down into itself. The cap scales with the
@@ -526,6 +529,12 @@ namespace Basis.IK
             // -- the two lever arms cancel, algebraically, for ANY Q. Not damped, not faded, not clamped:
             // CANCELLED. A gaze cannot move this cue, so it cannot bend the spine, so there is nothing left
             // to tune. BasisSpineGazeContaminationTests pins it at exactly zero.
+            //
+            // ⚠️ THE CANCELLATION ASSUMES THE HEAD ORBITED THE NECK, WHICH A LOOK-UP DOES NOT. Cervical
+            // extension is short and a look-up is mostly thoracic arching, so the skull barely slides back
+            // over the shoulders and the un-orbit over-rotates -- walking the estimated neck out in front of
+            // the body, which reads here as a lean that never happened. BasisNeckCueCore damps the swing on
+            // that side only; look-down and pure yaw come through this line bit-identical.
             //
             // A real human's chest pitches -0.05 deg per degree of gaze -- i.e. not at all -- so zero is not
             // an approximation of the right answer here, it IS the right answer.
@@ -725,6 +734,8 @@ namespace Basis.IK
             input.ExtremeRollBackwardMaxDeg = lordosisExtremeRollBackwardMaxDeg;
             input.ExtremeHipsHorizontalMax = lordosisExtremeHipsHorizontalMax;
             input.ExtremeChestHorizontalMax = lordosisExtremeChestHorizontalMax;
+            input.ExtremeHipsHorizontalLookUp = lordosisExtremeHipsHorizontalLookUp;
+            input.ExtremeChestHorizontalLookUp = lordosisExtremeChestHorizontalLookUp;
             input.ExtremeHipsDownMax = lordosisExtremeHipsDownMax;
             input.ExtremeChestDownMax = lordosisExtremeChestDownMax;
             input.ExtremeHipsDownLookUp = lordosisExtremeHipsDownLookUp;

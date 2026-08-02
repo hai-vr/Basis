@@ -1451,6 +1451,14 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKSpineGazeFollow = new("fbikspinegazefollow", new BasisPlatformDefault<float>(0.25f));
         // Extra forward neck curve on a look-down (no chest tracker). 0 = lordosis only.
         public static BasisSettingsBinding<float> FBIKNeckGazeFollow = new("fbikneckgazefollow", new BasisPlatformDefault<float>(0.3f));
+        // How much of a look-UP's lever swing to REMOVE, when the torso is estimated by re-attaching the T-pose
+        // head->neck lever to the head (BasisNeckCueCore -- both the FBIK neck cue and the virtual spine's neck
+        // bone). Swinging that lever by the WHOLE gaze assumes a nod pivots at the neck bone; cervical extension
+        // is short and a look-up is mostly thoracic arching, so the skull barely slides back and the estimated
+        // neck walks forward and up instead, and the chest chord strung under it follows. Removing 0.65 leaves a
+        // 0.35 carry, matching DesktopHeadSwingBackward -- the same physiology measured from the eye end. 0 = the
+        // old rigid re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
+        public static BasisSettingsBinding<float> FBIKNeckExtensionDamp = new("fbikneckextensiondamp", new BasisPlatformDefault<float>(0.65f));
         // Spine relax: crouch counterweight (hips shift back as the head drops)
         public static BasisSettingsBinding<float> FBIKMoveBodyBackWhenCrouching = new("fbikmovebodybackwhencrouching", new BasisPlatformDefault<float>(1f));
         // Postural counterbalance: how far the pelvis travels BACK as the trunk folds forward, as a fraction
@@ -1569,6 +1577,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKLordosisExtremeRollBackwardMaxDeg = new("fbiklordosisextremerollbackwardmaxdeg", new BasisPlatformDefault<float>(4f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsHorizontalMax = new("fbiklordosisextremehipshorizontalmax", new BasisPlatformDefault<float>(0.025f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeChestHorizontalMax = new("fbiklordosisextremechesthorizontalmax", new BasisPlatformDefault<float>(0.04f));
+        // The look-UP half of the pair above. A deep look-down sits the whole body back; a deep look-up is an
+        // ARCH, and in an arch the pelvis leads and the sternum stays over or behind it -- so the chest gets a
+        // much smaller number than the hips here, where on the look-down side it gets a larger one. Mirroring
+        // the look-down values put the chest 4 cm in front of the hips' 2.5 cm, i.e. out in front of the body.
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsHorizontalLookUp = new("fbiklordosisextremehipshorizontallookup", new BasisPlatformDefault<float>(0.025f));
+        public static BasisSettingsBinding<float> FBIKLordosisExtremeChestHorizontalLookUp = new("fbiklordosisextremechesthorizontallookup", new BasisPlatformDefault<float>(0.010f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsDownMax = new("fbiklordosisextremehipsdownmax", new BasisPlatformDefault<float>(0.015f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeChestDownMax = new("fbiklordosisextremechestdownmax", new BasisPlatformDefault<float>(0.025f));
         public static BasisSettingsBinding<float> FBIKLordosisExtremeHipsDownLookUp = new("fbiklordosisextremehipsdownlookup", new BasisPlatformDefault<float>(0.0005f));
@@ -1614,6 +1628,15 @@ namespace Basis.BasisUI
         // that persisted 0.02 pick the new default up. (The former VSpineHipsXZFollowBlend setting
         // was removed in favor of a hard-coded counterbalance/pendulum model in the virtual spine
         // driver — see BasisLocalVirtualSpineDriver.ComputeRealisticHipsXZ.)
+        // How much of the gaze-induced eye swing is removed before the pelvis stance leash sees it. The leash
+        // estimates WHERE THE USER IS STANDING and tracks the eye, which is the only yaw-invariant point -- but
+        // the eye is not PITCH-invariant: a head pitches about the base of the neck, so a look-up carries the
+        // HMD ~8 cm backward and a look-down carries it forward, with the feet planted. The leash follows fast
+        // enough to adopt that in about a frame, so the pelvis rode the gaze and walked out from under the
+        // player. 1 = remove the whole modelled swing and leash only real travel; 0 = the old behaviour.
+        // Uses DesktopHeadSwingBackward for the look-up share, so the VR and desktop halves of the same model
+        // cannot drift apart. If a deep look-DOWN starts feeling different, this is the number to turn down.
+        public static BasisSettingsBinding<float> VSpineGazeSwingRemoval = new("vspinegazeswingremoval", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> VSpineHipsForwardBias = new("vspinehipsforwardbias_v2", new BasisPlatformDefault<float>(0f));
 
         // Spine compression: the synthesized hips Y is neck - rigid spine length, so lowering the head
@@ -2386,6 +2409,7 @@ namespace Basis.BasisUI
             FBIKSpineSquishBoost.LoadBindingValue();
             FBIKSpineGazeFollow.LoadBindingValue();
             FBIKNeckGazeFollow.LoadBindingValue();
+            FBIKNeckExtensionDamp.LoadBindingValue();
             FBIKMoveBodyBackWhenCrouching.LoadBindingValue();
             FBIKTrunkCounterbalance.LoadBindingValue();
             FBIKSwingSmoothRate.LoadBindingValue();
@@ -2419,6 +2443,8 @@ namespace Basis.BasisUI
             FBIKLordosisExtremeRollBackwardMaxDeg.LoadBindingValue();
             FBIKLordosisExtremeHipsHorizontalMax.LoadBindingValue();
             FBIKLordosisExtremeChestHorizontalMax.LoadBindingValue();
+            FBIKLordosisExtremeHipsHorizontalLookUp.LoadBindingValue();
+            FBIKLordosisExtremeChestHorizontalLookUp.LoadBindingValue();
             FBIKLordosisExtremeHipsDownMax.LoadBindingValue();
             FBIKLordosisExtremeChestDownMax.LoadBindingValue();
             FBIKLordosisExtremeHipsDownLookUp.LoadBindingValue();
@@ -2432,6 +2458,7 @@ namespace Basis.BasisUI
             VSpineSpineRotationSpeed.LoadBindingValue();
             VSpineHipsRotationSpeed.LoadBindingValue();
             VSpineHipsForwardBias.LoadBindingValue();
+            VSpineGazeSwingRemoval.LoadBindingValue();
             VSpineHipsCompressionStrength.LoadBindingValue();
             VSpineHipsMaxDropMeters.LoadBindingValue();
             VSpinePostureModel.LoadBindingValue();

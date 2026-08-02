@@ -365,7 +365,10 @@ public class BasisGenericAvatarData
         {
             avatar.FaceVisemeProfiles = (BasisVisemeProfile[])FaceVisemeProfiles.Clone();
         }
-        if (FaceVisemeDrive != null)
+        // Only an authored config replaces the component's own defaults. A payload built before
+        // these fields existed deserializes to an all-zero instance, and assigning that hands the
+        // lip-sync backend "no smoothing" as though the creator had asked for it.
+        if (FaceVisemeDrive != null && !FaceVisemeDrive.IsUnset)
         {
             avatar.FaceVisemeDrive = FaceVisemeDrive;
         }

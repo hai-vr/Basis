@@ -321,7 +321,7 @@ public abstract partial class BasisHandHeldCameraInteractable
                 mask &= ~(1 << layer);
             }
         }
-        occlusionMask = mask;
+        occlusionMask = mask & ~BasisLayerMapper.HandHeldCameraUIMask;
         occlusionMaskBuilt = true;
     }
 

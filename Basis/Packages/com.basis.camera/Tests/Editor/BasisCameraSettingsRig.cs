@@ -108,6 +108,13 @@ namespace Basis.Tests.Camera
                 DepthApertureSlider = ApertureSlider,
                 DepthFocusDistanceSlider = FocusSlider,
             };
+
+            // The back-link the prefab supplies, and the other half of the pair wired above. Without
+            // it the camera holds a second, empty UI with no camera and no sliders, so anything that
+            // reaches back through the camera to refresh the prop's HUD silently does nothing — and
+            // saving harvests the field of view and aperture from those very sliders, so the miss
+            // shows up as settings that quietly fail to round-trip.
+            Camera.HandHeld = UI;
         }
 
         /// <summary>

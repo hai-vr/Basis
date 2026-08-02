@@ -590,8 +590,15 @@ public partial class BasisHandHeldCameraUI
         var colorAdjustments = HHC != null ? HHC.MetaData.colorAdjustments : null;
         var baseline = lastAppliedSettings ?? new CameraSettings();
 
+        // Only the panel's tick re-derives the mode, and a save can happen with the panel shut —
+        // on close, or on the prop being put away — so settle it here rather than writing whatever
+        // label was last current when someone happened to be looking at it.
+        if (HHC != null) HHC.RefreshCameraMode();
+
         var settings = new CameraSettings
         {
+            cameraMode = HHC != null ? (int)HHC.CameraMode : baseline.cameraMode,
+
             // No live source: carried forward so a save cannot drop them.
             apertureIndex = baseline.apertureIndex,
             shutterSpeedIndex = baseline.shutterSpeedIndex,
@@ -777,6 +784,14 @@ public partial class BasisHandHeldCameraUI
             settings.subjectFramingRadius = defaults.subjectFramingRadius;
         }
 
+        if (settings.settingsVersion < 7)
+        {
+            // Modes did not exist, so these settings were tuned by hand and there is nothing to
+            // claim. Custom is the honest label; the re-derive on load promotes it to a preset if
+            // the values turn out to match one exactly.
+            settings.cameraMode = (int)BasisCameraMode.Custom;
+        }
+
         settings.settingsVersion = CameraSettings.CurrentVersion;
     }
 
@@ -895,6 +910,11 @@ public partial class BasisHandHeldCameraUI
             // Depth UI mode & cursor
             SetDepthMode(settings.useManualFocus ? DepthMode.Manual : DepthMode.Auto);
             focusCursor?.SetActive(settings.depthIsActive);
+
+            // Last: the mode is a statement about everything above it, so it can only be restored
+            // once all of it has landed. Restoring earlier would have the re-derive compare the
+            // saved mode against values the apply had not reached yet and call it Custom.
+            HHC.RestoreCameraMode((BasisCameraMode)settings.cameraMode);
 
             // Update readouts
             RefreshAllReadouts();

@@ -46,6 +46,17 @@ namespace Basis.IK
         /// head-rest reference over the support base.</summary>
         private float3 _headFromEyeTposeXZ;
 
+        /// <summary>The avatar's authored eye-from-HEAD lever, T-pose, in avatar units.
+        ///
+        /// THE HEAD BONE, NOT THE NECK, IS THE RIGHT PIVOT HERE, and the reason is consistency rather than
+        /// anatomy: the Eye->Head rotational lock already declares the head to be rigidly welded to the eye
+        /// (head = eyePos + eyeRot * (tposeHead - tposeEye)). Under that declaration a pure nod pivots the eye
+        /// about the head bone and moves the head bone not at all -- so THIS is exactly the eye displacement
+        /// the lock attributes to the gaze, and subtracting it leaves only travel the lock cannot explain.
+        /// Predicting the swing off the NECK lever instead (what BasisDesktopEye uses, with a 0.35 fudge on
+        /// the look-up side) disagrees with the lock and leaves half the error behind.</summary>
+        private float3 _eyeFromHeadTpose;
+
         /// <summary>Set whenever cached lengths need to be recomputed (scale or TPose changed).</summary>
         private bool _lengthsDirty = true;
 
@@ -199,6 +210,10 @@ namespace Basis.IK
                 SpineRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineSpineRotationSpeed.RawValue,
                 HipsRotationSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsRotationSpeed.RawValue,
                 HipsForwardBias = Basis.BasisUI.BasisSettingsDefaults.VSpineHipsForwardBias.RawValue,
+                // Shared with the FBIK neck cue (FBIKNeckExtensionDamp) on purpose: both are the same
+                // head->neck re-attachment, so one number keeps them from disagreeing about where the
+                // top of the trunk is.
+                NeckExtensionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckExtensionDamp.RawValue,
                 TorsoYawDeadzoneDeg = torsoYawDeadzoneDeg,
                 TorsoYawBlendSpeed = Basis.BasisUI.BasisSettingsDefaults.VSpineTorsoYawBlendSpeed.RawValue,
 
@@ -212,6 +227,8 @@ namespace Basis.IK
                 StandingHipsLocalY = _standingHipsLocalY,
                 StandingHeadLocalY = _standingHeadLocalY,
                 EyePos = eye.OutGoingData.position,
+                EyeFromHeadTpose = _eyeFromHeadTpose,
+                GazeSwingRemoval = Basis.BasisUI.BasisSettingsDefaults.VSpineGazeSwingRemoval.RawValue,
                 HipsAnchorOffsetLocal = _hipsFromEyeTposeXZ,
                 HeadRestFromEyeLocal = _headFromEyeTposeXZ,
                 PostureModel = (byte)(Basis.BasisUI.BasisSettingsDefaults.VSpinePostureModel.RawValue ? 1 : 0),
@@ -273,6 +290,7 @@ namespace Basis.IK
             // baseline, the standing pelvis lands exactly where THIS avatar's skeleton stands. The T-pose
             // capture zeroes x for spine bones, so these are sagittal scalars in practice.
             float3 pEye = eye.TposeLocalScaled.position;
+            _eyeFromHeadTpose = pEye - pHead;
             _hipsFromEyeTposeXZ = new float3(pHips.x - pEye.x, 0f, pHips.z - pEye.z);
             _headFromEyeTposeXZ = new float3(pHead.x - pEye.x, 0f, pHead.z - pEye.z);
         }

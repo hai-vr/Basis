@@ -320,7 +320,11 @@ namespace Basis.Scripts.BasisSdk.Players
             var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(LastUsedAvatar.UniqueID);
             BasisLoadableBundle bundle = new BasisLoadableBundle
             {
-                BasisRemoteBundleEncrypted = onDisc ? info.StoredRemote : new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = LastUsedAvatar.UniqueID },
+                // Cloned, not aliased: this bundle is held for the lifetime of the worn avatar and
+                // its version tag is part of the bundle registry key. Sharing the meta cache's
+                // record lets the library UI re-key the avatar you are currently wearing, which
+                // strands its DeIncrement and can unload it out from under you.
+                BasisRemoteBundleEncrypted = onDisc ? info.StoredRemote.Clone() : new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = LastUsedAvatar.UniqueID },
                 BasisBundleConnector = new BasisBundleConnector("1", new BasisBundleDescription("Loading Avatar", "Loading Avatar"), new BasisBundleGenerated[] { new BasisBundleGenerated() }, null, new BasisBounds(Vector3.zero, Vector3.one), new BasisBundleConnector.BasisMetaData()),
                 BasisLocalEncryptedBundle = onDisc ? info.StoredLocal : new BasisStoredEncryptedBundle(),
                 UnlockPassword = unlockPassword

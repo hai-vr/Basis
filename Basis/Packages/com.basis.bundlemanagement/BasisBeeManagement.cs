@@ -316,7 +316,10 @@ public static class BasisBeeManagement
         {
             BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
             {
-                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                // Cloned: the meta cache outlives this load and is handed to the library UI, which
+                // writes CachedVersionTag into whatever record it is given. Sharing the wrapper's
+                // own instance lets that write re-key a bundle that is still loaded and in use.
+                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.Clone(),
                 StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
                 UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
                 DownloadedPlatform = downloadedPlatform,
@@ -403,7 +406,9 @@ public static class BasisBeeManagement
         {
             BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
             {
-                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                // Cloned for the same reason as the full-load path: a shared record lets the
+                // library UI's CachedVersionTag write re-key a live wrapper.
+                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.Clone(),
                 // Connector-only load: no platform section was written to disk. Snapshot only
                 // what actually exists — carrying the wrapper's pre-generated bee path here
                 // made the full-load path read a file that was never downloaded.

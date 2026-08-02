@@ -44,6 +44,15 @@ public class BasisTrackedBundleWrapper
     /// </summary>
     [System.NonSerialized]
     public volatile bool IsUnloaded;
+    /// <summary>
+    /// The registry key this wrapper was actually filed under, captured at registration.
+    /// <para>Removal must use this rather than recomputing from the loadable bundle: the key
+    /// includes the content version tag, and that tag lives on a record other systems hold and
+    /// write to. A recomputed key that has drifted removes nothing, leaving a dead or orphaned
+    /// wrapper in the registry under its original key.</para>
+    /// </summary>
+    [System.NonSerialized]
+    public string RegisteredKey;
     public static TimeSpan TimeSpan = TimeSpan.FromSeconds(BasisBeeConstants.TimeUntilMemoryRemoval);
     /// <summary>
     /// for example this is the scene path. we can use this to see 

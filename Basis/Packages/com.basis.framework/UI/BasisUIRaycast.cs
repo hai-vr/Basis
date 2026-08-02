@@ -19,6 +19,7 @@ namespace Basis.Scripts.UI
     {
         public BasisPointRaycaster BasisPointRaycaster;
         static LayerMask OverlayUI;
+        static LayerMask HandHeldCameraUI;
         static LayerMask UILayer;
         public static LayerMask UILayers;
         public Material lineMaterial;
@@ -94,8 +95,9 @@ namespace Basis.Scripts.UI
         {
 
             OverlayUI = LayerMask.NameToLayer("OverlayUI");
+            HandHeldCameraUI = BasisLayerMapper.HandHeldCameraUILayer;
             UILayer = LayerMask.NameToLayer("UI");
-            UILayers = LayerMask.GetMask("UI", "OverlayUI");
+            UILayers = LayerMask.GetMask("UI", "OverlayUI") | BasisLayerMapper.HandHeldCameraUIMask;
             CurrentEventData = new BasisPointerEventData(EventSystem.current);
             BasisInput = basisInput;
             BasisPointRaycaster = pointRaycaster;
@@ -358,10 +360,15 @@ namespace Basis.Scripts.UI
             return true;
         }
 
+        private static bool IsOverlayLayer(int layer)
+        {
+            return layer == OverlayUI || layer == HandHeldCameraUI;
+        }
+
         private static int CompareUiHitOrder(int[] layers, RaycastHit[] hits, int leftIndex, int rightIndex)
         {
-            bool leftIsOverlay = layers[leftIndex] == OverlayUI;
-            bool rightIsOverlay = layers[rightIndex] == OverlayUI;
+            bool leftIsOverlay = IsOverlayLayer(layers[leftIndex]);
+            bool rightIsOverlay = IsOverlayLayer(layers[rightIndex]);
 
             if (leftIsOverlay != rightIsOverlay)
             {
@@ -445,7 +452,7 @@ namespace Basis.Scripts.UI
             // Panels can enable before any raycaster has initialised the shared mask.
             if (UILayers.value == 0)
             {
-                UILayers = LayerMask.GetMask("UI", "OverlayUI");
+                UILayers = LayerMask.GetMask("UI", "OverlayUI") | BasisLayerMapper.HandHeldCameraUIMask;
             }
             return (UILayers.value & (1 << layer)) != 0;
         }
@@ -737,7 +744,7 @@ namespace Basis.Scripts.UI
                 return 0;
 
             // Any canvas on the OverlayUI layer gets a huge priority bump
-            if (canvas.gameObject.layer == OverlayUI)
+            if (IsOverlayLayer(canvas.gameObject.layer))
                 return 1000;
 
             // Normal canvases

@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5968120545295949018}
   - component: {fileID: 680115554031613995}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: ButtonLayoutGroup_Placeholder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -72,7 +72,7 @@ GameObject:
   m_Component:
   - component: {fileID: 671638516788480561}
   - component: {fileID: 6126724947288613774}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Exposure
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -164,7 +164,7 @@ GameObject:
   - component: {fileID: 4038306300634470359}
   - component: {fileID: 3442060516915918185}
   - component: {fileID: 5323166840070091338}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: FOV_Output
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -301,7 +301,7 @@ GameObject:
   - component: {fileID: 386111002979361497}
   - component: {fileID: 1613390485709287221}
   - component: {fileID: 1755882960567397703}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: ExposureBar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -376,7 +376,7 @@ GameObject:
   - component: {fileID: 5578243680500208003}
   - component: {fileID: 2832755296558829397}
   - component: {fileID: 12923038324356256}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -451,7 +451,7 @@ GameObject:
   - component: {fileID: 246313940341021932}
   - component: {fileID: 381243360073629183}
   - component: {fileID: 3581275805714952760}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -528,7 +528,7 @@ GameObject:
   - component: {fileID: 8576882402758721559}
   - component: {fileID: 6848770826222014370}
   - component: {fileID: 8891464651261566910}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Exit
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -723,7 +723,7 @@ GameObject:
   - component: {fileID: 6915501711087624795}
   - component: {fileID: 3959063572580750412}
   - component: {fileID: 5142347857486905771}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -797,7 +797,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2046644971186825323}
   - component: {fileID: 3523609784769922076}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF TOGGLE
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -885,7 +885,7 @@ GameObject:
   - component: {fileID: 1723905682577515964}
   - component: {fileID: 932340075454887545}
   - component: {fileID: 3215282768337111054}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Depth Aperture Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1022,7 +1022,7 @@ GameObject:
   - component: {fileID: 1116951506276687206}
   - component: {fileID: 2288591725945640249}
   - component: {fileID: 1316889726373214649}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1249,7 +1249,7 @@ GameObject:
   - component: {fileID: 4251501261019978010}
   - component: {fileID: 90096698976562318}
   - component: {fileID: 5816868174218660237}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DoF_Auto_Enabled
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1324,7 +1324,7 @@ GameObject:
   - component: {fileID: 3502724196409295871}
   - component: {fileID: 62793772873660791}
   - component: {fileID: 6852430570391089899}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DoF_Manual_Enabled
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1400,7 +1400,7 @@ GameObject:
   - component: {fileID: 8777206399516171405}
   - component: {fileID: 6172184542925481914}
   - component: {fileID: 8020733315930714404}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF MANUAL
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1519,7 +1519,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2824737263857744332}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle Slide Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1560,7 +1560,7 @@ GameObject:
   - component: {fileID: 8798053473013306374}
   - component: {fileID: 7850447273556509642}
   - component: {fileID: 1249865001790387729}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: UI
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1703,7 +1703,7 @@ GameObject:
   - component: {fileID: 6976571635189567064}
   - component: {fileID: 7052472353431148125}
   - component: {fileID: 589512226106583532}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF AUTO
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1824,7 +1824,7 @@ GameObject:
   - component: {fileID: 5829849485517923237}
   - component: {fileID: 166035352954855257}
   - component: {fileID: 8631002761000855838}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: 4K
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1959,7 +1959,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6324348701339884905}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle Slide Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1997,7 +1997,7 @@ GameObject:
   - component: {fileID: 2794701093569873215}
   - component: {fileID: 4160598043828436208}
   - component: {fileID: 7463238230959327057}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: 720p
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2135,7 +2135,7 @@ GameObject:
   - component: {fileID: 6940644386475009795}
   - component: {fileID: 4441193315722866965}
   - component: {fileID: 4204346964668658174}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Timer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2255,7 +2255,7 @@ GameObject:
   - component: {fileID: 718819028415916003}
   - component: {fileID: 9215953437046486145}
   - component: {fileID: 7393999798535572011}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2330,7 +2330,7 @@ GameObject:
   - component: {fileID: 5336892049209278347}
   - component: {fileID: 5046962083488698512}
   - component: {fileID: 3239274638480609517}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Outline
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2405,7 +2405,7 @@ GameObject:
   - component: {fileID: 4017936083517940134}
   - component: {fileID: 3516436085773135755}
   - component: {fileID: 1486756148817286516}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Checkmark
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2480,7 +2480,7 @@ GameObject:
   - component: {fileID: 118124564325484315}
   - component: {fileID: 7631068860986062954}
   - component: {fileID: 3993701428122031395}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2555,7 +2555,7 @@ GameObject:
   - component: {fileID: 8648138115794351392}
   - component: {fileID: 6977025405176410794}
   - component: {fileID: 1560125234090662926}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2690,7 +2690,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8204758011845562340}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Controls
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2727,7 +2727,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6731068555091365850}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2763,7 +2763,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5008787813391959443}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DoFSliders
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2802,7 +2802,7 @@ GameObject:
   - component: {fileID: 3162490464612851340}
   - component: {fileID: 5697896295691561926}
   - component: {fileID: 5729926307902096796}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2950,7 +2950,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 784424386069400575}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2988,7 +2988,7 @@ GameObject:
   - component: {fileID: 7198114028683902662}
   - component: {fileID: 7534813561213566072}
   - component: {fileID: 106716611233267542}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: FOV
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3124,7 +3124,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2251327535929849194}
   - component: {fileID: 3410813626346331589}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Depth Aperture Slider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3215,7 +3215,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2919435516204139840}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle Slide Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3253,7 +3253,7 @@ GameObject:
   - component: {fileID: 5584013427515630222}
   - component: {fileID: 2931490016033168522}
   - component: {fileID: 8266349165375796430}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3391,7 +3391,7 @@ GameObject:
   - component: {fileID: 854386574240735145}
   - component: {fileID: 489133765184627679}
   - component: {fileID: 5782448369397299466}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: OpenCameraPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3511,7 +3511,7 @@ GameObject:
   - component: {fileID: 8435027341108178227}
   - component: {fileID: 5025824371356160981}
   - component: {fileID: 5389091222116337142}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3648,7 +3648,7 @@ GameObject:
   - component: {fileID: 759624428271932468}
   - component: {fileID: 8911891173642276246}
   - component: {fileID: 9107908286561295256}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3725,7 +3725,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5725077220198649254}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Misc UI
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3763,7 +3763,7 @@ GameObject:
   - component: {fileID: 6882013385700259136}
   - component: {fileID: 6094498601287398813}
   - component: {fileID: 4908010942601945988}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3838,7 +3838,7 @@ GameObject:
   - component: {fileID: 138273288930988030}
   - component: {fileID: 8786886657973664098}
   - component: {fileID: 1325750827774454039}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4037,7 +4037,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4294966751
+    m_Bits: 4294964703
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -4104,7 +4104,7 @@ GameObject:
   - component: {fileID: 74948489202736264}
   - component: {fileID: 3057579255989957455}
   - component: {fileID: 7066447389672035680}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF Focus Distance Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4241,7 +4241,7 @@ GameObject:
   - component: {fileID: 5031476817167857582}
   - component: {fileID: 2362192732511011175}
   - component: {fileID: 501474617119507894}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: FocusCursor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4316,7 +4316,7 @@ GameObject:
   - component: {fileID: 203077132842628348}
   - component: {fileID: 6833113440398986932}
   - component: {fileID: 8500893234022749708}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF_Focus_Distance_Output
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4451,7 +4451,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8250857763847835896}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Settings
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4493,7 +4493,7 @@ GameObject:
   - component: {fileID: 5033955372489281165}
   - component: {fileID: 8255320241942095134}
   - component: {fileID: 2623750823416270239}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4640,7 +4640,7 @@ GameObject:
   - component: {fileID: 1285900970596330341}
   - component: {fileID: 5689914293174660153}
   - component: {fileID: 7322063843358445520}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4715,7 +4715,7 @@ GameObject:
   - component: {fileID: 4536947082742734924}
   - component: {fileID: 5145915639609524812}
   - component: {fileID: 161142405479828578}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: 8K
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4850,7 +4850,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1340245702015968755}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4888,7 +4888,7 @@ GameObject:
   - component: {fileID: 1110575670886224095}
   - component: {fileID: 2099818416813476480}
   - component: {fileID: 5305954362392372002}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5025,7 +5025,7 @@ GameObject:
   - component: {fileID: 583935808257153115}
   - component: {fileID: 6790950747739997927}
   - component: {fileID: 4757354926869255042}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: 1080p
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5163,7 +5163,7 @@ GameObject:
   - component: {fileID: 3743329826092764666}
   - component: {fileID: 3787975521250370572}
   - component: {fileID: 7386749130851065221}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: RESOLUTION Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5289,7 +5289,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5792552109472884202}
   - component: {fileID: 714411717946558849}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: FOV
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5381,7 +5381,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2700069088970682278}
   - component: {fileID: 7390357350007760187}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: DOF Focus Distance
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5509,7 +5509,7 @@ GameObject:
   - component: {fileID: 1237376008141077625}
   - component: {fileID: 9132807345135509338}
   - component: {fileID: 8785220776958837168}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5584,7 +5584,7 @@ GameObject:
   - component: {fileID: 977635051046500041}
   - component: {fileID: 3312067396226093699}
   - component: {fileID: 4011699094232034704}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5660,7 +5660,7 @@ GameObject:
   - component: {fileID: 95806091017062367}
   - component: {fileID: 5466985928965222406}
   - component: {fileID: 1407687627588872993}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Take photo
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5778,7 +5778,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8959690794240506926}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle Slide Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5816,7 +5816,7 @@ GameObject:
   - component: {fileID: 4181887578535954607}
   - component: {fileID: 5922402845504187944}
   - component: {fileID: 978829906290992624}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Depth_Aperture_Output
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5953,7 +5953,7 @@ GameObject:
   - component: {fileID: 7410796462104183497}
   - component: {fileID: 2844377549398498894}
   - component: {fileID: 4252406368879689708}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6118,7 +6118,7 @@ GameObject:
   - component: {fileID: 8195036537722870637}
   - component: {fileID: 582983744774964139}
   - component: {fileID: 3192555323928891441}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6191,7 +6191,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8789815032473698515}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6230,7 +6230,7 @@ GameObject:
   - component: {fileID: 6591854603732226050}
   - component: {fileID: 911364322014657041}
   - component: {fileID: 4509537933458433163}
-  m_Layer: 9
+  m_Layer: 11
   m_Name: Selfie
   m_TagString: Untagged
   m_Icon: {fileID: 0}

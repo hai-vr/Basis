@@ -167,7 +167,7 @@ namespace Basis.Scripts.Networking.Receivers
             TargetRms = BasisMicrophoneAgc.DefaultTargetRms,
             MaxBoostDb = 18f,
             Attack01 = 0.75f,
-            Release01 = 0.85f,
+            Release01 = 0.25f,
             Headroom = 0.98f,
         };
         private volatile bool _normalizeLoudness;

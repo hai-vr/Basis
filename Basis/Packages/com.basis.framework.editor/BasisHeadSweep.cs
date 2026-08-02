@@ -14,6 +14,7 @@ namespace Basis.IK.Debugging
         public float BaseDeg, NeckShare, MaxHeadPitchDeg, ExtremeStartDeg, ExtremeFullDeg, PitchGainDeg;
         public float ExtremeRollForwardMaxDeg, ExtremeRollBackwardMaxDeg;
         public float ExtremeHipsHorizontalMax, ExtremeChestHorizontalMax;
+        public float ExtremeHipsHorizontalLookUp, ExtremeChestHorizontalLookUp;
         public float ExtremeHipsDownMax, ExtremeChestDownMax, ExtremeHipsDownLookUp, ExtremeChestDownLookUp;
         public bool HasUpperChest;
         public float Yaw;
@@ -34,6 +35,8 @@ namespace Basis.IK.Debugging
                 ExtremeRollBackwardMaxDeg = 4f,
                 ExtremeHipsHorizontalMax = 0.025f,
                 ExtremeChestHorizontalMax = 0.04f,
+                ExtremeHipsHorizontalLookUp = 0.025f,
+                ExtremeChestHorizontalLookUp = 0.010f,
                 ExtremeHipsDownMax = 0.015f,
                 ExtremeChestDownMax = 0.025f,
                 ExtremeHipsDownLookUp = 0.0005f,
@@ -103,6 +106,8 @@ namespace Basis.IK.Debugging
                         input.ExtremeRollBackwardMaxDeg = cfg.ExtremeRollBackwardMaxDeg;
                         input.ExtremeHipsHorizontalMax = cfg.ExtremeHipsHorizontalMax;
                         input.ExtremeChestHorizontalMax = cfg.ExtremeChestHorizontalMax;
+                        input.ExtremeHipsHorizontalLookUp = cfg.ExtremeHipsHorizontalLookUp;
+                        input.ExtremeChestHorizontalLookUp = cfg.ExtremeChestHorizontalLookUp;
                         input.ExtremeHipsDownMax = cfg.ExtremeHipsDownMax;
                         input.ExtremeChestDownMax = cfg.ExtremeChestDownMax;
                         input.ExtremeHipsDownLookUp = cfg.ExtremeHipsDownLookUp;
@@ -180,6 +185,8 @@ namespace Basis.IK.Debugging
                 input.ExtremeRollBackwardMaxDeg = cfg.ExtremeRollBackwardMaxDeg;
                 input.ExtremeHipsHorizontalMax = cfg.ExtremeHipsHorizontalMax;
                 input.ExtremeChestHorizontalMax = cfg.ExtremeChestHorizontalMax;
+                input.ExtremeHipsHorizontalLookUp = cfg.ExtremeHipsHorizontalLookUp;
+                input.ExtremeChestHorizontalLookUp = cfg.ExtremeChestHorizontalLookUp;
                 input.ExtremeHipsDownMax = cfg.ExtremeHipsDownMax;
                 input.ExtremeChestDownMax = cfg.ExtremeChestDownMax;
                 input.ExtremeHipsDownLookUp = cfg.ExtremeHipsDownLookUp;

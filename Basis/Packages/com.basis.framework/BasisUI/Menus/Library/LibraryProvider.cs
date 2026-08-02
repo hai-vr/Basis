@@ -336,8 +336,12 @@ namespace Basis.BasisUI
             var (onDisc, info) = await BasisLoadHandler.IsMetaDataOnDiscAsync(item.Url);
             if (onDisc)
             {
-                // CreateNewWrapperFromItem does not populate these fields so we update them
-                wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote;
+                // CreateNewWrapperFromItem does not populate these fields so we update them.
+                // Cloned, never aliased: the tag assignment below would otherwise write straight
+                // into the meta cache's record — and BasisBeeManagement builds that record from a
+                // live BasisTrackedBundleWrapper's own instance, so the write would re-key a
+                // bundle somebody is currently wearing and strand its DeIncrement.
+                wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote.Clone();
                 wrapper.BasisLoadableBundle.BasisLocalEncryptedBundle = info.StoredLocal;
                 wrapper.BasisLoadableBundle.BasisBundleConnector.UniqueVersion = info.UniqueVersion;
                 // Advertise the version we actually hold. StoredRemote carries whatever tag was
@@ -1300,13 +1304,12 @@ namespace Basis.BasisUI
             else
             {
                 string[] platforms = metadata.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
-                string supported_platforms = string.Join(" | ", platforms);
-                platformIconsTextField.Descriptor.SetDescription($"{supported_platforms}");
 
                 foreach (string platform in platforms)
                 {
                     PanelImage panelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, platformIconsTextField.Descriptor.ContentParent);
                     panelImage.SetSize(new Vector2(80, 80));
+                    panelImage.Descriptor.SetTooltip(UserListProvider.GetPlatformLabel(platform));
 
                     switch (platform)
                     {
@@ -1343,84 +1346,18 @@ namespace Basis.BasisUI
 
             #endregion
 
-            // lets create a grid to put the items below in
-            PanelTabPage grid = PanelTabPage.CreateNew(scrollablePage.Descriptor.ContentParent);
-            PanelElementDescriptor scrollViewGridDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewGridLibrary, grid.Descriptor.ContentParent);
-            grid.Descriptor.ContentParent = scrollViewGridDescriptor.ContentParent;
-            grid.Descriptor.SetHeight(150);
+            #region ITEM DETAILS
 
-            #region POLYGON COUNT
-
-            long polygonCount = 0;
-
-            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
+            PanelButton detailsPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, scrollablePage.Descriptor.ContentParent);
+            detailsPanelButton.Descriptor.SetTitle(BasisLocalization.Get("library.details"));
+            detailsPanelButton.Descriptor.SetIcon(AddressableAssets.Sprites.List);
+            detailsPanelButton.Descriptor.SetTooltip(BasisLocalization.Get("library.details.tooltip"));
+            detailsPanelButton.Descriptor.SetHeight(60);
+            detailsPanelButton.Descriptor.SetWidth(400);
+            detailsPanelButton.OnClicked += async () =>
             {
-                polygonCount = 0;
-            }
-            else
-            {
-                polygonCount = metadata.BasisBundleConnector.MetaData.TrianglesCount;
-            }
-
-            // creation date and time
-            PanelTextField polygonTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent);//scrollablePage.Descriptor.ContentParent);
-            polygonTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            polygonTextField.Descriptor.SetTitle(BasisLocalization.Get("library.triangleCount"));
-            polygonTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Polygons);
-            polygonTextField.Descriptor.SetDescription($"{polygonCount}");
-
-            polygonTextField.Descriptor.SetHeight(50);
-            polygonTextField.Descriptor.SetWidth(400);
-
-            #endregion
-
-            #region MATERIAL COUNT
-
-            long materialCount = 0;
-
-            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
-            {
-                materialCount = 0;
-            }
-            else
-            {
-                materialCount = metadata.BasisBundleConnector.MetaData.MaterialCount;
-            }
-
-            // creation date and time
-            PanelTextField materialTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent);//scrollablePage.Descriptor.ContentParent);
-            materialTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            materialTextField.Descriptor.SetTitle(BasisLocalization.Get("library.materialCount"));
-            materialTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Materials);
-            materialTextField.Descriptor.SetDescription($"{materialCount}");
-
-            materialTextField.Descriptor.SetHeight(50);
-            materialTextField.Descriptor.SetWidth(400);
-
-            #endregion
-
-            #region BONES COUNT
-
-            long boneCount = 0;
-
-            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
-            {
-                boneCount = 0;
-            }
-            else
-            {
-                boneCount = metadata.BasisBundleConnector.MetaData.BonesCount;
-            }
-
-            // creation date and time
-            PanelTextField bonesTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent);//scrollablePage.Descriptor.ContentParent);
-            bonesTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            bonesTextField.Descriptor.SetTitle(BasisLocalization.Get("library.bonesCount"));
-            bonesTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Bones);
-            bonesTextField.Descriptor.SetDescription($"{boneCount}");
-
-            bonesTextField.Descriptor.SetHeight(50);
-            bonesTextField.Descriptor.SetWidth(400);
+                await LibraryProviderDialogItemDetails.ShowItemDetails(panel, item, metadata);
+            };
 
             #endregion
 

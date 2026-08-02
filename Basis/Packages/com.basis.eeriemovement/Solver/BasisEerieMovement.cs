@@ -113,6 +113,10 @@ namespace Basis.IK
         public float upperChestBendPitch, upperChestBendYaw, upperChestBendRoll;
         public float spineMaxForwardDeg, spineMaxBackwardDeg, spineMaxLateralDeg;
         public float spineSquishBoost, spineGazeFollow, neckGazeFollow;
+        // How much of a look-UP's swing to remove when the neck cue re-attaches the head->neck lever.
+        // 0 = the old rigid re-attachment, which walks the estimated neck forward on every look-up. See
+        // BasisNeckCueCore.
+        public float neckExtensionDamp;
         public float spineCCDRelax, neckMaxConeDeg, spineTwistKeep, spineNeckTwistKeep;
         public float chestSpringHz, chestSpringDamping;
         public float hipHingeStartDeg, hipHingeMaxAddDeg;
@@ -149,6 +153,7 @@ namespace Basis.IK
         public float lordosisExtremeStartDeg, lordosisExtremeFullDeg;
         public float lordosisExtremeRollForwardMaxDeg, lordosisExtremeRollBackwardMaxDeg;
         public float lordosisExtremeHipsHorizontalMax, lordosisExtremeChestHorizontalMax;
+        public float lordosisExtremeHipsHorizontalLookUp, lordosisExtremeChestHorizontalLookUp;
         public float lordosisExtremeHipsDownMax, lordosisExtremeChestDownMax;
         public float lordosisExtremeHipsDownLookUp, lordosisExtremeChestDownLookUp;
 

@@ -73,10 +73,21 @@ namespace Basis.Tests.Voice
 
             public void Fill(float[] frame, int frameIndex, bool speaking)
             {
+                Fill(frame, frameIndex, speaking, 1f);
+            }
+
+            /// <summary>
+            /// <paramref name="speechScale"/> attenuates the voice only; room noise stays
+            /// where it is, so a value below 1 is a talker trailing off at the end of a
+            /// sentence rather than the whole signal fading.
+            /// </summary>
+            public void Fill(float[] frame, int frameIndex, bool speaking, float speechScale)
+            {
                 if (speaking)
                 {
                     Voice(frame, frameIndex);
-                    for (int i = 0; i < frame.Length; i++) frame[i] *= _speechAmp;
+                    float amp = _speechAmp * speechScale;
+                    for (int i = 0; i < frame.Length; i++) frame[i] *= amp;
                 }
                 else
                 {
@@ -400,6 +411,168 @@ namespace Basis.Tests.Voice
 
             Assert.IsTrue(agc.HasSpeechEstimate, "speech was never detected");
             Assert.LessOrEqual(agc.GainDb, 0.01f);
+        }
+
+        private const int OnsetFrames = 15;
+
+        /// <summary>
+        /// Steps whole utterances and returns, for each one after
+        /// <paramref name="skipUtterances"/>, how much hotter the gain was over the
+        /// utterance's first 0.3s than over its body.
+        /// </summary>
+        private static float WorstOnsetExcessDb(
+            BasisMicrophoneAgc agc,
+            Talker talker,
+            BasisMicrophoneAgc.Settings settings,
+            int utterances,
+            int onFrames,
+            int offFrames,
+            int skipUtterances,
+            int trailOffFrames = 0)
+        {
+            float[] frame = new float[FrameSize];
+            int frameIndex = 0;
+            float worst = float.NegativeInfinity;
+
+            for (int u = 0; u < utterances; u++)
+            {
+                float onsetGain = float.NegativeInfinity;
+                double bodySum = 0.0;
+                int bodyCount = 0;
+
+                for (int p = 0; p < onFrames; p++)
+                {
+                    int intoTail = p - (onFrames - trailOffFrames);
+                    float scale = intoTail <= 0
+                        ? 1f
+                        : Mathf.Pow(10f, -2f * intoTail / Mathf.Max(1, trailOffFrames));
+
+                    StepOne(agc, talker, settings, frame, frameIndex++, true, scale);
+
+                    if (p < OnsetFrames)
+                    {
+                        if (agc.GainDb > onsetGain) onsetGain = agc.GainDb;
+                    }
+                    else if (intoTail <= 0)
+                    {
+                        bodySum += agc.GainDb;
+                        bodyCount++;
+                    }
+                }
+
+                for (int p = 0; p < offFrames; p++)
+                {
+                    StepOne(agc, talker, settings, frame, frameIndex++, false);
+                }
+
+                if (u >= skipUtterances && bodyCount > 0)
+                {
+                    float excess = onsetGain - (float)(bodySum / bodyCount);
+                    if (excess > worst) worst = excess;
+                }
+            }
+
+            return worst;
+        }
+
+        private static void StepOne(
+            BasisMicrophoneAgc agc,
+            Talker talker,
+            BasisMicrophoneAgc.Settings settings,
+            float[] frame,
+            int frameIndex,
+            bool speaking,
+            float speechScale = 1f)
+        {
+            talker.Fill(frame, frameIndex, speaking, speechScale);
+
+            double sumSq = 0.0;
+            float peak = 0f;
+            for (int i = 0; i < FrameSize; i++)
+            {
+                float v = frame[i];
+                sumSq += (double)v * v;
+                float magnitude = v < 0f ? -v : v;
+                if (magnitude > peak) peak = magnitude;
+            }
+
+            agc.Process(Mathf.Sqrt((float)(sumSq / FrameSize)), peak, settings, FrameSeconds);
+        }
+
+        [Test]
+        public void ColdStart_DoesNotBoostOffTheAttackOfTheFirstWord()
+        {
+            var agc = new BasisMicrophoneAgc();
+            var talker = new Talker(0.010f, 0.010f * 0.02f, 50);
+            var settings = DefaultSettings();
+            float[] frame = new float[FrameSize];
+
+            for (int f = 0; f < 400 && !agc.HasSpeechEstimate; f++)
+            {
+                StepOne(agc, talker, settings, frame, f, true);
+            }
+
+            Assert.IsTrue(agc.HasSpeechEstimate, "speech was never detected");
+            Assert.LessOrEqual(agc.GainDb, 0.01f,
+                $"cold start boosted to {agc.GainDb:F2} dB off a single onset frame");
+        }
+
+        [Test]
+        public void FirstUtterance_NeverOpensLouderThanItSettles()
+        {
+            var agc = new BasisMicrophoneAgc();
+            var talker = new Talker(0.010f, 0.010f * 0.02f, 51);
+
+            float excess = WorstOnsetExcessDb(agc, talker, DefaultSettings(), 1, SpeakFrames, PauseFrames, 0);
+
+            Assert.Less(excess, 2f, $"the first utterance opened {excess:F2} dB above its own body");
+        }
+
+        [Test]
+        public void UtteranceOnsets_DoNotOpenHotterThanTheUtteranceBody()
+        {
+            var agc = new BasisMicrophoneAgc();
+            var talker = new Talker(0.030f, 0.030f * 0.02f, 52);
+
+            float excess = WorstOnsetExcessDb(agc, talker, DefaultSettings(), 8, SpeakFrames, PauseFrames, 2);
+
+            Assert.Less(excess, 2f, $"an utterance opened {excess:F2} dB above its own body");
+        }
+
+        [Test]
+        public void SentencesThatTrailOff_DoNotMakeTheNextOneOpenHot()
+        {
+            var agc = new BasisMicrophoneAgc();
+            var talker = new Talker(0.030f, 0.030f * 0.02f, 54);
+
+            float excess = WorstOnsetExcessDb(agc, talker, DefaultSettings(), 8, SpeakFrames, PauseFrames, 2,
+                trailOffFrames: 12);
+
+            Assert.Less(excess, 2f,
+                $"after a sentence trailed off the next one opened {excess:F2} dB above its own body");
+        }
+
+        [Test]
+        public void ASilentGapNeverRaisesTheGain()
+        {
+            var agc = new BasisMicrophoneAgc();
+            var talker = new Talker(0.030f, 0.030f * 0.02f, 53);
+            var settings = DefaultSettings();
+            float[] frame = new float[FrameSize];
+            int frameIndex = 0;
+
+            for (int f = 0; f < 400; f++) StepOne(agc, talker, settings, frame, frameIndex++, true);
+            float before = agc.GainDb;
+
+            float highest = before;
+            for (int f = 0; f < 100; f++)
+            {
+                StepOne(agc, talker, settings, frame, frameIndex++, false);
+                if (agc.GainDb > highest) highest = agc.GainDb;
+            }
+
+            Assert.Less(highest - before, 0.05f,
+                $"gain climbed {highest - before:F2} dB during a 2s gap ({before:F2} -> {highest:F2})");
         }
     }
 }

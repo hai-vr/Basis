@@ -41,6 +41,11 @@ namespace Basis.Tests.Camera
             // Loading an empty shot list seeds the three default shots, so an empty rig cannot come
             // back empty. Covered on its own by CinematicShots_SurviveTheRoundTrip.
             { "cinematicShots", "an empty list is seeded with default shots on load" },
+
+            // A label derived from the settings around it rather than a setting in its own right:
+            // a file claiming a mode its values do not match is re-derived to Custom on load, which
+            // is the whole point. Covered on its own by CameraMode_SurvivesTheRoundTrip.
+            { "cameraMode", "re-derived from the settings it describes, not stored independently" },
         };
 
         [Test]
@@ -192,6 +197,42 @@ namespace Basis.Tests.Camera
             Assert.That(captured.cinematicShots[0].name, Is.EqualTo("Interview"));
             Assert.That(captured.cinematicShots[0].priority, Is.EqualTo(42));
             Assert.That(captured.cinematicShots[1].blendTime, Is.EqualTo(2.5f).Within(1e-4f));
+        }
+
+        [Test]
+        public void CameraMode_SurvivesTheRoundTrip()
+        {
+            // A file saved in a mode has to come back in it. The mode is re-derived on load rather
+            // than trusted, so this only holds when the file's values genuinely still match the
+            // mode it names — which is exactly what a file saved from that mode contains.
+            _rig.Camera.ApplyCameraMode(BasisCameraMode.FollowMe);
+            BasisHandHeldCameraUI.CameraSettings inMode = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(inMode.cameraMode, Is.EqualTo((int)BasisCameraMode.FollowMe),
+                "The mode was not captured into the file.");
+
+            _rig.UI.ApplySettingsForTest(inMode);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.cameraMode, Is.EqualTo((int)BasisCameraMode.FollowMe),
+                "Loading a file saved in Follow Me must come back in Follow Me.");
+            Assert.That(_rig.Camera.autoFollowEnabled, Is.True,
+                "Follow is not persisted, so the restore has to re-arm it — otherwise the camera " +
+                "comes back labelled Follow Me while sitting inert in the player's hand.");
+        }
+
+        [Test]
+        public void ALoadedFileWhoseValuesNoLongerMatchItsMode_ComesBackAsCustom()
+        {
+            // Hand-edited files exist, and so do settings written by an older build. The label has
+            // to follow the values rather than the other way round.
+            BasisHandHeldCameraUI.CameraSettings original = BasisCameraSettingsRig.DistinctiveSettings();
+            original.cameraMode = (int)BasisCameraMode.FollowMe;
+
+            _rig.UI.ApplySettingsForTest(original);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.cameraMode, Is.EqualTo((int)BasisCameraMode.Custom));
         }
 
         [Test]

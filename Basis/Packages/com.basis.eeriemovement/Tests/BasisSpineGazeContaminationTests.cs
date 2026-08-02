@@ -68,7 +68,15 @@ namespace Basis.Tests.IK
             return i;
         }
 
-        /// <summary>The head, having ONLY nodded about the neck. The torso has not moved by one float.</summary>
+        /// <summary>The head, having ONLY nodded about the neck. The torso has not moved by one float.
+        ///
+        /// ⚠️ THIS IS A PREMISE, NOT A MEASUREMENT, AND IT ONLY HOLDS ON A LOOK-DOWN. It models the nod as an
+        /// EXACT rigid orbit of the neck bone, which is the same assumption the cue itself makes -- so the
+        /// "reconstructs the neck exactly" assertions below are sound but circular, and they say nothing
+        /// about a gaze the neck does not carry. Cervical extension is short and a look-UP is mostly thoracic
+        /// arching (see BasisHeadPitchSwingCore, which scales that side to 0.35 and no other), so the real
+        /// head barely travels and the reconstruction walks the neck forward instead. That case lives in
+        /// BasisSpineLookUpTests, which parameterises how much of the orbit the head actually performs.</summary>
         static void GazeDown(float deg, out Vector3 headPos, out Quaternion headRot)
         {
             Quaternion q = Quaternion.AngleAxis(deg, Vector3.right);   // +X = pitch the face down toward +Z

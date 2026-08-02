@@ -10,4 +10,19 @@ public class BasisRemoteEncyptedBundle
     // authoritative", which is exactly how loads behaved before this field existed. That is what
     // keeps already-cached bundles, older clients and the GUID-per-upload flow working untouched.
     public string RemoteVersionTag;
+
+    /// <summary>
+    /// An independent copy. Required wherever this record crosses an ownership boundary — the
+    /// in-memory bundle registry keys on <see cref="RemoteVersionTag"/>, so an instance shared
+    /// between a live wrapper, the on-disc meta cache and the library UI lets one of them
+    /// silently re-key a bundle that another is still holding.
+    /// </summary>
+    public BasisRemoteEncyptedBundle Clone()
+    {
+        return new BasisRemoteEncyptedBundle
+        {
+            RemoteBeeFileLocation = RemoteBeeFileLocation,
+            RemoteVersionTag = RemoteVersionTag,
+        };
+    }
 }

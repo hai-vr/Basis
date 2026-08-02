@@ -2,7 +2,9 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Drivers;
 using NUnit.Framework;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 public class BasisVisemeResponseTests
 {
@@ -302,6 +304,137 @@ public class BasisVisemeResponseTests
         context.RawVisemeWeights[12] = 0.80f;
         context.Apply(Frame);
         Assert.AreEqual(100f, Weight(avatar, 12), 0.3f, "a cleared latch must not be held by the old winner's dwell");
+    }
+
+    /// <summary>
+    /// The shape an avatar takes when its payload predates response shaping: the table exists but
+    /// nothing in it was ever authored. Baking it verbatim gives every viseme gain 0 into a range
+    /// of zero width, which mutes the mouth on an avatar that never opted in.
+    /// </summary>
+    [Test]
+    public void BlankProfileTableDoesNotMuteTheMouth()
+    {
+        BasisAvatar avatar = BuildAvatar();
+        avatar.FaceVisemeProfiles = new BasisVisemeProfile[VisemeCount];
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[10] = 0.42f;
+        context.Apply(Frame);
+
+        Assert.AreEqual(42f, Weight(avatar, 10), 0.3f);
+    }
+
+    /// <summary>
+    /// One authored viseme must not drag the blank slots beside it to silence.
+    /// </summary>
+    [Test]
+    public void BlankSlotsBesideAnAuthoredOneStayPassthrough()
+    {
+        BasisAvatar avatar = BuildAvatar();
+        avatar.FaceVisemeProfiles = new BasisVisemeProfile[VisemeCount];
+        avatar.FaceVisemeProfiles[5] = BasisVisemeProfile.Default;
+        avatar.FaceVisemeProfiles[5].OutMax = 60f;
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[5] = 1f;
+        context.RawVisemeWeights[10] = 0.42f;
+        context.Apply(Frame);
+
+        Assert.AreEqual(60f, Weight(avatar, 5), 0.3f, "the authored slot keeps its ceiling");
+        Assert.AreEqual(42f, Weight(avatar, 10), 0.3f, "a blank slot stays on passthrough");
+    }
+
+    /// <summary>
+    /// Switching a viseme off is authored intent, not missing data. Rebuilding it on the default
+    /// hands the shape back to the model, and since sil sits near 1.0 whenever nobody is talking,
+    /// that parks the silenced shape wide open at rest.
+    /// </summary>
+    [Test]
+    public void SilencedVisemeIsNotRebuiltOnTheDefault()
+    {
+        BasisAvatar avatar = BuildAvatar();
+        avatar.FaceVisemeProfiles = DefaultProfiles();
+        avatar.FaceVisemeProfiles[0].OutMax = 0f;
+        avatar.FaceVisemeProfiles[6].Gain = 0f;
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[0] = 0.98f;
+        context.RawVisemeWeights[6] = 0.90f;
+        context.RawVisemeWeights[10] = 0.42f;
+        context.Apply(Frame);
+
+        Assert.AreEqual(0f, Weight(avatar, 0), 0.3f, "a collapsed output range must stay at rest");
+        Assert.AreEqual(0f, Weight(avatar, 6), 0.3f, "a zeroed gain must stay at rest");
+        Assert.AreEqual(42f, Weight(avatar, 10), 0.3f, "its neighbours keep responding");
+    }
+
+    /// <summary>
+    /// A zeroed config is what a deserializer hands back for a payload built before it existed.
+    /// Every field of it is a legal authored value, so it has to be recognised as absent rather
+    /// than honoured — otherwise the avatar silently asks for no smoothing and no silence floor.
+    /// </summary>
+    [Test]
+    public void ZeroedDriveConfigIsTreatedAsUnauthored()
+    {
+        BasisVisemeDriveConfig zeroed = new BasisVisemeDriveConfig
+        {
+            Mode = BasisVisemeDriveMode.Continuous,
+            WinnerMargin = 0f,
+            WinnerHoldSeconds = 0f,
+            SilenceFloor = 0f,
+            SilIsRest = false,
+            BackendSmoothing = 0,
+        };
+
+        Assert.IsTrue(zeroed.IsUnset);
+        Assert.IsFalse(new BasisVisemeDriveConfig().IsUnset, "a constructed config is authored, not absent");
+
+        BasisAvatar avatar = BuildAvatar();
+        avatar.FaceVisemeDrive = zeroed;
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[7] = 0.55f;
+        context.Apply(Frame);
+
+        Assert.AreEqual(55f, Weight(avatar, 7), 0.3f);
+    }
+
+    /// <summary>
+    /// FaceVisemeMovement is authored against the SDK-time mesh. One that arrives with fewer
+    /// shapes leaves indices pointing past the end, and SetBlendShapeWeight throws on every one
+    /// of them, every frame.
+    /// </summary>
+    [Test]
+    public void VisemesMappedPastTheMeshAreDropped()
+    {
+        BasisAvatar avatar = BuildAvatar();
+        avatar.FaceVisemeMovement[7] = VisemeCount + 84;
+        LogAssert.Expect(LogType.Warning, new Regex("map past the face mesh"));
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[7] = 0.90f;
+        context.RawVisemeWeights[10] = 0.42f;
+        Assert.DoesNotThrow(() => context.Apply(Frame));
+
+        Assert.AreEqual(42f, Weight(avatar, 10), 0.3f, "the mappings that do resolve keep working");
+    }
+
+    /// <summary>
+    /// A renderer outliving its sharedMesh mid-swap reports blendShapeCount 0, and every write
+    /// into it throws "index out of bounds (size=0)" for as long as the window lasts.
+    /// </summary>
+    [Test]
+    public void MeshLosingItsShapesDoesNotThrow()
+    {
+        BasisAvatar avatar = BuildAvatar();
+        BasisOpenLipSyncContext context = Bind(avatar);
+
+        context.RawVisemeWeights[7] = 0.90f;
+        context.Apply(Frame);
+
+        avatar.FaceVisemeMesh.sharedMesh = null;
+        context.RawVisemeWeights[7] = 0.20f;
+        Assert.DoesNotThrow(() => context.Apply(Frame));
     }
 
     [Test]

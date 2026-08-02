@@ -244,10 +244,17 @@ namespace Basis.BasisUI.HandHeldCamera
 
             BuildNavigationColumn(_navColumn);
 
+            // First, because a mode is the decision every other tab is downstream of: it sets them
+            // up for a job and colours them by the part each one plays in it.
+            AddTab("camera.modePreset", BuildModeTab);
+
             AddTab("camera.capture", content =>
             {
                 BuildActionsGroup(content);
                 PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_actionSection, _actionGroup, true, OnSectionExpanded);
+
+                BuildBackgroundGroup(content);
+                PanelSectionToggleHelpers.FinalizeCollapsibleGroup(_backgroundSection, _backgroundGroup, false, OnSectionExpanded);
             });
 
             AddTab("camera.tab.image", content =>
@@ -295,6 +302,10 @@ namespace Basis.BasisUI.HandHeldCamera
 
             MakeSlidersLive((RectTransform)_tabGroup.transform);
             AssignSliderResetDefaults();
+
+            // After every tab: the section handles are assigned as each page is populated, so the
+            // tint list can only be complete once the last one has been built.
+            RegisterSectionTints();
 
             RebuildSelector();
 
@@ -621,6 +632,7 @@ namespace Basis.BasisUI.HandHeldCamera
             ApplyOnPropUIVisibility(false);
             SetPanelTickSubscription(false);
             ClearCinematicReferences();
+            ClearModeReferences();
             _panel = null;
             _tabGroup = null;
             _navColumn = null;
@@ -1363,8 +1375,9 @@ namespace Basis.BasisUI.HandHeldCamera
         /// <summary>
         /// One toggle per named, user-togglable layer, controlling whether the capture camera
         /// draws it. Built once from the project's layers; the camera refuses the ones it
-        /// manages itself (OverlayUI, the prop HUD), so those never appear here. The UI layer
-        /// (players' nameplates) is exposed here as its own toggle.
+        /// manages itself (OverlayUI, its own world markers), so those never appear here. The
+        /// UI layer (players' nameplates) and HandHeldCameraUI (the prop's HUD) are exposed
+        /// here as their own toggles.
         /// </summary>
         private void BuildLayersGroup(RectTransform parent)
         {
@@ -1617,6 +1630,8 @@ namespace Basis.BasisUI.HandHeldCamera
                 if (button != null) button.gameObject.SetActive(active);
             }
             if (_previewGroup != null) _previewGroup.SetActive(active);
+            if (_modeDropdown != null) _modeDropdown.gameObject.SetActive(active);
+            if (_modeDescription != null) _modeDescription.SetActive(active);
             // The pages have nothing to drive without a camera, so the navigation goes with them.
             if (_tabGroup != null && _tabGroup.TabButtonParent != null)
             {
@@ -1657,6 +1672,12 @@ namespace Basis.BasisUI.HandHeldCamera
             _lastShotRosterHash = -1;
             _lastWaypointCount = -1;
             _lastCinematic = null;
+
+            // Cameras hold their modes independently, so switching between two of them has to
+            // repaint rather than trust the cache from the one that was showing.
+            _activeCamera.RefreshCameraMode();
+            RefreshModeVisuals(force: true);
+
             SeedCinematicCameraControls();
             RefreshShotList();
             RefreshWaypointList();
@@ -1982,6 +2003,7 @@ namespace Basis.BasisUI.HandHeldCamera
             SyncToggle(_autoFollowToggle, _activeCamera.IsAutoFollowing, ref _lastAutoFollow);
             SyncSharedControls();
             RefreshFollowTargets();
+            TickModeState();
             TickCinematicSections();
             RefreshTimerLabel();
             RefreshHiddenState();

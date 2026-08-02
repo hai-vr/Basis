@@ -6,7 +6,8 @@ namespace Basis.IK
         /// <summary>The hips target as the lock-mode stage left it.</summary>
         public Vector3 HipsPos;
         /// <summary>
-        /// Gaze-invariant neck estimate: headTargetPos + headWorldRot * tposeHeadToNeckLocal, the SAME cue
+        /// Gaze-invariant neck estimate from BasisNeckCueCore (which also owns the look-UP damping that the
+        /// raw headTargetPos + headWorldRot * tposeHeadToNeckLocal line needs before it is invariant), the SAME cue
         /// DistributeSpineBend uses. NOT the HMD. The HMD sits forward of the neck pivot, so a pure look-down
         /// swings it forward; feed that here and merely glancing down shoves the pelvis backward -- the exact
         /// mirror image of the bug this exists to fix.

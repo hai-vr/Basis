@@ -13,12 +13,14 @@ public partial class BasisHandHeldCameraUI
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
         /// v2 added the auto-follow config, capture toggles and MSAA.
         /// </summary>
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
         {
             settingsVersion = CurrentVersion;
+
+            cameraMode = (int)BasisCameraMode.Photo;
 
             backgroundMode = 0;
             backgroundCustomColor = BasisHandHeldCamera.ChromaGreen;
@@ -67,6 +69,13 @@ public partial class BasisHandHeldCameraUI
 
             msaaSamples = 2;
         }
+
+        /// <summary>
+        /// The <see cref="BasisCameraMode"/> the camera was last in. Restored on load and then
+        /// immediately re-derived from the values that loaded alongside it, so a file that no
+        /// longer matches the mode it names settles on Custom instead of mislabelling itself.
+        /// </summary>
+        public int cameraMode;
 
         public int resolutionIndex = 1;
         public int formatIndex = 0;

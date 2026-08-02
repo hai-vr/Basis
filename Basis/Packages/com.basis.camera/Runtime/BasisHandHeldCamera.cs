@@ -110,6 +110,14 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     public RenderTexture PreviewTexture => renderTexture;
 
+    /// <summary>
+    /// True from the moment a still capture takes the RT to its capture size until the readback
+    /// has landed. The RT is freed and rebuilt on every resize, so anything that sizes the feed
+    /// on its own schedule — Direct To Screen follows the window — has to stand off for that
+    /// window or it destroys the texture the readback is reading.
+    /// </summary>
+    private bool captureInFlight;
+
     /// <summary>Last RT bound to material (to avoid redundant sets).</summary>
     private RenderTexture lastAssignedRenderTexture = null;
 
@@ -250,7 +258,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
         base.Awake();
 
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
+        ApplyPreviewResolution();
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
 
@@ -356,8 +364,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     private void OnEnable()
     {
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
-        BasisDebug.Log($"[HandHeldCamera] Preview reset to {PreviewCaptureWidth}x{PreviewCaptureHeight} @ {AntialiasingQuality.Low}");
+        ApplyPreviewResolution();
+        if (renderTexture != null)
+        {
+            BasisDebug.Log($"[HandHeldCamera] Preview reset to {renderTexture.width}x{renderTexture.height} @ {AntialiasingQuality.Low}");
+        }
         captureCamera.targetTexture = renderTexture;
         BasisCullingCameraRegistry.Register(captureCamera);
         BasisMirrorViewerRegistry.Register(captureCamera);
@@ -542,9 +553,11 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
 
     /// <summary>
     /// Layers the render-layers UI must not expose, because the camera manages them itself.
-    /// OverlayUI is the prop's own HUD — showing it would leak the viewfinder into every shot.
+    /// OverlayUI carries the camera's own world markers — the detached preview screen, the
+    /// follow-PIP puck and the dolly waypoints — which would leak the rig into every shot.
     /// The UI layer (players' nameplates) is exposed there as its own toggle, so there is no
-    /// separate "Show Nameplates" control.
+    /// separate "Show Nameplates" control, and HandHeldCameraUI (the prop's HUD) is exposed
+    /// as its own toggle too, off by default.
     /// </summary>
     private static readonly string[] ManagedCaptureLayers = { "OverlayUI" };
 
@@ -874,6 +887,75 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             Renderer.sharedMaterial = actualMaterial;
             lastAssignedMaterial = actualMaterial;
             lastAssignedRenderTexture = renderTexture;
+            ApplyViewfinderCrop();
+        }
+    }
+
+    /// <summary>
+    /// Sizes the feed for how it is currently being shown: the screen's shape while Direct To
+    /// Screen is presenting it, the authored preview size otherwise. Every path that leaves the RT
+    /// at some other size — a capture, a re-enable, toggling the mode — comes back through here
+    /// instead of assuming the preview size, which would put the letterbox bars back for as long
+    /// as the mode stayed on.
+    /// </summary>
+    private void ApplyPreviewResolution()
+    {
+        if (captureInFlight) return;
+
+        if (IsOverridingDesktopView)
+        {
+            // A window that reports nothing to fill — minimised — leaves the feed where it is.
+            // Falling back to the preview size would rebuild the RT twice per restore.
+            if (TryGetDirectToScreenFeedSize(out int screenWidth, out int screenHeight))
+            {
+                SetResolution(screenWidth, screenHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
+            }
+            return;
+        }
+
+        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
+    }
+
+    /// <summary>
+    /// Keeps the prop's viewfinder undistorted. The quad is a fixed shape, so a feed that is not
+    /// the capture aspect — which is what Direct To Screen produces, since the feed then follows
+    /// the screen — gets squashed onto it. Showing the middle of the feed instead keeps faces the
+    /// right width; the full frame is still there on the floating preview screen and the menu
+    /// panel, both of which size themselves to the feed. Identity whenever the feed and the
+    /// capture aspect agree, which is every case except that mode.
+    /// </summary>
+    private void ApplyViewfinderCrop()
+    {
+        if (actualMaterial == null) return;
+
+        Vector2 scale = Vector2.one;
+        Vector2 offset = Vector2.zero;
+
+        if (renderTexture != null && renderTexture.height > 0 && captureWidth > 0 && captureHeight > 0)
+        {
+            float feedAspect = (float)renderTexture.width / renderTexture.height;
+            float shotAspect = (float)captureWidth / captureHeight;
+
+            if (feedAspect > shotAspect)
+            {
+                scale.x = shotAspect / feedAspect;
+                offset.x = (1f - scale.x) * 0.5f;
+            }
+            else if (feedAspect < shotAspect)
+            {
+                scale.y = feedAspect / shotAspect;
+                offset.y = (1f - scale.y) * 0.5f;
+            }
+        }
+
+        // Both, because the preview material's main texture is _MainTex on some shaders and
+        // _BaseMap on the URP ones — the same reason the texture itself is assigned twice above.
+        actualMaterial.mainTextureScale = scale;
+        actualMaterial.mainTextureOffset = offset;
+        if (actualMaterial.HasProperty("_MainTex"))
+        {
+            actualMaterial.SetTextureScale("_MainTex", scale);
+            actualMaterial.SetTextureOffset("_MainTex", offset);
         }
     }
 
@@ -885,6 +967,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <param name="Format">RT format for rendering the frame.</param>
     public IEnumerator TakeScreenshot(TextureFormat TextureFormat, RenderTextureFormat Format = RenderTextureFormat.ARGBFloat)
     {
+        captureInFlight = true;
         SetResolution(captureWidth, captureHeight, AntialiasingQuality.High, Format);
         yield return new WaitForEndOfFrame();
 
@@ -1180,6 +1263,8 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         if (index >= 0 && index < MetaData.resolutions.Length)
         {
             (captureWidth, captureHeight) = MetaData.resolutions[index];
+            // The viewfinder crop is framed against the capture aspect, so a new preset re-frames it.
+            ApplyViewfinderCrop();
         }
     }
 
@@ -1195,9 +1280,10 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public void SetNormalAfterCapture()
     {
+        captureInFlight = false;
         ToggleToneMapping(TonemappingMode.Neutral);
         BasisLocalAvatarDriver.ScaleHeadToZero();
-        SetResolution(PreviewCaptureWidth, PreviewCaptureHeight, AntialiasingQuality.Low, PreviewRenderTextureFormat);
+        ApplyPreviewResolution();
     }
 
     /// <summary>Sets the URP tonemapping mode on the active profile.</summary>

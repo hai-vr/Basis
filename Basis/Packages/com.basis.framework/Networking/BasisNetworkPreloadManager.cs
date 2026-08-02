@@ -113,7 +113,9 @@ public static class BasisNetworkPreloadManager
             {
                 BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
                 {
-                    StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                    // Cloned: the meta cache is handed to consumers that write the version tag
+                    // into it, and that tag is part of the bundle registry key.
+                    StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.Clone(),
                     StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
                     UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
                 };

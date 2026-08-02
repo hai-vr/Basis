@@ -3,13 +3,28 @@ using System.Globalization;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
     public class LibraryProviderDialogPickVersion
     {
         #region PromptUserToPickVersion
+
+        /// <summary>
+        /// Height handed to the grid page. The dialog's content column is a vertical layout that
+        /// sizes children off their LayoutElement, and a tab page carries none, so without this the
+        /// grid collapses to nothing. Leaves room for the dialog's own header above it.
+        /// </summary>
+        private const float GridHeight = 620f;
+
+        /// <summary>
+        /// Date form used on the cards. The full invariant timestamp does not fit a cell, but two
+        /// uploads on the same day are common enough that the time has to stay.
+        /// </summary>
+        private const string ChipDateFormat = "yyyy-MM-dd HH:mm";
 
         /// <summary>
         /// Shows the stacked versions of one piece of content (newest first) and resolves with the
@@ -22,61 +37,74 @@ namespace Basis.BasisUI
             CachedMetaData.TryGetMeta(face.Url ?? string.Empty, out CachedMetaData.CachedContent faceMeta);
             string displayName = LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(faceMeta?.Name) ? faceMeta.Name : face.Url);
 
-            DialogBox<BasisDataStoreItemKeys.ItemKey> dialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(1000, 800),
+            DialogBox<BasisDataStoreItemKeys.ItemKey> dialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(1200, 900),
                 displayName,
                 BasisLocalization.Get("library.dialog.pickVersion.body"),
                 AddressableAssets.Sprites.List);
+
+            if (dialog.Descriptor == null)
+            {
+                return await dialog.WaitAsync();
+            }
 
             PanelButton exitButton = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, dialog.Descriptor.Header);
             exitButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             exitButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             exitButton.OnClicked += () => dialog.Cancel(null);
 
-            PanelTabPage scrollablePage = PanelTabPage.CreateNew(dialog.Descriptor.ContentParent);
-            PanelElementDescriptor scrollDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVerticalLibraryParentContentSize, scrollablePage.Descriptor.ContentParent);
-            scrollablePage.Descriptor.ContentParent = scrollDescriptor.ContentParent;
+            // A version is told apart by its thumbnail first and its date second, so the versions
+            // are laid out as the same card grid the library itself uses rather than as a list of
+            // rows — the cards the user just came from, one per version.
+            PanelTabPage gridPage = PanelTabPage.CreateGrid(dialog.Descriptor.ContentParent);
+            gridPage.Descriptor.SetHeight(GridHeight);
 
             for (int Index = 0; Index < stack.Count; Index++)
             {
                 BasisDataStoreItemKeys.ItemKey version = stack[Index];
                 CachedMetaData.TryGetMeta(version.Url ?? string.Empty, out CachedMetaData.CachedContent meta);
 
-                PanelButton row = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, scrollablePage.Descriptor.ContentParent);
-                var rowDescriptor = row.Descriptor;
+                PanelButton card = PanelButton.CreateNew(PanelButton.ButtonStyles.Prop, gridPage.Descriptor.ContentParent);
+                var cardDescriptor = card.Descriptor;
 
-                string dateText = meta != null && meta.Created.HasValue
+                bool hasDate = meta != null && meta.Created.HasValue;
+                string dateText = hasDate
                     ? meta.Created.Value.ToString(CultureInfo.InvariantCulture) + " UTC"
                     : null;
 
                 // Content built before the connector carried a creation date has none — and that is
                 // exactly the older content grouped by NAME, where the version lives in the name and
-                // nowhere else. Labelling those rows by date alone made every one of them read "not
+                // nowhere else. Labelling those cards by date alone made every one of them read "not
                 // available", leaving the raw url as the only way to tell the versions apart.
                 string versionName = string.IsNullOrWhiteSpace(meta?.Name)
                     ? null
                     : LibraryProviderStrUtil.TitleToCase(meta.Name);
 
-                string label;
-                if (versionName != null && dateText != null)
-                {
-                    label = $"{versionName} — {dateText}";
-                }
-                else
-                {
-                    label = versionName ?? dateText ?? BasisLocalization.Get("library.notAvailable");
-                }
+                string label = versionName ?? dateText ?? BasisLocalization.Get("library.notAvailable");
 
-                rowDescriptor.SetTitle(Index == 0
+                cardDescriptor.SetTitle(Index == 0
                     ? string.Format(BasisLocalization.Get("library.stack.latestEntry"), label)
                     : label);
-                rowDescriptor.SetDescription(version.Url ?? string.Empty);
-                rowDescriptor.SetHeight(100);
-                rowDescriptor.SetWidth(880);
+
+                // Versions of the same upload share a name, so the date is the only thing that tells
+                // them apart — and the library card prefab carries no description label, which makes
+                // SetDescription a no-op on it. So the date is drawn over the thumbnail instead, in
+                // a short form that fits a 200-wide cell. A version with no name has already been
+                // given the date as its title above, where a chip would only repeat it.
+                if (hasDate && versionName != null)
+                {
+                    AddDateChip(card, meta.Created.Value.ToString(ChipDateFormat, CultureInfo.InvariantCulture) + " UTC");
+                }
+
+                // The full timestamp and the address behind it are the details you only want when
+                // you go looking, and a card has no room for either.
+                cardDescriptor.SetTooltip(dateText != null
+                    ? $"{dateText}\n{version.Url}"
+                    : version.Url ?? string.Empty);
 
                 Sprite thumbnail = meta != null ? CachedMetaData.CreateSpriteFromMetaData(meta) : null;
                 if (thumbnail != null)
                 {
-                    row.SetIcon(thumbnail, false);
+                    card.SetIcon(thumbnail, false);
                 }
 
                 bool isActive;
@@ -89,9 +117,9 @@ namespace Basis.BasisUI
                         isActive = BasisRuntimeSpawnRegistry.CountIgnoreCase(version.Url) > 0;
                         break;
                 }
-                row.ButtonStyling.ShowIndicator(isActive);
+                card.ButtonStyling.ShowIndicator(isActive);
 
-                row.OnClicked += () =>
+                card.OnClicked += () =>
                 {
                     if (dialog.IsBusy) return;
                     dialog.IsBusy = true;
@@ -103,6 +131,58 @@ namespace Basis.BasisUI
             dialog.Descriptor.ForceRebuild();
 
             return await dialog.WaitAsync();
+        }
+
+        /// <summary>
+        /// Draws the version's date across the top of the card, over the thumbnail — the card's own
+        /// title sits in the bottom strip and its prefab has no second label to hand this to. Copies
+        /// the title's TMP font so it matches the rest of the panel, and auto-sizes down because a
+        /// timestamp is wider than a 200-wide cell at the normal size.
+        /// </summary>
+        private static void AddDateChip(PanelButton card, string text)
+        {
+            var desc = card.Descriptor;
+
+            GameObject chipGo = new GameObject("Version Date", typeof(RectTransform));
+            RectTransform rt = (RectTransform)chipGo.transform;
+            rt.SetParent(desc.rectTransform, false);
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -14f);
+            rt.sizeDelta = new Vector2(-30f, 34f);
+
+            Image background = chipGo.AddComponent<Image>();
+            background.color = new Color(0f, 0f, 0f, 0.6f);
+            background.raycastTarget = false;
+
+            LayoutElement layoutElement = chipGo.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            GameObject textGo = new GameObject("Date", typeof(RectTransform));
+            RectTransform textRt = (RectTransform)textGo.transform;
+            textRt.SetParent(rt, false);
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = new Vector2(6f, 0f);
+            textRt.offsetMax = new Vector2(-6f, 0f);
+
+            TextMeshProUGUI label = textGo.AddComponent<TextMeshProUGUI>();
+            if (desc.TitleLabel != null)
+            {
+                label.font = desc.TitleLabel.font;
+                label.fontSharedMaterial = desc.TitleLabel.fontSharedMaterial;
+                label.color = desc.TitleLabel.color;
+            }
+            label.text = text;
+            label.alignment = TextAlignmentOptions.Center;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 12;
+            label.fontSizeMax = 20;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.overflowMode = TextOverflowModes.Ellipsis;
+            label.raycastTarget = false;
+            label.richText = false;
         }
 
         #endregion

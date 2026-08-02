@@ -118,7 +118,6 @@ public sealed class BasisMicrophoneAgc
 
     private const float SettleSeconds = 0.5f;
     private const float SettleAttackSeconds = 0.04f;
-    private const float SettleReleaseSeconds = 0.10f;
     private const float HoldSeconds = 0.4f;
 
     private readonly BasisNoiseFloorTracker _noiseFloor = new BasisNoiseFloorTracker();
@@ -203,32 +202,31 @@ public sealed class BasisMicrophoneAgc
                 _hasSpeech = true;
                 _speechLevel = frameRms;
                 _settleTimer = SettleSeconds;
-                _gainDb = DesiredDb(target, _speechLevel, maxBoostDb);
+                _gainDb = Mathf.Min(0f, DesiredDb(target, _speechLevel, maxBoostDb));
             }
             else
             {
                 float levelSeconds = frameRms > _speechLevel ? LevelRiseSeconds : LevelFallSeconds;
                 _speechLevel = Mathf.Lerp(_speechLevel, frameRms, Coeff(levelSeconds, frameSeconds));
 
-                float desiredDb = DesiredDb(target, _speechLevel, maxBoostDb);
-                bool settling = _settleTimer > 0f;
-
-                if (desiredDb < _gainDb)
+                if (aboveNoise)
                 {
-                    float attackSeconds = settling
-                        ? SettleAttackSeconds
-                        : Mathf.Lerp(AttackSlowSeconds, AttackFastSeconds, Mathf.Clamp01(settings.Attack01));
+                    float desiredDb = DesiredDb(target, _speechLevel, maxBoostDb);
 
-                    _gainDb = Mathf.Lerp(_gainDb, desiredDb, Coeff(attackSeconds, frameSeconds));
-                    _holdTimer = HoldSeconds;
-                }
-                else if (settling || _holdTimer <= 0f)
-                {
-                    float releaseSeconds = settling
-                        ? SettleReleaseSeconds
-                        : Mathf.Lerp(ReleaseSlowSeconds, ReleaseFastSeconds, Mathf.Clamp01(settings.Release01));
+                    if (desiredDb < _gainDb)
+                    {
+                        float attackSeconds = _settleTimer > 0f
+                            ? SettleAttackSeconds
+                            : Mathf.Lerp(AttackSlowSeconds, AttackFastSeconds, Mathf.Clamp01(settings.Attack01));
 
-                    _gainDb = Mathf.Lerp(_gainDb, desiredDb, Coeff(releaseSeconds, frameSeconds));
+                        _gainDb = Mathf.Lerp(_gainDb, desiredDb, Coeff(attackSeconds, frameSeconds));
+                        _holdTimer = HoldSeconds;
+                    }
+                    else if (_holdTimer <= 0f)
+                    {
+                        float releaseSeconds = Mathf.Lerp(ReleaseSlowSeconds, ReleaseFastSeconds, Mathf.Clamp01(settings.Release01));
+                        _gainDb = Mathf.Lerp(_gainDb, desiredDb, Coeff(releaseSeconds, frameSeconds));
+                    }
                 }
             }
         }

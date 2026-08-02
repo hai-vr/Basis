@@ -187,9 +187,32 @@ namespace Basis.BasisUI
                    string.Equals(BasisIOManagement.CanonicalizeRemoteUrl(worn), BasisIOManagement.CanonicalizeRemoteUrl(item.Url), StringComparison.Ordinal);
         }
 
+        /// <summary>
+        /// A dialog box is a fixed size, but these bodies run to several sentences over two
+        /// paragraphs — at a flat 200 the text ran straight through the yes/no row below it. Grows
+        /// the box with the body instead of trusting one height to fit every message (and every
+        /// translation of it): roughly 68 characters fit on a line at the description font size,
+        /// and each explicit line break starts a new one.
+        /// </summary>
+        private static Vector2 SizeForBody(string body)
+        {
+            const float Width = 830f;
+            const float CharactersPerLine = 68f;
+            const float LineHeight = 28f;
+
+            int lines = 0;
+            string[] paragraphs = (body ?? string.Empty).Split('\n');
+            for (int Index = 0; Index < paragraphs.Length; Index++)
+            {
+                lines += Mathf.Max(1, Mathf.CeilToInt(paragraphs[Index].Length / CharactersPerLine));
+            }
+
+            return new Vector2(Width, Mathf.Clamp(150f + lines * LineHeight, 200f, 600f));
+        }
+
         private static async Task ShowNotice(BasisMenuPanel panel, string title, string body)
         {
-            DialogBox<bool> noticeDialog = DialogBox<bool>.Create(panel, new Vector2(830, 200), title, body, AddressableAssets.Sprites.Information);
+            DialogBox<bool> noticeDialog = DialogBox<bool>.Create(panel, SizeForBody(body), title, body, AddressableAssets.Sprites.Information);
 
             if (noticeDialog.Descriptor != null)
             {
@@ -205,7 +228,7 @@ namespace Basis.BasisUI
 
         private static async Task<bool> PromptYesNo(BasisMenuPanel panel, string title, string body)
         {
-            DialogBox<bool> dialog = DialogBox<bool>.Create(panel, new Vector2(830, 200), title, body, AddressableAssets.Sprites.Information, true);
+            DialogBox<bool> dialog = DialogBox<bool>.Create(panel, SizeForBody(body), title, body, AddressableAssets.Sprites.Information, true);
 
             if (dialog.Descriptor != null)
             {

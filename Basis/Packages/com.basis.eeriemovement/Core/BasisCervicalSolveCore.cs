@@ -12,6 +12,13 @@ namespace Basis.IK
         public float ExtremeRollBackwardMaxDeg;
         public float ExtremeHipsHorizontalMax;
         public float ExtremeChestHorizontalMax;
+        // Look-UP gets its own horizontal pair, exactly as the vertical pair below already does. Looking
+        // far down and looking far up are not mirror images: a deep look-down sits the whole body back,
+        // but a look-up is an arch, and in an arch THE PELVIS LEADS -- the belly comes forward and the
+        // sternum stays over or behind it. Reusing the look-down chest number here sent the chest 4 cm
+        // forward against the hips' 2.5 cm, so the chest ended up out in front of the body it hangs on.
+        public float ExtremeHipsHorizontalLookUp;
+        public float ExtremeChestHorizontalLookUp;
         public float ExtremeHipsDownMax;
         public float ExtremeChestDownMax;
         public float ExtremeHipsDownLookUp;
@@ -144,9 +151,17 @@ namespace Basis.IK
                 float horizCoeff = extremeFrac * signedBalance;
                 float hipsDown = extremeFrac * (lookDownFrac * i.ExtremeHipsDownMax + lookUpFrac * i.ExtremeHipsDownLookUp);
                 float chestDown = extremeFrac * (lookDownFrac * i.ExtremeChestDownMax + lookUpFrac * i.ExtremeChestDownLookUp);
-                r.HipsForwardAmount = horizCoeff * i.ExtremeHipsHorizontalMax;
+                // signedBalance already carries the DIRECTION (back on a look-down, forward on a look-up), so
+                // the magnitude is picked per side -- exactly how extremeRollMag above picks its own pair.
+                // Selected, not blended: blending by lookDown/lookUpFrac would multiply a second copy of the
+                // pitch fraction into a coefficient that already has one, making the look-down side quadratic
+                // in pitch where it used to be linear. Selecting keeps the look-down half bit-identical, and
+                // the switch itself is invisible because horizCoeff is 0 wherever signedPitch is.
+                float hipsHoriz = signedPitch >= 0f ? i.ExtremeHipsHorizontalMax : i.ExtremeHipsHorizontalLookUp;
+                float chestHoriz = signedPitch >= 0f ? i.ExtremeChestHorizontalMax : i.ExtremeChestHorizontalLookUp;
+                r.HipsForwardAmount = horizCoeff * hipsHoriz;
                 r.HipsDownAmount = hipsDown;
-                r.ChestForwardAmount = horizCoeff * i.ExtremeChestHorizontalMax;
+                r.ChestForwardAmount = horizCoeff * chestHoriz;
                 r.ChestDownAmount = chestDown;
             }
         }

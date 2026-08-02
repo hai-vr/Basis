@@ -42,6 +42,8 @@ namespace Basis.Tests.IK
         const float ExtremeRollBackwardMaxDeg = 4f;
         const float ExtremeHipsHorizontalMax = 0.025f;
         const float ExtremeChestHorizontalMax = 0.04f;
+        const float ExtremeHipsHorizontalLookUp = 0.025f;
+        const float ExtremeChestHorizontalLookUp = 0.010f;
         const float ExtremeHipsDownMax = 0.015f;
         const float ExtremeChestDownMax = 0.025f;
         const float ExtremeHipsDownLookUp = 0.0005f;
@@ -344,6 +346,8 @@ namespace Basis.Tests.IK
             i.ExtremeRollBackwardMaxDeg = ExtremeRollBackwardMaxDeg;
             i.ExtremeHipsHorizontalMax = ExtremeHipsHorizontalMax;
             i.ExtremeChestHorizontalMax = ExtremeChestHorizontalMax;
+            i.ExtremeHipsHorizontalLookUp = ExtremeHipsHorizontalLookUp;
+            i.ExtremeChestHorizontalLookUp = ExtremeChestHorizontalLookUp;
             i.ExtremeHipsDownMax = ExtremeHipsDownMax;
             i.ExtremeChestDownMax = ExtremeChestDownMax;
             i.ExtremeHipsDownLookUp = ExtremeHipsDownLookUp;
