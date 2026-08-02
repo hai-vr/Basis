@@ -581,6 +581,17 @@ namespace Basis.EventDriver
             }
             BasisFiniteWatchdog.CheckpointRemote("PostRemoteBoneJobs (skeleton / hips / mouth / nameplate write)");
 
+            // The beacon reads a remote MouthTransform's world position on the main thread, so it
+            // has to sit in the one window where that hierarchy carries no in-flight job: the mouth
+            // pose is final as of the join above, and the schedule cluster below re-covers remote
+            // hierarchies (face eye-write, nameplate, billboard) until their completes late in the
+            // frame. Downstream of those it also landed after the jiggle pose dispatch, where the
+            // read stalled on the pose jobs for as long as a player stayed highlighted.
+            using (Prof.SimulateBeacon.Auto())
+            {
+                IndividualPlayerProvider.SimulateBeacon(DeltaTime);
+            }
+
             // Finger apply + eye schedule run inside the solve window: the head is the solve's
             // INPUT (head-pinned), and the eye driver reads only the render-latched camera statics
             // plus remote gaze-target positions (remote bones joined just above) — never the solved
@@ -679,6 +690,21 @@ namespace Basis.EventDriver
                 // ready its previously scheduled transform jobs would otherwise stay in
                 // flight across frames, with remote pucks free to be destroyed under them.
                 BasisNetworkPIPCameraDriver.CompletePending();
+            }
+
+            // ── Transmit range/distance schedule ──
+            // The transmit tick's distance/reduce/avatar-cap/audio-cap/dampen chain is kicked here
+            // and joined down in the AfterAvatarChanges block. Its inputs are final as of this
+            // line — remote mouth positions came off the bone job join above, the head position
+            // and gaze off the camera simulate immediately preceding — and nothing between here
+            // and the join reads the range/LOD arrays it writes, so the chain runs through the
+            // SteamAudio schedule, remote audio apply, blendshape read, authored motion,
+            // constraints and the jiggle prepare instead of being fenced a few microseconds
+            // after it was scheduled.
+            using (Prof.TransmitSchedule.Auto())
+            {
+                try { BasisNetworkTransmitter.ScheduleTransmitJobs?.Invoke(); }
+                catch (Exception ex) { BasisDebug.LogErrorOnce($"ScheduleTransmitJobs failed: {ex}", BasisDebug.LogTag.Event); }
             }
 
 #if STEAMAUDIO_ENABLED
@@ -916,10 +942,6 @@ namespace Basis.EventDriver
             using (Prof.JoinLeaveNotification.Auto())
             {
                 BasisJoinLeaveNotification.Simulate(TimeAsDouble);
-            }
-            using (Prof.SimulateBeacon.Auto())
-            {
-                IndividualPlayerProvider.SimulateBeacon(DeltaTime);
             }
 
             bool drawJiggle = SMModuleDebugOptions.UseGizmos && SMModuleDebugOptions.UseJiggleVisuals;

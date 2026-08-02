@@ -555,7 +555,7 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>
     /// Overrides the filtered hips world position and rotation for a player so that
-    /// the combined BulkCopyHipsAndDeriveJob (and thus ApplyRootJob /
+    /// the combined BulkCopyHipsAndDeriveJob (and thus ApplyRootAndScaleJob /
     /// ApplyHipsWorldJob) pick up the override instead of the interpolated network
     /// data. Position/Rotation in the pipeline are hips world (not root world) —
     /// the override therefore teleports the visually anchored hips, and root is
@@ -646,12 +646,6 @@ public static class BasisRemoteNetworkDriver
     [BurstCompile]
     struct ComputeSkeletonRotationsFromNetworkJob : IJobParallelFor
     {
-        // Squared 4-component distance below which two rotations count as the same pose. A held
-        // value differs by exactly 0, so the threshold only has to absorb a last-ULP wobble —
-        // deliberately tighter than anything visible (~1e-6 per component is well under a
-        // thousandth of a degree) so a skip can never accumulate into drift.
-        const float StillEpsilonSq = 1e-12f;
-
         [ReadOnly] public NativeArray<int> PlayerKeys;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcBoneRotations;
         [ReadOnly] public NativeArray<quaternion> TposeLocal;
@@ -678,11 +672,13 @@ public static class BasisRemoteNetworkDriver
             quaternion q = math.mul(TposeLocal[index], delta);
             Rotations[index] = q;
 
-            // Straight component distance rather than a dot: dot of a near-unit quaternion with
-            // itself lands either side of 1.0 in float, so a "dot > 1 - eps" test needs an eps
-            // wider than the float noise floor and stops being exact for the held case.
-            bool write = ValidMask[index] != 0
-                      && math.lengthsq(q.value - LastWritten[index].value) > StillEpsilonSq;
+            // Bit-exact on purpose, so the skip is provably behaviour-identical rather than a
+            // (small) quality tradeoff. An epsilon would buy almost nothing anyway: the cases that
+            // actually repeat are bit-identical — a PoseLOD-held value is the same float4 verbatim,
+            // an identity delta composes to the same T-pose local every frame, and a converged
+            // one-pole reproduces its own output. Anything genuinely in motion differs by far more
+            // than the last ULP, so it still writes.
+            bool write = ValidMask[index] != 0 && math.any(q.value != LastWritten[index].value);
             WriteMask[index] = write ? (byte)1 : (byte)0;
             if (write) LastWritten[index] = q;
         }

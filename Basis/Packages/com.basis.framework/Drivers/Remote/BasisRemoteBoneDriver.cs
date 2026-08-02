@@ -358,24 +358,9 @@ public struct ApplySkeletonRotationsJob : IJobParallelForTransform
     }
 }
 
-/// <summary>
-/// Burst job that writes the avatar root's world position and rotation for all remote
-/// players. Uses the sRoots TransformAccessArray (1 entry per player). Inputs are the
-/// derived root pose computed inline by <c>BulkCopyHipsAndDeriveJob</c> from the
-/// network's hips world pose + the local hips deltas — root rides along so the
-/// hips bone lands exactly at the high-precision world pose we received.
-/// </summary>
-[BurstCompile]
-public struct ApplyRootJob : IJobParallelForTransform
-{
-    [ReadOnly] public NativeArray<float3> Positions;
-    [ReadOnly] public NativeArray<quaternion> Rotations;
-
-    public void Execute(int index, TransformAccess transform)
-    {
-        transform.SetPositionAndRotation(Positions[index], Rotations[index]);
-    }
-}
+// ApplyRootJob was folded into ApplyRootAndScaleJob below — it wrote the same one transform per
+// player that the scale pass did, so keeping them separate cost a dispatch and a dependency stage
+// for nothing.
 
 // ComputeRootFromHipsJob was folded into BasisRemoteNetworkDriver.BulkCopyHipsAndDeriveJob.
 // One Burst dispatch per frame fans out all per-player network state AND derives
@@ -413,21 +398,36 @@ public struct ApplyHipsWorldJob : IJobParallelForTransform
 }
 
 /// <summary>
-/// Burst job that writes avatar scale for all remote players.
-/// Uses the sAvatarScale TransformAccessArray (1 entry per player).
+/// Burst job that writes avatar scale AND the derived root world pose for all remote players in a
+/// single pass over sRoots.
+///
+/// These were two jobs (ApplyAvatarScaleJob then ApplyRootJob) over what is physically the same
+/// transform — <c>BasisRemoteAvatarDriver</c> registers <c>animatorRoot</c> as both
+/// <c>remotePlayerRoot</c> and <c>AvatarScale</c> — so the job system had to serialise them. At
+/// one entry per player that bought two dispatches and an extra dependency stage on the critical
+/// path for a single transform's worth of work, which is pure overhead: a write-mode
+/// IJobParallelForTransform batches by root hierarchy, and remote players are separate scene
+/// roots, so each of these passes is N batches of exactly ONE transform.
+///
+/// Scale is still written first. SetPositionAndRotation on a DESCENDANT (mouth, nameplate) bakes
+/// the parent lossyScale into the child's localPosition, so everything downstream of this job has
+/// to see the final scale — doing both here preserves that without a second pass.
 /// </summary>
 [BurstCompile]
-public struct ApplyAvatarScaleJob : IJobParallelForTransform
+public struct ApplyRootAndScaleJob : IJobParallelForTransform
 {
     [ReadOnly] public NativeArray<float3> Scales;
-    [ReadOnly] public NativeArray<byte> HasChange;
+    [ReadOnly] public NativeArray<byte> HasScaleChange;
+    [ReadOnly] public NativeArray<float3> Positions;
+    [ReadOnly] public NativeArray<quaternion> Rotations;
 
     public void Execute(int index, TransformAccess transform)
     {
-        if (HasChange[index] != 0)
+        if (HasScaleChange[index] != 0)
         {
             transform.localScale = Scales[index];
         }
+        transform.SetPositionAndRotation(Positions[index], Rotations[index]);
     }
 }
 
@@ -597,7 +597,7 @@ public static class RemoteBoneJobSystem
     static NativeArray<byte> sTmpScaleChanged;
     // Per-frame derived root world pose — written by the combined
     // BulkCopyHipsAndDeriveJob in one pass alongside the hips world copy and
-    // scale. Input to ApplyRootJob. Computed such that
+    // scale. Input to ApplyRootAndScaleJob. Computed such that
     //   root.world × hips.local = hips.world (received).
     static NativeArray<float3> sTmpRootDerivedPos;
     static NativeArray<quaternion> sTmpRootDerivedRot;
@@ -1598,23 +1598,29 @@ public static class RemoteBoneJobSystem
 
         // Apply pass — parallel branches.
         //
-        //   scaleApplyJob ─┬─> nameplateJob
-        //                  ├─> mouthJob
-        //                  └─> rootApplyJob ─> hipsWorldJob
+        //   rootAndScaleJob ─┬─> nameplateJob
+        //                    ├─> mouthJob
+        //                    └─> hipsWorldJob
         //   skeletonJob (independent)
         //
-        // Avatar scale and the root pos/rot apply both write the avatar root transform
-        // (sAvatarScale and sRoots are the same Animator.transform), so they must be
-        // ordered. Scale also has to run BEFORE any SetPositionAndRotation on a
-        // descendant of the root (mouth, nameplate): SetPositionAndRotation bakes the
-        // parent lossyScale into the child's localPosition. If scale changed afterward,
-        // the child's world position would shift by the scale delta. Skeleton writes
-        // only localRotation and is unaffected.
-        var scaleApplyJob = new ApplyAvatarScaleJob
+        // Avatar scale and the root pos/rot apply write the SAME transform — see
+        // BasisRemoteAvatarDriver's AddRemotePlayer call, which passes `animatorRoot` as both
+        // `remotePlayerRoot` and `AvatarScale` — so they used to be two serialised dispatches over
+        // one transform per player. Merged into ApplyRootAndScaleJob: one dispatch, one dependency
+        // stage. Scale is written before the pose inside that job, which is what descendants
+        // (mouth, nameplate) need — SetPositionAndRotation bakes the parent lossyScale into the
+        // child's localPosition, so a later scale change would shift the child's world position.
+        // Skeleton writes only localRotation and is unaffected.
+        //
+        // hRoot is combined for the TAA safety system (GatherRootJob read sRoots this frame).
+        var rootApplyDeps = JobHandle.CombineDependencies(bulkAndDeriveJob, hRoot);
+        var rootAndScaleJob = new ApplyRootAndScaleJob
         {
             Scales = sTmpAvatarScales,
-            HasChange = sTmpScaleChanged,
-        }.Schedule(sAvatarScale, bulkAndDeriveJob);
+            HasScaleChange = sTmpScaleChanged,
+            Positions = sTmpRootDerivedPos,
+            Rotations = sTmpRootDerivedRot,
+        }.Schedule(sRoots, rootApplyDeps);
 
         // Skeleton: one compute pass (ComputeSkeletonRotationsFromNetworkJob — gathers each
         // player's filtered bone deltas from the network slots and multiplies by the cached
@@ -1659,39 +1665,32 @@ public static class RemoteBoneJobSystem
         }
 
         Vector3 CameraPosition = BasisLocalCameraDriver.Position;
-        var simAndScale = JobHandle.CombineDependencies(BoneSimulation, scaleApplyJob);
+        // Descendants of the root: they need the root's FINAL scale and pose in place before their
+        // own SetPositionAndRotation, since Unity derives their localPosition from the parent's
+        // current world matrix. Previously these hung off the scale-only job, which left them free
+        // to race the root pose write on the same hierarchy.
+        var simAndRoot = JobHandle.CombineDependencies(BoneSimulation, rootAndScaleJob);
 
         var nameplateJob = new MappedNameplateApplyJob
         {
             CameraPosition = CameraPosition,
             NamePlateIn = sOut.AsDeferredJobArray(),
-        }.Schedule(sNamePlate, simAndScale);
+        }.Schedule(sNamePlate, simAndRoot);
 
         var mouthJob = new ApplyMouthJob
         {
             MouthRotation = sOut.AsDeferredJobArray(),
-        }.Schedule(sMouth, simAndScale);
-
-        // Root pose is already derived (inline inside bulkAndDeriveJob), so
-        // we just write it to the root TAA. scaleApplyJob writes the same
-        // transform (sAvatarScale and sRoots are the same Animator transform),
-        // so it must finish first; hRoot is combined for the TAA safety system.
-        var rootApplyDeps = JobHandle.CombineDependencies(scaleApplyJob, hRoot);
-        var rootApplyJob = new ApplyRootJob
-        {
-            Positions = sTmpRootDerivedPos,
-            Rotations = sTmpRootDerivedRot,
-        }.Schedule(sRoots, rootApplyDeps);
+        }.Schedule(sMouth, simAndRoot);
 
         // Hips world apply: writes hips.world.position/rotation directly via
         // SetPositionAndRotation. Hierarchy-agnostic — Unity walks the actual
         // parent chain so any Armature/intermediate node's transform is handled
-        // automatically. Must run AFTER rootApplyJob: SetPositionAndRotation
+        // automatically. Must run AFTER rootAndScaleJob: SetPositionAndRotation
         // computes hips.localPosition from the current parent (root) pose, so
         // root must be in its final per-frame state first. Also depends on
         // hHips (sHips TAA was read by GatherHipsJob) and on skeletonJob if
         // present (defensive; sSkeletonBones doesn't include hips).
-        var hipsWorldDeps = JobHandle.CombineDependencies(hHips, rootApplyJob);
+        var hipsWorldDeps = JobHandle.CombineDependencies(hHips, rootAndScaleJob);
         if (totalBones > 0) hipsWorldDeps = JobHandle.CombineDependencies(hipsWorldDeps, skeletonJob);
         var hipsWorldJob = new ApplyHipsWorldJob
         {
@@ -1748,7 +1747,7 @@ public static class RemoteBoneJobSystem
             }.Schedule(sSkeletonBones, ikComputeJob);
         }
 
-        var pending = JobHandle.CombineDependencies(nameplateJob, mouthJob, rootApplyJob);
+        var pending = JobHandle.CombineDependencies(nameplateJob, mouthJob, rootAndScaleJob);
         pending = JobHandle.CombineDependencies(pending, hipsWorldJob);
         pending = JobHandle.CombineDependencies(pending, skeletonJob);
         pending = JobHandle.CombineDependencies(pending, effectorIkJob);
@@ -1759,6 +1758,27 @@ public static class RemoteBoneJobSystem
         JobHandle.ScheduleBatchedJobs();
         return pending;
     }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Counts how many bone slots the last compute pass flagged for an actual transform write, out
+    /// of every slot <see cref="ApplySkeletonRotationsJob"/> iterated. The gap between the two is
+    /// what the write-skip saved. Editor/profiler only, and only valid once the bone jobs have
+    /// completed — call it from the same place the other bone-job profiler data is sampled.
+    /// </summary>
+    public static void SampleSkeletonWriteStats(out int written, out int total)
+    {
+        written = 0;
+        total = 0;
+        if (!sInitialized || !sSkeletonWriteMask.IsCreated) return;
+
+        total = math.min(sSkeletonTpose.Length, sSkeletonWriteMask.Length);
+        for (int i = 0; i < total; i++)
+        {
+            if (sSkeletonWriteMask[i] != 0) written++;
+        }
+    }
+#endif
 
     /// <summary>
     /// Completes a provided handle and any internally pending chain.

@@ -731,6 +731,14 @@ public static class JigglePhysics {
         }
     }
     
+    /// <summary>
+    /// A tree has started pushing parameters outside the commit path, so the slots it already owns
+    /// have to start reading their lossy scale. One-shot per tree: the latch never clears.
+    /// </summary>
+    public static void MarkAlwaysReadScale(JiggleTree jiggleTree) {
+        jobs?.MarkAlwaysReadScale(jiggleTree);
+    }
+
     public static void ScheduleRemoveJiggleTree(JiggleTree jiggleTree) {
         jobs?.ScheduleRemove(jiggleTree);
     }

@@ -399,7 +399,10 @@ namespace HVR.Basis.Comms
                 return;
             }
 
-            _latestAbsoluteByAddress[address] = inRange;
+            if (_isWearer)
+            {
+                _latestAbsoluteByAddress[address] = inRange;
+            }
             foreach (var actuator in actuatorsForThisAddress)
             {
                 Actuate(actuator, inRange);

@@ -77,6 +77,12 @@ public static class BasisEventDriverProfilerData
     public static int PoseLod_Lod3;
     public static float PoseLod_Bias;
 
+    // Skeleton bone write-skip (ApplySkeletonRotationsJob). Written = bones whose rotation actually
+    // changed and cost a transform write; Total = every bone slot the job iterated. The gap is what
+    // the write-skip saved this frame.
+    public static int BoneWrite_Written;
+    public static int BoneWrite_Total;
+
     // Misc
     public static double BTweenMs;
     public static double MicrophoneMs;

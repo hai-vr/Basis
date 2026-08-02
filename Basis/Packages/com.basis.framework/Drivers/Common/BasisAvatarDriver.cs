@@ -242,7 +242,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// localScale of the transform the runtime avatar rescale writes to (AnimatorRoot), sampled
         /// before that rescale is first applied. Collider radii are authored in metres at this scale.
-        /// Must be captured off the same transform ApplyAvatarScaleJob writes to — BasisAvatar.transform
+        /// Must be captured off the same transform ApplyRootAndScaleJob writes to — BasisAvatar.transform
         /// is not necessarily the animator root, so AvatarInitialScale is not interchangeable here.
         /// </summary>
         public Vector3 ColliderScaleReference = Vector3.one;

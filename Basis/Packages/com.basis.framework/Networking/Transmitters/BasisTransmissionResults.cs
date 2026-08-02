@@ -125,6 +125,7 @@ public partial class BasisTransmissionResults
     [System.NonSerialized] public NativeArray<short> MeshLodLevel;
     [System.NonSerialized] public NativeArray<short> prevMeshLodLevel;
     [System.NonSerialized] public NativeArray<bool> MeshLodRange;
+    [System.NonSerialized] public NativeArray<short> PoseLodLevel;
 
     // Scratch + reduced outputs
     private NativeArray<float> perIndexMinD2;
@@ -156,11 +157,48 @@ public partial class BasisTransmissionResults
 
     /// <summary>Set by BasisTalkModeManager to force a recipient-list resend on the next tick after a talk-mode change.</summary>
     public static bool ForceVoiceRecipientResend;
+
+    // Tick state carried from ScheduleTick to CompleteTick. The snapshot reference is pinned for
+    // the window so a rebuild between the two halves can't re-index the arrays the jobs are
+    // writing; joins/leaves only reach the driver from the Update-phase dispatch.
+    private bool _tickScheduled;
+    private BasisNetworkReceiver[] _tickSnapshot;
+    private int _tickReceiverCount;
+    private BasisAvatar _tickAvatar;
+    private float _tickIntervalUsed;
+    private bool _tickDampenEnabled;
+#if UNITY_EDITOR
+    private bool _tickProf;
+    private System.Diagnostics.Stopwatch _tickStopwatch;
+#endif
+
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
     /// </summary>
     public void Simulate()
     {
+        ScheduleTick();
+        CompleteTick();
+    }
+
+    /// <summary>
+    /// First half of the transmit tick: fills the distance job inputs off this frame's remote
+    /// mouth positions and camera pose, then schedules and kicks the distance/reduce/cap/dampen
+    /// chain. Runs early in LateUpdate so the chain overlaps the rest of the frame's main-thread
+    /// work instead of being fenced a few microseconds after it is scheduled.
+    /// </summary>
+    public void ScheduleTick()
+    {
+        // A tick that was scheduled but never completed (the transmitter unsubscribed between the
+        // halves) would leave this frame's schedule racing last frame's jobs on the same arrays.
+        if (_tickScheduled)
+        {
+            CompleteScheduledJobs(_tickDampenEnabled);
+            _tickSnapshot = null;
+            _tickAvatar = null;
+        }
+        _tickScheduled = false;
+
         float dt = Time.deltaTime;
         timer += dt;
         timer = math.min(timer, intervalSeconds * 2f);
@@ -200,11 +238,14 @@ public partial class BasisTransmissionResults
 
 #if UNITY_EDITOR
         bool _prof = BasisEventDriverProfilerData.Enabled;
+        _tickProf = _prof;
         System.Diagnostics.Stopwatch _psw = null;
         if (_prof)
         {
             BasisEventDriverProfilerData.Net_TransmitSimRanThisTick = true;
-            _psw = System.Diagnostics.Stopwatch.StartNew();
+            _tickStopwatch ??= new System.Diagnostics.Stopwatch();
+            _psw = _tickStopwatch;
+            _psw.Restart();
         }
 #endif
         EnsureCapacity(receiverCount);
@@ -340,14 +381,55 @@ public partial class BasisTransmissionResults
 
         // Kick the batch. Schedule() only queues into the pending batch — nothing reaches a
         // worker until something flushes it, and without this the first flush is the
-        // Complete() below. That made the Compress call under it pure serial latency ahead of
-        // a job chain that had not started: the main thread paid schedule + full chain +
-        // compress instead of overlapping the chain with compress. Several dependency stages deep
-        // (distance -> reduce/caps) at a full instance, that is the whole tick.
+        // Complete() in CompleteTick. That made every main-thread stage between the two halves
+        // pure serial latency ahead of a job chain that had not started: the main thread paid
+        // schedule + full chain instead of overlapping the chain with the rest of LateUpdate.
+        // Several dependency stages deep (distance -> reduce/caps) at a full instance, that is
+        // the whole tick.
         JobHandle.ScheduleBatchedJobs();
 
 #if UNITY_EDITOR
-        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_JobScheduleMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_JobScheduleMs = _psw.Elapsed.TotalMilliseconds; }
+#endif
+
+        _tickSnapshot = snapshot;
+        _tickReceiverCount = receiverCount;
+        _tickAvatar = avatar;
+        _tickIntervalUsed = intervalUsedThisTick;
+        _tickDampenEnabled = dampenEnabled;
+        _tickScheduled = true;
+    }
+
+    /// <summary>
+    /// Second half of the transmit tick: compresses and sends the local avatar, then joins the
+    /// chain <see cref="ScheduleTick"/> kicked and applies its results (audio start/stop, avatar
+    /// range, mesh LOD, recipient list). Runs in the frame's job-free window — the compress reads
+    /// local bone rotations inline on the main thread.
+    /// </summary>
+    public void CompleteTick()
+    {
+        if (!_tickScheduled)
+        {
+            return;
+        }
+        _tickScheduled = false;
+
+        BasisNetworkReceiver[] snapshot = _tickSnapshot;
+        int receiverCount = _tickReceiverCount;
+        BasisAvatar avatar = _tickAvatar;
+        float intervalUsedThisTick = _tickIntervalUsed;
+        bool dampenEnabled = _tickDampenEnabled;
+        _tickSnapshot = null;
+        _tickAvatar = null;
+
+#if UNITY_EDITOR
+        bool _prof = _tickProf;
+        System.Diagnostics.Stopwatch _psw = null;
+        if (_prof)
+        {
+            _psw = _tickStopwatch;
+            _psw.Restart();
+        }
 #endif
         // Do work that doesn't depend on distance results
         using (sMarkerCompress.Auto())
@@ -366,12 +448,7 @@ public partial class BasisTransmissionResults
         // Finish before consuming results — single sync point via CombineDependencies
         using (sMarkerJobComplete.Auto())
         {
-            var combined = JobHandle.CombineDependencies(reduceJobHandle, avatarCapJobHandle, audioCapJobHandle);
-            if (dampenEnabled)
-            {
-                combined = JobHandle.CombineDependencies(combined, dampenJobHandle);
-            }
-            combined.Complete();
+            CompleteScheduledJobs(dampenEnabled);
         }
 
 #if UNITY_EDITOR
@@ -447,6 +524,7 @@ public partial class BasisTransmissionResults
             bool* pAvatarRange = (bool*)AvatarRange.GetUnsafeReadOnlyPtr();
             bool* pMeshLodRange = (bool*)MeshLodRange.GetUnsafeReadOnlyPtr();
             short* pMeshLodLevel = (short*)MeshLodLevel.GetUnsafeReadOnlyPtr();
+            short* pPoseLodLevel = (short*)PoseLodLevel.GetUnsafeReadOnlyPtr();
 
             for (int i = 0; i < receiverCount; i++)
             {
@@ -566,7 +644,7 @@ public partial class BasisTransmissionResults
                 }
 
                 // Update pose LOD from distance — independent of mesh LOD
-                remote.CurrentLodLevel = pMeshLodLevel[i];
+                remote.CurrentLodLevel = pPoseLodLevel[i];
 
                 // Far avatar stand-in upkeep (past avatar range, mid-download, platform
                 // missing). Edge-triggered; only actual swaps consume budget.
@@ -647,6 +725,16 @@ public partial class BasisTransmissionResults
 
         // Consume one interval worth of accumulated time (robust to overshoot)
         timer = math.max(0f, timer - intervalUsedThisTick);
+    }
+
+    private void CompleteScheduledJobs(bool dampenEnabled)
+    {
+        JobHandle combined = JobHandle.CombineDependencies(reduceJobHandle, avatarCapJobHandle, audioCapJobHandle);
+        if (dampenEnabled)
+        {
+            combined = JobHandle.CombineDependencies(combined, dampenJobHandle);
+        }
+        combined.Complete();
     }
 
     // Takes the snapshot as its concrete array type, not IReadOnlyList: indexing an array
@@ -867,6 +955,7 @@ public partial class BasisTransmissionResults
         MeshLodLevel = new NativeArray<short>(newCap, Allocator.Persistent);
         prevMeshLodLevel = new NativeArray<short>(newCap, Allocator.Persistent);
         MeshLodRange = new NativeArray<bool>(newCap, Allocator.Persistent);
+        PoseLodLevel = new NativeArray<short>(newCap, Allocator.Persistent);
 
         perIndexMinD2 = new NativeArray<float>(newCap, Allocator.Persistent);
         perIndexMask = new NativeArray<int>(newCap, Allocator.Persistent);
@@ -895,6 +984,7 @@ public partial class BasisTransmissionResults
         distanceJob.MeshLodLevel = MeshLodLevel;
         distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
         distanceJob.MeshLodRange = MeshLodRange;
+        distanceJob.PoseLodLevel = PoseLodLevel;
 
         distanceJob.PerIndexMinD2 = perIndexMinD2;
         distanceJob.PerIndexMask = perIndexMask;
@@ -987,6 +1077,7 @@ public partial class BasisTransmissionResults
         if (MeshLodLevel.IsCreated) MeshLodLevel.Dispose();
         if (prevMeshLodLevel.IsCreated) prevMeshLodLevel.Dispose();
         if (MeshLodRange.IsCreated) MeshLodRange.Dispose();
+        if (PoseLodLevel.IsCreated) PoseLodLevel.Dispose();
 
         if (perIndexMinD2.IsCreated) perIndexMinD2.Dispose();
         if (perIndexMask.IsCreated) perIndexMask.Dispose();

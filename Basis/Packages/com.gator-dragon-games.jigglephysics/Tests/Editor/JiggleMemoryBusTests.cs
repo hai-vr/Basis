@@ -708,6 +708,135 @@ internal unsafe class JiggleMemoryBusTests {
         Assert.DoesNotThrow(() => bus.ScheduleTeleport(null, new float3(1f, 1f, 1f)));
     }
 
+    // ------------------------------------------------- lossy scale on demand
+
+    /// <summary>
+    /// The read-reset job only fetches a bone's lossy scale when its slot asks for it, because Cache
+    /// consumes scale solely as `collisionRadius * averageScale` — zero radius, zero use. A default
+    /// rig does not collide, so it must not be paying for a localToWorldMatrix per bone per frame.
+    /// </summary>
+    [Test]
+    public void CommittedSlots_DoNotAskForScale_WhenTheRigCannotCollide() {
+        var tree = NewTree();
+        for (int i = 0; i < tree.parameters.Length; i++) {
+            Assert.AreEqual(0f, tree.parameters[i].collisionRadius, "fixture assumption: the default rig has no collision radius");
+        }
+
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        var data = Committed(tree.rootID);
+        for (int i = 0; i < data.pointCount; i++) {
+            var slot = (int)data.transformIndexOffset + i;
+            Assert.IsFalse(bus.inputPosesCurrent[slot].wantsScale, $"slot {i}");
+            Assert.IsFalse(bus.simulateInputPoses[slot].wantsScale, $"slot {i}");
+        }
+    }
+
+    [Test]
+    public void CommittedSlots_AskForScale_WhenAnyPointHasACollisionRadius() {
+        var tree = NewTree();
+        tree.parameters[1].collisionRadius = 0.05f;
+
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        var data = Committed(tree.rootID);
+        for (int i = 0; i < data.pointCount; i++) {
+            var slot = (int)data.transformIndexOffset + i;
+            Assert.IsTrue(bus.inputPosesCurrent[slot].wantsScale, $"slot {i}");
+        }
+    }
+
+    /// <summary>
+    /// The hole this flag could fall into: parameters pushed outside a commit can raise
+    /// collisionRadius above zero after the slots were already stamped. The tree latches on that
+    /// push and every slot it owns goes back to reading scale.
+    /// </summary>
+    [Test]
+    public void MarkAlwaysReadScale_TurnsTheScaleReadBackOn() {
+        var tree = NewTree();
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+        var data = Committed(tree.rootID);
+        Assert.IsFalse(bus.inputPosesCurrent[(int)data.transformIndexOffset].wantsScale, "precondition");
+
+        bus.MarkAlwaysReadScale(tree);
+
+        for (int i = 0; i < data.pointCount; i++) {
+            var slot = (int)data.transformIndexOffset + i;
+            Assert.IsTrue(bus.inputPosesCurrent[slot].wantsScale, $"slot {i}");
+            Assert.IsTrue(bus.inputPosesPrevious[slot].wantsScale, $"slot {i}");
+            Assert.IsTrue(bus.simulateInputPoses[slot].wantsScale, $"slot {i}");
+        }
+    }
+
+    /// <summary>A tree that has ever pushed parameters keeps asking for scale on later commits too.</summary>
+    [Test]
+    public void ATreeThatPushedParameters_KeepsAskingForScale_AfterARecommit() {
+        var tree = NewTree();
+        tree.SetParameters(new List<JigglePointParameters>(tree.parameters));
+        Assert.IsTrue(tree.alwaysReadScale, "SetParameters should latch the tree");
+
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        var data = Committed(tree.rootID);
+        Assert.IsTrue(bus.inputPosesCurrent[(int)data.transformIndexOffset].wantsScale);
+    }
+
+    // ------------------------------------------- keeping the access arrays clean
+
+    /// <summary>
+    /// A regenerating rig re-commits the same bones onto the same slots, and that has to leave the
+    /// front access arrays untouched. Not a cosmetic point: any write at all makes Unity rebuild the
+    /// array's batch layout on the next Schedule, at O(whole array) — measured 0.60ms over 32k bones
+    /// against 0.096ms for a clean one, paid by every transform job scheduled that frame. It is why
+    /// culling avatars did not reduce the scheduling cost.
+    /// </summary>
+    [Test]
+    public void RecommittingATreeUnchanged_DoesNotTouchTheFrontAccessArrays() {
+        var tree = NewTree(4);
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+        bus.doubleBufferTransformAccessArray.ResetFrontWriteCount();
+        bus.doubleBufferTransformRootAccessArray.ResetFrontWriteCount();
+
+        // What tree regeneration queues: a remove and an add of the same tree, same bones.
+        bus.ScheduleRemove(tree);
+        bus.ScheduleAdd(tree);
+        PumpTrees();
+
+        Assert.AreEqual(0, bus.doubleBufferTransformAccessArray.FrontWriteCount,
+            "an unchanged re-commit dirtied the transform access array");
+        Assert.AreEqual(0, bus.doubleBufferTransformRootAccessArray.FrontWriteCount,
+            "an unchanged re-commit dirtied the root access array");
+        Assert.IsTrue(IsCommitted(tree.rootID), "the tree should still be resident");
+    }
+
+    /// <summary>The flip side: a commit that really does change a slot still writes it.</summary>
+    [Test]
+    public void CommittingADifferentTree_DoesTouchTheFrontAccessArrays() {
+        var first = NewTree(4, "first");
+        bus.ScheduleAdd(first);
+        PumpTrees();
+        bus.doubleBufferTransformAccessArray.ResetFrontWriteCount();
+
+        var second = NewTree(4, "second");
+        bus.ScheduleRemove(first);
+        bus.ScheduleAdd(second);
+        PumpTrees();
+
+        Assert.Greater(bus.doubleBufferTransformAccessArray.FrontWriteCount, 0,
+            "swapping one rig for another has to reach the access array");
+        var access = bus.GetTransformAccessArray();
+        var data = Committed(second.rootID);
+        for (int i = 0; i < data.pointCount; i++) {
+            var slot = (int)data.transformIndexOffset + i;
+            Assert.AreSame(second.bones[i], access[slot], $"slot {i}");
+        }
+    }
+
     // -------------------------------------------------------- scene colliders
 
     [Test]
@@ -852,6 +981,29 @@ internal unsafe class JiggleMemoryBusTests {
             }
         }
         Assert.AreEqual(1, enabled, "the dead collider must not keep colliding alongside the replacement");
+    }
+
+    /// <summary>
+    /// The distance LOD drops and re-registers the same colliders as avatars cross a threshold. When
+    /// that nets out to the slot it already held, the scene collider access array must stay clean —
+    /// same reason as the tree arrays: any write costs an O(whole array) rebuild on the next Schedule.
+    /// </summary>
+    [Test]
+    public void ReRegisteringASceneCollider_InOneCommit_DoesNotTouchTheFrontAccessArray() {
+        var transform = scene.Spawn("worldCollider");
+        var collider = JiggleSceneFactory.SphereCollider(transform);
+        bus.ScheduleAdd(collider);
+        PumpColliders();
+        bus.doubleBufferSceneColliderTransformAccessArray.ResetFrontWriteCount();
+
+        bus.ScheduleRemove(collider);
+        bus.ScheduleAdd(collider);
+        PumpColliders();
+
+        Assert.AreEqual(0, bus.doubleBufferSceneColliderTransformAccessArray.FrontWriteCount,
+            "a collider that landed back on its own slot dirtied the access array");
+        Assert.AreEqual(1, bus.sceneColliderCount);
+        Assert.IsTrue(bus.sceneColliders[0].enabled, "it should still be registered");
     }
 
     // ----------------------------------------------------- personal colliders

@@ -119,8 +119,22 @@ internal unsafe class JiggleJobHotLoopSimulation {
         private const int PersonalCollidersPerTree = 2;
         private const int SceneCollidersPerTree = 8;
 
+        /// <summary>
+        /// Every tree on top of every other tree, sharing one set of colliders in one broad phase
+        /// cell. Per-tree work is unchanged — the same number of candidate colliders survives the
+        /// same tests — but the collider array and the cell map stop growing with the crowd. Run
+        /// against <see cref="Build"/> at matching tree counts, it separates "cost per point rises
+        /// because the collider field got big" from "cost per point rises because the per-tree
+        /// buffers got big".
+        /// </summary>
+        public static Crowd BuildStacked(int treeCount, int bonesPerTree = 8, float elasticitySoften = 0.5f) {
+            return Build(treeCount, bonesPerTree, worldRadius: 0f, elasticitySoften: elasticitySoften,
+                sharedColliders: true);
+        }
+
         public static Crowd Build(int treeCount, int bonesPerTree = 8, float worldRadius = 20f,
-            uint seed = 0x5F3759DF, float elasticitySoften = 0.5f) {
+            uint seed = 0x5F3759DF, float elasticitySoften = 0.5f, bool sharedColliders = false,
+            bool interleaveColliders = false) {
             var pointsPerTree = bonesPerTree + 2;
             var crowd = new Crowd {
                 treeCount = treeCount,
@@ -131,6 +145,9 @@ internal unsafe class JiggleJobHotLoopSimulation {
             crowd.trees = new NativeArray<JiggleTreeJobData>(treeCount, Allocator.Persistent);
             crowd.inputPoses = new NativeArray<JiggleTransform>(treeCount * pointsPerTree, Allocator.Persistent);
             crowd.outputPoses = new NativeArray<PoseData>(treeCount * pointsPerTree, Allocator.Persistent);
+            if (sharedColliders) {
+                crowd.sceneColliderCount = SceneCollidersPerTree;
+            }
             crowd.sceneColliders = new NativeArray<JiggleCollider>(crowd.sceneColliderCount, Allocator.Persistent);
             crowd.personalColliders =
                 new NativeArray<JiggleCollider>(treeCount * PersonalCollidersPerTree, Allocator.Persistent);
@@ -194,7 +211,17 @@ internal unsafe class JiggleJobHotLoopSimulation {
                 // they land in, the way the broad phase job would.
                 for (int c = 0; c < SceneCollidersPerTree; c++) {
                     var centre = origin + random.NextFloat3(new float3(-0.4f, -0.6f, -0.4f), new float3(0.4f, 0.2f, 0.4f));
-                    var index = t * SceneCollidersPerTree + c;
+                    // Stacked: one set of colliders, registered once, that every tree then finds in
+                    // the single cell they all share.
+                    // Interleaved: a tree's eight colliders land a stride apart instead of side by
+                    // side, so the same eight reads span eight cache lines rather than sharing two.
+                    // Same colliders, same tests, same results — only the addresses differ.
+                    var index = sharedColliders ? c
+                        : interleaveColliders ? c * treeCount + t
+                        : t * SceneCollidersPerTree + c;
+                    if (sharedColliders && t > 0) {
+                        continue;
+                    }
                     crowd.sceneColliders[index] = (c % 4) == 0
                         ? JiggleTestFactory.Capsule(centre, 0.06f, 0.3f)
                         : JiggleTestFactory.Sphere(centre, 0.04f);
@@ -576,6 +603,165 @@ internal unsafe class JiggleJobHotLoopSimulation {
                 restPoses.Dispose();
                 previousLocal.Dispose();
                 simulateInputs.Dispose();
+                access.Dispose();
+                scene.Dispose();
+            }
+        }
+        Report(report);
+    }
+
+
+    /// <summary>
+    /// Where the cost that scales with crowd size actually lives. Both columns do the same per-tree
+    /// work; only the spread column grows the collider array and the cell map. If the stacked column
+    /// stays flat while the spread column climbs, the misses are in the collision lookups and
+    /// compacting them is worth doing. If both climb together, they are in the per-tree buffers and
+    /// the collider layout is not the problem.
+    /// </summary>
+    [Test]
+    public void Simulate_LocalityProbe() {
+        var report = new StringBuilder();
+        report.AppendLine("=== where does per-point cost grow: collider field, or per-tree buffers? ===");
+        report.AppendLine("trees | spread us/point | stacked us/point | spread growth | stacked growth");
+        report.AppendLine("------+-----------------+------------------+---------------+---------------");
+
+        double spreadBase = 0, stackedBase = 0;
+        foreach (var treeCount in new[] { 256, 2048, 8192 }) {
+            double spread, stacked;
+            using (var crowd = Crowd.Build(treeCount, elasticitySoften: 0f)) {
+                var job = crowd.SimulateJob();
+                spread = MedianMilliseconds(() => job.Run(treeCount), crowd.Reset)
+                    * 1000.0 / (treeCount * crowd.pointsPerTree);
+            }
+            using (var crowd = Crowd.BuildStacked(treeCount, elasticitySoften: 0f)) {
+                var job = crowd.SimulateJob();
+                stacked = MedianMilliseconds(() => job.Run(treeCount), crowd.Reset)
+                    * 1000.0 / (treeCount * crowd.pointsPerTree);
+            }
+            if (spreadBase == 0) {
+                spreadBase = spread;
+                stackedBase = stacked;
+            }
+            report.AppendLine($"{treeCount,5} | {spread,15:F4} | {stacked,16:F4} | " +
+                $"{spread / spreadBase,12:F2}x | {stacked / stackedBase,13:F2}x");
+        }
+        Report(report);
+    }
+
+
+    /// <summary>
+    /// Follow-up to the locality probe: is the collider cost fixable by layout, or is it just bytes
+    /// that have to be read? Both columns read the same eight colliders per tree and run the same
+    /// tests; only their addresses differ. If interleaving is materially worse than adjacent, packing
+    /// each tree's candidates together is worth doing. If the two match, the array is already as
+    /// compact as it can be and the only lever left is touching fewer bytes per collider.
+    /// </summary>
+    [Test]
+    public void Simulate_ColliderLayoutProbe() {
+        var report = new StringBuilder();
+        report.AppendLine("=== collider layout: adjacent per tree vs interleaved ===");
+        report.AppendLine("trees | adjacent us/point | interleaved us/point | penalty");
+        report.AppendLine("------+-------------------+----------------------+--------");
+
+        foreach (var treeCount in new[] { 2048, 8192 }) {
+            double adjacent, interleaved;
+            using (var crowd = Crowd.Build(treeCount, elasticitySoften: 0f)) {
+                var job = crowd.SimulateJob();
+                adjacent = MedianMilliseconds(() => job.Run(treeCount), crowd.Reset)
+                    * 1000.0 / (treeCount * crowd.pointsPerTree);
+            }
+            using (var crowd = Crowd.Build(treeCount, elasticitySoften: 0f, interleaveColliders: true)) {
+                var job = crowd.SimulateJob();
+                interleaved = MedianMilliseconds(() => job.Run(treeCount), crowd.Reset)
+                    * 1000.0 / (treeCount * crowd.pointsPerTree);
+            }
+            report.AppendLine($"{treeCount,5} | {adjacent,17:F4} | {interleaved,20:F4} | {interleaved / adjacent,6:F2}x");
+        }
+        Report(report);
+    }
+
+
+    /// <summary>
+    /// What it costs to *schedule* a transform job, on the main thread, before any work happens.
+    /// This is the number behind "culling the avatars to zero metres did not help": collider culling
+    /// leaves every bone enrolled, and the pose chain schedules three TransformAccessArray jobs plus
+    /// a parallel job every frame whatever the colliders are doing. If schedule cost tracks the
+    /// enrolled transform count, the only lever is enrolling fewer transforms — not cheaper jobs.
+    ///
+    /// Also splits a stable array from one whose slots were rewritten since the last schedule, since
+    /// the in-place commit path writes slots and Unity may rebuild its batch layout when it sees a
+    /// modified array.
+    /// </summary>
+    [Test]
+    public void TransformJob_ScheduleCost() {
+        var report = new StringBuilder();
+        report.AppendLine("=== main-thread cost of scheduling a transform job (before any work) ===");
+        report.AppendLine("bones | chains | schedule ms | after slot writes ms | schedule+complete ms");
+        report.AppendLine("------+--------+-------------+----------------------+---------------------");
+
+        foreach (var chainCount in new[] { 256, 1024, 4096 }) {
+            const int BonesPerChain = 8;
+            var scene = new JiggleBoneScene();
+            var count = chainCount * BonesPerChain;
+            var access = new TransformAccessArray(count);
+            var interpolated = new NativeArray<JiggleTransform>(count, Allocator.Persistent);
+            var previousLocal = new NativeArray<JiggleTransform>(count, Allocator.Persistent);
+            try {
+                var random = new Random(0x5F3759DF);
+                var bonesFlat = new Transform[count];
+                for (int c = 0; c < chainCount; c++) {
+                    var root = scene.Chain(BonesPerChain, 0.08f, $"s{c}b");
+                    var bones = JiggleBoneScene.Descend(root, BonesPerChain);
+                    for (int b = 0; b < BonesPerChain; b++) {
+                        var index = c * BonesPerChain + b;
+                        access.Add(bones[b]);
+                        bonesFlat[index] = bones[b];
+                        interpolated[index] = RandomPose(ref random);
+                        previousLocal[index] = JiggleTestFactory.Pose(float3.zero);
+                    }
+                }
+
+                var job = new JiggleJobTransformWrite {
+                    inputInterpolatedPoses = interpolated, previousLocalPoses = previousLocal,
+                };
+
+                // Schedule only: the handle is completed outside the timed region.
+                var stopwatch = new Stopwatch();
+                var scheduleSamples = new double[MeasuredIterations];
+                for (int i = 0; i < WarmupIterations; i++) {
+                    job.Schedule(access).Complete();
+                }
+                for (int i = 0; i < MeasuredIterations; i++) {
+                    stopwatch.Restart();
+                    var handle = job.Schedule(access);
+                    stopwatch.Stop();
+                    handle.Complete();
+                    scheduleSamples[i] = stopwatch.Elapsed.TotalMilliseconds;
+                }
+                Array.Sort(scheduleSamples);
+                var scheduleMs = scheduleSamples[MeasuredIterations / 2];
+
+                // Same, but a handful of slots are rewritten first, the way an in-place commit does.
+                var dirtySamples = new double[MeasuredIterations];
+                for (int i = 0; i < MeasuredIterations; i++) {
+                    for (int w = 0; w < 8; w++) {
+                        var slot = (i * 8 + w) % count;
+                        access[slot] = bonesFlat[slot];
+                    }
+                    stopwatch.Restart();
+                    var handle = job.Schedule(access);
+                    stopwatch.Stop();
+                    handle.Complete();
+                    dirtySamples[i] = stopwatch.Elapsed.TotalMilliseconds;
+                }
+                Array.Sort(dirtySamples);
+                var dirtyMs = dirtySamples[MeasuredIterations / 2];
+
+                var totalMs = MedianMilliseconds(() => job.Schedule(access).Complete());
+                report.AppendLine($"{count,5} | {chainCount,6} | {scheduleMs,11:F4} | {dirtyMs,20:F4} | {totalMs,20:F4}");
+            } finally {
+                interpolated.Dispose();
+                previousLocal.Dispose();
                 access.Dispose();
                 scene.Dispose();
             }

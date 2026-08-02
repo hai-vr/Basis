@@ -21,16 +21,28 @@ public class JiggleDoubleBufferTransformAccessArray {
     /// this below the list count, which must force a full rebuild instead).</summary>
     public int FrontLength => transformAccessArray.isCreated ? transformAccessArray.length : 0;
 
+    /// <summary>
+    /// Count of in-place writes to the front array. Load bearing for performance rather than
+    /// behaviour: touching a TransformAccessArray at all makes Unity rebuild its batch layout on the
+    /// next Schedule, and that rebuild costs O(whole array) — 0.60ms over 32k bones against 0.096ms
+    /// clean. Tests assert this stays at zero across a commit that changes nothing.
+    /// </summary>
+    public int FrontWriteCount { get; private set; }
+
+    public void ResetFrontWriteCount() => FrontWriteCount = 0;
+
     /// <summary>In-place slot write on the front array. Only legal while no job holds the
     /// array — the memory bus commits run after the simulate chain is completed.</summary>
     public void SetFront(int index, Transform transform) {
         transformAccessArray[index] = transform;
+        FrontWriteCount++;
     }
 
     /// <summary>Appends to the front array in place (same job-free requirement as SetFront).</summary>
     public void AddToFront(Transform transform) {
         transformAccessArray.Add(transform);
         transformCount = transformAccessArray.length;
+        FrontWriteCount++;
     }
 
     private bool shouldClear = false;

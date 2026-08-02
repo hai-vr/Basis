@@ -112,6 +112,17 @@ public sealed class BasisEventDriverProfilerTab : BasisEditorTabPage
         TimingRow("BoneJob Complete (stall)", BasisEventDriverProfilerData.Net_BoneJobCompleteMs, 1f);
         JobStatusRow("BoneJob", BasisEventDriverProfilerData.Net_BoneJobWasIncomplete);
 
+        // How much of ApplySkeletonRotationsJob the write-skip is actually eliding. A low skip
+        // share on a crowded instance means the bones genuinely moved; a high one means the
+        // transform writes (and their subtree dirtying) are being avoided.
+        int boneTotal = BasisEventDriverProfilerData.BoneWrite_Total;
+        if (boneTotal > 0)
+        {
+            int boneSkipped = boneTotal - BasisEventDriverProfilerData.BoneWrite_Written;
+            float skipPct = 100f * boneSkipped / boneTotal;
+            BasisEditorUI.Row("Bone Writes Skipped", $"{boneSkipped} / {boneTotal}  ({skipPct:F0}%)");
+        }
+
         EditorGUILayout.Space(2);
         double totalStall = BasisEventDriverProfilerData.Net_RemoteDriverApplyMs + BasisEventDriverProfilerData.Net_BoneJobCompleteMs;
         BasisEditorUI.Row("Total Job Stall Time", $"{totalStall:F3} ms");

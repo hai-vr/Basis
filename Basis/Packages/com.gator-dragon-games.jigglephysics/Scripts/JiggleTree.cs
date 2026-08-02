@@ -20,6 +20,29 @@ public class JiggleTree {
     public bool dirty { get; private set; }
     public int rootID { get; private set; }
 
+    /// <summary>
+    /// Latched once this tree's parameters are pushed outside a commit (the animated-parameter path),
+    /// after which its bones always read their lossy scale. Without it the per-slot wantsScale flag
+    /// the read-reset job uses would be decided at commit time and could be outrun by a push that
+    /// raises collisionRadius above zero. Latching rather than tracking means the flag can only ever
+    /// become more conservative, which is the safe direction: the cost of a wrong `true` is one
+    /// matrix fetch, the cost of a wrong `false` is a wrong collision radius.
+    /// </summary>
+    public bool alwaysReadScale { get; private set; }
+
+    /// <summary>True when any point of this tree can collide, so its bones need a real lossy scale.</summary>
+    public bool GetWantsScale() {
+        if (alwaysReadScale) {
+            return true;
+        }
+        for (int i = 0; i < parameters.Length; i++) {
+            if (parameters[i].collisionRadius != 0f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void SetDirty() {
         if (dirty) {
             return;
@@ -175,7 +198,15 @@ public class JiggleTree {
         dirty = false;
     }
 
+    /// <summary>
+    /// Pushes parameters without going through a commit, so from here on this tree's bones read their
+    /// scale unconditionally — see <see cref="alwaysReadScale"/>.
+    /// </summary>
     public void SetParameters(List<JigglePointParameters> parameters) {
+        if (!alwaysReadScale) {
+            alwaysReadScale = true;
+            JigglePhysics.MarkAlwaysReadScale(this);
+        }
         var pointsCount = points.Length;
         var parametersCount = parameters.Count;
         if (pointsCount != parametersCount) {

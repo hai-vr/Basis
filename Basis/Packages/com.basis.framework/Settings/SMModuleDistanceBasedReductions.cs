@@ -41,10 +41,12 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         private set
         {
             _poseLODBias = value;
-            // Recompute skip rates: LOD 0 always 0, others scale with bias
+            // Recompute skip rates: LOD 0 always 0, others scale with bias.
+            // Ceil, not round — rounding sent every fractional rate below 0.5 back to zero, so
+            // LOD 1 (base 0.25) skipped nothing until bias 3 and the slider looked inert.
             for (int i = 0; i < 4; i++)
             {
-                PoseSkipByLod[i] = (byte)Mathf.Clamp(Mathf.RoundToInt(PoseSkipBase[i] * value), 0, 255);
+                PoseSkipByLod[i] = (byte)Mathf.Clamp(Mathf.CeilToInt(PoseSkipBase[i] * value), 0, 255);
             }
             OnPoseLODChanged?.Invoke(value);
         }

@@ -28,6 +28,15 @@ namespace Basis.Scripts.Networking.Transmitters
         [System.NonSerialized] public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
 
         public static Action AfterAvatarChanges;
+
+        /// <summary>
+        /// Fires earlier in LateUpdate than <see cref="AfterAvatarChanges"/> — right after the
+        /// camera lands, which is the first point this frame where the head position and gaze the
+        /// distance job reads are final. Carries the transmit tick's distance/range job schedule so
+        /// that chain runs through the rest of the frame's main-thread work; the AfterAvatarChanges
+        /// tick below completes it and consumes the results.
+        /// </summary>
+        public static Action ScheduleTransmitJobs;
         public BasisNetworkTransmitter(ushort PlayerID)
         {
             playerId = PlayerID;
@@ -45,7 +54,8 @@ namespace Basis.Scripts.Networking.Transmitters
             {
                 Player.OnAvatarSwitched += OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched += SendOutAvatarChange;
-                AfterAvatarChanges += TransmissionResults.Simulate;
+                ScheduleTransmitJobs += TransmissionResults.ScheduleTick;
+                AfterAvatarChanges += TransmissionResults.CompleteTick;
                 HasEvents = true;
             }
         }
@@ -58,7 +68,8 @@ namespace Basis.Scripts.Networking.Transmitters
             {
                 Player.OnAvatarSwitched -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= SendOutAvatarChange;
-                AfterAvatarChanges -= TransmissionResults.Simulate;
+                ScheduleTransmitJobs -= TransmissionResults.ScheduleTick;
+                AfterAvatarChanges -= TransmissionResults.CompleteTick;
                 HasEvents = false;
             }
             BasisRemoteFaceManagement.Dispose();

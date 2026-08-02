@@ -88,6 +88,7 @@ namespace Basis.EventDriver
         public static readonly ProfilerMarker JiggleCompletePose = new ProfilerMarker("BasisDriver.Jiggle.CompletePose");
         public static readonly ProfilerMarker JiggleCompletePoseDeferred = new ProfilerMarker("BasisDriver.Jiggle.CompletePose(Deferred)");
         public static readonly ProfilerMarker JiggleRender = new ProfilerMarker("BasisDriver.Jiggle.Render");
+        public static readonly ProfilerMarker TransmitSchedule = new ProfilerMarker("BasisDriver.Network.TransmitSchedule");
         public static readonly ProfilerMarker AfterAvatarChanges = new ProfilerMarker("BasisDriver.Network.AfterAvatarChanges");
         /// <summary>Post-load avatar installs released into the frame's install-safe window.</summary>
         public static readonly ProfilerMarker AvatarInstallPump = new ProfilerMarker("BasisDriver.Avatar.InstallPump");

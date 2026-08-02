@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Constraints;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Jobs;
 
@@ -110,6 +111,12 @@ namespace Basis.Scripts.Constraints
         private static readonly List<List<int>> sAvatarGroups = new List<List<int>>();
         private static readonly Dictionary<Transform, int> sAvatarLookup = new Dictionary<Transform, int>();
         private static readonly List<Transform> sAvatarRoots = new List<Transform>();
+
+        /// <summary>
+        /// Which groups are due a refresh this frame, decided by the distance walk before anything
+        /// is scheduled. Grows to the peak population and stays, like the other rebuild pools.
+        /// </summary>
+        private static readonly List<int> sRefreshDue = new List<int>();
 
         /// <summary>
         /// The one avatar refreshed in full every frame — the local player. Everything else is a
@@ -314,6 +321,7 @@ namespace Basis.Scripts.Constraints
             sAvatarGroups.Clear();
             sAvatarLookup.Clear();
             sAvatarRoots.Clear();
+            sRefreshDue.Clear();
             sChainStride = 1;
             sDirty = false;
 
@@ -397,6 +405,17 @@ namespace Basis.Scripts.Constraints
         }
 
         /// <summary>
+        /// Breakdown of the eventdriver's <c>BasisDriver.Constraints.Schedule</c> marker, which is
+        /// the whole main-thread cost of a frame of constraints and says nothing about which part of
+        /// it moved. Four stages, in the order they run.
+        /// </summary>
+        private static readonly ProfilerMarker ProfRebuild = new ProfilerMarker("BasisConstraints.Rebuild");
+        private static readonly ProfilerMarker ProfClassify = new ProfilerMarker("BasisConstraints.Classify");
+        private static readonly ProfilerMarker ProfSample = new ProfilerMarker("BasisConstraints.ScheduleSample");
+        private static readonly ProfilerMarker ProfRefresh = new ProfilerMarker("BasisConstraints.Refresh");
+        private static readonly ProfilerMarker ProfSolve = new ProfilerMarker("BasisConstraints.ScheduleSolve");
+
+        /// <summary>
         /// Samples, solves and writes every constraint. Call once per frame after the pose the
         /// constraints should read is final — after IK and authored motion, before jiggle samples
         /// the bones — and pair it with <see cref="Complete"/> in the same frame: the returned
@@ -419,65 +438,86 @@ namespace Basis.Scripts.Constraints
             // be caught here too: its transform would otherwise still be in the write array.
             if (sDirty || HasDestroyedRegistration() || HasDesyncedTransforms())
             {
-                Rebuild();
+                using (ProfRebuild.Auto())
+                {
+                    Rebuild();
+                }
             }
             if (sSlots.Length == 0)
             {
                 return default;
             }
 
-            int readWorkers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
-            JobHandle read = new BasisConstraintReadJob
+            // Which avatars are re-read this frame is decided here, ahead of the sample, because
+            // deciding it means reading transforms — see ClassifyRefreshGroups. Everything past
+            // the kick below touches managed component fields only.
+            using (ProfClassify.Auto())
             {
-                World = sWorld.AsArray(),
-                Local = sLocal.AsArray(),
-            }.ScheduleReadOnly(sTracked, math.max(1, (sTracked.length + readWorkers - 1) / readWorkers));
+                ClassifyRefreshGroups();
+            }
 
-            // Blanking the results reads nothing the sample writes, so it goes out beside it rather
-            // than behind it and costs the solve nothing.
-            JobHandle clear = new BasisConstraintClearJob
+            JobHandle read;
+            JobHandle clear;
+            using (ProfSample.Auto())
             {
-                Results = sResults.AsArray(),
-            }.Schedule(sResults.Length, ClearBatch);
+                int readWorkers = math.max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+                read = new BasisConstraintReadJob
+                {
+                    World = sWorld.AsArray(),
+                    Local = sLocal.AsArray(),
+                }.ScheduleReadOnly(sTracked, math.max(1, (sTracked.length + readWorkers - 1) / readWorkers));
 
-            // Kick now: the sample and clear run while the refresh walk below reads component
-            // state and the solve/write schedules pay their main-thread cost. The refresh writes
-            // only solve inputs (sSlots/sSources) and reads transforms the read-only sample can
-            // share, so nothing here races the in-flight jobs.
-            JobHandle.ScheduleBatchedJobs();
+                // Blanking the results reads nothing the sample writes, so it goes out beside it
+                // rather than behind it and costs the solve nothing.
+                clear = new BasisConstraintClearJob
+                {
+                    Results = sResults.AsArray(),
+                }.Schedule(sResults.Length, ClearBatch);
 
-            RefreshDynamicState();
+                // Kick now: the sample and clear run while the refresh walk below reads component
+                // state and the solve/write schedules pay their main-thread cost. The refresh
+                // writes only solve inputs (sSlots/sSources), which no in-flight job reads.
+                JobHandle.ScheduleBatchedJobs();
+            }
 
-            // One iteration per group, in small batches so the work is handed out as workers come
-            // free rather than carved up in advance between groups of very different cost.
-            JobHandle solve = new BasisConstraintSolveJob
+            using (ProfRefresh.Auto())
             {
-                Slots = sSlots.AsArray(),
-                Sources = sSources.AsArray(),
-                Local = sLocal.AsArray(),
-                Order = sOrder.AsArray(),
-                Groups = sSolveGroups.AsArray(),
-                TargetRow = sTargetRow.AsArray(),
-                World = sWorld.AsArray(),
-                Results = sResults.AsArray(),
-                DampState = sDampState.AsArray(),
-                Chain = sChain.AsArray(),
-                ChainBind = sChainBind.AsArray(),
-                ChainPositions = sChainPositions.AsArray(),
-                ChainLengths = sChainLengths.AsArray(),
-                ChainStride = sChainStride,
-                DeltaTime = Time.unscaledDeltaTime,
-            }.Schedule(
-                sSolveGroups.Length,
-                SolveBatch(sSolveGroups.Length),
-                JobHandle.CombineDependencies(read, clear));
+                RefreshDueGroups();
+            }
 
-            sPending = new BasisConstraintWriteJob
+            using (ProfSolve.Auto())
             {
-                Results = sResults.AsArray(),
-            }.Schedule(sTargets, solve);
+                // One iteration per group, in small batches so the work is handed out as workers
+                // come free rather than carved up in advance between groups of very different cost.
+                JobHandle solve = new BasisConstraintSolveJob
+                {
+                    Slots = sSlots.AsArray(),
+                    Sources = sSources.AsArray(),
+                    Local = sLocal.AsArray(),
+                    Order = sOrder.AsArray(),
+                    Groups = sSolveGroups.AsArray(),
+                    TargetRow = sTargetRow.AsArray(),
+                    World = sWorld.AsArray(),
+                    Results = sResults.AsArray(),
+                    DampState = sDampState.AsArray(),
+                    Chain = sChain.AsArray(),
+                    ChainBind = sChainBind.AsArray(),
+                    ChainPositions = sChainPositions.AsArray(),
+                    ChainLengths = sChainLengths.AsArray(),
+                    ChainStride = sChainStride,
+                    DeltaTime = Time.unscaledDeltaTime,
+                }.Schedule(
+                    sSolveGroups.Length,
+                    SolveBatch(sSolveGroups.Length),
+                    JobHandle.CombineDependencies(read, clear));
 
-            JobHandle.ScheduleBatchedJobs();
+                sPending = new BasisConstraintWriteJob
+                {
+                    Results = sResults.AsArray(),
+                }.Schedule(sTargets, solve);
+
+                JobHandle.ScheduleBatchedJobs();
+            }
             return sPending;
         }
 
@@ -1176,18 +1216,17 @@ namespace Basis.Scripts.Constraints
         }
 
         /// <summary>
-        /// Re-reads the cheap per-frame state — weights, offsets, masks, rest poses, source weights
-        /// — straight off the components, so inspector and script edits take effect the same frame
-        /// without a rebuild.
+        /// Picks which groups the refresh below will walk. Split out from the walk itself because
+        /// choosing them means reading <c>Transform.position</c> for the distance bands, and a
+        /// main-thread transform read blocks until every transform job in flight has landed —
+        /// which, once the sample was kicked early, meant the schedule stalled on its own sample
+        /// job (visible as WaitForJobGroupID over BasisConstraintReadJob inside the marker). So the
+        /// choosing happens before anything is scheduled and the walk keeps to managed fields.
         /// </summary>
-        /// <summary>
-        /// Re-reads the per-frame values off the components. Every field here is one an author or a
-        /// script can change at any moment, so there is no way to know it moved without looking —
-        /// and looking at every source of every constraint every frame is the cost. So the local
-        /// player is looked at in full, and the remotes take turns.
-        /// </summary>
-        private static void RefreshDynamicState()
+        private static void ClassifyRefreshGroups()
         {
+            sRefreshDue.Clear();
+
             // The roots list is the live count; sAvatarGroups may keep spare lists past it for reuse.
             int groupCount = sAvatarRoots.Count;
             if (groupCount == 0)
@@ -1227,7 +1266,26 @@ namespace Basis.Scripts.Constraints
                 {
                     continue;
                 }
-                RefreshGroup(sAvatarGroups[Group]);
+                sRefreshDue.Add(Group);
+            }
+        }
+
+        /// <summary>
+        /// Re-reads the cheap per-frame state — weights, offsets, masks, rest poses, source weights
+        /// — straight off the components of every group the classify pass picked, so inspector and
+        /// script edits take effect the same frame without a rebuild. Every field here is one an
+        /// author or a script can change at any moment, so there is no way to know it moved without
+        /// looking, and looking at every source of every constraint every frame is the cost: the
+        /// local player is looked at in full and the remotes take turns.
+        ///
+        /// Touches no transform. The sample job is in flight by the time this runs, and reading one
+        /// would stall the main thread until it landed.
+        /// </summary>
+        private static void RefreshDueGroups()
+        {
+            for (int Due = 0; Due < sRefreshDue.Count; Due++)
+            {
+                RefreshGroup(sAvatarGroups[sRefreshDue[Due]]);
             }
         }
 
@@ -1253,9 +1311,9 @@ namespace Basis.Scripts.Constraints
                     sDirty = true;
                 }
 
-                BasisConstraintSlot slot = sSlots[registration.SlotIndex];
-                FillScalarState(component, registration, ref slot);
-                sSlots[registration.SlotIndex] = slot;
+                // Written in place. A slot is a few hundred bytes and the refresh moves a handful of
+                // them, so copying the row onto the stack and back was most of what this loop cost.
+                FillScalarState(component, registration, ref sSlots.ElementAt(registration.SlotIndex));
                 FillSourceState(component, registration);
             }
         }
@@ -1263,6 +1321,13 @@ namespace Basis.Scripts.Constraints
         /// <summary>
         /// Copies every non-structural field off the component into its slot. Shared by the rebuild
         /// and the per-frame refresh so the two can never drift apart.
+        ///
+        /// Dispatched on the kind already recorded in the slot rather than on the component's type.
+        /// A type switch over fourteen unrelated classes compiles to a run of sequential type tests
+        /// — the kinds late in the list paying for every one ahead of them — and this runs for every
+        /// constraint of every refreshed avatar every frame. The kind is the same answer as a jump
+        /// table, and it comes from <c>constraintType</c>, so each cast below is exactly the test
+        /// that would have succeeded.
         /// </summary>
         private static void FillScalarState(
             BasisConstraintBase component, Registration registration, ref BasisConstraintSlot slot)
@@ -1272,29 +1337,40 @@ namespace Basis.Scripts.Constraints
             slot.Active = (byte)(component.constraintActive ? 1 : 0);
             slot.Locked = (byte)(component.locked ? 1 : 0);
 
-            switch (component)
+            switch (slot.Kind)
             {
-                case BasisPositionConstraint position:
+                case BasisConstraintKind.Position:
+                {
+                    BasisPositionConstraint position = (BasisPositionConstraint)component;
                     slot.TranslationAtRest = position.translationAtRest;
                     slot.TranslationOffset = position.translationOffset;
                     slot.TranslationMask = (byte)position.translationAxis;
                     break;
+                }
 
-                case BasisRotationConstraint rotation:
+                case BasisConstraintKind.Rotation:
+                {
+                    BasisRotationConstraint rotation = (BasisRotationConstraint)component;
                     slot.RotationAtRest = ToQuaternionCached(
                         rotation.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.RotationOffset = ToQuaternionCached(
                         rotation.rotationOffset, ref registration.LastOffsetEuler, ref registration.LastOffsetQuaternion);
                     slot.RotationMask = (byte)rotation.rotationAxis;
                     break;
+                }
 
-                case BasisScaleConstraint scale:
+                case BasisConstraintKind.Scale:
+                {
+                    BasisScaleConstraint scale = (BasisScaleConstraint)component;
                     slot.ScaleAtRest = scale.scaleAtRest;
                     slot.ScaleOffset = scale.scaleOffset;
                     slot.ScaleMask = (byte)scale.scalingAxis;
                     break;
+                }
 
-                case BasisParentConstraint parent:
+                case BasisConstraintKind.Parent:
+                {
+                    BasisParentConstraint parent = (BasisParentConstraint)component;
                     slot.TranslationAtRest = parent.translationAtRest;
                     slot.RotationAtRest = ToQuaternionCached(
                         parent.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
@@ -1303,8 +1379,11 @@ namespace Basis.Scripts.Constraints
                     slot.TranslationMask = (byte)parent.translationAxis;
                     slot.RotationMask = (byte)parent.rotationAxis;
                     break;
+                }
 
-                case BasisAimConstraint aim:
+                case BasisConstraintKind.Aim:
+                {
+                    BasisAimConstraint aim = (BasisAimConstraint)component;
                     slot.RotationAtRest = ToQuaternionCached(
                         aim.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.RotationOffset = ToQuaternionCached(
@@ -1317,8 +1396,11 @@ namespace Basis.Scripts.Constraints
                     slot.UseUpObject = (byte)(aim.worldUpObject != null ? 1 : 0);
                     slot.Roll = 0f;
                     break;
+                }
 
-                case BasisBlendConstraint blend:
+                case BasisConstraintKind.Blend:
+                {
+                    BasisBlendConstraint blend = (BasisBlendConstraint)component;
                     slot.TranslationAtRest = blend.translationAtRest;
                     slot.RotationAtRest = ToQuaternionCached(
                         blend.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
@@ -1335,45 +1417,62 @@ namespace Basis.Scripts.Constraints
                     slot.PositionChannelWeight = Mathf.Clamp01(blend.positionWeight);
                     slot.RotationChannelWeight = Mathf.Clamp01(blend.rotationWeight);
                     break;
+                }
 
-                case BasisChainIK chain:
+                case BasisConstraintKind.ChainIK:
+                {
+                    BasisChainIK chain = (BasisChainIK)component;
                     slot.RotationChannelWeight = Mathf.Clamp01(chain.tipRotationWeight);
                     slot.PositionChannelWeight = Mathf.Clamp01(chain.chainRotationWeight);
                     slot.Tolerance = Mathf.Max(0f, chain.tolerance);
                     slot.MaxIterations = Mathf.Clamp(chain.maxIterations, 1, 50);
                     break;
+                }
 
-                case BasisTwoBoneIK twoBone:
+                case BasisConstraintKind.TwoBoneIK:
+                {
+                    BasisTwoBoneIK twoBone = (BasisTwoBoneIK)component;
                     slot.PositionChannelWeight = Mathf.Clamp01(twoBone.targetPositionWeight);
                     slot.RotationChannelWeight = Mathf.Clamp01(twoBone.targetRotationWeight);
                     slot.HintWeight = Mathf.Clamp01(twoBone.hintWeight);
                     slot.BindPosition = twoBone.TargetOffsetPosition;
                     slot.BindRotation = twoBone.TargetOffsetRotation;
                     break;
+                }
 
-                case BasisMultiReferential referential:
+                case BasisConstraintKind.Referential:
+                {
                     // Scalar, so handing leadership to another member takes effect next frame with
                     // no rebuild — which is what lets this follow a runtime-driven index at all.
-                    slot.DriverIndex = referential.ResolvedDriver;
+                    slot.DriverIndex = ((BasisMultiReferential)component).ResolvedDriver;
                     break;
+                }
 
-                case BasisTwistChain twistChain:
+                case BasisConstraintKind.TwistChain:
+                {
+                    BasisTwistChain twistChain = (BasisTwistChain)component;
                     slot.PositionChannelWeight = Mathf.Clamp01(twistChain.blend);
                     slot.BindRotation = twistChain.BindOffset;
                     slot.RotationAtRest = ToQuaternionCached(
                         twistChain.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.RotationMask = (byte)BasisConstraintAxis.All;
                     break;
+                }
 
-                case BasisTwistCorrection twist:
+                case BasisConstraintKind.TwistCorrection:
+                {
+                    BasisTwistCorrection twist = (BasisTwistCorrection)component;
                     slot.BindRotation = twist.SourceInverseBindRotation;
                     slot.RotationAtRest = twist.TwistBindRotation;
                     slot.AimVector = twist.TwistAxisVector;
                     // Signed on purpose: a negative share counters the source's twist.
                     slot.PositionChannelWeight = Mathf.Clamp(twist.twistWeight, -1f, 1f);
                     break;
+                }
 
-                case BasisDampedTransform damped:
+                case BasisConstraintKind.Damped:
+                {
+                    BasisDampedTransform damped = (BasisDampedTransform)component;
                     // Damp values are resistance, not weight: 0 snaps onto the source, 1 never moves.
                     slot.PositionChannelWeight = Mathf.Clamp01(damped.dampPosition);
                     slot.RotationChannelWeight = Mathf.Clamp01(damped.dampRotation);
@@ -1382,8 +1481,11 @@ namespace Basis.Scripts.Constraints
                     slot.AimVector = damped.AimBindAxis;
                     slot.MaintainAim = (byte)(damped.maintainAim ? 1 : 0);
                     break;
+                }
 
-                case BasisOverrideTransform over:
+                case BasisConstraintKind.Override:
+                {
+                    BasisOverrideTransform over = (BasisOverrideTransform)component;
                     slot.TranslationMask = (byte)over.translationAxis;
                     slot.RotationMask = (byte)over.rotationAxis;
                     slot.PositionChannelWeight = Mathf.Clamp01(over.positionWeight);
@@ -1397,8 +1499,11 @@ namespace Basis.Scripts.Constraints
                     slot.BindRotation = over.SourceInvBindRotation;
                     slot.SourceToSpaceRotation = over.SourceToSpaceRotation;
                     break;
+                }
 
-                case BasisLookAtConstraint lookAt:
+                case BasisConstraintKind.LookAt:
+                {
+                    BasisLookAtConstraint lookAt = (BasisLookAtConstraint)component;
                     slot.RotationAtRest = ToQuaternionCached(
                         lookAt.rotationAtRest, ref registration.LastAtRestEuler, ref registration.LastAtRestQuaternion);
                     slot.RotationOffset = ToQuaternionCached(
@@ -1415,6 +1520,7 @@ namespace Basis.Scripts.Constraints
                     slot.UseUpObject = (byte)(lookAt.useUpObject && lookAt.worldUpObject != null ? 1 : 0);
                     slot.Roll = lookAt.roll;
                     break;
+                }
             }
         }
 
@@ -1439,7 +1545,7 @@ namespace Basis.Scripts.Constraints
                 // because this runs for every source of every constraint every frame.
                 int authored = identityMap ? Index : registration.SourceMap[Index];
 
-                BasisConstraintSource source = sSources[flattened];
+                ref BasisConstraintSource source = ref sSources.ElementAt(flattened);
                 source.Weight = math.max(0f, component.GetSource(authored).weight);
 
                 if (parent != null)
@@ -1451,8 +1557,6 @@ namespace Basis.Scripts.Constraints
                         ? ToQuaternion(parent.rotationOffsets[authored])
                         : quaternion.identity;
                 }
-
-                sSources[flattened] = source;
             }
         }
 

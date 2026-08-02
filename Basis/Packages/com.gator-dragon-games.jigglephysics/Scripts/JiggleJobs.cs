@@ -165,17 +165,23 @@ public class JiggleJobs {
 
     private bool accessArraysDesynced;
 
+    // Scheduling a transform job is not free and is not constant: Unity rebuilds a
+    // TransformAccessArray's batch layout on the first Schedule after the array is touched, at
+    // O(whole array) — 0.60ms over 32k bones against 0.096ms clean. These four samples say which of
+    // the pose chain's schedules is paying it.
     public JobHandle SchedulePoses(double timeAsDouble) {
         if (_memoryBus.transformCount == 0 || accessArraysDesynced) {
             return default;
         }
         jobBulkTransformReset.UpdateArrays(_memoryBus);
         // TODO: This technically only needs to happen for root bones, as their positions are used for posing. Instead just doing a full reset because I'm lazy.
+        Profiler.BeginSample("JiggleJobs.SchedulePose.Reset");
         if (hasHandleBulkReset && hasHandleTransformWrite) {
             handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), JobHandle.CombineDependencies(handleTransformWrite, handleBulkReset));
         } else {
             handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray());
         }
+        Profiler.EndSample();
         hasHandleBulkReset = true;
 
         return SchedulePoses(handleBulkReset, timeAsDouble);
@@ -190,14 +196,20 @@ public class JiggleJobs {
         jobInterpolation.UpdateArrays(_memoryBus);
         jobTransformWrite.UpdateArrays(_memoryBus);
 
+        Profiler.BeginSample("JiggleJobs.SchedulePose.RootRead");
         handleRootRead = jobBulkReadRoots.ScheduleReadOnly(_memoryBus.GetTransformRootAccessArray(), 128, dep);
+        Profiler.EndSample();
         hasHandleRootRead = true;
 
         jobInterpolation.currentTime = timeAsDouble;
+        Profiler.BeginSample("JiggleJobs.SchedulePose.Interpolate");
         handleInterpolate = jobInterpolation.ScheduleParallel(_memoryBus.transformCount, 128, handleRootRead);
+        Profiler.EndSample();
         hasHandleInterpolate = true;
 
+        Profiler.BeginSample("JiggleJobs.SchedulePose.Write");
         handleTransformWrite = jobTransformWrite.Schedule(_memoryBus.GetTransformAccessArray(), handleInterpolate);
+        Profiler.EndSample();
 
         hasHandleTransformWrite = true;
         return handleTransformWrite;
@@ -411,6 +423,10 @@ public class JiggleJobs {
 
     public void SetTreeBacklog(bool backlogRemains) {
         _memoryBus.SetTreeBacklog(backlogRemains);
+    }
+
+    public void MarkAlwaysReadScale(JiggleTree tree) {
+        _memoryBus.MarkAlwaysReadScale(tree);
     }
 
     public void ScheduleAdd(JiggleTree tree) {

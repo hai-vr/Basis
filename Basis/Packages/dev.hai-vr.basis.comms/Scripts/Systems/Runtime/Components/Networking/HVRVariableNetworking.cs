@@ -221,6 +221,7 @@ namespace HVR.Basis.Comms
                 if (_timeLeftUpgradeAddresses > UpgradeAddressesDeltaSeconds)
                 {
                     UpgradeOrDowngradeAddressesIfNecessary();
+                    _timeLeftUpgradeAddresses = 0;
                 }
 
                 // This runs every 0.1 seconds in general.
@@ -637,7 +638,7 @@ namespace HVR.Basis.Comms
                 }
             }
 
-            private struct SubmitGate
+            private sealed class SubmitGate
             {
                 public float LastValue;
                 public float Epsilon;
@@ -653,7 +654,6 @@ namespace HVR.Basis.Comms
                     {
                         if (Mathf.Abs(value - gate.LastValue) <= gate.Epsilon) continue;
                         gate.LastValue = value;
-                        _submitGates[addressId] = gate;
                     }
                     else
                     {

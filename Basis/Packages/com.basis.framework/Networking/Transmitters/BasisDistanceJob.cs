@@ -47,6 +47,10 @@ public struct BasisDistanceJobParallel : IJobParallelFor
     [WriteOnly] public NativeArray<float> distanceSq;
     [WriteOnly] public NativeArray<short> MeshLodLevel;
 
+    /// <summary>Per-index pose LOD (0 = closest, 3 = furthest), banded off avatar range rather than
+    /// the mesh LOD percentage so pose skipping is independent of the mesh/skin/shadow LOD slider.</summary>
+    [WriteOnly] public NativeArray<short> PoseLodLevel;
+
     [WriteOnly] public NativeArray<bool> MicrophoneRange;
     [WriteOnly] public NativeArray<bool> hearingRange;
     [WriteOnly] public NativeArray<bool> AvatarRange;
@@ -101,6 +105,11 @@ public struct BasisDistanceJobParallel : IJobParallelFor
         short newLod = (short)lod;
 
         MeshLodLevel[i] = newLod;
+
+        // Pose LOD bands on the fraction of avatar range travelled, so the thresholds track the
+        // distance at which a player stops being readable rather than the mesh LOD quality percent.
+        float rangeFrac = SquaredAvatarDistance > 1e-6f ? effectiveD2 / SquaredAvatarDistance : 0f;
+        PoseLodLevel[i] = (short)math.clamp((int)math.floor(rangeFrac * 4f), 0, 3);
 
         bool lodChanged = newLod != PrevMeshLodLevel[i];
         MeshLodRange[i] = lodChanged;

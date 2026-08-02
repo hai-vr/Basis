@@ -489,7 +489,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Unanchored effector slots keep their stale scratch values on both sides of the compare,
         /// so they can never block suppression; a mask change always forces a send.
         /// </summary>
-        static void CaptureRawPose(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot,
+        static unsafe void CaptureRawPose(Unity.Mathematics.float3 hipsWorldPos, quaternion hipsWorldRot,
             Unity.Mathematics.float3 hipsDelta, quaternion hipsRotDelta, float scale, byte effectorMask)
         {
             if (!sCurrentLocalRotations.IsCreated)
@@ -499,11 +499,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
             float[] raw = sRawCurrent;
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-            for (int slot = 0; slot < boneCount; slot++)
+            // quaternion is float4 in x,y,z,w order, so the slot block is already the wire layout
+            // the per-component loop was rebuilding element by element.
+            fixed (float* pRaw = &raw[RawBoneOffset])
             {
-                float4 v = sCurrentLocalRotations[slot].value;
-                int o = RawBoneOffset + slot * 4;
-                raw[o] = v.x; raw[o + 1] = v.y; raw[o + 2] = v.z; raw[o + 3] = v.w;
+                UnsafeUtility.MemCpy(pRaw, sCurrentLocalRotations.GetUnsafeReadOnlyPtr(), (long)boneCount * 4 * sizeof(float));
             }
             raw[RawPosOffset] = hipsWorldPos.x; raw[RawPosOffset + 1] = hipsWorldPos.y; raw[RawPosOffset + 2] = hipsWorldPos.z;
             float4 br = hipsWorldRot.value;
@@ -555,12 +555,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int rotBytes = BasisBoneRotationCompression.RotationBytes(WireQuality);
 
             // Reuse persistent NativeArray to avoid per-frame TempJob allocation + deallocation.
-            if (!sJobOutputBuffer.IsCreated || sJobOutputBuffer.Length < dst.Length)
+            // Sized to the rotation block alone, not the whole packet: the job ORs into that
+            // region and reads nothing else, so staging the packet's other fields across the
+            // managed/native boundary and back was two full-buffer copies per send for bytes the
+            // job never touched. The block is rebased to offset 0 and copied back into place.
+            if (!sJobOutputBuffer.IsCreated || sJobOutputBuffer.Length < rotBytes)
             {
                 if (sJobOutputBuffer.IsCreated) sJobOutputBuffer.Dispose();
-                sJobOutputBuffer = new NativeArray<byte>(dst.Length, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                sJobOutputBuffer = new NativeArray<byte>(rotBytes, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             }
-            NativeArray<byte>.Copy(dst, sJobOutputBuffer, dst.Length);
+            UnsafeUtility.MemClear(sJobOutputBuffer.GetUnsafePtr(), rotBytes);
 
             var job = new BasisBoneDeltaAndCompressJob
             {
@@ -569,7 +573,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BitsPerComponent = sBpcNative,
                 MaxComponent = sMaxComponentNative,
                 OutputBuffer = sJobOutputBuffer,
-                RotationByteOffset = byteOffset,
+                RotationByteOffset = 0,
                 BoneCount = boneCount,
                 BoneDeltas = sBoneDeltas,
             };
@@ -577,7 +581,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             job.Run(); // Burst-compiled, runs immediately on this thread
 
             // Copy result back to managed array
-            NativeArray<byte>.Copy(sJobOutputBuffer, 0, dst, 0, dst.Length);
+            NativeArray<byte>.Copy(sJobOutputBuffer, 0, dst, byteOffset, rotBytes);
 
             byteOffset += rotBytes;
         }

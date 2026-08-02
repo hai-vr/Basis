@@ -479,6 +479,12 @@ namespace Basis.Scripts.Networking
             if (p) {
                 _profilerStopwatch.Stop();
                 BasisEventDriverProfilerData.Net_BoneJobCompleteMs = _profilerStopwatch.Elapsed.TotalMilliseconds;
+                // Sampled after Complete so the write mask is final. Reads it on the main thread
+                // rather than reducing it in a job — the array is one byte per bone and the cost
+                // stays inside the profiler-only path.
+                RemoteBoneJobSystem.SampleSkeletonWriteStats(
+                    out BasisEventDriverProfilerData.BoneWrite_Written,
+                    out BasisEventDriverProfilerData.BoneWrite_Total);
             }
 #endif
         }
