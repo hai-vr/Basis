@@ -123,6 +123,7 @@ MonoBehaviour:
   - UnityEngine.SpringJoint
   - UnityEngine.BillboardRenderer
   - UnityEngine.Transform
+  - UnityEngine.RectTransform
   - UnityEngine.Animator
   - UnityEngine.SkinnedMeshRenderer
   - HVR.Basis.Comms.ObjectStateActuation

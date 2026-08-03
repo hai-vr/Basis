@@ -25,7 +25,7 @@ public abstract class BasisNetworkContentBase : MonoBehaviour
     /// <returns>True if identifier is assigned</returns>
     public bool TryGetIdentifier(out BasisContentInformation identifier)
     {
-        if(ContentInformation.LoadedNetID == string.Empty)
+        if(string.IsNullOrEmpty(ContentInformation.LoadedNetID))
         {
             identifier = default;
             return false;
@@ -40,7 +40,7 @@ public abstract class BasisNetworkContentBase : MonoBehaviour
     /// <returns>True if identifier is assigned</returns>
     public bool TryGetNetworkGUIDIdentifier(out string identifier)
     {
-        if (ContentInformation.LoadedNetID == string.Empty)
+        if (string.IsNullOrEmpty(ContentInformation.LoadedNetID))
         {
             identifier = default;
             return false;

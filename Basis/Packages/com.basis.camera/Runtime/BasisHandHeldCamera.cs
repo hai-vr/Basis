@@ -849,7 +849,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         bool textureChanged = false;
 
-        int samples = SanitizeMsaaSamples(msaaSamples);
+        int samples = BasisCameraTargetMsaa.Clamp(SanitizeMsaaSamples(msaaSamples));
 
         if (renderTexture == null || renderTexture.width != width || renderTexture.height != height || renderTexture.format != RenderTextureFormat || renderTexture.antiAliasing != samples)
         {

@@ -529,6 +529,7 @@ namespace Basis.Scripts.Avatar
             if (Player.BasisAvatar != null)
             {
                 using var _unregisterScope = sMarkerUnregister.Auto();
+                Basis.Scripts.BasisSdk.Interactions.BasisJiggleGrabDriver.DropGrabsForPlayer(Player);
                 JiggleRig[] oldRigs = StoredJiggleRigsFor(Player);
                 for (int i = 0; i < oldRigs.Length; i++)
                 {

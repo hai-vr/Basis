@@ -716,6 +716,7 @@ namespace Basis.BasisUI
                 recordBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.voiceRecording.requesting"));
                 voiceRecHandle = await Basis.Scripts.Networking.VoiceRecording.BasisVoiceRecording.StartRecording(
                     remotePlayer, Basis.Scripts.Networking.VoiceRecording.BasisRecordingOptions.Default);
+                if (recordBtn == null) return;
                 recordBtn.Descriptor.SetTitle(BasisLocalization.Get(
                     voiceRecHandle != null
                         ? "menu.individualPlayer.voiceRecording.stop"

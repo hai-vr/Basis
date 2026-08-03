@@ -1,12 +1,40 @@
 using Basis.Network.Core;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using static SerializableBasis;
 
 namespace Basis.Network.Server.Generic
 {
     public static class BasisNetworkingGeneric
     {
+        private const int MissingPeerReportIntervalSeconds = 10;
+        private static readonly long MissingPeerReportIntervalTicks = TimeSpan.TicksPerSecond * MissingPeerReportIntervalSeconds;
+        private static long _missingPeerCount;
+        private static long _missingPeerNextReportTicks;
+
+        private static void ReportMissingPeer()
+        {
+            Interlocked.Increment(ref _missingPeerCount);
+
+            long now = DateTime.UtcNow.Ticks;
+            long next = Interlocked.Read(ref _missingPeerNextReportTicks);
+            if (now < next)
+            {
+                return;
+            }
+            if (Interlocked.CompareExchange(ref _missingPeerNextReportTicks, now + MissingPeerReportIntervalTicks, next) != next)
+            {
+                return;
+            }
+
+            long dropped = Interlocked.Exchange(ref _missingPeerCount, 0);
+            if (dropped > 0)
+            {
+                BNL.Log($"Missing Peer! dropped {dropped} targeted message(s) for peers that were not authenticated in the last {MissingPeerReportIntervalSeconds}s.");
+            }
+        }
+
         [ThreadStatic]
         private static List<NetPeer> _targetedClients;
         private static List<NetPeer> GetTargetedList()
@@ -70,7 +98,7 @@ namespace Basis.Network.Server.Generic
                     }
                     else
                     {
-                        BNL.Log("Missing Peer! " + recipient);
+                        ReportMissingPeer();
                     }
                 }
 
@@ -127,7 +155,7 @@ namespace Basis.Network.Server.Generic
                     }
                     else
                     {
-                        BNL.Log("Missing Peer! " + recipient);
+                        ReportMissingPeer();
                     }
                 }
 

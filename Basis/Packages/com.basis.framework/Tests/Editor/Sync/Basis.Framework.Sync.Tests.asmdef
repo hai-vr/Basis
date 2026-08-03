@@ -4,6 +4,7 @@
     "references": [
         "Basis Framework",
         "Basis Framework Editor",
+        "BasisCommon",
         "BasisNetworkCore",
         "Unity.Collections",
         "Unity.Mathematics",

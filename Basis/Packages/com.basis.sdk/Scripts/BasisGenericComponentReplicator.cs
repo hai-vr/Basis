@@ -22,6 +22,8 @@ using UnityEngine;
 /// - Apply requires the same <see cref="ContentPoliceSelector"/> the removal walk uses and
 ///   checks each type with the identical predicate (ApprovedTypeNames.Contains(FullName));
 ///   disallowed types are never AddComponent'ed. No selector = nothing replicated.
+/// - Apply also enforces the capture-side skip list, so approval alone can't reconstruct a type
+///   capture would never emit (Transform/RectTransform, the renderers, BasisAvatar).
 /// - UnityEvent fields are never serialized or applied, mirroring the persistent-listener
 ///   scrub (a remote payload must not be able to author persistent calls).
 /// - Inline ScriptableObjects are only created when the receiving field declares a specific
@@ -308,11 +310,19 @@ public static class BasisGenericComponentReplicator
                 BasisDebug.Log($"Component replication: type unavailable on this client, skipping: {typeName}");
                 continue;
             }
+            // Capture never emits these, so a payload naming one is crafted. Checked before the
+            // approved list because most of them are legitimately approved for avatars, and
+            // AddComponent on a Transform-derived type rewrites the node's existing Transform.
+            if (SkippedTypeNames.Contains(type.FullName))
+            {
+                BasisDebug.LogErrorUnreported($"Component replication: refusing non-replicable type {type.FullName}.");
+                continue;
+            }
             // The removal walk's exact predicate, applied before construction instead of
             // after — a disallowed type never exists, not even on the hidden template.
             if (!policeCheck.ApprovedTypeNames.Contains(type.FullName))
             {
-                BasisDebug.LogErrorUnreported($"MonoBehaviour {type.FullName} is not approved and will not be replicated. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
+                BasisDebug.LogErrorUnreported($"Component {type.FullName} is not approved and will not be replicated. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
                 continue;
             }
             Transform node = BasisGenericAvatarData.ResolveByPath(root, entry.Value<string>("path"));

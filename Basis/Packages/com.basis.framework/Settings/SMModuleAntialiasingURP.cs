@@ -79,24 +79,28 @@ public class SMModuleAntialiasingURP : BasisSettingsBase
                 Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
             case "linear":
+                Asset.msaaSampleCount = 1;
                 Asset.upscalingFilter = UpscalingFilterSelection.Linear;
                 Camera.allowMSAA = false;
                 Data.antialiasing = AntialiasingMode.None;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
                 break;
             case "point":
+                Asset.msaaSampleCount = 1;
                 Asset.upscalingFilter = UpscalingFilterSelection.Point;
                 Camera.allowMSAA = false;
                 Data.antialiasing = AntialiasingMode.None;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
                 break;
             case "fsr":
+                Asset.msaaSampleCount = 1;
                 Asset.upscalingFilter = UpscalingFilterSelection.FSR;
                 Camera.allowMSAA = false;
                 Data.antialiasing = AntialiasingMode.None;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
                 break;
             case "stp":
+                Asset.msaaSampleCount = 1;
                 Asset.upscalingFilter = UpscalingFilterSelection.STP;
                 Camera.allowMSAA = false;
                 Data.antialiasing = AntialiasingMode.None;

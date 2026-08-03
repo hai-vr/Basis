@@ -91,7 +91,9 @@ public class JiggleRig : MonoBehaviour, IJiggleParameterProvider {
 
     public void OnInitialize() {
         if (jiggleRigData.rootBone == null) {
-            throw new UnityException("Jiggle Rig enabled without a root bone assigned!");
+            Debug.LogError($"Jiggle Rig on '{name}' enabled without a root bone assigned, disabling it.", this);
+            enabled = false;
+            return;
         }
 
         jiggleRigData.RegenerateCacheLookup();

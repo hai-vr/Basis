@@ -1,5 +1,6 @@
 using System.Reflection;
 using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.Common;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -17,11 +18,17 @@ namespace Basis.Tests.Sync
         const BindingFlags NP = BindingFlags.NonPublic | BindingFlags.Instance;
         static readonly MethodInfo ClosestOffsetM =
             typeof(BasisPickupInteractable).GetMethod("ComputeClosestBoundsOffset", NP);
+        static readonly MethodInfo GripOffsetsM =
+            typeof(BasisPickupInteractable).GetMethod("TryGetGripOffsets", NP);
 
         readonly System.Collections.Generic.List<GameObject> _cleanup = new System.Collections.Generic.List<GameObject>();
 
         [SetUp]
-        public void SetUp() => Assert.IsNotNull(ClosestOffsetM, "ComputeClosestBoundsOffset moved");
+        public void SetUp()
+        {
+            Assert.IsNotNull(ClosestOffsetM, "ComputeClosestBoundsOffset moved");
+            Assert.IsNotNull(GripOffsetsM, "TryGetGripOffsets moved");
+        }
 
         [TearDown]
         public void TearDown()
@@ -153,6 +160,218 @@ namespace Basis.Tests.Sync
             }
         }
 
+        // ── the weld frame: palm, not wrist bone ──
+
+        [Test]
+        public void WeldFrame_SitsAtThePalmNotTheWristBone()
+        {
+            Hand hand = MakeHand(Quaternion.Euler(0f, 40f, 0f));
+            hand.Wrist.position = new Vector3(0f, 1.2f, 0.3f);
+
+            Assert.IsTrue(Frame(hand, out BasisHandFrame frame));
+            Assert.LessOrEqual(Vector3.Distance(frame.Position, Vector3.Lerp(hand.Wrist.position, hand.Middle.position, 0.5f)), 0.001f,
+                "the weld origin must be half way from the wrist bone to the middle finger's knuckle");
+            Assert.Greater(Vector3.Distance(frame.Position, hand.Wrist.position), 0.03f,
+                "the humanoid hand bone is the wrist — welding there seats every prop behind the hand");
+            Assert.LessOrEqual(Mathf.Abs(frame.HandLength - 0.09f), 0.001f,
+                "hand length is wrist to middle knuckle, the unit grip offsets travel in");
+            Assert.IsTrue(frame.Canonical);
+        }
+
+        [Test]
+        public void HandFrame_DoesNotMoveWhenTheFingersCurl()
+        {
+            Hand hand = MakeHand(Quaternion.identity);
+            Assert.IsTrue(Frame(hand, out BasisHandFrame before));
+
+            // The finger driver rotates the proximal bones every frame; that must not drag the held prop.
+            hand.Middle.localRotation = Quaternion.Euler(70f, 0f, 0f);
+            hand.Index.localRotation = Quaternion.Euler(60f, 0f, 0f);
+            hand.Little.localRotation = Quaternion.Euler(80f, 0f, 0f);
+            Assert.IsTrue(Frame(hand, out BasisHandFrame after));
+
+            Assert.LessOrEqual(Vector3.Distance(before.Position, after.Position), 1e-5f,
+                "curling a finger rotates the proximal bone, it does not move its origin");
+            Assert.LessOrEqual(Quaternion.Angle(before.Rotation, after.Rotation), 0.01f);
+        }
+
+        [Test]
+        public void HandFrame_IsTheSameOnTwoRigsWithDifferentBindRotations()
+        {
+            // The whole point of building off joint positions: two avatars posed identically but rigged with
+            // different wrist bind orientations must hand back the same frame, so one streamed grip decodes
+            // into either of them.
+            Hand a = MakeHand(Quaternion.identity);
+            Hand b = MakeHand(Quaternion.Euler(35f, -80f, 140f));
+            b.Wrist.position = a.Wrist.position;
+            foreach ((Transform from, Transform to) in new[] { (a.Middle, b.Middle), (a.Index, b.Index), (a.Little, b.Little) })
+            {
+                to.position = from.position;
+            }
+
+            Assert.IsTrue(Frame(a, out BasisHandFrame fa));
+            Assert.IsTrue(Frame(b, out BasisHandFrame fb));
+
+            Assert.Greater(Quaternion.Angle(a.Wrist.rotation, b.Wrist.rotation), 45f, "the two rigs must actually differ");
+            Assert.LessOrEqual(Vector3.Distance(fa.Position, fb.Position), 0.001f);
+            Assert.LessOrEqual(Quaternion.Angle(fa.Rotation, fb.Rotation), 0.05f,
+                "a grip expressed in this frame must reconstruct the same on a differently rigged avatar");
+        }
+
+        [Test]
+        public void HandFrame_FallsBackToTheWristWhenTheAvatarHasNoFingers()
+        {
+            Hand hand = MakeHand(Quaternion.Euler(10f, 20f, 30f));
+            hand.Mapping.HasLeftMiddle[0] = false;
+            hand.Mapping.HasLeftIndex[0] = false;
+            hand.Mapping.HasLeftLittle[0] = false;
+
+            Assert.IsTrue(Frame(hand, out BasisHandFrame frame));
+            Assert.IsFalse(frame.Canonical, "a frame that had to use the bind rotation must say so");
+            Assert.LessOrEqual(Vector3.Distance(frame.Position, hand.Wrist.position), 1e-5f);
+            Assert.LessOrEqual(Quaternion.Angle(frame.Rotation, hand.Wrist.rotation), 0.01f);
+        }
+
+        [Test]
+        public void NormalisedGrip_HoldsProportionallyOnADifferentlySizedHand()
+        {
+            Hand sender = MakeHand(Quaternion.identity);
+            Hand observer = MakeHand(Quaternion.Euler(0f, 90f, 0f), scale: 2f);
+            Assert.IsTrue(Frame(sender, out BasisHandFrame sf));
+            Assert.IsTrue(Frame(observer, out BasisHandFrame of));
+
+            // Encode against the sender's hand, decode against the observer's twice-as-large one.
+            Vector3 propWorld = sf.Position + sf.Rotation * new Vector3(0.02f, 0f, 0.06f);
+            Vector3 wire = (Quaternion.Inverse(sf.Rotation) * (propWorld - sf.Position)) / sf.HandLength;
+            Vector3 decoded = of.Position + of.Rotation * (wire * of.HandLength);
+
+            Vector3 inObserverHand = Quaternion.Inverse(of.Rotation) * (decoded - of.Position);
+            Assert.LessOrEqual(Vector3.Distance(inObserverHand, new Vector3(0.04f, 0f, 0.12f)), 0.001f,
+                "a hand twice the size must hold the grip twice as far out, not at the sender's absolute reach");
+        }
+
+        [Test]
+        public void PalmSeat_PutsThePropInTheHandRatherThanBehindIt()
+        {
+            Hand hand = MakeHand(Quaternion.identity);
+            hand.Wrist.position = new Vector3(0f, 1.2f, 0f);
+            Assert.IsTrue(Frame(hand, out BasisHandFrame frame));
+
+            BasisPickupInteractable prop = MakeProp("palm-seated", out Transform t);
+            AddBox(prop, Vector3.one * 0.1f);
+            t.SetPositionAndRotation(new Vector3(0f, 1.2f, 0.8f), Quaternion.identity);
+
+            t.position = Seat(prop, t, frame.Position, frame.Rotation);
+
+            Assert.LessOrEqual(Vector3.Distance(NearestSurfacePoint(prop, frame.Position), frame.Position), 0.01f,
+                "the seat must land the prop's nearest surface on the palm");
+            Assert.Greater(Vector3.Distance(NearestSurfacePoint(prop, hand.Wrist.position), hand.Wrist.position), 0.03f,
+                "and therefore clear of the wrist bone, where the old weld buried it");
+        }
+
+        [Test]
+        public void ColliderlessProp_KeepsTheGrabPoseInsteadOfSnappingItsPivotToTheHand()
+        {
+            BasisPickupInteractable prop = MakeProp("no-collider", out Transform t);
+            Vector3 start = new Vector3(0.4f, 1f, 0.9f);
+            t.SetPositionAndRotation(start, Quaternion.identity);
+
+            Vector3 hand = new Vector3(0f, 1.2f, 0f);
+            Vector3 seated = Seat(prop, t, hand, Quaternion.Euler(0f, 25f, 0f));
+
+            // Returning a zero offset would drive pos = hand exactly, teleporting the prop's PIVOT onto the
+            // hand — for a prop whose mesh is nowhere near its pivot that is a metre-scale jump.
+            Assert.LessOrEqual(Vector3.Distance(seated, start), 0.001f,
+                "with no collider to seat against, the grab must keep the pose it was grabbed at");
+        }
+
+        // ── authored grip: where and which way up the object arrives ──
+
+        [Test]
+        public void GripPoint_ArrivesInTheHandTheWayItWasAuthored()
+        {
+            BasisPickupInteractable prop = MakeProp("sword", out Transform t);
+            AddBox(prop, new Vector3(0.06f, 0.06f, 1.2f));
+            // Lying flat on the floor, pointing along +X — nothing like how it should be held.
+            t.SetPositionAndRotation(new Vector3(1.5f, 0.02f, 2f), Quaternion.Euler(0f, 90f, 0f));
+            Transform grip = MakeGrip(prop, new Vector3(0f, 0f, -0.5f), Quaternion.Euler(0f, 0f, 25f));
+
+            Vector3 handPos = new Vector3(0f, 1.2f, 0.2f);
+            Quaternion handRot = Quaternion.Euler(-30f, 55f, 15f);
+            BasisParentConstraint constraint = GripGrab(prop, t, handPos, handRot);
+
+            Assert.IsTrue(constraint.Evaluate(out Vector3 pos, out Quaternion rot));
+            t.SetPositionAndRotation(pos, rot);
+
+            Assert.LessOrEqual(Vector3.Distance(grip.position, handPos), 0.001f,
+                "the authored grip must land on the hand");
+            Assert.LessOrEqual(Quaternion.Angle(grip.rotation, handRot), 0.05f,
+                "and take the hand's orientation — otherwise the object arrives at whatever angle it was lying at");
+        }
+
+        [Test]
+        public void GripPoint_StaysInTheHandThroughAReach()
+        {
+            BasisPickupInteractable prop = MakeProp("gripped", out Transform t);
+            AddBox(prop, Vector3.one * 0.2f);
+            t.SetPositionAndRotation(new Vector3(0.5f, 0.3f, 1.1f), Quaternion.Euler(15f, 200f, 40f));
+            Transform grip = MakeGrip(prop, new Vector3(0.03f, -0.08f, 0.12f), Quaternion.Euler(10f, 0f, -70f));
+
+            BasisParentConstraint constraint = GripGrab(prop, t, new Vector3(0f, 1.1f, 0.1f), Quaternion.identity);
+
+            Vector3 movedPos = new Vector3(-0.6f, 1.7f, 0.5f);
+            Quaternion movedRot = Quaternion.Euler(70f, -140f, 95f);
+            constraint.UpdateSourcePositionAndRotation(0, movedPos, movedRot);
+            Assert.IsTrue(constraint.Evaluate(out Vector3 pos, out Quaternion rot));
+            t.SetPositionAndRotation(pos, rot);
+
+            Assert.LessOrEqual(Vector3.Distance(grip.position, movedPos), 0.001f);
+            Assert.LessOrEqual(Quaternion.Angle(grip.rotation, movedRot), 0.05f);
+        }
+
+        [Test]
+        public void TriggerOnlyRoot_SeatsAgainstTheChildGeometry()
+        {
+            // A hover/proximity volume on the root used to short-circuit collider resolution, hiding the real
+            // geometry — and since the seat skips triggers, such a prop never got seated at all.
+            BasisPickupInteractable prop = MakeProp("zoned", out Transform t);
+            Vector3 start = new Vector3(0f, 1f, 0f);
+            t.SetPositionAndRotation(start, Quaternion.identity);
+            BoxCollider zone = prop.gameObject.AddComponent<BoxCollider>();
+            zone.isTrigger = true;
+            zone.size = Vector3.one * 3f;
+
+            var body = new GameObject("body");
+            body.transform.SetParent(t, false);
+            BoxCollider solid = body.AddComponent<BoxCollider>();
+            solid.size = Vector3.one * 0.2f;
+
+            CollectionAssert.Contains(prop.GetColliders(), solid,
+                "a root carrying only triggers must fall through to the child geometry");
+
+            Vector3 hand = start + new Vector3(0f, 0f, -0.6f);
+            t.position = Seat(prop, t, hand, Quaternion.identity);
+            Assert.LessOrEqual(Vector3.Distance(solid.ClosestPoint(hand), hand), 0.01f,
+                "and that geometry is what the grab seats against");
+        }
+
+        [Test]
+        public void SolidRootCollider_StillWinsOverChildren()
+        {
+            BasisPickupInteractable prop = MakeProp("solid-root", out Transform t);
+            BoxCollider root = prop.gameObject.AddComponent<BoxCollider>();
+            root.size = Vector3.one * 0.2f;
+
+            var body = new GameObject("decoration");
+            body.transform.SetParent(t, false);
+            BoxCollider child = body.AddComponent<BoxCollider>();
+
+            Collider[] resolved = prop.GetColliders();
+            CollectionAssert.Contains(resolved, root);
+            CollectionAssert.DoesNotContain(resolved, child,
+                "a solid collider on self still short-circuits the search, as documented");
+        }
+
         // ── the cost of welding to the solved bone rather than the hand target ──
 
         [TestCase(0.02f)]
@@ -191,6 +410,90 @@ namespace Basis.Tests.Sync
             _cleanup.Add(go);
             t = go.transform;
             return go.AddComponent<BasisPickupInteractable>();
+        }
+
+        struct Hand
+        {
+            public BasisTransformMapping Mapping;
+            public Transform Wrist;
+            public Transform Middle;
+            public Transform Index;
+            public Transform Little;
+        }
+
+        /// <summary>
+        /// A left hand: wrist bone plus the three proximal knuckles the frame is built from, parented as a rig
+        /// parents them. <paramref name="bind"/> is the wrist's bind rotation — the per-avatar convention the
+        /// frame must be immune to; <paramref name="scale"/> sizes the hand.
+        /// </summary>
+        Hand MakeHand(Quaternion bind, float scale = 1f)
+        {
+            var wristGo = new GameObject("LeftHand");
+            _cleanup.Add(wristGo);
+            wristGo.transform.rotation = bind;
+
+            Transform Knuckle(string name, Vector3 fromWrist)
+            {
+                var go = new GameObject(name);
+                go.transform.SetParent(wristGo.transform, false);
+                go.transform.position = wristGo.transform.position + fromWrist * scale;
+                return go.transform;
+            }
+
+            var mapping = new BasisTransformMapping();
+            mapping.leftHand = wristGo.transform;
+            mapping.HasleftHand = true;
+            mapping.LeftMiddle[0] = Knuckle("LeftMiddleProximal", new Vector3(0f, 0f, 0.09f));
+            mapping.HasLeftMiddle[0] = true;
+            mapping.LeftIndex[0] = Knuckle("LeftIndexProximal", new Vector3(0.02f, 0f, 0.085f));
+            mapping.HasLeftIndex[0] = true;
+            mapping.LeftLittle[0] = Knuckle("LeftLittleProximal", new Vector3(-0.03f, 0f, 0.075f));
+            mapping.HasLeftLittle[0] = true;
+
+            return new Hand
+            {
+                Mapping = mapping,
+                Wrist = wristGo.transform,
+                Middle = mapping.LeftMiddle[0],
+                Index = mapping.LeftIndex[0],
+                Little = mapping.LeftLittle[0],
+            };
+        }
+
+        static bool Frame(Hand hand, out BasisHandFrame frame)
+        {
+            hand.Wrist.GetPositionAndRotation(out Vector3 p, out Quaternion r);
+            return BasisHandGrip.TryGetFrame(hand.Mapping, left: true, p, r, out frame);
+        }
+
+        static Transform MakeGrip(BasisPickupInteractable prop, Vector3 localPos, Quaternion localRot)
+        {
+            var go = new GameObject("Grip");
+            go.transform.SetParent(prop.transform, false);
+            go.transform.SetLocalPositionAndRotation(localPos, localRot);
+            prop.GripPoint = go.transform;
+            return go.transform;
+        }
+
+        /// <summary>Mirrors the OnInteractStart branch a welded grab takes when a grip point is authored.</summary>
+        static BasisParentConstraint GripGrab(
+            BasisPickupInteractable prop, Transform t, Vector3 weldPos, Quaternion weldRot)
+        {
+            t.GetPositionAndRotation(out Vector3 objectPos, out Quaternion objectRot);
+
+            object[] args = { objectPos, objectRot, null, null };
+            Assert.IsTrue((bool)GripOffsetsM.Invoke(prop, args), "an authored grip must produce offsets");
+
+            var constraint = new BasisParentConstraint
+            {
+                sources = new BasisConstraintSourceData[] { new() { weight = 1f } },
+                Enabled = true,
+                GlobalWeight = 1f,
+            };
+            constraint.SetRestPositionAndRotation(objectPos, objectRot);
+            constraint.SetOffsetPositionAndRotation(0, (Vector3)args[2], (Quaternion)args[3]);
+            constraint.UpdateSourcePositionAndRotation(0, weldPos, weldRot);
+            return constraint;
         }
 
         static void AddBox(BasisPickupInteractable prop, Vector3 size)

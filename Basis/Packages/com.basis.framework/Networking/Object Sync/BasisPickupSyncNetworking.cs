@@ -50,12 +50,26 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     private BasisSyncHandle _angY = BasisSyncHandle.Invalid;
     private BasisSyncHandle _angZ = BasisSyncHandle.Invalid;
 
-    // 0 = not attached (stream world transform), 1 = held in left hand, 2 = held in right hand.
-    // Discrete, so any change forces a keyframe and the attach/detach edge is delivered reliably.
+    // Which hand holds the prop and which frame the streamed grip is expressed in. Discrete, so any change
+    // forces a keyframe and the attach/detach edge is delivered reliably.
+    //   None                  stream the world transform
+    //   Left / Right          legacy: offset in the holder's raw wrist bone frame, in metres
+    //   LeftPalm / RightPalm  offset in the canonical BasisHandGrip frame, as multiples of hand length
+    //   LeftGrip / RightGrip  as Palm, and the prop carries an authored GripPoint the receiver can solve
+    //                         from its own prefab — the streamed offset is only the fallback for a receiver
+    //                         whose copy has no grip authored.
     private BasisSyncHandle _attachId = BasisSyncHandle.Invalid;
     private const byte HandNone = 0;
     private const byte HandLeft = 1;
     private const byte HandRight = 2;
+    private const byte HandLeftPalm = 3;
+    private const byte HandRightPalm = 4;
+    private const byte HandLeftGrip = 5;
+    private const byte HandRightGrip = 6;
+
+    private static bool IsLeftHand(int handId) => handId == HandLeft || handId == HandLeftPalm || handId == HandLeftGrip;
+    private static bool IsHandFrame(int handId) => handId >= HandLeftPalm && handId <= HandRightGrip;
+    private static bool IsAuthoredGrip(int handId) => handId == HandLeftGrip || handId == HandRightGrip;
 
     // Remote-side state for driving the prop off the owner's hand bone.
     private int _lastAppliedHandId;
@@ -168,14 +182,17 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
 
     protected override void OnBeforeTransmit()
     {
-        if (TryGetHeldHandPose(out byte handId, out Vector3 handPos, out Quaternion handRot) && Target != null)
+        if (TryGetHeldHandPose(out byte handId, out BasisHandFrame frame) && Target != null)
         {
             // Held in attach mode: stream the hand-relative offset through the transform channels instead of
-            // the world pose. Remotes reconstruct world = hand * offset against their copy of our hand bone,
-            // so the prop tracks the hand with no interpolation lag and (offset being near-static) ~no traffic.
+            // the world pose. Remotes reconstruct world = hand * offset against their own copy of the hand
+            // frame, so the prop tracks the hand with no interpolation lag and (offset being near-static)
+            // ~no traffic. Lengths go as multiples of hand length so an observer drawing a different avatar
+            // holds it proportionally rather than at our absolute reach.
             Target.GetPositionAndRotation(out Vector3 wp, out Quaternion wr);
-            Quaternion inv = Quaternion.Inverse(handRot);
-            EncodePose(inv * (wp - handPos), inv * wr, Target.localScale);
+            Quaternion inv = Quaternion.Inverse(frame.Rotation);
+            float scale = frame.HandLength > 0f ? 1f / frame.HandLength : 1f;
+            EncodePose(inv * (wp - frame.Position) * scale, inv * wr, Target.localScale);
             LocalSet(_attachId, handId);
             _lastSentHandId = handId;
             _handLostTransmits = 0;
@@ -230,14 +247,16 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
 
             if (handId != HandNone)
             {
-                if (Target != null && TryResolveOwnerHandTransform(handId, out Transform hand))
+                if (Target != null && TryResolveHandFrame(handId, out BasisHandFrame frame))
                 {
                     ComposeSyncedPose(out Vector3 offPos, out Quaternion offRot, out Vector3 s);
-                    hand.GetPositionAndRotation(out Vector3 hp, out Quaternion hr);
-                    _attachOffsetPos = offPos;
-                    _attachOffsetRot = offRot;
-                    _attachWorldPos = hp + hr * offPos;
-                    _attachWorldRot = hr * offRot;
+                    if (!TryGetAuthoredGripOffset(handId, out _attachOffsetPos, out _attachOffsetRot))
+                    {
+                        _attachOffsetPos = offPos * frame.HandLength;
+                        _attachOffsetRot = offRot;
+                    }
+                    _attachWorldPos = frame.Position + frame.Rotation * _attachOffsetPos;
+                    _attachWorldRot = frame.Rotation * _attachOffsetRot;
                     _haveAttachPose = true;
                     Target.SetPositionAndRotation(_attachWorldPos, _attachWorldRot);
                     if (HasSyncedScale) Target.localScale = s;
@@ -305,14 +324,15 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     }
 
     /// <summary>
-    /// Owner side: if attach mode is on and we currently hold this prop, returns which hand bone holds it
-    /// (left/right; desktop maps to the dominant hand) and that bone's live world pose.
+    /// Owner side: if attach mode is on and we currently hold this prop, returns which hand holds it
+    /// (left/right; desktop maps to the dominant hand), which frame the grip is expressed in, and that
+    /// frame's live pose. Falls back to the raw wrist bone frame when this avatar has no finger bones to
+    /// build the canonical basis from, so the id always says what the receiver should decode against.
     /// </summary>
-    private bool TryGetHeldHandPose(out byte handId, out Vector3 handPos, out Quaternion handRot)
+    private bool TryGetHeldHandPose(out byte handId, out BasisHandFrame frame)
     {
         handId = HandNone;
-        handPos = default;
-        handRot = Quaternion.identity;
+        frame = default;
         if (!AttachToHandOnGrab || !_attachId.IsValid || !IsOwnedLocallyOnClient || BasisPickupInteractable == null) return false;
 
         BasisInputSources inputs = BasisPickupInteractable.Inputs;
@@ -326,10 +346,52 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
         else
             return false;
 
-        handId = role == BasisBoneTrackedRole.LeftHand ? HandLeft : HandRight;
-        if (!TryResolveOwnerHandTransform(handId, out Transform hand)) return false;
-        hand.GetPositionAndRotation(out handPos, out handRot);
+        bool left = role == BasisBoneTrackedRole.LeftHand;
+        if (TryResolveHandFrame(left ? HandLeftPalm : HandRightPalm, out frame) && frame.Canonical)
+        {
+            bool authored = BasisPickupInteractable.GripPoint != null;
+            handId = left
+                ? (authored ? HandLeftGrip : HandLeftPalm)
+                : (authored ? HandRightGrip : HandRightPalm);
+            return true;
+        }
+
+        // No finger bones to build the basis from. Fall back to the raw wrist bone in metres, which is the
+        // one frame a receiver can always reproduce, and say so in the id.
+        byte legacyId = left ? HandLeft : HandRight;
+        if (!TryResolveHandFrame(legacyId, out frame)) return false;
+        handId = legacyId;
         return true;
+    }
+
+    /// <summary>
+    /// The frame a grip is expressed in for the given attach id, resolved against the owning player's own
+    /// bone mapping. Works on both ends — <see cref="currentOwnedPlayer"/> is the local player on the owner
+    /// and the holding remote on observers — and neither end sends the other any rig data to do it.
+    /// </summary>
+    private bool TryResolveHandFrame(int handId, out BasisHandFrame frame)
+    {
+        frame = default;
+        if (handId == HandNone) return false;
+
+        bool left = IsLeftHand(handId);
+        if (!IsHandFrame(handId))
+        {
+            if (!TryResolveOwnerHandTransform(handId, out Transform wrist)) return false;
+            wrist.GetPositionAndRotation(out Vector3 wristPos, out Quaternion wristRot);
+            frame = new BasisHandFrame
+            {
+                Position = wristPos,
+                Rotation = wristRot,
+                HandLength = 1f,
+                Canonical = false,
+            };
+            return true;
+        }
+
+        BasisNetworkPlayer owner = currentOwnedPlayer;
+        if (owner == null || !owner.TryGetPlayer(out IBasisPlayer player)) return false;
+        return BasisHandGrip.TryGetPlayerFrame(player, left, out frame);
     }
 
     /// <summary>
@@ -369,11 +431,29 @@ public class BasisPickupSyncNetworking : BasisSyncedTransform, IBasisStaticLocka
     {
         _reweldQueued = false;
         if (IsOwnedLocallyOnClient || Target == null) return;
-        if (!TryResolveOwnerHandTransform(_lastAppliedHandId, out Transform hand)) return;
-        hand.GetPositionAndRotation(out Vector3 hp, out Quaternion hr);
-        _attachWorldPos = hp + hr * _attachOffsetPos;
-        _attachWorldRot = hr * _attachOffsetRot;
+        if (!TryResolveHandFrame(_lastAppliedHandId, out BasisHandFrame frame)) return;
+        _attachWorldPos = frame.Position + frame.Rotation * _attachOffsetPos;
+        _attachWorldRot = frame.Rotation * _attachOffsetRot;
         Target.SetPositionAndRotation(_attachWorldPos, _attachWorldRot);
+    }
+
+    /// <summary>
+    /// The grip an authored <see cref="BasisPickupInteractable.GripPoint"/> defines, solved locally from this
+    /// receiver's own copy of the prefab. Nothing about it travels: both ends run the same solve against the
+    /// same authored transform, so the held pose carries no measurement noise, no interpolation lag and no
+    /// trace of the holder's rig. False when the sender did not flag an authored grip, or when this copy of
+    /// the prop has none — in which case the streamed offset is used instead.
+    /// </summary>
+    private bool TryGetAuthoredGripOffset(int handId, out Vector3 offsetPos, out Quaternion offsetRot)
+    {
+        offsetPos = default;
+        offsetRot = default;
+        if (!IsAuthoredGrip(handId) || BasisPickupInteractable == null || BasisPickupInteractable.GripPoint == null)
+        {
+            return false;
+        }
+        Target.GetPositionAndRotation(out Vector3 objectPos, out Quaternion objectRot);
+        return BasisPickupInteractable.TryGetGripOffsets(objectPos, objectRot, out offsetPos, out offsetRot);
     }
 
     private bool CanHover(BasisInput input)

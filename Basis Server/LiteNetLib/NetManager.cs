@@ -470,6 +470,13 @@ namespace LiteNetLib
                 : Math.Max(4, Environment.ProcessorCount * 3 / 4);
 
         /// <summary>
+        /// Width the auto-sized pool starts from before population raises it. A preference, not a
+        /// guarantee — <see cref="ResolvedPeerUpdateCap"/> outranks it on a host that cannot spare
+        /// this many.
+        /// </summary>
+        private const int MinPeerUpdateWorkers = 4;
+
+        /// <summary>
         /// Maximum unreliable packets queued per peer before the oldest are dropped. 0 = unbounded.
         ///
         /// Unbounded is not a safe default for a broadcast server: if the send loop enqueues faster
@@ -539,7 +546,16 @@ namespace LiteNetLib
                 // server: peers-per-worker picks 31 workers for 4000 peers however many cores
                 // exist, so a 128-core host ran at about a quarter utilisation with the pass still
                 // over target and no way to reach the idle cores.
-                int floor = Math.Clamp(peerCount / _peersPerUpdateWorker, 4, cap);
+                //
+                // Where floor and cap disagree the cap wins: it is the machine-wide grant, and on a
+                // host too small to satisfy every lease's floor the allocator trims the floors to
+                // fit, so this pool is legitimately granted 3 on a 4-core box. Passing the two to
+                // Math.Clamp as min and max threw out of the entire logic pass when that happened —
+                // no peer updates, no reliable delivery, no timeout detection, and a tight loop of
+                // ArgumentException in place of the pass, since the throw skips the sleep below.
+                int floor = peerCount / _peersPerUpdateWorker;
+                if (floor < MinPeerUpdateWorkers) floor = MinPeerUpdateWorkers;
+                if (floor > cap) floor = cap;
 
                 int current = _adaptivePeerWorkers;
                 if (current < floor) current = floor;

@@ -109,6 +109,10 @@ public class BasisTrackedBundleWrapper
     // it will remove other duplicate scenes?
     public async Task<bool> UnloadIfReady()
     {
+        if (IsUnloaded)
+        {
+            return true;
+        }
         bool isGltfContent = HasGltfTemplate || GltfImport != null;
         #if !UNITY_SERVER
         if (AssetBundle == null && !isGltfContent)
@@ -147,8 +151,10 @@ public class BasisTrackedBundleWrapper
                 // wrapper, not a loadable one — Unload(true) destroys every asset instances
                 // depend on (an instantiate from this wrapper afterwards produces an avatar
                 // whose Animator.avatar is null).
-                IsUnloaded = true;
-                AssetBundle.Unload(true);
+                if (!BasisLoadHandler.TryUnloadBundleAssets(this))
+                {
+                    return false;
+                }
                 #if UNITY_BUNDLEUNLOAD
                 AssetBundle = null;
                 IsBundleBackingStoreReleased = true;

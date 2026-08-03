@@ -43,13 +43,22 @@ namespace Basis.Scripts.Drivers
         /// <param name="channels">Number of channels in <paramref name="data"/>.</param>
         private void OnAudioFilterRead(float[] data, int channels)
         {
-            if (Initialized)
+            if (Initialized == false)
             {
-                int length = data.Length;
-                BasisAudioReceiver.OnAudioFilterRead(data, channels, length);
-                BasisAudioAndVisemeDriver.ProcessAudioSamples(data, channels, length);
-                AudioData?.Invoke(data, channels);
+                return;
             }
+
+            BasisAudioReceiver receiver = BasisAudioReceiver;
+            BasisAudioAndVisemeDriver visemeDriver = BasisAudioAndVisemeDriver;
+            if (receiver == null || visemeDriver == null)
+            {
+                return;
+            }
+
+            int length = data.Length;
+            receiver.OnAudioFilterRead(data, channels, length);
+            visemeDriver.ProcessAudioSamples(data, channels, length);
+            AudioData?.Invoke(data, channels);
         }
         public void OnDestroy()
         {

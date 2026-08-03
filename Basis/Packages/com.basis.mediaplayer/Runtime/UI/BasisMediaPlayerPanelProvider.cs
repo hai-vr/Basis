@@ -76,17 +76,32 @@ namespace Basis.BasisUI.MediaPlayer
         private readonly System.Text.StringBuilder _debugBuilder = new System.Text.StringBuilder(256);
         private readonly System.Text.StringBuilder _statusBuilder = new System.Text.StringBuilder(192);
 
+        private static bool _quitting;
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
+            _quitting = false;
             _instance = new BasisMediaPlayerPanelProvider();
             BasisMenuBase<BasisMainMenu>.AddProvider(_instance);
+            // Detach first: statics survive a domain reload, so with reload disabled in the editor
+            // this runs again each play session and would stack up duplicate handlers.
+            BasisMediaPlayerRegistry.OnChanged -= RefreshMainMenu;
             BasisMediaPlayerRegistry.OnChanged += RefreshMainMenu;
+            Application.quitting -= OnQuitting;
+            Application.quitting += OnQuitting;
             SettingsProvider.AudioTabExtraBuilder = BuildAudioSettingsEntry;
+        }
+
+        private static void OnQuitting()
+        {
+            _quitting = true;
+            BasisMediaPlayerRegistry.OnChanged -= RefreshMainMenu;
         }
 
         private static void RefreshMainMenu()
         {
+            if (_quitting) return;
             if (BasisMenuBase<BasisMainMenu>.Instance) BasisMenuBase<BasisMainMenu>.Instance.BindProvidersToButtons();
             if (BasisMainMenu.ActiveMenuTitle == StaticTitle && _instance != null) _instance.RebuildSelector();
         }

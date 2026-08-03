@@ -34,6 +34,11 @@ public static class ContentPoliceControl
         "Cilbox.CilboxProxy",
     };
 
+    // Fast path, not an exception: Transform and RectTransform are both on every selector's
+    // approved list, so the lookup below can only ever say yes. Skips a FullName + hash probe
+    // for one component per GameObject, which on a bone-heavy avatar is most of the walk.
+    private static bool IsAlwaysApproved(Component component) => component is Transform;
+
     /// <summary>
     /// Creates a copy of a GameObject, removes any unapproved MonoBehaviours, and returns the cleaned copy through instantiation. 
     /// </summary>
@@ -297,14 +302,14 @@ public static class ContentPoliceControl
                         continue;
                     }
 
-                    // Check if the component is a MonoBehaviour and not in the approved list
-                    if (component is UnityEngine.Component monoBehaviour)
+                    // Any component off the approved list is removed, engine built-ins included.
+                    if (component != null && !IsAlwaysApproved(component))
                     {
-                        string monoTypeName = monoBehaviour.GetType().FullName;
-                        if (!PoliceCheck.ApprovedTypeNames.Contains(monoTypeName))
+                        string typeName = component.GetType().FullName;
+                        if (!PoliceCheck.ApprovedTypeNames.Contains(typeName))
                         {
-                            BasisDebug.LogErrorUnreported($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
-                            GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
+                            BasisDebug.LogErrorUnreported($"Component {typeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!", BasisDebug.LogTag.System);
+                            GameObject.DestroyImmediate(component);
                             kinds[Index] = BasisComponentKind.Removed;
                         }
                     }
@@ -471,14 +476,14 @@ public static class ContentPoliceControl
                         renderersForPrewarm.Add(vfxRenderer);
                         break;
                 }
-                // Check if the component is a MonoBehaviour and not in the approved list
-                if (component is UnityEngine.Component monoBehaviour)
+                // Any component off the approved list is removed, engine built-ins included.
+                if (component != null && !IsAlwaysApproved(component))
                 {
-                    string monoTypeName = monoBehaviour.GetType().FullName;
-                    if (!policeCheck.ApprovedTypeNames.Contains(monoTypeName))
+                    string typeName = component.GetType().FullName;
+                    if (!policeCheck.ApprovedTypeNames.Contains(typeName))
                     {
-                        BasisDebug.LogErrorUnreported($"MonoBehaviour {monoTypeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
-                        GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
+                        BasisDebug.LogErrorUnreported($"Component {typeName} is not approved and will be removed. Request the {Application.productName} team to add it to the approved list, or add it yourself!");
+                        GameObject.DestroyImmediate(component);
                     }
                 }
             }

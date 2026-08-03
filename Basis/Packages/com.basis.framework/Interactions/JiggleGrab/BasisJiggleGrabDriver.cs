@@ -800,6 +800,32 @@ namespace Basis.Scripts.BasisSdk.Interactions
             RemoveMatching(state => state.grabberId == id || state.targetId == id);
         }
 
+        /// <summary>
+        /// A grab cannot outlive the avatar it was resolved against: the rigs, the jiggle tree and
+        /// the grabber's hand bone all belong to the avatar being replaced. Called synchronously
+        /// from the swap, before the old avatar is deleted.
+        /// </summary>
+        public static void DropGrabsForPlayer(IBasisPlayer player)
+        {
+            if (player == null || !BasisNetworkPlayers.PlayerToNetworkedPlayer(player, out BasisNetworkPlayer networkPlayer) || networkPlayer == null)
+            {
+                return;
+            }
+            ushort id = networkPlayer.playerId;
+            RemoveMatching(state =>
+            {
+                if (state.isEditorGrab || (state.grabberId != id && state.targetId != id))
+                {
+                    return false;
+                }
+                if (state.isLocalGrab)
+                {
+                    BasisNetworkHandleJiggleGrab.SendGrabStop(state.targetId, state.rigIndex, state.pointIndex);
+                }
+                return true;
+            });
+        }
+
         /// <summary>Settings master toggle turned off: stop our grabs and drop everything held.</summary>
         public static void ReleaseLocalGrabs()
         {
@@ -859,6 +885,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 animator = remote != null && remote.BasisAvatar != null ? remote.BasisAvatar.Animator : null;
             }
             if (animator == null)
+            {
+                return false;
+            }
+            // An avatar that is mid load (or is not humanoid at all) has an Animator with no rig on
+            // it yet, and GetBoneTransform throws instead of returning null for that case. Treat it
+            // as unresolved so the grab parks or releases on its own.
+            if (animator.avatar == null || !animator.avatar.isHuman)
             {
                 return false;
             }

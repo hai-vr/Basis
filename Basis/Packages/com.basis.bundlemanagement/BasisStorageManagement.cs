@@ -177,12 +177,16 @@ public static class BasisStorageManagement
 
         foreach (var loadedEntry in BasisLoadHandler.LoadedBundles.ToList())
         {
+            if (loadedEntry.Value != null && loadedEntry.Value.IsInUse)
+            {
+                continue;
+            }
             if (BasisLoadHandler.LoadedBundles.TryRemove(loadedEntry.Key, out BasisTrackedBundleWrapper wrapper) &&
                 wrapper?.AssetBundle != null)
             {
                 try
                 {
-                    wrapper.AssetBundle.Unload(true);
+                    BasisLoadHandler.TryUnloadBundleAssets(wrapper);
                 }
                 catch (Exception ex)
                 {

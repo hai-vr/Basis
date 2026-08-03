@@ -18,8 +18,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <summary>
         /// Collider references used for range checks and interaction.
         /// If set to a non-empty array, these colliders will be used as the interactable's colliders.
-        /// If empty or null, and a collider exists on the same GameObject, that collider will be used.
-        /// If empty or null, and no collider exists on the same GameObject, all child colliders will be used.
+        /// If empty or null, and a non-trigger collider exists on the same GameObject, that GameObject's colliders will be used.
+        /// If empty or null, and the GameObject has only triggers or no collider at all, all child colliders will be used.
         /// </summary>
         [Tooltip("Optional, leave this empty to auto-detect colliders on self, or on children if none on self.")]
         [SerializeField] private Collider[] _colliderRefs;
@@ -382,11 +382,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return _colliderRefs;
             }
-            if (TryGetComponent(out Collider col))
+            // Only a solid collider on self short-circuits the search. A root carrying nothing but trigger
+            // volumes (a hover or proximity zone) has no surface to grab or seat a pickup against, and the
+            // real geometry is on the children the old early-out threw away.
+            Collider[] own = GetComponents<Collider>();
+            for (int i = 0; i < own.Length; i++)
             {
-                return new Collider[] { col };
+                if (own[i] != null && !own[i].isTrigger)
+                {
+                    return own;
+                }
             }
-            return GetComponentsInChildren<Collider>(true);
+            Collider[] children = GetComponentsInChildren<Collider>(true);
+            return children.Length > 0 ? children : own;
         }
 
         /// <summary>

@@ -65,6 +65,49 @@ public static class BasisLoadHandler
         }
     }
     /// <summary>
+    /// Destroys a wrapper's AssetBundle assets, but only when no other registered wrapper pointing
+    /// at that same AssetBundle still holds reservations. Wrappers alias one AssetBundle whenever
+    /// the registry key changes for content already in memory, and each counts its worn instances
+    /// separately, so an unload driven by one count reaching zero must not destroy the meshes and
+    /// rigs another wrapper's live avatars are still driven with.
+    /// </summary>
+    public static bool TryUnloadBundleAssets(BasisTrackedBundleWrapper wrapper)
+    {
+        AssetBundle bundle = wrapper?.AssetBundle;
+        if (bundle == null)
+        {
+            return false;
+        }
+        foreach (BasisTrackedBundleWrapper other in LoadedBundles.Values)
+        {
+            if (other == null || ReferenceEquals(other, wrapper) || !ReferenceEquals(other.AssetBundle, bundle))
+            {
+                continue;
+            }
+            if (other.IsInUse)
+            {
+                BasisDebug.Log($"Skipping unload of {bundle.name}; another loaded wrapper still has instances of it.", BasisDebug.LogTag.Event);
+                return false;
+            }
+        }
+        wrapper.IsUnloaded = true;
+        foreach (KeyValuePair<string, BasisTrackedBundleWrapper> pair in LoadedBundles)
+        {
+            BasisTrackedBundleWrapper other = pair.Value;
+            if (other == null || ReferenceEquals(other, wrapper) || !ReferenceEquals(other.AssetBundle, bundle))
+            {
+                continue;
+            }
+            other.IsUnloaded = true;
+            if (LoadedBundles.TryGetValue(pair.Key, out BasisTrackedBundleWrapper current) && ReferenceEquals(current, other))
+            {
+                LoadedBundles.Remove(pair.Key, out var husk);
+            }
+        }
+        bundle.Unload(true);
+        return true;
+    }
+    /// <summary>
     /// this will take 30 seconds to execute
     /// after that we wait for 30 seconds to see if we can also remove the bundle!
     /// </summary>
@@ -73,7 +116,18 @@ public static class BasisLoadHandler
     public static async Task RequestDeIncrementOfBundle(BasisLoadableBundle loadableBundle)
     {
         string CombinedURL = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-        string Key = GetBundleKey(loadableBundle);
+        // Release against the wrapper the reservation was actually taken on, and consume the
+        // ticket so the same reservation can never be paid twice. Recomputing the key here reads
+        // a version tag that other systems write onto this record after the load reserved, and a
+        // drifted key silently decrements whichever wrapper it lands on instead — a count that
+        // belongs to somebody else's live avatar.
+        string Key = loadableBundle.ReservedWrapperKey;
+        loadableBundle.ReservedWrapperKey = null;
+        if (string.IsNullOrEmpty(Key))
+        {
+            Key = GetBundleKey(loadableBundle);
+            BasisDebug.LogWarning($"No load reservation recorded for {CombinedURL}; releasing against recomputed key '{Key}'. Either this is a double release, or the content was loaded by a path that never reserved.", BasisDebug.LogTag.Event);
+        }
         if (LoadedBundles.TryGetValue(Key, out BasisTrackedBundleWrapper Wrapper))
         {
             Wrapper.DeIncrement();
@@ -127,6 +181,9 @@ public static class BasisLoadHandler
                 // (the old LoadFromWrapper behavior) let the grace expire mid-load on a
                 // range-boundary re-entry and Unload(true) killed the clone's assets.
                 wrapper.Increment();
+                // Ticket the reservation with the wrapper it was taken on, so the release finds
+                // this exact wrapper rather than re-deriving a key that may have drifted.
+                loadableBundle.ReservedWrapperKey = wrapper.RegisteredKey ?? Key;
                 try
                 {
                     await wrapper.WaitForBundleLoadAsync();
@@ -138,12 +195,14 @@ public static class BasisLoadHandler
                     if (result == null)
                     {
                         wrapper.DeIncrement();
+                        loadableBundle.ReservedWrapperKey = null;
                     }
                     return result;
                 }
                 catch (Exception ex)
                 {
                     wrapper.DeIncrement();
+                    loadableBundle.ReservedWrapperKey = null;
                     BasisDebug.LogError($"Failed to load content: {ex}");
                     LoadedBundles.Remove(Key, out var data);
                     return null;
@@ -210,9 +269,8 @@ public static class BasisLoadHandler
         catch
         {
             wrapper.DidErrorOccur = true;
-            if (wrapper.AssetBundle != null)
+            if (TryUnloadBundleAssets(wrapper))
             {
-                wrapper.AssetBundle.Unload(true);
                 wrapper.AssetBundle = null;
             }
             LoadedBundles.Remove(Key, out var data);
@@ -239,6 +297,9 @@ public static class BasisLoadHandler
         // The instantiate reservation, held from registration so the unload grace can never
         // fire between the download completing and the budgeted instantiate finishing.
         wrapper.Increment();
+        // Ticket the reservation with the wrapper it was taken on, so the release finds this
+        // exact wrapper rather than re-deriving a key that may have drifted.
+        loadableBundle.ReservedWrapperKey = wrapper.RegisteredKey ?? Key;
         try
         {
             await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
@@ -246,6 +307,7 @@ public static class BasisLoadHandler
             if (result == null)
             {
                 wrapper.DeIncrement();
+                loadableBundle.ReservedWrapperKey = null;
             }
             return result;
         }
@@ -253,10 +315,10 @@ public static class BasisLoadHandler
         {
             BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
             wrapper.DeIncrement();
+            loadableBundle.ReservedWrapperKey = null;
             wrapper.DidErrorOccur = true;
-            if (wrapper.AssetBundle != null)
+            if (TryUnloadBundleAssets(wrapper))
             {
-                wrapper.AssetBundle.Unload(true);
                 wrapper.AssetBundle = null;
             }
             wrapper.UnloadGltfTemplate();
@@ -337,11 +399,14 @@ public static class BasisLoadHandler
             {
                 try
                 {
-                    removed.IsUnloaded = true;
                     if (removed.AssetBundle != null)
                     {
                         BasisDebug.Log($"Unloading in-memory AssetBundle for: {remoteUrl}", BasisDebug.LogTag.Event);
-                        removed.AssetBundle.Unload(true);
+                        TryUnloadBundleAssets(removed);
+                    }
+                    else
+                    {
+                        removed.IsUnloaded = true;
                     }
                     removed.UnloadGltfTemplate();
                 }

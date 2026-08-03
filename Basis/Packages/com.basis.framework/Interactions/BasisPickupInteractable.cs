@@ -51,6 +51,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public bool WeldToHand = true;
 
         /// <summary>
+        /// Optional authored grip: the transform on this object that should coincide with the player's hand while
+        /// it is held. When set, a welded hand grab seats the object so this transform lands on the palm with the
+        /// hand's orientation — the only way an object can arrive the right way up, since without it a grab can
+        /// pull the nearest collider surface in but has nothing to say about which way the object should point.
+        /// Ignored for desktop holds, whose follow frame is the view rather than a hand.
+        /// </summary>
+        [Tooltip("Optional: child transform that should sit in the hand when held. Empty = seat the nearest collider surface and keep the object's current angle.")]
+        public Transform GripPoint;
+
+        /// <summary>
         /// Show Highlight on haver. does not effect on hover exit.
         /// </summary>
         public bool ShowHighlightOnHover = true;
@@ -319,6 +329,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private const float lerpToHandDuration = 0.05f;
         private float _lerpElapsed;
         private bool _lerping;
+        private bool _weldedHold;
 
         private Vector3 magicNumberHandOffsetRight = new(0.26f, -0.14f, 0.24f); // right, down, forward
         private Quaternion magicNumberHandRotationRight = Quaternion.Euler(00, 010, -100);
@@ -564,7 +575,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     Vector3 inPos = wrapper.BoneControl.OutgoingWorldData.position;
                     Quaternion inRot = wrapper.BoneControl.OutgoingWorldData.rotation;
-                    if (TryGetWeldHandPose(wrapper, out Vector3 weldHandPos, out Quaternion weldHandRot))
+                    _weldedHold = TryGetWeldHandPose(wrapper, out Vector3 weldHandPos, out Quaternion weldHandRot);
+                    if (_weldedHold)
                     {
                         inPos = weldHandPos;
                         inRot = weldHandRot;
@@ -599,31 +611,41 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     _throwSampleHead = 0;
 
                     Vector3 offsetPos;
+                    Quaternion offsetRot;
                     bool inDesktop = BasisDeviceManagement.IsUserInDesktop();
                     if (inDesktop)
                     {
                         EnableDesktopHandTracking();
                     }
 
-                    if (LerpToHandOnPickup)
+                    if (_weldedHold && TryGetGripOffsets(ActivePosition, ActiveRotation, out offsetPos, out offsetRot))
                     {
-                        Vector3 lerpTarget = inPos;
-                        if (inDesktop)
-                        {
-                            lerpTarget = inPos + inRot * (useMagicNumberHandOffset * BasisHeightDriver.ScaledToMatchValue);
-                        }
-                        offsetPos = ComputeClosestBoundsOffset(lerpTarget, inRot, ActivePosition);
-                        InputConstraint.GlobalWeight = 0f;
+                        InputConstraint.GlobalWeight = LerpToHandOnPickup ? 0f : 1f;
                         _lerpElapsed = 0f;
-                        _lerping = true;
+                        _lerping = LerpToHandOnPickup;
                     }
                     else
                     {
-                        offsetPos = Quaternion.Inverse(inRot) * (ActivePosition - inPos);
-                        InputConstraint.GlobalWeight = 1f;
-                    }
+                        if (LerpToHandOnPickup)
+                        {
+                            Vector3 lerpTarget = inPos;
+                            if (inDesktop)
+                            {
+                                lerpTarget = inPos + inRot * (useMagicNumberHandOffset * BasisHeightDriver.ScaledToMatchValue);
+                            }
+                            offsetPos = ComputeClosestBoundsOffset(lerpTarget, inRot, ActivePosition);
+                            InputConstraint.GlobalWeight = 0f;
+                            _lerpElapsed = 0f;
+                            _lerping = true;
+                        }
+                        else
+                        {
+                            offsetPos = Quaternion.Inverse(inRot) * (ActivePosition - inPos);
+                            InputConstraint.GlobalWeight = 1f;
+                        }
 
-                    Quaternion offsetRot = Quaternion.Inverse(inRot) * ActiveRotation;
+                        offsetRot = Quaternion.Inverse(inRot) * ActiveRotation;
+                    }
 
                     InputConstraint.SetOffsetPositionAndRotation(0, offsetPos, offsetRot);
 
@@ -687,6 +709,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                     InputConstraint.Enabled = false;
                     _lerping = false;
+                    _weldedHold = false;
                     InputConstraint.sources = new BasisConstraintSourceData[] { new() { weight = 1f } };
 
                     if (RigidRef != null)
@@ -933,10 +956,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 inPos = interactingInput.BoneControl.OutgoingWorldData.position;
             }
 
-            if (TryGetWeldHandPose(interactingInput, out Vector3 weldHandPos, out Quaternion weldHandRot))
+            bool weldLost = false;
+            if (_weldedHold)
             {
-                inPos = weldHandPos;
-                inRot = weldHandRot;
+                if (TryGetWeldHandPose(interactingInput, out Vector3 weldHandPos, out Quaternion weldHandRot))
+                {
+                    inPos = weldHandPos;
+                    inRot = weldHandRot;
+                }
+                else
+                {
+                    weldLost = true;
+                }
             }
 
             if (inDesktop)
@@ -1029,6 +1060,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 _pickupUseLastEffectiveState = effectiveState;
             }
 
+            if (weldLost)
+            {
+                return;
+            }
+
             InputConstraint.UpdateSourcePositionAndRotation(0, inPos, inRot);
 
             if (InputConstraint.Evaluate(out Vector3 pos, out Quaternion rot))
@@ -1109,31 +1145,57 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
 
         /// <summary>
-        /// VR weld source: when <see cref="WeldToHand"/> is enabled and a hand holds the object, returns that
-        /// hand's post-IK world pose (<see cref="BasisLocalBoneControl.IKWorldData"/>, the rendered hand) to
-        /// follow in place of the pre-IK hand target. False for desktop (center-eye) holds or before the first solve.
+        /// VR weld source: when <see cref="WeldToHand"/> is enabled and a hand holds the object, returns the pose
+        /// the object is welded to — the canonical hand frame from <see cref="BasisHandGrip"/>, anchored on the
+        /// post-IK wrist so it tracks the rendered hand rather than the pre-IK target.
+        ///
+        /// The humanoid hand bone sits at the WRIST, so welding to it directly seats every object a palm-length
+        /// behind the hand, sunk into the back of the wrist, and orients it by whatever bind rotation the avatar
+        /// was rigged with. The hand frame is at the palm and built from joint positions instead.
+        ///
+        /// False for desktop (center-eye) holds, for an avatar the rig has no hand bone for, and before the first solve.
         /// </summary>
         private bool TryGetWeldHandPose(BasisInputWrapper wrapper, out Vector3 position, out Quaternion rotation)
         {
             position = default;
             rotation = default;
             BasisBoneTrackedRole role = wrapper.Role;
-            if (!WeldToHand || (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand))
+            bool left = role == BasisBoneTrackedRole.LeftHand;
+            if (!WeldToHand || (!left && role != BasisBoneTrackedRole.RightHand))
             {
                 return false;
             }
-            BasisLocalBoneControl bone = wrapper.BoneControl;
-            if (bone == null)
+            if (!BasisHandGrip.TryGetLocalFrame(wrapper.BoneControl, left, out BasisHandFrame frame))
             {
                 return false;
             }
-            var ik = bone.IKWorldData;
-            if (ik.rotation.x == 0f && ik.rotation.y == 0f && ik.rotation.z == 0f && ik.rotation.w == 0f)
+            position = frame.Position;
+            rotation = frame.Rotation;
+            return true;
+        }
+
+        /// <summary>
+        /// Constraint offsets that land <see cref="GripPoint"/> exactly on the weld pose, so the object arrives
+        /// gripped rather than merely nearby: solving <c>hand = (hand * offset) * grip</c> for the offset gives
+        /// <c>offsetRot = inverse(gripLocalRot)</c> and <c>offsetPos = offsetRot * -gripLocalPos</c>. The grip
+        /// vector is taken in the object's rotation frame rather than through <see cref="Transform.InverseTransformPoint"/>
+        /// because the constraint applies it back without a scale term.
+        ///
+        /// Both ends of a networked hold solve this from the same prefab against their own copy of the hand
+        /// frame, which is why an authored grip needs no pose on the wire at all.
+        /// </summary>
+        internal bool TryGetGripOffsets(Vector3 objectPos, Quaternion objectRot, out Vector3 offsetPos, out Quaternion offsetRot)
+        {
+            offsetPos = default;
+            offsetRot = default;
+            if (GripPoint == null)
             {
                 return false;
             }
-            position = ik.position;
-            rotation = ik.rotation;
+            GripPoint.GetPositionAndRotation(out Vector3 gripPos, out Quaternion gripRot);
+            Quaternion inverseObject = Quaternion.Inverse(objectRot);
+            offsetRot = Quaternion.Inverse(inverseObject * gripRot);
+            offsetPos = offsetRot * -(inverseObject * (gripPos - objectPos));
             return true;
         }
 
@@ -1362,6 +1424,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 InputConstraint = new BasisParentConstraint();
             }
+            if (GripPoint != null && !GripPoint.IsChildOf(transform))
+            {
+                Debug.LogWarning("Pickup Interactable Grip Point must be on this object or a child of it, " +
+                    "otherwise it does not move with the object and the grab will seat somewhere arbitrary.", gameObject);
+            }
         }
 #endif
 
@@ -1409,7 +1476,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             Collider[] colliders = GetColliders();
             if (colliders == null || colliders.Length == 0)
-                return Vector3.zero;
+                return Quaternion.Inverse(handRot) * (objectPos - inPos);
 
             Vector3 bestPoint = inPos;
             float bestDistSq = float.MaxValue;

@@ -185,6 +185,7 @@ public class BasisSDKMirror : MonoBehaviour
         BasisLocalCameraDriver.InstanceExists += Initialize;
         BasisSettingsDefaults.MirrorQuality.OnChanged += OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged += OnMirrorQualityOverrideChanged;
+        BasisSettingsDefaults.Antialiasing.OnChanged += OnAntialiasingChanged;
 
         if (BasisLocalCameraDriver.HasInstance)
             Initialize();
@@ -203,6 +204,7 @@ public class BasisSDKMirror : MonoBehaviour
         BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
+        BasisSettingsDefaults.Antialiasing.OnChanged -= OnAntialiasingChanged;
         Application.onBeforeRender -= OnBeforeRender;
         RenderPipeline.beginCameraRendering -= OnBeginCameraRendering;
     }
@@ -210,6 +212,7 @@ public class BasisSDKMirror : MonoBehaviour
     private void BootModeChanged(string _) => StartCoroutine(ResetMirror());
     private void OnMirrorQualityChanged(string _) => StartCoroutine(ResetMirror());
     private void OnMirrorQualityOverrideChanged(bool _) => StartCoroutine(ResetMirror());
+    private void OnAntialiasingChanged(string _) => StartCoroutine(ResetMirror());
 
     private IEnumerator ResetMirror()
     {
@@ -232,6 +235,7 @@ public class BasisSDKMirror : MonoBehaviour
         BasisDeviceManagement.OnBootModeChanged -= BootModeChanged;
         BasisSettingsDefaults.MirrorQuality.OnChanged -= OnMirrorQualityChanged;
         BasisSettingsDefaults.UseMirrorQualityOverride.OnChanged -= OnMirrorQualityOverrideChanged;
+        BasisSettingsDefaults.Antialiasing.OnChanged -= OnAntialiasingChanged;
 
         BasisMirrorTierScheduler.Unregister(this);
         primaryBound = false;
@@ -750,6 +754,8 @@ public class BasisSDKMirror : MonoBehaviour
         int effectiveDepth = depth;
         int effectiveMsaa = Mathf.Max(1, Antialiasing);
 #endif
+        effectiveMsaa = BasisCameraTargetMsaa.Clamp(effectiveMsaa);
+
         var desc = new RenderTextureDescriptor(effectiveWidth, effectiveHeight, RenderTextureFormat.Default, effectiveDepth)
         {
             msaaSamples = effectiveMsaa,

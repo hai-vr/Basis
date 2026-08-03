@@ -105,7 +105,7 @@ namespace Basis.Scripts.Drivers
             // --- Render Texture ---
             var desc = new RenderTextureDescriptor(TextureWidth, TextureHeight, RenderTextureFormat.ARGB32, 16)
             {
-                msaaSamples = 2,
+                msaaSamples = BasisCameraTargetMsaa.Clamp(2),
                 useMipMap = false,
                 autoGenerateMips = false,
                 sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear

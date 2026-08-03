@@ -78,22 +78,12 @@ namespace HVR.Basis.Comms
             {
                 var renderer = target.Renderer;
                 var lastWeights = target.LastWeights;
-                if (lastWeights != null)
+                foreach (var blendshapeIndex in target.BlendshapeIndices)
                 {
-                    foreach (var blendshapeIndex in target.BlendshapeIndices)
-                    {
-                        if (lastWeights[blendshapeIndex] != output0100)
-                        {
-                            renderer.SetBlendShapeWeight(blendshapeIndex, output0100);
-                            lastWeights[blendshapeIndex] = output0100;
-                        }
-                    }
-                }
-                else
-                {
-                    foreach (var blendshapeIndex in target.BlendshapeIndices)
+                    if (lastWeights[blendshapeIndex] != output0100)
                     {
                         renderer.SetBlendShapeWeight(blendshapeIndex, output0100);
+                        lastWeights[blendshapeIndex] = output0100;
                     }
                 }
             }
@@ -226,8 +216,10 @@ namespace HVR.Basis.Comms
             }
 
             var lastWeightsByRenderer = new Dictionary<SkinnedMeshRenderer, float[]>();
+            var writableTargets = new List<ComputedActuatorTarget>();
             foreach (var computedActuator in _computedActuators)
             {
+                writableTargets.Clear();
                 foreach (var target in computedActuator.Targets)
                 {
                     if (target.Renderer == null)
@@ -244,7 +236,28 @@ namespace HVR.Basis.Comms
                         }
                         lastWeightsByRenderer.Add(target.Renderer, lastWeights);
                     }
+
+                    var withinMesh = true;
+                    foreach (var blendshapeIndex in target.BlendshapeIndices)
+                    {
+                        if (blendshapeIndex >= lastWeights.Length)
+                        {
+                            withinMesh = false;
+                            break;
+                        }
+                    }
+                    if (!withinMesh)
+                    {
+                        continue;
+                    }
+
                     target.LastWeights = lastWeights;
+                    writableTargets.Add(target);
+                }
+
+                if (writableTargets.Count != computedActuator.Targets.Length)
+                {
+                    computedActuator.Targets = writableTargets.Count == 0 ? Array.Empty<ComputedActuatorTarget>() : writableTargets.ToArray();
                 }
             }
 

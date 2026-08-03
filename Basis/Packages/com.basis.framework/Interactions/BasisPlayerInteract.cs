@@ -321,7 +321,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
             for (int index = 0; index < interactInputsCount; index++)
             {
                 var input = InteractInputs[index];
-                if (input.lastTarget != null && input.lastTarget.RequiresUpdateLoop)
+                if (input.lastTarget == null || !input.lastTarget.RequiresUpdateLoop)
+                {
+                    continue;
+                }
+                // One update per target, not per input. Two inputs sharing a target (both hands on the same
+                // pickup) drove its grab ease at double rate and fired its use events twice a frame.
+                bool alreadyUpdated = false;
+                for (int prior = 0; prior < index && !alreadyUpdated; prior++)
+                {
+                    alreadyUpdated = ReferenceEquals(InteractInputs[prior].lastTarget, input.lastTarget);
+                }
+                if (!alreadyUpdated)
                 {
                     input.lastTarget.InputUpdate();
                 }

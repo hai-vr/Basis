@@ -13,7 +13,9 @@ namespace Basis.BasisUI
         {
             get
             {
-                if (!_descriptor) _descriptor = GetComponent<PanelElementDescriptor>();
+                if (_descriptor) return _descriptor;
+                if (this == null) return null;
+                _descriptor = GetComponent<PanelElementDescriptor>();
                 return _descriptor;
             }
         }

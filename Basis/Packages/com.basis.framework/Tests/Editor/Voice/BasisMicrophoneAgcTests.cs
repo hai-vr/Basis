@@ -384,18 +384,28 @@ namespace Basis.Tests.Voice
         }
 
         [Test]
-        public void PlayerSettingsUpgrade_TurnsNormalizationOnForOlderRecords()
+        public void PlayerSettingsUpgrade_TurnsNormalizationOffForOlderRecords()
         {
-            var legacy = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = 5, NormalizeLoudness = false };
+            // v6/v7 forced normalisation on for everyone; the v8 upgrade clears it again.
+            var legacy = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = 7, NormalizeLoudness = true };
             legacy.UpgradeSchema();
 
-            Assert.IsTrue(legacy.NormalizeLoudness, "upgraded record did not opt in to normalization");
+            Assert.IsFalse(legacy.NormalizeLoudness, "upgraded record kept the old forced-on normalization");
             Assert.AreEqual(BasisPlayerSettingsData.CurrentVersion, legacy.Version);
 
-            var current = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = BasisPlayerSettingsData.CurrentVersion, NormalizeLoudness = false };
+            var current = new BasisPlayerSettingsData { UUID = "abc", VolumeLevel = 1f, Version = BasisPlayerSettingsData.CurrentVersion, NormalizeLoudness = true };
             current.UpgradeSchema();
 
-            Assert.IsFalse(current.NormalizeLoudness, "a current-version opt-out was overwritten");
+            Assert.IsTrue(current.NormalizeLoudness, "a current-version opt-in was overwritten");
+        }
+
+        [Test]
+        public void PlayerSettingsDefaults_LeaveNormalizationOff()
+        {
+            var fresh = new BasisPlayerSettingsData("abc", 1.0f, true, true);
+
+            Assert.IsFalse(fresh.NormalizeLoudness, "a new player record opted in to normalization");
+            Assert.IsFalse(BasisPlayerSettingsData.Default.NormalizeLoudness, "the default record opted in to normalization");
         }
 
         [Test]
