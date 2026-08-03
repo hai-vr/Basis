@@ -459,15 +459,18 @@ namespace Basis.Scripts.Drivers
                     tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
                     tposeHipsLocalPos: tposeHipsLocalPos,
                     tposeHipsLocalRot: tposeHipsLocalRot,
-                    // Handed over root-local, which is the space the authored Vector2 is already in:
-                    // (height, forward) above the animator root, in model metres. These used to be
-                    // pushed through the translation-only ConvertFromLocalSpace overload into "world"
-                    // and subtracted back out inside AddRemotePlayer, which cancelled the root
-                    // translation but never applied the root ROTATION — so the authored forward
-                    // offset pointed along world +Z instead of out of the avatar's face, and the eye
-                    // and mouth swung around the head as the player turned.
+                    // Handed over in the frame the authored Vector2 is already in: (height, forward)
+                    // above the animator root, root-relative RENDERED metres. These used to be pushed
+                    // through the translation-only ConvertFromLocalSpace overload into "world" and
+                    // subtracted back out inside AddRemotePlayer, which cancelled the root translation
+                    // but never applied the root ROTATION — so the authored forward offset pointed
+                    // along world +Z instead of out of the avatar's face. The head operand has to come
+                    // from TposeWorld, not TposeFromRoot: only TposeWorld keeps the root's scale in,
+                    // which is what makes the two sides of the subtraction the same kind of metre.
                     authoredCenterEyeLocal: BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
                     authoredMouthLocal: BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
+                    tposeHeadWorld: References.TposeWorld[HumanBodyBones.Head].position,
+                    tposeRootScale: References.RootScale,
                     NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                     AvatarScale: animatorRoot,
                     MouthTransform: RemotePlayer.MouthTransform,

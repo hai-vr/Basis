@@ -34,19 +34,33 @@ internal static class BasisRemoteBoneMath
     }
 
     /// <summary>
-    /// The head-relative offset a face anchor is stored as at registration.
+    /// The head-relative offset a face anchor is stored as at registration, in model units — the
+    /// frame the per-frame solve multiplies by the avatar's live world scale.
     ///
-    /// Both operands must be in the avatar-root frame at T-pose, scale-normalised to model metres:
-    /// <paramref name="authoredRootLocal"/> is the authored eye/mouth point unpacked from
-    /// <c>BasisAvatar.AvatarEyePosition</c>, and <paramref name="tposeHeadFromRoot"/> is the head's
-    /// position out of <c>BasisTransformMapping.TposeFromRoot</c>, which is built through the root's
-    /// worldToLocalMatrix and so divides the root's scale back out. Mixing frames here is what made
-    /// the anchors drift: a world-space head position produces a world-axes delta, and
-    /// <see cref="HeadWorldFrame"/> then rotates it a second time.
+    /// Both inputs are RENDERED metres in the avatar-root frame at T-pose, i.e. root-relative with
+    /// the root's rotation undone but its scale still in them. That is the frame the SDK bakes the
+    /// authored point in (<c>BasisAutomaticSetupAvatarEditor</c> ends on
+    /// <c>BasisHelpers.ConvertToLocalSpace</c>, which is rotation-aware and scale-blind), and it is
+    /// the frame <c>BasisTransformMapping.TposeWorld</c> stores — explicitly "no division by
+    /// localScale", as distinct from <c>TposeFromRoot</c>, which divides it out.
+    ///
+    /// <paramref name="tposeRootScale"/> is the root scale those metres were measured at, so the
+    /// division here is what converts the pair into model units. Pairing the authored point with the
+    /// scale-divided <c>TposeFromRoot</c> instead reads correct on any avatar whose animator root
+    /// sits at scale 1 and drifts on every avatar that does not — which is most of the way an
+    /// eye/mouth bug ends up looking avatar-specific rather than universal.
     /// </summary>
-    internal static float3 HeadAnchorOffset(in float3 authoredRootLocal, in float3 tposeHeadFromRoot)
+    internal static float3 HeadAnchorOffset(in float3 authoredRootRelativeMetres, in float3 tposeHeadRootRelativeMetres, in float3 tposeRootScale)
     {
-        return authoredRootLocal - tposeHeadFromRoot;
+        return SafeDivide(authoredRootRelativeMetres - tposeHeadRootRelativeMetres, tposeRootScale);
+    }
+
+    /// <summary>Component-wise divide that leaves a degenerate axis alone rather than producing infinities.</summary>
+    private static float3 SafeDivide(in float3 numerator, in float3 denominator)
+    {
+        const float eps = 1e-6f;
+        float3 safe = math.select(denominator, new float3(1f), math.abs(denominator) < eps);
+        return numerator / safe;
     }
 
     internal static void ComposeHeadChain(

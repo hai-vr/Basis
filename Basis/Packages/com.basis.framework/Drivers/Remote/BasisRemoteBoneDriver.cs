@@ -799,13 +799,15 @@ public static class RemoteBoneJobSystem
     /// <param name="hips">Hips/root transform.</param>
     /// <param name="tposeHead">Head TPose calibrated coordinates.</param>
     /// <param name="tposeHips">Hips TPose calibrated coordinates.</param>
-    /// <param name="authoredCenterEyeLocal">Center-eye position from authoring, root-local in model metres.</param>
-    /// <param name="authoredMouthLocal">Mouth position from authoring, root-local in model metres.</param>
+    /// <param name="authoredCenterEyeLocal">Center-eye position from authoring, root-relative rendered metres.</param>
+    /// <param name="authoredMouthLocal">Mouth position from authoring, root-relative rendered metres.</param>
+    /// <param name="tposeHeadWorld">Head T-pose position in the same frame — BasisTransformMapping.TposeWorld.</param>
+    /// <param name="tposeRootScale">Root world scale those metres were recorded at.</param>
     /// <param name="NamePlate">Nameplate transform to be driven.</param>
     /// <param name="AvatarScale">Transform used for avatar scaling (if any).</param>
     /// <param name="MouthTransform">Mouth transform to be driven.</param>
     /// <returns>The provided <paramref name="key"/>.</returns>
-    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion tposeHipsLocalRot, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float3 TposedScale,
+    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion tposeHipsLocalRot, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, float3 tposeHeadWorld, float3 tposeRootScale, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float3 TposedScale,
         NativeArray<quaternion> boneTPoseLocal = default, Transform[] boneTransforms = null)
     {
         if (!sInitialized) Initialize();
@@ -820,12 +822,12 @@ public static class RemoteBoneJobSystem
         float3 tSpine = float3.zero;
         float3 tHips = ToAvatarLocal(hips.position);
 
-        // The eye/mouth pair stays in the root-local, scale-normalised frame end to end. tposeHead
-        // comes from BasisTransformMapping.TposeFromRoot, which is built with root.worldToLocalMatrix
-        // — the same frame (and the same model metres) the authored eye/mouth Vector2 lives in. The
-        // head-position subtraction above cannot be used for these: it is a world-axes delta, and
-        // feeding it to the head-carried root frame in the job would rotate the offset twice.
-        float3 tposeHeadFromRoot = tposeHead.position;
+        // The eye/mouth pair is resolved entirely in the T-pose root frame, never through world. The
+        // head-position subtraction above cannot be used for them: it is a world-axes delta, and the
+        // head-carried root frame in the job would rotate it a second time. tposeHeadWorld and the
+        // authored points are both root-relative rendered metres (TposeWorld's frame, which is also
+        // what the SDK bakes), and tposeRootScale converts the pair into the model units the job's
+        // per-frame scale multiply expects.
         float3 tEye = authoredCenterEyeLocal;
         float3 tMouth = authoredMouthLocal;
 
@@ -833,8 +835,8 @@ public static class RemoteBoneJobSystem
         float3 offNeck = tNeck - tHead;
         float3 offChest = tChest - tNeck;
         float3 offSpine = tSpine - tChest;
-        float3 offEye = BasisRemoteBoneMath.HeadAnchorOffset(tEye, tposeHeadFromRoot);
-        float3 offMouth = BasisRemoteBoneMath.HeadAnchorOffset(tMouth, tposeHeadFromRoot);
+        float3 offEye = BasisRemoteBoneMath.HeadAnchorOffset(tEye, tposeHeadWorld, tposeRootScale);
+        float3 offMouth = BasisRemoteBoneMath.HeadAnchorOffset(tMouth, tposeHeadWorld, tposeRootScale);
 
         var a = new TposeAndOffsetDataJob
         {

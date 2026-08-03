@@ -571,6 +571,12 @@ namespace Basis.Scripts.Common
         public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeWorld = new Dictionary<HumanBodyBones, BasisCalibratedCoords>((int)HumanBodyBones.LastBone, HumanBodyBonesComparer.Instance);
         public Quaternion RootRotation; // rotation during calibration
         public Vector3 RootPosition;
+        /// <summary>
+        /// Root world scale during calibration — the factor that separates the two T-pose frames:
+        /// TposeWorld is in rendered metres at this scale, TposeFromRoot has it divided out. Anything
+        /// mixing a value from one frame with a value from the other needs it to convert between them.
+        /// </summary>
+        public Vector3 RootScale = Vector3.one;
         public Vector3 AvatarForwards;
         public Vector3 AvatarUpwards;
         public Vector3 AvatarRightwards;
@@ -578,6 +584,7 @@ namespace Basis.Scripts.Common
         {
             Transform root = animator.transform;
             root.GetPositionAndRotation(out RootPosition, out RootRotation);
+            RootScale = root.lossyScale;
             Matrix4x4 worldToLocal = root.worldToLocalMatrix;
 
             const int firstBone = (int)HumanBodyBones.Hips;

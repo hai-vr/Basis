@@ -89,10 +89,21 @@ public static class BasisMouthEyeGizmos
         public Vector3 Truth;
         public bool HasTruth;
         public bool HasHead;
+        public bool Unauthored;
         public bool Mouth;
         public bool Local;
         public float Scale;
     }
+
+    /// <summary>
+    /// Nothing fills these in at runtime — the only writers are the SDK's build-time setup, the NDMF
+    /// bridge, the far-LOD payload and generic avatar data — so an avatar that shipped without them
+    /// keeps a zero here and lands its anchor down at the animator root, around the feet. Worth
+    /// calling out on its own: the reference below is derived from the same authored value, so it
+    /// would agree with the driver and report a reassuring 0.0 cm for an anchor that is nowhere near
+    /// the face.
+    /// </summary>
+    private static bool IsUnauthored(Vector2 authored) => authored == Vector2.zero;
 
     private static readonly List<AnchorVisual> _visuals = new List<AnchorVisual>();
     private static readonly List<AnchorSample> _samples = new List<AnchorSample>();
@@ -164,6 +175,7 @@ public static class BasisMouthEyeGizmos
                 Mouth = mouth,
                 Local = true,
                 Scale = 1f,
+                Unauthored = IsUnauthored(authored),
             };
             sample.HasTruth = TryHeadParentedTruth(mapping, authored, out sample.Truth, out sample.HeadPosition, out sample.Scale);
             sample.HasHead = sample.HasTruth;
@@ -219,6 +231,7 @@ public static class BasisMouthEyeGizmos
                     Mouth = true,
                     Local = false,
                     Scale = 1f,
+                    Unauthored = IsUnauthored(remote.BasisAvatar.AvatarMouthPosition),
                 };
                 mouth.HasTruth = TryHeadParentedTruth(mapping, remote.BasisAvatar.AvatarMouthPosition,
                     out mouth.Truth, out mouth.HeadPosition, out mouth.Scale);
@@ -243,6 +256,7 @@ public static class BasisMouthEyeGizmos
                 Mouth = false,
                 Local = false,
                 Scale = 1f,
+                Unauthored = IsUnauthored(remote.BasisAvatar.AvatarEyePosition),
             };
             eye.HasTruth = TryHeadParentedTruth(mapping, remote.BasisAvatar.AvatarEyePosition,
                 out eye.Truth, out eye.HeadPosition, out eye.Scale);
@@ -252,11 +266,14 @@ public static class BasisMouthEyeGizmos
     }
 
     /// <summary>
-    /// Where the anchor belongs: the authored root-local point, expressed relative to the head's
-    /// T-pose position in that same root frame, carried into world by the head. Both inputs are
-    /// scale-normalised model metres — TposeFromRoot is built through the root's worldToLocalMatrix
-    /// and the authored Vector2 is in the model's own units — so the avatar's live world scale is
-    /// what reintroduces size.
+    /// Where the anchor belongs: the authored point, expressed relative to the head's T-pose position
+    /// in the same frame, carried into world by the head.
+    ///
+    /// Both the authored Vector2 and TposeWorld are root-relative RENDERED metres — the root's
+    /// rotation undone, its scale still in them. TposeFromRoot is the same geometry with the scale
+    /// divided out, so it is the wrong operand here and reads correct only on an avatar whose
+    /// animator root sits at scale 1. Dividing by the recorded root scale puts the offset into model
+    /// units, and the avatar's live world scale then reintroduces size.
     /// </summary>
     private static bool TryHeadParentedTruth(BasisTransformMapping mapping, Vector2 authored,
         out Vector3 truth, out Vector3 headPosition, out float scale)
@@ -269,11 +286,16 @@ public static class BasisMouthEyeGizmos
         {
             return false;
         }
-        if (!mapping.TposeFromRoot.TryGetValue(HumanBodyBones.Head, out BasisCalibratedCoords tposeHead))
+        if (!mapping.TposeWorld.TryGetValue(HumanBodyBones.Head, out BasisCalibratedCoords tposeHead))
         {
             return false;
         }
 
+        float recorded = mapping.RootScale.y;
+        if (recorded < 1e-5f)
+        {
+            return false;
+        }
         float lossy = mapping.AnimatorRoot.lossyScale.y;
         if (lossy > 1e-5f)
         {
@@ -281,7 +303,7 @@ public static class BasisMouthEyeGizmos
         }
 
         mapping.head.GetPositionAndRotation(out headPosition, out Quaternion headWorld);
-        Vector3 offset = BasisHelpers.AvatarPositionConversion(authored) - tposeHead.position;
+        Vector3 offset = (BasisHelpers.AvatarPositionConversion(authored) - tposeHead.position) / recorded;
         Quaternion frame = headWorld * Quaternion.Inverse(tposeHead.rotation);
         truth = headPosition + frame * (offset * scale);
         return true;
@@ -291,7 +313,7 @@ public static class BasisMouthEyeGizmos
     {
         float size = (sample.Mouth ? MouthBallSize : EyeBallSize) * sample.Scale;
         float miss = sample.HasTruth ? Vector3.Distance(sample.Position, sample.Truth) : 0f;
-        bool wrong = sample.HasTruth && miss > ErrorThreshold * sample.Scale;
+        bool wrong = sample.Unauthored || (sample.HasTruth && miss > ErrorThreshold * sample.Scale);
 
         Color tint = sample.Local
             ? (sample.Mouth ? LocalMouth : LocalEye)
@@ -315,7 +337,13 @@ public static class BasisMouthEyeGizmos
             _text.Clear();
             _text.Append(sample.Mouth ? "mouth " : "eye ");
             _text.Append(sample.Local ? "you" : "remote");
-            if (sample.HasTruth)
+            if (sample.Unauthored)
+            {
+                // Deliberately not a distance: the reference shares the same zero, so any number
+                // printed here would read as agreement rather than as an unauthored avatar.
+                _text.Append("  UNSET");
+            }
+            else if (sample.HasTruth)
             {
                 _text.Append("  ");
                 _text.Append((miss * 100f).ToString("0.0"));
