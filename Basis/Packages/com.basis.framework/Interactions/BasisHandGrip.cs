@@ -14,6 +14,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <summary>World position of the palm — the point an object sits on when it is in the hand.</summary>
         public Vector3 Position;
 
+        /// <summary>
+        /// The hand bone pose this frame was carried onto — the wrist, where a naive weld would put the
+        /// object. Exposed so a debug view draws the offset the frame actually applied rather than
+        /// re-deriving one that could disagree with it.
+        /// </summary>
+        public Vector3 WristPosition;
+
         /// <summary>World orientation of the canonical hand basis: forward down the hand, up out the back of it.</summary>
         public Quaternion Rotation;
 
@@ -108,6 +115,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             frame = new BasisHandFrame
             {
                 Position = wristPos,
+                WristPosition = wristPos,
                 Rotation = wristRot,
                 HandLength = FallbackHandLength,
                 Canonical = false,

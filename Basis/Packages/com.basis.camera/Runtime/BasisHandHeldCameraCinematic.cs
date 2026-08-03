@@ -258,7 +258,7 @@ public abstract partial class BasisHandHeldCameraInteractable
 
         if (Basis.Scripts.Networking.BasisNetworkPlayers.RemotePlayers.TryGetValue(netId, out var remote) &&
             remote != null && !remote.IsDestroyed &&
-            TryResolveRemoteSubject(remote, out FollowSubject resolved))
+            TryResolveRemoteSubject(netId, remote, out FollowSubject resolved))
         {
             subject = ToCinematicSubject(resolved);
             return subject.Valid;

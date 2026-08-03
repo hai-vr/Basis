@@ -411,7 +411,6 @@ namespace Basis.Scripts.Drivers
                 return;
             }
             Transform animatorRoot = References.AnimatorRoot;
-            Vector3 animatorRootPos = animatorRoot.position;
 
             // No remove here any more. A re-registration keeps the same row and the same
             // SyncBoneCount skeleton slots, so AddRemotePlayer re-points them in place; tearing
@@ -460,14 +459,15 @@ namespace Basis.Scripts.Drivers
                     tposeHips: References.TposeFromRoot[HumanBodyBones.Hips],
                     tposeHipsLocalPos: tposeHipsLocalPos,
                     tposeHipsLocalRot: tposeHipsLocalRot,
-                    authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
-                        BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
-                        animatorRootPos
-                    ),
-                    authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
-                        BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
-                        animatorRootPos
-                    ),
+                    // Handed over root-local, which is the space the authored Vector2 is already in:
+                    // (height, forward) above the animator root, in model metres. These used to be
+                    // pushed through the translation-only ConvertFromLocalSpace overload into "world"
+                    // and subtracted back out inside AddRemotePlayer, which cancelled the root
+                    // translation but never applied the root ROTATION — so the authored forward
+                    // offset pointed along world +Z instead of out of the avatar's face, and the eye
+                    // and mouth swung around the head as the player turned.
+                    authoredCenterEyeLocal: BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarEyePosition),
+                    authoredMouthLocal: BasisHelpers.AvatarPositionConversion(RemotePlayer.BasisAvatar.AvatarMouthPosition),
                     NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                     AvatarScale: animatorRoot,
                     MouthTransform: RemotePlayer.MouthTransform,

@@ -168,6 +168,8 @@ namespace Basis.Tests.Camera
                 autoFollowPlayspace = false,
                 autoFollowLookAtPlayer = false,
                 autoFollowLookAtHeightOffset = -0.35f,
+                autoFollowLateralTracking = 0.8f,
+                detachedMarker = (int)BasisCameraDetachedMarker.Gizmo,
                 capture360 = true,
                 useAutoLeveling = true,
                 useVRHandheldSmoothing = true,

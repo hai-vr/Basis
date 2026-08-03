@@ -336,6 +336,15 @@ namespace Basis.BasisUI
         // pick spheres a grab press searches from.
         public static BasisSettingsBinding<bool> GizmoJiggleGrab = new("gizmojigglegrab", new BasisPlatformDefault<bool>(false));
 
+        // Canonical hand frame held objects weld to, on every hand local and remote: palm point,
+        // frame axes, and the wrist-to-palm offset the weld applies.
+        public static BasisSettingsBinding<bool> GizmoHandGrip = new("gizmohandgrip", new BasisPlatformDefault<bool>(false));
+
+        // Center-eye and mouth face anchors on every avatar local and remote: the driven point, the
+        // forward the gaze selector and the voice AudioSource use, the offset back to the head, and
+        // a red leg out to where a head-parented anchor belongs when the two disagree.
+        public static BasisSettingsBinding<bool> GizmoMouthEye = new("gizmomoutheye", new BasisPlatformDefault<bool>(false));
+
         // Eye-gaze ray + endpoint-target gizmo. Off by default — only relevant on
         // headsets that surface gaze through OpenXR EyeGazeInteraction or a SteamVR
         // pose action, and the line in your face is noisy.
@@ -1979,6 +1988,8 @@ namespace Basis.BasisUI
             GizmoFingerTouch.LoadBindingValue();
             GizmoSeatTargets.LoadBindingValue();
             GizmoJiggleGrab.LoadBindingValue();
+            GizmoHandGrip.LoadBindingValue();
+            GizmoMouthEye.LoadBindingValue();
             GizmoAudioRanges.LoadBindingValue();
             GizmoAudioListenerCone.LoadBindingValue();
             GizmoAudioLevels.LoadBindingValue();

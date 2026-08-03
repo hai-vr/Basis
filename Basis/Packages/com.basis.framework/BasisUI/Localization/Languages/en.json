@@ -863,6 +863,14 @@
       "value": "Show live jiggle grabs: the held bone, where it is being pulled to, that bone's reach limit, and the pick spheres your hands search when you press grab."
     },
     {
+      "key": "settings.developer.handGrip.tooltip",
+      "value": "Show the hand frame held objects weld to, on your hands and everyone else's: the palm point an object seats onto, the frame's axes, and the offset out from the wrist bone. Hands whose avatar has no finger bones are marked WRIST — those fall back to the rig's own bind pose and cannot reproduce another player's grip exactly."
+    },
+    {
+      "key": "settings.developer.mouthEye.tooltip",
+      "value": "Show the eye and mouth anchors on your avatar and everyone else's: where each one sits, the forward that decides who you look at and where a voice comes from, and the offset back to the head. An anchor that has drifted off the face turns red and prints how far out it is."
+    },
+    {
       "key": "settings.developer.audioRanges.tooltip",
       "value": "Show your hearing-distance sphere and each speaker's full-volume range."
     },
@@ -7961,6 +7969,14 @@
     {
       "key": "settings.developer.jiggleGrab",
       "value": "Jiggle Grab"
+    },
+    {
+      "key": "settings.developer.handGrip",
+      "value": "Hand Grip Frame"
+    },
+    {
+      "key": "settings.developer.mouthEye",
+      "value": "Mouth & Eye Anchors"
     },
     {
       "key": "settings.developer.audioRanges",

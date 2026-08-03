@@ -229,22 +229,37 @@ public static class BasisLoadHandler
         if (wrapper != null)
         {
             BasisDebug.Log($"Bundle On Disc Loading", BasisDebug.LogTag.Networking);
-            if (wrapper.AssetBundle == null)
+            // Reserve BEFORE any await, exactly as the GameObject path does. A scene wrapper sits
+            // at zero between unloads (its durable count is taken by LoadSceneFromBundleAsync only
+            // once the scene is live), so without this the awaits below span a window where the
+            // grace period can expire — or an aliasing wrapper reaching zero can Unload(true) the
+            // bundle we are about to load the scene out of.
+            wrapper.Increment();
+            try
             {
-                await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
-            }
-            else
-            {
-                await wrapper.WaitForBundleLoadAsync();
-            }
+                if (wrapper.AssetBundle == null)
+                {
+                    await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
+                }
+                else
+                {
+                    await wrapper.WaitForBundleLoadAsync();
+                }
 
-            if (wrapper.AssetBundle == null)
-            {
-                BasisDebug.LogError("Scene bundle was not available after load attempt.");
-                return new Scene();
+                if (wrapper.AssetBundle == null)
+                {
+                    BasisDebug.LogError("Scene bundle was not available after load attempt.");
+                    return new Scene();
+                }
+                BasisDebug.Log($"Bundle Loaded, Loading Scene", BasisDebug.LogTag.Networking);
+                return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
             }
-            BasisDebug.Log($"Bundle Loaded, Loading Scene", BasisDebug.LogTag.Networking);
-            return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
+            finally
+            {
+                // Hand-off, not a release: a scene that came up holds its own reservation, paired
+                // with SceneUnloaded. This only gives back the one held across the load.
+                wrapper.DeIncrement();
+            }
         }
 
         return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken, MaxDownloadSizeInMB);
@@ -261,6 +276,10 @@ public static class BasisLoadHandler
             return new Scene();
         }
 
+        // Held across the load for the same reason as the GameObject path: until the scene is
+        // live nothing counts this wrapper as in use, and an aliasing wrapper reaching zero
+        // would Unload(true) the bundle out from under the load in flight.
+        wrapper.Increment();
         try
         {
             await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
@@ -275,6 +294,12 @@ public static class BasisLoadHandler
             }
             LoadedBundles.Remove(Key, out var data);
             throw;
+        }
+        finally
+        {
+            // Hand-off, not a release: a scene that came up holds its own reservation, paired
+            // with SceneUnloaded. This only gives back the one held across the load.
+            wrapper.DeIncrement();
         }
     }
 
@@ -328,7 +353,7 @@ public static class BasisLoadHandler
         }
     }
 
-    private static string GetBundleKey(BasisLoadableBundle loadableBundle)
+    public static string GetBundleKey(BasisLoadableBundle loadableBundle)
     {
         string url = BasisIOManagement.CanonicalizeRemoteUrl(loadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation);
         string key = $"{url}|{HashUnlockPassword(loadableBundle?.UnlockPassword)}";

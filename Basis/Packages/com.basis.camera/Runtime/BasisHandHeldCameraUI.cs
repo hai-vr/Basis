@@ -255,11 +255,11 @@ public partial class BasisHandHeldCameraUI
                 break;
 
             case BasisCameraButtonAction.DepthModeAuto:
-                button.onClick.AddListener(() => SetDepthMode(DepthMode.Auto));
+                button.onClick.AddListener(() => SetFocusFollowsSubject(true));
                 break;
 
             case BasisCameraButtonAction.DepthModeManual:
-                button.onClick.AddListener(() => SetDepthMode(DepthMode.Manual));
+                button.onClick.AddListener(() => SetFocusFollowsSubject(false));
                 break;
 
             case BasisCameraButtonAction.OpenCameraPanel:
@@ -482,18 +482,48 @@ public partial class BasisHandHeldCameraUI
 
     private void CycleResolutionPreset()
     {
-        currentResolutionIndex = (currentResolutionIndex + 1) % 4;
-
-        if (HHC != null)
-            HHC.ChangeResolution(currentResolutionIndex);
-
-        UpdateResolutionSprites();
+        SetResolutionIndex((currentResolutionIndex + 1) % 4);
 
         // Make the Toggle behave like a momentary "cycle" control (prevents it staying checked)
         if (Resolution != null)
             Resolution.SetIsOnWithoutNotify(false);
+    }
+
+    /// <summary>
+    /// Single owner of the capture resolution preset. The index is what a save records and what
+    /// the prop's sprite strip and its cycle button both read, while
+    /// <see cref="BasisHandHeldCamera.ChangeResolution"/> only writes the pixel dimensions — so a
+    /// caller that goes straight to the camera (the panel dropdown did) leaves the index behind:
+    /// the choice is not saved, the prop keeps lighting the old sprite, and the next press of the
+    /// cycle button steps on from the stale index instead of the one on screen.
+    /// </summary>
+    public void SetResolutionIndex(int index)
+    {
+        if (HHC == null || HHC.MetaData == null || HHC.MetaData.resolutions == null) return;
+        if (index < 0 || index >= HHC.MetaData.resolutions.Length) return;
+
+        currentResolutionIndex = index;
+        HHC.ChangeResolution(index);
+        UpdateResolutionSprites();
 
         BasisDebug.Log($"[Resolution] Changed to index {currentResolutionIndex}");
+    }
+
+    /// <summary>
+    /// Single owner of the focus mode. Auto means the depth of field tracks the follow subject's
+    /// distance every frame; Manual means the focus slider owns it.
+    ///
+    /// <para>Two pieces of state say this — <c>currentDepthMode</c>, which the prop's sprites and
+    /// slider visibility read, and <see cref="BasisHandHeldCamera.autoFocusFollowSubject"/>, which
+    /// is what actually gates <c>UpdateAutoFocus</c> — and writing only one of them leaves the
+    /// camera contradicting its own readout. Auto without the flag lights the Auto sprite over a
+    /// camera that never focuses; Manual without clearing it shows the focus slider while
+    /// auto-focus overwrites whatever the user drags it to, every frame.</para>
+    /// </summary>
+    public void SetFocusFollowsSubject(bool follows)
+    {
+        if (HHC != null) HHC.autoFocusFollowSubject = follows;
+        SetDepthMode(follows ? DepthMode.Auto : DepthMode.Manual);
     }
 
     private void UpdateResolutionSprites()
@@ -654,6 +684,8 @@ public partial class BasisHandHeldCameraUI
             autoFollowPlayspace = HHC == null || HHC.autoFollowPlayspace,
             autoFollowLookAtPlayer = HHC == null || HHC.autoFollowLookAtPlayer,
             autoFollowLookAtHeightOffset = HHC != null ? HHC.autoFollowLookAtHeightOffset : 0f,
+            autoFollowLateralTracking = HHC != null ? HHC.autoFollowLateralTracking : 0.5f,
+            detachedMarker = HHC != null ? (int)HHC.detachedMarker : (int)BasisCameraDetachedMarker.Puck,
             capture360 = HHC != null && HHC.capture360Enabled,
             useAutoLeveling = HHC != null && HHC.useAutoLeveling,
             useVRHandheldSmoothing = HHC != null && HHC.useVRHandheldSmoothing,
@@ -790,6 +822,17 @@ public partial class BasisHandHeldCameraUI
             // claim. Custom is the honest label; the re-derive on load promotes it to a preset if
             // the values turn out to match one exactly.
             settings.cameraMode = (int)BasisCameraMode.Custom;
+        }
+
+        if (settings.settingsVersion < 8)
+        {
+            // Neither zero-fills to its default. Lateral tracking would come back as 0, so the
+            // camera stops closing the gap when the subject strafes and they slide out of frame;
+            // the detached marker would come back as Off, leaving nothing on screen to show where
+            // a camera that has flown away went — and nothing to grab it back by.
+            var defaults = new CameraSettings();
+            settings.autoFollowLateralTracking = defaults.autoFollowLateralTracking;
+            settings.detachedMarker = defaults.detachedMarker;
         }
 
         settings.settingsVersion = CameraSettings.CurrentVersion;
@@ -987,6 +1030,9 @@ public partial class BasisHandHeldCameraUI
         HHC.autoFollowPlayspace = settings.autoFollowPlayspace;
         HHC.autoFollowLookAtPlayer = settings.autoFollowLookAtPlayer;
         HHC.autoFollowLookAtHeightOffset = settings.autoFollowLookAtHeightOffset;
+        HHC.autoFollowLateralTracking = Mathf.Clamp01(settings.autoFollowLateralTracking);
+        HHC.SetDetachedMarker((BasisCameraDetachedMarker)Mathf.Clamp(
+            settings.detachedMarker, 0, (int)BasisCameraDetachedMarker.Gizmo));
         HHC.capture360Enabled = settings.capture360;
         HHC.useAutoLeveling = settings.useAutoLeveling;
         HHC.useVRHandheldSmoothing = settings.useVRHandheldSmoothing;

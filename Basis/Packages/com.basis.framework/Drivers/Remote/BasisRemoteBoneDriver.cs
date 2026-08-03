@@ -161,8 +161,12 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         sc.offsets_scaled_Mouth = a.offsets_unscaled_Mouth * nowScale;
         GeneratedScales[i] = sc;
 
-        // Compose world rotations (TPose→current)
-        quaternion headR = math.mul(HeadRot[i], TposeHeadRot[i]);
+        // Compose world rotations (TPose→current). headR is the avatar's own root frame carried by
+        // the head: it takes the root-space offsets below into world, and is the frame the eye/mouth
+        // anchors are handed as their rotation. See BasisRemoteBoneMath.HeadWorldFrame — the
+        // conjugate is what makes it collapse to the root rotation at T-pose, and dropping it is
+        // invisible on rigs whose head binds axis-aligned and wrong on every rig that doesn't.
+        quaternion headR = BasisRemoteBoneMath.HeadWorldFrame(HeadRot[i], TposeHeadRot[i]);
         quaternion hipsR = math.mul(TposeHipsRot[i], HipsRot[i]);
 
         // World positions for downstream apply jobs. Previously this code
@@ -795,13 +799,13 @@ public static class RemoteBoneJobSystem
     /// <param name="hips">Hips/root transform.</param>
     /// <param name="tposeHead">Head TPose calibrated coordinates.</param>
     /// <param name="tposeHips">Hips TPose calibrated coordinates.</param>
-    /// <param name="authoredCenterEyeWorld">Center-eye world position from authoring.</param>
-    /// <param name="authoredMouthWorld">Mouth world position from authoring.</param>
+    /// <param name="authoredCenterEyeLocal">Center-eye position from authoring, root-local in model metres.</param>
+    /// <param name="authoredMouthLocal">Mouth position from authoring, root-local in model metres.</param>
     /// <param name="NamePlate">Nameplate transform to be driven.</param>
     /// <param name="AvatarScale">Transform used for avatar scaling (if any).</param>
     /// <param name="MouthTransform">Mouth transform to be driven.</param>
     /// <returns>The provided <paramref name="key"/>.</returns>
-    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion tposeHipsLocalRot, float3 authoredCenterEyeWorld,float3 authoredMouthWorld, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float3 TposedScale,
+    public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 tposeHipsLocalPos, quaternion tposeHipsLocalRot, float3 authoredCenterEyeLocal,float3 authoredMouthLocal, Transform NamePlate, Transform AvatarScale, Transform MouthTransform,float3 TposedScale,
         NativeArray<quaternion> boneTPoseLocal = default, Transform[] boneTransforms = null)
     {
         if (!sInitialized) Initialize();
@@ -815,15 +819,22 @@ public static class RemoteBoneJobSystem
         float3 tChest = float3.zero;
         float3 tSpine = float3.zero;
         float3 tHips = ToAvatarLocal(hips.position);
-        float3 tEye = ToAvatarLocal(authoredCenterEyeWorld);
-        float3 tMouth = ToAvatarLocal(authoredMouthWorld);
+
+        // The eye/mouth pair stays in the root-local, scale-normalised frame end to end. tposeHead
+        // comes from BasisTransformMapping.TposeFromRoot, which is built with root.worldToLocalMatrix
+        // — the same frame (and the same model metres) the authored eye/mouth Vector2 lives in. The
+        // head-position subtraction above cannot be used for these: it is a world-axes delta, and
+        // feeding it to the head-carried root frame in the job would rotate the offset twice.
+        float3 tposeHeadFromRoot = tposeHead.position;
+        float3 tEye = authoredCenterEyeLocal;
+        float3 tMouth = authoredMouthLocal;
 
         // Compute unscaled offsets
         float3 offNeck = tNeck - tHead;
         float3 offChest = tChest - tNeck;
         float3 offSpine = tSpine - tChest;
-        float3 offEye = tEye - tHead;
-        float3 offMouth = tMouth - tHead;
+        float3 offEye = BasisRemoteBoneMath.HeadAnchorOffset(tEye, tposeHeadFromRoot);
+        float3 offMouth = BasisRemoteBoneMath.HeadAnchorOffset(tMouth, tposeHeadFromRoot);
 
         var a = new TposeAndOffsetDataJob
         {

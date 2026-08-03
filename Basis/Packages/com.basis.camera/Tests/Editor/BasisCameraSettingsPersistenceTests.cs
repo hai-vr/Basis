@@ -136,10 +136,11 @@ namespace Basis.Tests.Camera
             // Adding a field for any of them means a version bump plus a migration entry, because
             // JsonUtility zero-fills what an older file lacks. Delete the line here when that
             // happens; the round-trip test above then covers it automatically.
+            // Lateral Tracking and Detached Marker used to head this list. They were the only two
+            // controls in a Follow section that otherwise persists in full, so they are fields now
+            // (v8) and the round-trip test above covers them.
             string[] fields =
             {
-                "autoFollowLateralTracking", // Follow > Lateral Tracking, back to 0.5 each time.
-                "detachedMarker",            // Follow > Detached Marker, back to Puck.
                 "CloseHidesCamera",          // Output > Close Hides Instead, back to off.
             };
 
@@ -404,6 +405,105 @@ namespace Basis.Tests.Camera
             Assert.That(_rig.CaptureCamera.fieldOfView, Is.EqualTo(50f).Within(1e-3f));
             Assert.That(_rig.DepthOfField.aperture.value,
                 Is.InRange(BasisHandHeldCameraUI.MinAperture, BasisHandHeldCameraUI.MaxAperture));
+        }
+
+        // ---------- controls whose state is owned in two places ----------
+
+        [Test]
+        public void FocusMode_IsWrittenAsAWholeSoTheReadoutCannotContradictTheCamera()
+        {
+            // Two pieces of state say "Auto": currentDepthMode, which the prop's sprites and its
+            // focus slider visibility read, and autoFocusFollowSubject, which is what actually
+            // gates UpdateAutoFocus. The prop's own Auto/Manual buttons used to write only the
+            // first, so Auto lit up over a camera that never focused, and Manual showed the focus
+            // slider while auto-focus went on overwriting it every frame.
+            _rig.UI.SetFocusFollowsSubject(true);
+            Assert.That(_rig.Camera.autoFocusFollowSubject, Is.True);
+            Assert.That(_rig.UI.currentDepthMode, Is.EqualTo(BasisHandHeldCameraUI.DepthMode.Auto));
+
+            _rig.UI.SetFocusFollowsSubject(false);
+            Assert.That(_rig.Camera.autoFocusFollowSubject, Is.False,
+                "Manual has to stop auto-focus driving, not just relabel the readout.");
+            Assert.That(_rig.UI.currentDepthMode, Is.EqualTo(BasisHandHeldCameraUI.DepthMode.Manual));
+        }
+
+        [Test]
+        public void FocusMode_SurvivesTheRoundTripAsOneAnswer()
+        {
+            // useManualFocus and autoFocusFollowSubject are stored separately, so a file can only
+            // describe one focus mode if whatever wrote it kept them in step.
+            _rig.UI.SetFocusFollowsSubject(true);
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+
+            Assert.That(captured.autoFocusFollowSubject, Is.True);
+            Assert.That(captured.useManualFocus, Is.False, "Both halves must agree in the file too.");
+
+            _rig.UI.ApplySettingsForTest(captured);
+            Assert.That(_rig.Camera.autoFocusFollowSubject, Is.True);
+            Assert.That(_rig.UI.currentDepthMode, Is.EqualTo(BasisHandHeldCameraUI.DepthMode.Auto));
+        }
+
+        [Test]
+        public void SetResolutionIndex_MovesThePresetAndTheCameraTogether()
+        {
+            // ChangeResolution alone only writes the pixel dimensions. The index is separate state
+            // and is what a save records, what the prop's sprite strip lights, and where its cycle
+            // button counts on from — the panel dropdown went straight to the camera and left all
+            // three behind, so the choice vanished on the next load.
+            var resolutions = _rig.Camera.MetaData.resolutions;
+            Assert.That(resolutions.Length, Is.GreaterThan(2), "sanity: the rig has presets to pick between");
+
+            _rig.UI.SetResolutionIndex(2);
+
+            Assert.That(_rig.Camera.captureWidth, Is.EqualTo(resolutions[2].width));
+            Assert.That(_rig.Camera.captureHeight, Is.EqualTo(resolutions[2].height));
+            Assert.That(_rig.UI.CreateCurrentCameraSettingsForTest().resolutionIndex, Is.EqualTo(2),
+                "The index the save reads has to follow the dimensions the camera was given.");
+        }
+
+        [Test]
+        public void SetResolutionIndex_IgnoresAnIndexWithNoPreset()
+        {
+            _rig.UI.SetResolutionIndex(1);
+            int width = _rig.Camera.captureWidth;
+
+            _rig.UI.SetResolutionIndex(_rig.Camera.MetaData.resolutions.Length);
+            _rig.UI.SetResolutionIndex(-1);
+
+            Assert.That(_rig.Camera.captureWidth, Is.EqualTo(width),
+                "An out-of-range preset must leave the camera on the one it had.");
+            Assert.That(_rig.UI.CreateCurrentCameraSettingsForTest().resolutionIndex, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void DetachedMarkerAndLateralTracking_ComeBackAfterAReload()
+        {
+            // The two Follow controls that had nowhere to be saved until v8.
+            _rig.Camera.autoFollowLateralTracking = 0.25f;
+            _rig.Camera.SetDetachedMarker(BasisCameraDetachedMarker.Off);
+
+            BasisHandHeldCameraUI.CameraSettings captured = _rig.UI.CreateCurrentCameraSettingsForTest();
+            _rig.UI.ApplySettingsForTest(new BasisHandHeldCameraUI.CameraSettings());
+            _rig.UI.ApplySettingsForTest(captured);
+
+            Assert.That(_rig.Camera.autoFollowLateralTracking, Is.EqualTo(0.25f).Within(1e-3f));
+            Assert.That(_rig.Camera.detachedMarker, Is.EqualTo(BasisCameraDetachedMarker.Off));
+        }
+
+        [Test]
+        public void UpgradingAPreV8File_KeepsFollowTrackingAndTheMarkerOn()
+        {
+            // Both zero-fill to a value that is not merely different but useless: tracking off, and
+            // no marker at all to show where a detached camera went.
+            var legacy = JsonUtility.FromJson<BasisHandHeldCameraUI.CameraSettings>(
+                "{\"settingsVersion\":7,\"autoFollowLateralTracking\":0,\"detachedMarker\":0}");
+
+            BasisHandHeldCameraUI.MigrateSettingsForTest(legacy);
+
+            var defaults = new BasisHandHeldCameraUI.CameraSettings();
+            Assert.That(legacy.autoFollowLateralTracking, Is.EqualTo(defaults.autoFollowLateralTracking).Within(1e-4f));
+            Assert.That(legacy.detachedMarker, Is.EqualTo(defaults.detachedMarker));
+            Assert.That(defaults.detachedMarker, Is.EqualTo((int)BasisCameraDetachedMarker.Puck));
         }
 
         // ---------- helpers ----------

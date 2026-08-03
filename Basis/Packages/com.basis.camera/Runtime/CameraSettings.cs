@@ -13,7 +13,7 @@ public partial class BasisHandHeldCameraUI
         /// at 0/false) differs from their intended default. LoadSettings migrates older files.
         /// v2 added the auto-follow config, capture toggles and MSAA.
         /// </summary>
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
         public int settingsVersion = CurrentVersion;
 
         public CameraSettings()
@@ -32,6 +32,8 @@ public partial class BasisHandHeldCameraUI
             autoFollowPlayspace = true;
             autoFollowLookAtPlayer = true;
             autoFollowLookAtHeightOffset = 0f;
+            autoFollowLateralTracking = 0.5f;
+            detachedMarker = (int)BasisCameraDetachedMarker.Puck;
 
             dofMode = 2;          // Bokeh, matching the authored profile
             dofFocalLength = 50f;
@@ -145,6 +147,15 @@ public partial class BasisHandHeldCameraUI
         public bool autoFollowPlayspace;
         public bool autoFollowLookAtPlayer;
         public float autoFollowLookAtHeightOffset;
+        public float autoFollowLateralTracking;
+
+        /// <summary>
+        /// Which marker shows where the camera has gone while it is detached, as
+        /// <see cref="BasisCameraDetachedMarker"/>. A view preference like the follow framing
+        /// around it, not part of the shot — but it was the only control in the Follow section
+        /// with nowhere to be saved, so it reset to Puck every session.
+        /// </summary>
+        public int detachedMarker;
 
         // Capture-mode toggles.
         public bool capture360;

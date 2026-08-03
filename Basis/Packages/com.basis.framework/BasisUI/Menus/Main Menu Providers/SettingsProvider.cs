@@ -2681,6 +2681,16 @@ namespace Basis.BasisUI
             toggleJiggleGrabGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleGrab.tooltip"));
             toggleJiggleGrabGizmo.AssignBinding(BasisSettingsDefaults.GizmoJiggleGrab);
 
+            PanelToggle toggleHandGripGizmo = PanelToggle.CreateNewEntry(container);
+            toggleHandGripGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.handGrip"));
+            toggleHandGripGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handGrip.tooltip"));
+            toggleHandGripGizmo.AssignBinding(BasisSettingsDefaults.GizmoHandGrip);
+
+            PanelToggle toggleMouthEyeGizmo = PanelToggle.CreateNewEntry(container);
+            toggleMouthEyeGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.mouthEye"));
+            toggleMouthEyeGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.mouthEye.tooltip"));
+            toggleMouthEyeGizmo.AssignBinding(BasisSettingsDefaults.GizmoMouthEye);
+
             PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(container);
             toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));
             toggleAudioRanges.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioRanges.tooltip"));
@@ -3258,6 +3268,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.GizmoInteractionHover.ResetToDefault();
             BasisSettingsDefaults.GizmoFingerTouch.ResetToDefault();
             BasisSettingsDefaults.GizmoSeatTargets.ResetToDefault();
+            BasisSettingsDefaults.GizmoJiggleGrab.ResetToDefault();
+            BasisSettingsDefaults.GizmoHandGrip.ResetToDefault();
+            BasisSettingsDefaults.GizmoMouthEye.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
             BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();

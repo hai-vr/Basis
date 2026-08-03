@@ -64,6 +64,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
     private static string K_GIZMO_FINGER_TOUCH => BasisSettingsDefaults.GizmoFingerTouch.BindingKey;
     private static string K_GIZMO_SEAT_TARGETS => BasisSettingsDefaults.GizmoSeatTargets.BindingKey;
     private static string K_GIZMO_JIGGLE_GRAB => BasisSettingsDefaults.GizmoJiggleGrab.BindingKey;              // "gizmojigglegrab"
+    private static string K_GIZMO_HAND_GRIP => BasisSettingsDefaults.GizmoHandGrip.BindingKey;                  // "gizmohandgrip"
+    private static string K_GIZMO_MOUTH_EYE => BasisSettingsDefaults.GizmoMouthEye.BindingKey;                  // "gizmomoutheye"
 
     // Tracker → sphere gizmo ID. Only role-assigned trackers get a gizmo so the
     // visualization mirrors what's actually driving a body part.
@@ -119,6 +121,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
         BasisNetworkOverviewGizmos.Shutdown();
         BasisPointerRayGizmos.Shutdown();
         BasisHintOffsetGizmos.Shutdown();
+        BasisHandGripGizmos.Shutdown();
+        BasisMouthEyeGizmos.Shutdown();
         base.OnDestroy();
     }
 
@@ -284,6 +288,26 @@ public class SMModuleDebugOptions : BasisSettingsBase
             return;
         }
 
+        if (matchedSettingName == K_GIZMO_HAND_GRIP)
+        {
+            if (bool.TryParse(optionValue, out BasisHandGripGizmos.Show) && !BasisHandGripGizmos.Show)
+            {
+                BasisHandGripGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
+        if (matchedSettingName == K_GIZMO_MOUTH_EYE)
+        {
+            if (bool.TryParse(optionValue, out BasisMouthEyeGizmos.Show) && !BasisMouthEyeGizmos.Show)
+            {
+                BasisMouthEyeGizmos.Shutdown();
+            }
+            RecomputeUseGizmos();
+            return;
+        }
+
         if (matchedSettingName == K_GIZMO_NETWORK_SYNC)
         {
             if (bool.TryParse(optionValue, out BasisSyncGizmos.Show) && !BasisSyncGizmos.Show && !BasisSyncGizmos.ShowBandwidth)
@@ -346,6 +370,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
                 BasisAudioGizmos.ShowLabels = UseGizmoLabels;
                 BasisSyncGizmos.ShowLabels = UseGizmoLabels;
                 BasisJiggleGrabGizmos.ShowLabels = UseGizmoLabels;
+                BasisHandGripGizmos.ShowLabels = UseGizmoLabels;
+                BasisMouthEyeGizmos.ShowLabels = UseGizmoLabels;
                 BasisPlayerNetworkGizmos.ShowLabels = UseGizmoLabels;
                 if (!UseGizmoLabels)
                 {
@@ -379,6 +405,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
             BasisAudioGizmos.ShowListenerCone ||
             BasisAudioGizmos.ShowLevels ||
             BasisJiggleGrabGizmos.Show ||
+            BasisHandGripGizmos.Show ||
+            BasisMouthEyeGizmos.Show ||
             BasisSyncGizmos.Show ||
             BasisSyncGizmos.ShowBandwidth ||
             BasisPlayerNetworkGizmos.Show ||
@@ -540,6 +568,8 @@ public class SMModuleDebugOptions : BasisSettingsBase
         }
 
         BasisJiggleGrabGizmos.Tick(scale);
+        BasisHandGripGizmos.Tick(scale);
+        BasisMouthEyeGizmos.Tick(scale);
         BasisAudioGizmos.Tick(scale);
         BasisSyncGizmos.Tick(scale);
         BasisPlayerNetworkGizmos.Tick(scale);
