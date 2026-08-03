@@ -15,6 +15,7 @@
         "RNNoiseIntergration",
         "Unity.Collections",
         "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.GPUDriven.Runtime",
         "BasisSDK",
         "BasisCommon",
         "Unity.XR.Management",

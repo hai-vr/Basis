@@ -242,6 +242,9 @@ namespace Basis.Scripts.Device_Management
             Basis.BasisUI.BasisTMPFontFallbacks.RefreshJapanesePriority();
             BasisSettingsDefaults.LoadAll();
             Basis.BasisUI.SettingsProvider.ApplyJiggleStartupSettings();
+            // Applied here and nowhere else: the GPU Resident Drawer rebuild this triggers is only
+            // cheap while the loading scene is the whole scene.
+            Basis.Scripts.Rendering.BasisGpuOcclusionCulling.ApplyStartupSetting();
             try
             {
                 await Initialize();
@@ -389,6 +392,14 @@ namespace Basis.Scripts.Device_Management
             if (string.Equals(StaticCurrentMode, newMode, StringComparison.Ordinal))
             {
                 BasisDebug.LogError($"Mode '{newMode}' already active. Call {nameof(StopAllDevices)} first.", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            // Refuse before anything is torn down, so a blocked switch leaves the session exactly
+            // as it was instead of shutting VR down and landing in Desktop with no explanation.
+            if (!CanEnterMode(newMode, out string blockedReason))
+            {
+                BasisXRRuntimeNotice.ReportBlocked(newMode, blockedReason);
                 return;
             }
 
@@ -988,9 +999,49 @@ namespace Basis.Scripts.Device_Management
         /// <summary>
         /// Returns <c>true</c> when the current static mode indicates a VR/XR loader.
         /// </summary>
-        public static bool IsCurrentModeVR() =>
-            string.Equals(StaticCurrentMode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
-            string.Equals(StaticCurrentMode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+        public static bool IsCurrentModeVR() => IsVRMode(StaticCurrentMode);
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="mode"/> names a VR/XR loader.
+        /// </summary>
+        public static bool IsVRMode(string mode) =>
+            string.Equals(mode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
+            string.Equals(mode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+
+        /// <summary>
+        /// Whether <paramref name="mode"/> can be entered right now.
+        /// <para>
+        /// Once one XR plug-in has initialized it owns the graphics device for the rest of the
+        /// process, so the other VR runtime cannot take over without a restart — attempting it
+        /// only tears the working runtime down and lands in Desktop. The mode is refused here
+        /// instead, and the platform panel greys its entry out with <paramref name="blockedReason"/>
+        /// as the hover tooltip so the greyed control explains itself.
+        /// </para>
+        /// The live runtime is read from the XR loader rather than the current mode, so a soft
+        /// swap to Desktop (which deliberately keeps the runtime alive) still blocks the switch.
+        /// </summary>
+        /// <param name="mode">The mode being offered or requested.</param>
+        /// <param name="blockedReason">Localized explanation when the result is <c>false</c>; otherwise null.</param>
+        public static bool CanEnterMode(string mode, out string blockedReason)
+        {
+            blockedReason = null;
+
+            if (!IsVRMode(mode)) return true;
+
+            BasisDeviceManagement inst = Instance;
+            if (inst == null) return true;
+
+            string activeLoader = inst.BasisXRManagement.ActiveLoaderName;
+            if (string.IsNullOrEmpty(activeLoader) || string.Equals(activeLoader, mode, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            blockedReason = BasisLocalization.Get("settings.platform.otherRuntimeLive",
+                BasisXRRuntimeNotice.ModeDisplayName(activeLoader),
+                BasisXRRuntimeNotice.ModeDisplayName(mode));
+            return false;
+        }
 
         #endregion
 

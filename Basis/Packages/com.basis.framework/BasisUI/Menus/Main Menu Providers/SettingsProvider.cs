@@ -1986,6 +1986,58 @@ namespace Basis.BasisUI
             toggleAvatarVisibilityCull.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarVisibilityCull"));
             toggleAvatarVisibilityCull.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarVisibilityCull.tooltip"));
 
+            // Read once, when the GPU Resident Drawer is built at startup — the toggle saves now and
+            // lands on the next launch. Not built at all where the drawer is off (Android, headless).
+            if (BasisGpuOcclusionCulling.IsSupported)
+            {
+                PanelToggle toggleGpuOcclusionCulling = PanelToggle.CreateNewEntry(container);
+                toggleGpuOcclusionCulling.AssignBinding(BasisSettingsDefaults.UseGpuOcclusionCulling);
+                toggleGpuOcclusionCulling.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.tooltip"));
+
+                void SyncGpuOcclusionRestartNotice(bool _)
+                {
+                    toggleGpuOcclusionCulling.Descriptor.SetTitle(BasisGpuOcclusionCulling.NeedsRestart
+                        ? BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.restart")
+                        : BasisLocalization.Get("settings.graphics.gpuOcclusionCulling"));
+                }
+
+                SyncGpuOcclusionRestartNotice(false);
+                BasisSettingsDefaults.UseGpuOcclusionCulling.OnChanged += SyncGpuOcclusionRestartNotice;
+                toggleGpuOcclusionCulling.OnInstanceReleased += () =>
+                    BasisSettingsDefaults.UseGpuOcclusionCulling.OnChanged -= SyncGpuOcclusionRestartNotice;
+
+                // Offered on the control's own change only, so resetting the whole graphics tab
+                // doesn't throw a relaunch prompt. Flipping back to the booted value clears
+                // NeedsRestart and asks nothing.
+                toggleGpuOcclusionCulling.OnValueChanged += _ =>
+                {
+                    if (!BasisGpuOcclusionCulling.NeedsRestart || !BasisAppRelaunch.IsSupported)
+                    {
+                        return;
+                    }
+
+                    if (BasisMainMenu.Instance == null)
+                    {
+                        return;
+                    }
+
+                    if (BasisMainMenu.Instance.Dialogue)
+                    {
+                        BasisMainMenu.Instance.Dialogue.ReleaseInstance();
+                    }
+
+                    BasisMainMenu.Instance.OpenDialogue(
+                        BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.restart.title"),
+                        BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.restart.prompt"),
+                        BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.restart.now"),
+                        BasisLocalization.Get("settings.graphics.gpuOcclusionCulling.restart.later"),
+                        accepted =>
+                        {
+                            if (accepted) BasisAppRelaunch.RebootAndReconnect();
+                        });
+                };
+            }
+
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 container,
                 new PanelSlider.SliderSettings(BasisLocalization.Get("settings.graphics.worldLod"),
@@ -2178,6 +2230,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAvatarSkinLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarShadowLod.ResetToDefault();
             BasisSettingsDefaults.UseAvatarVisibilityCull.ResetToDefault();
+            BasisSettingsDefaults.UseGpuOcclusionCulling.ResetToDefault();
             BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();
             BasisSettingsDefaults.LocalHeadBlendShapes.ResetToDefault();
 

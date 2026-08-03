@@ -689,6 +689,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseAvatarShadowLod = new("useavatarshadowlod", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> UseAvatarVisibilityCull = new("useavatarvisibilitycull", new BasisPlatformDefault<bool>(false));
 
+        // URP's GPU Resident Drawer occlusion test, for world geometry (MeshRenderer only — avatars
+        // are skinned and the drawer never sees them). Read at boot only: the drawer snapshots its
+        // settings when it is built, and rebuilding it re-registers every renderer in the scene, so
+        // changing this mid-session waits for a restart. See BasisGpuOcclusionCulling.
+        public static BasisSettingsBinding<bool> UseGpuOcclusionCulling = new("usegpuocclusionculling", new BasisPlatformDefault<bool>(false));
+
         // Shows the baked far avatar carried in a player's bundle (driven by the same
         // networked bone data) whenever their real avatar isn't loaded — past the max avatar
         // range, mid-download, or platform-missing. When off, those players show the loading
@@ -2078,6 +2084,7 @@ namespace Basis.BasisUI
             UseAvatarSkinLod.LoadBindingValue();
             UseAvatarShadowLod.LoadBindingValue();
             UseAvatarVisibilityCull.LoadBindingValue();
+            UseGpuOcclusionCulling.LoadBindingValue();
             UseAvatarFarLod.LoadBindingValue();
             //AvatarFarLodDistance.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();

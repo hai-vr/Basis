@@ -103,6 +103,8 @@ Material:
     - _AddPrecomputedVelocity: 0
     - _AlphaClip: 0
     - _AlphaToMask: 0
+    - _BgDstBlend: 10
+    - _BgSrcBlend: 5
     - _Blend: 0
     - _BlendFactor: 0.2
     - _BlendModePreserveSpecular: 1

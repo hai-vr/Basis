@@ -81,8 +81,13 @@ namespace Basis.Scripts.Rendering
 
             Vector4 centers = ComputeFovealCenters(cameraData);
             float aspect = (float)camDesc.width / Mathf.Max(1, camDesc.height);
-            float inner = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue;
-            float outer = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue;
+            // The graphics quality level tightens the sharp region rather than writing the
+            // player's sliders — a smaller foveal radius leaves more of the frame at the coarse
+            // shading rate. Clamping here instead of overwriting the setting keeps the slider
+            // showing what the player chose, the same way shadows and HDR clamp themselves.
+            float fovealScale = FovealScaleForTier(BasisQualityTier.Current);
+            float inner = BasisSettingsDefaults.VrsFovealInnerRadius.RawValue * fovealScale;
+            float outer = BasisSettingsDefaults.VrsFovealOuterRadius.RawValue * fovealScale;
 
             RenderTextureDescriptor sriDesc = new RenderTextureDescriptor(tiles.x, tiles.y, ShadingRateInfo.graphicsFormat, GraphicsFormat.None, 0)
             {
@@ -123,6 +128,21 @@ namespace Basis.Scripts.Rendering
             UniversalShadingRateData vrsData = frameData.GetOrCreate<UniversalShadingRateData>();
             vrsData.shadingRateImage = sri;
             vrsData.isValid = true;
+        }
+
+        /// <summary>
+        /// How far the graphics quality level shrinks the foveal radii. Medium and above leave
+        /// the player's sliders alone; the two low tiers pull the sharp region in so more of
+        /// the frame shades at the coarse rate.
+        /// </summary>
+        private static float FovealScaleForTier(int tier)
+        {
+            switch (tier)
+            {
+                case BasisQualityTier.VeryLow: return 0.5f;
+                case BasisQualityTier.Low: return 0.7f;
+                default: return 1f;
+            }
         }
 
         private Vector4 ComputeFovealCenters(UniversalCameraData cameraData)

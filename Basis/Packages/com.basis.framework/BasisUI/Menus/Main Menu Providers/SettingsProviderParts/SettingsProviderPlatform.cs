@@ -70,6 +70,14 @@ public static class SettingsProviderPlatform
                 modeButton.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.switchTo", displayName) + suffix);
                 modeButton.Descriptor.SetTooltip(BasisLocalization.Get("settings.platform.switchTo.tooltip"));
                 modeButton.Descriptor.SetDescription(GetModeDescription(capturedMode));
+
+                // A VR runtime that is already up cannot be handed over to the other one inside
+                // the session, so that entry is greyed out rather than left to fail on click.
+                if (!isActive && !BasisDeviceManagement.CanEnterMode(capturedMode, out string blockedReason))
+                {
+                    modeButton.SetInteractable(false, blockedReason);
+                }
+
                 modeButton.OnClicked += () =>
                 {
                     if (isActive) return;
@@ -108,12 +116,7 @@ public static class SettingsProviderPlatform
 #endif
     }
 
-    private static string GetModeDisplayName(string mode)
-    {
-        if (mode == BasisConstants.OpenVRLoader) return "OpenVR (SteamVR)";
-        if (mode == BasisConstants.OpenXRLoader) return "OpenXR";
-        return mode;
-    }
+    private static string GetModeDisplayName(string mode) => BasisXRRuntimeNotice.ModeDisplayName(mode);
 
     private static string GetModeDescription(string mode)
     {

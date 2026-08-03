@@ -7631,6 +7631,54 @@
       "value": "Shutdown Runtime: full XR restart on swap.\nAuto Swap: automatically swap based on headset presence."
     },
     {
+      "key": "settings.platform.mode.desktop",
+      "value": "Desktop"
+    },
+    {
+      "key": "settings.platform.mode.openvr",
+      "value": "OpenVR (SteamVR)"
+    },
+    {
+      "key": "settings.platform.mode.openxr",
+      "value": "OpenXR"
+    },
+    {
+      "key": "settings.platform.vrFailed.title",
+      "value": "VR Runtime Unavailable"
+    },
+    {
+      "key": "settings.platform.vrFailed.body",
+      "value": "{0} could not start.\n\n{2}\n\nContinuing in {1}."
+    },
+    {
+      "key": "settings.platform.vrFailed.noRuntime",
+      "value": "No XR runtime accepted the request. The headset software may not be installed, may not be running, or may not support the graphics API this build uses."
+    },
+    {
+      "key": "settings.platform.vrFailed.noPlugin",
+      "value": "This build does not include that XR plug-in."
+    },
+    {
+      "key": "settings.platform.vrFailed.steamvr",
+      "value": "SteamVR did not finish initializing."
+    },
+    {
+      "key": "settings.platform.vrSubstituted.title",
+      "value": "Started A Different VR Runtime"
+    },
+    {
+      "key": "settings.platform.vrSubstituted.body",
+      "value": "{0} could not start, so {1} was started instead.\n\nRestart Basis to try {0} again."
+    },
+    {
+      "key": "settings.platform.vrBlocked.title",
+      "value": "Cannot Switch VR Runtime"
+    },
+    {
+      "key": "settings.platform.otherRuntimeLive",
+      "value": "{0} is already running. Restart Basis to use {1} instead."
+    },
+    {
       "key": "settings.remoteAudio.remotePlayers",
       "value": "Remote Players"
     },
@@ -10049,6 +10097,34 @@
     {
       "key": "settings.graphics.avatarVisibilityCull.tooltip",
       "value": "Skip drawing avatars that no camera can see. Only applies to avatars already far enough away to have their shadows disabled."
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling",
+      "value": "GPU Occlusion Culling"
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.tooltip",
+      "value": "Let the GPU skip world geometry hidden behind other geometry. Trades a little GPU time on the occlusion test for the draws it removes, so it wins in dense worlds and loses in open ones. World meshes only — avatars are not covered. Applies on restart."
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.restart",
+      "value": "GPU Occlusion Culling (restart required)"
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.restart.title",
+      "value": "Restart Required"
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.restart.prompt",
+      "value": "GPU occlusion culling is set up when Basis starts. Restart and reconnect now to apply it?"
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.restart.now",
+      "value": "Restart Now"
+    },
+    {
+      "key": "settings.graphics.gpuOcclusionCulling.restart.later",
+      "value": "Later"
     },
     {
       "key": "settings.microphone.mode.onActivation",

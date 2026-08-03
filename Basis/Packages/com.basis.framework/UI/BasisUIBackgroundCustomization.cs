@@ -1,12 +1,24 @@
+using System;
+using System.Collections.Generic;
 using Basis.BasisUI;
 using Basis.Scripts.Settings;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Basis.Scripts.UI
 {
+    public enum BasisMenuBackgroundTier
+    {
+        Full,
+        Low,
+        VeryLow,
+    }
+
     public static class BasisUIBackgroundCustomization
     {
         private const string BackgroundShaderName = "Basis/UI/Background";
+        private const string LowTierKeyword = "_BASISBG_LOW";
+        private const string VeryLowTierKeyword = "_BASISBG_VERYLOW";
 
         private static readonly int AccentAmountID = Shader.PropertyToID("_BlendFactor");
         private static readonly int AccentFeatherID = Shader.PropertyToID("_AccentFeather");
@@ -22,9 +34,15 @@ namespace Basis.Scripts.UI
         private static readonly int ExposureID = Shader.PropertyToID("_Exposure");
         private static readonly int GrainID = Shader.PropertyToID("_Grain");
         private static readonly int GrainScaleID = Shader.PropertyToID("_GrainScale");
+        private static readonly int SrcBlendID = Shader.PropertyToID("_BgSrcBlend");
+        private static readonly int DstBlendID = Shader.PropertyToID("_BgDstBlend");
+
+        private static readonly List<BasisImageBackground> _backgrounds = new List<BasisImageBackground>();
 
         private static Material _runtimeMaterial;
         private static Color _defaultCursorGlowColor = Color.white;
+
+        public static BasisMenuBackgroundTier ActiveTier { get; private set; } = BasisMenuBackgroundTier.Full;
 
         [RuntimeInitializeOnLoadMethod]
         private static void Initialize()
@@ -44,10 +62,6 @@ namespace Basis.Scripts.UI
             {
                 return;
             }
-            if (current == _runtimeMaterial)
-            {
-                return;
-            }
 
             if (_runtimeMaterial == null)
             {
@@ -57,10 +71,65 @@ namespace Basis.Scripts.UI
                     name = current.name + " (Runtime)",
                     hideFlags = HideFlags.HideAndDontSave,
                 };
-                Apply();
             }
 
             background.material = _runtimeMaterial;
+
+            if (!_backgrounds.Contains(background))
+            {
+                _backgrounds.Add(background);
+            }
+
+            Apply();
+        }
+
+        private static Material ResolveRendered(int index)
+        {
+            BasisImageBackground background = _backgrounds[index];
+            if (background == null)
+            {
+                _backgrounds.RemoveAt(index);
+                return null;
+            }
+
+            Material rendered = background.materialForRendering;
+            return rendered == _runtimeMaterial ? null : rendered;
+        }
+
+        private static void SetFloatEverywhere(int propertyID, float value)
+        {
+            if (_runtimeMaterial == null)
+            {
+                return;
+            }
+
+            _runtimeMaterial.SetFloat(propertyID, value);
+            for (int i = _backgrounds.Count - 1; i >= 0; i--)
+            {
+                Material rendered = ResolveRendered(i);
+                if (rendered != null)
+                {
+                    rendered.SetFloat(propertyID, value);
+                }
+            }
+        }
+
+        private static void SetColorEverywhere(int propertyID, Color value)
+        {
+            if (_runtimeMaterial == null)
+            {
+                return;
+            }
+
+            _runtimeMaterial.SetColor(propertyID, value);
+            for (int i = _backgrounds.Count - 1; i >= 0; i--)
+            {
+                Material rendered = ResolveRendered(i);
+                if (rendered != null)
+                {
+                    rendered.SetColor(propertyID, value);
+                }
+            }
         }
 
         public static void Apply()
@@ -70,22 +139,77 @@ namespace Basis.Scripts.UI
                 return;
             }
 
-            _runtimeMaterial.SetFloat(AccentAmountID, BasisSettingsDefaults.MenuBGAccentAmount.RawValue);
-            _runtimeMaterial.SetFloat(AccentFeatherID, BasisSettingsDefaults.MenuBGAccentFeather.RawValue);
-            _runtimeMaterial.SetFloat(AccentSoftnessID, BasisSettingsDefaults.MenuBGAccentSoftness.RawValue);
-            _runtimeMaterial.SetFloat(BrandGradientID, BasisSettingsDefaults.MenuBGBrandGradient.RawValue);
-            _runtimeMaterial.SetFloat(GradientCycleID, BasisSettingsDefaults.MenuBGGradientCycle.RawValue);
-            _runtimeMaterial.SetFloat(AnimationSpeedID, BasisSettingsDefaults.MenuBGAnimationSpeed.RawValue);
-            _runtimeMaterial.SetFloat(SheenID, BasisSettingsDefaults.MenuBGSheen.RawValue);
-            _runtimeMaterial.SetFloat(CursorGlowID, BasisSettingsDefaults.MenuBGCursorGlow.RawValue);
-            _runtimeMaterial.SetFloat(CursorGlowRadiusID, BasisSettingsDefaults.MenuBGCursorGlowRadius.RawValue);
-            _runtimeMaterial.SetFloat(VignetteID, BasisSettingsDefaults.MenuBGVignette.RawValue);
-            _runtimeMaterial.SetFloat(ExposureID, BasisSettingsDefaults.MenuBGExposure.RawValue);
-            _runtimeMaterial.SetFloat(GrainID, BasisSettingsDefaults.MenuBGGrain.RawValue);
-            _runtimeMaterial.SetFloat(GrainScaleID, BasisSettingsDefaults.MenuBGGrainScale.RawValue);
+            ApplySettingsTo(_runtimeMaterial);
+            for (int i = _backgrounds.Count - 1; i >= 0; i--)
+            {
+                Material rendered = ResolveRendered(i);
+                if (rendered != null)
+                {
+                    ApplySettingsTo(rendered);
+                }
+            }
+        }
+
+        private static void ApplySettingsTo(Material material)
+        {
+            material.SetFloat(AccentAmountID, BasisSettingsDefaults.MenuBGAccentAmount.RawValue);
+            material.SetFloat(AccentFeatherID, BasisSettingsDefaults.MenuBGAccentFeather.RawValue);
+            material.SetFloat(AccentSoftnessID, BasisSettingsDefaults.MenuBGAccentSoftness.RawValue);
+            material.SetFloat(BrandGradientID, BasisSettingsDefaults.MenuBGBrandGradient.RawValue);
+            material.SetFloat(GradientCycleID, BasisSettingsDefaults.MenuBGGradientCycle.RawValue);
+            material.SetFloat(AnimationSpeedID, BasisSettingsDefaults.MenuBGAnimationSpeed.RawValue);
+            material.SetFloat(SheenID, BasisSettingsDefaults.MenuBGSheen.RawValue);
+            material.SetFloat(CursorGlowID, BasisSettingsDefaults.MenuBGCursorGlow.RawValue);
+            material.SetFloat(CursorGlowRadiusID, BasisSettingsDefaults.MenuBGCursorGlowRadius.RawValue);
+            material.SetFloat(VignetteID, BasisSettingsDefaults.MenuBGVignette.RawValue);
+            material.SetFloat(ExposureID, BasisSettingsDefaults.MenuBGExposure.RawValue);
+            material.SetFloat(GrainID, BasisSettingsDefaults.MenuBGGrain.RawValue);
+            material.SetFloat(GrainScaleID, BasisSettingsDefaults.MenuBGGrainScale.RawValue);
 
             Color? glow = ParseColor(BasisSettingsDefaults.MenuBGCursorGlowColor.RawValue);
-            _runtimeMaterial.SetColor(CursorGlowColorID, glow ?? _defaultCursorGlowColor);
+            material.SetColor(CursorGlowColorID, glow ?? _defaultCursorGlowColor);
+
+            ApplyQualityTier(material);
+        }
+
+        public static BasisMenuBackgroundTier ResolveTier(string qualityLevel)
+        {
+            if (string.IsNullOrEmpty(qualityLevel))
+            {
+                return BasisMenuBackgroundTier.Full;
+            }
+            if (string.Equals(qualityLevel, "Very Low", StringComparison.OrdinalIgnoreCase))
+            {
+                return BasisMenuBackgroundTier.VeryLow;
+            }
+            if (string.Equals(qualityLevel, "Low", StringComparison.OrdinalIgnoreCase))
+            {
+                return BasisMenuBackgroundTier.Low;
+            }
+            return BasisMenuBackgroundTier.Full;
+        }
+
+        private static void ApplyQualityTier(Material material)
+        {
+            BasisMenuBackgroundTier tier = ResolveTier(BasisSettingsDefaults.QualityLevel.RawValue);
+            ActiveTier = tier;
+
+            material.DisableKeyword(LowTierKeyword);
+            material.DisableKeyword(VeryLowTierKeyword);
+
+            switch (tier)
+            {
+                case BasisMenuBackgroundTier.VeryLow:
+                    material.EnableKeyword(VeryLowTierKeyword);
+                    break;
+                case BasisMenuBackgroundTier.Low:
+                    material.EnableKeyword(LowTierKeyword);
+                    break;
+            }
+
+            bool opaque = tier != BasisMenuBackgroundTier.Full;
+            material.SetFloat(SrcBlendID, (float)(opaque ? BlendMode.One : BlendMode.SrcAlpha));
+            material.SetFloat(DstBlendID, (float)(opaque ? BlendMode.Zero : BlendMode.OneMinusSrcAlpha));
         }
 
         public static void PreviewAccentAmount(float value) => Preview(AccentAmountID, value);
@@ -116,11 +240,7 @@ namespace Basis.Scripts.UI
 
         public static void PreviewCursorGlowColor(Color? color)
         {
-            if (_runtimeMaterial == null)
-            {
-                return;
-            }
-            _runtimeMaterial.SetColor(CursorGlowColorID, color ?? _defaultCursorGlowColor);
+            SetColorEverywhere(CursorGlowColorID, color ?? _defaultCursorGlowColor);
         }
 
         public static readonly Color DefaultCursorGlowSwatch = new Color(0.62f, 0.216f, 0.341f, 1f);
@@ -140,11 +260,7 @@ namespace Basis.Scripts.UI
 
         private static void Preview(int propertyID, float value)
         {
-            if (_runtimeMaterial == null)
-            {
-                return;
-            }
-            _runtimeMaterial.SetFloat(propertyID, value);
+            SetFloatEverywhere(propertyID, value);
         }
     }
 }

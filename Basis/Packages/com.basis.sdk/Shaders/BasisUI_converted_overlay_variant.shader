@@ -23,6 +23,8 @@ Shader "Basis/UI/Background"
         _Grain("Grain", Range(0, 16)) = 3
         _GrainScale("Grain Scale", Range(64, 4096)) = 900
         [Enum(UnityEngine.Rendering.CullMode)] _CullMode("Cull Mode", Int) = 0
+        [HideInInspector][Enum(UnityEngine.Rendering.BlendMode)]_BgSrcBlend("Src Blend", Int) = 5
+        [HideInInspector][Enum(UnityEngine.Rendering.BlendMode)]_BgDstBlend("Dst Blend", Int) = 10
         [HideInInspector][NoScaleOffset]_MainTex("MainTex", 2D) = "white" {}
         [HideInInspector]_StencilComp("Stencil Comparison", Float) = 8
         [HideInInspector]_Stencil("Stencil ID", Float) = 0
@@ -74,7 +76,7 @@ Shader "Basis/UI/Background"
             Fog { Mode Off }
             ZWrite Off
             ZTest Always
-            Blend SrcAlpha OneMinusSrcAlpha
+            Blend [_BgSrcBlend] [_BgDstBlend]
             ColorMask [_ColorMask]
 
             // Debug
@@ -93,6 +95,7 @@ Shader "Basis/UI/Background"
             // Keywords
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
         #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
+        #pragma multi_compile_local_fragment _ _BASISBG_LOW _BASISBG_VERYLOW
             // GraphKeywords: <None>
 
             #define CANVAS_SHADERGRAPH
@@ -371,18 +374,40 @@ Shader "Basis/UI/Background"
             float time = IN.TimeParameters.x * _TimeScale;
 
             UnityTexture2D baseTex = UnityBuildTexture2DStruct(_BaseTex);
+            float3 bed = SAMPLE_TEXTURE2D(baseTex.tex, baseTex.samplerstate, baseTex.GetTransformedUV(uv)).rgb;
+
+            float sweep = 0.5 - 0.5 * cos(time * TWO_PI / max(_GradientCycle, 0.01));
+            float axis = saturate((uv.x + uv.y) * 0.5);
+            float rampK = saturate(axis * 0.7 + sweep * 0.3);
+
+            float3 color = bed;
+
+        #if defined(_BASISBG_VERYLOW)
+
+            float wash = BasisFeather(uv, _AccentFeather) * saturate(_BlendFactor * 2.0);
+            color = BasisScreen(color, BasisBrandRamp(rampK) * (wash * _GradientStrength));
+
+        #elif defined(_BASISBG_LOW)
+
+            UnityTexture2D accentTex1 = UnityBuildTexture2DStruct(_AccentTex1);
+            float2 texUV1 = accentTex1.GetTransformedUV(uv);
+            float4 accent1 = SAMPLE_TEXTURE2D(accentTex1.tex, accentTex1.samplerstate, texUV1);
+
+            float mask1 = pow(saturate(accent1.a) * BasisFeather(texUV1, _AccentFeather), _AccentSoftness) * saturate(_BlendFactor * 1.5);
+            float3 tint1 = lerp(accent1.rgb, BasisBrandRamp(BasisTriangle(rampK + 0.15)), _GradientStrength);
+            color = BasisScreen(color, tint1 * mask1);
+
+            float wash = BasisFeather(uv, _AccentFeather) * _BlendFactor;
+            color = BasisScreen(color, BasisBrandRamp(BasisTriangle(rampK + 0.65)) * (wash * _GradientStrength));
+
+        #else
+
             UnityTexture2D accentTex1 = UnityBuildTexture2DStruct(_AccentTex1);
             UnityTexture2D accentTex2 = UnityBuildTexture2DStruct(_AccentTex2);
             UnityTexture2D accentTex3 = UnityBuildTexture2DStruct(_AccentTex3);
 
             float3 cursorViewSpace = TransformWorldToView(_CursorPos);
             float2 parallax = clamp(cursorViewSpace, -_MaxDistance.xxx, _MaxDistance.xxx).xy;
-
-            float3 bed = SAMPLE_TEXTURE2D(baseTex.tex, baseTex.samplerstate, baseTex.GetTransformedUV(uv)).rgb;
-
-            float sweep = 0.5 - 0.5 * cos(time * TWO_PI / max(_GradientCycle, 0.01));
-            float axis = saturate((uv.x + uv.y) * 0.5);
-            float rampK = saturate(axis * 0.7 + sweep * 0.3);
 
             float2 accentUV1 = uv + parallax * float2(_OffsetMultiples.x, -_OffsetMultiples.x);
             float2 accentUV2 = uv + parallax * float2(_OffsetMultiples.y, -_OffsetMultiples.y);
@@ -404,7 +429,6 @@ Shader "Basis/UI/Background"
             float3 tint2 = lerp(accent2.rgb, BasisBrandRamp(BasisTriangle(rampK + 0.55)), _GradientStrength);
             float3 tint3 = lerp(accent3.rgb, BasisBrandRamp(BasisTriangle(rampK + 0.95)), _GradientStrength);
 
-            float3 color = bed;
             color = BasisScreen(color, tint1 * mask1);
             color = BasisScreen(color, tint2 * mask2);
             color = BasisScreen(color, tint3 * mask3);
@@ -413,17 +437,23 @@ Shader "Basis/UI/Background"
             band = band * band * (3.0 - 2.0 * band);
             color = BasisScreen(color, BasisBrandRamp(rampK) * (band * _SheenStrength));
 
+        #endif
+
+        #if !defined(_BASISBG_VERYLOW)
             float cursorFalloff = saturate(1.0 - distance(IN.WorldSpacePosition, _CursorPos) / max(_CursorGlowRadius, 0.001));
             cursorFalloff = cursorFalloff * cursorFalloff * cursorFalloff;
             color = BasisScreen(color, _CursorGlowColor.rgb * (cursorFalloff * _CursorGlow));
+        #endif
 
             float2 centered = uv - 0.5;
             float vignette = 1.0 - _Vignette * smoothstep(0.12, 0.75, length(centered) * 1.41421356);
             color *= vignette * _Exposure;
 
+        #if !defined(_BASISBG_LOW) && !defined(_BASISBG_VERYLOW)
             float3 encoded = sqrt(max(color, 0.0));
             encoded += (BasisGradientNoise(uv * _GrainScale) - 0.5) * (_Grain / 255.0);
             color = encoded * encoded;
+        #endif
 
             surface.BaseColor = color;
             surface.Alpha = 1.0;

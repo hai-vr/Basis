@@ -555,7 +555,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             else
             {
                 BasisDebug.Log("SteamVR SDK failed falling back.");
-              await  BasisDeviceManagement.Instance.SwitchSetModeToDefault();
+                await BasisDeviceManagement.Instance.SwitchSetModeToDefault();
+                // Reported after the switch so the notice can name the mode actually landed in,
+                // rather than guessing at what the default resolves to on this platform.
+                BasisXRRuntimeNotice.ReportFallback(BasisConstants.OpenVRLoader,
+                    BasisDeviceManagement.StaticCurrentMode,
+                    Basis.BasisUI.BasisLocalization.Get("settings.platform.vrFailed.steamvr"));
             }
         }
         /*
