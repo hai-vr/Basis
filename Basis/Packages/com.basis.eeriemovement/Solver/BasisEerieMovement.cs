@@ -215,6 +215,7 @@ namespace Basis.IK
 
         public void ProcessAnimation(BasisPoseStream stream)
         {
+            stream.InvalidateWorldCache();
             CaptureCalibrationOffsets();
             sMarkerSpinePass.Begin();
             SolveSpinePass(stream);

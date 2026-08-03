@@ -612,7 +612,61 @@ namespace Basis.Scripts.Drivers
             if (FaceMesh != null)
             {
                 FaceMesh.shadowCastingMode = ShadowCastingMode.Off;
-                EnsureShadowOnlyClone(FaceMesh, layer);
+                _shadowCloneSource = FaceMesh;
+                _shadowCloneLayer = layer;
+
+                if (LocalShadowCloneAllowed)
+                {
+                    EnsureShadowOnlyClone(FaceMesh, layer);
+                }
+            }
+            else
+            {
+                _shadowCloneSource = null;
+            }
+        }
+
+        /// <summary>
+        /// Source mesh and layer the shadow-only clone was last built from, kept so the clone can
+        /// be rebuilt when the graphics quality level moves without waiting for an avatar reload.
+        /// </summary>
+        private static SkinnedMeshRenderer _shadowCloneSource;
+        private static int _shadowCloneLayer;
+
+        /// <summary>
+        /// Whether the local head's shadow-only clone is worth its cost at the current quality
+        /// level. The clone is a second skinned mesh drawn into every shadow cascade every frame,
+        /// for one player, purely so the local head casts a shadow while its real mesh stays
+        /// hidden from the owner's view. Very Low drops it; Low and above keep it.
+        /// </summary>
+        public static bool LocalShadowCloneAllowed => BasisQualityTier.Current > BasisQualityTier.VeryLow;
+
+        /// <summary>
+        /// Adds or removes the local shadow-only clone to match the current quality level. Called
+        /// when the graphics quality level changes, so the change lands immediately rather than on
+        /// the next avatar load.
+        /// </summary>
+        public static void ApplyLocalShadowCloneTier()
+        {
+            bool wanted = LocalShadowCloneAllowed;
+            bool present = ShadowCloneSyncs.Count > 0;
+
+            if (wanted == present)
+            {
+                return;
+            }
+
+            if (!wanted)
+            {
+                RemoveOldShadowClones();
+                return;
+            }
+
+            // Unity's overloaded null check also covers the source being destroyed by an avatar
+            // swap since it was captured.
+            if (_shadowCloneSource != null)
+            {
+                EnsureShadowOnlyClone(_shadowCloneSource, _shadowCloneLayer);
             }
         }
         /// <summary>

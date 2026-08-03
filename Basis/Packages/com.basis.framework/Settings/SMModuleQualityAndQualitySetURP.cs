@@ -178,6 +178,9 @@ namespace BattlePhaze.SettingsManager.Integrations
             // that was just picked. See BasisQualityTier.
             SMModuleShadowQualityURP.Apply(BasisSettingsDefaults.ShadowQuality.RawValue);
             SMModuleHDRURP.Apply(BasisSettingsDefaults.HDRSupport.RawValue);
+
+            // Very Low drops the local head's shadow-only clone; Low and above put it back.
+            Basis.Scripts.Drivers.BasisAvatarDriver.ApplyLocalShadowCloneTier();
         }
 
         public override void ChangedSettings() { }

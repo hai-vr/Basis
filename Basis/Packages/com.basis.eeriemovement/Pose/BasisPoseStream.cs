@@ -113,6 +113,16 @@ namespace Basis.IK
         [ReadOnly] public NativeArray<float> BindLength;
         [ReadOnly] public NativeArray<byte> TranslationFree;
 
+        public NativeArray<float3> WorldPositionCache;
+        public NativeArray<quaternion> WorldRotationCache;
+        public NativeArray<float3> WorldScaleCache;
+        /// <summary>
+        /// Per-node generation stamps in [0, Count), with the current generation in [Count]. The
+        /// counter must stay in the array rather than becoming a field: BasisPoseStream is passed
+        /// BY VALUE, so a field bump would die with the copy while an array write is seen by all.
+        /// </summary>
+        public NativeArray<int> WorldCacheStamp;
+
         public float3 AnchorPosition;
         public quaternion AnchorRotation;
         public float3 AnchorScale;
@@ -120,25 +130,61 @@ namespace Basis.IK
         public float deltaTime;
         public int Count;
 
+        public void InvalidateWorldCache()
+        {
+            if (!WorldCacheStamp.IsCreated)
+            {
+                return;
+            }
+            int next = WorldCacheStamp[Count] + 1;
+            WorldCacheStamp[Count] = next != 0 ? next : 1;
+        }
+
         public unsafe void GetWorld(int index, out float3 position, out quaternion rotation, out float3 scale)
         {
+            bool cached = WorldCacheStamp.IsCreated;
+            int generation = cached ? WorldCacheStamp[Count] : 0;
+
             int* chain = stackalloc int[MaxDepth];
             int depth = 0;
-            for (int walk = index; walk >= 0 && depth < MaxDepth; walk = Parent[walk])
+            int walk = index;
+            while (walk >= 0 && depth < MaxDepth)
             {
+                if (cached && WorldCacheStamp[walk] == generation)
+                {
+                    break;
+                }
                 chain[depth++] = walk;
+                walk = Parent[walk];
             }
 
-            position = AnchorPosition;
-            rotation = AnchorRotation;
-            scale = AnchorScale;
+            if (cached && walk >= 0 && depth < MaxDepth)
+            {
+                position = WorldPositionCache[walk];
+                rotation = WorldRotationCache[walk];
+                scale = WorldScaleCache[walk];
+            }
+            else
+            {
+                position = AnchorPosition;
+                rotation = AnchorRotation;
+                scale = AnchorScale;
+            }
 
+            bool store = cached && depth < MaxDepth;
             for (int i = depth - 1; i >= 0; i--)
             {
                 int bone = chain[i];
                 position += math.mul(rotation, LocalPosition[bone] * scale);
                 rotation = math.mul(rotation, LocalRotation[bone]);
                 scale *= LocalScale[bone];
+                if (store)
+                {
+                    WorldPositionCache[bone] = position;
+                    WorldRotationCache[bone] = rotation;
+                    WorldScaleCache[bone] = scale;
+                    WorldCacheStamp[bone] = generation;
+                }
             }
         }
 
@@ -210,6 +256,7 @@ namespace Basis.IK
         {
             GetParentWorld(index, out _, out quaternion parentRotation, out _);
             LocalRotation[index] = SafeNormalize(math.mul(math.inverse(parentRotation), (quaternion)rotation));
+            InvalidateWorldCache();
         }
 
         public void SetWorldPosition(int index, Vector3 position)
@@ -232,6 +279,7 @@ namespace Basis.IK
             }
 
             LocalPosition[index] = local;
+            InvalidateWorldCache();
         }
     }
 }

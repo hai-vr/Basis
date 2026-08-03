@@ -127,11 +127,16 @@ namespace Basis.IK
                 Parent = parent,
                 BindLength = bindLength,
                 TranslationFree = translationFree,
+                WorldPositionCache = new NativeArray<float3>(count, Allocator.Persistent),
+                WorldRotationCache = new NativeArray<quaternion>(count, Allocator.Persistent),
+                WorldScaleCache = new NativeArray<float3>(count, Allocator.Persistent),
+                WorldCacheStamp = new NativeArray<int>(count + 1, Allocator.Persistent),
                 AnchorPosition = float3.zero,
                 AnchorRotation = quaternion.identity,
                 AnchorScale = new float3(1f, 1f, 1f),
                 Count = count,
             };
+            Stream.WorldCacheStamp[count] = 1;
 
             _access = new TransformAccessArray(_ordered);
 
@@ -166,6 +171,7 @@ namespace Basis.IK
                 Stream.LocalRotation[i] = IsSaneRotation(localRotation) ? localRotation : quaternion.identity;
                 Stream.LocalScale[i] = IsFinite(localScale) ? localScale : new float3(1f, 1f, 1f);
             }
+            Stream.InvalidateWorldCache();
         }
 
         static int DepthOf(Transform transform, HashSet<Transform> closure)
@@ -251,6 +257,7 @@ namespace Basis.IK
                 }
                 Stream.LocalPosition[i] = FittedLocalPosition(i);
             }
+            Stream.InvalidateWorldCache();
         }
 
         public void WriteFittedLocalPositions()
@@ -272,6 +279,7 @@ namespace Basis.IK
                     target.localPosition = FittedLocalPosition(bone);
                 }
             }
+            Stream.InvalidateWorldCache();
         }
 
         public float FitScaleOf(int index) => _fitScale.IsCreated && index >= 0 && index < _fitScale.Length ? _fitScale[index] : 1f;
@@ -308,6 +316,7 @@ namespace Basis.IK
             Stream.LocalPosition[0] = position;
             Stream.LocalRotation[0] = rotation;
             Stream.LocalScale[0] = root.localScale;
+            Stream.InvalidateWorldCache();
         }
 
         public BasisBoneHandle Bind(Transform bone)
@@ -326,12 +335,14 @@ namespace Basis.IK
                 Stream.AnchorPosition = float3.zero;
                 Stream.AnchorRotation = quaternion.identity;
                 Stream.AnchorScale = new float3(1f, 1f, 1f);
+                Stream.InvalidateWorldCache();
                 return;
             }
             _anchor.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
             Stream.AnchorPosition = position;
             Stream.AnchorRotation = rotation;
             Stream.AnchorScale = _anchor.lossyScale;
+            Stream.InvalidateWorldCache();
         }
 
         /// <summary>
@@ -363,6 +374,7 @@ namespace Basis.IK
                     Stream.LocalRotation[i] = rotation;
                     Stream.LocalScale[i] = bone.localScale;
                 }
+                Stream.InvalidateWorldCache();
                 return;
             }
             new BasisPoseGatherJob
@@ -371,6 +383,7 @@ namespace Basis.IK
                 LocalRotation = Stream.LocalRotation,
                 LocalScale = Stream.LocalScale,
             }.RunReadOnly(_access);
+            Stream.InvalidateWorldCache();
         }
 
         /// <summary>
@@ -462,6 +475,22 @@ namespace Basis.IK
             if (Stream.TranslationFree.IsCreated)
             {
                 Stream.TranslationFree.Dispose();
+            }
+            if (Stream.WorldPositionCache.IsCreated)
+            {
+                Stream.WorldPositionCache.Dispose();
+            }
+            if (Stream.WorldRotationCache.IsCreated)
+            {
+                Stream.WorldRotationCache.Dispose();
+            }
+            if (Stream.WorldScaleCache.IsCreated)
+            {
+                Stream.WorldScaleCache.Dispose();
+            }
+            if (Stream.WorldCacheStamp.IsCreated)
+            {
+                Stream.WorldCacheStamp.Dispose();
             }
             Stream = default;
             _ordered = Array.Empty<Transform>();
