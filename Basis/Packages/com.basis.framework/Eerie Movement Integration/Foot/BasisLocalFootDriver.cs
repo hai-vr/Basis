@@ -944,10 +944,12 @@ public partial class BasisLocalFootDriver
         var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
         var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
         var chestCtrl = BasisLocalBoneDriver.ChestControl;
-        bool groundHit = GroundCast(hips.position, -cachedPlayerUp, rayCastRange, 0f, Vector3.Dot(hips.position, cachedPlayerUp), out RaycastHit ch);
+        Vector3 hipsPosition = hips.position;
+        float hipsUpComponent = Vector3.Dot(hipsPosition, cachedPlayerUp);
+        bool groundHit = GroundCast(hipsPosition, -cachedPlayerUp, rayCastRange, 0f, hipsUpComponent, out RaycastHit ch);
         LastGroundHit = groundHit;
         LastGroundUp = groundHit ? Vector3.Dot(ch.point, cachedPlayerUp) : float.NaN;
-        HipsUp = Vector3.Dot(hips.position, cachedPlayerUp);
+        HipsUp = hipsUpComponent;
 
         // ── 1b. Surface conformance probes (the Burst sim job cannot raycast) ──
         // Consumes the batch scheduled at the END of last frame, so the rays themselves cost the main thread
@@ -959,17 +961,18 @@ public partial class BasisLocalFootDriver
         }
 
         // ── 2. Pack input (write in place; no job is in flight here) ──
+        Quaternion avatarRotation = avatarTransform.rotation;
         ref BasisFootSimInput inputSlot = ref UnsafeUtility.ArrayElementAsRef<BasisFootSimInput>(_nativeInput.GetUnsafePtr(), 0);
         inputSlot = new BasisFootSimInput
         {
             dt = dt,
             headPos = headData.position,
-            hipsPos = hips.position,
+            hipsPos = hipsPosition,
             hipsRot = hipsData.rotation,
             chestRot = chestCtrl.OutgoingWorldData.rotation,
             headRot = headData.rotation,
-            avatarForward = avatarTransform.forward,
-            avatarRight = avatarTransform.right,
+            avatarForward = avatarRotation * Vector3.forward,
+            avatarRight = avatarRotation * Vector3.right,
             hasChest = chestCtrl != null,
             groundHit = groundHit,
             groundPoint = groundHit ? (float3)ch.point : float3.zero,
@@ -1226,6 +1229,7 @@ public partial class BasisLocalFootDriver
 
         _probeHandle = RaycastCommand.ScheduleBatch(_probeCommands, _probeResults, k_ProbeRays, k_ProbeMaxHits);
         _probePending = true;
+        JobHandle.ScheduleBatchedJobs();
     }
 
     private unsafe void ApplySurfaceProbes(float dt)

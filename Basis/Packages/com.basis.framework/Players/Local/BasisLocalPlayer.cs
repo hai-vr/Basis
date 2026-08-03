@@ -561,6 +561,7 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }
+        static readonly ProfilerMarker sMarkerLocoPoseSchedule = new ProfilerMarker("BasisDriver.LocalPlayer.LocoPoseSchedule");
         static readonly ProfilerMarker sMarkerMovement = new ProfilerMarker("BasisDriver.LocalPlayer.Movement");
         static readonly ProfilerMarker sMarkerPlayspaceMover = new ProfilerMarker("BasisDriver.LocalPlayer.PlayspaceMover");
         static readonly ProfilerMarker sMarkerVirtualData = new ProfilerMarker("BasisDriver.LocalPlayer.VirtualData");
@@ -575,7 +576,10 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             // Kick the locomotion pose job first: when active it fills the IK stream on a worker
             // while everything below runs, and is joined inside SimulateIKDestinations.
-            LocalRigDriver.ScheduleLocomotionPose(this, DeltaTime);
+            using (sMarkerLocoPoseSchedule.Auto())
+            {
+                LocalRigDriver.ScheduleLocomotionPose(this, DeltaTime);
+            }
 
             // now lets move the local player position.
             using (sMarkerMovement.Auto())

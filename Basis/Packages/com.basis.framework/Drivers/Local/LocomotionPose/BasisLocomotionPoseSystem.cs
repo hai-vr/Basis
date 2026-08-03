@@ -66,6 +66,10 @@ namespace Basis.Scripts.Drivers
         JobHandle _handle;
         bool _scheduled;
 
+        static readonly Unity.Profiling.ProfilerMarker sMarkerLocoGate = new Unity.Profiling.ProfilerMarker("BasisDriver.LocoPose.Gate");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerLocoGraphStep = new Unity.Profiling.ProfilerMarker("BasisDriver.LocoPose.GraphStep");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerLocoDispatch = new Unity.Profiling.ProfilerMarker("BasisDriver.LocoPose.Dispatch");
+
         public void NotifyLanding()
         {
             _landingLatch = true;
@@ -94,52 +98,57 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Schedule(BasisLocalRigDriver rig, Animator animator, in BasisLocoParams frameParams, float deltaTime)
         {
-            bool rigReady = rig != null && rig.IKDataReady && rig.IKJobCreated && rig.RigLayerActive && rig.PoseSkeleton.IsCreated;
-            bool graphValid = rigReady && rig.PlayableGraph.IsValid();
-            bool tposeLike = BasisLocalAvatarDriver.CurrentlyTposing || BasisLocalAvatarDriver.SavedruntimeAnimatorController != null;
-            bool stock = IsStockController(animator);
-
-            // Lazy bake kickoff: a Start failure leaves the failed baker in place, which blocks retries
-            // until the next rig build.
-            if (JobDrivenLocomotionPose && stock && rigReady && _bake == null && _baker == null)
+            bool frozen;
+            bool fastActive;
+            using (sMarkerLocoGate.Auto())
             {
-                _baker = new BasisLocomotionPoseBaker();
-                _baker.Start(animator, sStockController, rig.PoseSkeleton.DebugNodes, rig.basisTransformMapping.Hips);
-            }
+                bool rigReady = rig != null && rig.IKDataReady && rig.IKJobCreated && rig.RigLayerActive && rig.PoseSkeleton.IsCreated;
+                bool graphValid = rigReady && rig.PlayableGraph.IsValid();
+                bool tposeLike = BasisLocalAvatarDriver.CurrentlyTposing || BasisLocalAvatarDriver.SavedruntimeAnimatorController != null;
+                bool stock = IsStockController(animator);
 
-            if (_baker != null && !_baker.Failed)
-            {
-                if (!_baker.Tick() && _baker.Done)
+                // Lazy bake kickoff: a Start failure leaves the failed baker in place, which blocks retries
+                // until the next rig build.
+                if (JobDrivenLocomotionPose && stock && rigReady && _bake == null && _baker == null)
                 {
-                    _bake = _baker.TakeBake();
-                    EnsureRuntimeArrays();
-                    _baker.Dispose();
-                    _baker = null;
+                    _baker = new BasisLocomotionPoseBaker();
+                    _baker.Start(animator, sStockController, rig.PoseSkeleton.DebugNodes, rig.basisTransformMapping.Hips);
                 }
-            }
 
-            bool fbtConditions = FreezeAnimatorInFullFBT && stock && !tposeLike
-                && BasisAvatarIKStageCalibration.HasLegFBIKTrackers
-                && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue;
-            _freezeArmTimer = fbtConditions ? _freezeArmTimer + deltaTime : 0f;
-            bool frozen = fbtConditions && _freezeArmTimer >= FreezeArmSeconds;
-
-            bool fastActive = JobDrivenLocomotionPose && stock && !tposeLike && rigReady && graphValid
-                && _bake != null && _bake.Ready;
-
-            bool suppress = graphValid && (fastActive || (stock && frozen));
-            EngineAnimatorSuppressed = suppress;
-            if (graphValid && suppress != _graphStopped)
-            {
-                if (suppress)
+                if (_baker != null && !_baker.Failed)
                 {
-                    rig.PlayableGraph.Stop();
+                    if (!_baker.Tick() && _baker.Done)
+                    {
+                        _bake = _baker.TakeBake();
+                        EnsureRuntimeArrays();
+                        _baker.Dispose();
+                        _baker = null;
+                    }
                 }
-                else
+
+                bool fbtConditions = FreezeAnimatorInFullFBT && stock && !tposeLike
+                    && BasisAvatarIKStageCalibration.HasLegFBIKTrackers
+                    && Basis.BasisUI.BasisSettingsDefaults.DisableAnimationsInFBT.RawValue;
+                _freezeArmTimer = fbtConditions ? _freezeArmTimer + deltaTime : 0f;
+                frozen = fbtConditions && _freezeArmTimer >= FreezeArmSeconds;
+
+                fastActive = JobDrivenLocomotionPose && stock && !tposeLike && rigReady && graphValid
+                    && _bake != null && _bake.Ready;
+
+                bool suppress = graphValid && (fastActive || (stock && frozen));
+                EngineAnimatorSuppressed = suppress;
+                if (graphValid && suppress != _graphStopped)
                 {
-                    rig.PlayableGraph.Play();
+                    if (suppress)
+                    {
+                        rig.PlayableGraph.Stop();
+                    }
+                    else
+                    {
+                        rig.PlayableGraph.Play();
+                    }
+                    _graphStopped = suppress;
                 }
-                _graphStopped = suppress;
             }
 
             if (!fastActive)
@@ -158,6 +167,7 @@ namespace Basis.Scripts.Drivers
 
             if (!frozen || _contributionCount == 0)
             {
+                using var _ = sMarkerLocoGraphStep.Auto();
                 BasisLocoParams stepParams = frameParams;
                 stepParams.LandingTrigger = _landingLatch;
                 _contributionCount = BasisLocomotionGraph.Step(
@@ -175,6 +185,7 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            using var dispatch = sMarkerLocoDispatch.Auto();
             rig.PoseSkeleton.CopyRestPositionsInto(_restPositions);
             var job = new BasisLocomotionPoseJob
             {

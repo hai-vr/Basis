@@ -9,13 +9,20 @@ namespace Basis.IK
     /// </summary>
     public partial struct BasisEerieMovement
     {
+        static readonly Unity.Profiling.ProfilerMarker sMarkerSpineHips = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.HipsPlacement");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerSpineChainPrep = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.ChainPrep");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerSpineSequential = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.SequentialIK");
+        static readonly Unity.Profiling.ProfilerMarker sMarkerSpineLordosis = new Unity.Profiling.ProfilerMarker("BasisEerie.Spine.Lordosis");
+
         // Hips + the chest/neck/head chain, then the anatomy modifiers that act on the spine after it.
         void SolveSpinePass(BasisPoseStream stream)
         {
             SolveSpine(stream);
             if (anatCervicalLordosis)
             {
+                sMarkerSpineLordosis.Begin();
                 ApplyCervicalLordosis(stream);
+                sMarkerSpineLordosis.End();
             }
         }
 
@@ -25,6 +32,7 @@ namespace Basis.IK
             {
                 return;
             }
+            sMarkerSpineHips.Begin();
             // ---- Read targets ----
             Vector3 headTargetPos = targetPositionHead;
             Vector3 hipsTargetPos = targetPositionHips;
@@ -103,8 +111,10 @@ namespace Basis.IK
                 handleHips.SetPosition(stream, hipsTargetPos);
                 handleHips.SetRotation(stream, hipDesired);
             }
+            sMarkerSpineHips.End();
             if (hasChestTracker && handleChest.IsValid(stream))
             {
+                sMarkerSpineChainPrep.Begin();
                 // Neck rotation produced by your spine IK pass – we keep this
                 Quaternion neckRot = handleNeck.IsValid(stream) ? handleNeck.GetRotation(stream) : Quaternion.identity;
 
@@ -124,17 +134,24 @@ namespace Basis.IK
                 DistributeSpineBend(stream, headPos);
                 BiasSpineTowardChest(stream);
                 GuardSpineChain(stream);
+                sMarkerSpineChainPrep.End();
+                sMarkerSpineSequential.Begin();
                 SolveSequentialSpineIK(stream, headPos, headRot);
+                sMarkerSpineSequential.End();
             }
             else if (handleChest.IsValid(stream) && handleNeck.IsValid(stream) && handleHead.IsValid(stream))
             {
                 Vector3 headPos = targetPositionHead;
                 Quaternion headRot = targetRotationHead;
 
+                sMarkerSpineChainPrep.Begin();
                 DistributeSpineBend(stream, headPos);
                 ApplyArmSwingChestFollow(stream);
                 GuardSpineChain(stream);
+                sMarkerSpineChainPrep.End();
+                sMarkerSpineSequential.Begin();
                 SolveSequentialSpineIK(stream, headPos, headRot);
+                sMarkerSpineSequential.End();
             }
         }
         public void SolveSequentialSpineIK(BasisPoseStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
@@ -219,7 +236,7 @@ namespace Basis.IK
             // the chest target is off (weight 0). See SolveChestTarget.
             // ==========================================================================================
             SolveChestTarget(stream, headTargetPos, firstJoint, lastJoint, chainLen, jointSpan,
-                cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone);
+                cervicalTwistKeep, lumbarTwistKeep, ccdUp, ccdRelax, neckCone, chestCone, tolSqr);
 
             chainHeadToSpine[tipIdx].SetRotation(stream, finalHeadRot);
         }
@@ -262,7 +279,7 @@ namespace Basis.IK
         }
         void SolveChestTarget(BasisPoseStream stream, Vector3 headTargetPos, int firstJoint, int lastJoint,
             int chainLen, float jointSpan, float cervicalTwistKeep, float lumbarTwistKeep, Vector3 ccdUp,
-            float ccdRelax, float neckCone, float chestCone)
+            float ccdRelax, float neckCone, float chestCone, float tolSqr)
         {
             // Off (toggle false -> weight 0): return before touching a single bone, so the head-only solve
             // above is the whole story, bit for bit. This is the "same usability" guarantee.
@@ -293,7 +310,19 @@ namespace Basis.IK
             {
                 // 1) rotate the Spine so the Chest bone slides toward its target.
                 Vector3 spinePos = chainHeadToSpine[lastJoint].GetPosition(stream);
-                Vector3 cCur = chainHeadToSpine[chestBoneIdx].GetPosition(stream) - spinePos;
+                Vector3 chestNow = chainHeadToSpine[chestBoneIdx].GetPosition(stream);
+
+                // Phase A already breaks on this exact criterion. Phase B spent its whole iteration
+                // budget regardless, re-solving a chest and a head that were both already inside the
+                // solver's own tolerance. A zero spineTolerance makes this unreachable, which is the
+                // old behaviour exactly.
+                if ((chestTargetPos - chestNow).sqrMagnitude < tolSqr
+                    && (headTargetPos - chainHeadToSpine[0].GetPosition(stream)).sqrMagnitude < tolSqr)
+                {
+                    break;
+                }
+
+                Vector3 cCur = chestNow - spinePos;
                 Vector3 cTgt = chestTargetPos - spinePos;
                 if (cCur.sqrMagnitude > k_SqrEpsilon && cTgt.sqrMagnitude > k_SqrEpsilon)
                 {
