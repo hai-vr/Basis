@@ -12,14 +12,15 @@ namespace Basis.EventDriver
     ///
     /// The pose jobs are scheduled in LateUpdate and completed a few statements later, which leaves
     /// the main thread blocked on them for most of their duration. Nothing reads a jiggled bone in
-    /// between — the consumer is rendering. So the completion is pushed into a PlayerLoop step just
-    /// ahead of the particle system's end-of-frame update, and everything Unity runs in between —
-    /// the rest of LateUpdate, other scripts, canvas and culling work — overlaps the jobs for free,
-    /// without anyone having to find work to move.
+    /// between — the consumer is rendering. So the completion is pushed into a PlayerLoop step
+    /// immediately after the custom render texture update and ahead of UpdateAllRenderers, and
+    /// everything Unity runs in between — the rest of LateUpdate, other scripts, particles, canvas
+    /// and culling work — overlaps the jobs for free, without anyone having to find work to move.
     ///
     /// The deadline is the part to be careful with. Anything that reads a jiggled bone before this
     /// step runs sees the previous frame's pose: no error, just motion one frame stale, which is
-    /// exactly the kind of thing that gets attributed to something else. If that shows up, set
+    /// exactly the kind of thing that gets attributed to something else. Particle and VFX systems
+    /// parented to a jiggled bone are the ones in that window now. If that shows up, set
     /// <see cref="Enabled"/> false and the completion goes back to its original place.
     /// </summary>
     public static class BasisLateJiggleCompletion
@@ -70,14 +71,14 @@ namespace Basis.EventDriver
             }
 
             PlayerLoopSystem root = PlayerLoop.GetCurrentPlayerLoop();
-            if (!InsertBeforeParticles(ref root))
+            if (!InsertAfterCustomRenderTextures(ref root))
             {
                 // Unity reorganised the loop, or the stage is not present in this player. Leaving
                 // the flag clear keeps the driver completing inline, which is correct and only
                 // costs the stall this class exists to remove.
                 Debug.LogWarning(
-                    "Jiggle pose completion could not be deferred: the particle update stage was " +
-                    "not found in the player loop. Completing inline instead.");
+                    "Jiggle pose completion could not be deferred: the custom render texture stage " +
+                    "was not found in the player loop. Completing inline instead.");
                 Enabled = false;
                 return;
             }
@@ -95,10 +96,11 @@ namespace Basis.EventDriver
         }
 
         /// <summary>
-        /// Splices the completion in immediately ahead of the particle system's end-of-frame update,
-        /// which is the first thing in the loop that consumes the posed transforms.
+        /// Splices the completion in immediately after the custom render texture update, which puts
+        /// it ahead of UpdateAllRenderers — the first thing left in the loop that consumes the posed
+        /// transforms — and behind everything else Unity can overlap the jobs with.
         /// </summary>
-        private static bool InsertBeforeParticles(ref PlayerLoopSystem system)
+        private static bool InsertAfterCustomRenderTextures(ref PlayerLoopSystem system)
         {
             if (system.subSystemList == null)
             {
@@ -107,24 +109,25 @@ namespace Basis.EventDriver
 
             for (int Index = 0; Index < system.subSystemList.Length; Index++)
             {
-                if (system.subSystemList[Index].type == typeof(PostLateUpdate.ParticleSystemEndUpdateAll))
+                if (system.subSystemList[Index].type == typeof(PostLateUpdate.UpdateCustomRenderTextures))
                 {
+                    int Insert = Index + 1;
                     PlayerLoopSystem[] replacement = new PlayerLoopSystem[system.subSystemList.Length + 1];
-                    Array.Copy(system.subSystemList, replacement, Index);
-                    replacement[Index] = new PlayerLoopSystem
+                    Array.Copy(system.subSystemList, replacement, Insert);
+                    replacement[Insert] = new PlayerLoopSystem
                     {
                         type = typeof(BasisJiggleCompleteStep),
                         updateDelegate = CompleteIfPending,
                     };
                     Array.Copy(
-                        system.subSystemList, Index, replacement, Index + 1,
-                        system.subSystemList.Length - Index);
+                        system.subSystemList, Insert, replacement, Insert + 1,
+                        system.subSystemList.Length - Insert);
                     system.subSystemList = replacement;
                     return true;
                 }
 
                 PlayerLoopSystem child = system.subSystemList[Index];
-                if (InsertBeforeParticles(ref child))
+                if (InsertAfterCustomRenderTextures(ref child))
                 {
                     system.subSystemList[Index] = child;
                     return true;

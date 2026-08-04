@@ -128,21 +128,21 @@ public class BasisLocalEyeDriver
 #endif
 
     // ─── Job-side scratch for SelectGazeTarget ───
-    // Inputs are filled per-frame on the main thread (managed reads of
-    // FaceIsVisible / transform.position can't run in Burst). The Burst job
-    // then scores everything in one pass and writes a single result struct.
-    private static NativeArray<int> _jobPlayerSOutIdx;
-    private static NativeArray<int> _jobPlayerIds;
+    // Only BasisGazeTarget inputs are gathered on the main thread now — those are
+    // MonoBehaviours whose focus point can be a Transform read, which Burst can't do.
+    // Remote players are read straight out of the bone system's SoA by the job (slot →
+    // player ID via the reverse key map, visibility via the native mirror), so the
+    // gather no longer scales with player count.
     private static NativeArray<float3> _jobTargetFocus;
     private static NativeArray<float> _jobTargetPriority;
     private static NativeArray<byte> _jobTargetIsCurrent;
     private static NativeArray<GazeJobResult> _jobResult;
-    // Used when RemoteBoneJobSystem hasn't initialized yet so the IJob's
-    // [ReadOnly] frame array still passes safety validation. The job loop
-    // never reads from it because playerSlots stays 0 in that state.
+    // Used when RemoteBoneJobSystem hasn't initialized yet so the IJob's [ReadOnly]
+    // arrays still pass safety validation. The job loop never reads from them because
+    // playerSlots stays 0 in that state.
     private static NativeArray<RemoteFrameOutput> _jobFramesPlaceholder;
+    private static NativeArray<int> _jobKeysPlaceholder;
     private static BasisGazeTarget[] _jobTargetManagedRefs;
-    private static int _jobPlayerCapacity;
     private static int _jobTargetCapacity;
 
     /// <summary>Output of <see cref="BasisGazeSelectionJob"/>; consumed by the post-pass.</summary>
@@ -180,9 +180,9 @@ public class BasisLocalEyeDriver
 
         _jobResult = new NativeArray<GazeJobResult>(1, Allocator.Persistent);
         _jobFramesPlaceholder = new NativeArray<RemoteFrameOutput>(1, Allocator.Persistent);
-        _jobPlayerCapacity = 0;
+        _jobKeysPlaceholder = new NativeArray<int>(1, Allocator.Persistent);
         _jobTargetCapacity = 0;
-        EnsureJobCapacity(64, 8);
+        EnsureJobCapacity(8);
 
         _eyeTransforms = new TransformAccessArray(2);
         _eyeTransforms.Add(leftEyeTransform);
@@ -229,31 +229,20 @@ public class BasisLocalEyeDriver
 
         if (_jobResult.IsCreated) _jobResult.Dispose();
         if (_jobFramesPlaceholder.IsCreated) _jobFramesPlaceholder.Dispose();
-        if (_jobPlayerSOutIdx.IsCreated) _jobPlayerSOutIdx.Dispose();
-        if (_jobPlayerIds.IsCreated) _jobPlayerIds.Dispose();
+        if (_jobKeysPlaceholder.IsCreated) _jobKeysPlaceholder.Dispose();
         if (_jobTargetFocus.IsCreated) _jobTargetFocus.Dispose();
         if (_jobTargetPriority.IsCreated) _jobTargetPriority.Dispose();
         if (_jobTargetIsCurrent.IsCreated) _jobTargetIsCurrent.Dispose();
         _jobTargetManagedRefs = null;
-        _jobPlayerCapacity = 0;
         _jobTargetCapacity = 0;
     }
 
     /// <summary>
-    /// Grows the persistent NativeArrays backing the gaze selection job to fit the
-    /// current receiver/target counts. Doubles on growth so steady-state is alloc-free.
+    /// Grows the persistent NativeArrays backing the gaze selection job to fit the current
+    /// gaze target count. Doubles on growth so steady-state is alloc-free.
     /// </summary>
-    private static void EnsureJobCapacity(int playerNeeded, int targetNeeded)
+    private static void EnsureJobCapacity(int targetNeeded)
     {
-        if (playerNeeded > _jobPlayerCapacity)
-        {
-            int cap = math.max(playerNeeded, math.max(_jobPlayerCapacity * 2, 64));
-            if (_jobPlayerSOutIdx.IsCreated) _jobPlayerSOutIdx.Dispose();
-            if (_jobPlayerIds.IsCreated) _jobPlayerIds.Dispose();
-            _jobPlayerSOutIdx = new NativeArray<int>(cap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _jobPlayerIds = new NativeArray<int>(cap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-            _jobPlayerCapacity = cap;
-        }
         if (targetNeeded > _jobTargetCapacity)
         {
             int cap = math.max(targetNeeded, math.max(_jobTargetCapacity * 2, 8));
@@ -490,58 +479,28 @@ public class BasisLocalEyeDriver
     /// winning target's identity + world focus points. Runs at a fixed cadence, not per frame.
     ///
     /// Two phases:
-    ///   1) Main thread builds NativeArray inputs (managed reads of FaceIsVisible /
-    ///      transform.position / sticky managed-ref equality have to happen here).
-    ///   2) <see cref="BasisGazeSelectionJob"/> scores everything in Burst.
+    ///   1) Main thread gathers the BasisGazeTarget inputs — those are MonoBehaviours whose
+    ///      focus point can be a Transform read, and sticky managed-ref equality needs the
+    ///      managed refs, so neither can move into Burst.
+    ///   2) <see cref="BasisGazeSelectionJob"/> scores everything in Burst. Remote players are
+    ///      not gathered at all: the job walks the bone system's dense SoA slots itself, taking
+    ///      the player ID from the reverse key map and visibility from the native mirror, so
+    ///      main-thread cost here is independent of player count.
     /// </summary>
     private static unsafe void RescoreGazeTarget(float3 localHeadPos, float3 localHeadFwd)
     {
         s_gazeGatherMarker.Begin();
 
-        // ── Phase 1: main-thread input prep ─────────────────────────────────
-        var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
-        int receiverCount = BasisNetworkPlayers.ReceiverCount;
+        // ── Phase 1: main-thread input prep (gaze targets only) ─────────────
         var activeTargets = BasisGazeTarget.ActiveTargets;
         int targetCount = activeTargets.Count;
-        EnsureJobCapacity(receiverCount, targetCount);
+        EnsureJobCapacity(targetCount);
 
         // Write through raw pointers — the NativeArray<T> indexer's set_Item path
-        // carries safety-handle bookkeeping per write, which dominates the per-
-        // receiver work in editor/dev builds when there are many candidates.
-        int* pPlayerIds = (int*)_jobPlayerIds.GetUnsafePtr();
-        int* pPlayerSOutIdx = (int*)_jobPlayerSOutIdx.GetUnsafePtr();
+        // carries safety-handle bookkeeping per write.
         float3* pTargetFocus = (float3*)_jobTargetFocus.GetUnsafePtr();
         float* pTargetPriority = (float*)_jobTargetPriority.GetUnsafePtr();
         byte* pTargetIsCurrent = (byte*)_jobTargetIsCurrent.GetUnsafePtr();
-
-        // Fetch the playerId→sOut index map once and resolve inline below, instead of a
-        // TryGetSOutIndex call per receiver. sOutMapLen is 0 when the map is null, so the
-        // ternary returns -1 without ever indexing a null array.
-        int[] sOutIndexMap = RemoteBoneJobSystem.GetSOutIndexMap();
-        int sOutMapLen = sOutIndexMap != null ? sOutIndexMap.Length : 0;
-
-        int playerSlots = 0;
-        for (int i = 0; i < receiverCount; i++)
-        {
-            var receiver = snapshot[i];
-            // RemotePlayer is the concrete BasisRemotePlayer (same object as _player,
-            // assigned in Initialize) so reading FaceIsVisible skips the IBasisPlayer
-            // interface getter callvirt the editor JIT won't inline. Invariantly
-            // non-null for any receiver in ReceiversSnapshot — no null check needed.
-            // FaceIsVisible is a cached flag maintained by BasisMeshRendererCheck;
-            // skipping invisible faces here keeps the job's per-player branch cheap.
-            if (!receiver.RemotePlayer.FaceIsVisible)
-                continue;
-
-            int playerId = receiver.playerId;
-            int idx = (uint)playerId < (uint)sOutMapLen ? sOutIndexMap[playerId] : -1;
-            if (idx < 0)
-                continue;
-
-            pPlayerIds[playerSlots] = playerId;
-            pPlayerSOutIdx[playerSlots] = idx;
-            playerSlots++;
-        }
 
         // Hoist _currentGazeTarget into a local so the per-iteration compare is a
         // single ldloc instead of a static-field load every iteration. ReferenceEquals
@@ -564,6 +523,16 @@ public class BasisLocalEyeDriver
         s_gazeGatherMarker.End();
 
         // ── Phase 2: run the Burst job inline (.Run, not Schedule().Complete) ─
+        s_gazeFramesMarker.Begin();
+        var remoteFrames = RemoteBoneJobSystem.GetRemoteFrameArray();
+        var playerKeys = RemoteBoneJobSystem.GetPlayerKeyArray();
+        // AuthoringLength is the live slot count; clamp against both arrays so a mid-frame
+        // registration can't walk past either one.
+        int playerSlots = (remoteFrames.IsCreated && playerKeys.IsCreated)
+            ? math.min(RemoteBoneJobSystem.AuthoringLength, math.min(remoteFrames.Length, playerKeys.Length))
+            : 0;
+        s_gazeFramesMarker.End();
+
         GazeJobResult r;
         if (playerSlots == 0 && targetSlots == 0)
         {
@@ -571,13 +540,11 @@ public class BasisLocalEyeDriver
         }
         else
         {
-            // Fall back to a 1-element placeholder when sOut hasn't initialized yet,
-            // so the job's safety validation passes. playerSlots will be 0 in that
-            // state because TryGetSOutIndex returned false for every receiver.
-            s_gazeFramesMarker.Begin();
-            var remoteFrames = RemoteBoneJobSystem.GetRemoteFrameArray();
-            s_gazeFramesMarker.End();
+            // Fall back to 1-element placeholders when the bone system hasn't initialized
+            // yet, so the job's [ReadOnly] safety validation passes. The player loop never
+            // reads them because playerSlots is 0 in that state.
             if (!remoteFrames.IsCreated) remoteFrames = _jobFramesPlaceholder;
+            if (!playerKeys.IsCreated) playerKeys = _jobKeysPlaceholder;
 
             var job = new BasisGazeSelectionJob
             {
@@ -586,8 +553,8 @@ public class BasisLocalEyeDriver
                 currentTargetId = _currentTargetId,
                 playerCount = playerSlots,
                 targetCount = targetSlots,
-                playerIds = _jobPlayerIds,
-                playerSOutIdx = _jobPlayerSOutIdx,
+                playerKeys = playerKeys,
+                faceVisible = RemoteBoneJobSystem.GetFaceVisibleMap(),
                 remoteFrames = remoteFrames,
                 targetFocus = _jobTargetFocus,
                 targetPriority = _jobTargetPriority,
@@ -637,9 +604,9 @@ public class BasisLocalEyeDriver
 
     /// <summary>
     /// Burst-compiled scoring pass for <see cref="SelectGazeTarget"/>.
-    /// Reads pre-resolved player indices + gaze target inputs (gathered on the
-    /// main thread because they require managed reads) and writes the winning
-    /// candidate to <see cref="result"/>.
+    /// Walks the bone system's dense player slots directly and scores them against the
+    /// gaze target inputs (those are gathered on the main thread because they require
+    /// managed reads), writing the winning candidate to <see cref="result"/>.
     /// </summary>
     [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
     private struct BasisGazeSelectionJob : IJob
@@ -647,11 +614,14 @@ public class BasisLocalEyeDriver
         public float3 localHeadPos;
         public float3 localHeadFwd;
         public int currentTargetId;
+        /// <summary>Live SoA slot count — RemoteBoneJobSystem.AuthoringLength, clamped.</summary>
         public int playerCount;
         public int targetCount;
 
-        [ReadOnly] public NativeArray<int> playerIds;
-        [ReadOnly] public NativeArray<int> playerSOutIdx;
+        /// <summary>SoA slot → player ID. Only the first <see cref="playerCount"/> are live.</summary>
+        [ReadOnly] public NativeArray<int> playerKeys;
+        /// <summary>Face visibility indexed by player ID, not slot. 0 = hidden.</summary>
+        [ReadOnly] public NativeArray<byte> faceVisible;
         [ReadOnly] public NativeArray<RemoteFrameOutput> remoteFrames;
         [ReadOnly] public NativeArray<float3> targetFocus;
         [ReadOnly] public NativeArray<float> targetPriority;
@@ -672,16 +642,24 @@ public class BasisLocalEyeDriver
             int avatarsScored = 0;
 
             // Players: mutual attention × proximity, with stickiness.
+            // Iterating slots rather than a gathered candidate list means the visibility
+            // filter runs here instead of on the main thread. Distance is the cheapest
+            // rejector, so it goes first and the visibility load only happens for players
+            // already close enough to matter.
             for (int i = 0; i < playerCount; i++)
             {
-                int idx = playerSOutIdx[i];
-                RemoteFrameOutput frame = remoteFrames[idx];
+                RemoteFrameOutput frame = remoteFrames[i];
                 float3 eyePos = frame.pos_CenterEye;
                 quaternion eyeRot = frame.rot_CenterEye;
 
                 float3 toTarget = eyePos - localHeadPos;
                 float distSq = math.lengthsq(toTarget);
                 if (distSq > GazeRangeSquared) continue;
+
+                // Face visibility gates before avatarsInRange so the debug counter keeps its
+                // old meaning (in-range players we could actually look at, not all in-range).
+                int playerId = playerKeys[i];
+                if ((uint)playerId >= (uint)faceVisible.Length || faceVisible[playerId] == 0) continue;
 
                 avatarsInRange++;
 
@@ -699,7 +677,6 @@ public class BasisLocalEyeDriver
                 float proximity = 1f / (1f + dist * FalloffFactor);
                 float score = (facing * 0.55f + viewDot * 0.45f) * proximity;
 
-                int playerId = playerIds[i];
                 if (playerId == currentTargetId) score += StickinessBonus;
 
                 if (score > bestScore)

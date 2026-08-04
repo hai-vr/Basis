@@ -6,6 +6,7 @@ using System.Text;
 using Basis.BasisUI;
 using Basis.EventDriver;
 using Basis.Network.Core;
+using Basis.Scripts.Common;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
@@ -53,6 +54,9 @@ namespace Basis.ImagePickup
         // Values 0 and 1 were used by pre-release animation transport experiments and remain
         // reserved so stale clients cannot misinterpret the production V2 native-LZ4 payload.
         private const byte AnimationFormatNativeLz4 = 2;
+
+        /// <summary>Opcode, image id, chunk index, and chunk length — see <see cref="EncodeChunk"/>.</summary>
+        private const int ImageChunkHeaderBytes = 1 + BasisGuid128.SerializedSize + sizeof(int) * 2;
 
         private const string CompositorShaderName = "Hidden/Basis/ImageAnimationComposite";
         private const int FrontFaceSampleCount = 5;
@@ -102,6 +106,50 @@ namespace Basis.ImagePickup
             public float Deadline;
             public Vector3 Position;
             public Quaternion Rotation;
+            public TransferRate Rate;
+        }
+
+        /// <summary>
+        /// Smoothed throughput for one transfer, sampled on an interval rather than per chunk so the
+        /// readout does not swing with whichever frame a chunk happens to land on.
+        /// </summary>
+        private struct TransferRate
+        {
+            public long MovedBytes;
+            public long SampleBytes;
+            public float SampleTime;
+            public float BytesPerSecond;
+
+            public void Sample(float now)
+            {
+                if (SampleTime <= 0f)
+                {
+                    SampleTime = now;
+                    SampleBytes = MovedBytes;
+                    return;
+                }
+
+                float elapsed = now - SampleTime;
+                if (elapsed < BasisImagePickupSettings.TransferRateSampleSeconds)
+                    return;
+
+                float instant = (MovedBytes - SampleBytes) / elapsed;
+                BytesPerSecond =
+                    BytesPerSecond <= 0f
+                        ? instant
+                        : Mathf.Lerp(
+                            BytesPerSecond,
+                            instant,
+                            BasisImagePickupSettings.TransferRateSmoothing
+                        );
+                SampleTime = now;
+                SampleBytes = MovedBytes;
+            }
+
+            public float Fraction(long totalBytes)
+            {
+                return totalBytes > 0 ? Mathf.Clamp01((float)MovedBytes / totalBytes) : 0f;
+            }
         }
 
         private sealed class InboundAnimationTransfer
@@ -115,6 +163,7 @@ namespace Basis.ImagePickup
             public int TotalChunks;
             public long PlaybackEpochUtcTicks;
             public float Deadline;
+            public TransferRate Rate;
         }
 
         private sealed class QueuedFileSpawn
@@ -171,6 +220,12 @@ namespace Basis.ImagePickup
             public Quaternion Rotation;
             public ushort[] Recipients;
             public bool HeaderSent;
+            public TransferRate Rate;
+            /// <summary>
+            /// Reused chunk packet, mirroring what the animation path already does. A fresh array per chunk
+            /// was affordable at eight chunks a frame; at the rates a fast link now allows it is not.
+            /// </summary>
+            public byte[] ChunkBuffer;
         }
 
         private sealed class OutboundAnimationTransfer
@@ -188,6 +243,7 @@ namespace Basis.ImagePickup
             public bool HeaderSent;
             public long EnqueuedTimestamp;
             public long FirstPacketQueueTicks;
+            public TransferRate Rate;
         }
 
         private static readonly Dictionary<Guid, BasisImagePickupObject> _images = new();
@@ -211,6 +267,8 @@ namespace Basis.ImagePickup
         private static readonly Dictionary<ushort, SpawnRateLimitState> _spawnRateBySender = new();
         private static readonly List<Guid> _scratchIds = new();
         private static bool _initialized;
+        private static int _broadcastDirectRecipients;
+        private static int _broadcastRelayRecipients;
 
         private static readonly List<BasisAnimatedImagePlayer> _players = new(64);
         private static readonly List<BasisAnimatedImagePlayer> _pendingRemoval = new(8);
@@ -246,6 +304,8 @@ namespace Basis.ImagePickup
             _initialized = true;
             _destroying = false;
 
+            BasisImagePickupLinkProbe.Reset();
+            BasisImagePickupBandwidth.Reset();
             EnsureSchedulerResources();
             BasisEventDriver.OnUpdate += SimulateUpdate;
             BasisNetworkPlayer.OnLocalPlayerJoined += HandleLocalPlayerJoined;
@@ -347,6 +407,11 @@ namespace Basis.ImagePickup
             _spawnRateBySender.Clear();
             _reservedInboundTransferBytes = 0;
             _gifDecodePausedForMemory = false;
+            _broadcastDirectRecipients = 0;
+            _broadcastRelayRecipients = 0;
+            BasisImagePickupLinkProbe.Reset();
+            BasisImagePickupBandwidth.Reset();
+            BasisImagePickupProgressGizmos.Shutdown();
 
             ReleaseSchedulerResources();
             _destroying = false;
@@ -1223,6 +1288,9 @@ namespace Basis.ImagePickup
 
         private static void SimulateUpdateBody()
         {
+            BasisImagePickupLinkProbe.Tick(Time.unscaledTime);
+            BasisImagePickupBandwidth.Refill(Time.unscaledDeltaTime);
+
             if (
                 _images.Count == 0
                 && _inbound.Count == 0
@@ -1235,7 +1303,10 @@ namespace Basis.ImagePickup
                 && _queuedInboundAnimationDecodes.Count == 0
                 && _pendingInboundAnimationDecodes.Count == 0
             )
+            {
+                BasisImagePickupProgressGizmos.Shutdown();
                 return;
+            }
 
             UpdateBackPanelVisibility();
             ProcessQueuedFileSpawns();
@@ -1302,11 +1373,181 @@ namespace Basis.ImagePickup
             _scratchIds.Clear();
 
             if (!transmit)
+            {
+                BasisImagePickupProgressGizmos.Shutdown();
                 return;
+            }
 
+            if (_outboundImages.Count > 0 || _outboundAnimations.Count > 0)
+                RefreshBroadcastRecipientCounts();
             ProcessOutboundImageTransfers();
             ProcessOutboundAnimationTransfers();
             CleanupExpiredTransfers(now);
+#if !UNITY_SERVER
+            UpdateTransferProgressGizmos(now);
+#endif
+        }
+
+        /// <summary>
+        /// Snapshots how a broadcast splits between direct links and the relay, once per tick rather than
+        /// per chunk. Peers on a connected P2P session are reached directly and cost the server nothing;
+        /// everyone else is forwarded, and the server pays for each of them separately.
+        /// </summary>
+        private static void RefreshBroadcastRecipientCounts()
+        {
+            if (!BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId))
+                localId = ushort.MaxValue;
+
+            int direct = 0;
+            int relay = 0;
+            foreach (KeyValuePair<ushort, BasisNetworkPlayer> entry in BasisNetworkPlayers.Players)
+            {
+                if (entry.Key == localId)
+                    continue;
+                if (
+                    BasisP2PManager.GetSessionState(entry.Key)
+                    == BasisP2PManager.P2PSessionState.Connected
+                )
+                    direct++;
+                else
+                    relay++;
+            }
+
+            _broadcastDirectRecipients = direct;
+            _broadcastRelayRecipients = relay;
+        }
+
+        private static void CountRecipients(ushort[] recipients, out int directCount, out int relayCount)
+        {
+            if (recipients == null)
+            {
+                directCount = _broadcastDirectRecipients;
+                relayCount = _broadcastRelayRecipients;
+                return;
+            }
+
+            directCount = 0;
+            relayCount = 0;
+            int recipientCount = recipients.Length;
+            for (int i = 0; i < recipientCount; i++)
+            {
+                if (
+                    BasisP2PManager.GetSessionState(recipients[i])
+                    == BasisP2PManager.P2PSessionState.Connected
+                )
+                    directCount++;
+                else
+                    relayCount++;
+            }
+        }
+
+        /// <summary>
+        /// Books one bulk packet against the share budget. Headers, transforms, claims, and despawns are
+        /// not metered: they are a few dozen bytes and hold up the interactive feel of a card.
+        /// </summary>
+        private static bool TryReserveSendBandwidth(int payloadBytes, ushort[] recipients)
+        {
+            CountRecipients(recipients, out int directCount, out int relayCount);
+            return BasisImagePickupBandwidth.TryConsume(
+                payloadBytes + BasisNetworkGenericMessages.SceneDataFramingBytes(recipients),
+                directCount,
+                relayCount
+            );
+        }
+
+        private static void UpdateTransferProgressGizmos(float now)
+        {
+            if (
+                _inbound.Count == 0
+                && _inboundAnimations.Count == 0
+                && _outboundImages.Count == 0
+                && _outboundAnimations.Count == 0
+            )
+            {
+                BasisImagePickupProgressGizmos.Shutdown();
+                return;
+            }
+
+            BasisImagePickupProgressGizmos.BeginFrame();
+
+            foreach (KeyValuePair<Guid, InboundTransfer> entry in _inbound)
+            {
+                InboundTransfer transfer = entry.Value;
+                transfer.Rate.Sample(now);
+                ReportTransferProgress(
+                    entry.Key,
+                    transfer.Rate.Fraction(transfer.Buffer != null ? transfer.Buffer.Length : 0),
+                    transfer.Rate.BytesPerSecond,
+                    false
+                );
+            }
+
+            foreach (KeyValuePair<Guid, InboundAnimationTransfer> entry in _inboundAnimations)
+            {
+                // The poster lands first and owns the card's readout while it is still arriving.
+                if (_inbound.ContainsKey(entry.Key))
+                    continue;
+                InboundAnimationTransfer transfer = entry.Value;
+                transfer.Rate.Sample(now);
+                ReportTransferProgress(
+                    entry.Key,
+                    transfer.Rate.Fraction(transfer.Buffer.IsCreated ? transfer.Buffer.Length : 0),
+                    transfer.Rate.BytesPerSecond,
+                    false
+                );
+            }
+
+            foreach (OutboundImageTransfer transfer in _outboundImages)
+            {
+                transfer.Rate.Sample(now);
+                ReportTransferProgress(
+                    transfer.Id,
+                    transfer.Rate.Fraction(transfer.Png != null ? transfer.Png.Length : 0),
+                    transfer.Rate.BytesPerSecond,
+                    true
+                );
+            }
+
+            foreach (OutboundAnimationTransfer transfer in _outboundAnimations)
+            {
+                if (HasPendingOutboundImageTransfer(transfer.Id))
+                    continue;
+                transfer.Rate.Sample(now);
+                ReportTransferProgress(
+                    transfer.Id,
+                    transfer.Rate.Fraction(
+                        transfer.Payload != null && transfer.Payload.IsCreated
+                            ? transfer.Payload.Length
+                            : 0
+                    ),
+                    transfer.Rate.BytesPerSecond,
+                    true
+                );
+            }
+
+            BasisImagePickupProgressGizmos.EndFrame();
+        }
+
+        private static void ReportTransferProgress(
+            Guid id,
+            float progress,
+            float bytesPerSecond,
+            bool outbound
+        )
+        {
+            if (
+                !_images.TryGetValue(id, out BasisImagePickupObject pickup)
+                || pickup == null
+                || pickup.IsHidden
+            )
+                return;
+            BasisImagePickupProgressGizmos.Report(
+                id,
+                pickup.TransferLabelAnchor,
+                progress,
+                bytesPerSecond,
+                outbound
+            );
         }
 
         private static void OnPlayerJoined(BasisNetworkPlayer player)
@@ -1571,6 +1812,7 @@ namespace Basis.ImagePickup
                 Buffer.BlockCopy(data, 0, transfer.Buffer, offset, length);
                 transfer.Received[chunkIndex] = true;
                 transfer.ReceivedCount++;
+                transfer.Rate.MovedBytes += length;
             }
 
             if (transfer.ReceivedCount >= transfer.TotalChunks)
@@ -1741,6 +1983,7 @@ namespace Basis.ImagePickup
                 NativeArray<byte>.Copy(data, 0, transfer.Buffer, offset, length);
                 transfer.Received[chunkIndex] = 1;
                 transfer.ReceivedCount++;
+                transfer.Rate.MovedBytes += length;
             }
 
             if (transfer.ReceivedCount >= transfer.TotalChunks)
@@ -2722,6 +2965,7 @@ namespace Basis.ImagePickup
                 _pendingInboundAnimationDecodes.RemoveAt(i);
             }
             _animationAttempted.Remove(id);
+            BasisImagePickupProgressGizmos.Remove(id);
             BasisShareableRegistry.Unregister(id.ToString());
 
             if (!destroyPickup || pickup == null)
@@ -2810,18 +3054,26 @@ namespace Basis.ImagePickup
                 {
                     int offset = transfer.NextChunkIndex * chunkSize;
                     int length = Mathf.Min(chunkSize, transfer.Png.Length - offset);
+                    int packetLength = ImageChunkHeaderBytes + length;
+                    if (!TryReserveSendBandwidth(packetLength, transfer.Recipients))
+                        return;
+                    if (transfer.ChunkBuffer == null || transfer.ChunkBuffer.Length != packetLength)
+                        transfer.ChunkBuffer = new byte[packetLength];
+                    EncodeChunkInto(
+                        transfer.ChunkBuffer,
+                        transfer.Id,
+                        transfer.NextChunkIndex,
+                        transfer.Png,
+                        offset,
+                        length
+                    );
                     SendCustomNetworkEventDirect(
-                        EncodeChunk(
-                            transfer.Id,
-                            transfer.NextChunkIndex,
-                            transfer.Png,
-                            offset,
-                            length
-                        ),
+                        transfer.ChunkBuffer,
                         DeliveryMethod.ReliableOrdered,
                         transfer.Recipients
                     );
                     transfer.NextChunkIndex++;
+                    transfer.Rate.MovedBytes += length;
                     chunksRemaining--;
                 }
 
@@ -3073,6 +3325,8 @@ namespace Basis.ImagePickup
                 while (chunksRemaining > 0 && batchIndex >= 0 && batchIndex < transfer.Packets.PacketCount)
                 {
                     int packetLength = transfer.Packets.GetPacketLength(batchIndex);
+                    if (!TryReserveSendBandwidth(packetLength, transfer.Recipients))
+                        return;
                     int fullPacketLength =
                         BasisAnimatedImageNetworkCodec.AnimationChunkHeaderSize
                         + BasisImagePickupSettings.ChunkPayloadBytes;
@@ -3097,6 +3351,10 @@ namespace Basis.ImagePickup
 
                     SendCustomNetworkEventDirect(packet, DeliveryMethod.ReliableOrdered, transfer.Recipients);
                     transfer.NextChunkIndex++;
+                    transfer.Rate.MovedBytes += Math.Max(
+                        0,
+                        packetLength - BasisAnimatedImageNetworkCodec.AnimationChunkHeaderSize
+                    );
                     batchIndex++;
                     chunksRemaining--;
                 }
@@ -3305,9 +3563,21 @@ namespace Basis.ImagePickup
             return stream.ToArray();
         }
 
-        private static byte[] EncodeChunk(Guid id, int chunkIndex, byte[] source, int offset, int length)
+        /// <summary>
+        /// Writes one chunk packet into <paramref name="destination"/>, which must be
+        /// <see cref="ImageChunkHeaderBytes"/> plus <paramref name="length"/> bytes long. The transports
+        /// copy the buffer before returning, so a caller may reuse one array for every chunk of a transfer.
+        /// </summary>
+        private static void EncodeChunkInto(
+            byte[] destination,
+            Guid id,
+            int chunkIndex,
+            byte[] source,
+            int offset,
+            int length
+        )
         {
-            using var stream = new MemoryStream();
+            using var stream = new MemoryStream(destination, true);
             using var writer = new BinaryWriter(stream, Encoding.UTF8);
             writer.Write(OpChunk);
             BasisAnimatedImageNetworkCodec.WriteGuid(writer, id);
@@ -3315,7 +3585,6 @@ namespace Basis.ImagePickup
             writer.Write(length);
             writer.Write(source, offset, length);
             writer.Flush();
-            return stream.ToArray();
         }
 
         private static byte[] EncodeTransform(Guid id, Vector3 position, Quaternion rotation, float scale)

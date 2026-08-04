@@ -325,9 +325,18 @@ public struct MappedNameplateApplyJob : IJobParallelForTransform
     /// <summary>Input pose data (per-avatar) for nameplate placement.</summary>
     [ReadOnly] public NativeArray<RemoteFrameOutput> NamePlateIn;
 
+    /// <summary>SoA slot → player ID, used to look this slot's plate up in <see cref="PlateActive"/>.</summary>
+    [ReadOnly] public NativeArray<int> PlayerKeys;
+
+    /// <summary>Per-player-ID nameplate active mirror; 0 = the plate is not being displayed.</summary>
+    [ReadOnly] public NativeArray<byte> PlateActive;
+
     /// <summary>Computes position above hips and rotates toward camera.</summary>
     public void Execute(int jobIndex, TransformAccess tx)
     {
+        int key = PlayerKeys[jobIndex];
+        if ((uint)key >= (uint)PlateActive.Length || PlateActive[key] == 0) return;
+
         var data = NamePlateIn[jobIndex];
         float3 hips = data.pos_Hips;
 
@@ -623,6 +632,53 @@ public static class RemoteBoneJobSystem
     /// so Schedule does not need to snapshot a managed List each frame. Sized to the high-water
     /// mark of <see cref="AuthoringLength"/>; consumers always pair it with an explicit count.</summary>
     static NativeArray<int> sKeyArray;
+    /// <summary>
+    /// Native mirror of each remote player's face visibility, indexed by ushort player ID — the
+    /// same key space as <see cref="sKeyToIndex"/>, so entries never move when the SoA
+    /// swap-compacts on removal. Written from the managed setter (visibility only flips when a
+    /// face mesh enters or leaves view) so Burst selection passes can filter candidates
+    /// themselves instead of the main thread walking the receiver list to marshal one bool per
+    /// player. 0 = hidden, 1 = visible.
+    /// </summary>
+    static NativeArray<byte> sFaceVisible;
+    /// <summary>
+    /// Native mirror of whether each player's nameplate is currently being displayed, indexed by
+    /// ushort player ID like <see cref="sFaceVisible"/>. Owned entirely by
+    /// <c>BasisRemoteNamePlate</c> — the plate pushes its own active state — so a plate that is
+    /// disabled, blocked, out of range, face-hidden or switched off in settings costs no
+    /// transform write in <see cref="MappedNameplateApplyJob"/>. 0 = not displayed.
+    /// </summary>
+    static NativeArray<byte> sNamePlateActive;
+    /// <summary>Key space of <see cref="sFaceVisible"/> and <see cref="sKeyToIndex"/>.</summary>
+    const int KeySpace = 65536;
+
+    /// <summary>
+    /// The visibility mirror is allocated on demand and deliberately does NOT live under
+    /// <see cref="sInitialized"/>: avatar setup writes visibility, and that can run before the
+    /// bone system initializes. Keying by player ID rather than SoA slot means there is never
+    /// anything to rebuild, so lazy allocation is the whole lifecycle.
+    /// </summary>
+    static NativeArray<byte> FaceVisibleMap()
+    {
+        if (!sFaceVisible.IsCreated)
+        {
+            sFaceVisible = new NativeArray<byte>(KeySpace, Allocator.Persistent);
+        }
+        return sFaceVisible;
+    }
+
+    /// <summary>
+    /// Same lifecycle as <see cref="FaceVisibleMap"/>: allocated on demand and keyed by player ID,
+    /// because the nameplate registers itself before the bone system may be initialized.
+    /// </summary>
+    static NativeArray<byte> NamePlateActiveMap()
+    {
+        if (!sNamePlateActive.IsCreated)
+        {
+            sNamePlateActive = new NativeArray<byte>(KeySpace, Allocator.Persistent);
+        }
+        return sNamePlateActive;
+    }
     /// <summary>Pending job handle chain.</summary>
     static JobHandle sPending;
     static JobHandle sGatherRoot;
@@ -727,8 +783,13 @@ public static class RemoteBoneJobSystem
         dummyGO.SetActive(false);
         sDummyBone = dummyGO.transform;
 
-        sKeyToIndex = new int[65536];
+        sKeyToIndex = new int[KeySpace];
         Array.Fill(sKeyToIndex, -1);
+        // Force the visibility mirror into existence here, before any player can join, so the
+        // lazy path in FaceVisibleMap is never the one that races two first-touches. Writers are
+        // all main-thread today; this keeps that from being load-bearing.
+        FaceVisibleMap();
+        NamePlateActiveMap();
         EnsureKeyArrayCapacity(math.max(initialCapacity, 16));
 
         sPendingAdds.Clear();
@@ -778,6 +839,10 @@ public static class RemoteBoneJobSystem
         DisposeTempBuffers();
 
         if (sKeyArray.IsCreated) sKeyArray.Dispose();
+        // Freed here rather than left for process exit so the editor's leak detector stays quiet.
+        // A write after this point simply reallocates it — see FaceVisibleMap.
+        if (sFaceVisible.IsCreated) sFaceVisible.Dispose();
+        if (sNamePlateActive.IsCreated) sNamePlateActive.Dispose();
 
         if (sKeyToIndex != null) Array.Fill(sKeyToIndex, -1);
         sPendingAdds.Clear();
@@ -1181,6 +1246,11 @@ public static class RemoteBoneJobSystem
         sTPoseHipsLocalPos.RemoveAt(last);
         sTPoseHipsLocalRot.RemoveAt(last);
         sKeyToIndex[key] = -1;
+        // Drop the departing player's visibility bit. Selection jobs gate on AuthoringLength so
+        // they can't reach this key any more, but a rejoin reuses the ID and would otherwise
+        // inherit a stale "visible" before its avatar sets up.
+        if (sFaceVisible.IsCreated) sFaceVisible[key] = 0;
+        if (sNamePlateActive.IsCreated) sNamePlateActive[key] = 0;
         // sKeyArray's slot at `last` is now stale, but consumers gate on AuthoringLength
         // (count), so the unused tail slot is harmless. No truncation needed.
         AuthoringLength = sAuthoring.Length;
@@ -1705,6 +1775,8 @@ public static class RemoteBoneJobSystem
         {
             CameraPosition = CameraPosition,
             NamePlateIn = sOut.AsDeferredJobArray(),
+            PlayerKeys = sKeyArray,
+            PlateActive = NamePlateActiveMap(),
         }.Schedule(sNamePlate, simAndRoot);
 
         var mouthJob = new ApplyMouthJob
@@ -1886,6 +1958,58 @@ public static class RemoteBoneJobSystem
     /// Returns null when the system isn't initialized. Valid for the current frame only.
     /// </summary>
     public static int[] GetSOutIndexMap() => sInitialized ? sKeyToIndex : null;
+
+    /// <summary>
+    /// Records a player's face visibility in the native mirror consumed by Burst selection
+    /// passes. Called from the managed <c>FaceIsVisible</c> setter — visibility only flips when
+    /// a face mesh enters or leaves view, so this is a cold path despite being a blind write.
+    /// </summary>
+    public static void SetFaceVisible(int key, bool visible)
+    {
+        if ((uint)key >= (uint)KeySpace) return;
+        // Via a local: NativeArray<T> is a struct, so indexing the returned temporary directly
+        // is a CS1612. The copy still writes through to the same unmanaged buffer.
+        NativeArray<byte> map = FaceVisibleMap();
+        map[key] = visible ? (byte)1 : (byte)0;
+    }
+
+    /// <summary>
+    /// Native face-visibility mirror indexed by ushort player ID; pair it with
+    /// <see cref="GetPlayerKeyArray"/> to filter SoA slots from inside a job. Always created.
+    /// Read-only for consumers — write through <see cref="SetFaceVisible"/>.
+    /// </summary>
+    public static NativeArray<byte> GetFaceVisibleMap() => FaceVisibleMap();
+
+    /// <summary>
+    /// Records whether a player's nameplate is currently displayed. Called by
+    /// <c>BasisRemoteNamePlate</c> whenever it applies its active state; while this is false
+    /// <see cref="MappedNameplateApplyJob"/> leaves that plate's transform alone. Defaults to
+    /// false, so a player with no live nameplate is never posed.
+    /// </summary>
+    public static void SetNamePlateActive(int key, bool active)
+    {
+        if ((uint)key >= (uint)KeySpace) return;
+        NativeArray<byte> map = NamePlateActiveMap();
+        map[key] = active ? (byte)1 : (byte)0;
+    }
+
+    /// <summary>
+    /// Native nameplate-pose gate indexed by ushort player ID. Always created. Read-only for
+    /// consumers — write through <see cref="SetNamePlateActive"/>.
+    /// </summary>
+    public static NativeArray<byte> GetNamePlateActiveMap() => NamePlateActiveMap();
+
+    /// <summary>
+    /// Exposes the SoA index → player ID reverse map so a job can walk the dense slot range
+    /// itself instead of the main thread resolving one index per receiver. Only the first
+    /// <see cref="AuthoringLength"/> entries are live; the tail holds stale keys after a
+    /// removal. Returns a default (uncreated) array when the system isn't initialized.
+    ///
+    /// Valid for the current frame only — the backing array is reallocated when the player
+    /// count grows, so callers must re-acquire it rather than cache it, exactly as with
+    /// <see cref="GetRemoteFrameArray"/>.
+    /// </summary>
+    public static NativeArray<int> GetPlayerKeyArray() => sInitialized ? sKeyArray : default;
 
     /// <summary>
     /// Returns <c>sOut</c> as a NativeArray for Burst-job consumption.

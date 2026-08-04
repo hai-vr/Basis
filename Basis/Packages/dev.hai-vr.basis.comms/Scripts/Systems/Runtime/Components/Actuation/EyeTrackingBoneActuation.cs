@@ -43,6 +43,7 @@ namespace HVR.Basis.Comms
         private float _runtimeMaxAngleXDeg = MaxAngleLimitDeg;
         private float _runtimeMaxAngleYDeg = MaxAngleLimitDeg;
         private bool _isWearer;
+        private bool _registeredForTick;
 
         public float DefaultMultiplyX => multiplyX;
         public float DefaultMultiplyY => multiplyY;
@@ -100,6 +101,7 @@ namespace HVR.Basis.Comms
         public void OnHVRAvatarReady(bool isWearer)
         {
             _isWearer = isWearer;
+            RefreshDriverRegistration();
             _runtimeMultiplyX = multiplyX;
             _runtimeMultiplyY = multiplyY;
             if (isWearer && isActiveAndEnabled) StartCoroutine(RestoreRuntimeOverridesNextFrame());
@@ -165,13 +167,23 @@ namespace HVR.Basis.Comms
         private void OnEnable()
         {
             BasisNetworkTransmitter.AfterAvatarChanges += UpdateAfterAvatarChangesApplied;
-            HVRCommsUpdateDriver.Register(this);
+            RefreshDriverRegistration();
         }
 
         private void OnDisable()
         {
             BasisNetworkTransmitter.AfterAvatarChanges -= UpdateAfterAvatarChangesApplied;
-            HVRCommsUpdateDriver.Unregister(this);
+            RefreshDriverRegistration();
+        }
+
+        private void RefreshDriverRegistration()
+        {
+            bool shouldRegister = _isWearer && isActiveAndEnabled;
+            if (shouldRegister == _registeredForTick) return;
+
+            _registeredForTick = shouldRegister;
+            if (shouldRegister) HVRCommsUpdateDriver.Register(this);
+            else HVRCommsUpdateDriver.Unregister(this);
         }
 
         private void OnDestroy()
@@ -192,7 +204,6 @@ namespace HVR.Basis.Comms
         internal void SimulateTick()
         {
             _eyeTracking?.Update();
-            if (_isWearer) HVRVixxyPersistentStore.Tick();
         }
         private void UpdateAfterAvatarChangesApplied() => _eyeTracking?.UpdateAfterAvatarChangesApplied();
 

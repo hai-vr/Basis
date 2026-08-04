@@ -851,9 +851,10 @@ namespace HVR.Vixxy
                     {
                         case HVRKindMarker.AffectsMaterialPropertyBlock:
                         {
-                            var materialPropertyBlock = orchestrator.GetMaterialPropertyBlockForBakedObject(component.gameObject);
+                            var bakedObject = component.gameObject;
+                            var materialPropertyBlock = orchestrator.GetMaterialPropertyBlockForBakedObject(bakedObject);
                             property.ApplyMaterialProperty(materialPropertyBlock, resolvedValue);
-                            orchestrator.StagePropertyBlock(component.gameObject);
+                            orchestrator.StagePropertyBlock(bakedObject);
                             break;
                         }
                         case HVRKindMarker.BlendShape:

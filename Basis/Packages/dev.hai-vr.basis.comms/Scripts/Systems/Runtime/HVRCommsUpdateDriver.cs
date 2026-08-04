@@ -56,6 +56,7 @@ namespace HVR.Basis.Comms
             SimulateEyeActuations();
             SimulateOrchestrators();
             SimulateActivityRelays();
+            HVRVixxyPersistentStore.Tick();
         }
 
         public static void SimulateEyeActuations()

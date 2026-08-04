@@ -44,7 +44,37 @@ namespace Basis.Scripts.BasisSdk.Players
         public BasisProgressReport AvatarProgress { get; } = new BasisProgressReport();
         public Action AudioReceived { get; set; }
 
-        public bool FaceIsVisible { get; set; }
+        private bool _faceIsVisible;
+        /// <summary>Cached once the receiver is linked; -1 until then. Player IDs are stable for
+        /// the player's lifetime, so this never needs invalidating.</summary>
+        private int _faceVisibilityKey = -1;
+
+        /// <summary>
+        /// Mirrored into <see cref="RemoteBoneJobSystem.SetFaceVisible"/> on every write so Burst
+        /// selection passes (gaze) can filter on visibility themselves rather than the main thread
+        /// marshalling one managed bool per player. Flips are rare — a face mesh entering or
+        /// leaving view — so the extra store is free next to the reads it removes.
+        ///
+        /// A write that lands before the receiver is linked can't resolve a key and is dropped;
+        /// that is safe because the native default is 0 (hidden) and avatar setup unconditionally
+        /// writes <c>false</c> once the receiver exists, so the mirror re-seeds on every avatar
+        /// swap and can only ever fail closed (skip a player), never open.
+        /// </summary>
+        public bool FaceIsVisible
+        {
+            get => _faceIsVisible;
+            set
+            {
+                _faceIsVisible = value;
+                if (_faceVisibilityKey < 0)
+                {
+                    BasisNetworkReceiver receiver = NetworkReceiver;
+                    if (receiver == null) return;
+                    _faceVisibilityKey = receiver.playerId;
+                }
+                RemoteBoneJobSystem.SetFaceVisible(_faceVisibilityKey, value);
+            }
+        }
         public BasisMeshRendererCheck FaceRenderer { get; set; }
 
         public bool IsConsideredFallBackAvatar { get; set; } = true;

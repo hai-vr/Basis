@@ -1252,7 +1252,7 @@ namespace Basis.Scripts.Constraints
                 // everything is treated as near. Slower, but never wrong, and it means a missing
                 // SetPriorityRoot call degrades performance rather than behaviour.
                 int interval = NearInterval;
-                if (hasReference && root != sPriorityRoot)
+                if (hasReference && !ReferenceEquals(root, sPriorityRoot))
                 {
                     float distanceSq = math.distancesq(reference, (float3)root.position);
                     interval = distanceSq <= NearMetres * NearMetres ? NearInterval

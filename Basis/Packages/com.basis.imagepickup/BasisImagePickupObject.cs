@@ -16,6 +16,7 @@ namespace Basis.ImagePickup
     public class BasisImagePickupObject : MonoBehaviour
     {
         private const BasisDebug.LogTag LogTag = BasisDebug.LogTag.Pickups;
+        private const float TransferLabelDropMeters = 0.06f;
 
         public Guid ImageId;
         public ushort OwnerId;
@@ -75,6 +76,23 @@ namespace Basis.ImagePickup
             _frontRenderer != null ? _frontRenderer.bounds : default;
         internal int FrontRendererLayer =>
             _frontRenderer != null ? _frontRenderer.gameObject.layer : gameObject.layer;
+        /// <summary>
+        /// Where the transfer readout sits: just under the card's bottom edge, in the card's own frame, so
+        /// it tracks grab scaling and never covers the image itself.
+        /// </summary>
+        internal Vector3 TransferLabelAnchor
+        {
+            get
+            {
+                float cardHeight =
+                    _cardTransform != null
+                        ? _cardTransform.localScale.y
+                        : BasisImagePickupSettings.BaseHeightMeters;
+                float rootScale = transform.localScale.y;
+                return transform.position
+                    - transform.up * ((cardHeight * 0.5f + TransferLabelDropMeters) * rootScale);
+            }
+        }
         public BasisAnimatedImagePlayer AnimatedImagePlayer => _animatedImagePlayer;
 
         /// <summary>

@@ -969,10 +969,11 @@ namespace Basis.EventDriver
             }
 
             // ── JigglePhysics complete pose ──
-            // Deferred to a player-loop step just ahead of the particle update when possible, so the
-            // rest of the frame overlaps the pose jobs instead of the main thread waiting on them
-            // here. Nothing between this point and there reads a jiggled bone; rendering is the
-            // consumer. Falls back to completing inline when the loop step could not be installed.
+            // Deferred to a player-loop step just after the custom render texture update when
+            // possible, so the rest of the frame overlaps the pose jobs instead of the main thread
+            // waiting on them here. Nothing between this point and there reads a jiggled bone;
+            // UpdateAllRenderers, which runs right after, is the consumer. Falls back to completing
+            // inline when the loop step could not be installed.
             ProfileBegin(PROF_JIGGLE_COMPLETE_POSE);
             if (BasisLateJiggleCompletion.Enabled)
             {

@@ -202,6 +202,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 gameObject.SetActive(false);
             }
+            PushPoseGate(RenderActive);
 
             _ = LoadBlockStateAsync();
         }
@@ -259,6 +260,21 @@ namespace Basis.Scripts.UI.NamePlate
             if (this == null) return;
             RenderActive = BasisRemoteNamePlateDriver.ShouldPlateBeActive(this);
             gameObject.SetActive(RenderActive);
+            PushPoseGate(RenderActive);
+        }
+
+        /// <summary>
+        /// Tells the bone system whether this plate still needs its transform posed each frame.
+        /// While it is off, <c>MappedNameplateApplyJob</c> skips the plate's slot entirely — the
+        /// merged name mesh is built from the network pose rather than this transform, so the only
+        /// things it drives are the child chat/loading overlays and the interaction collider, all
+        /// of which are deactivated along with the plate.
+        /// </summary>
+        private void PushPoseGate(bool active)
+        {
+            BasisNetworkReceiver receiver = BasisRemotePlayer != null ? BasisRemotePlayer.NetworkReceiver : null;
+            if (receiver == null) return;
+            RemoteBoneJobSystem.SetNamePlateActive(receiver.playerId, active);
         }
 
         /// <summary>
@@ -400,6 +416,7 @@ namespace Basis.Scripts.UI.NamePlate
             // its deferred topology rebuild, and a recycled playerId must not resurface our name on the
             // new player. Replaces the per-plate Unity null check in GatherFromBoneSystem.
             RenderActive = false;
+            PushPoseGate(false);
             if (BasisRemotePlayer != null)
             {
                 // Unsubscribe all events we hooked up

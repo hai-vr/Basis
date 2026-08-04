@@ -9,6 +9,7 @@
         "BasisNetworkCore",
         "LiteNetLib",
         "BasisDebug",
+        "BasisGizmos",
         "UnityEngine.UI",
         "Unity.TextMeshPro",
         "Unity.RenderPipelines.Universal.Runtime",

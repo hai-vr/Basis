@@ -4,6 +4,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using UnityEngine;
+using UnityEngine.UI;
 using P2PState = Basis.Scripts.Networking.BasisP2PManager.P2PSessionState;
 
 namespace Basis.BasisUI
@@ -180,11 +181,47 @@ namespace Basis.BasisUI
             return true;
         }
 
+        // Tiles are title-only, so they need width for the longest label ("Remove from Private
+        // Chat", "Request Direct Connection") rather than height. Flexible constraint means the
+        // grid reflows to one column on a narrow panel instead of clipping.
+        private static readonly Vector2 ActionTileSize = new Vector2(320f, 64f);
+
         /// <summary>
-        /// Builds the Actions tab — the panel's landing page. Every row is a single press for
+        /// Grid container for the action tiles, parented inside the group so the group keeps its
+        /// header while its contents lay out in columns rather than one per row.
+        /// </summary>
+        private static RectTransform BuildActionGrid(RectTransform parent)
+        {
+            GameObject gridGO = new GameObject("ActionGrid", typeof(RectTransform));
+            RectTransform gridRect = (RectTransform)gridGO.transform;
+            gridRect.SetParent(parent, false);
+            gridRect.anchorMin = new Vector2(0f, 1f);
+            gridRect.anchorMax = new Vector2(1f, 1f);
+            gridRect.pivot = new Vector2(0.5f, 1f);
+
+            GridLayoutGroup grid = gridGO.AddComponent<GridLayoutGroup>();
+            grid.cellSize = ActionTileSize;
+            grid.spacing = new Vector2(10f, 10f);
+            grid.padding = new RectOffset(10, 10, 10, 10);
+            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+            grid.childAlignment = TextAnchor.UpperLeft;
+            grid.constraint = GridLayoutGroup.Constraint.Flexible;
+
+            ContentSizeFitter fitter = gridGO.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            LayoutElement layout = gridGO.AddComponent<LayoutElement>();
+            layout.flexibleWidth = 1f;
+
+            return gridRect;
+        }
+
+        /// <summary>
+        /// Builds the Actions tab — the panel's landing page. Every tile is a single press for
         /// something that otherwise sits several tabs deep; nothing here is exclusive to this tab,
         /// so the detail tabs remain the place to go for the surrounding context and settings.
-        /// Rows carry no inline description so the whole set fits on one screen — the long-form
+        /// Tiles carry no inline description so the whole set fits on one screen — the long-form
         /// text the detail tabs show moves onto the hover tooltip instead.
         /// </summary>
         private static void BuildActionsPage(PanelTabPage page, BasisRemotePlayer player, BasisPlayerSettingsData settings, PlayerActionSync sync)
@@ -194,7 +231,7 @@ namespace Basis.BasisUI
             var group = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             group.SetTitle(BasisLocalization.Get("menu.individualPlayer.actions"));
             group.SetDescription(BasisLocalization.Get("menu.individualPlayer.actions.description"));
-            RectTransform content = group.ContentParent;
+            RectTransform content = BuildActionGrid(group.ContentParent);
 
             PanelButton NewAction(string tooltipKey)
             {

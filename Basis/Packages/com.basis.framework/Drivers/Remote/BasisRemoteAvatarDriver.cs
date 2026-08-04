@@ -480,6 +480,10 @@ namespace Basis.Scripts.Drivers
                 );
             }
             InBoneDriver = true;
+            // The plate pushes its own pose gate into the bone system, but its Initialize runs
+            // before NetworkReceiver is linked, so that first push has no key to resolve. This is
+            // the earliest point where both the receiver and the plate's TAA slot exist.
+            RemotePlayer.OnNamePlateActiveStateShouldRefresh?.Invoke();
 
             if (!snapToNetworkPose)
             {

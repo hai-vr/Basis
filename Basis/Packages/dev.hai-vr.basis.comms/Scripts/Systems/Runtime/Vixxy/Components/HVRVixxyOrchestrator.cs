@@ -168,7 +168,6 @@ namespace HVR.Vixxy
             }
             Simulate();
             Apply();
-            HVRVixxyPersistentStore.Tick();
         }
 
         private readonly HashSet<IHVRVixxyActuator> L_actuatorsWithFiltersToCheckNextTick = new(); // is field due to PR guidelines
@@ -179,7 +178,7 @@ namespace HVR.Vixxy
 
             // Randomness in the number of iteration cycles is an attempt to ensure we don't get implementation-specific
             // behaviour that expects a specific number of cycles to happen.
-            var randomIterations = UnityEngine.Random.Range(5, 10);
+            var randomIterations = _aggregatorsToUpdateThisTick.Count > 0 ? UnityEngine.Random.Range(5, 10) : 0;
             while (randomIterations > 0 && _aggregatorsToUpdateThisTick.Count > 0)
             {
                 randomIterations--;
@@ -370,17 +369,18 @@ namespace HVR.Vixxy
             // If the key doesn't exist, it is a programming error. Callers should only call GetMaterialPropertyBlockFor
             // if that subject is guaranteed to have a MaterialPropertyBlock declared, as it is required by Awake.
             // (Live edits not currently supported)
-            if (!_objectToMaterialPropertyBlock.ContainsKey(bakedObject))
+            if (!_objectToMaterialPropertyBlock.TryGetValue(bakedObject, out var block))
             {
                 // DEFENSIVE for live edits only. This condition should not be entered by design.
                 HVR_VixxyUtil.LogUnusual(this, "A MaterialPropertyBlock object was not found. This is either a programming error, or the user is currently doing a live edit," +
                                        " and MaterialPropertyBlock are not normally cached if the control did not previously make use of materials. We will create one," +
                                        " however, if this wasn't a live edit, then it needs fixing.");
-                _objectToMaterialPropertyBlock.Add(bakedObject, new MaterialPropertyBlock());
+                block = new MaterialPropertyBlock();
+                _objectToMaterialPropertyBlock.Add(bakedObject, block);
                 _objectToRenderer_mayContainNullObjects.Add(bakedObject, bakedObject.TryGetComponent<Renderer>(out var result) ? result : null);
             }
 
-            return _objectToMaterialPropertyBlock[bakedObject];
+            return block;
         }
 
         /// Inform the orchestrator that the material property block needs to be applied on the object.
