@@ -102,6 +102,7 @@ namespace Basis.BasisUI
             {
                 TabSearch tab = _tabSearches[i];
                 if (!tab.Prepared || tab.Search == null) continue;
+                if (!IsTabButtonActive(tab.Index)) continue;
 
                 tab.Search.CollectHits(_searchQuery, _hitBuffer);
 
@@ -134,6 +135,23 @@ namespace Basis.BasisUI
             return null;
         }
 
+        /// <summary>
+        /// Whether a tab is currently offered on the strip. Permission-gated tabs are registered but
+        /// hidden when the local player lacks the permission — search must not build or surface them,
+        /// both because their settings are not available and because building the admin page starts
+        /// its server fetches.
+        /// </summary>
+        private static bool IsTabButtonActive(int index)
+        {
+            if (_searchTabGroup == null || index < 0 || index >= _searchTabGroup.SelectionButtons.Count)
+            {
+                return false;
+            }
+
+            PanelButton button = _searchTabGroup.SelectionButtons[index];
+            return button != null && button.gameObject.activeSelf;
+        }
+
         // ------------------
         // BACKGROUND INDEXING
         // ------------------
@@ -158,6 +176,7 @@ namespace Basis.BasisUI
             {
                 if (_searchTabGroup == null || _searchQuery.Length == 0) break;
                 if (_lazyTabs[i].Built) continue;
+                if (!IsTabButtonActive(_lazyTabs[i].Index)) continue;
 
                 RealizeTab(_searchTabGroup, _lazyTabs[i], forSearch: true);
                 yield return null;

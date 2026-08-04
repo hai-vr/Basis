@@ -79,6 +79,7 @@ namespace Basis.BasisUI
             BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
             BasisRuntimeSpawnRegistry.OnPendingLoadsChanged -= OnPendingLoadsChanged;
             BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
+            BasisRuntimeSpawnRegistry.OnFailedLoadsChanged -= OnFailedLoadsChanged;
             BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;
         }
 
@@ -644,6 +645,7 @@ namespace Basis.BasisUI
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                     BasisRuntimeSpawnRegistry.OnPendingLoadsChanged -= OnPendingLoadsChanged;
                     BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
+                    BasisRuntimeSpawnRegistry.OnFailedLoadsChanged -= OnFailedLoadsChanged;
                 }
             }
 
@@ -779,6 +781,9 @@ namespace Basis.BasisUI
 
                     BasisRuntimeSpawnRegistry.OnPendingLoadProgress -= OnPendingLoadProgress;
                     BasisRuntimeSpawnRegistry.OnPendingLoadProgress += OnPendingLoadProgress;
+
+                    BasisRuntimeSpawnRegistry.OnFailedLoadsChanged -= OnFailedLoadsChanged;
+                    BasisRuntimeSpawnRegistry.OnFailedLoadsChanged += OnFailedLoadsChanged;
 
                     BasisShareableRegistry.OnChanged -= OnShareablesRegistryChanged;
                     BasisShareableRegistry.OnChanged += OnShareablesRegistryChanged;
@@ -2274,6 +2279,10 @@ namespace Basis.BasisUI
             // clear the page
             ClearTabContent(page.Descriptor.ContentParent);
 
+            // Failures first — they are the only rows that need the user to do something, and
+            // a networked one is still costing every joiner a doomed download until it goes.
+            BuildFailedLoadsList(page);
+
             BuildPendingLoadsList(page);
 
             // rebuild the page items
@@ -2374,6 +2383,21 @@ namespace Basis.BasisUI
 
         private static bool PendingLoadPassesFilters(BasisRuntimeSpawnRegistry.PendingLoad pending, string title)
         {
+            return RowPassesFilters(pending.SpawnMode, pending.SpawnMethod, pending.UUIDOfCreator, pending.isProtected, pending.Persistent, title);
+        }
+
+        private static bool FailedLoadPassesFilters(BasisRuntimeSpawnRegistry.FailedLoad failed, string title)
+        {
+            return RowPassesFilters(failed.SpawnMode, failed.SpawnMethod, failed.UUIDOfCreator, failed.isProtected, failed.Persistent, title);
+        }
+
+        /// <summary>
+        /// The search box and item-type dropdown applied to a row that has no
+        /// <see cref="BasisRuntimeSpawnRegistry.SpawnInstance"/> behind it — pending and failed
+        /// loads. Kept in one place so the two can never drift from each other.
+        /// </summary>
+        private static bool RowPassesFilters(BasisRuntimeSpawnRegistry.SpawnMode mode, BasisRuntimeSpawnRegistry.SpawnMethod method, string creatorUUID, bool isProtected, bool persistent, string title)
+        {
             if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
             {
                 if (string.IsNullOrEmpty(title) || title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) < 0)
@@ -2385,27 +2409,27 @@ namespace Basis.BasisUI
             switch (_currentItemTypeFilter)
             {
                 case LibraryItemTypeFilter.Embedded:
-                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                    return method == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
                 case LibraryItemTypeFilter.Local:
-                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Local || pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                    return method == BasisRuntimeSpawnRegistry.SpawnMethod.Local || method == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
                 case LibraryItemTypeFilter.Networked:
-                    return pending.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network;
+                    return method == BasisRuntimeSpawnRegistry.SpawnMethod.Network;
                 case LibraryItemTypeFilter.Avatar:
-                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Avatar;
+                    return mode == BasisRuntimeSpawnRegistry.SpawnMode.Avatar;
                 case LibraryItemTypeFilter.GameObject:
-                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject;
+                    return mode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject;
                 case LibraryItemTypeFilter.Scene:
-                    return pending.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
+                    return mode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
                 case LibraryItemTypeFilter.AdminOnly:
-                    return pending.isProtected;
+                    return isProtected;
                 case LibraryItemTypeFilter.PersistentOnly:
-                    return pending.Persistent;
+                    return persistent;
                 case LibraryItemTypeFilter.NotPersistent:
-                    return !pending.Persistent;
+                    return !persistent;
                 case LibraryItemTypeFilter.PlacedByMe:
-                    return pending.UUIDOfCreator == BasisLocalPlayer.Instance.UUID;
+                    return creatorUUID == BasisLocalPlayer.Instance.UUID;
                 case LibraryItemTypeFilter.NotPlacedByMe:
-                    return pending.UUIDOfCreator != BasisLocalPlayer.Instance.UUID;
+                    return creatorUUID != BasisLocalPlayer.Instance.UUID;
                 default:
                     return true;
             }
@@ -2487,6 +2511,153 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetWidth(400);
 
             _pendingLoadRowInfo[pending.PendingId] = itemTextInfo.Descriptor;
+        }
+
+        private static void OnFailedLoadsChanged() => UpdateInstantiatedTab();
+
+        private static string FailedLoadTitle(BasisRuntimeSpawnRegistry.FailedLoad failed)
+        {
+            if (CachedMetaData.TryGetMeta(failed.Url, out var meta) && !string.IsNullOrEmpty(meta.Name))
+            {
+                return LibraryProviderStrUtil.TitleToCase(meta.Name);
+            }
+            return failed.Url;
+        }
+
+        private static void BuildFailedLoadsList(PanelTabPage tab)
+        {
+            RectTransform container = tab.Descriptor.ContentParent;
+
+            foreach (BasisRuntimeSpawnRegistry.FailedLoad failed in BasisRuntimeSpawnRegistry.GetFailedLoads().OrderBy(f => f.FailedUtc))
+            {
+                string title = FailedLoadTitle(failed);
+                if (!FailedLoadPassesFilters(failed, title)) continue;
+                CreateFailedListEntry(failed, title, container);
+            }
+        }
+
+        /// <summary>
+        /// A row for content that never loaded. It carries no live object, so the only action is
+        /// removal: for a networked spawn that means asking the server to drop it (which stops it
+        /// being handed to every joiner and clears the row on the other clients that also failed),
+        /// and for a local one it means dropping it from the load-on-boot list so it stops being
+        /// retried every launch.
+        /// </summary>
+        private static void CreateFailedListEntry(BasisRuntimeSpawnRegistry.FailedLoad failed, string title, RectTransform parentTabGroup)
+        {
+            PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
+
+            if (itemListPanel.TabButtonParent.gameObject.TryGetComponent<UiStyleImage>(out UiStyleImage imageStyle))
+            {
+                imageStyle.SetStyle("Menu Element");
+            }
+
+            itemListPanel.Descriptor.SetWidth(1400);
+            itemListPanel.Descriptor.SetHeight(95);
+
+            PanelImage spawnModePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnModePanelImage.SetSize(new Vector2(80, 80));
+
+            switch (failed.SpawnMode)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Avatars);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.avatar.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Items);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.gameObject.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.World);
+                    spawnModePanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.type.scene.tooltip"));
+                    break;
+            }
+
+            PanelImage spawnMethodPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnMethodPanelImage.SetSize(new Vector2(80, 80));
+
+            switch (failed.SpawnMethod)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.embedded.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.local.tooltip"));
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
+                    spawnMethodPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.icon.method.network.tooltip"));
+                    break;
+            }
+
+            PanelImage failedPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            failedPanelImage.SetSize(new Vector2(80, 80));
+            failedPanelImage.SetIcon(AddressableAssets.Sprites.Information);
+            failedPanelImage.Descriptor.SetTooltip(BasisLocalization.Get("library.instantiated.failed.tooltip"));
+
+            PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
+            itemTextInfo._inputField.gameObject.SetActive(false);
+            itemTextInfo.Descriptor.SetTitle(title);
+            itemTextInfo.Descriptor.SetDescription(BasisLocalization.Get("library.instantiated.failed.description"));
+
+            // The detail is whatever the loader reported — untranslated, like the pending rows'
+            // pipeline stage text — so it stays in the tooltip rather than the row itself.
+            if (!string.IsNullOrEmpty(failed.Error))
+            {
+                itemTextInfo.Descriptor.SetTooltip(failed.Error);
+            }
+            itemTextInfo.Descriptor.SetHeight(50);
+            itemTextInfo.Descriptor.SetWidth(400);
+
+            // Same rule the spawned rows use: a protected networked item is an admin's to remove.
+            bool canRemove = failed.SpawnMethod != BasisRuntimeSpawnRegistry.SpawnMethod.Network || !failed.isProtected || IsProtected;
+
+            BuildEntryActionButton(itemListPanel.TabButtonParent, new EntryActionButton
+            {
+                Style = ButtonStyles.CancelButton,
+                Icon = AddressableAssets.Sprites.Trash,
+                Tooltip = BasisLocalization.Get("library.instantiated.failed.remove.tooltip"),
+                Disabled = !canRemove,
+                DisabledReason = canRemove ? null : BasisLocalization.Get("library.disabled.protected"),
+                OnClick = async () =>
+                {
+                    BasisDebug.Log($"CreateFailedListEntry() -> requested removal of failed item = {failed.Url} of LoadedNetID = {failed.LoadedNetID} of SpawnMethod = {failed.SpawnMethod} and SpawnMode = {failed.SpawnMode}");
+
+                    bool result = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, title, failed.SpawnMode.ToString());
+                    if (!result) return;
+
+                    switch (failed.SpawnMethod)
+                    {
+                        case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                            // The server holds this spawn whether or not our load worked, so the
+                            // netID is all it needs; it authorizes creator-or-moderator as usual.
+                            // The row is left alone here and dropped by the unload broadcast — same
+                            // as a spawned row, so an unload the server refuses does not look like
+                            // it worked, and every other client that failed to load it clears too.
+                            switch (failed.SpawnMode)
+                            {
+                                case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                                    BasisNetworkSpawnItem.RequestSceneUnLoad(failed.LoadedNetID);
+                                    break;
+                                default:
+                                    BasisNetworkSpawnItem.RequestGameObjectUnLoad(failed.LoadedNetID);
+                                    break;
+                            }
+                            break;
+                        default:
+                            // If this was set to load on boot, removing it here also stops it coming
+                            // back next launch. No-op when it was never a boot item.
+                            _ = BasisPreloadContentStore.Remove(failed.Url);
+                            BasisRuntimeSpawnRegistry.DismissFailedLoad(failed.FailedId);
+                            break;
+                    }
+
+                    await RefreshCurrentTab();
+                },
+            });
         }
 
         private static void BuildShareablesList(PanelTabPage tab)

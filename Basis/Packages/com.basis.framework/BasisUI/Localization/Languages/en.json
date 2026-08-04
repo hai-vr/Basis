@@ -3183,26 +3183,6 @@
       "value": "Join Time"
     },
     {
-      "key": "menu.players.directionFilter",
-      "value": "Direction"
-    },
-    {
-      "key": "menu.players.directionFilter.description",
-      "value": "Show only players in front of or behind you."
-    },
-    {
-      "key": "menu.players.directionFilter.all",
-      "value": "All"
-    },
-    {
-      "key": "menu.players.directionFilter.inFront",
-      "value": "In Front"
-    },
-    {
-      "key": "menu.players.directionFilter.behind",
-      "value": "Behind"
-    },
-    {
       "key": "menu.players.panel.noData",
       "value": "No data"
     },
@@ -3235,14 +3215,6 @@
       "value": "Pinned"
     },
     {
-      "key": "menu.players.inFront",
-      "value": "in front"
-    },
-    {
-      "key": "menu.players.behind",
-      "value": "behind"
-    },
-    {
       "key": "menu.players.distanceMeters",
       "value": "{0:F1}m"
     },
@@ -3269,6 +3241,14 @@
     {
       "key": "menu.players.cannotSelectSelf",
       "value": "This is you."
+    },
+    {
+      "key": "menu.individualPlayer.actions",
+      "value": "Actions"
+    },
+    {
+      "key": "menu.individualPlayer.actions.description",
+      "value": "One press for the things you most often want to do to this player. Every action here also appears on the tab that owns it."
     },
     {
       "key": "menu.individualPlayer.player",
@@ -4453,6 +4433,18 @@
     {
       "key": "library.instantiated.remove.tooltip",
       "value": "Remove this item."
+    },
+    {
+      "key": "library.instantiated.failed.tooltip",
+      "value": "This content failed to load."
+    },
+    {
+      "key": "library.instantiated.failed.description",
+      "value": "Did not load — nothing was spawned."
+    },
+    {
+      "key": "library.instantiated.failed.remove.tooltip",
+      "value": "Remove this item. Networked items are removed for everyone; items set to load on startup stop loading."
     },
     {
       "key": "library.shareable.avatar",
@@ -9623,6 +9615,14 @@
       "value": "Reset {0} to its default?"
     },
     {
+      "key": "ui.resetValue.hint.desktop",
+      "value": "Right-click to reset to default."
+    },
+    {
+      "key": "ui.resetValue.hint.vr",
+      "value": "Click this hand's thumbstick to reset to default."
+    },
+    {
       "key": "ui.openFolder",
       "value": "Open Folder"
     },
@@ -10309,14 +10309,6 @@
     {
       "key": "settings.remoteAudio.curve.legacy",
       "value": "Legacy"
-    },
-    {
-      "key": "settings.remoteAudio.reverbDistance",
-      "value": "Reverberant Distance"
-    },
-    {
-      "key": "settings.remoteAudio.reverbDistance.tooltip",
-      "value": "Distance past which voices stop getting quieter. Closer than this, level follows the real inverse distance law; beyond it, a room's reflected sound takes over and level flattens out. Smaller values feel like a small, dry room; larger values carry voices further."
     },
     {
       "key": "settings.remoteAudio.toneShaping",

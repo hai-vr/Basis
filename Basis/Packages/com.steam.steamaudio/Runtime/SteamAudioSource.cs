@@ -209,10 +209,45 @@ namespace SteamAudio
             }
         }
 
+        /// <summary>
+        /// Invalidates the cached simulation flags so the next <see cref="TryBuildInputsInto"/>
+        /// rebuilds them.
+        /// <para><b>Anything that writes the simulation booleans at runtime must call this.</b>
+        /// <see cref="RebuildCache"/> folds <c>occlusion</c>, <c>transmission</c>,
+        /// <c>directivity</c>, <c>airAbsorption</c>, <c>distanceAttenuation</c>, <c>reflections</c>
+        /// and <c>pathing</c> into <c>mCachedDirectFlags</c>/<c>mCachedSimFlags</c> once and then
+        /// clears the dirty bit, so a later assignment to the public field is simply never seen by
+        /// the simulator. Every other invalidation site is a lifecycle callback — and
+        /// <c>OnValidate</c>, the one that covers ordinary field edits, is <c>#if UNITY_EDITOR</c>,
+        /// which is why this only ever showed up in builds and only for settings applied from
+        /// code. <see cref="ForceUpdate"/> is NOT a substitute: it pushes DSP-side parameters to
+        /// the audio engine source and does not touch the flags.</para>
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void MarkCacheDirty()
+        public void MarkCacheDirty()
         {
             mCacheDirty = true;
+        }
+
+        /// <summary>
+        /// Re-reads the AudioSource's rolloff mode, distances and custom curve into the data
+        /// <see cref="EvaluateDistanceCurve"/> serves to the native attenuation callback.
+        /// <para>That data is otherwise captured exactly once, in <see cref="HeavyInit"/>, and
+        /// <see cref="RebuildCache"/> only recomputes whether to <i>use</i> the curve model, not
+        /// the curve itself — so a host that rewrites <c>maxDistance</c> or rebakes the rolloff
+        /// curve (which Basis does on every hearing-range change) would keep being attenuated
+        /// against the values the source happened to have at startup.</para>
+        /// <para>Main thread only: it touches the AudioSource. Deliberately not folded into
+        /// RebuildCache, which the direct worker can reach.</para>
+        /// </summary>
+        public void RefreshAttenuationData()
+        {
+            if (!mInitialized || mAudioSource == null) return;
+
+            mAttenuationData.rolloffMode = mAudioSource.rolloffMode;
+            mAttenuationData.minDistance = mAudioSource.minDistance;
+            mAttenuationData.maxDistance = mAudioSource.maxDistance;
+            mAttenuationData.curve = mAudioSource.GetCustomCurve(AudioSourceCurveType.CustomRolloff);
         }
 
         private void Awake()

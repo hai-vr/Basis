@@ -29,15 +29,6 @@ namespace Basis.Scripts.Networking.Receivers
         // ─────────────────────────── distance ───────────────────────────
 
         /// <summary>
-        /// Distance past which level stops falling, in metres. Physically this is
-        /// the critical distance: the radius at which a room's reverberant field
-        /// matches the talker's direct field. Inside it you get the full inverse
-        /// distance law; outside it level flattens, which is both what a real room
-        /// does and what keeps far-away players audible.
-        /// </summary>
-        public const float DefaultReverberantDistance = 4f;
-
-        /// <summary>
         /// Fraction of the hearing range at which the curve starts tapering to
         /// zero. Purely so the hearing-range cull is silent — the source is
         /// hard-stopped at maxDistance and released at 1.1x that, so the curve has
@@ -47,25 +38,18 @@ namespace Basis.Scripts.Networking.Receivers
         public const float DistanceTaperStart = 0.95f;
 
         /// <summary>
-        /// Voice level at <paramref name="distance"/>, 0..1, as a real talker in a
-        /// real room: the direct field summed in energy with the reverberant field,
-        /// normalised so anything inside <paramref name="minDistance"/> is unity.
+        /// Voice level at <paramref name="distance"/>, 0..1: the inverse-distance direct
+        /// field, normalised so anything inside <paramref name="minDistance"/> is unity.
         /// </summary>
         /// <param name="distance">Listener-to-mouth distance in metres.</param>
         /// <param name="minDistance">Radius inside which level stops rising.</param>
-        /// <param name="reverberantDistance">Radius past which level stops falling.</param>
         /// <param name="maxDistance">Hearing range; the curve reaches zero here.</param>
-        public static float DistanceGain(float distance, float minDistance,
-                                         float reverberantDistance, float maxDistance)
+        public static float DistanceGain(float distance, float minDistance, float maxDistance)
         {
             minDistance = Mathf.Max(0.01f, minDistance);
-            reverberantDistance = Mathf.Max(minDistance, reverberantDistance);
             maxDistance = Mathf.Max(minDistance, maxDistance);
 
-            float reverberant = minDistance / reverberantDistance;
-            float direct = minDistance / Mathf.Max(distance, minDistance);
-            float gain = Mathf.Sqrt(direct * direct + reverberant * reverberant)
-                       / Mathf.Sqrt(1f + reverberant * reverberant);
+            float gain = minDistance / Mathf.Max(distance, minDistance);
 
             float x = Mathf.Min(distance, maxDistance) / maxDistance;
             if (x > DistanceTaperStart)
@@ -78,24 +62,13 @@ namespace Basis.Scripts.Networking.Receivers
         }
 
         /// <summary>
-        /// Reverberant share of the total energy at <paramref name="distance"/>,
-        /// i.e. the correct <c>AudioSource.reverbZoneMix</c>. Rises from near zero
-        /// at the talker's mouth to ~1 across the room, crossing 0 dB direct-to-
-        /// reverberant exactly at <paramref name="reverberantDistance"/>.
-        /// The shipping value was a flat 1.0, i.e. maximum room at zero distance.
+        /// Keys spent on the power-law stretch between minDistance and the taper start.
+        /// 22 was enough while the curve flattened at the critical distance and only the
+        /// near field had to be fitted; with the inverse distance law running the whole
+        /// way out there is far more dynamic range to cover, and 22 drifted 0.72 dB at a
+        /// 0.1 m / 25 m combination.
         /// </summary>
-        public static float ReverbSend(float distance, float minDistance, float reverberantDistance)
-        {
-            minDistance = Mathf.Max(0.01f, minDistance);
-            reverberantDistance = Mathf.Max(minDistance, reverberantDistance);
-
-            float reverberant = minDistance / reverberantDistance;
-            float direct = minDistance / Mathf.Max(distance, minDistance);
-            return Mathf.Clamp01(reverberant / Mathf.Sqrt(direct * direct + reverberant * reverberant));
-        }
-
-        /// <summary>Keys spent on the power-law stretch between the two kinks.</summary>
-        private const int CurveLogKeys = 22;
+        private const int CurveLogKeys = 40;
         /// <summary>Keys spent on the taper.</summary>
         private const int CurveTaperKeys = 8;
 
@@ -202,26 +175,12 @@ namespace Basis.Scripts.Networking.Receivers
         /// <c>distance / maxDistance</c> and ignores <c>minDistance</c> entirely, which
         /// is why minDistance has to be baked in here to mean anything at all.
         /// </summary>
-        public static AnimationCurve BuildRolloffCurve(float minDistance,
-                                                       float reverberantDistance,
-                                                       float maxDistance)
+        public static AnimationCurve BuildRolloffCurve(float minDistance, float maxDistance)
         {
             maxDistance = Mathf.Max(0.01f, maxDistance);
             float clampedMax = maxDistance;
-            return Bake(d => DistanceGain(d, minDistance, reverberantDistance, clampedMax),
+            return Bake(d => DistanceGain(d, minDistance, clampedMax),
                         minDistance, maxDistance, endsAtSilence: true);
-        }
-
-        /// <summary>
-        /// Same treatment for <see cref="AudioSourceCurveType.ReverbZoneMix"/>.
-        /// </summary>
-        public static AnimationCurve BuildReverbMixCurve(float minDistance,
-                                                         float reverberantDistance,
-                                                         float maxDistance)
-        {
-            maxDistance = Mathf.Max(0.01f, maxDistance);
-            return Bake(d => ReverbSend(d, minDistance, reverberantDistance),
-                        minDistance, maxDistance, endsAtSilence: false);
         }
 
         // ─────────────────────── talker directivity ───────────────────────

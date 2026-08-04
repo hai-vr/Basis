@@ -4,6 +4,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
+using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.UI;
@@ -67,28 +68,16 @@ namespace Basis.BasisUI
                 new List<string> { "menu.players.sortMode.default", "menu.players.sortMode.distance", "menu.players.sortMode.name", "menu.players.sortMode.platform", "menu.players.sortMode.joinTime" });
             sortDropdown.SetValueWithoutNotify("Default");
 
-            // Direction filter dropdown — hide players in front / behind based on
-            // the local camera's horizontal facing.
-            PanelDropdown directionDropdown = PanelDropdown.CreateNewEntry(root);
-            directionDropdown.Descriptor.SetTitle(BasisLocalization.Get("menu.players.directionFilter"));
-            directionDropdown.Descriptor.SetDescription(BasisLocalization.Get("menu.players.directionFilter.description"));
-            directionDropdown.AssignLocalizedEntries(
-                new List<string> { "All", "In Front", "Behind" },
-                new List<string> { "menu.players.directionFilter.all", "menu.players.directionFilter.inFront", "menu.players.directionFilter.behind" });
-            directionDropdown.SetValueWithoutNotify("All");
-
             // Player count header
             var headerGroup = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.Group, root);
 
-            // Player buttons go into root after the header (vertical scroll handles them)
             // Attach controller — fields must be assigned before Initialize()
             _controller = panel.gameObject.AddComponent<UserListController>();
-            _controller.GridParent = root;
+            _controller.GridParent = BuildPlayerGrid(root);
             _controller.HeaderGroup = headerGroup;
             _controller.SearchField = searchField;
             _controller.SortDropdown = sortDropdown;
-            _controller.DirectionDropdown = directionDropdown;
             _controller.TabDescriptor = tab.Descriptor;
             _controller.Initialize();
 
@@ -101,6 +90,112 @@ namespace Basis.BasisUI
         }
 
         // ======== Helpers ========
+
+        // A player has no thumbnail, so the cards are sized for an icon and a name
+        // rather than for the library's 200x250 cover art.
+        private static readonly Vector2 CardSize = new Vector2(300f, 100f);
+
+        // PE Button stacks its icon, label and indicator on the same full-stretch rect,
+        // so the platform sprite goes on as an overlay and the label is inset past it
+        // rather than being centred on top of it.
+        private const float CardIconStripWidth = 68f;
+
+        // Right-hand strip of the card reserved for the pin and the distance chip.
+        private const float CardInfoStripWidth = 120f;
+
+        private static RectTransform BuildPlayerGrid(RectTransform parent)
+        {
+            GameObject gridGO = new GameObject("PlayerGrid", typeof(RectTransform));
+            RectTransform gridRect = (RectTransform)gridGO.transform;
+            gridRect.SetParent(parent, false);
+            gridRect.anchorMin = new Vector2(0f, 1f);
+            gridRect.anchorMax = new Vector2(1f, 1f);
+            gridRect.pivot = new Vector2(0.5f, 1f);
+
+            GridLayoutGroup grid = gridGO.AddComponent<GridLayoutGroup>();
+            grid.cellSize = CardSize;
+            grid.spacing = new Vector2(10f, 15f);
+            grid.padding = new RectOffset(10, 10, 10, 10);
+            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+            grid.childAlignment = TextAnchor.UpperLeft;
+            grid.constraint = GridLayoutGroup.Constraint.Flexible;
+
+            ContentSizeFitter fitter = gridGO.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            LayoutElement layout = gridGO.AddComponent<LayoutElement>();
+            layout.flexibleWidth = 1f;
+
+            return gridRect;
+        }
+
+        /// <summary>
+        /// Distance chip in the card's top-left corner, the same overlay treatment
+        /// LibraryProvider gives its stack count. Returns the label so the refresh
+        /// tick can rewrite it without walking the hierarchy.
+        /// </summary>
+        private static TextMeshProUGUI AddInfoChip(PanelButton buttonPanel)
+        {
+            PanelElementDescriptor desc = buttonPanel.Descriptor;
+
+            GameObject chipGo = new GameObject("Info Chip", typeof(RectTransform));
+            RectTransform rt = (RectTransform)chipGo.transform;
+            rt.SetParent(desc.rectTransform, false);
+            rt.anchorMin = new Vector2(1, 0.5f);
+            rt.anchorMax = new Vector2(1, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(-54, 0);
+            rt.sizeDelta = new Vector2(88, 34);
+
+            Image background = chipGo.AddComponent<Image>();
+            background.color = new Color(0f, 0f, 0f, 0.6f);
+            background.raycastTarget = false;
+
+            LayoutElement layoutElement = chipGo.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            GameObject textGo = new GameObject("Value", typeof(RectTransform));
+            RectTransform textRt = (RectTransform)textGo.transform;
+            textRt.SetParent(rt, false);
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI label = textGo.AddComponent<TextMeshProUGUI>();
+            if (desc.TitleLabel != null)
+            {
+                label.font = desc.TitleLabel.font;
+                label.fontSharedMaterial = desc.TitleLabel.fontSharedMaterial;
+                label.color = desc.TitleLabel.color;
+            }
+            label.fontSize = 22;
+            label.alignment = TextAlignmentOptions.Center;
+            label.raycastTarget = false;
+            label.richText = false;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.overflowMode = TextOverflowModes.Ellipsis;
+            return label;
+        }
+
+        private static PanelImage AddOverlayIcon(PanelButton buttonPanel, string spriteAddress, Vector2 anchor, Vector2 anchoredPosition, float size)
+        {
+            PanelImage icon = PanelImage.CreateNew(buttonPanel.Descriptor);
+            icon.SetIcon(AddressableAssets.GetSprite(spriteAddress), true);
+            icon.rectTransform.anchorMin = anchor;
+            icon.rectTransform.anchorMax = anchor;
+            icon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            icon.rectTransform.anchoredPosition = anchoredPosition;
+            icon.rectTransform.sizeDelta = new Vector2(size, size);
+            return icon;
+        }
+
+        private static PanelImage AddPlatformIcon(PanelButton buttonPanel, string spriteAddress) =>
+            AddOverlayIcon(buttonPanel, spriteAddress, new Vector2(0, 0.5f), new Vector2(36, 0), 40f);
+
+        private static PanelImage AddPinIcon(PanelButton buttonPanel) =>
+            AddOverlayIcon(buttonPanel, AddressableAssets.Sprites.Pin, new Vector2(1, 0.5f), new Vector2(-116, 0), 28f);
 
         public static string GetPlatformIconAddress(string platform)
         {
@@ -131,21 +226,19 @@ namespace Basis.BasisUI
         // ======== Types ========
 
         private enum SortMode { Default, Distance, Name, Platform, JoinTime }
-        private enum DirectionFilter { All, InFront, Behind }
 
         private struct PlayerEntry
         {
             public BasisNetworkPlayer NetPlayer;
             public PanelButton Button;
-            // Inline mute/highlight/block row that lives as a sibling immediately after
-            // the player button in GridParent. Null for the local player (no actions apply).
-            public RectTransform ActionRow;
+            public TextMeshProUGUI InfoLabel;
+            public PanelImage PinIcon;
         }
 
         /// <summary>
-        /// Manages the player grid, search/filter, sort, direction filter, and
-        /// join/leave events. Player buttons share their parent with the search
-        /// and sort controls, so reordering is offset past <see cref="_firstPlayerSiblingIndex"/>.
+        /// Manages the player grid, search/filter, sort, and join/leave events.
+        /// Player cards are the only children of <see cref="GridParent"/>, so
+        /// reordering is a straight sibling-index pass.
         /// </summary>
         private sealed class UserListController : MonoBehaviour
         {
@@ -153,25 +246,18 @@ namespace Basis.BasisUI
             public PanelElementDescriptor HeaderGroup;
             public PanelTextField SearchField;
             public PanelDropdown SortDropdown;
-            public PanelDropdown DirectionDropdown;
             public PanelElementDescriptor TabDescriptor;
 
             private readonly Dictionary<ushort, PlayerEntry> _entries = new();
             private SortMode _sortMode = SortMode.Default;
-            private DirectionFilter _directionFilter = DirectionFilter.All;
             private string _lastQuery = string.Empty;
 
             // Reused buffer for sort comparisons \u2014 avoids per-tick allocation.
             private readonly List<BasisNetworkPlayer> _orderBuffer = new();
 
-            // Sibling index of the first player button. Captured once after the
-            // controls (search field, dropdowns, header) have been placed so
-            // SetSiblingIndex calls when reordering don't disturb the controls.
-            private int _firstPlayerSiblingIndex;
-
-            // Periodic refresh of distance, direction label, and "joined Xs ago"
-            // text. Players move continuously but the player list is a low-detail
-            // surface \u2014 0.5s feels live without rebuilding text every frame.
+            // Periodic refresh of the distance chip and the hover tooltip's
+            // "joined Xs ago" text. Players move continuously but the player list is
+            // a low-detail surface \u2014 0.5s feels live without rebuilding text every frame.
             private float _refreshTimer;
             private const float RefreshInterval = 0.5f;
 
@@ -183,13 +269,21 @@ namespace Basis.BasisUI
 
                 SearchField.OnValueChanged += OnSearchChanged;
                 SortDropdown.OnValueChanged += OnSortChanged;
-                DirectionDropdown.OnValueChanged += OnDirectionChanged;
-
-                // All controls have already been added to GridParent at this point;
-                // any subsequent children are player buttons.
-                _firstPlayerSiblingIndex = GridParent != null ? GridParent.childCount : 0;
 
                 RebuildFullList();
+                RebuildGridLayout();
+            }
+
+            /// <summary>
+            /// The grid's height changes whenever cards are added, removed or filtered, and
+            /// TabDescriptor's own rect carries no layout controller — rebuilding it resizes
+            /// nothing. Walk outward from the grid instead, stopping at the scroll content.
+            /// </summary>
+            private void RebuildGridLayout()
+            {
+                if (GridParent == null) return;
+                PanelElementDescriptor.RebuildLayoutChain(
+                    GridParent, TabDescriptor != null ? TabDescriptor.ContentParent : null);
             }
 
             private void OnDestroy()
@@ -206,16 +300,11 @@ namespace Basis.BasisUI
                 if (_refreshTimer < RefreshInterval) return;
                 _refreshTimer = 0f;
 
-                RefreshDescriptions();
+                RefreshCardInfo();
 
                 if (_sortMode == SortMode.Distance || _sortMode == SortMode.JoinTime)
                 {
                     ReorderButtons();
-                }
-
-                if (_directionFilter != DirectionFilter.All)
-                {
-                    ApplyFilter();
                 }
             }
 
@@ -225,22 +314,22 @@ namespace Basis.BasisUI
                 ReorderButtons();
                 ApplyFilter();
                 UpdateHeader();
-                TabDescriptor.ForceRebuild();
+                RebuildGridLayout();
             }
 
             private void OnPinsChanged()
             {
                 // Pin status feeds the comparator; just resort, no rebuild needed.
-                RefreshDescriptions();
+                RefreshCardInfo();
                 ReorderButtons();
-                TabDescriptor.ForceRebuild();
+                RebuildGridLayout();
             }
 
             private void OnRemoteLeft(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
             {
                 RemovePlayerEntry(netPlayer.playerId);
                 UpdateHeader();
-                TabDescriptor.ForceRebuild();
+                RebuildGridLayout();
             }
 
             private void OnSortChanged(string value)
@@ -254,27 +343,15 @@ namespace Basis.BasisUI
                     _ => SortMode.Default,
                 };
                 ReorderButtons();
-                RefreshDescriptions();
-                TabDescriptor.ForceRebuild();
-            }
-
-            private void OnDirectionChanged(string value)
-            {
-                _directionFilter = value switch
-                {
-                    "In Front" => DirectionFilter.InFront,
-                    "Behind" => DirectionFilter.Behind,
-                    _ => DirectionFilter.All,
-                };
-                ApplyFilter();
-                TabDescriptor.ForceRebuild();
+                RefreshCardInfo();
+                RebuildGridLayout();
             }
 
             private void OnSearchChanged(string query)
             {
                 _lastQuery = query ?? string.Empty;
                 ApplyFilter();
-                TabDescriptor.ForceRebuild();
+                RebuildGridLayout();
             }
 
             private void UpdateHeader()
@@ -287,7 +364,7 @@ namespace Basis.BasisUI
                         visible++;
                 }
 
-                bool hasFilter = !string.IsNullOrEmpty(_lastQuery) || _directionFilter != DirectionFilter.All;
+                bool hasFilter = !string.IsNullOrEmpty(_lastQuery);
                 if (visible < total && hasFilter)
                     HeaderGroup.SetTitle(BasisLocalization.Get("menu.players.header.filtered", visible, total));
                 else
@@ -301,7 +378,6 @@ namespace Basis.BasisUI
                 foreach (var kvp in _entries)
                 {
                     if (kvp.Value.Button != null) kvp.Value.Button.ReleaseInstance();
-                    if (kvp.Value.ActionRow != null) Destroy(kvp.Value.ActionRow.gameObject);
                 }
                 _entries.Clear();
             }
@@ -330,9 +406,22 @@ namespace Basis.BasisUI
                 if (string.IsNullOrEmpty(name)) name = BasisLocalization.Get("ui.unknown");
 
                 btn.Descriptor.SetTitle(isLocal ? BasisLocalization.Get("menu.players.you", name) : name);
-                btn.Descriptor.SetDescription(BuildDescription(netPlayer));
 
-                RectTransform actionRow = null;
+                // PE Button has no description label, so the full platform/distance/joined
+                // line lives on the hover tooltip and the distance alone gets a chip.
+                btn.Descriptor.SetTooltip(BuildDescription(netPlayer));
+
+                if (btn.Descriptor.TitleLabel != null)
+                {
+                    btn.Descriptor.TitleLabel.margin = new Vector4(CardIconStripWidth, 0f, CardInfoStripWidth, 0f);
+                    btn.Descriptor.TitleLabel.alignment = TextAlignmentOptions.Left;
+                    btn.Descriptor.TitleLabel.overflowMode = TextOverflowModes.Ellipsis;
+                }
+
+                string platformIcon = GetPlatformIconAddress(
+                    netPlayer.Player != null ? netPlayer.Player.PlayerPlatform : string.Empty);
+                if (!string.IsNullOrEmpty(platformIcon)) AddPlatformIcon(btn, platformIcon);
+
                 if (isLocal)
                 {
                     btn.ButtonComponent.interactable = false;
@@ -340,77 +429,21 @@ namespace Basis.BasisUI
                         canvasGroup = btn.gameObject.AddComponent<CanvasGroup>();
                     canvasGroup.alpha = 0.4f;
                 }
-                // Inline Mute / Highlight / Block row disabled pending layout pass — the
-                // per-player IndividualPlayerProvider panel still exposes these actions.
-                // To re-enable, uncomment the branch below and revisit the row's sizing.
-                // else if (netPlayer.Player is BasisRemotePlayer remote)
-                // {
-                //     actionRow = BuildActionRow(GridParent, netPlayer, remote);
-                // }
+
+                TextMeshProUGUI infoLabel = AddInfoChip(btn);
+                PanelImage pinIcon = AddPinIcon(btn);
 
                 btn.OnClicked += () => OnPlayerClicked(netPlayer);
 
-                _entries[netPlayer.playerId] = new PlayerEntry
+                PlayerEntry entry = new PlayerEntry
                 {
                     NetPlayer = netPlayer,
                     Button = btn,
-                    ActionRow = actionRow,
+                    InfoLabel = infoLabel,
+                    PinIcon = pinIcon,
                 };
-            }
-
-            /// <summary>
-            /// Builds an inline Mute / Highlight / Block row that sits as a sibling of the
-            /// player button in <paramref name="parent"/>. Delegates all three actions to the
-            /// shared static helpers on <see cref="IndividualPlayerProvider"/> so the row
-            /// stays in lockstep with the per-player panel (including the block confirmation
-            /// dialog).
-            /// </summary>
-            private static RectTransform BuildActionRow(RectTransform parent, BasisNetworkPlayer netPlayer, BasisRemotePlayer remote)
-            {
-                RectTransform rowRect = PanelElementDescriptor.BuildActionRow(parent, "PlayerRowActions");
-
-                // ---- Mute ----
-                PanelButton muteBtn = PanelButton.CreateNew(rowRect);
-                muteBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.mute"));
-                muteBtn.OnClicked += async () =>
-                {
-                    bool nowMuted = await IndividualPlayerProvider.ToggleMute(remote);
-                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        nowMuted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
-                };
-                _ = InitMuteLabelAsync(muteBtn, remote);
-
-                // ---- Highlight ----
-                PanelButton highlightBtn = PanelButton.CreateNew(rowRect);
-                highlightBtn.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.highlight"));
-                highlightBtn.OnClicked += () =>
-                {
-                    // SetHighlight already toggles when called on the same target.
-                    IndividualPlayerProvider.SetHighlight(netPlayer);
-                };
-
-                // ---- Block ----
-                PanelButton blockBtn = PanelButton.CreateNew(rowRect);
-                blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                    remote.IsBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
-                blockBtn.OnClicked += async () =>
-                {
-                    bool nowBlocked = await IndividualPlayerProvider.ToggleBlockWithConfirmation(remote);
-                    blockBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        nowBlocked ? "menu.individualPlayer.unblock" : "menu.individualPlayer.blockButton"));
-                };
-
-                return rowRect;
-            }
-
-            private static async System.Threading.Tasks.Task InitMuteLabelAsync(PanelButton muteBtn, BasisRemotePlayer remote)
-            {
-                bool muted = await IndividualPlayerProvider.IsMutedAsync(remote);
-                if (muteBtn != null)
-                {
-                    muteBtn.Descriptor.SetTitle(BasisLocalization.Get(
-                        muted ? "menu.individualPlayer.unmute" : "menu.individualPlayer.mute"));
-                }
+                _entries[netPlayer.playerId] = entry;
+                RefreshCard(entry);
             }
 
             private void RemovePlayerEntry(ushort playerId)
@@ -418,14 +451,13 @@ namespace Basis.BasisUI
                 if (_entries.TryGetValue(playerId, out PlayerEntry entry))
                 {
                     if (entry.Button != null) entry.Button.ReleaseInstance();
-                    if (entry.ActionRow != null) Destroy(entry.ActionRow.gameObject);
                     _entries.Remove(playerId);
                 }
             }
 
             // ---- Description ----
 
-            private string BuildDescription(BasisNetworkPlayer netPlayer)
+            private static string BuildDescription(BasisNetworkPlayer netPlayer)
             {
                 IBasisPlayer p = netPlayer.Player;
                 bool isPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
@@ -440,19 +472,13 @@ namespace Basis.BasisUI
                     parts.Add(BasisLocalization.Get("menu.players.pinned"));
                 }
 
-                // Distance + direction + range only make sense for remote peers.
+                // Distance + range only make sense for remote peers.
                 if (!isLocal && p != null && BasisLocalCameraDriver.HasInstance)
                 {
                     Vector3 localPos = BasisLocalCameraDriver.Position;
                     Vector3 remotePos = GetRemotePosition(p);
                     float dist = Vector3.Distance(localPos, remotePos);
                     parts.Add(BasisLocalization.Get("menu.players.distanceMeters", dist));
-
-                    string dirLabel = ComputeDirectionLabel(localPos, remotePos);
-                    if (!string.IsNullOrEmpty(dirLabel))
-                    {
-                        parts.Add(dirLabel);
-                    }
 
                     if (p is BasisRemotePlayer remote && remote.OutOfRangeFromLocal)
                     {
@@ -466,24 +492,6 @@ namespace Basis.BasisUI
                 }
 
                 return string.Join(" \u2022 ", parts);
-            }
-
-            private static string ComputeDirectionLabel(Vector3 localPos, Vector3 remotePos)
-            {
-                Vector3 toRemote = remotePos - localPos;
-                toRemote.y = 0f;
-                if (toRemote.sqrMagnitude < 0.0001f) return string.Empty;
-
-                Vector3 forward = BasisLocalCameraDriver.Forward();
-                forward.y = 0f;
-                if (forward.sqrMagnitude < 0.0001f) return string.Empty;
-
-                forward.Normalize();
-                toRemote.Normalize();
-                float dot = Vector3.Dot(forward, toRemote);
-                return dot > 0f
-                    ? BasisLocalization.Get("menu.players.inFront")
-                    : BasisLocalization.Get("menu.players.behind");
             }
 
             private static Vector3 GetRemotePosition(IBasisPlayer p)
@@ -505,14 +513,49 @@ namespace Basis.BasisUI
                 return BasisLocalization.Get("menu.players.joinedAgoHours", hours, minutes);
             }
 
-            private void RefreshDescriptions()
+            private void RefreshCardInfo()
             {
                 foreach (var kvp in _entries)
                 {
-                    var entry = kvp.Value;
-                    if (entry.Button == null || entry.NetPlayer == null) continue;
-                    entry.Button.Descriptor.SetDescription(BuildDescription(entry.NetPlayer));
+                    RefreshCard(kvp.Value);
                 }
+            }
+
+            private static void RefreshCard(PlayerEntry entry)
+            {
+                if (entry.Button == null || entry.NetPlayer == null) return;
+
+                entry.Button.Descriptor.SetTooltip(BuildDescription(entry.NetPlayer));
+
+                IBasisPlayer p = entry.NetPlayer.Player;
+                bool isLocal = p != null && p.IsLocal;
+
+                if (entry.PinIcon != null)
+                {
+                    bool isPinned = p != null && PinnedPlayers.IsPinned(p.UUID);
+                    entry.PinIcon.gameObject.SetActive(isPinned);
+                }
+
+                if (entry.InfoLabel == null) return;
+
+                if (isLocal || p == null || !BasisLocalCameraDriver.HasInstance)
+                {
+                    entry.InfoLabel.transform.parent.gameObject.SetActive(false);
+                    return;
+                }
+
+                entry.InfoLabel.transform.parent.gameObject.SetActive(true);
+
+                float dist = Vector3.Distance(BasisLocalCameraDriver.Position, GetRemotePosition(p));
+                entry.InfoLabel.SetText(BasisLocalization.Get("menu.players.distanceMeters", dist));
+
+                // "Out of Range" does not fit the chip, so dim the distance instead —
+                // the full wording is still on the hover tooltip.
+                bool outOfRange = p is BasisRemotePlayer remote && remote.OutOfRangeFromLocal;
+                Color baseColor = entry.Button.Descriptor.TitleLabel != null
+                    ? entry.Button.Descriptor.TitleLabel.color
+                    : Color.white;
+                entry.InfoLabel.color = outOfRange ? baseColor * new Color(1f, 1f, 1f, 0.45f) : baseColor;
             }
 
             // ---- Sorting / Reordering ----
@@ -579,7 +622,7 @@ namespace Basis.BasisUI
                 }
                 _orderBuffer.Sort(CompareForCurrentSort);
 
-                int expected = _firstPlayerSiblingIndex;
+                int expected = 0;
                 bool inOrder = true;
                 for (int i = 0; i < _orderBuffer.Count && inOrder; i++)
                 {
@@ -587,23 +630,17 @@ namespace Basis.BasisUI
                     {
                         if (check.Button != null && check.Button.transform.GetSiblingIndex() != expected++)
                             inOrder = false;
-                        if (inOrder && check.ActionRow != null && check.ActionRow.GetSiblingIndex() != expected++)
-                            inOrder = false;
                     }
                 }
                 if (inOrder) return;
 
-                // Place the player button followed by its action row, so each player
-                // occupies up to two consecutive sibling slots in GridParent.
-                int sibling = _firstPlayerSiblingIndex;
+                int sibling = 0;
                 for (int i = 0; i < _orderBuffer.Count; i++)
                 {
                     if (_entries.TryGetValue(_orderBuffer[i].playerId, out PlayerEntry entry))
                     {
                         if (entry.Button != null)
                             entry.Button.transform.SetSiblingIndex(sibling++);
-                        if (entry.ActionRow != null)
-                            entry.ActionRow.SetSiblingIndex(sibling++);
                     }
                 }
             }
@@ -615,13 +652,6 @@ namespace Basis.BasisUI
                 string query = _lastQuery.Trim();
                 bool hasQuery = query.Length > 0;
                 string queryLower = hasQuery ? query.ToLowerInvariant() : string.Empty;
-
-                bool hasCamera = BasisLocalCameraDriver.HasInstance;
-                Vector3 localPos = hasCamera ? BasisLocalCameraDriver.Position : Vector3.zero;
-                Vector3 forward = hasCamera ? BasisLocalCameraDriver.Forward() : Vector3.zero;
-                forward.y = 0f;
-                bool forwardValid = forward.sqrMagnitude > 0.0001f;
-                if (forwardValid) forward.Normalize();
 
                 foreach (var kvp in _entries)
                 {
@@ -639,28 +669,7 @@ namespace Basis.BasisUI
                             || uuid.ToLowerInvariant().Contains(queryLower);
                     }
 
-                    // Direction filter: skip the local player (no direction relative
-                    // to itself) and skip when the camera isn't ready yet, otherwise
-                    // a freshly-opened menu would briefly hide everyone.
-                    if (show && _directionFilter != DirectionFilter.All)
-                    {
-                        IBasisPlayer p = entry.NetPlayer.Player;
-                        bool isLocal = p != null && p.IsLocal;
-                        if (!isLocal && p != null && forwardValid)
-                        {
-                            Vector3 toRemote = GetRemotePosition(p) - localPos;
-                            toRemote.y = 0f;
-                            if (toRemote.sqrMagnitude > 0.0001f)
-                            {
-                                toRemote.Normalize();
-                                float dot = Vector3.Dot(forward, toRemote);
-                                show = _directionFilter == DirectionFilter.InFront ? dot > 0f : dot <= 0f;
-                            }
-                        }
-                    }
-
                     entry.Button.gameObject.SetActive(show);
-                    if (entry.ActionRow != null) entry.ActionRow.gameObject.SetActive(show);
                 }
 
                 UpdateHeader();

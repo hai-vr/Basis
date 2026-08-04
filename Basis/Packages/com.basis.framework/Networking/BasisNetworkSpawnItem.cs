@@ -177,7 +177,8 @@ public static class BasisNetworkSpawnItem
             BasisRuntimeSpawnRegistry.SpawnMethod.Network,
             localLoadResource.UUIDOfCreator,
             localLoadResource.IsAdminLocked,
-            localLoadResource.Persist);
+            localLoadResource.Persist,
+            localLoadResource.LoadedNetID);
         void ForwardPendingProgress(string uniqueId, float progress, string info) =>
             BasisRuntimeSpawnRegistry.ReportPendingLoadProgress(pending.PendingId, progress, info);
         BasisSceneLoad.progressCallback.OnProgressReport += ForwardPendingProgress;
@@ -185,6 +186,14 @@ public static class BasisNetworkSpawnItem
         {
             Scene scene = await BasisSceneLoad.LoadSceneAssetBundle(loadBundle);
             _loadCts.Token.ThrowIfCancellationRequested();
+
+            if (!scene.IsValid())
+            {
+                BasisDebug.LogError($"Unable to load scene from {localLoadResource.CombinedURL}. This may be caused by the bundle not having a build for the current platform ({UnityEngine.Application.platform}). Check earlier log messages for details.", BasisDebug.LogTag.Networking);
+                BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, $"No scene came back for platform {UnityEngine.Application.platform}.");
+                return scene;
+            }
+
             BasisDebug.Log($"LoadSceneAssetBundle Complete now Starting Scene Traversal", BasisDebug.LogTag.Networking);
             SceneTraverseNetIdAssign(scene, localLoadResource);
 
@@ -202,6 +211,17 @@ public static class BasisNetworkSpawnItem
             );
             BasisDebug.Log($"Scene Load From Server Complete ", BasisDebug.LogTag.Networking);
             return scene;
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnect/reset cancelled the load — the server session it belonged to is gone, so
+            // there is nothing left to list or remove.
+            throw;
+        }
+        catch (Exception e)
+        {
+            BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, e.Message);
+            throw;
         }
         finally
         {
@@ -270,7 +290,8 @@ public static class BasisNetworkSpawnItem
             BasisRuntimeSpawnRegistry.SpawnMethod.Network,
             localLoadResource.UUIDOfCreator,
             localLoadResource.IsAdminLocked,
-            localLoadResource.Persist);
+            localLoadResource.Persist,
+            localLoadResource.LoadedNetID);
         void ForwardPendingProgress(string uniqueId, float progress, string info) =>
             BasisRuntimeSpawnRegistry.ReportPendingLoadProgress(pending.PendingId, progress, info);
         BasisProgressReport.OnProgressReport += ForwardPendingProgress;
@@ -288,6 +309,7 @@ public static class BasisNetworkSpawnItem
             if (reference == null)
             {
                 BasisDebug.LogError($"Unable to load content from {localLoadResource.CombinedURL}. This may be caused by the bundle not having a build for the current platform ({UnityEngine.Application.platform}). Check earlier log messages for details.", BasisDebug.LogTag.Networking);
+                BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, $"No content came back for platform {UnityEngine.Application.platform}.");
                 return null;
             }
 
@@ -324,6 +346,17 @@ public static class BasisNetworkSpawnItem
             BasisHeadlessManagement.StripTextureReferencesFromRoot(reference);
 #endif
             return reference;
+        }
+        catch (OperationCanceledException)
+        {
+            // Disconnect/reset cancelled the load — the server session it belonged to is gone, so
+            // there is nothing left to list or remove.
+            throw;
+        }
+        catch (Exception e)
+        {
+            BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, e.Message);
+            throw;
         }
         finally
         {

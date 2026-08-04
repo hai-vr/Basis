@@ -36,6 +36,33 @@ namespace Basis.Scripts.Drivers
         public bool Initialized = false;
 
         /// <summary>
+        /// True on the driver <see cref="Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver"/>
+        /// creates for a shouting player. See <see cref="OwnsVisemeTap"/>.
+        /// </summary>
+        public bool IsShoutSource;
+
+        /// <summary>
+        /// Whether this driver may feed the shared viseme analyser this callback.
+        /// <para>While a player shouts, TWO AudioSources point at the same
+        /// <see cref="BasisAudioAndVisemeDriver"/>: the shout source carrying their voice, and
+        /// their own spatial source, which receives nothing (a shouter transmits on the shout
+        /// channel only) and therefore writes a buffer of silence every callback. Feeding both
+        /// splices that silence through the mel front-end between real speech — poisoning the
+        /// streaming convolution caches the model carries between hops — and races the analyser's
+        /// ingest buffer, which is written assuming a single producer. So the shout source takes
+        /// the tap on its own for as long as the shout lasts.</para>
+        /// <para>Ownership is a match between the source's kind and the player's current mode
+        /// rather than "shout wins": that makes it exactly one owner in BOTH directions off a
+        /// single volatile read, so the teardown window — where the shout driver still holds a
+        /// live viseme driver for the rest of the frame, because Object.Destroy is deferred —
+        /// cannot briefly double up.</para>
+        /// </summary>
+        public bool OwnsVisemeTap(BasisAudioAndVisemeDriver driver)
+        {
+            return driver != null && IsShoutSource == driver.ShoutActive;
+        }
+
+        /// <summary>
         /// Unity audio callback. Mixes network voice, runs viseme processing,
         /// and notifies <see cref="AudioData"/> listeners.
         /// </summary>
@@ -60,7 +87,10 @@ namespace Basis.Scripts.Drivers
             // Lip-sync reads the untinted voice: ApplySpatialTone runs after it so a
             // talker's viseme classification doesn't change with which way their
             // head is pointing.
-            visemeDriver.ProcessAudioSamples(data, channels, length);
+            if (OwnsVisemeTap(visemeDriver))
+            {
+                visemeDriver.ProcessAudioSamples(data, channels, length);
+            }
             receiver.ApplySpatialTone(data, channels, length);
             AudioData?.Invoke(data, channels);
         }
@@ -87,6 +117,7 @@ namespace Basis.Scripts.Drivers
             BasisAudioAndVisemeDriver = null;
             BasisAudioReceiver = null;
             AudioData = null;
+            IsShoutSource = false;
         }
         /// <summary>
         /// Initializes the driver with a viseme processor and marks it ready.
@@ -188,7 +219,14 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public static void SetVisemeRange(BasisAudioAndVisemeDriver driver, bool inRange)
         {
-            if (driver == null || driver.InVisemeRange == inRange) return;
+            if (driver == null) return;
+
+            // A shouting player is heard at any distance — that is the whole point of shout — so
+            // the distance cutoff must not take their mouth away. This is the one case where
+            // "too far to read a mouth shape" and "too far to hear" disagree.
+            if (driver.ShoutActive) inRange = true;
+
+            if (driver.InVisemeRange == inRange) return;
             driver.InVisemeRange = inRange;
 
             if (!inRange)

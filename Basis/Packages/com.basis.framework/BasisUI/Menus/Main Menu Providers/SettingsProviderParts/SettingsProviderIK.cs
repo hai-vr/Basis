@@ -27,6 +27,7 @@ public static class SettingsProviderIK
     private static PanelToggle _uiEuroRot;
     private static PanelSlider _uiCalibSphereScale;
     private static PanelSlider _avatarScaleSlider;
+    private static PanelSlider _perAvatarSizeSlider;
     private static PanelElementDescriptor _boneEuroEditorGroup;
 
     private struct BoneBindings
@@ -81,6 +82,22 @@ public static class SettingsProviderIK
                     avatarScaleSlider.gameObject.SetActive(visible);
                     RebuildLayoutChain(scaleParent, tabDesc);
                 };
+            }
+
+            // Escape hatch for an avatar whose proportions no automatic fit can rescue. Per-avatar, so
+            // correcting a chibi never distorts the body size you carry onto everything else.
+            BasisPerAvatarScale.RefreshForCurrentAvatar();
+            var perAvatarSizeSlider = PanelSlider.CreateNew(scaleParent);
+            _perAvatarSizeSlider = perAvatarSizeSlider;
+            if (perAvatarSizeSlider != null)
+            {
+                perAvatarSizeSlider.SetSliderSettings(PanelSlider.SliderSettings.Advanced(
+                    BasisLocalization.Get("calibration.avatarNudge"),
+                    BasisPerAvatarScale.Min, BasisPerAvatarScale.Max,
+                    false, 2, ValueDisplayMode.percentageFromZero));
+                perAvatarSizeSlider.Descriptor.SetTooltip(BasisLocalization.Get("calibration.avatarNudge.tooltip"));
+                perAvatarSizeSlider.SetValueWithoutNotify(BasisPerAvatarScale.Current);
+                perAvatarSizeSlider.OnValueChanged += value => BasisPerAvatarScale.SetForCurrentAvatar(value);
             }
         });
 
@@ -1318,6 +1335,7 @@ public static class SettingsProviderIK
     // One card per category. Each card's description holds all of its metrics as
     // "Label: value" lines, so the panel collapses from ~27 group cards to 6.
     private static readonly List<(string title, string[] labels, PanelElementDescriptor descriptor)> _debugCategories = new();
+    private static PanelElementDescriptor _sizeSummaryCard;
 
     private static void BuildDebugSection(PanelElementDescriptor tabDesc)
     {
@@ -1337,6 +1355,12 @@ public static class SettingsProviderIK
         var debugParent = debugGroup.ContentParent;
 
         _debugCategories.Clear();
+
+        // Plain-language answer to "how well does this avatar match me" — the one readout here that a
+        // player rather than a developer is meant to read, so it goes first.
+        _sizeSummaryCard = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, debugParent);
+        _sizeSummaryCard.SetTitle(BasisLocalization.Get("calibration.report.size.title"));
+        _sizeSummaryCard.SetDescription("");
 
         AddDebugCategory(debugParent, BasisLocalization.Get("settings.bodyTracking.debug.playerMetrics"),
             "Player Eye Height", "Player Arm Span", "Player Hip Height", "Player Eye To Hip Drop",
@@ -1398,6 +1422,20 @@ public static class SettingsProviderIK
 
     private static void RefreshDebugData()
     {
+        if (_sizeSummaryCard != null)
+        {
+            try
+            {
+                _sizeSummaryCard.SetDescription(BasisBodyFitSummary.Build());
+            }
+            catch (Exception e)
+            {
+                // A readout must never be able to break the panel it lives in.
+                BasisDebug.LogError($"Body fit summary failed: {e}", BasisDebug.LogTag.Avatar);
+                _sizeSummaryCard.SetDescription("--");
+            }
+        }
+
         var sb = new System.Text.StringBuilder();
         foreach (var (title, labels, descriptor) in _debugCategories)
         {
@@ -1586,6 +1624,14 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.CalibrationMirror.ResetToDefault();
         BasisSettingsDefaults.CustomScale.ResetToDefault();
         BasisSettingsDefaults.SelectedScale.ResetToDefault();
+
+        // Per-avatar size nudge lives on this page but is stored under a hashed avatar key rather than
+        // a binding, so it has to be cleared (and its slider re-read) by hand.
+        BasisPerAvatarScale.ClearForCurrentAvatar();
+        if (_perAvatarSizeSlider != null)
+        {
+            _perAvatarSizeSlider.SetValueWithoutNotify(BasisPerAvatarScale.Current);
+        }
 
         // Playspace Mover
         BasisSettingsDefaults.EnablePlayspaceMover.ResetToDefault();

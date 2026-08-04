@@ -165,9 +165,19 @@ namespace Basis.BasisUI
                 else
                 {
                     BasisDebug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
+                    BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, $"No content came back for platform {Application.platform}.");
                 }
 
                 return createdObject;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, e.Message);
+                throw;
             }
             finally
             {
@@ -582,7 +592,17 @@ namespace Basis.BasisUI
                                 else
                                 {
                                     BasisDebug.LogError($"Library provider failed to create desired scene with networking: {desiredNetworkType} with of url {item.Url}");
+                                    BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, $"No scene came back for platform {Application.platform}.");
                                 }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                throw;
+                            }
+                            catch (Exception e)
+                            {
+                                BasisRuntimeSpawnRegistry.FailPendingLoad(pending.PendingId, e.Message);
+                                throw;
                             }
                             finally
                             {

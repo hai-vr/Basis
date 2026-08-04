@@ -32,6 +32,12 @@ namespace Basis.Scripts.Networking.Receivers
             public AudioSource AudioSource;
             public BasisRemoteAudioDriver Driver;
             public GameObject Root;
+
+            /// <summary>
+            /// The player's own viseme driver, borrowed for the duration of the shout. Held here
+            /// so teardown can hand it back without a receiver lookup that may already be gone.
+            /// </summary>
+            public BasisAudioAndVisemeDriver VisemeDriver;
         }
 
         private static readonly Dictionary<ushort, ShoutAudioEntry> _entries = new Dictionary<ushort, ShoutAudioEntry>();
@@ -97,6 +103,10 @@ namespace Basis.Scripts.Networking.Receivers
             entry.Driver = entry.Root.AddComponent<BasisRemoteAudioDriver>();
             entry.Driver.BasisAudioReceiver = entry.Receiver;
 
+            // This source, not the player's silent spatial one, feeds lip-sync for the duration
+            // of the shout. See BasisRemoteAudioDriver.OwnsVisemeTap.
+            entry.Driver.IsShoutSource = true;
+
             entry.Receiver.audioSource = entry.AudioSource;
             entry.Receiver.AudioSourceTransform = entry.Root.transform;
             entry.Receiver.DirectionalDampeningMultiplier = 1f;
@@ -111,7 +121,20 @@ namespace Basis.Scripts.Networking.Receivers
             // Wire up the player's existing viseme driver so lip-sync works during shout mode
             if (BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
             {
-                entry.Driver.Initialize(receiver.AudioReceiverModule.visemeDriver);
+                BasisAudioAndVisemeDriver viseme = receiver.AudioReceiverModule.visemeDriver;
+                entry.VisemeDriver = viseme;
+
+                // Order matters here. By the time a shout starts, the normal path has usually
+                // already retired this driver: the viseme distance cutoff drops it out of
+                // ActiveDrivers, and going out of hearing range pools the player's spatial
+                // AudioSource, whose ResetForPool unregisters the driver and releases its
+                // OpenLipSync context outright. So flag it first (SetVisemeRange honours the flag
+                // and stops the distance pass fighting us), force it back in range, and only then
+                // Initialize — which re-registers it when the pool return had dropped it, and adds
+                // it to ActiveDrivers because InVisemeRange is true again by that point.
+                viseme.ShoutActive = true;
+                BasisRemoteAudioDriver.SetVisemeRange(viseme, true);
+                entry.Driver.Initialize(viseme);
             }
             else
             {
@@ -154,6 +177,29 @@ namespace Basis.Scripts.Networking.Receivers
                     BasisAudioClipPool.Return(entry.AudioSource.clip);
                 }
                 Object.Destroy(entry.AudioSource);
+            }
+
+            if (entry.VisemeDriver != null)
+            {
+                // Hand the driver back to the distance rule; the next transmission tick recomputes
+                // InVisemeRange and retires it if they really are too far to read.
+                entry.VisemeDriver.ShoutActive = false;
+
+                // If the player's own spatial AudioSource is not currently holding this driver —
+                // the out-of-range shouter, whose source was pooled — then the shout path was its
+                // only owner and it has to be retired here, or it dangles in the static registry
+                // being ticked every frame with nothing left to feed it.
+                bool spatialPathOwnsIt =
+                    BasisNetworkPlayers.RemotePlayerReceivers.TryGetValue(playerId, out BasisNetworkReceiver receiver)
+                    && receiver.AudioReceiverModule != null
+                    && receiver.AudioReceiverModule.HasAudioSource;
+
+                if (!spatialPathOwnsIt)
+                {
+                    BasisRemoteAudioDriver.SetVisemeRange(entry.VisemeDriver, false);
+                    BasisRemoteAudioDriver.UnregisterDriver(entry.VisemeDriver);
+                }
+                entry.VisemeDriver = null;
             }
 
             if (entry.Driver != null)

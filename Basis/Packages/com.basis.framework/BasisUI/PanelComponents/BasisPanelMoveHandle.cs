@@ -424,36 +424,11 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// Finds which device pressed us. Every raycasting device owns exactly one persistent
-        /// <see cref="Basis.Scripts.UI.BasisPointerEventData"/>, so the instance that arrived with
-        /// the press identifies the hand, its ray, and its thumbstick.
+        /// Finds which device pressed us, by the same route the reset gesture uses to decide which
+        /// hand a hovered control belongs to.
         /// </summary>
-        private static BasisInput ResolveInput(PointerEventData eventData)
-        {
-            if (eventData == null)
-            {
-                return null;
-            }
-
-            BasisDeviceManagement management = BasisDeviceManagement.Instance;
-            if (management == null)
-            {
-                return null;
-            }
-
-            BasisObservableList<BasisInput> devices = management.AllInputDevices;
-            int count = devices.Count;
-            for (int Index = 0; Index < count; Index++)
-            {
-                BasisInput input = devices[Index];
-                if (input != null && input.HasRaycaster && input.BasisUIRaycast != null &&
-                    ReferenceEquals(input.BasisUIRaycast.CurrentEventData, eventData))
-                {
-                    return input;
-                }
-            }
-            return null;
-        }
+        private static BasisInput ResolveInput(PointerEventData eventData) =>
+            BasisPanelResetGesture.ResolvePointerDevice(eventData);
 
         private void BeginDrag(BasisInput input)
         {

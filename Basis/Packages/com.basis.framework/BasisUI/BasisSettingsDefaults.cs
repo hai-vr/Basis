@@ -1348,14 +1348,6 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> RAListenerDampenAmount = new("ra_listenerdampenamount_v2", new BasisPlatformDefault<float>(60f));
 
         /// <summary>
-        /// Distance past which a voice stops getting quieter — the critical distance
-        /// of the space, where a room's reverberant field matches the talker's direct
-        /// field. Inside it you get the full inverse distance law, which is the level
-        /// cue the old hand-drawn rolloff curve had almost entirely flattened out.
-        /// </summary>
-        public static BasisSettingsBinding<float> RAReverbDistance = new("ra_reverbdistance", new BasisPlatformDefault<float>(BasisVoiceAcoustics.DefaultReverberantDistance));
-
-        /// <summary>
         /// Frequency-dependent spatial shaping: mouth directivity and listener head
         /// shadow, applied per remote voice on the audio thread. Costs two one-pole
         /// filters per audible speaker.
@@ -2597,7 +2589,6 @@ namespace Basis.BasisUI
             RAApplyHRTFToReflections.LoadBindingValue();
             RAJitterBufferDepth.LoadBindingValue();
             RAClipBufferScalar.LoadBindingValue();
-            RAReverbDistance.LoadBindingValue();
             RAVoiceToneShaping.LoadBindingValue();
 
             // UI Style Palette

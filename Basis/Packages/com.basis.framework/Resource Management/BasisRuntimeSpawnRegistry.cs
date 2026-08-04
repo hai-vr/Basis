@@ -195,6 +195,11 @@ namespace Basis
         public static async Task<bool> RemoveByLoadedNetId(string loadedNetId)
         {
             if (string.IsNullOrWhiteSpace(loadedNetId)) return false;
+
+            // Clients that never got this spawn loaded hold a failure row for it instead of a real
+            // instance; the unload broadcast is what tells them it is gone, so clear that first.
+            DismissFailedLoadByNetId(loadedNetId);
+
             if (!_byNetId.TryGetValue(loadedNetId, out var inst) || inst == null) return false;
 
             // Despawn first (main thread!)
@@ -364,6 +369,8 @@ namespace Basis
 
             SpawnedGameobjects.Clear();
             SpawnedScenes.Clear();
+
+            ClearFailedLoads();
         }
 
         /// <summary>
@@ -376,6 +383,10 @@ namespace Basis
 
         public static async Task<int> ClearAllNetworking()
         {
+            // Networked failures belong to the session we are leaving; their LoadedNetIDs mean
+            // nothing to the next server.
+            ClearFailedLoads(networkOnly: true);
+
             var toRemove = new List<string>();
 
             foreach (var kvp in _byNetId)
@@ -499,6 +510,7 @@ namespace Basis
             public SpawnMethod SpawnMethod;
             public string PendingId;
             public string Url;
+            public string LoadedNetID;   // network spawns only; what a failure row needs to ask the server to drop it
             public string UUIDOfCreator;
             public bool isProtected;
             public bool Persistent;
@@ -516,12 +528,13 @@ namespace Basis
 
         public static IReadOnlyCollection<PendingLoad> GetPendingLoads() => _pendingLoads.Values;
 
-        public static PendingLoad BeginPendingLoad(string url, SpawnMode mode, SpawnMethod method, string creatorUUID, bool admin, bool persistent)
+        public static PendingLoad BeginPendingLoad(string url, SpawnMode mode, SpawnMethod method, string creatorUUID, bool admin, bool persistent, string loadedNetId = null)
         {
             PendingLoad pending = new PendingLoad
             {
                 PendingId = Guid.NewGuid().ToString("N"),
                 Url = url,
+                LoadedNetID = loadedNetId,
                 SpawnMode = mode,
                 SpawnMethod = method,
                 UUIDOfCreator = creatorUUID,
@@ -563,6 +576,126 @@ namespace Basis
                 pending.Stage = tick.Stage;
                 OnPendingLoadProgress?.Invoke(pending);
             }
+        }
+
+        /// <summary>
+        /// Content that started loading and never arrived. Kept because nothing else records it:
+        /// a spawn only reaches the registry once its bundle is live, so a bundle that 404s (or
+        /// has no build for this platform) leaves no row anywhere — while the server keeps handing
+        /// the same spawn to every joiner, and a persistent one comes back every session, with no
+        /// UI to remove it from.
+        /// </summary>
+        [Serializable]
+        public class FailedLoad
+        {
+            public SpawnMode SpawnMode;
+            public SpawnMethod SpawnMethod;
+            public string FailedId;
+            public string Url;
+            public string LoadedNetID;   // empty for local/embedded loads
+            public string UUIDOfCreator;
+            public bool isProtected;
+            public bool Persistent;
+            public DateTime FailedUtc;
+            public string Error;         // untranslated detail for the row's tooltip; may be null
+        }
+
+        public static event Action OnFailedLoadsChanged;
+
+        private static readonly Dictionary<string, FailedLoad> _failedLoads = new();
+
+        public static IReadOnlyCollection<FailedLoad> GetFailedLoads() => _failedLoads.Values;
+
+        // One row per spawn, not per attempt: a networked spawn is identified by its LoadedNetID,
+        // a local one by its URL — nothing else tells two attempts at the same file apart, and the
+        // placement bounds probe loads the same prop once more right before the real spawn.
+        private static string FailedLoadKey(string loadedNetId, string url)
+            => string.IsNullOrEmpty(loadedNetId) ? "url:" + url : "net:" + loadedNetId;
+
+        /// <summary>
+        /// Turns an in-flight load into a failure row. Main-thread only, and a no-op once the
+        /// pending record is gone — every success path ends the pending load before it registers
+        /// the real instance, so a late call can never resurrect a load that actually worked.
+        /// </summary>
+        public static void FailPendingLoad(string pendingId, string error)
+        {
+            if (string.IsNullOrEmpty(pendingId)) return;
+            if (!_pendingLoads.TryGetValue(pendingId, out PendingLoad pending) || pending == null) return;
+
+            _pendingLoads.Remove(pendingId);
+
+            FailedLoad failed = new FailedLoad
+            {
+                FailedId = FailedLoadKey(pending.LoadedNetID, pending.Url),
+                Url = pending.Url,
+                LoadedNetID = pending.LoadedNetID,
+                SpawnMode = pending.SpawnMode,
+                SpawnMethod = pending.SpawnMethod,
+                UUIDOfCreator = pending.UUIDOfCreator,
+                isProtected = pending.isProtected,
+                Persistent = pending.Persistent,
+                FailedUtc = DateTime.UtcNow,
+                Error = error
+            };
+            _failedLoads[failed.FailedId] = failed;
+
+            OnPendingLoadsChanged?.Invoke();
+            OnFailedLoadsChanged?.Invoke();
+        }
+
+        public static void DismissFailedLoad(string failedId)
+        {
+            if (string.IsNullOrEmpty(failedId)) return;
+            if (_failedLoads.Remove(failedId))
+            {
+                OnFailedLoadsChanged?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Drops the failure row for a networked spawn. Called from the unload path so the server's
+        /// removal broadcast clears the row on every client that failed to load it, not just the one
+        /// that asked for the removal.
+        /// </summary>
+        public static void DismissFailedLoadByNetId(string loadedNetId)
+        {
+            if (string.IsNullOrEmpty(loadedNetId)) return;
+            DismissFailedLoad(FailedLoadKey(loadedNetId, null));
+        }
+
+        /// <summary>
+        /// Forgets failure rows. <paramref name="networkOnly"/> keeps the local/embedded ones, which
+        /// outlive a server session — a boot-loaded prop that failed is still failing after a
+        /// disconnect, and its row is the only place to stop it loading again next launch.
+        /// </summary>
+        public static void ClearFailedLoads(bool networkOnly = false)
+        {
+            if (_failedLoads.Count == 0) return;
+
+            if (networkOnly)
+            {
+                List<string> toRemove = new List<string>();
+                foreach (KeyValuePair<string, FailedLoad> kvp in _failedLoads)
+                {
+                    if (kvp.Value != null && kvp.Value.SpawnMethod == SpawnMethod.Network)
+                    {
+                        toRemove.Add(kvp.Key);
+                    }
+                }
+
+                if (toRemove.Count == 0) return;
+
+                for (int Index = 0; Index < toRemove.Count; Index++)
+                {
+                    _failedLoads.Remove(toRemove[Index]);
+                }
+            }
+            else
+            {
+                _failedLoads.Clear();
+            }
+
+            OnFailedLoadsChanged?.Invoke();
         }
     }
 }

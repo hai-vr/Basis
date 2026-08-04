@@ -37,10 +37,19 @@ namespace Basis.Scripts.UI.UI_Panels
         public Quaternion Rotation;
         public Vector3 Scale = new Vector3(4, 4, 4);
 
-        [SerializeField]
-        private List<LoadingOperationData> loadingOperations = new List<LoadingOperationData>();
+        public static event Action<string, float, bool> OnDisplayChanged;
 
-        private Coroutine autoDestroyCoroutine;
+        public static string CurrentDisplay { get; private set; } = string.Empty;
+        public static float CurrentPercentage { get; private set; }
+        public static bool HasDisplay { get; private set; }
+
+        private static readonly List<LoadingOperationData> loadingOperations = new List<LoadingOperationData>();
+        private static bool hudSuppressed;
+
+        private static bool IsRoutedElsewhere => hudSuppressed && OnDisplayChanged != null;
+
+        private static Coroutine autoDestroyCoroutine;
+        private static MonoBehaviour autoDestroyHost;
         private const float AutoDestroyTimeout = 1.5f;
 
         public static void Initialize()
@@ -71,16 +80,31 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 if (report.Progress == 100)
                 {
-                    Instance?.RemoveDisplay(report.UniqueID);
+                    RemoveDisplay(report.UniqueID);
                 }
                 else
                 {
-                    if (Instance == null)
-                    {
-                        BasisUIBase.OpenMenuNow(LoadingBar);
-                    }
-                    Instance?.AddOrUpdateDisplay(report.UniqueID, report.Progress, report.Info);
+                    AddOrUpdateDisplay(report.UniqueID, report.Progress, report.Info);
                 }
+            }
+        }
+
+        public static void SetHudSuppressed(bool suppressed)
+        {
+            if (hudSuppressed == suppressed)
+            {
+                return;
+            }
+            hudSuppressed = suppressed;
+            BasisDebug.Log($"[LoadingBarRoute] SetHudSuppressed {suppressed} hasDisplay:{HasDisplay} listeners:{OnDisplayChanged?.GetInvocationList().Length ?? 0}");
+
+            if (suppressed)
+            {
+                DestroyHud();
+            }
+            else if (HasDisplay)
+            {
+                ProcessQueue();
             }
         }
 
@@ -88,17 +112,16 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                if (Instance != null)
-                {
-                    GameObject.Destroy(Instance.gameObject);
-                    Instance = null;
-                }
+                StopAutoDestroyCoroutine();
+                loadingOperations.Clear();
+                DestroyHud();
+                SetDisplayState(string.Empty, 0f, false);
             });
         }
 
-        public void AddOrUpdateDisplay(string key, float percentage, string display)
+        public static void AddOrUpdateDisplay(string key, float percentage, string display)
         {
-            var operation = loadingOperations.Find(op => op.Key == key);
+            LoadingOperationData operation = loadingOperations.Find(op => op.Key == key);
             if (operation != null)
             {
                 operation.Percentage = percentage;
@@ -114,15 +137,11 @@ namespace Basis.Scripts.UI.UI_Panels
             ResetAutoDestroyCoroutine();
         }
 
-        public void RemoveDisplay(string key)
+        public static void RemoveDisplay(string key)
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                if (this == null)
-                {
-                    return;
-                }
-                var operation = loadingOperations.Find(op => op.Key == key);
+                LoadingOperationData operation = loadingOperations.Find(op => op.Key == key);
                 if (operation != null)
                 {
                     loadingOperations.Remove(operation);
@@ -139,25 +158,50 @@ namespace Basis.Scripts.UI.UI_Panels
             });
         }
 
-        private void ProcessQueue()
+        private static void ProcessQueue()
         {
-            if (this == null)
+            LoadingOperationData operation = GetFirstLoadingOperation();
+            if (operation == null)
             {
                 return;
             }
-            if (loadingOperations.Count > 0)
+
+            if (!IsRoutedElsewhere && Instance == null)
             {
-                var operation = GetFirstLoadingOperation();
-                if (operation != null)
-                {
-                    UpdateDisplay(operation.Percentage, operation.Display);
-                }
+                BasisUIBase.OpenMenuNow(LoadingBar);
             }
+
+            SetDisplayState(operation.Display, operation.Percentage, true);
         }
 
-        private LoadingOperationData GetFirstLoadingOperation()
+        private static LoadingOperationData GetFirstLoadingOperation()
         {
             return loadingOperations.FirstOrDefault(op => op.Percentage > 0);
+        }
+
+        private static void SetDisplayState(string display, float percentage, bool active)
+        {
+            CurrentDisplay = display ?? string.Empty;
+            CurrentPercentage = percentage;
+            HasDisplay = active;
+
+            BasisDebug.Log($"[LoadingBarRoute] SetDisplayState '{CurrentDisplay}' {percentage} active:{active} suppressed:{hudSuppressed} listeners:{OnDisplayChanged?.GetInvocationList().Length ?? 0} hud:{Instance != null}");
+
+            if (active && Instance != null)
+            {
+                Instance.UpdateDisplay(percentage, CurrentDisplay);
+            }
+
+            OnDisplayChanged?.Invoke(CurrentDisplay, percentage, active);
+        }
+
+        private static void DestroyHud()
+        {
+            if (Instance != null)
+            {
+                Instance.CloseThisMenu();
+                Instance = null;
+            }
         }
 
         private void UpdateDisplay(float percentage, string display)
@@ -166,9 +210,14 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 return;
             }
-            TextMeshPro.text = $"{display}  {Mathf.RoundToInt(percentage)}%";
+            TextMeshPro.text = FormatDisplay(percentage, display);
             float value = percentage / 4f;
             Renderer.size = new Vector2(value, 2);
+        }
+
+        public static string FormatDisplay(float percentage, string display)
+        {
+            return $"{display}  {Mathf.RoundToInt(percentage)}%";
         }
 
         public override void InitializeEvent()
@@ -179,6 +228,11 @@ namespace Basis.Scripts.UI.UI_Panels
                 InstanceExists();
             }
             BasisLocalCameraDriver.InstanceExists += InstanceExists;
+
+            if (HasDisplay)
+            {
+                UpdateDisplay(CurrentPercentage, CurrentDisplay);
+            }
         }
 
         private void InstanceExists()
@@ -195,20 +249,41 @@ namespace Basis.Scripts.UI.UI_Panels
         public void OnDestroy()
         {
             BasisLocalCameraDriver.InstanceExists -= InstanceExists;
-        }
-
-        private void ResetAutoDestroyCoroutine()
-        {
-            if (autoDestroyCoroutine != null)
+            if (Instance == this)
             {
-                StopCoroutine(autoDestroyCoroutine);
+                Instance = null;
             }
-            autoDestroyCoroutine = StartCoroutine(AutoDestroyAfterTimeout());
         }
 
-        private System.Collections.IEnumerator AutoDestroyAfterTimeout()
+        private static void ResetAutoDestroyCoroutine()
+        {
+            StopAutoDestroyCoroutine();
+
+            MonoBehaviour host = BasisDeviceManagement.Instance != null ? BasisDeviceManagement.Instance : (MonoBehaviour)Instance;
+            if (host == null || !host.isActiveAndEnabled)
+            {
+                return;
+            }
+
+            autoDestroyHost = host;
+            autoDestroyCoroutine = host.StartCoroutine(AutoDestroyAfterTimeout());
+        }
+
+        private static void StopAutoDestroyCoroutine()
+        {
+            if (autoDestroyCoroutine != null && autoDestroyHost != null)
+            {
+                autoDestroyHost.StopCoroutine(autoDestroyCoroutine);
+            }
+            autoDestroyCoroutine = null;
+            autoDestroyHost = null;
+        }
+
+        private static System.Collections.IEnumerator AutoDestroyAfterTimeout()
         {
             yield return new WaitForSeconds(AutoDestroyTimeout);
+            autoDestroyCoroutine = null;
+            autoDestroyHost = null;
             CloseLoadingBar();
         }
     }

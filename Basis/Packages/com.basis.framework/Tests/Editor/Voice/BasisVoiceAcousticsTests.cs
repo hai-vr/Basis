@@ -19,25 +19,24 @@ namespace Basis.Tests.Voice
     public class BasisVoiceAcousticsTests
     {
         private const float MinDistance = 0.5f;
-        private const float ReverbDistance = 4f;
         private const float MaxDistance = 25f;
         private const int SampleRate = 48000;
 
         private static float Db(float linear) => 20f * Mathf.Log10(Mathf.Max(linear, 1e-9f));
 
         private static float Gain(float d) =>
-            BasisVoiceAcoustics.DistanceGain(d, MinDistance, ReverbDistance, MaxDistance);
+            BasisVoiceAcoustics.DistanceGain(d, MinDistance, MaxDistance);
 
         // ─────────────────────────── distance ───────────────────────────
 
         [TestCase(0.25f, 1.000000f)]
         [TestCase(0.5f, 1.000000f)]
-        [TestCase(1f, 0.511408f)]
-        [TestCase(2f, 0.277350f)]
-        [TestCase(4f, 0.175412f)]
-        [TestCase(8f, 0.138675f)]
-        [TestCase(16f, 0.127852f)]
-        [TestCase(24f, 0.080477f)]
+        [TestCase(1f, 0.500000f)]
+        [TestCase(2f, 0.250000f)]
+        [TestCase(4f, 0.125000f)]
+        [TestCase(8f, 0.062500f)]
+        [TestCase(16f, 0.031250f)]
+        [TestCase(24f, 0.013333f)]
         public void DistanceGain_MatchesTheFittedModel(float distance, float expected)
         {
             Assert.AreEqual(expected, Gain(distance), 1e-4f);
@@ -58,12 +57,13 @@ namespace Basis.Tests.Voice
         }
 
         [Test]
-        public void DistanceGain_FlattensBeyondTheReverberantDistance()
+        public void DistanceGain_KeepsFallingAtEveryDistance()
         {
-            // Past the critical distance a room's reflected field dominates and level
-            // stops falling. This is what keeps far players audible without faking it.
+            // The reverberant floor that used to flatten the curve past the critical
+            // distance was removed by request, so the inverse distance law now runs the
+            // whole way out and far players keep getting quieter.
             float far = Db(Gain(16f)) - Db(Gain(8f));
-            Assert.Less(Mathf.Abs(far), 1.5f, "level should be nearly flat past reverb distance");
+            Assert.AreEqual(-6f, far, 0.5f, "level should keep falling past the old reverb distance");
         }
 
         [Test]
@@ -97,8 +97,8 @@ namespace Basis.Tests.Voice
             // only the taper is expressed as a fraction of the range.
             foreach (float range in new[] { 10f, 25f, 60f })
             {
-                float g = BasisVoiceAcoustics.DistanceGain(2f, MinDistance, ReverbDistance, range);
-                Assert.AreEqual(0.277350f, g, 0.02f, $"2 m gain drifted at {range} m range");
+                float g = BasisVoiceAcoustics.DistanceGain(2f, MinDistance, range);
+                Assert.AreEqual(0.25f, g, 0.02f, $"2 m gain drifted at {range} m range");
             }
         }
 
@@ -109,7 +109,7 @@ namespace Basis.Tests.Voice
             // approximate the closed form. Bound that approximation error, because
             // this curve is what actually plays.
             AnimationCurve curve = BasisVoiceAcoustics.BuildRolloffCurve(
-                MinDistance, ReverbDistance, MaxDistance);
+                MinDistance, MaxDistance);
 
             float worstDb = 0f;
             for (float d = 0.25f; d < MaxDistance * 0.94f; d += 0.05f)
@@ -125,7 +125,7 @@ namespace Basis.Tests.Voice
         public void RolloffCurve_EndsAtSilence()
         {
             AnimationCurve curve = BasisVoiceAcoustics.BuildRolloffCurve(
-                MinDistance, ReverbDistance, MaxDistance);
+                MinDistance, MaxDistance);
             Assert.AreEqual(0f, curve.Evaluate(1f), 1e-5f);
             Assert.AreEqual(1f, curve.Evaluate(0f), 1e-3f);
         }
@@ -142,7 +142,7 @@ namespace Basis.Tests.Voice
                 foreach (float maxD in new[] { 5f, 10f, 25f, 60f, 100f })
                 {
                     AnimationCurve curve = BasisVoiceAcoustics.BuildRolloffCurve(
-                        minD, ReverbDistance, maxD);
+                        minD, maxD);
                     float previous = curve.Evaluate(0f);
                     for (float x = 0f; x <= 1f; x += 0.0005f)
                     {
@@ -163,69 +163,16 @@ namespace Basis.Tests.Voice
                 foreach (float maxD in new[] { 5f, 10f, 25f, 60f, 100f })
                 {
                     AnimationCurve curve = BasisVoiceAcoustics.BuildRolloffCurve(
-                        minD, ReverbDistance, maxD);
+                        minD, maxD);
                     float worst = 0f;
                     for (float d = minD * 0.5f; d < maxD * 0.94f; d += maxD / 500f)
                     {
-                        float analytic = BasisVoiceAcoustics.DistanceGain(d, minD, ReverbDistance, maxD);
+                        float analytic = BasisVoiceAcoustics.DistanceGain(d, minD, maxD);
                         worst = Mathf.Max(worst, Mathf.Abs(Db(curve.Evaluate(d / maxD)) - Db(analytic)));
                     }
                     Assert.Less(worst, 0.6f, $"minD {minD}, maxD {maxD} drifts {worst:F2} dB");
                 }
             }
-        }
-
-        [Test]
-        public void ReverbMixCurve_IsMonotonicAndBounded()
-        {
-            AnimationCurve curve = BasisVoiceAcoustics.BuildReverbMixCurve(
-                MinDistance, ReverbDistance, MaxDistance);
-            float previous = curve.Evaluate(0f);
-            for (float x = 0f; x <= 1f; x += 0.0005f)
-            {
-                float v = curve.Evaluate(x);
-                Assert.GreaterOrEqual(v, previous - 1e-6f, $"reverb send fell at x={x:F4}");
-                Assert.GreaterOrEqual(v, -1e-4f);
-                Assert.LessOrEqual(v, 1.0001f);
-                previous = v;
-            }
-        }
-
-        // ─────────────────────────── reverb send ───────────────────────────
-
-        [TestCase(0.5f, 0.124035f)]
-        [TestCase(1f, 0.242536f)]
-        [TestCase(2f, 0.447214f)]
-        [TestCase(4f, 0.707107f)]
-        [TestCase(8f, 0.894427f)]
-        [TestCase(25f, 0.987441f)]
-        public void ReverbSend_MatchesTheFittedModel(float distance, float expected)
-        {
-            Assert.AreEqual(expected, BasisVoiceAcoustics.ReverbSend(distance, MinDistance, ReverbDistance), 1e-4f);
-        }
-
-        [Test]
-        public void ReverbSend_CrossesUnityDirectToReverberantAtTheReverberantDistance()
-        {
-            // Equal direct and reverberant energy is the definition of critical
-            // distance, so the send has to be 1/sqrt(2) exactly there.
-            float mix = BasisVoiceAcoustics.ReverbSend(ReverbDistance, MinDistance, ReverbDistance);
-            Assert.AreEqual(Mathf.Sqrt(0.5f), mix, 1e-4f);
-        }
-
-        [Test]
-        public void ReverbSend_RisesWithDistance()
-        {
-            // The shipping value was a flat 1.0 — maximum room at zero distance,
-            // which is the cue backwards.
-            float previous = -1f;
-            for (float d = 0.1f; d <= MaxDistance; d += 0.1f)
-            {
-                float mix = BasisVoiceAcoustics.ReverbSend(d, MinDistance, ReverbDistance);
-                Assert.GreaterOrEqual(mix, previous - 1e-6f);
-                previous = mix;
-            }
-            Assert.Less(BasisVoiceAcoustics.ReverbSend(0.5f, MinDistance, ReverbDistance), 0.2f);
         }
 
         // ─────────────────────── talker directivity ───────────────────────
@@ -610,8 +557,8 @@ namespace Basis.Tests.Voice
             int n = 0;
             for (float d = 0.5f; d <= 15f; d += 0.25f)
             {
-                // Reference: a real talker in a room, which is what the model IS —
-                // so this measures how far the hand-drawn curve sits from physics.
+                // Reference: the analytic inverse distance law, which is what the model
+                // IS — so this measures how far the hand-drawn curve sits from it.
                 float reference = Db(Gain(d));
                 double legacyErr = Db(legacy.Evaluate(d / MaxDistance)) - reference;
                 double modelErr = Db(BuildAndEvaluate(d)) - reference;
@@ -629,7 +576,7 @@ namespace Basis.Tests.Voice
         private static float BuildAndEvaluate(float d)
         {
             AnimationCurve curve = BasisVoiceAcoustics.BuildRolloffCurve(
-                MinDistance, ReverbDistance, MaxDistance);
+                MinDistance, MaxDistance);
             return curve.Evaluate(d / MaxDistance);
         }
     }

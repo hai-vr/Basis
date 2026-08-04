@@ -233,12 +233,6 @@ namespace Basis.BasisUI
                     BasisSettingsDefaults.RAMinDistance);
                 sliderMinDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.minDistance.tooltip"));
 
-                PanelSlider sliderReverbDistance = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.remoteAudio.reverbDistance"), 1f, 30f, false, 1, ValueDisplayMode.Meters),
-                    BasisSettingsDefaults.RAReverbDistance);
-                sliderReverbDistance.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.reverbDistance.tooltip"));
-
                 PanelDropdown dropdownRolloffMode = PanelDropdown.CreateNewEntry(container);
                 dropdownRolloffMode.Descriptor.SetTitle(BasisLocalization.Get("settings.remoteAudio.rolloffMode"));
                 dropdownRolloffMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.remoteAudio.rolloffMode.tooltip"));
@@ -734,7 +728,6 @@ namespace Basis.BasisUI
 
             // AudioSource
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();
-            BasisSettingsDefaults.RAReverbDistance.ResetToDefault();
             BasisSettingsDefaults.RAVoiceToneShaping.ResetToDefault();
             BasisSettingsDefaults.RARolloffMode.ResetToDefault();
             BasisSettingsDefaults.RARolloffCurvePreset.ResetToDefault();
@@ -810,8 +803,7 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
-        /// (Re)builds the two curves that depend on the hearing range: the distance
-        /// rolloff and the reverb send. Split out of <see cref="ApplyRemoteAudioTo"/>
+        /// (Re)builds the distance rolloff curve. Split out of <see cref="ApplyRemoteAudioTo"/>
         /// because <c>BasisAudioReceiver.ApplyRangeData</c> has to redo exactly this
         /// whenever <c>maxDistance</c> moves — a custom rolloff curve is evaluated at
         /// <c>distance / maxDistance</c>, so it is denominated in hearing ranges and
@@ -828,17 +820,6 @@ namespace Basis.BasisUI
                     GetRolloffCurvePreset(BasisSettingsDefaults.RARolloffCurvePreset.RawValue,
                                           source.maxDistance));
             }
-
-            // Reverb send. The prefab authors a flat 1.0, so a voice 30 cm from your
-            // face got exactly as much room as one across the hall — the direct-to-
-            // reverberant ratio, which is the dominant distance cue past about a
-            // metre, was not merely absent but inverted. Worlds with no reverb zone
-            // are unaffected either way.
-            source.SetCustomCurve(AudioSourceCurveType.ReverbZoneMix,
-                BasisVoiceAcoustics.BuildReverbMixCurve(
-                    BasisSettingsDefaults.RAMinDistance.RawValue,
-                    BasisSettingsDefaults.RAReverbDistance.RawValue,
-                    source.maxDistance));
         }
 
         /// <summary>
@@ -855,6 +836,11 @@ namespace Basis.BasisUI
 
             // AudioSource settings
             source.minDistance = BasisSettingsDefaults.RAMinDistance.RawValue;
+            // Before ApplyDistanceCurves, which only bakes the custom curve when the mode is
+            // already Custom. Nothing used to write this at all: the dropdown was bound,
+            // localized and persisted, but every remote source just kept whatever the prefab
+            // authored, so picking Logarithmic or Linear did nothing.
+            source.rolloffMode = ParseRolloffMode(BasisSettingsDefaults.RARolloffMode.RawValue);
             ApplyDistanceCurves(receiver);
             source.spread = BasisSettingsDefaults.RASpread.RawValue;
             source.dopplerLevel = BasisSettingsDefaults.RADopplerLevel.RawValue;
@@ -905,6 +891,16 @@ namespace Basis.BasisUI
                 sa.reflectionsMixLevel = BasisSettingsDefaults.RAReflectionsMixLevel.RawValue;
                 sa.applyHRTFToReflections = BasisSettingsDefaults.RAApplyHRTFToReflections.RawValue;
 
+                // Every boolean above feeds a flag set SteamAudioSource caches and only rebuilds
+                // when it is told to. Without this the simulator keeps whatever the prefab
+                // authored — occlusion, transmission and directivity silently never turn on in a
+                // build, no matter what the settings say — because the only invalidation that
+                // covers a plain field write is OnValidate, which is editor-only. ForceUpdate
+                // below does not cover it; it pushes DSP parameters, not simulation flags.
+                sa.MarkCacheDirty();
+                // The rolloff mode, distances and baked curve all just moved; the native
+                // attenuation callback reads its own snapshot of them, taken at init.
+                sa.RefreshAttenuationData();
                 sa.ForceUpdate();
             }
             else
@@ -1005,11 +1001,9 @@ namespace Basis.BasisUI
             if (string.Equals(preset, "natural", StringComparison.OrdinalIgnoreCase))
             {
                 // Generated from the acoustic model rather than drawn by hand: the
-                // inverse distance law out to the reverberant distance, flat beyond
-                // it, tapered to zero so the hearing-range cull is silent.
+                // inverse distance law, tapered to zero so the hearing-range cull is silent.
                 return BasisVoiceAcoustics.BuildRolloffCurve(
                     BasisSettingsDefaults.RAMinDistance.RawValue,
-                    BasisSettingsDefaults.RAReverbDistance.RawValue,
                     maxDistance);
             }
 

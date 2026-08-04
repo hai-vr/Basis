@@ -78,6 +78,19 @@ namespace Basis.Scripts.Drivers
         public bool AudioSourceInactive;
 
         /// <summary>
+        /// True while this player's voice is arriving on the shout channel instead of through
+        /// their own spatial AudioSource. Set by BasisShoutAudioDriver.
+        /// <para>Both of the rules that normally retire a viseme driver describe a shouting
+        /// player wrongly. A shouter sends on <c>ShoutVoiceChannel</c> only, so their spatial
+        /// receiver goes idle and <see cref="AudioSourceInactive"/> latches even though they are
+        /// mid-sentence; and shout deliberately ignores distance culling, so the viseme distance
+        /// cutoff retires exactly the players shout exists to make audible. Without this flag the
+        /// driver releases and re-acquires its OpenLipSync context every single frame, which
+        /// throws away the buffered audio before inference ever runs.</para>
+        /// </summary>
+        public volatile bool ShoutActive;
+
+        /// <summary>
         /// Tracks whether initialization completed successfully.
         /// </summary>
         public bool WasSuccessful;
@@ -226,7 +239,7 @@ namespace Basis.Scripts.Drivers
             }
 
             // Release context back to pool when audio source is inactive (player not speaking)
-            if (UseOpenLipSync && openLipSyncContext != null && TrackedAudioSource != null && AudioSourceInactive)
+            if (UseOpenLipSync && openLipSyncContext != null && ShouldReleaseForIdleSource())
             {
                 ReleaseOpenLipSyncContext();
             }
@@ -245,6 +258,20 @@ namespace Basis.Scripts.Drivers
                 openLipSyncContext.Simulate(DeltaTime);
             }
         }
+        /// <summary>
+        /// Whether the player has gone quiet long enough to hand their OpenLipSync slot to
+        /// somebody closer. Judged from <see cref="TrackedAudioSource"/>, which is the player's
+        /// SPATIAL source — so a shouter, who sends on the shout channel and therefore never
+        /// feeds that source at all, reads as idle while mid-sentence. Releasing then is not
+        /// merely wasteful: <c>ProcessAudioSamples</c> immediately asks for the context back, so
+        /// the driver churns a fresh context every frame and the buffered audio is discarded
+        /// before inference ever sees it, which shows up as a mouth that never moves.
+        /// </summary>
+        public bool ShouldReleaseForIdleSource()
+        {
+            return TrackedAudioSource != null && AudioSourceInactive && !ShoutActive;
+        }
+
         private bool _overrideZeroed;
 
         public void Apply(float DeltaTime)

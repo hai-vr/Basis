@@ -216,12 +216,58 @@ namespace Basis.BasisUI
                 index >= 0 && index < tabGroup.SelectionButtons.Count)
             {
                 PanelButton button = tabGroup.SelectionButtons[index];
-                button?.OnClicked?.Invoke();
+                if (button == null || !button.gameObject.activeSelf)
+                {
+                    return;
+                }
+                button.OnClicked?.Invoke();
 
                 if (tabKey == ChatTabKey)
                 {
                     ApplyPendingChatComposerRequest();
                 }
+            }
+        }
+
+        private const string ModeratorTabKey = "settings.tab.moderator";
+        private const string AdminTabKey = "settings.tab.admin";
+
+        /// <summary>
+        /// Shows or hides the permission-gated tabs to match the local player's current
+        /// permissions. Runs at panel build and again whenever the server re-sends permissions,
+        /// so being promoted or demoted while Settings is open updates the tab strip immediately.
+        /// </summary>
+        private static void ApplyPermissionGatedTabs()
+        {
+            PanelTabGroup tabGroup = _searchTabGroup;
+            if (tabGroup == null)
+            {
+                return;
+            }
+
+            HashSet<string> perms = BasisNetworkManagement.LocalPermissions;
+            SetTabVisible(tabGroup, ModeratorTabKey, perms != null && perms.Contains(PermNodes.PlayerModeration));
+            SetTabVisible(tabGroup, AdminTabKey, perms != null && perms.Contains(PermNodes.PermissionsView));
+        }
+
+        private static void SetTabVisible(PanelTabGroup tabGroup, string tabKey, bool visible)
+        {
+            if (!_tabKeyToIndex.TryGetValue(tabKey, out int index) ||
+                index < 0 || index >= tabGroup.SelectionButtons.Count)
+            {
+                return;
+            }
+
+            PanelButton button = tabGroup.SelectionButtons[index];
+            if (button == null || button.gameObject.activeSelf == visible)
+            {
+                return;
+            }
+
+            button.gameObject.SetActive(visible);
+            if (!visible && tabGroup.Value == index)
+            {
+                NavigateToTab(tabGroup, "settings.tab.general");
             }
         }
 
@@ -314,14 +360,11 @@ namespace Basis.BasisUI
                 AddLazyTab(tabGroup, ext.TabName, () => ext.Builder(tabGroup));
             }
 
-            if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PlayerModeration))
-            {
-                AddLazyTab(tabGroup, "settings.tab.moderator", () => SettingsProviderModeratorTab.ModeratorTab(tabGroup));
-            }
-            if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView))
-            {
-                AddLazyTab(tabGroup, "settings.tab.admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
-            }
+            AddLazyTab(tabGroup, ModeratorTabKey, () => SettingsProviderModeratorTab.ModeratorTab(tabGroup));
+            AddLazyTab(tabGroup, AdminTabKey, () => SettingsProviderAdminTab.AdminTab(tabGroup));
+            ApplyPermissionGatedTabs();
+            BasisNetworkManagement.OnlocalPermissionsChanged -= ApplyPermissionGatedTabs;
+            BasisNetworkManagement.OnlocalPermissionsChanged += ApplyPermissionGatedTabs;
 
             // Navigate to a specific tab if requested via OpenToTab, otherwise
             // restore the tab the user was on the last time Settings was open.
@@ -340,6 +383,7 @@ namespace Basis.BasisUI
 
         public override void OnReleaseEvent()
         {
+            BasisNetworkManagement.OnlocalPermissionsChanged -= ApplyPermissionGatedTabs;
             ClearChatComposerReference();
             ResetSearch(null);
         }
@@ -1837,16 +1881,6 @@ namespace Basis.BasisUI
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(overridesToggle, container, overridesStart, false,
                 _ => descriptor.ForceRebuild());
 
-            PanelSectionToggleHelpers.CreateCollapsibleBoxedSection(container,
-                BasisLocalization.Get("settings.graphics.poseLod.title"), () =>
-            {
-                PanelSlider sliderPoseLod = PanelSlider.CreateEntryAndBind(
-                    container,
-                    PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.poseLod.bias"), 0, 5, true, 0, ValueDisplayMode.Raw),
-                    BasisSettingsDefaults.PoseLOD);
-                sliderPoseLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.poseLod.bias.tooltip"));
-            }, false, _ => descriptor.ForceRebuild());
-
             // --- Variable Rate Shading (VR, gaze foveated) ---
             // Direct3D12 only; on every other graphics API the section is not built at all.
             PanelToggle toggleVrsVr = null;
@@ -1982,6 +2016,12 @@ namespace Basis.BasisUI
             toggleAvatarShadowLod.AssignBinding(BasisSettingsDefaults.UseAvatarShadowLod);
             toggleAvatarShadowLod.Descriptor.SetTitle(BasisLocalization.Get("settings.graphics.avatarShadowLod"));
             toggleAvatarShadowLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.avatarShadowLod.tooltip"));
+
+            PanelSlider sliderPoseLod = PanelSlider.CreateEntryAndBind(
+                container,
+                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.graphics.poseLod.bias"), 0, 5, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.PoseLOD);
+            sliderPoseLod.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.poseLod.bias.tooltip"));
 
             PanelToggle toggleAvatarVisibilityCull = PanelToggle.CreateNewEntry(container);
             toggleAvatarVisibilityCull.AssignBinding(BasisSettingsDefaults.UseAvatarVisibilityCull);
