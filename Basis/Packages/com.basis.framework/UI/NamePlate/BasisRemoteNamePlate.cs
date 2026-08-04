@@ -363,6 +363,8 @@ namespace Basis.Scripts.UI.NamePlate
             ChatText.color = Color.white;
             ChatText.textWrappingMode =  TextWrappingModes.Normal;
             ChatText.overflowMode = TextOverflowModes.Truncate;
+            // Sanitized on send only, so the received text is whatever the sender transmitted.
+            ChatText.richText = false;
 
             // Use same font as the loading text if available
             if (LoadingText != null && LoadingText.font != null)

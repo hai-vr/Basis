@@ -8,6 +8,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarDecompressor
     {
+        /// <summary>Structural bounds for a wire scale; the server owns the policy limits.</summary>
+        public const float MinNetworkScale = 0.01f;
+        public const float MaxNetworkScale = 1000f;
+
+
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
@@ -176,7 +181,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 basisAvatarBuffer.EffectorMask = 0;
             }
 
-            basisAvatarBuffer.Scale = BasisUnityBitPackerExtensionsUnsafe.DecompressScale(uScale);
+            float decodedScale = BasisUnityBitPackerExtensionsUnsafe.DecompressScale(uScale);
+            basisAvatarBuffer.Scale = decodedScale < MinNetworkScale ? MinNetworkScale
+                                    : (decodedScale > MaxNetworkScale ? MaxNetworkScale : decodedScale);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;
 

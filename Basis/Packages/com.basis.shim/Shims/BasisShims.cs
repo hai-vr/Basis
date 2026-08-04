@@ -116,15 +116,37 @@ namespace Basis
 	{
 		System.Collections.Generic.HashSet< UnityWebRequest > InFlight = new System.Collections.Generic.HashSet< UnityWebRequest >();
 
-		public void DownloadImage( string stringUrl, Action< IBasisImageDownload > callback )
+		public async void DownloadImage( string stringUrl, Action< IBasisImageDownload > callback )
 		{
-			if( stringUrl.Substring(0, 7) != "http://" && stringUrl.Substring(0, 8) != "https://" )
+			try
 			{
-				callback( new IBasisImageDownload( null, null, "Security Failure" ) );
+				await DownloadImageAsync( stringUrl, callback );
+			}
+			catch( Exception e )
+			{
+				Debug.LogError( $"[BasisImageDownloader] Download failed: {e}" );
+			}
+		}
+
+		private async System.Threading.Tasks.Task DownloadImageAsync( string stringUrl, Action< IBasisImageDownload > callback )
+		{
+			if( callback == null ) return;
+
+			if( !BasisMediaPlayerSecurity.IsUrlAllowed( stringUrl, out string reason ) )
+			{
+				callback( new IBasisImageDownload( null, null, "Security Failure: " + reason ) );
+				return;
+			}
+
+			string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync( stringUrl );
+			if( dnsReason != null )
+			{
+				callback( new IBasisImageDownload( null, null, "Security Failure: " + dnsReason ) );
 				return;
 			}
 
 			UnityWebRequest www = new UnityWebRequest( stringUrl );
+			www.redirectLimit = 0;
 
 			/////////////////////////////////////////////////////////////////
 			DownloadHandlerTexture dht = new DownloadHandlerTexture(true);
@@ -258,9 +280,37 @@ namespace Basis
 			);
 		}
 
-		private void BeginRequest( string stringUrl, Action< IBasisStringDownload > callback )
+		private async void BeginRequest( string stringUrl, Action< IBasisStringDownload > callback )
 		{
+			try
+			{
+				await BeginRequestAsync( stringUrl, callback );
+			}
+			catch( Exception e )
+			{
+				Debug.LogError( $"[BasisStringDownloader] Download failed: {e}" );
+			}
+		}
+
+		private async System.Threading.Tasks.Task BeginRequestAsync( string stringUrl, Action< IBasisStringDownload > callback )
+		{
+			if( callback == null ) return;
+
+			if( !BasisMediaPlayerSecurity.IsUrlAllowed( stringUrl, out string reason ) )
+			{
+				callback( new IBasisStringDownload( null, "Security Failure: " + reason ) );
+				return;
+			}
+
+			string dnsReason = await BasisMediaPlayerSecurity.ValidateResolvedHostAsync( stringUrl );
+			if( dnsReason != null )
+			{
+				callback( new IBasisStringDownload( null, "Security Failure: " + dnsReason ) );
+				return;
+			}
+
 			UnityWebRequest www = UnityWebRequest.Get( stringUrl );
+			www.redirectLimit = 0;
 
 			bool bCompleted = false;
 			UnityWebRequestAsyncOperation req = www.SendWebRequest();

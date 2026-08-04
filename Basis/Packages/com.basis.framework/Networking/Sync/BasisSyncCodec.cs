@@ -335,6 +335,9 @@ namespace Basis.Scripts.Networking.Sync
             }
         }
 
+        /// <summary>Half-extent accepted for a decoded continuous value.</summary>
+        private const float MaxDecodedMagnitude = 1e6f;
+
         private static bool TryDecodeCont(ref BitReader r, BasisQuantMode mode, float min, float max, int bits, out float value)
         {
             value = 0f;
@@ -344,7 +347,7 @@ namespace Basis.Scripts.Networking.Sync
                 {
                     if (!r.TryReadBits(16, out uint raw)) return false;
                     value = math.f16tof32(raw);
-                    return true;
+                    return IsUsable(value);
                 }
                 case BasisQuantMode.Ranged:
                 {
@@ -358,10 +361,18 @@ namespace Basis.Scripts.Networking.Sync
                 {
                     if (!r.TryReadBits(32, out uint raw)) return false;
                     value = BitsToFloat(raw);
-                    return true;
+                    return IsUsable(value);
                 }
             }
         }
+
+        /// <summary>
+        /// The Half and raw-float modes reinterpret wire bits directly, so they can carry NaN or
+        /// Infinity into Transform.SetPositionAndRotation, which never recovers.
+        /// </summary>
+        private static bool IsUsable(float value) =>
+            !float.IsNaN(value) && !float.IsInfinity(value) &&
+            value > -MaxDecodedMagnitude && value < MaxDecodedMagnitude;
 
         private static void WriteVarInt(ref BitWriter w, int value) => WriteVarUInt(ref w, (uint)((value << 1) ^ (value >> 31)));
 

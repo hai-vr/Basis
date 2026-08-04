@@ -224,6 +224,10 @@ namespace Basis.Network.Core {
 
         public byte GetByte()
         {
+            // _data is the pooled buffer and outlives this packet, so an unchecked read past
+            // _dataSize returns a stale byte instead of faulting.
+            if (_position >= _dataSize)
+                throw new InvalidOperationException($"Not enough data to read 1 byte. Position={_position}, DataSize={_dataSize}");
             byte res = _data[_position];
             _position++;
             return res;

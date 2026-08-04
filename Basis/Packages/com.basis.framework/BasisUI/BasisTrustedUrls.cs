@@ -118,13 +118,37 @@ namespace Basis.BasisUI
             return false;
         }
 
+        // Matched per URL component, never against the raw string: a single regex over the whole
+        // URL lets '*' swallow the '/', '?' and '#' delimiters.
         private static bool MatchesWithWildcards(string url, string pattern)
         {
-            // Convert wildcard pattern to regex-like matching
-            string regexPattern = "^" + Regex.Escape(pattern)
-                .Replace("\\*", ".*") + "$";
-            return Regex.IsMatch(url, regexPattern,
-                RegexOptions.IgnoreCase);
+            if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(pattern)) return false;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri uri)) return false;
+
+            int schemeEnd = pattern.IndexOf("://", StringComparison.Ordinal);
+            if (schemeEnd <= 0) return false;
+            int hostStart = schemeEnd + 3;
+            int hostEnd = pattern.IndexOf('/', hostStart);
+
+            string patternScheme = pattern.Substring(0, schemeEnd);
+            string patternHost = hostEnd < 0
+                ? pattern.Substring(hostStart)
+                : pattern.Substring(hostStart, hostEnd - hostStart);
+            string patternPath = hostEnd < 0 ? string.Empty : pattern.Substring(hostEnd);
+
+            if (patternHost.Length == 0) return false;
+            if (!string.Equals(uri.Scheme, patternScheme, StringComparison.OrdinalIgnoreCase)) return false;
+
+            if (!ComponentMatches(uri.Host, patternHost, "[^/?#]*")) return false;
+
+            if (patternPath.Length == 0) return true;
+            return ComponentMatches(uri.PathAndQuery + uri.Fragment, patternPath, "[\\s\\S]*");
+        }
+
+        private static bool ComponentMatches(string value, string pattern, string wildcard)
+        {
+            string regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", wildcard) + "$";
+            return Regex.IsMatch(value, regexPattern, RegexOptions.IgnoreCase);
         }
 
         public static void Add(string url)

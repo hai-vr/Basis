@@ -261,7 +261,15 @@ namespace LiteNetLib.Utils
         public void Get(out Guid result) => result = GetGuid();
 
         /// <summary>Reads the next <see cref="byte"/> from the buffer.</summary>
-        public byte GetByte() => _data[_position++];
+        /// <remarks>
+        /// Not redundant: _data is the pooled NetPacket buffer and is always MaxPacketSize long,
+        /// so reading past _dataSize silently returns bytes from a previously received packet.
+        /// </remarks>
+        public byte GetByte()
+        {
+            EnsureAvailable(1);
+            return _data[_position++];
+        }
 
         /// <summary>Reads the next <see cref="sbyte"/> from the buffer.</summary>
         public sbyte GetSByte() => (sbyte)GetByte();
@@ -275,6 +283,8 @@ namespace LiteNetLib.Utils
         {
             ushort length = GetUShort();
             int byteLength = length * sizeof(T);
+            // Slicing _data alone bounds against the pooled buffer's capacity, not this packet's.
+            EnsureAvailable(byteLength);
             ReadOnlySpan<byte> slice = _data.AsSpan(_position, byteLength);
             T[] result = MemoryMarshal.Cast<byte, T>(slice)
                 .ToArray();
@@ -681,6 +691,7 @@ namespace LiteNetLib.Utils
         public T GetEnum<T>() where T : unmanaged, Enum
         {
             int size = sizeof(T);
+            EnsureAvailable(size);
             ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(_data, _position, size);
             _position += size;
 #if NET8_0_OR_GREATER

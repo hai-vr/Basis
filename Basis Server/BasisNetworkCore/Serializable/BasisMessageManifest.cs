@@ -85,6 +85,14 @@ public static partial class SerializableBasis
                 return false;
             }
 
+            // Each descriptor costs at least a byte on the wire.
+            if (count > reader.AvailableBytes)
+            {
+                BNL.LogError($"BasisMessageSupply: count {count} exceeds available {reader.AvailableBytes}");
+                Descriptors = Array.Empty<BasisMessageDescriptor>();
+                return false;
+            }
+
             Descriptors = new BasisMessageDescriptor[count];
             for (int i = 0; i < count; i++)
             {
@@ -122,6 +130,14 @@ public static partial class SerializableBasis
             if (!reader.TryGetUShort(out ushort count))
             {
                 BNL.LogError("BasisMessageSubscribe: missing count");
+                Ids = Array.Empty<ushort>();
+                return false;
+            }
+
+            // Each id is 2 bytes on the wire.
+            if (count * 2 > reader.AvailableBytes)
+            {
+                BNL.LogError($"BasisMessageSubscribe: count {count} exceeds available {reader.AvailableBytes}");
                 Ids = Array.Empty<ushort>();
                 return false;
             }

@@ -495,8 +495,21 @@ namespace Cilbox
 		protected abstract HashSet<string> ExtraWhiteListFields { get; }
 		protected abstract Dictionary<Type, HashSet<string>> ExtraMethodWhitelist { get; }
 
+		// Denied regardless of what a wildcard covers: "System.Int*" is a bare prefix match
+		// and would otherwise admit System.IntPtr.
+		private static readonly HashSet<string> hardDeniedTypes = new HashSet<string>(StringComparer.Ordinal)
+		{
+			"System.IntPtr",
+			"System.UIntPtr",
+			"System.Void*",
+			"System.RuntimeFieldHandle",
+			"System.RuntimeMethodHandle",
+			"System.RuntimeTypeHandle",
+		};
+
 		public override bool CheckTypeAllowed(string sType)
 		{
+			if (sType != null && hardDeniedTypes.Contains(sType)) return false;
 			if (commonWhiteListType.Contains(sType)) return true;
 			if (ExtraWhiteListType.Contains(sType)) return true;
 			foreach (var allowedType in commonWhiteListType)
@@ -579,6 +592,16 @@ namespace Cilbox
 				name == "GetBehaviour" ||
 				name == "GetBehaviours"))
 				return false;
+
+			// NativeArray<T> only bounds-checks its indexer under ENABLE_UNITY_COLLECTIONS_CHECKS,
+			// which release players do not define. Restricted to the members that copy out.
+			if (declaringType != null && declaringType.IsGenericType &&
+				declaringType.GetGenericTypeDefinition().FullName == "Unity.Collections.NativeArray`1")
+			{
+				return name == "get_Length" || name == "get_IsCreated" ||
+					   name == "ToArray" || name == "CopyTo" ||
+					   name == "Equals" || name == "GetHashCode" || name == "ToString";
+			}
 
 			bool inCommon = commonMethodWhitelist.TryGetValue(declaringType, out var commonAllowed);
 			bool inExtra = ExtraMethodWhitelist.TryGetValue(declaringType, out var extraAllowed);

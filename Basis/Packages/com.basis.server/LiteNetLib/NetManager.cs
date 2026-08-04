@@ -27,8 +27,14 @@ namespace LiteNetLib
             _evt = evt;
         }
 
+        // RecycleEvent pushes onto the free list unconditionally, so recycling the same event
+        // twice sets evt.Next = evt and every later rent returns that one event. Cleared on each
+        // rent via SetSource.
+        private bool _recycled;
+
         internal void SetSource(NetPacket packet, int headerSize)
         {
+            _recycled = false;
             if (packet == null)
                 return;
             _packet = packet;
@@ -37,6 +43,9 @@ namespace LiteNetLib
 
         internal void RecycleInternal()
         {
+            if (_recycled)
+                return;
+            _recycled = true;
             Clear();
             if (_packet != null)
                 _manager.PoolRecycle(_packet);
