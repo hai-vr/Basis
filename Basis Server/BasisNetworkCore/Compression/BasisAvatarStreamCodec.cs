@@ -59,11 +59,10 @@ namespace Basis.Network.Core.Compression
     /// <para><b>Two independent mechanisms per frame.</b></para>
     ///
     /// <para><b>1. The residual.</b> Every channel is coded against <em>what the sender believes the
-    /// receiver currently holds</em>, not against the sender's previous value. The sender therefore
-    /// runs the decoder's arithmetic itself and feeds back the DECODED value, so approximation error
-    /// never accumulates: whatever the companding threw away simply becomes part of next frame's
-    /// residual and is sent then. This is what makes lossy companding safe here and not in the
-    /// keyframe-relative codec, which has no such loop.</para>
+    /// receiver currently holds</em>, not against the sender's previous value. The sender runs the
+    /// decoder's arithmetic itself and feeds the result back, so its model is exactly the payload a
+    /// lossless receiver reconstructs — which is what lets the next frame's residual be measured
+    /// against something real rather than against the sender's own history.</para>
     ///
     /// <para><b>2. The sweep.</b> Each frame also carries one bit per channel: bit
     /// <see cref="BasisResidualCodec.SweepBitIndex"/> of the Gray code of the channel's TRUE value.
@@ -88,8 +87,9 @@ namespace Basis.Network.Core.Compression
     ///
     /// Frame layout — one LSB-first bitstream, byte-padded at the end:
     ///   [1 bit masked?][if masked: FieldCount bits of dirty mask]
-    ///   residual codes: for each channel of each coded field
-    ///                   Delta -> se(companded residual);  Raw -> [1 bit changed][value if changed]
+    ///   for each coded field: [1 bit mode] then
+    ///        residual mode -> Delta: se(exact residual);  Raw: [1 bit changed][value if changed]
+    ///        raw mode      -> every channel verbatim
     ///   sweep: one bit per channel, over ALL channels in channel order.
     ///
     /// A field is dirty when any of its channels differs from the estimate. Carrying a mask makes an
@@ -97,6 +97,22 @@ namespace Basis.Network.Core.Compression
     /// is nearly still; but during real motion almost every field is dirty and the mask is dead weight.
     /// Since a clean channel costs exactly one bit either way, the encoder can compare the two exactly
     /// rather than guess, and spends one bit saying which it chose.
+    ///
+    /// <para><b>Residuals are EXACT — nothing is approximated.</b> An earlier revision companded them
+    /// above a small linear zone, on the theory that the closed loop would absorb the error. It does
+    /// not absorb it fast enough to be invisible, and worse, it interacts catastrophically with the
+    /// smallest-three encoding: the 2-bit index selects WHICH quaternion component was dropped, so
+    /// when it flips, the other three change meaning entirely and a residual measured across that flip
+    /// is measured against a stale mapping. Measured, that produced up to a <b>180° single-frame error
+    /// on every index flip</b> — a bone pointing backwards for one frame, at rotation rates as low as
+    /// 30°/s — which reads as snapping, and as jitter when it is smaller. The raw mode below is what
+    /// bounds it: a field whose residuals are large or whose mapping just changed costs more as
+    /// residuals than verbatim, so the encoder sends it verbatim and the reconstruction is exact.</para>
+    ///
+    /// <para>Because every field is now carried exactly, the sender's model equals what a lossless
+    /// receiver holds <em>bit for bit</em>, so the sweep is a no-op whenever nothing was lost. It has
+    /// gone from something that perturbs a perpetually-approximate estimate to a pure loss-recovery
+    /// mechanism, which is all it was ever meant to be.</para>
     ///
     /// The sweep covers every channel unconditionally, masked or not: a field can be clean from the
     /// SENDER's point of view and still be wrong on a receiver that missed the frame which set it, and
@@ -106,6 +122,8 @@ namespace Basis.Network.Core.Compression
     {
         private const int ModeUnmasked = 0;
         private const int ModeMasked = 1;
+        private const int FieldResidual = 0;
+        private const int FieldRaw = 1;
 
         private static readonly int[] MaxFrameBytes = new int[4];
 
@@ -114,13 +132,13 @@ namespace Basis.Network.Core.Compression
             for (int qi = 0; qi < 4; qi++)
             {
                 var layout = BasisAvatarChannelMap.For((BasisAvatarBitPacking.BitQuality)qi);
-                int bits = 1 + BasisAvatarDeltaCompression.FieldCount;   // mode + a full mask
-                foreach (var ch in layout.Channels)
-                {
-                    bits += 1;                                   // sweep bit
-                    if (ch.Kind == BasisChannelKind.Raw) bits += 1 + ch.Width;
-                    else bits += BasisResidualCodec.SignedEgBits(BasisResidualCodec.MaxCode(ch.Width));
-                }
+                // Raw mode caps every field at its own verbatim width, so the worst case is the mask,
+                // one mode bit per field, the payload itself, and the sweep.
+                int bits = 1
+                         + BasisAvatarDeltaCompression.FieldCount            // dirty mask
+                         + BasisAvatarDeltaCompression.FieldCount            // per-field mode bits
+                         + layout.TotalChannelBits                           // every field verbatim
+                         + layout.Channels.Length;                           // sweep
                 MaxFrameBytes[qi] = (bits + 7) >> 3;
             }
         }
@@ -176,14 +194,42 @@ namespace Basis.Network.Core.Compression
             if (masked)
                 for (int f = 0; f < fieldCount; f++) w.WriteBit(dirty[f] ? 1 : 0);
 
-            // Pass 1 — residuals.
+            // Pass 1 — per field, whichever of exact-residual or verbatim is shorter. Both are exact,
+            // so this is purely a size choice; it is also what makes a smallest-three index flip safe,
+            // since the huge residuals a flip produces always lose to verbatim.
             for (int f = 0; f < fieldCount; f++)
             {
                 if (masked && !dirty[f]) continue;
-                for (int i = layout.FieldChannelStart(f); i < layout.FieldChannelEnd(f); i++)
+                int cs = layout.FieldChannelStart(f), ce = layout.FieldChannelEnd(f);
+
+                int residualBits = 0, rawBits = 0;
+                for (int i = cs; i < ce; i++)
+                {
+                    var ch = channels[i];
+                    rawBits += ch.Width;
+                    uint cur = BasisAvatarDeltaCompression.ReadChannel(current, ch);
+                    if (ch.Kind == BasisChannelKind.Raw)
+                    {
+                        residualBits += cur == est[i] ? 1 : 1 + ch.Width;
+                        continue;
+                    }
+                    residualBits += BasisResidualCodec.SignedEgBits(
+                        BasisResidualCodec.WrapSigned((int)cur - (int)est[i], ch.Width));
+                }
+
+                bool raw = rawBits < residualBits;
+                w.WriteBit(raw ? FieldRaw : FieldResidual);
+
+                for (int i = cs; i < ce; i++)
                 {
                     var ch = channels[i];
                     uint cur = BasisAvatarDeltaCompression.ReadChannel(current, ch);
+                    if (raw)
+                    {
+                        w.WriteBits(cur, ch.Width);
+                        est[i] = cur;
+                        continue;
+                    }
                     if (ch.Kind == BasisChannelKind.Raw)
                     {
                         if (cur == est[i]) { w.WriteBit(0); continue; }
@@ -192,10 +238,8 @@ namespace Basis.Network.Core.Compression
                         est[i] = cur;
                         continue;
                     }
-                    int residual = BasisResidualCodec.WrapSigned((int)cur - (int)est[i], ch.Width);
-                    int code = BasisResidualCodec.Compand(residual, ch.Width);
-                    w.WriteSignedEg(code);
-                    est[i] = (uint)((int)est[i] + BasisResidualCodec.Decompand(code, ch.Width)) & ch.Mask;
+                    w.WriteSignedEg(BasisResidualCodec.WrapSigned((int)cur - (int)est[i], ch.Width));
+                    est[i] = cur;   // exact: (est + (cur - est)) & mask == cur
                 }
             }
 
@@ -245,18 +289,26 @@ namespace Basis.Network.Core.Compression
             for (int f = 0; f < fieldCount; f++)
             {
                 if (!dirty[f]) continue;
+                bool raw = r.ReadBit() == FieldRaw;
+                if (r.Failed) return false;
                 for (int i = layout.FieldChannelStart(f); i < layout.FieldChannelEnd(f); i++)
                 {
                     var ch = channels[i];
+                    if (raw)
+                    {
+                        next[i] = (uint)r.ReadBits(ch.Width) & ch.Mask;
+                        if (r.Failed) return false;
+                        continue;
+                    }
                     if (ch.Kind == BasisChannelKind.Raw)
                     {
                         if (r.ReadBit() != 0) next[i] = (uint)r.ReadBits(ch.Width) & ch.Mask;
                         if (r.Failed) return false;
                         continue;
                     }
-                    int code = r.ReadSignedEg();
+                    int residual = r.ReadSignedEg();
                     if (r.Failed) return false;
-                    next[i] = (uint)((int)next[i] + BasisResidualCodec.Decompand(code, ch.Width)) & ch.Mask;
+                    next[i] = (uint)((int)next[i] + residual) & ch.Mask;
                 }
             }
 
@@ -300,10 +352,13 @@ namespace Basis.Network.Core.Compression
             for (int f = 0; f < fieldCount; f++)
             {
                 if (!dirty[f]) continue;
+                bool raw = r.ReadBit() == FieldRaw;
+                if (r.Failed) return -1;
                 for (int i = layout.FieldChannelStart(f); i < layout.FieldChannelEnd(f); i++)
                 {
                     var ch = channels[i];
-                    if (ch.Kind == BasisChannelKind.Raw) { if (r.ReadBit() != 0) r.ReadBits(ch.Width); }
+                    if (raw) r.ReadBits(ch.Width);
+                    else if (ch.Kind == BasisChannelKind.Raw) { if (r.ReadBit() != 0) r.ReadBits(ch.Width); }
                     else r.ReadSignedEg();
                     if (r.Failed) return -1;
                 }

@@ -5,9 +5,7 @@ namespace Basis.Network.Core.Compression
 {
     /// <summary>
     /// Bit-level primitives shared by the avatar delta and stream codecs: a bounds-checked LSB-first
-    /// bit cursor, zig-zag Exponential-Golomb, an integer companding law, and reflected Gray code.
-    ///
-    /// The three ideas, and why each is here:
+    /// bit cursor, zig-zag Exponential-Golomb, and reflected Gray code.
     ///
     /// <para><b>Exp-Golomb</b> spends bits in proportion to magnitude — 1 bit for zero, 3 for ±1, 5 for
     /// ±2..3, and two more per octave after that. A pose field that did not move therefore costs a
@@ -15,101 +13,23 @@ namespace Basis.Network.Core.Compression
     /// the old codec had to spend a whole bone (38 bits at High) when one of its three components
     /// moved by one step.</para>
     ///
-    /// <para><b>Companding</b> keeps the code small when the residual is large. Below
-    /// <see cref="LinearZone"/> the mapping is the identity, so ordinary motion is carried EXACTLY;
-    /// above it the magnitude steps geometrically by 7/5, trading ~17% relative error for a code that
-    /// grows logarithmically rather than linearly. Fast motion is where that error is invisible and
-    /// where the bit saving is largest.</para>
-    ///
     /// <para><b>Gray code</b> is what lets a single bit of an absolute value be transmitted safely.
     /// Adjacent integers differ in exactly one Gray bit, so overwriting one bit of a nearly-correct
     /// estimate moves it by a bounded amount instead of detonating across a binary carry boundary
     /// (0111 → 1000 changes four bits at once). Sweeping one bit position per frame therefore
     /// converges an estimate onto the truth without ever sending the whole value.</para>
     ///
-    /// <para><b>All of it is integer arithmetic.</b> The companding table is built by repeated integer
-    /// multiplication rather than Math.Pow/Math.Log, because sender and receiver run this law
-    /// independently on different machines and runtimes: a one-ULP difference in a transcendental
-    /// would silently desynchronise their reconstructions with no way to detect it.</para>
+    /// <para><b>Residuals are never approximated.</b> A previous revision companded them above a small
+    /// linear zone to cap the code length on fast motion. It was removed: the approximation produced
+    /// up to a <b>180° single-frame bone error whenever a smallest-three index flipped</b>, and both
+    /// codecs already cap code length correctly by falling back to a verbatim field when residual
+    /// coding would be longer. Exactness costs about a byte a frame and removes a whole class of
+    /// artefact — see <see cref="BasisAvatarStreamCodec"/>.</para>
     /// </summary>
     public static class BasisResidualCodec
     {
-        /// <summary>
-        /// Residual magnitudes at or below this are carried exactly. Chosen so the exact zone covers
-        /// ordinary per-frame joint motion while still costing at most 7 bits: at High's 12-bit
-        /// components a residual of 6 is ~0.25°, comfortably above the 0.10° bone deadband that
-        /// already decides what is worth sending at all.
-        /// </summary>
-        public const int LinearZone = 6;
-
-        // Geometric ratio above the linear zone, as an exact rational. 7/5 = 1.4x per step
-        // (~2^0.485), close to the 2^0.6 the reference implementation used but expressible in
-        // integers. Smaller ratio = finer steps = larger codes; larger = coarser but cheaper.
-        private const int RatioNum = 7;
-        private const int RatioDen = 5;
-
-        /// <summary>Widest channel the tables cover (the int24 position axes).</summary>
+        /// <summary>Widest channel either codec addresses (the int24 position axes).</summary>
         public const int MaxWidth = 24;
-
-        // Magnitude[w][c] = the residual magnitude that code magnitude c decodes to, for a channel of
-        // width w. Monotonically increasing, capped at the wrap range so a decoded residual can never
-        // push a reconstruction outside the channel.
-        private static readonly int[][] Magnitude = new int[MaxWidth + 1][];
-
-        static BasisResidualCodec()
-        {
-            for (int w = 1; w <= MaxWidth; w++)
-            {
-                int limit = w >= 32 ? int.MaxValue : 1 << (w - 1);   // |residual| never exceeds this
-                var mags = new System.Collections.Generic.List<int>(64);
-                for (int c = 0; c <= LinearZone && c <= limit; c++) mags.Add(c);   // exact zone
-                int v = mags[mags.Count - 1];
-                while (v < limit)
-                {
-                    int next = (v * RatioNum + RatioDen - 1) / RatioDen;
-                    if (next <= v) next = v + 1;
-                    if (next > limit) next = limit;
-                    mags.Add(next);
-                    v = next;
-                }
-                Magnitude[w] = mags.ToArray();
-            }
-        }
-
-        /// <summary>Largest code magnitude a channel of this width can produce.</summary>
-        public static int MaxCode(int width) => Magnitude[width].Length - 1;
-
-        /// <summary>
-        /// Compresses a signed residual into a small signed code. Exact for |residual| &lt;= LinearZone;
-        /// above that, rounds to the nearest representable magnitude.
-        /// </summary>
-        public static int Compand(int residual, int width)
-        {
-            int a = residual < 0 ? -residual : residual;
-            if (a <= LinearZone) return residual;
-
-            int[] mags = Magnitude[width];
-            // Binary search for the first entry >= a, then keep whichever neighbour is closer.
-            int lo = LinearZone, hi = mags.Length - 1;
-            while (lo < hi)
-            {
-                int mid = (lo + hi) >> 1;
-                if (mags[mid] < a) lo = mid + 1; else hi = mid;
-            }
-            if (lo > LinearZone && (mags[lo] - a) > (a - mags[lo - 1])) lo--;
-            return residual < 0 ? -lo : lo;
-        }
-
-        /// <summary>Expands a code back to a residual magnitude. Must be bit-identical on both ends.</summary>
-        public static int Decompand(int code, int width)
-        {
-            int a = code < 0 ? -code : code;
-            if (a <= LinearZone) return code;
-            int[] mags = Magnitude[width];
-            if (a >= mags.Length) a = mags.Length - 1;
-            int m = mags[a];
-            return code < 0 ? -m : m;
-        }
 
         /// <summary>
         /// Reduces a difference modulo 2^width into the signed range [-2^(width-1), 2^(width-1)).

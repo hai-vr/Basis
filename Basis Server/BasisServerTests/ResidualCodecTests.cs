@@ -142,69 +142,62 @@ public class ResidualCodecTests
         Assert.True(r2.Failed);
     }
 
-    // ── Companding ───────────────────────────────────────────────────────────
+    // ── Exactness ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Residual coding must be LOSSLESS for every channel width and every possible pair of values.
+    /// An earlier revision companded residuals above a small linear zone; that approximation produced
+    /// up to a 180° single-frame bone error whenever a smallest-three index flipped (the 2-bit index
+    /// changes what the other three components mean, so a residual measured across a flip is measured
+    /// against a stale mapping). This is the property that stops it coming back.
+    /// </summary>
     [Fact]
-    public void Compand_IsExactInsideTheLinearZone()
+    public void ResidualCoding_IsLossless_ForEveryWidthAndValuePair()
     {
-        for (int w = 4; w <= BasisResidualCodec.MaxWidth; w++)
-            for (int v = -BasisResidualCodec.LinearZone; v <= BasisResidualCodec.LinearZone; v++)
-            {
-                int code = BasisResidualCodec.Compand(v, w);
-                Assert.Equal(v, code);
-                Assert.Equal(v, BasisResidualCodec.Decompand(code, w));
-            }
-    }
-
-    [Fact]
-    public void Compand_IsMonotone_BoundedInError_AndNeverEscapesTheChannel()
-    {
+        var rng = new Random(4242);
+        var buf = new byte[16];
         for (int w = 2; w <= BasisResidualCodec.MaxWidth; w++)
         {
-            int limit = 1 << (w - 1);
-            int prev = int.MinValue;
-            for (int v = -limit; v < limit; v++)
+            uint mask = (1u << w) - 1u;
+            for (int i = 0; i < 4000; i++)
             {
-                int code = BasisResidualCodec.Compand(v, w);
-                int back = BasisResidualCodec.Decompand(code, w);
+                uint cur = (uint)rng.NextInt64() & mask;
+                uint est = (uint)rng.NextInt64() & mask;
 
-                Assert.True(Math.Abs(code) <= BasisResidualCodec.MaxCode(w));
-                Assert.True(Math.Abs(back) <= limit, $"w={w} v={v}: decompanded {back} exceeds the wrap range");
-                Assert.True(code >= prev, $"w={w}: Compand must be non-decreasing (v={v})");
-                prev = code;
+                int residual = BasisResidualCodec.WrapSigned((int)cur - (int)est, w);
 
-                // Above the linear zone the law is geometric with ratio 7/5, so the reconstruction is
-                // within ~20% of the input. Sign must always survive.
-                if (v != 0) Assert.True(Math.Sign(back) == Math.Sign(v));
-                int err = Math.Abs(back - v);
-                Assert.True(err <= BasisResidualCodec.LinearZone + Math.Abs(v) / 4,
-                    $"w={w} v={v}: companding error {err} too large (back={back})");
+                Array.Clear(buf);
+                var wtr = new BasisResidualCodec.BitWriter(buf, 0);
+                wtr.WriteSignedEg(residual);
+                var rdr = new BasisResidualCodec.BitReader(buf, 0, wtr.BitPosition);
+                int decoded = rdr.ReadSignedEg();
+                Assert.False(rdr.Failed);
+                Assert.Equal(residual, decoded);
+
+                // The reconstruction the codecs perform must land exactly on the sender's value.
+                Assert.Equal(cur, (uint)((int)est + decoded) & mask);
             }
         }
     }
 
+    /// <summary>
+    /// The escape hatch that makes exactness affordable: a residual can cost more than the value it
+    /// describes, so both codecs fall back to a verbatim field. This locks the bound that makes that
+    /// fallback correct — a field is never worse than its own width plus one mode bit.
+    /// </summary>
     [Fact]
-    public void Compand_UsesNoFloatingPoint_SoBothEndsAgreeBitForBit()
+    public void VerbatimFallback_BoundsTheWorstCaseResidual()
     {
-        // Guard against a refactor reintroducing Math.Pow/Math.Log: the table must be reproducible by
-        // exact integer arithmetic. Rebuild it here the same way and compare.
         for (int w = 2; w <= BasisResidualCodec.MaxWidth; w++)
         {
             int limit = 1 << (w - 1);
-            var mags = new List<int>();
-            for (int c = 0; c <= BasisResidualCodec.LinearZone && c <= limit; c++) mags.Add(c);
-            int v = mags[^1];
-            while (v < limit)
-            {
-                int next = (v * 7 + 4) / 5;
-                if (next <= v) next = v + 1;
-                if (next > limit) next = limit;
-                mags.Add(next);
-                v = next;
-            }
-            Assert.Equal(mags.Count - 1, BasisResidualCodec.MaxCode(w));
-            for (int c = 0; c < mags.Count; c++)
-                Assert.Equal(mags[c], BasisResidualCodec.Decompand(c, w));
+            int worst = 0;
+            foreach (int v in new[] { -limit, -limit + 1, -1, 0, 1, limit - 1 })
+                worst = Math.Max(worst, BasisResidualCodec.SignedEgBits(v));
+            // Exp-Golomb of a full-range residual can be about twice the raw width — which is exactly
+            // why the verbatim mode exists rather than being an optimisation.
+            Assert.True(worst > w, $"w={w}: worst residual {worst} bits should exceed the {w}-bit raw form");
+            Assert.True(worst <= 2 * w + 1);
         }
     }
 
