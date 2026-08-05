@@ -85,10 +85,20 @@ namespace Basis.Scripts.Networking.Receivers
         }
 
         /// <summary>
-        /// T-pose local rotations for this receiver's avatar bones.
-        /// Set during calibration and passed to RemoteBoneJobSystem for the skeleton apply job.
+        /// Folded operators that turn the incoming RIG-NEUTRAL bone rotations into THIS avatar's
+        /// bone local rotations: <c>localRotation = BoneDecodePre[slot] * generic * BoneDecodePost[slot]</c>.
+        /// Slot order is BasisBoneRotationCompression.BONE_WRITE_ORDER.
+        ///
+        /// Built during calibration from this rig's own rest pose — see
+        /// <see cref="Basis.Network.Core.Compression.BasisGenericBoneRotation"/>. Because they are
+        /// derived purely from the LOCAL avatar's rest data, the sender's rig never enters into it,
+        /// which is what lets any incoming pose play back on whatever avatar is worn here.
+        /// Passed to RemoteBoneJobSystem for the skeleton compose job.
         /// </summary>
-        [System.NonSerialized] public NativeArray<quaternion> TposeLocalRotations;
+        [System.NonSerialized] public NativeArray<quaternion> BoneDecodePre;
+
+        /// <summary>Right factor of the pair above; see <see cref="BoneDecodePre"/>.</summary>
+        [System.NonSerialized] public NativeArray<quaternion> BoneDecodePost;
 
         /// <summary>
         /// Bone transforms for this receiver's avatar.
@@ -830,7 +840,8 @@ namespace Basis.Scripts.Networking.Receivers
 
             ClearAndRelease();
 
-            if (TposeLocalRotations.IsCreated) TposeLocalRotations.Dispose();
+            if (BoneDecodePre.IsCreated) BoneDecodePre.Dispose();
+            if (BoneDecodePost.IsCreated) BoneDecodePost.Dispose();
             BoneTransforms = null;
 
             if (hasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)

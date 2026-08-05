@@ -24,14 +24,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // Combined with the network hips world pose, lets the receiver derive
         // both the root world transform and the hips bone's local transform.
         public float3 HipsLocalDelta = float3.zero;
-        // Hips local-rotation delta vs the avatar's TPose hips local rotation.
+        // Hips rotation away from the sender's TPose hips, in the RIG-NEUTRAL generic space.
         // Hips isn't in the bone-rotations packet (BONE_WRITE_ORDER excludes it),
         // so this carries hips orientation independent of root.
-        // Encoded as inverse(tposeLocalRot) × currentLocalRot — applied as
-        // hips.localRotation = tposeLocalRot × delta on the receiver.
+        // Applied as hips.localRotation = decodePre × this × decodePost on the receiver, with the
+        // pair built from the RECEIVING avatar's own rest pose — see BasisGenericBoneRotation.
         public quaternion HipsLocalRotation = quaternion.identity;
         /// <summary>
-        /// 54 bone delta rotations (T-pose-relative, avatar-agnostic).
+        /// 51 bone rotations in the RIG-NEUTRAL generic space: each joint's rotation away from its
+        /// own rest pose, expressed in the CHARACTER's axes rather than in the sending rig's bone
+        /// axes. That is what makes them genuinely avatar-agnostic — the receiver rebuilds its own
+        /// rig's local rotations from them using only its own rest data, so a pose can be replayed
+        /// on an avatar other than the one that produced it. See BasisGenericBoneRotation.
         /// Indexed by slot in BasisBoneRotationCompression.BONE_WRITE_ORDER.
         /// </summary>
         [System.NonSerialized] public NativeArray<quaternion> BoneRotations;

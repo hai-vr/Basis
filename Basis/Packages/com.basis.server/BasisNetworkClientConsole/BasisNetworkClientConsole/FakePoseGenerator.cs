@@ -21,7 +21,12 @@ namespace BasisNetworkClientConsole
 
         // Base natural standing pose: 51 quaternions stored as flat float array.
         // Layout: [slot * 4 + 0] = x, [slot * 4 + 1] = y, [slot * 4 + 2] = z, [slot * 4 + 3] = w
-        // These are T-pose-relative delta quaternions — identity means T-pose, non-identity means deviation.
+        // These are rest-relative rotations in the RIG-NEUTRAL generic space
+        // (BasisGenericBoneRotation): identity means rest pose, and the rotation AXES are the
+        // avatar's root axes (+X right, +Y up, +Z forward) rather than any particular rig's bone
+        // axes. That is what the axis-angle helpers below already assumed by eye — "curl about X"
+        // now means the same thing on every receiving avatar instead of whatever the receiver's
+        // local bone frame happened to be.
         private static readonly float[] BasePose;
 
         static FakePoseGenerator()

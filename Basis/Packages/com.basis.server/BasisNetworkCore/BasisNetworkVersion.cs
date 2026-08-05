@@ -15,6 +15,12 @@ namespace Basis.Network.Core
         //     kind-discriminated fit-only update. Join fill batched + Deflate'd per batch instead of
         //     one packet per player (the redundancy is across players, not inside one record).
         //     playerUUID and playerPlatform compactly encoded (BasisCompactId / BasisPlatformCodec).
-        public static ushort ServerVersion = 45;
+        // 46: avatar bone rotations (all 51 slots) and the hips tail rotation are now carried in
+        //     the RIG-NEUTRAL generic space instead of the sender's bone-local T-pose delta — see
+        //     BasisGenericBoneRotation. Same field layout, same bit budget, same packet size, but
+        //     the QUANTITY changed: a v45 payload decoded as v46 (or the reverse) reproduces every
+        //     joint about the wrong axis, so old/new peers must not mix. This is what makes a pose
+        //     replayable on an avatar other than the one that produced it.
+        public static ushort ServerVersion = 46;
     }
 }

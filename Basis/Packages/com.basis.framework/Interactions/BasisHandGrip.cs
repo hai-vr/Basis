@@ -68,15 +68,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static bool TryGetLocalFrame(BasisLocalBoneControl bone, bool left, out BasisHandFrame frame)
         {
             frame = default;
-            if (bone == null)
+            if (bone == null || !bone.HasIKWorldData)
             {
                 return false;
             }
             BasisCalibratedCoords ik = bone.IKWorldData;
-            if (ik.rotation.x == 0f && ik.rotation.y == 0f && ik.rotation.z == 0f && ik.rotation.w == 0f)
-            {
-                return false;
-            }
             return TryGetFrame(BasisLocalAvatarDriver.Mapping, left, ik.position, ik.rotation, out frame);
         }
 
@@ -84,17 +80,43 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Any player's hand frame off that player's own cached bone mapping — the local player's rig driver
         /// or a remote's avatar driver, both of which the avatar drivers rebuild on every avatar change.
         /// Used by both ends of a networked hold so they agree without either sending rig data.
+        ///
+        /// Fails for a player that is neither, rather than answering with whatever rig happens to be lying
+        /// around: the previous "not remote, therefore local" reading handed back the VIEWER'S OWN hand for
+        /// any holder that had not resolved to a typed remote player yet (mid-join, mid-avatar-swap, a stale
+        /// owner entry), which welds the held object into the hand of whoever is watching it.
         /// </summary>
         public static bool TryGetPlayerFrame(IBasisPlayer player, bool left, out BasisHandFrame frame)
         {
             frame = default;
-            if (player == null)
+            BasisTransformMapping mapping;
+            switch (player)
             {
-                return false;
+                case BasisRemotePlayer remote:
+                    mapping = remote.RemoteAvatarDriver?.References;
+                    break;
+                case BasisLocalPlayer local:
+                    // Anchor on the POST-IK pose, which is where a held object is actually welded, not on the
+                    // live bone transform. Those are different poses for most of the frame: the animator graph
+                    // runs in GameTime mode (BasisLocalRigDriver.EngineDrivenAnimatorEvaluate), so the engine
+                    // rewrites the avatar's bones in PreLateUpdate, and the full-body solve does not land until
+                    // FinishSimulate at the end of LateUpdate. Anything reading the bone in between — the
+                    // networked hold's transmit among them — sees the ANIMATED arm while the object is sitting
+                    // on the SOLVED one. Measuring a grip against a hand the object is not on ships an offset
+                    // no observer can undo, and the holder cannot see it because it never decodes what it sent.
+                    if (TryGetLocalFrame(left ? BasisLocalBoneDriver.LeftHandControl : BasisLocalBoneDriver.RightHandControl,
+                            left, out frame))
+                    {
+                        return true;
+                    }
+                    // Before the first solve there is nothing published yet; the bone transform is all there is.
+                    // The player we were handed, not BasisLocalPlayer.Instance — same object in practice, and
+                    // this way a stale player can never resolve to the live local rig.
+                    mapping = local.LocalRigDriver?.basisTransformMapping;
+                    break;
+                default:
+                    return false;
             }
-            BasisTransformMapping mapping = player is BasisRemotePlayer remote
-                ? remote.RemoteAvatarDriver?.References
-                : BasisLocalPlayer.Instance?.LocalRigDriver?.basisTransformMapping;
             Transform wrist = Wrist(mapping, left);
             if (wrist == null)
             {
@@ -180,7 +202,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return null;
             }
-            return left ? mapping.leftHand : mapping.rightHand;
+            Transform wrist = left ? mapping.leftHand : mapping.rightHand;
+            return wrist != null ? wrist : null;
         }
 
         private static Transform Proximal(Transform[] finger, bool[] has)
@@ -189,7 +212,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return null;
             }
-            return finger[0];
+            // The Has flags are latched when the mapping is detected; the transform behind one can be
+            // destroyed later by an avatar swap, and reading a destroyed bone's position throws.
+            Transform proximal = finger[0];
+            return proximal != null ? proximal : null;
         }
     }
 }

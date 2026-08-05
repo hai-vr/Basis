@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.Sync;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 
@@ -24,6 +25,14 @@ using UnityEngine;
 /// but wrong in someone else's is visible from one view. Every frame comes from the same
 /// <see cref="BasisHandGrip"/> call the weld and the network path use, so the drawn frame can never sit
 /// somewhere the real one does not.
+///
+/// While this is on it also draws the WELD of every held networked prop, from both ends of the hold
+/// (<see cref="BasisPickupWeldDiagnostics"/>): a leg from the palm to the prop, labelled with the attach
+/// id, the hand length the offset is scaled by, and — on the holder's own client — the error of rebuilding
+/// the prop's pose from the values it just put on the wire. That is the one class of bug this whole path
+/// cannot otherwise show you, because a holder never decodes what it sent: if the label on your screen and
+/// the label on the observer's screen disagree about the id, the hand length, or whether the frame is
+/// canonical, that disagreement IS the misplacement.
 /// </summary>
 public static class BasisHandGripGizmos
 {
@@ -62,8 +71,18 @@ public static class BasisHandGripGizmos
         public bool Local;
     }
 
+    private struct WeldVisual
+    {
+        public int Leg;
+        public int Label;
+    }
+
+    /// <summary>A round trip this far off on the holder's own client means the prefab's channels are lossy.</summary>
+    private const float SelfCheckTolerance = 0.002f;
+
     private static readonly List<HandVisual> _visuals = new List<HandVisual>();
     private static readonly List<HandSample> _samples = new List<HandSample>();
+    private static readonly List<WeldVisual> _weldVisuals = new List<WeldVisual>();
     private static readonly List<KeyValuePair<ushort, BasisRemotePlayer>> _remotes = new List<KeyValuePair<ushort, BasisRemotePlayer>>();
     private static readonly System.Text.StringBuilder _text = new System.Text.StringBuilder(48);
 
@@ -76,6 +95,10 @@ public static class BasisHandGripGizmos
             return;
         }
         if (scale <= 0f) scale = 1f;
+
+        // Held props publish into this while it is on; drawn and cleared below, so the collection never
+        // outlives a frame and costs nothing at all when the gizmo is off.
+        BasisPickupWeldDiagnostics.Enabled = true;
 
         _samples.Clear();
         CollectLocal();
@@ -97,6 +120,92 @@ public static class BasisHandGripGizmos
             }
             _visuals[Index] = Draw(_visuals[Index], _samples[Index], cameraPosition, scale);
         }
+
+        DrawWelds(cameraPosition, scale);
+    }
+
+    /// <summary>
+    /// One leg per held prop, from the palm frame that end used to where the prop actually is, plus the
+    /// numbers the two ends have to agree on. Anything the reconstruction could not do — an unresolved
+    /// hand, a frame that fell back to the wrist, a lossy encode — draws in the alert colour.
+    /// </summary>
+    private static void DrawWelds(Vector3 cameraPosition, float scale)
+    {
+        IReadOnlyList<BasisPickupWeldReport> reports = BasisPickupWeldDiagnostics.Reports;
+
+        while (_weldVisuals.Count > reports.Count)
+        {
+            DestroyWeld(_weldVisuals[_weldVisuals.Count - 1]);
+            _weldVisuals.RemoveAt(_weldVisuals.Count - 1);
+        }
+
+        for (int Index = 0; Index < reports.Count; Index++)
+        {
+            if (Index >= _weldVisuals.Count)
+            {
+                _weldVisuals.Add(default);
+            }
+            _weldVisuals[Index] = DrawWeld(_weldVisuals[Index], reports[Index], cameraPosition, scale);
+        }
+
+        BasisPickupWeldDiagnostics.Clear();
+    }
+
+    private static WeldVisual DrawWeld(WeldVisual visual, BasisPickupWeldReport report, Vector3 cameraPosition, float scale)
+    {
+        float hand = report.HandLength > 0f ? report.HandLength : BasisHandGrip.FallbackHandLength;
+        bool healthy = report.FrameResolved && report.Canonical && report.SelfCheckError <= SelfCheckTolerance;
+        Color tint = !healthy ? DegradedColor : report.Owner ? LocalColor : RemoteColor;
+
+        EnsureLine(ref visual.Leg, report.PalmPosition, report.PropPosition, hand * WristWidthRatio, tint);
+
+        if (ShowLabels)
+        {
+            _text.Clear();
+            _text.Append(report.Name);
+            _text.Append(report.Owner ? "  held  " : "  seen  ");
+            _text.Append(BasisPickupSyncNetworking.DescribeHandId(report.HandId));
+            if (!report.FrameResolved)
+            {
+                _text.Append("  NO HAND");
+            }
+            else
+            {
+                if (!report.Canonical) _text.Append("  WRIST");
+                _text.Append("  ");
+                _text.Append((report.HandLength * 100f).ToString("0.0"));
+                _text.Append("cm  x");
+                _text.Append(report.OffsetHandLengths.ToString("0.00"));
+                if (report.Owner && report.SelfCheckError > SelfCheckTolerance)
+                {
+                    _text.Append("  ENCODE ");
+                    _text.Append((report.SelfCheckError * 100f).ToString("0.0"));
+                    _text.Append("cm/");
+                    _text.Append(report.SelfCheckAngle.ToString("0.0"));
+                    _text.Append("deg");
+                }
+            }
+            string label = _text.ToString();
+
+            Vector3 labelPosition = Vector3.Lerp(report.PalmPosition, report.PropPosition, 0.5f)
+                                    + Vector3.up * (hand * LabelHeightRatio * 0.5f);
+            if (visual.Label <= 0)
+            {
+                BasisGizmoManager.CreateTextGizmo("PickupWeldLabel", out visual.Label, labelPosition, label, tint);
+            }
+            else
+            {
+                Quaternion rotation = BasisGizmoManager.BillboardRotation(labelPosition, cameraPosition);
+                BasisGizmoManager.UpdateTextGizmo(visual.Label, labelPosition, rotation, LabelBaseScale * scale, label, tint);
+            }
+        }
+        else if (visual.Label > 0)
+        {
+            BasisGizmoManager.DestroyGizmo(visual.Label);
+            visual.Label = 0;
+        }
+
+        return visual;
     }
 
     private static void CollectLocal()
@@ -236,6 +345,20 @@ public static class BasisHandGripGizmos
         _visuals.Clear();
         _samples.Clear();
         _remotes.Clear();
+
+        for (int Index = 0; Index < _weldVisuals.Count; Index++)
+        {
+            DestroyWeld(_weldVisuals[Index]);
+        }
+        _weldVisuals.Clear();
+        BasisPickupWeldDiagnostics.Enabled = false;
+        BasisPickupWeldDiagnostics.Clear();
+    }
+
+    private static void DestroyWeld(WeldVisual visual)
+    {
+        if (visual.Leg > 0) BasisGizmoManager.DestroyGizmo(visual.Leg);
+        if (visual.Label > 0) BasisGizmoManager.DestroyGizmo(visual.Label);
     }
 
     private static void Destroy(HandVisual visual)

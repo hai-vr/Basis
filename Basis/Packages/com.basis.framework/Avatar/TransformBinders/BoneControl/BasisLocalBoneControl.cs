@@ -137,6 +137,24 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             }
         }
 
+        /// <summary>
+        /// True once <see cref="IKWorldData"/> carries a pose that was really published. Two different
+        /// nothings have to be told apart here: a live store before its first solve leaves the rotation
+        /// all-zero, but a TORN-DOWN store makes the getter answer <see cref="BasisCalibratedCoords.Identity"/>,
+        /// whose (0,0,0,1) rotation passes any "not all zero" test — so a consumer testing the value alone
+        /// treats a dead store as a valid pose at the world origin and follows the bone there.
+        /// </summary>
+        public unsafe bool HasIKWorldData
+        {
+            get
+            {
+                if (HasStore == false) return false;
+                ref BasisBoneSimState s = ref Owner._simStatesPtr[Index];
+                quaternion r = s.IKWorldRotation;
+                return r.value.x != 0f || r.value.y != 0f || r.value.z != 0f || r.value.w != 0f;
+            }
+        }
+
         /// <summary>Publishes the post-IK world pose into the native store; call on the main thread after the rig evaluates.</summary>
         public unsafe void SetIKWorldData(Vector3 position, Quaternion rotation)
         {

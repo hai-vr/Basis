@@ -10,13 +10,20 @@ using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     /// <summary>
-    /// Burst-compiled job that computes T-pose-relative bone deltas and compresses them
-    /// into a packed byte buffer using smallest-three quaternion encoding.
+    /// Burst-compiled job that converts bone local rotations into the rig-neutral generic
+    /// rotation space and compresses them into a packed byte buffer using smallest-three
+    /// quaternion encoding.
     ///
     /// Replaces the main-thread ExtractBoneDeltas() + CompressBoneRotations() calls
     /// with a single Burst-optimized pass. The job reads current bone local rotations
-    /// (written by a prior TransformAccessArray read), computes deltas against cached
-    /// T-pose rotations, and writes the compressed bitstream.
+    /// (written by a prior TransformAccessArray read), maps them into generic space with the
+    /// folded operators cached at calibration, and writes the compressed bitstream.
+    ///
+    /// The mapped value is <c>g = pre * currentLocal * post</c> — see
+    /// <see cref="Basis.Network.Core.Compression.BasisGenericBoneRotation"/> for what g means and
+    /// why the operators fold this way. Conjugation preserves rotation angle, so g occupies
+    /// exactly the same magnitude range the old T-pose-relative local delta did and the
+    /// smallest-three budget below is unchanged.
     ///
     /// This runs as an IJob (not parallel) because the bit-packed output is sequential.
     /// Burst still provides significant wins via SIMD quaternion math and branch elimination.
@@ -28,11 +35,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         [ReadOnly] public NativeArray<quaternion> CurrentLocalRotations;
 
         /// <summary>
-        /// Inverted T-pose local rotations per bone slot. Length = SyncBoneCount. Pre-inverted
-        /// at capture rather than per bone per tick here — the T-pose is fixed for the life of
-        /// the avatar, so inverting it inside the encode loop recomputes a constant every send.
+        /// Left factor of the generic-space encode, per bone slot: <c>restFrame * conj(tposeLocal)</c>.
+        /// Length = SyncBoneCount. Folded at capture rather than rebuilt per bone per tick — the
+        /// rest pose is fixed for the life of the avatar, so deriving it inside the encode loop
+        /// would recompute a constant every send.
         /// </summary>
-        [ReadOnly] public NativeArray<quaternion> InverseTposeLocalRotations;
+        [ReadOnly] public NativeArray<quaternion> EncodePre;
+
+        /// <summary>Right factor of the generic-space encode, per bone slot: <c>conj(restFrame)</c>.</summary>
+        [ReadOnly] public NativeArray<quaternion> EncodePost;
 
         /// <summary>Bits-per-component per slot. Length = SyncBoneCount.</summary>
         [ReadOnly] public NativeArray<byte> BitsPerComponent;
@@ -50,7 +61,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <summary>Number of bones to process.</summary>
         public int BoneCount;
 
-        /// <summary>Computed bone deltas, written for other consumers (e.g., interpolation).</summary>
+        /// <summary>Computed generic-space rotations, written for other consumers (e.g., interpolation).</summary>
         public NativeArray<quaternion> BoneDeltas;
 
         public void Execute()
@@ -59,10 +70,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             for (int slot = 0; slot < BoneCount; slot++)
             {
-                // Delta = inverse(tpose) * current
-                quaternion inverseTpose = InverseTposeLocalRotations[slot];
+                // generic = (restFrame * conj(tpose)) * current * conj(restFrame)
                 quaternion current = CurrentLocalRotations[slot];
-                quaternion delta = math.mul(inverseTpose, current);
+                quaternion delta = math.mul(math.mul(EncodePre[slot], current), EncodePost[slot]);
 
                 // Normalize
                 float4 dv = delta.value;

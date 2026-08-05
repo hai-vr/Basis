@@ -2,7 +2,9 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Player;
+using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using System;
 using System.Collections.Generic;
@@ -73,9 +75,22 @@ namespace Basis.Scripts.Drivers
         public int SkinnedMeshRendererLength;
 
         /// <summary>
-        /// Initial avatar local scale captured during calibration.
+        /// Initial avatar local scale captured during calibration. Its one consumer was the bone
+        /// job's nameplate height, which divided the live root scale by it to get a resize ratio and
+        /// multiplied a fixed 1.2 m by that; the measured placement stores model units instead, so
+        /// nothing reads this now. Kept because it is a captured fact about the avatar that a
+        /// serialized driver field exposes to inspectors and external tooling.
         /// </summary>
         public Vector3 AvatarInitialScale = Vector3.one;
+
+        /// <summary>
+        /// Hips → nameplate-bottom distance for this avatar in model units, measured at calibration
+        /// while the rig is guaranteed to be in T-pose. 0 until measured. Cached rather than
+        /// recomputed per registration because the renderer-bounds half of the measurement is only
+        /// meaningful in T-pose: re-registering a live avatar mid-wave would read its raised arms as
+        /// the top of its head. See <see cref="CaptureNamePlateAnchor"/>.
+        /// </summary>
+        public float NamePlateHeightAboveHipsModel;
 
         /// <summary>
         /// Tracks whether this avatar has been registered with the remote bone job system.
@@ -401,7 +416,7 @@ namespace Basis.Scripts.Drivers
         {
             var receiver = RemotePlayer.NetworkReceiver;
             if (receiver == null || RemotePlayer.BasisAvatar == null || References?.AnimatorRoot == null ||
-                receiver.BoneTransforms == null || !receiver.TposeLocalRotations.IsCreated)
+                receiver.BoneTransforms == null || !receiver.BoneDecodePre.IsCreated || !receiver.BoneDecodePost.IsCreated)
             {
                 // The old avatar is already gone by the time re-registration runs (swap order
                 // destroys first). Aborting while still registered would leave every bone
@@ -448,6 +463,14 @@ namespace Basis.Scripts.Drivers
             {
                 BasisRemoteNetworkDriver.EnsureSlotInitialized(receiver.playerId);
             }
+            // T-pose only. The calibration path is the one that arrives here with the rig posed and
+            // References freshly recorded; a far-LOD wake-up or any other re-registration reuses
+            // what that measured rather than re-reading a live pose.
+            if (!snapToNetworkPose || NamePlateHeightAboveHipsModel <= 0f)
+            {
+                CaptureNamePlateAnchor(RemotePlayer);
+            }
+
             using (sMarkerRegisterAdd.Auto())
             {
                 RemoteBoneJobSystem.AddRemotePlayer(
@@ -474,8 +497,9 @@ namespace Basis.Scripts.Drivers
                     NamePlate: RemotePlayer.NamePlateTransformProvider?.Invoke(),
                     AvatarScale: animatorRoot,
                     MouthTransform: RemotePlayer.MouthTransform,
-                    TposedScale: AvatarInitialScale,
-                    boneTPoseLocal: receiver.TposeLocalRotations,
+                    namePlateHeightAboveHipsModel: NamePlateHeightAboveHipsModel,
+                    boneDecodePre: receiver.BoneDecodePre,
+                    boneDecodePost: receiver.BoneDecodePost,
                     boneTransforms: receiver.BoneTransforms
                 );
             }
@@ -520,9 +544,122 @@ namespace Basis.Scripts.Drivers
         }
 
         /// <summary>
-        /// Captures T-pose local rotations and bone Transform references for all 54 humanoid bones.
-        /// Populates the receiver's TposeLocalRotations and BoneTransforms arrays so that
-        /// Apply() can write bone transforms directly without SetHumanPose.
+        /// Measures how far above the hips this avatar's nameplate belongs, once, at T-pose.
+        ///
+        /// Everything is gathered in ONE frame — root-relative RENDERED metres, i.e. heights above
+        /// the animator root, which is at the avatar's feet. <c>References.TposeWorld</c> is stored
+        /// in exactly that frame ("no division by localScale") and
+        /// <c>BasisAvatar.AvatarEyePosition.x</c> is authored in it, so the bones and the eye need no
+        /// conversion. Renderer bounds are world-space and are brought in by subtracting the root's
+        /// world height; that is a pure Y subtraction rather than a full inverse transform because a
+        /// remote is registered standing upright, and the crown clamp inside
+        /// <see cref="BasisNamePlateAnchorMath"/> bounds the error if one somehow is not.
+        ///
+        /// Falls back to the old fixed height only when the rig has neither a hips nor a head bone
+        /// recorded, which would mean the avatar has no humanoid mapping at all.
+        /// </summary>
+        private void CaptureNamePlateAnchor(BasisRemotePlayer RemotePlayer)
+        {
+            float rootScaleY = References.RootScale.y;
+            if (float.IsNaN(rootScaleY) || float.IsInfinity(rootScaleY) || rootScaleY <= 1e-6f)
+            {
+                rootScaleY = 1f;
+            }
+
+            if (References.TposeWorld == null ||
+                !References.TposeWorld.TryGetValue(HumanBodyBones.Hips, out var tposeHips) ||
+                !References.TposeWorld.TryGetValue(HumanBodyBones.Head, out var tposeHead))
+            {
+                NamePlateHeightAboveHipsModel = BasisNamePlateAnchorMath.LegacyHeightAboveHips / rootScaleY;
+                return;
+            }
+
+            float eyeAboveRoot = RemotePlayer.BasisAvatar != null ? RemotePlayer.BasisAvatar.AvatarEyePosition.x : 0f;
+            bool hasBounds = TryGetTposeRenderedTop(RemotePlayer, out float boundsTopAboveRoot);
+
+            NamePlateHeightAboveHipsModel = BasisNamePlateAnchorMath.MeasureHeightAboveHipsModelUnits(
+                hipsAboveRoot: tposeHips.position.y,
+                headAboveRoot: tposeHead.position.y,
+                eyeAboveRoot: eyeAboveRoot,
+                boundsTopAboveRoot: boundsTopAboveRoot,
+                hasBounds: hasBounds,
+                rootScaleY: rootScaleY);
+        }
+
+        /// <summary>
+        /// Highest renderer bounds top on the avatar, expressed as a height above the animator root.
+        /// This is what puts the plate above hair, ears, horns and hats instead of above the bare
+        /// skull the bone-and-eye estimate describes. In T-pose the arms are horizontal, so the only
+        /// things that reach over the head are head geometry and deliberately-tall props — and the
+        /// caller's clamp is what keeps the latter from dragging the plate into the sky.
+        /// </summary>
+        private bool TryGetTposeRenderedTop(BasisRemotePlayer RemotePlayer, out float topAboveRoot)
+        {
+            topAboveRoot = 0f;
+            Transform animatorRoot = References.AnimatorRoot;
+            if (animatorRoot == null)
+            {
+                return false;
+            }
+
+            float rootY = animatorRoot.position.y;
+            float highest = float.NegativeInfinity;
+
+            // Renders is the authored full set (body, clothing, accessories); the skinned array is
+            // the fallback for avatars that only ever populated that one.
+            Renderer[] renderers = RemotePlayer.BasisAvatar != null ? RemotePlayer.BasisAvatar.Renders : null;
+            int rendererCount = renderers != null ? renderers.Length : 0;
+            for (int Index = 0; Index < rendererCount; Index++)
+            {
+                Renderer renderer = renderers[Index];
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                float top = renderer.bounds.max.y;
+                if (top > highest)
+                {
+                    highest = top;
+                }
+            }
+
+            if (float.IsNegativeInfinity(highest))
+            {
+                for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
+                {
+                    SkinnedMeshRenderer renderer = SkinnedMeshRenderer[Index];
+                    if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                    {
+                        continue;
+                    }
+                    float top = renderer.bounds.max.y;
+                    if (top > highest)
+                    {
+                        highest = top;
+                    }
+                }
+            }
+
+            if (float.IsNegativeInfinity(highest) || float.IsNaN(highest))
+            {
+                return false;
+            }
+
+            topAboveRoot = highest - rootY;
+            return true;
+        }
+
+        /// <summary>
+        /// Captures this avatar's rest pose and bone Transform references for all 54 humanoid bones.
+        /// Populates the receiver's BoneDecodePre/BoneDecodePost operator tables and BoneTransforms
+        /// so that Apply() can write bone transforms directly without SetHumanPose.
+        ///
+        /// The operators are what convert the rig-neutral network rotations into THIS rig's local
+        /// rotations (BasisGenericBoneRotation). They need two rest quantities per bone — the
+        /// parent-relative rest rotation (TposeLocal) and the root-relative one (TposeFromRoot) —
+        /// and both come out of the same BasisTransformMapping.RecordPoses capture, so they always
+        /// describe one consistent T-pose.
+        ///
         /// Must be called while the avatar is in T-pose (before ResetAvatarAnimator).
         /// </summary>
         private unsafe void CaptureReceiverBoneData(BasisRemotePlayer remotePlayer)
@@ -534,102 +671,137 @@ namespace Basis.Scripts.Drivers
             // Reused across recalibrations rather than disposed and reallocated: boneCount is the
             // constant SyncBoneCount, so the old buffers are always the right size, and every slot
             // is overwritten below. Nothing holds these across the call — AddRemotePlayer snapshots
-            // the rotations with ToArray() and the transforms are only read during registration —
+            // the operators with ToArray() and the transforms are only read during registration —
             // so a swap avoids a Persistent alloc plus a 54-element managed array per avatar load,
             // which at crowd load-in churn is the allocation, not the work.
-            if (!receiver.TposeLocalRotations.IsCreated || receiver.TposeLocalRotations.Length != boneCount)
-            {
-                if (receiver.TposeLocalRotations.IsCreated)
-                {
-                    receiver.TposeLocalRotations.Dispose();
-                }
-                receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
-            }
+            EnsureDecodeBuffer(ref receiver.BoneDecodePre, boneCount);
+            EnsureDecodeBuffer(ref receiver.BoneDecodePost, boneCount);
             if (receiver.BoneTransforms == null || receiver.BoneTransforms.Length != boneCount)
             {
                 receiver.BoneTransforms = new Transform[boneCount];
             }
-            quaternion* tposeOut = (quaternion*)receiver.TposeLocalRotations.GetUnsafePtr();
+            quaternion* preOut = (quaternion*)receiver.BoneDecodePre.GetUnsafePtr();
+            quaternion* postOut = (quaternion*)receiver.BoneDecodePost.GetUnsafePtr();
             Transform[] boneTransforms = receiver.BoneTransforms;
             int[] writeOrder = BasisBoneRotationCompression.BONE_WRITE_ORDER;
 
-            // Check if T-pose local rotations are already cached for this avatar model.
-            // The rotations are deterministic per Avatar asset — only bone transforms are per-instance.
+            // Both rest tables are deterministic per Avatar asset — only bone transforms are
+            // per-instance — so prefer the per-model cache and fall back to the live dictionaries.
+            // TposeLocal and TposeFromRoot must come from the SAME capture: mixing a cached T with
+            // a freshly measured F would build an operator pair describing two different rest
+            // poses, which is a silent, small, everywhere-at-once pose error.
             EntityId cacheKey = BasisAvatarModelCache.GetKey(animator);
             var cacheEntry = cacheKey != EntityId.None ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
-            bool hasCachedTpose = cacheEntry?.TposeLocal != null;
+            bool hasCachedRest = cacheEntry?.TposeLocal != null && cacheEntry.TposeFromRoot != null;
 
-            if (hasCachedTpose)
+            quaternion[] restLocalByBone = hasCachedRest ? cacheEntry.TposeLocal.Rotations : null;
+            quaternion[] restFrameByBone = hasCachedRest ? cacheEntry.TposeFromRoot.Rotations : null;
+
+            for (int slot = 0; slot < boneCount; slot++)
             {
-                // Fast path: copy cached rotations, only resolve per-instance bone transforms
-                var cachedRotations = cacheEntry.TposeLocal.Rotations;
-                for (int slot = 0; slot < boneCount; slot++)
+                int boneEnum = writeOrder[slot];
+                var humanbone = (HumanBodyBones)boneEnum;
+
+                if (!References.GetTransform(humanbone, out var transform))
                 {
-                    int boneEnum = writeOrder[slot];
-                    tposeOut[slot] = cachedRotations[boneEnum];
-                    boneTransforms[slot] = References.GetTransform((HumanBodyBones)boneEnum, out var transform) ? transform : null;
+                    // The avatar has no transform for this humanoid bone. This branch used to
+                    // be absent and the slot was left at the fresh allocation's zero-init — an
+                    // invalid (0,0,0,0) rotation that only stayed harmless because the null
+                    // transform drove sSkeletonValid to 0. The buffers are reused now, so an
+                    // unwritten slot would register the PREVIOUS avatar's bone transform with
+                    // valid = 1 and drive a dead hierarchy. Write the empty slot explicitly.
+                    preOut[slot] = quaternion.identity;
+                    postOut[slot] = quaternion.identity;
+                    boneTransforms[slot] = null;
+                    continue;
                 }
+
+                quaternion restLocal, restFrame;
+                if (hasCachedRest)
+                {
+                    restLocal = restLocalByBone[boneEnum];
+                    restFrame = restFrameByBone[boneEnum];
+                }
+                else
+                {
+                    restLocal = BasisGenericBoneRotationUtils.GetRestLocal(References, humanbone);
+                    restFrame = BasisGenericBoneRotationUtils.GetRestFrame(References, humanbone);
+                }
+
+                BasisGenericBoneRotationUtils.BuildDecodeOperators(restFrame, restLocal,
+                    out preOut[slot], out postOut[slot]);
+                boneTransforms[slot] = transform;
             }
-            else
-            {
-                // Slow path: read from TposeLocal dictionary, then cache for next time
-                for (int slot = 0; slot < boneCount; slot++)
-                {
-                    int boneEnum = writeOrder[slot];
-                    var humanbone = (HumanBodyBones)boneEnum;
-                    if (References.GetTransform(humanbone, out var transform))
-                    {
-                        if (References.TposeLocal.TryGetValue(humanbone, out var value))
-                        {
-                            tposeOut[slot] = value.rotation;
-                            boneTransforms[slot] = transform;
-                        }
-                        else
-                        {
-                            tposeOut[slot] = quaternion.identity;
-                            boneTransforms[slot] = null;
-                        }
-                    }
-                    else
-                    {
-                        // The avatar has no transform for this humanoid bone. This branch used to
-                        // be absent and the slot was left at the fresh allocation's zero-init — an
-                        // invalid (0,0,0,0) rotation that only stayed harmless because the null
-                        // transform drove sSkeletonValid to 0. The buffers are reused now, so an
-                        // unwritten slot would register the PREVIOUS avatar's bone transform with
-                        // valid = 1 and drive a dead hierarchy. Write the empty slot explicitly.
-                        tposeOut[slot] = quaternion.identity;
-                        boneTransforms[slot] = null;
-                    }
-                }
 
-                // Store T-pose local rotations in cache for other instances of this avatar
-                if (cacheEntry != null)
+            // Store both rest tables for other instances of this avatar. StorePosesToCache fills
+            // the same two slots from RecordPosesCached; whichever runs first wins and the other
+            // is a no-op, so the pair can never come from two different captures.
+            if (cacheEntry != null && !hasCachedRest)
+            {
+                int totalBones = (int)HumanBodyBones.LastBone;
+                if (cacheEntry.TposeLocal == null)
                 {
-                    int totalBones = (int)HumanBodyBones.LastBone;
-                    var rotations = new quaternion[totalBones];
-                    var positions = new Unity.Mathematics.float3[totalBones];
-                    for (int i = 0; i < totalBones; i++)
-                    {
-                        var bone = (HumanBodyBones)i;
-                        if (References.TposeLocal.TryGetValue(bone, out var coords))
-                        {
-                            rotations[i] = coords.rotation;
-                            positions[i] = coords.position;
-                        }
-                        else
-                        {
-                            rotations[i] = quaternion.identity;
-                            positions[i] = Unity.Mathematics.float3.zero;
-                        }
-                    }
                     cacheEntry.TposeLocal = new BasisAvatarModelCache.TposeLocalData
                     {
-                        Rotations = rotations,
-                        Positions = positions
+                        Rotations = SnapshotRotations(References.TposeLocal, totalBones, out var localPositions),
+                        Positions = localPositions
+                    };
+                }
+                if (cacheEntry.TposeFromRoot == null)
+                {
+                    cacheEntry.TposeFromRoot = new BasisAvatarModelCache.TposeFromRootData
+                    {
+                        Rotations = SnapshotRotations(References.TposeFromRoot, totalBones, out var rootPositions),
+                        Positions = rootPositions,
+                        AvatarForward = References.AvatarForwards,
+                        AvatarUp = References.AvatarUpwards,
+                        AvatarRight = References.AvatarRightwards
                     };
                 }
             }
+        }
+
+        /// <summary>
+        /// Allocates (or keeps) a persistent per-slot operator buffer of exactly
+        /// <paramref name="boneCount"/> entries.
+        /// </summary>
+        private static void EnsureDecodeBuffer(ref NativeArray<quaternion> buffer, int boneCount)
+        {
+            if (buffer.IsCreated && buffer.Length == boneCount)
+            {
+                return;
+            }
+            if (buffer.IsCreated)
+            {
+                buffer.Dispose();
+            }
+            buffer = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
+        }
+
+        /// <summary>
+        /// Flattens one of the calibration pose dictionaries into the by-bone arrays the model
+        /// cache stores. Absent bones become (identity, zero), matching StorePosesToCache.
+        /// </summary>
+        private static quaternion[] SnapshotRotations(
+            System.Collections.Generic.Dictionary<HumanBodyBones, Basis.Scripts.Common.BasisCalibratedCoords> source,
+            int totalBones, out Unity.Mathematics.float3[] positions)
+        {
+            var rotations = new quaternion[totalBones];
+            positions = new Unity.Mathematics.float3[totalBones];
+            for (int i = 0; i < totalBones; i++)
+            {
+                if (source != null && source.TryGetValue((HumanBodyBones)i, out var coords))
+                {
+                    rotations[i] = coords.rotation;
+                    positions[i] = coords.position;
+                }
+                else
+                {
+                    rotations[i] = quaternion.identity;
+                    positions[i] = Unity.Mathematics.float3.zero;
+                }
+            }
+            return rotations;
         }
 
         /// <summary>

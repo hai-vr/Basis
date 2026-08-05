@@ -768,6 +768,10 @@ namespace Basis.Scripts.UI.NamePlate
             int mapLen = indexMap.Length;
             int frameLen = frames.Length;
 
+            // Same anchor the transform-driving MappedNameplateApplyJob uses, read once for the
+            // whole gather: hips + this avatar's measured hips→crown height + half the plate.
+            float panelHalfHeightWorld = BasisRemoteNamePlateDriver.PanelHalfHeightWorld();
+
             // Phase 1 (main, managed): resolve each plate's dense sOut slot + visibility + color, copy
             // the plate position out of sOut, plus the occlusion linecast. The copy decouples the
             // scheduled matrix job below from the bone system's array — it stays in flight until
@@ -793,7 +797,10 @@ namespace Basis.Scripts.UI.NamePlate
                     colPtr[gi] = p.CurrentColor;
 
                     RemoteFrameOutput f = framePtr[slot];
-                    Vector3 platePosition = new Vector3(f.pos_Hips.x, f.pos_Hips.y + f.HeightAvatarHipCoord, f.pos_Hips.z);
+                    Vector3 platePosition = new Vector3(
+                        f.pos_Hips.x,
+                        BasisNamePlateAnchorMath.AnchorWorldY(f.pos_Hips.y, f.NamePlateHeightAboveHips, panelHalfHeightWorld),
+                        f.pos_Hips.z);
                     posPtr[gi] = platePosition;
 
                     if (cullOccluded)

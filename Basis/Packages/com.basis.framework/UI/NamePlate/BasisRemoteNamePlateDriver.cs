@@ -86,7 +86,9 @@ namespace Basis.Scripts.UI.NamePlate
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
         public static float ChatSize = 1f;
-        private const float ChatNameClearance = 4.5f;
+        // The chat bubble stacks on top of the name panel, so its clearance IS the panel's half
+        // height — same constant, not a second copy of the number.
+        private const float ChatNameClearance = BasisNamePlateAnchorMath.PanelHalfHeightUnits;
         private const float ChatBubbleGap = 1.5f;
         private static bool lastMenuOpenState;
         private static bool _initialized;
@@ -122,6 +124,15 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         public static float PlateWorldScale() => 0.02f * NamePlateSize * LocalViewerNamePlateScale();
+
+        /// <summary>
+        /// Half the plate's rendered height in world metres. The baked panel is centred on the
+        /// plate's origin, so this is how far below its anchor point the plate's bottom edge sits —
+        /// the placement jobs add it back so the measured clearance is the gap the viewer actually
+        /// sees between the avatar's crown and the bottom of the plate, not the gap to a point
+        /// hidden inside it.
+        /// </summary>
+        public static float PanelHalfHeightWorld() => BasisNamePlateAnchorMath.PanelHalfHeightUnits * PlateWorldScale();
 
         /// <summary>
         /// Idempotent. Triggered by <see cref="Basis.Scripts.Device_Management.BasisDeviceManagement"/>
@@ -639,7 +650,7 @@ namespace Basis.Scripts.UI.NamePlate
             if (Text == null || plate == null) return false;
             if (!PrepareBakedText(displayName, out float halfWidth, out Matrix4x4 textTransform)) return false;
 
-            Mesh panel = GenerateRoundedQuad(halfWidth, 4.5f, "NamePlate Panel (global)");
+            Mesh panel = GenerateRoundedQuad(halfWidth, BasisNamePlateAnchorMath.PanelHalfHeightUnits, "NamePlate Panel (global)");
 
             var textInfo = Text.textInfo;
             int subMeshLimit = 0;
@@ -683,7 +694,7 @@ namespace Basis.Scripts.UI.NamePlate
             if (Text == null || filter == null || renderer == null) return false;
             if (!PrepareBakedText(displayName, out float halfWidth, out Matrix4x4 textTransform)) return false;
 
-            Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
+            Mesh plateMesh = GenerateRoundedQuad(halfWidth, BasisNamePlateAnchorMath.PanelHalfHeightUnits, "Rounded NamePlate Quad");
 
             var textInfo = Text.textInfo;
             int subMeshLimit = 0;

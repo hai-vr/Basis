@@ -594,7 +594,8 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<float3> SrcHipsLocalPosDelta;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcHipsLocalRotDelta;
         [ReadOnly] public NativeArray<float3> TposeHipsLocalPos;
-        [ReadOnly] public NativeArray<quaternion> TposeHipsLocalRot;
+        [ReadOnly] public NativeArray<quaternion> HipsDecodePre;
+        [ReadOnly] public NativeArray<quaternion> HipsDecodePost;
 
         [WriteOnly] public NativeArray<float3> DstHipsWorldPos;
         [WriteOnly] public NativeArray<quaternion> DstHipsWorldRot;
@@ -618,7 +619,9 @@ public static class BasisRemoteNetworkDriver
 
             // 3+4+5: derive root from hips world + local deltas + TPose
             float3 hipsLocalPos = TposeHipsLocalPos[i] + SrcHipsLocalPosDelta[key];
-            quaternion hipsLocalRot = math.mul(TposeHipsLocalRot[i], SrcHipsLocalRotDelta[key]);
+            // The hips rotation arrives rig-neutral like the bone block; map it onto this
+            // avatar's rig before using it to back out the root.
+            quaternion hipsLocalRot = math.mul(math.mul(HipsDecodePre[i], SrcHipsLocalRotDelta[key]), HipsDecodePost[i]);
 
             // conjugate, not inverse — every quaternion here is unit-length
             quaternion rootRot = math.mul(hipsWorldRot, math.conjugate(hipsLocalRot));
@@ -629,10 +632,17 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Burst job that reads each player's filtered bone-rotation deltas from the network slots
-    /// and composes them with cached T-pose locals into final localRotations in one pass.
-    /// Iterates the flat [player0_bone0..bone(N-1), player1_bone0..] layout, so index →
-    /// (playerIdx, boneIdx) is a divmod by BoneCount.
+    /// Burst job that reads each player's filtered RIG-NEUTRAL bone rotations from the network
+    /// slots and maps them onto this avatar's own rig in one pass, producing final
+    /// localRotations. Iterates the flat [player0_bone0..bone(N-1), player1_bone0..] layout, so
+    /// index → (playerIdx, boneIdx) is a divmod by BoneCount.
+    ///
+    /// The map is <c>localRotation = decodePre * generic * decodePost</c>, with the pair built
+    /// per avatar from that avatar's own rest pose — see
+    /// <see cref="Basis.Network.Core.Compression.BasisGenericBoneRotation"/>. Nothing about the
+    /// SENDER's rig appears here, which is the whole point: whatever avatar is worn locally, the
+    /// incoming pose lands on it correctly. An identity rest frame collapses the pair to
+    /// (T-pose local, identity) and this reduces to the old T-pose × delta compose.
     ///
     /// Also decides, per bone, whether the transform needs writing at all: the composed rotation
     /// is compared against the last value handed to that transform, and only a real change sets
@@ -648,7 +658,8 @@ public static class BasisRemoteNetworkDriver
     {
         [ReadOnly] public NativeArray<int> PlayerKeys;
         [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<quaternion> SrcBoneRotations;
-        [ReadOnly] public NativeArray<quaternion> TposeLocal;
+        [ReadOnly] public NativeArray<quaternion> DecodePre;
+        [ReadOnly] public NativeArray<quaternion> DecodePost;
         [ReadOnly] public NativeArray<byte> ValidMask;
         [WriteOnly] public NativeArray<quaternion> Rotations;
         /// <summary>Last rotation given to each bone transform. Seeded to (0,0,0,0), which is a
@@ -665,17 +676,17 @@ public static class BasisRemoteNetworkDriver
             int boneIdx = index - playerIdx * BoneCount;
             int playerKey = PlayerKeys[playerIdx];
 
-            quaternion delta = (uint)playerKey < (uint)CapacityFixed
+            quaternion generic = (uint)playerKey < (uint)CapacityFixed
                 ? SrcBoneRotations[playerKey * BoneCount + boneIdx]
                 : quaternion.identity;
 
-            quaternion q = math.mul(TposeLocal[index], delta);
+            quaternion q = math.mul(math.mul(DecodePre[index], generic), DecodePost[index]);
             Rotations[index] = q;
 
             // Bit-exact on purpose, so the skip is provably behaviour-identical rather than a
             // (small) quality tradeoff. An epsilon would buy almost nothing anyway: the cases that
             // actually repeat are bit-identical — a PoseLOD-held value is the same float4 verbatim,
-            // an identity delta composes to the same T-pose local every frame, and a converged
+            // an identity rotation composes to the same rest local every frame, and a converged
             // one-pole reproduces its own output. Anything genuinely in motion differs by far more
             // than the last ULP, so it still writes.
             bool write = ValidMask[index] != 0 && math.any(q.value != LastWritten[index].value);
@@ -698,7 +709,8 @@ public static class BasisRemoteNetworkDriver
     /// </summary>
     public static JobHandle ScheduleBulkCopyHipsAndDerive(
         NativeArray<int> playerKeys, int count,
-        NativeArray<float3> tposeHipsLocalPos, NativeArray<quaternion> tposeHipsLocalRot,
+        NativeArray<float3> tposeHipsLocalPos,
+        NativeArray<quaternion> hipsDecodePre, NativeArray<quaternion> hipsDecodePost,
         NativeArray<float3> dstHipsWorldPos, NativeArray<quaternion> dstHipsWorldRot,
         NativeArray<float3> dstScale, NativeArray<byte> dstScaleChanged,
         NativeArray<float3> dstRootPos, NativeArray<quaternion> dstRootRot,
@@ -719,7 +731,8 @@ public static class BasisRemoteNetworkDriver
             SrcHipsLocalPosDelta = _outHipsDelta,
             SrcHipsLocalRotDelta = _outHipsRotDelta,
             TposeHipsLocalPos = tposeHipsLocalPos,
-            TposeHipsLocalRot = tposeHipsLocalRot,
+            HipsDecodePre = hipsDecodePre,
+            HipsDecodePost = hipsDecodePost,
             DstHipsWorldPos = dstHipsWorldPos,
             DstHipsWorldRot = dstHipsWorldRot,
             DstScaleOut = dstScale,
@@ -731,13 +744,13 @@ public static class BasisRemoteNetworkDriver
 
 
     /// <summary>
-    /// Schedules <see cref="ComputeSkeletonRotationsFromNetworkJob"/> — the merged delta-gather +
-    /// T-pose multiply that replaces the old ScheduleBulkCopySkeletonDeltas plus separate compute
-    /// job, removing one dispatch and the intermediate packed-delta buffer.
+    /// Schedules <see cref="ComputeSkeletonRotationsFromNetworkJob"/> — the merged gather +
+    /// generic→rig decode that replaces the old ScheduleBulkCopySkeletonDeltas plus separate
+    /// compute job, removing one dispatch and the intermediate packed buffer.
     /// </summary>
     public static JobHandle ScheduleComputeSkeletonRotations(
         NativeArray<int> playerKeys, int totalBones, int boneCount,
-        NativeArray<quaternion> tposeLocal, NativeArray<byte> validMask,
+        NativeArray<quaternion> decodePre, NativeArray<quaternion> decodePost, NativeArray<byte> validMask,
         NativeArray<quaternion> rotations, NativeArray<quaternion> lastWritten, NativeArray<byte> writeMask,
         int batch, JobHandle deps = default)
     {
@@ -747,7 +760,8 @@ public static class BasisRemoteNetworkDriver
         {
             PlayerKeys = playerKeys,
             SrcBoneRotations = _outBoneRotations,
-            TposeLocal = tposeLocal,
+            DecodePre = decodePre,
+            DecodePost = decodePost,
             ValidMask = validMask,
             Rotations = rotations,
             LastWritten = lastWritten,

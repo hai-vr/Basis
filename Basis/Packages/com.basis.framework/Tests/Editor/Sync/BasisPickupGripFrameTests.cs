@@ -33,6 +33,7 @@ namespace Basis.Tests.Sync
         static readonly FieldInfo LocalF = typeof(BasisSyncedObject).GetField("_local", NP);
         static readonly FieldInfo PlayerF = typeof(BasisNetworkPlayer).GetField("_player", NP);
         static readonly FieldInfo InputStateF = typeof(BasisInputWrapper).GetField("State", NP);
+        static readonly FieldInfo GripAlignedF = typeof(BasisPickupInteractable).GetField("_gripAlignedHold", NP);
         static readonly FieldInfo CachedAnimF = typeof(BasisPickupSyncNetworking).GetField("_cachedHandAnimator", NP);
         static readonly FieldInfo CachedIdF = typeof(BasisPickupSyncNetworking).GetField("_cachedHandId", NP);
         static readonly FieldInfo CachedHandF = typeof(BasisPickupSyncNetworking).GetField("_cachedHand", NP);
@@ -260,6 +261,10 @@ namespace Basis.Tests.Sync
             go.transform.SetParent(p.Target, false);
             go.transform.SetLocalPositionAndRotation(localPos, localRot);
             p.BasisPickupInteractable.GripPoint = go.transform;
+            // A GripPoint alone no longer flags the authored-grip id: the owner has to actually be holding
+            // by it (see BasisPickupInteractable.HoldIsGripAligned). OnInteractStart sets that; this fixture
+            // stages the held state directly, so seed the same latch.
+            GripAlignedF.SetValue(p.BasisPickupInteractable, true);
             return go.transform;
         }
 

@@ -330,6 +330,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private float _lerpElapsed;
         private bool _lerping;
         private bool _weldedHold;
+        private bool _gripAlignedHold;
+
+        /// <summary>
+        /// True while this hold is actually driven by <see cref="GripPoint"/> — a welded hand hold whose
+        /// grip solve succeeded, and past the pick-up ease so the object has arrived on it. The networked
+        /// hold reads this before telling remotes to re-solve the grip from their own copy of the prefab:
+        /// an authored GripPoint that the local hold never aligned to (weld off, a desktop grab, still
+        /// easing in) would otherwise have every observer hold the object by a handle the owner is not.
+        /// </summary>
+        internal bool HoldIsGripAligned => _gripAlignedHold && !_lerping;
 
         private Vector3 magicNumberHandOffsetRight = new(0.26f, -0.14f, 0.24f); // right, down, forward
         private Quaternion magicNumberHandRotationRight = Quaternion.Euler(00, 010, -100);
@@ -620,12 +630,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                     if (_weldedHold && TryGetGripOffsets(ActivePosition, ActiveRotation, out offsetPos, out offsetRot))
                     {
+                        _gripAlignedHold = true;
                         InputConstraint.GlobalWeight = LerpToHandOnPickup ? 0f : 1f;
                         _lerpElapsed = 0f;
                         _lerping = LerpToHandOnPickup;
                     }
                     else
                     {
+                        _gripAlignedHold = false;
                         if (LerpToHandOnPickup)
                         {
                             Vector3 lerpTarget = inPos;
@@ -710,6 +722,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     InputConstraint.Enabled = false;
                     _lerping = false;
                     _weldedHold = false;
+                    _gripAlignedHold = false;
                     InputConstraint.sources = new BasisConstraintSourceData[] { new() { weight = 1f } };
 
                     if (RigidRef != null)
