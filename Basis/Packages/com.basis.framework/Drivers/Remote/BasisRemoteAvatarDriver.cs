@@ -55,6 +55,14 @@ namespace Basis.Scripts.Drivers
         public BasisTransformMapping References = new BasisTransformMapping();
 
         /// <summary>
+        /// This avatar's curl/splay → finger rotation map. Rebuilt on every avatar change;
+        /// <see cref="HandGridGeneration"/> ticks with it so buffers decoded against the previous
+        /// avatar re-expand instead of holding stale finger rotations across the swap.
+        /// </summary>
+        public readonly BasisHandPoseGrid HandGrid = new BasisHandPoseGrid();
+        public int HandGridGeneration = 1;
+
+        /// <summary>
         /// All skinned renderers under the avatar's animator (filled during calibration).
         /// </summary>
         public SkinnedMeshRenderer[] SkinnedMeshRenderer;
@@ -666,6 +674,17 @@ namespace Basis.Scripts.Drivers
         {
             var receiver = remotePlayer.NetworkReceiver;
             var animator = remotePlayer.BasisAvatar.Animator;
+
+            // Fingers arrive as ten curl/splay scalars and are expanded through the grid baked from
+            // THIS avatar, which is what makes them correctly proportioned for whatever rig we are
+            // actually drawing rather than the sender's. Interned per Avatar asset, so a crowd in
+            // matching avatars pays for one bake.
+            if (!BasisHandPoseGrid.TryAcquire(animator, BasisHandPoseGrid.DefaultIncrement, HandGrid))
+            {
+                BasisDebug.LogError("Failed to acquire hand pose grid; remote fingers will hold their bind pose.",
+                    BasisDebug.LogTag.Avatar);
+            }
+            HandGridGeneration++;
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
 
             // Reused across recalibrations rather than disposed and reallocated: boneCount is the
@@ -726,6 +745,18 @@ namespace Basis.Scripts.Drivers
                 {
                     restLocal = BasisGenericBoneRotationUtils.GetRestLocal(References, humanbone);
                     restFrame = BasisGenericBoneRotationUtils.GetRestFrame(References, humanbone);
+                }
+
+                if (slot >= BasisBoneRotationCompression.WireBoneSlotCount)
+                {
+                    // Finger slots carry no generic-space rotation since v47 — BasisHandPoseGrid
+                    // writes this rig's LOCAL rotation straight into them. Identity operators make
+                    // the compose job's DecodePre * value * DecodePost a pass-through instead of a
+                    // generic round trip that would only undo itself.
+                    preOut[slot] = quaternion.identity;
+                    postOut[slot] = quaternion.identity;
+                    boneTransforms[slot] = transform;
+                    continue;
                 }
 
                 BasisGenericBoneRotationUtils.BuildDecodeOperators(restFrame, restLocal,

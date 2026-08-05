@@ -321,7 +321,10 @@ namespace Basis.Tests.Sync
             var rigA = MakeRig(1001u);
             var rigB = MakeRig(2002u);
 
-            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
+            // Only the slots the wire still carries as explicit rotations. Slots 21..50 are the
+            // finger joints, which v47 replaced with curl/splay channels — they are not encoded
+            // through this path at all, so including them would assert a remap nobody performs.
+            int boneCount = BasisBoneRotationCompression.WireBoneSlotCount;
             var quality = BasisAvatarBitPacking.BitQuality.High;
             int[] order = BasisBoneRotationCompression.BONE_WRITE_ORDER;
             float[] ranges = BasisBoneRotationCompression.MAX_COMPONENT;
@@ -336,7 +339,9 @@ namespace Basis.Tests.Sync
             var bpcNative = new NativeArray<byte>(boneCount, Allocator.TempJob);
             var maxComp = new NativeArray<float>(boneCount, Allocator.TempJob);
             var packet = new NativeArray<byte>(BasisBoneRotationCompression.RotationBytes(quality), Allocator.TempJob);
-            var decoded = new NativeArray<quaternion>(boneCount, Allocator.TempJob);
+            var decoded = new NativeArray<quaternion>(BasisBoneRotationCompression.SyncBoneCount, Allocator.TempJob);
+            var fingersIn = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
+            var fingersOut = new NativeArray<float2>(BasisBoneRotationCompression.FingerChannelCount, Allocator.TempJob);
 
             try
             {
@@ -373,11 +378,14 @@ namespace Basis.Tests.Sync
                     RotationByteOffset = 0,
                     BoneCount = boneCount,
                     BoneDeltas = outDeltas,
+                    FingerPercentages = fingersIn,
+                    CurlBits = BasisBoneRotationCompression.CurlBits(quality),
+                    SplayBits = BasisBoneRotationCompression.SplayBits(quality),
                 }.Run();
 
                 byte[] wire = packet.ToArray();
                 int offset = 0;
-                BasisBoneRotationUtils.DecompressBoneRotations(wire, quality, ref decoded, ref offset);
+                BasisBoneRotationUtils.DecompressBoneRotations(wire, quality, ref decoded, ref fingersOut, ref offset);
                 Assert.That(offset, Is.EqualTo(wire.Length), "decoder must consume exactly the rotation block");
 
                 float worst = 0f;
@@ -399,6 +407,7 @@ namespace Basis.Tests.Sync
             {
                 current.Dispose(); encodePre.Dispose(); encodePost.Dispose(); outDeltas.Dispose();
                 bpcNative.Dispose(); maxComp.Dispose(); packet.Dispose(); decoded.Dispose();
+                fingersIn.Dispose(); fingersOut.Dispose();
             }
         }
 
@@ -625,8 +634,18 @@ namespace Basis.Tests.Sync
         [Test]
         public void PacketSize_IsUnchangedByTheRepresentation()
         {
+            // Conjugation is an isometry of SO(3), so the generic-space remap cannot alter any
+            // bone's bit cost. v47 DID move the total — by dropping the finger rotations entirely,
+            // which is a change of CONTENT, not of axes — so what this pins is the explicit bone
+            // region, the only part a change of representation could have disturbed.
+            byte[] bpc = BasisBoneRotationCompression.GetBpcTable(BasisAvatarBitPacking.BitQuality.High);
+            int boneBits = 0;
+            for (int slot = 0; slot < BasisBoneRotationCompression.WireBoneSlotCount; slot++)
+                boneBits += 2 + 3 * bpc[slot];
+
+            Assert.That(boneBits, Is.EqualTo(756), "explicit bone region must not move for a change of axes");
             Assert.That(BasisBoneRotationCompression.RotationBytes(BasisAvatarBitPacking.BitQuality.High),
-                Is.EqualTo(163), "High rotation block size must not move for a change of axes");
+                Is.EqualTo(112), "High rotation block: 756 bone bits + 140 finger bits = 896 = 112 bytes");
             Assert.That(BasisBoneRotationCompression.SyncBoneCount, Is.EqualTo(51));
         }
     }

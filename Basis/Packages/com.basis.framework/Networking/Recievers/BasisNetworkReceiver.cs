@@ -600,6 +600,16 @@ namespace Basis.Scripts.Networking.Receivers
                     // Catmull-Rom tangents one-sided — the spline stays bounded, no branch needed.
                     var p0 = HasPreviousBuffer ? Previous : p1;
                     var p3 = _stagedRing.TryPeekOldest(out var peek) ? peek : p2;
+
+                    // Expand the finger channels through THIS avatar's grid before the window is
+                    // handed to the interpolator. It happens here, not in the decompressor, because
+                    // a P2P frame is decoded on the socket thread and the grid belongs to the
+                    // avatar — its lifetime is only ours to reason about on the frame path.
+                    ExpandFingerChannels(p0);
+                    ExpandFingerChannels(p1);
+                    ExpandFingerChannels(p2);
+                    ExpandFingerChannels(p3);
+
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         CachedHumanScale,
@@ -617,6 +627,24 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             UnityEngine.Profiling.Profiler.EndSample();
 #endif
+        }
+
+        /// <summary>
+        /// Fills this buffer's finger slots from its ten curl/splay channels, once per avatar
+        /// generation. Cheap to call repeatedly — the four window buffers overlap heavily frame to
+        /// frame, and re-sampling settled fingers would defeat the apply path's write mask.
+        /// </summary>
+        private void ExpandFingerChannels(BasisAvatarBuffer buffer)
+        {
+            if (buffer == null) return;
+
+            var driver = RemotePlayer != null ? RemotePlayer.RemoteAvatarDriver : null;
+            if (driver == null || !driver.HandGrid.IsCreated) return;
+            if (buffer.FingerExpansionGeneration == driver.HandGridGeneration) return;
+
+            driver.HandGrid.ExpandInto(buffer.FingerPercentages, buffer.BoneRotations,
+                Basis.Network.Core.Compression.BasisBoneRotationCompression.WireBoneSlotCount);
+            buffer.FingerExpansionGeneration = driver.HandGridGeneration;
         }
 
         /// <summary>

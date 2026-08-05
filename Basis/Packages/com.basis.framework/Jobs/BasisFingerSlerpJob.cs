@@ -42,23 +42,9 @@ public struct BasisFingerSlerpJob : IJobParallelForTransform
         int fingerIndex = flatIdx / 3;
         int jointIndex = flatIdx - fingerIndex * 3;
 
-        float2 pct = Percentages[fingerIndex];
-        float fx = (pct.x + 1f) / Increment;
-        float fy = (pct.y + 1f) / Increment;
-        int x0 = math.clamp((int)math.floor(fx), 0, GridWidth - 2);
-        int y0 = math.clamp((int)math.floor(fy), 0, GridHeight - 2);
-        float tx = math.clamp(fx - x0, 0f, 1f);
-        float ty = math.clamp(fy - y0, 0f, 1f);
-
-        int fingerBase = fingerIndex * FingerStride;
-        int g00 = fingerBase + (x0 * GridHeight + y0) * 3 + jointIndex;
-        int g10 = fingerBase + ((x0 + 1) * GridHeight + y0) * 3 + jointIndex;
-        int g01 = fingerBase + (x0 * GridHeight + y0 + 1) * 3 + jointIndex;
-        int g11 = fingerBase + ((x0 + 1) * GridHeight + y0 + 1) * 3 + jointIndex;
-
-        quaternion bottom = math.slerp(PoseGrid[g00], PoseGrid[g10], tx);
-        quaternion top = math.slerp(PoseGrid[g01], PoseGrid[g11], tx);
-        quaternion target = math.slerp(bottom, top, ty);
+        quaternion target = Basis.Scripts.Drivers.BasisHandPoseSampler.SampleJoint(
+            PoseGrid, FingerStride, GridWidth, GridHeight, Increment,
+            fingerIndex, jointIndex, Percentages[fingerIndex]);
 
         quaternion result = math.slerp(CurrentRotations[index], target, LerpFactor);
         CurrentRotations[index] = result;

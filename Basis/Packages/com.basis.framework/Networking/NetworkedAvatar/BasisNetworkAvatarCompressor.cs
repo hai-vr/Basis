@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
@@ -96,8 +97,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // than the sub-visibility thresholds in BasisAvatarDeadband is dropped instead. Comparing
         // against the last SENT values bounds the standing error to the threshold (drift sends).
         public static bool DeadbandSuppression = true;
-        const int RawBoneOffset = 0;                                   // 51 quats
-        const int RawPosOffset = RawBoneOffset + 51 * 4;               // hips world pos
+        const int RawWireBoneCount = BasisBoneRotationCompression.WireBoneSlotCount;   // 21
+        const int RawFingerScalarCount = BasisBoneRotationCompression.FingerChannelCount * 2; // 20
+        const int RawBoneOffset = 0;                                   // 21 quats (wire slots only)
+        const int RawFingerOffset = RawBoneOffset + RawWireBoneCount * 4;  // 20 curl/splay scalars
+        const int RawPosOffset = RawFingerOffset + RawFingerScalarCount;   // hips world pos
         const int RawBodyRotOffset = RawPosOffset + 3;                 // hips world rot
         const int RawHipsDeltaOffset = RawBodyRotOffset + 4;           // hips local delta
         const int RawHipsRotOffset = RawHipsDeltaOffset + 3;           // hips local rot delta
@@ -186,6 +190,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             EnsureInitialized();
             // Read bone local rotations via job (or fallback to main thread)
             ReadBoneTransforms();
+
+            MeasureFingerReconstruction();
 
             CompressAvatarData(transmitter.storedAvatarData, t);
 
@@ -352,6 +358,49 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             transmitter.ClearAdditional();
         }
 
+        // Live finger rotations remapped out of wire-slot order into finger*3+joint order, which is
+        // how the pose grid indexes them. BONE_WRITE_ORDER groups fingers by joint tier (all
+        // proximals, then all intermediates, then all distals), so the two orders do not coincide.
+        static NativeArray<quaternion> sFingerLiveByJoint;
+
+        const int FirstFingerBone = (int)HumanBodyBones.LeftThumbProximal;
+
+        /// <summary>
+        /// Phase-2 instrumentation for the finger block: reports how far the live bones sit from the
+        /// pose a receiver would rebuild out of the twenty curl/splay scalars. Inert unless
+        /// BasisFingerReconstructionDiagnostics.Enabled is set, and the expensive best-fit search
+        /// inside it is throttled further.
+        /// </summary>
+        static void MeasureFingerReconstruction()
+        {
+            if (!BasisFingerReconstructionDiagnostics.Enabled) return;
+            if (!sCurrentLocalRotations.IsCreated) return;
+
+            var local = BasisLocalPlayer.Instance;
+            var hands = local != null ? local.LocalHandDriver : null;
+            if (hands == null || !hands.Grid.IsCreated) return;
+
+            NativeArray<float2> percentages = hands.Percentages;
+            if (!percentages.IsCreated) return;
+
+            if (!sFingerLiveByJoint.IsCreated)
+            {
+                sFingerLiveByJoint = new NativeArray<quaternion>(BasisHandPoseGrid.JointCount, Allocator.Persistent);
+            }
+
+            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
+            for (int slot = 0; slot < boneCount; slot++)
+            {
+                int bone = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
+                int flat = bone - FirstFingerBone;
+                if (flat < 0 || flat >= BasisHandPoseGrid.JointCount) continue;
+                sFingerLiveByJoint[flat] = sCurrentLocalRotations[slot];
+            }
+
+            BasisFingerReconstructionDiagnostics.Measure(
+                hands.Grid, sFingerLiveByJoint, percentages, hands.DrivenJoints);
+        }
+
         static void RecordLastSent(byte[] payload, int linkedIndex, double timeAsDouble)
         {
             int plen = payload.Length;
@@ -449,13 +498,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BasisUnityBitPackerExtensionsUnsafe.WritePosition(hipsWorldPos, ref AvatarData.LASM.array, ref offset);
 
                 // Bone rotations — use Burst job if arrays are ready, otherwise fallback
+                NativeArray<float2> fingerPercentages = CurrentFingerPercentages();
                 if (sJobArraysReady)
                 {
-                    CompressBoneRotationsJobified(AvatarData.LASM.array, ref offset);
+                    CompressBoneRotationsJobified(AvatarData.LASM.array, fingerPercentages, ref offset);
                 }
                 else
                 {
-                    BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
+                    BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, fingerPercentages, WireQuality, AvatarData.LASM.array, ref offset);
                 }
 
                 // Scale
@@ -513,12 +563,20 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return;
             }
             float[] raw = sRawCurrent;
-            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-            // quaternion is float4 in x,y,z,w order, so the slot block is already the wire layout
-            // the per-component loop was rebuilding element by element.
+            // Only the slots the wire still carries as rotations. Slots 21..50 are reconstructed
+            // from the finger channels below, so comparing their quaternions would deadband a
+            // quantity nobody transmits — and would keep a hand that only moved its percentages
+            // from ever suppressing.
             fixed (float* pRaw = &raw[RawBoneOffset])
             {
-                UnsafeUtility.MemCpy(pRaw, sCurrentLocalRotations.GetUnsafeReadOnlyPtr(), (long)boneCount * 4 * sizeof(float));
+                UnsafeUtility.MemCpy(pRaw, sCurrentLocalRotations.GetUnsafeReadOnlyPtr(), (long)RawWireBoneCount * 4 * sizeof(float));
+            }
+            NativeArray<float2> pct = CurrentFingerPercentages();
+            for (int finger = 0; finger < BasisBoneRotationCompression.FingerChannelCount; finger++)
+            {
+                float2 v = pct[finger];
+                raw[RawFingerOffset + finger * 2] = v.x;
+                raw[RawFingerOffset + finger * 2 + 1] = v.y;
             }
             raw[RawPosOffset] = hipsWorldPos.x; raw[RawPosOffset + 1] = hipsWorldPos.y; raw[RawPosOffset + 2] = hipsWorldPos.z;
             float4 br = hipsWorldRot.value;
@@ -554,7 +612,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (!BasisAvatarDeadband.ValuesWithin(c.Slice(RawHipsDeltaOffset, 3), l.Slice(RawHipsDeltaOffset, 3), BasisAvatarDeadband.HipsDeltaMeters)) return false;
             if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawBodyRotOffset, 4), l.Slice(RawBodyRotOffset, 4), sRootMinAbsDot)) return false;
             if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawHipsRotOffset, 4), l.Slice(RawHipsRotOffset, 4), sRootMinAbsDot)) return false;
-            if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawBoneOffset, 51 * 4), l.Slice(RawBoneOffset, 51 * 4), sBoneMinAbsDot)) return false;
+            if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawBoneOffset, RawWireBoneCount * 4), l.Slice(RawBoneOffset, RawWireBoneCount * 4), sBoneMinAbsDot)) return false;
+            if (!BasisAvatarDeadband.ValuesWithin(c.Slice(RawFingerOffset, RawFingerScalarCount), l.Slice(RawFingerOffset, RawFingerScalarCount), BasisAvatarDeadband.FingerPercentUnits)) return false;
             if (!BasisAvatarDeadband.ValuesWithin(c.Slice(RawEffPosOffset, 12), l.Slice(RawEffPosOffset, 12), BasisAvatarDeadband.EffectorPositionMeters)) return false;
             if (!BasisAvatarDeadband.QuatsWithin(c.Slice(RawEffRotOffset, 16), l.Slice(RawEffRotOffset, 16), sBoneMinAbsDot)) return false;
             return true;
@@ -564,9 +623,34 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Runs the delta + compression as a Burst IJob. Copies the managed byte[] to a NativeArray,
         /// runs the job, then copies back. The Burst compilation of the encode loop is the win here.
         /// </summary>
-        static unsafe void CompressBoneRotationsJobified(byte[] dst, ref int byteOffset)
+        /// <summary>
+        /// The hand driver's live percentages, or a zeroed stand-in before it has built its arrays
+        /// (avatar swap, pre-calibration). Zero is the rest pose, which is what the old code
+        /// effectively sent for those frames anyway.
+        /// </summary>
+        static NativeArray<float2> CurrentFingerPercentages()
         {
-            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
+            var local = BasisLocalPlayer.Instance;
+            var hands = local != null ? local.LocalHandDriver : null;
+            if (hands != null)
+            {
+                NativeArray<float2> live = hands.Percentages;
+                if (live.IsCreated && live.Length == BasisBoneRotationCompression.FingerChannelCount) return live;
+            }
+
+            if (!sFingerFallback.IsCreated)
+            {
+                sFingerFallback = new NativeArray<float2>(
+                    BasisBoneRotationCompression.FingerChannelCount, Allocator.Persistent);
+            }
+            return sFingerFallback;
+        }
+
+        static NativeArray<float2> sFingerFallback;
+
+        static unsafe void CompressBoneRotationsJobified(byte[] dst, NativeArray<float2> fingerPercentages, ref int byteOffset)
+        {
+            int boneCount = BasisBoneRotationCompression.WireBoneSlotCount;
             int rotBytes = BasisBoneRotationCompression.RotationBytes(WireQuality);
 
             // Reuse persistent NativeArray to avoid per-frame TempJob allocation + deallocation.
@@ -592,6 +676,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 RotationByteOffset = 0,
                 BoneCount = boneCount,
                 BoneDeltas = sBoneDeltas,
+                FingerPercentages = fingerPercentages,
+                CurlBits = BasisBoneRotationCompression.CurlBits(WireQuality),
+                SplayBits = BasisBoneRotationCompression.SplayBits(WireQuality),
             };
 
             job.Run(); // Burst-compiled, runs immediately on this thread
@@ -763,6 +850,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             DisposeJobArrays();
             if (sBoneDeltas.IsCreated) sBoneDeltas.Dispose();
             if (sJobOutputBuffer.IsCreated) sJobOutputBuffer.Dispose();
+            if (sFingerLiveByJoint.IsCreated) sFingerLiveByJoint.Dispose();
+            if (sFingerFallback.IsCreated) sFingerFallback.Dispose();
             sTposeLocalRotations = null;
             // Cleared alongside the forward table: ExtractBoneDeltas guards on the encode
             // operators being null, and leaving them populated after teardown sends that guard

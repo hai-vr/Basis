@@ -32,6 +32,13 @@ namespace Basis.Network.Core.Compression
         public const float EffectorPositionMeters = 0.002f;
         /// <summary>Avatar scale deadband (posit16 wire; scale is normally bit-stable).</summary>
         public const float ScaleUnits = 1e-4f;
+        /// <summary>
+        /// Finger curl/splay deadband in [-1, 1] units. One 8-bit High wire step is 2/255 ≈ 0.0078,
+        /// so this suppresses only movement the wire could not have expressed. Fingers are cheap
+        /// since v47 and a still hand is already gated by every other field, so there is nothing to
+        /// buy by going wider — and going wider would show as lag on a slow deliberate curl.
+        /// </summary>
+        public const float FingerPercentUnits = 0.008f;
 
         /// <summary>|dot| threshold equivalent to an angle deadband: cos(angle/2).</summary>
         public static double MinAbsDotForAngleDegrees(float degrees)

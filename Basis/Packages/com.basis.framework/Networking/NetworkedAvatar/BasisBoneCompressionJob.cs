@@ -58,8 +58,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <summary>Byte offset where the rotation bitstream starts (after position bytes).</summary>
         public int RotationByteOffset;
 
-        /// <summary>Number of bones to process.</summary>
+        /// <summary>Explicit bone slots to encode (wire slots 0..BoneCount-1).</summary>
         public int BoneCount;
+
+        /// <summary>Ten curl/splay pairs appended after the explicit slots. See BasisBoneRotationCompression.</summary>
+        [ReadOnly] public NativeArray<float2> FingerPercentages;
+        public int CurlBits;
+        public int SplayBits;
 
         /// <summary>Computed generic-space rotations, written for other consumers (e.g., interpolation).</summary>
         public NativeArray<quaternion> BoneDeltas;
@@ -90,6 +95,29 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 WriteBits(bitPos, packed, totalBits);
                 bitPos += totalBits;
             }
+
+            int fingerWidth = CurlBits + SplayBits;
+            for (int finger = 0; finger < FingerPercentages.Length; finger++)
+            {
+                float2 pct = FingerPercentages[finger];
+                ulong curl = EncodeSignedUnit(pct.x, CurlBits);
+                ulong splay = EncodeSignedUnit(pct.y, SplayBits);
+                WriteBits(bitPos, curl | (splay << CurlBits), fingerWidth);
+                bitPos += fingerWidth;
+            }
+        }
+
+        /// <summary>
+        /// Burst-compatible mirror of BasisBoneRotationCompression.EncodeSignedUnit. Clamps rather
+        /// than wraps, and maps a non-finite input to the midpoint so an overshooting gain or a
+        /// dropped tracking frame cannot encode as a full-scale curl.
+        /// </summary>
+        private static ulong EncodeSignedUnit(float value, int bits)
+        {
+            uint maxQ = (uint)((1 << bits) - 1);
+            if (math.isnan(value)) return (maxQ + 1) >> 1;
+            float clamped = math.clamp(value, -1f, 1f);
+            return Clamp((uint)math.round((clamped * 0.5f + 0.5f) * maxQ), 0, maxQ);
         }
 
         // Burst-compatible encode (inlined from BasisBoneRotationCompression)

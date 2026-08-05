@@ -81,7 +81,8 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
-        /// <summary>HIGH quality. 1182 bits = 148 rotation bytes. Packet = 169 bytes.
+        /// <summary>HIGH quality. Bone slots 0..20 = 756 bits; + 140-bit finger block = 896 bits
+        /// = 112 rotation bytes. Packet = 181 bytes.
         /// Per-finger priority: thumb/index get more bits (most expressive).
         /// Proximal gets more than intermediate/distal (carries spread motion).</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
@@ -104,7 +105,7 @@ namespace Basis.Network.Core.Compression
             5,5,5,5,5,  5,5,5,5,5,
         };
 
-        /// <summary>MEDIUM quality. 972 bits = 122 rotation bytes. Packet = 143 bytes.</summary>
+        /// <summary>MEDIUM quality. 504 bone bits + 120-bit finger block = 624 bits = 78 rotation bytes. Packet = 109 bytes.</summary>
         public static readonly byte[] BPC_MEDIUM = new byte[]
         {
             8,8,8,8,8,8,8,8,8,
@@ -116,7 +117,7 @@ namespace Basis.Network.Core.Compression
             4,4,4,4,4,  4,4,4,4,4,
         };
 
-        /// <summary>LOW quality. 774 bits = 97 rotation bytes. Packet = 118 bytes.</summary>
+        /// <summary>LOW quality. 396 bone bits + 100-bit finger block = 496 bits = 62 rotation bytes. Packet = 93 bytes.</summary>
         public static readonly byte[] BPC_LOW = new byte[]
         {
             6,6,6,6,6,6,6,6,6,
@@ -128,7 +129,7 @@ namespace Basis.Network.Core.Compression
             3,3,3,3,3,  3,3,3,3,3,
         };
 
-        /// <summary>VERY LOW quality. 621 bits = 78 rotation bytes. Packet = 99 bytes.</summary>
+        /// <summary>VERY LOW quality. 333 bone bits + 80-bit finger block = 413 bits = 52 rotation bytes. Packet = 83 bytes.</summary>
         public static readonly byte[] BPC_VERY_LOW = new byte[]
         {
             5,5,5,5,5,5,5,5,5,
@@ -211,6 +212,98 @@ namespace Basis.Network.Core.Compression
             0.65f, 0.65f, 0.65f, 0.65f, 0.65f,
         };
 
+        // ────────────────────────────────────────────────────────────
+        //  Finger block (v47)
+        // ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Bone slots that still carry an explicit smallest-three rotation. Slots 0..20 are the body,
+        /// limbs, extremities and toes; slots 21..50 are the thirty finger joints, which the wire no
+        /// longer carries as rotations at all.
+        ///
+        /// Every finger backend in Basis (OpenXR articulated hands and controllers, the SteamVR
+        /// skeleton, MediaPipe) reduces its input to BasisFingerPose — one curl and one splay per
+        /// finger — and BasisFingerSlerpJob expands those twenty scalars into all thirty joint
+        /// rotations through a per-avatar baked grid, unconditionally, downstream of the animator.
+        /// The thirty rotations were therefore a 17x expansion of their own input: the sender held
+        /// the twenty numbers that produced them, threw them away, measured the result and shipped
+        /// the measurement. v47 ships the twenty numbers, and the receiver expands them through the
+        /// grid baked from ITS OWN avatar — which is also what makes the result correctly scaled
+        /// without anything about finger geometry crossing the wire.
+        /// </summary>
+        public const int WireBoneSlotCount = 21;
+
+        /// <summary>One curl/splay pair per finger, ordered L thumb→little then R thumb→little.</summary>
+        public const int FingerChannelCount = 10;
+
+        /// <summary>Wire fields in the rotation region: explicit bone rotations, then finger channels.</summary>
+        public const int RotationFieldCount = WireBoneSlotCount + FingerChannelCount;
+
+        /// <summary>Curl bits per quality, indexed by BitQuality (VeryLow, Low, Medium, High).</summary>
+        static readonly byte[] CURL_BITS = { 5, 6, 7, 8 };
+
+        /// <summary>
+        /// Splay bits per quality. Splay covers a far narrower range than curl (roughly ±25° of
+        /// abduction against ~100° of flexion), so it buys the same angular resolution with two
+        /// fewer bits.
+        /// </summary>
+        static readonly byte[] SPLAY_BITS = { 3, 4, 5, 6 };
+
+        public static int CurlBits(BasisAvatarBitPacking.BitQuality q) => CURL_BITS[(int)q];
+        public static int SplayBits(BasisAvatarBitPacking.BitQuality q) => SPLAY_BITS[(int)q];
+        public static int FingerFieldWidth(BasisAvatarBitPacking.BitQuality q) => CurlBits(q) + SplayBits(q);
+
+        /// <summary>
+        /// Bit width of every wire field in the rotation region, in write order. Bone slots keep the
+        /// smallest-three width; finger channels are a curl/splay pair.
+        /// </summary>
+        public static int[] BuildRotationFieldWidths(BasisAvatarBitPacking.BitQuality q)
+        {
+            byte[] bpc = GetBpcTable(q);
+            var widths = new int[RotationFieldCount];
+            for (int slot = 0; slot < WireBoneSlotCount; slot++) widths[slot] = 2 + 3 * bpc[slot];
+            int fingerWidth = FingerFieldWidth(q);
+            for (int f = 0; f < FingerChannelCount; f++) widths[WireBoneSlotCount + f] = fingerWidth;
+            return widths;
+        }
+
+        /// <summary>Start bit of every rotation field, relative to the rotation region. Returns total bits.</summary>
+        public static int BuildRotationFieldOffsets(BasisAvatarBitPacking.BitQuality q, int[] outOffsets)
+        {
+            int[] widths = BuildRotationFieldWidths(q);
+            int pos = 0;
+            for (int i = 0; i < widths.Length; i++)
+            {
+                outOffsets[i] = pos;
+                pos += widths[i];
+            }
+            return pos;
+        }
+
+        /// <summary>
+        /// Quantizes a signed unit scalar. Values outside [-1, 1] clamp rather than wrap — MediaPipe's
+        /// CurlGain and the controller remaps can both overshoot — and a non-finite input encodes as
+        /// the midpoint instead of producing an out-of-range cast.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static uint EncodeSignedUnit(float value, int bits)
+        {
+            uint maxQ = (uint)((1 << bits) - 1);
+            if (float.IsNaN(value)) return (maxQ + 1) >> 1;
+            float clamped = value < -1f ? -1f : (value > 1f ? 1f : value);
+            return Clamp((uint)Math.Round((clamped * 0.5f + 0.5f) * maxQ), 0, maxQ);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float DecodeSignedUnit(uint quantized, int bits)
+        {
+            uint maxQ = (uint)((1 << bits) - 1);
+            return quantized / (float)maxQ * 2f - 1f;
+        }
+
+        // Entries 21..50 of every BPC table and of MAX_COMPONENT are retained so slot indexing
+        // stays uniform across the codebase, but the wire no longer reads them: those slots are
+        // the finger joints, now carried by the finger block above.
         public static byte[] GetBpcTable(BasisAvatarBitPacking.BitQuality q) => q switch
         {
             BasisAvatarBitPacking.BitQuality.High     => BPC_HIGH,
@@ -224,14 +317,15 @@ namespace Basis.Network.Core.Compression
         //  Size calculations
         // ────────────────────────────────────────────────────────────
 
-        public static int RotationBytes(BasisAvatarBitPacking.BitQuality q)
+        public static int RotationBits(BasisAvatarBitPacking.BitQuality q)
         {
-            byte[] bpc = GetBpcTable(q);
+            int[] widths = BuildRotationFieldWidths(q);
             int totalBits = 0;
-            for (int i = 0; i < bpc.Length; i++)
-                totalBits += 2 + 3 * bpc[i];
-            return (totalBits + 7) >> 3;
+            for (int i = 0; i < widths.Length; i++) totalBits += widths[i];
+            return totalBits;
         }
+
+        public static int RotationBytes(BasisAvatarBitPacking.BitQuality q) => (RotationBits(q) + 7) >> 3;
 
         // End-effector anchoring block (hand/foot world targets), High quality only —
         // near players get precise planting; far players are repacked to lower quality without it.

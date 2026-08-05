@@ -11,6 +11,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
     public class BasisAvatarBuffer : IDisposable
     {
         public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51 (excludes Hips, Eyes, Jaw)
+        public const int FingerCount = BasisBoneRotationCompression.FingerChannelCount; // 10 curl/splay pairs
         public byte Sequence;
         public double ServerTimeSeconds;
         // Position/Rotation carry the HIPS world pose (sent in the high-precision
@@ -39,6 +40,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Indexed by slot in BasisBoneRotationCompression.BONE_WRITE_ORDER.
         /// </summary>
         [System.NonSerialized] public NativeArray<quaternion> BoneRotations;
+
+        /// <summary>
+        /// Ten curl/splay pairs, ordered L thumb→little then R thumb→little — the twenty scalars
+        /// that replaced slots 21..50 in v47. Filled by the decompressor on whichever thread the
+        /// packet arrived on; the grid expansion into BoneRotations[21..50] happens later, on the
+        /// frame path, because the pose grid belongs to the receiving avatar and its lifetime is
+        /// only safe to touch there.
+        /// </summary>
+        [System.NonSerialized] public NativeArray<float2> FingerPercentages;
+
         public double SecondsInterval = 0.01;
 
         // End-effector anchoring (High quality only). Mask bit i => effector i is world-anchored
@@ -48,6 +59,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public byte EffectorMask;
         public readonly float3[] EffectorPos = new float3[BasisAvatarEndEffectors.EffectorCount];
         public readonly quaternion[] EffectorRot = new quaternion[BasisAvatarEndEffectors.EffectorCount];
+
+        /// <summary>
+        /// Which avatar generation the finger slots of <see cref="BoneRotations"/> were expanded
+        /// against. 0 = not expanded. Compared with BasisRemoteAvatarDriver.HandGridGeneration so a
+        /// buffer that survives an avatar swap re-expands through the new rig's grid rather than
+        /// keeping rotations proportioned for the old one.
+        /// </summary>
+        [System.NonSerialized] public int FingerExpansionGeneration;
 
         public bool IsDisposed = false;
 
@@ -64,6 +83,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     BoneRotations.Dispose();
 
                 BoneRotations = new NativeArray<quaternion>(BoneCount, Allocator.Persistent);
+            }
+
+            if (!FingerPercentages.IsCreated || FingerPercentages.Length != FingerCount)
+            {
+                if (FingerPercentages.IsCreated)
+                    FingerPercentages.Dispose();
+
+                FingerPercentages = new NativeArray<float2>(FingerCount, Allocator.Persistent);
             }
         }
 
@@ -87,6 +114,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             HipsLocalRotation = quaternion.identity;
             SecondsInterval = 0.01;
             EffectorMask = 0;
+            FingerExpansionGeneration = 0;
         }
 
         public void Dispose()
@@ -98,6 +126,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 BoneRotations.Dispose();
                 BoneRotations = default;
+            }
+
+            if (FingerPercentages.IsCreated)
+            {
+                FingerPercentages.Dispose();
+                FingerPercentages = default;
             }
 
             IsDisposed = true;

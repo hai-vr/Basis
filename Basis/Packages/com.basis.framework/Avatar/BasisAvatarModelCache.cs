@@ -59,6 +59,7 @@ public static class BasisAvatarModelCache
         public int GridHeight;
         public int FingerStride;
         public int TotalElements;
+        public float Increment;
 
         // T-pose muscle arrays (4 floats per finger, 10 fingers)
         public float[] LeftThumb, LeftIndex, LeftMiddle, LeftRing, LeftLittle;

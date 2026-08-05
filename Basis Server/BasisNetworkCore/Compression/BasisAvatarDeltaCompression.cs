@@ -10,26 +10,30 @@ namespace Basis.Network.Core.Compression
     /// per-field dirty mask. Reconstructing a full payload = copy the baseline keyframe, then
     /// overwrite the dirty fields. Pure C#; shared by the server (encode) and client (decode).
     ///
-    /// 56 fields: [0]=position(12B), [1..51]=51 bone rotations (bit-packed), [52]=scale(2B),
-    /// [53]=body rotation(7B), [54]=hips delta(6B), [55]=hips rotation(7B).
+    /// Fields: [0]=position, [1..31]=the rotation region's 31 wire fields (21 explicit bone
+    /// rotations then 10 finger curl/splay channels, all bit-packed), then scale, body rotation,
+    /// hips delta, hips rotation and the end-effector block.
     ///
     /// Delta body layout:
-    ///   [dirtyMask:DirtyMaskBytes][changed byte-fields in field order][changed-bone sub-bitstream]
-    /// The byte-aligned fields (position/scale/rots) are copied verbatim; the dirty bones are packed
-    /// contiguously into a byte-aligned sub-bitstream via the existing WriteBits.
+    ///   [dirtyMask:DirtyMaskBytes][changed byte-fields in field order][changed rotation sub-bitstream]
+    /// The byte-aligned fields (position/scale/rots) are copied verbatim; the dirty rotation fields
+    /// are packed contiguously into a byte-aligned sub-bitstream via the existing WriteBits.
+    ///
+    /// Giving each finger its own field is what makes a still hand free in a delta: the ten channels
+    /// are independent, so a player moving one finger pays for one.
     /// </summary>
     public static class BasisAvatarDeltaCompression
     {
         public const int BoneFieldStart = 1;
-        public const int FieldCount = 1 + BasisBoneRotationCompression.SyncBoneCount + 5; // 57 (incl. end-effector block)
-        public const int DirtyMaskBytes = (FieldCount + 7) >> 3;                          // 8
+        public const int FieldCount = 1 + BasisBoneRotationCompression.RotationFieldCount + 5; // 37 (incl. end-effector block)
+        public const int DirtyMaskBytes = (FieldCount + 7) >> 3;                               // 5
 
         private const int FieldPosition = 0;
-        private const int FieldScale = 1 + BasisBoneRotationCompression.SyncBoneCount;     // 52
-        private const int FieldBodyRot = FieldScale + 1;                                   // 53
-        private const int FieldHipsDelta = FieldScale + 2;                                 // 54
-        private const int FieldHipsRot = FieldScale + 3;                                   // 55
-        private const int FieldEndEffector = FieldScale + 4;                               // 56 (High only)
+        private const int FieldScale = 1 + BasisBoneRotationCompression.RotationFieldCount; // 32
+        private const int FieldBodyRot = FieldScale + 1;                                    // 33
+        private const int FieldHipsDelta = FieldScale + 2;                                  // 34
+        private const int FieldHipsRot = FieldScale + 3;                                    // 35
+        private const int FieldEndEffector = FieldScale + 4;                                // 36 (High only)
 
         private sealed class QualityGeometry
         {
@@ -42,8 +46,8 @@ namespace Basis.Network.Core.Compression
             public int HipsRotOffset;
             public int EndEffectorOffset;
             public int EndEffectorBytes;  // 39 on High, 0 otherwise
-            public int[] BoneBitOffset;   // 51, relative to the bone region start
-            public int[] BoneWidth;       // 51
+            public int[] BoneBitOffset;   // RotationFieldCount, relative to the rotation region start
+            public int[] BoneWidth;       // RotationFieldCount
         }
 
         private static readonly QualityGeometry[] Geo = new QualityGeometry[4];
@@ -53,12 +57,10 @@ namespace Basis.Network.Core.Compression
             for (int qi = 0; qi < 4; qi++)
             {
                 var q = (BasisAvatarBitPacking.BitQuality)qi;
-                byte[] bpc = BasisBoneRotationCompression.GetBpcTable(q);
-                int n = bpc.Length;
+                int n = BasisBoneRotationCompression.RotationFieldCount;
                 int[] offsets = new int[n];
-                BasisBoneRotationCompression.ComputeBitOffsets(bpc, offsets);
-                int[] widths = new int[n];
-                for (int i = 0; i < n; i++) widths[i] = 2 + 3 * bpc[i];
+                BasisBoneRotationCompression.BuildRotationFieldOffsets(q, offsets);
+                int[] widths = BasisBoneRotationCompression.BuildRotationFieldWidths(q);
 
                 int posBytes = BasisAvatarBitPacking.PositionBytes(q);
                 int rotBytes = BasisBoneRotationCompression.RotationBytes(q);

@@ -135,8 +135,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 offset += BasisAvatarBitPacking.WritePositionQuantized;
             }
 
-            // Bone rotations (replaces muscle decompression)
-            BasisBoneRotationUtils.DecompressBoneRotations(data, quality, ref basisAvatarBuffer.BoneRotations, ref offset);
+            // Explicit bone rotations (wire slots 0..20) plus the ten finger curl/splay channels.
+            // Slots 21..50 stay untouched here: expanding the channels needs the RECEIVING avatar's
+            // pose grid, and this can run on the P2P socket thread where that grid's lifetime is not
+            // ours to reason about. BasisRemoteNetworkDriver fills them on the frame path.
+            BasisBoneRotationUtils.DecompressBoneRotations(data, quality,
+                ref basisAvatarBuffer.BoneRotations, ref basisAvatarBuffer.FingerPercentages, ref offset);
 
             // Scale
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
