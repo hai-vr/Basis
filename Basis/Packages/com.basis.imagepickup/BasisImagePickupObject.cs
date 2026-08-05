@@ -100,11 +100,21 @@ namespace Basis.ImagePickup
         /// loading state — it shows the placeholder until <see cref="ApplyLoadedImage"/> supplies the poster.
         /// <paramref name="width"/> and <paramref name="height"/> are the poster's final dimensions, so the
         /// card carries its true aspect from the first frame and never resizes under the viewer.
+        ///
+        /// The card is a scene root marked <see cref="UnityEngine.Object.DontDestroyOnLoad"/>, the same
+        /// arrangement remote players use. Without it a card belongs to whichever scene happened to be active
+        /// when it was built — for a joining client that is often the loading scene, which is unloaded the
+        /// moment the world is ready, silently taking any card raised during the join with it. Lifetime is
+        /// owned by the manager instead: despawn, owner-left, and local-left all tear cards down explicitly.
         /// </summary>
         public static BasisImagePickupObject Build(Guid id, ushort ownerId, string ownerName, bool isOwner, int width, int height, Texture2D texture, byte[] cleanPng, bool cutout, Vector3 position, Quaternion rotation)
         {
             var root = new GameObject($"BasisImagePickup_{ShortId(id)}");
             root.transform.SetPositionAndRotation(position, rotation);
+            if (Application.isPlaying)
+            {
+                DontDestroyOnLoad(root);
+            }
 
             int interactableLayer = LayerMask.NameToLayer("Interactable");
             if (interactableLayer >= 0) root.layer = interactableLayer;

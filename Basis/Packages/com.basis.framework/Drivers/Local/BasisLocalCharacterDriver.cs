@@ -7,6 +7,7 @@ using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using System;
 using Unity.Mathematics;
+using Unity.Profiling;
 using UnityEngine;
 using static Basis.Scripts.BasisSdk.Players.BasisPlayer;
 namespace Basis.Scripts.BasisCharacterController
@@ -200,6 +201,10 @@ namespace Basis.Scripts.BasisCharacterController
                 body.AddForce(pushDir * pushPower, ForceMode.Impulse);
             }
         }
+        static readonly ProfilerMarker sMarkerMoveSize = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Size");
+        static readonly ProfilerMarker sMarkerMoveMode = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Mode");
+        static readonly ProfilerMarker sMarkerMoveTurn = new ProfilerMarker("BasisDriver.LocalPlayer.Move.Turn");
+
         public void SimulateMovement(float DeltaTime)
         {
             if (!IsEnabled)
@@ -210,6 +215,7 @@ namespace Basis.Scripts.BasisCharacterController
                 BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPlayerTransform.lossyScale);
                 return;
             }
+            sMarkerMoveSize.Begin();
             BasisScriptedPlayerInput.ApplyLocomotion(this);
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();
@@ -229,7 +235,10 @@ namespace Basis.Scripts.BasisCharacterController
                 landingCrouchEffect = Mathf.Lerp(landingCrouchEffect, 0f, landingRecoverySpeed * DeltaTime);
                 if (landingCrouchEffect < 0.001f) landingCrouchEffect = 0f;
             }
+            sMarkerMoveSize.End();
+
             // Delegate movement, gravity, and ground checking to the active mode.
+            sMarkerMoveMode.Begin();
             if (CurrentMode != null)
             {
                 CurrentMode.Tick(this, DeltaTime);
@@ -239,7 +248,9 @@ namespace Basis.Scripts.BasisCharacterController
                 HandleMovement(DeltaTime);
                 GroundCheck(DeltaTime);
             }
+            sMarkerMoveMode.End();
 
+            sMarkerMoveTurn.Begin();
             // Calculate the rotation amount for this frame
             float rotationAmount;
             if (SMModuleControllerSettings.UsingSnapTurnAngle && BasisDeviceManagement.IsCurrentModeVR())
@@ -293,6 +304,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             // If you want basis localToWorld using the *new* pose:
             BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(newPos, newRot, BasisLocalPlayerTransform.lossyScale);
+            sMarkerMoveTurn.End();
         }
 
         public float GetVerticalMovement()

@@ -107,6 +107,9 @@ namespace Basis.ImagePickup
             public Vector3 Position;
             public Quaternion Rotation;
             public TransferRate Rate;
+            public float LastProgressTime;
+            public bool RejectionLogged;
+            public bool StallLogged;
         }
 
         /// <summary>
@@ -331,6 +334,7 @@ namespace Basis.ImagePickup
             _backPanelSyncPending = false;
 
             BasisEventDriver.OnUpdate -= SimulateUpdate;
+            BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
             BasisNetworkPlayer.OnLocalPlayerJoined -= HandleLocalPlayerJoined;
             BasisNetworkPlayer.OnPlayerJoined -= OnPlayerJoined;
             BasisNetworkPlayer.OnPlayerLeft -= OnPlayerLeft;
@@ -442,7 +446,59 @@ namespace Basis.ImagePickup
             NetworkID = resolution.Id;
             HasNetworkID = true;
             BasisNetworkGenericMessages.RegisterDirectHandler(NetworkID, OnDirectNetworkMessage);
+            // BasisNetworkLifeCycle nulls the whole delegate on teardown, so re-arm per join rather than
+            // once in Initialize — the same pattern BasisServerProvidedItems uses.
+            BasisNetworkPlayer.OnLocalPlayerLeft -= HandleLocalPlayerLeft;
+            BasisNetworkPlayer.OnLocalPlayerLeft += HandleLocalPlayerLeft;
             BasisDebug.Log($"Image pickup manager ready (network id {NetworkID}).", LogTag);
+        }
+
+        /// <summary>
+        /// Drops every shared image when this client leaves the instance. Cards outlive scene loads by design
+        /// (see <see cref="BasisImagePickupObject.Build"/>), so nothing else would clear them and they would
+        /// follow the player into the next world.
+        /// </summary>
+        private static void HandleLocalPlayerLeft(BasisNetworkPlayer networkPlayer, BasisLocalPlayer localPlayer)
+        {
+            int trackedImageCount = _images.Count;
+            if (trackedImageCount == 0 && _inbound.Count == 0 && _inboundAnimations.Count == 0)
+                return;
+
+            _scratchIds.Clear();
+            foreach (Guid id in _images.Keys)
+                _scratchIds.Add(id);
+            int removalCount = _scratchIds.Count;
+            for (int i = 0; i < removalCount; i++)
+                RemoveImage(_scratchIds[i]);
+            _scratchIds.Clear();
+
+            _scratchIds.Clear();
+            foreach (Guid id in _inbound.Keys)
+                _scratchIds.Add(id);
+            int inboundCount = _scratchIds.Count;
+            for (int i = 0; i < inboundCount; i++)
+                RemoveInboundTransfer(_scratchIds[i]);
+            _scratchIds.Clear();
+
+            foreach (Guid id in _inboundAnimations.Keys)
+                _scratchIds.Add(id);
+            int inboundAnimationCount = _scratchIds.Count;
+            for (int i = 0; i < inboundAnimationCount; i++)
+                RemoveInboundAnimationTransfer(_scratchIds[i]);
+            _scratchIds.Clear();
+
+            _outboundImages.Clear();
+            while (_outboundAnimations.Count > 0)
+                DisposeOutboundAnimationTransfer(_outboundAnimations.Dequeue());
+            _spawnRateBySender.Clear();
+            BasisImagePickupProgressGizmos.Shutdown();
+            BasisImagePickupLinkProbe.Reset();
+            BasisImagePickupBandwidth.Reset();
+
+            BasisDebug.Log(
+                $"Image pickup manager cleared {trackedImageCount:N0} shared image(s) on leaving the instance.",
+                LogTag
+            );
         }
 
         /// <summary>
@@ -1368,6 +1424,15 @@ namespace Basis.ImagePickup
                 );
             }
             int destroyedImageCount = _scratchIds.Count;
+            if (destroyedImageCount > 0)
+            {
+                BasisDebug.LogWarning(
+                    $"Image pickup dropped {destroyedImageCount:N0} card(s) destroyed from outside the "
+                        + "manager. Cards are DontDestroyOnLoad, so a scene unload should no longer be able "
+                        + "to take them; anything reaching here is another owner of their lifetime.",
+                    LogTag
+                );
+            }
             for (int i = 0; i < destroyedImageCount; i++)
                 RemoveImage(_scratchIds[i], false);
             _scratchIds.Clear();
@@ -1595,6 +1660,14 @@ namespace Basis.ImagePickup
                     _scratchIds.Add(entry.Key);
             }
             int ownedImageCount = _scratchIds.Count;
+            if (ownedImageCount > 0)
+            {
+                BasisDebug.Log(
+                    $"Image pickup removed {ownedImageCount:N0} image(s) because their owner "
+                        + $"({left}) left.",
+                    LogTag
+                );
+            }
             for (int i = 0; i < ownedImageCount; i++)
                 RemoveImage(_scratchIds[i]);
 
@@ -1682,7 +1755,7 @@ namespace Basis.ImagePickup
                         HandleClaim(senderId, reader);
                         break;
                     case OpDespawn:
-                        HandleDespawn(reader);
+                        HandleDespawn(senderId, reader);
                         break;
                     case OpAnimationSpawn:
                         HandleAnimationSpawn(senderId, reader);
@@ -1751,6 +1824,7 @@ namespace Basis.ImagePickup
                         + BasisImagePickupSettings.InboundTransferTimeoutSeconds,
                     Position = position,
                     Rotation = rotation,
+                    LastProgressTime = Time.unscaledTime,
                 };
             }
             catch
@@ -1781,34 +1855,87 @@ namespace Basis.ImagePickup
             int length = reader.ReadInt32();
 
             if (!_inbound.TryGetValue(id, out InboundTransfer transfer))
+            {
+                // Late chunks for a transfer that already finished are normal; ones for a transfer that was
+                // torn down are how a card silently stops loading, so say it at least once.
+                BasisDebug.LogWarningOnce(
+                    "BasisImagePickup.ChunkWithoutTransfer",
+                    $"Image pickup received chunk {chunkIndex} from {senderId} for an image it is not "
+                        + "receiving. Expected right after a transfer completes; otherwise the transfer was "
+                        + "dropped while the sender was still sending.",
+                    LogTag
+                );
                 return;
+            }
             if (transfer.Sender != senderId)
+            {
+                LogChunkRejected(transfer, chunkIndex, $"it came from {senderId}, not the owner");
                 return;
+            }
             if (chunkIndex < 0 || chunkIndex >= transfer.TotalChunks)
+            {
+                LogChunkRejected(
+                    transfer,
+                    chunkIndex,
+                    $"the index is outside 0..{transfer.TotalChunks - 1}"
+                );
                 return;
+            }
             if (length <= 0 || length > BasisImagePickupSettings.ChunkPayloadBytes)
+            {
+                LogChunkRejected(transfer, chunkIndex, $"it claims an impossible length of {length}");
                 return;
+            }
 
             int offset = chunkIndex * BasisImagePickupSettings.ChunkPayloadBytes;
             if (offset < 0 || offset >= transfer.Buffer.Length)
+            {
+                LogChunkRejected(
+                    transfer,
+                    chunkIndex,
+                    $"offset {offset} falls outside the {transfer.Buffer.Length}-byte image"
+                );
                 return;
+            }
             int expectedLength = Mathf.Min(BasisImagePickupSettings.ChunkPayloadBytes, transfer.Buffer.Length - offset);
             if (length != expectedLength)
+            {
+                LogChunkRejected(
+                    transfer,
+                    chunkIndex,
+                    $"it claims {length} bytes where {expectedLength} were expected"
+                );
                 return;
+            }
 
             long remainingBytes = reader.BaseStream.Length - reader.BaseStream.Position;
             if (remainingBytes < length)
+            {
+                LogChunkRejected(
+                    transfer,
+                    chunkIndex,
+                    $"the packet carries {remainingBytes} of the {length} bytes it claims"
+                );
                 return;
+            }
 
             byte[] data = reader.ReadBytes(length);
             if (data.Length != length)
+            {
+                LogChunkRejected(
+                    transfer,
+                    chunkIndex,
+                    $"only {data.Length} of {length} bytes could be read"
+                );
                 return;
+            }
 
             if (!transfer.Received[chunkIndex])
             {
                 transfer.Deadline =
                     Time.unscaledTime
                     + BasisImagePickupSettings.InboundTransferTimeoutSeconds;
+                transfer.LastProgressTime = Time.unscaledTime;
                 Buffer.BlockCopy(data, 0, transfer.Buffer, offset, length);
                 transfer.Received[chunkIndex] = true;
                 transfer.ReceivedCount++;
@@ -1817,6 +1944,24 @@ namespace Basis.ImagePickup
 
             if (transfer.ReceivedCount >= transfer.TotalChunks)
                 FinalizeTransfer(transfer);
+        }
+
+        /// <summary>
+        /// Reports the first chunk a transfer refuses, and only the first: every rejection path here leaves
+        /// the transfer's deadline unrefreshed, so a systematic one ends with the card being removed 30
+        /// seconds later having explained nothing.
+        /// </summary>
+        private static void LogChunkRejected(InboundTransfer transfer, int chunkIndex, string reason)
+        {
+            if (transfer.RejectionLogged)
+                return;
+            transfer.RejectionLogged = true;
+            BasisDebug.LogWarning(
+                $"Image pickup rejected chunk {chunkIndex} of {transfer.TotalChunks:N0} from "
+                    + $"{transfer.Sender} because {reason}. The transfer has "
+                    + $"{transfer.ReceivedCount:N0} chunks and will be dropped if it stops making progress.",
+                LogTag
+            );
         }
 
         private static void FinalizeTransfer(InboundTransfer transfer)
@@ -2411,9 +2556,13 @@ namespace Basis.ImagePickup
             }
         }
 
-        private static void HandleDespawn(BinaryReader reader)
+        private static void HandleDespawn(ushort senderId, BinaryReader reader)
         {
             Guid id = new Guid(reader.ReadBytes(16));
+            if (_images.ContainsKey(id) || _inbound.ContainsKey(id))
+            {
+                BasisDebug.Log($"Image pickup: player {senderId} despawned image {id}.", LogTag);
+            }
             RemoveImage(id);
         }
 
@@ -2860,14 +3009,48 @@ namespace Basis.ImagePickup
                 _scratchIds.Clear();
                 foreach (KeyValuePair<Guid, InboundTransfer> entry in _inbound)
                 {
-                    if (now >= entry.Value.Deadline)
+                    InboundTransfer inbound = entry.Value;
+                    if (now >= inbound.Deadline)
+                    {
                         _scratchIds.Add(entry.Key);
+                        continue;
+                    }
+                    // Says it while the card is still on screen, rather than only in the post-mortem 30
+                    // seconds later, and names the sender so the stall can be chased from the other side.
+                    if (
+                        !inbound.StallLogged
+                        && now - inbound.LastProgressTime
+                            >= BasisImagePickupSettings.StalledTransferWarningSeconds
+                    )
+                    {
+                        inbound.StallLogged = true;
+                        BasisDebug.LogWarning(
+                            $"Image pickup transfer from {inbound.Sender} has received no chunk for "
+                                + $"{now - inbound.LastProgressTime:0.#}s at "
+                                + $"{inbound.ReceivedCount:N0}/{inbound.TotalChunks:N0} chunks. It will be "
+                                + $"dropped at {BasisImagePickupSettings.InboundTransferTimeoutSeconds:0}s "
+                                + "without progress.",
+                            LogTag
+                        );
+                    }
                 }
                 int expiredTransferCount = _scratchIds.Count;
                 // RemoveImage, not RemoveInboundTransfer: a stalled transfer now has a placeholder card
                 // standing in the world, and dropping only the transfer would strand it there empty forever.
                 for (int i = 0; i < expiredTransferCount; i++)
+                {
+                    if (_inbound.TryGetValue(_scratchIds[i], out InboundTransfer expired))
+                    {
+                        BasisDebug.LogWarning(
+                            $"Image pickup transfer from {expired.Sender} timed out after "
+                                + $"{BasisImagePickupSettings.InboundTransferTimeoutSeconds:0}s with "
+                                + $"{expired.ReceivedCount:N0}/{expired.TotalChunks:N0} chunks; "
+                                + "removing its card.",
+                            LogTag
+                        );
+                    }
                     RemoveImage(_scratchIds[i]);
+                }
             }
 
             if (_inboundAnimations.Count > 0)
@@ -3756,6 +3939,7 @@ namespace Basis.ImagePickup
             }
 
             BasisEventDriver.OnLateUpdate += SimulateLateUpdate;
+            Application.onBeforeRender += FlushPendingJobsBeforeRender;
         }
 
         private static void ReleaseSchedulerResources()
@@ -3765,6 +3949,8 @@ namespace Basis.ImagePickup
             _schedulerReady = false;
 
             BasisEventDriver.OnLateUpdate -= SimulateLateUpdate;
+            Application.onBeforeRender -= FlushPendingJobsBeforeRender;
+            FlushPendingJobs();
             BasisAnimatedImageDepthVisibility.Shutdown();
 
             if (_commands != null)
@@ -4125,6 +4311,9 @@ namespace Basis.ImagePickup
 
         private static void SimulateLateUpdateBody()
         {
+            // Fallback only: BeforeRender normally lands these before the frame renders.
+            FlushPendingJobs();
+
             if (_players.Count == 0)
             {
                 _pendingDecodedReleases.Clear();
@@ -4160,7 +4349,8 @@ namespace Basis.ImagePickup
                     BasisImagePickupSettings.UseDepthBufferAnimationVisibility;
                 CollectVisibilityCameras();
                 float unscaledTime = Time.unscaledTime;
-                PrepareCpuFrontFacingPlayers(Time.frameCount, unscaledTime);
+                int frameCount = Time.frameCount;
+                PrepareCpuFrontFacingPlayers(frameCount, unscaledTime);
 
                 if (useDepthBufferOcclusion && BasisAnimatedImageDepthVisibility.IsActive)
                 {
@@ -4182,45 +4372,53 @@ namespace Basis.ImagePickup
                 // Give released memory to the nearest blocked animation before farther players retry.
                 PrioritizeDeferredCompositorCandidate();
 
-                try
+                ScheduleVisiblePlayers(
+                    frameCount,
+                    synchronizedTicks,
+                    unscaledTime,
+                    ref _visiblePassStartIndex,
+                    useDepthBufferOcclusion,
+                    ref transitionsRemaining,
+                    ref pixelsRemaining,
+                    ref raycastsRemaining,
+                    ref gpuCommandsAdded
+                );
+
+                int pendingRemovalCount = _pendingRemoval.Count;
+                for (int i = 0; i < pendingRemovalCount; i++)
                 {
-                    ScheduleVisiblePlayers(
-                        synchronizedTicks,
-                        unscaledTime,
-                        ref _visiblePassStartIndex,
-                        useDepthBufferOcclusion,
-                        ref transitionsRemaining,
-                        ref pixelsRemaining,
-                        ref raycastsRemaining,
-                        ref gpuCommandsAdded
-                    );
+                    int playerIndex = _players.IndexOf(_pendingRemoval[i]);
+                    if (playerIndex >= 0)
+                        RemovePlayerAt(playerIndex);
+                }
 
-                    // Hand the composition and atlas jobs to the workers before the main thread
-                    // spends time on removals and the GPU command buffer, so they overlap.
-                    if (_pendingJobFlush.Count > 0)
-                        JobHandle.ScheduleBatchedJobs();
-
-                    int pendingRemovalCount = _pendingRemoval.Count;
-                    for (int i = 0; i < pendingRemovalCount; i++)
+                if (gpuCommandsAdded)
+                {
+                    using (GpuCommandsMarker.Auto())
                     {
-                        int playerIndex = _players.IndexOf(_pendingRemoval[i]);
-                        if (playerIndex >= 0)
-                            RemovePlayerAt(playerIndex);
-                    }
-
-                    if (gpuCommandsAdded)
-                    {
-                        using (GpuCommandsMarker.Auto())
-                        {
-                            Graphics.ExecuteCommandBuffer(_commands);
-                        }
+                        Graphics.ExecuteCommandBuffer(_commands);
                     }
                 }
-                finally
-                {
-                    // Latest point that still lands the pixels before this frame renders.
-                    FlushPendingJobs();
-                }
+            }
+        }
+
+        /// <summary>
+        /// Latest point that still lands the pixels before this frame renders. Completing here rather
+        /// than at the end of the schedule pass gives the composition and atlas jobs the whole tail of
+        /// the frame to run on the workers instead of stalling the main thread on the spot.
+        /// </summary>
+        private static void FlushPendingJobsBeforeRender()
+        {
+            try
+            {
+                FlushPendingJobs();
+            }
+            catch (Exception exception)
+            {
+                BasisDebug.LogErrorOnce(
+                    $"Animated image job flush failed with {_players.Count:N0} players: {exception}",
+                    RenderLogTag
+                );
             }
         }
 
@@ -4379,6 +4577,7 @@ namespace Basis.ImagePickup
         }
 
         private static void ScheduleVisiblePlayers(
+            int frameCount,
             long synchronizedTicks,
             float unscaledTime,
             ref int startIndex,
@@ -4410,7 +4609,7 @@ namespace Basis.ImagePickup
                 }
 
                 bool hasCpuFacingMask = player.TryGetCpuFrontFacingCameraMask(
-                    Time.frameCount,
+                    frameCount,
                     out ulong cpuFacingCameraMask
                 );
                 if (player.IsHidden || !hasCpuFacingMask || cpuFacingCameraMask == 0)
@@ -4437,7 +4636,12 @@ namespace Basis.ImagePickup
                     ref gpuCommandsAdded
                 );
                 if (player.HasPendingJobs)
+                {
+                    // Kick each job as it is produced; the remaining players' occlusion raycasts
+                    // then act as worker-thread cover instead of delaying the batch.
                     _pendingJobFlush.Add(player);
+                    JobHandle.ScheduleBatchedJobs();
+                }
 
                 if (transitionsRemaining <= 0 || pixelsRemaining <= 0)
                 {

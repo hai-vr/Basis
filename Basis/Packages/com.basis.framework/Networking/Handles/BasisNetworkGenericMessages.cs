@@ -101,6 +101,17 @@ public static class BasisNetworkGenericMessages
         var deferred = direct ? _deferredDirectMessages : _deferredMessages;
         if (deferred.Count >= MaxDeferredMessages)
         {
+            // Dropping the oldest keeps the queue bounded but takes the front of whatever sequence is
+            // waiting — the header that opens a chunked transfer, typically — so the replay delivers a body
+            // with nothing to attach it to. Worth a line, because the failure surfaces much later and
+            // somewhere else entirely.
+            BasisDebug.LogWarningOnce(
+                direct ? "BasisNetwork.DeferredDirectOverflow" : "BasisNetwork.DeferredOverflow",
+                $"Deferred {(direct ? "direct " : string.Empty)}scene-data queue hit its {MaxDeferredMessages} message cap; "
+                    + $"dropping the oldest to admit message index {messageIndex} from {playerID}. Anything sent as a "
+                    + "sequence before its handler registered may now be incomplete.",
+                BasisDebug.LogTag.Networking
+            );
             deferred.RemoveAt(0);
         }
         deferred.Add(new DeferredMessage(playerID, messageIndex, payload, deliveryMethod));
@@ -127,28 +138,60 @@ public static class BasisNetworkGenericMessages
         }
     }
 
-    private static void TryDeliverDeferredMessages()
+    private static void TryDeliverDeferredMessages() => DeliverDeferred(_deferredMessages, _handlers);
+
+    private static void TryDeliverDeferredDirectMessages() => DeliverDeferred(_deferredDirectMessages, _directHandlers);
+
+    /// <summary>
+    /// Replays messages that arrived before their handler existed, in the order they arrived.
+    ///
+    /// This used to walk the list backwards — safe for removal during iteration, but it delivered newest
+    /// first, which silently reverses the wire order the transport went to the trouble of guaranteeing. For
+    /// anything sent as a sequence that is fatal rather than untidy: an image pickup joining an instance
+    /// received every chunk of a transfer before the spawn header that opens it, so the chunks were dropped
+    /// as belonging to no transfer, the header then raised a card with nothing left to fill it, and the card
+    /// was removed thirty seconds later when the transfer timed out. Handlers registering during a replay is
+    /// also legal, so the list is settled before anything is invoked.
+    /// </summary>
+    private static void DeliverDeferred(List<DeferredMessage> deferred, Dictionary<ushort, Action<ushort, byte[], DeliveryMethod>> handlers)
     {
-        for (int Index = _deferredMessages.Count - 1; Index >= 0; Index--)
+        if (deferred.Count == 0)
         {
-            var msg = _deferredMessages[Index];
-            if (_handlers.TryGetValue(msg.MessageIndex, out var handler))
+            return;
+        }
+
+        List<DeferredMessage> ready = null;
+        List<DeferredMessage> stillWaiting = null;
+        for (int Index = 0; Index < deferred.Count; Index++)
+        {
+            DeferredMessage msg = deferred[Index];
+            if (handlers.ContainsKey(msg.MessageIndex))
             {
-                handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
-                _deferredMessages.RemoveAt(Index);
+                (ready ??= new List<DeferredMessage>()).Add(msg);
+            }
+            else
+            {
+                (stillWaiting ??= new List<DeferredMessage>()).Add(msg);
             }
         }
-    }
-
-    private static void TryDeliverDeferredDirectMessages()
-    {
-        for (int Index = _deferredDirectMessages.Count - 1; Index >= 0; Index--)
+        if (ready == null)
         {
-            var msg = _deferredDirectMessages[Index];
-            if (_directHandlers.TryGetValue(msg.MessageIndex, out var handler))
+            return;
+        }
+
+        deferred.Clear();
+        if (stillWaiting != null)
+        {
+            deferred.AddRange(stillWaiting);
+        }
+
+        int readyCount = ready.Count;
+        for (int Index = 0; Index < readyCount; Index++)
+        {
+            DeferredMessage msg = ready[Index];
+            if (handlers.TryGetValue(msg.MessageIndex, out var handler))
             {
                 handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
-                _deferredDirectMessages.RemoveAt(Index);
             }
         }
     }
